@@ -189,13 +189,13 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
               Your Running Tally
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <Card className="portfolio-metric-card">
+              <Card className="portfolio-metric-card !bg-transparent border-0">
                 <CardContent className="pt-4 text-center">
                   <div className="text-sm font-bold text-white mb-1">Total Deposits</div>
                   <div className="text-3xl font-black text-white portfolio-icp-clean">0 ICP</div>
                 </CardContent>
               </Card>
-              <Card className="portfolio-metric-card">
+              <Card className="portfolio-metric-card !bg-transparent border-0">
                 <CardContent className="pt-4 text-center">
                   <div className="text-sm font-bold text-white mb-1">Total Accumulated Earnings</div>
                   <div className="text-4xl font-black text-white portfolio-icp-clean">0 ICP</div>
@@ -292,7 +292,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
               Your Running Tally
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <Card className="portfolio-metric-card">
+              <Card className="portfolio-metric-card !bg-transparent border-0">
                 <CardContent className="pt-4 text-center">
                   <div className="text-sm font-bold text-white mb-1">Total Deposits</div>
                   <div className={`text-3xl font-black text-white portfolio-icp-clean ${animatingTotals ? 'animate-slot-roll' : ''}`}>
@@ -300,7 +300,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
                   </div>
                 </CardContent>
               </Card>
-              <Card className="portfolio-metric-card">
+              <Card className="portfolio-metric-card !bg-transparent border-0">
                 <CardContent className="pt-4 text-center">
                   <div className="text-sm font-bold text-white mb-1">Total Accumulated Earnings</div>
                   <div className={`text-4xl font-black text-white portfolio-icp-clean ${animatingTotals ? 'animate-jackpot-glow' : ''}`}>

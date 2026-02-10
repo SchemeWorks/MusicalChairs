@@ -16,11 +16,11 @@ export default function ProfileSetup() {
 
   return (
     <div className="max-w-md mx-auto">
-      {/* Welcome Header with backdrop blur */}
+      {/* Welcome Header matching dashboard style */}
       <div className="text-center mb-8">
-        <div className="relative inline-block mb-2">
-          <h2 className="text-4xl font-black musical-chairs-title-with-backdrop">
-            Welcome to Musical Chairs!
+        <div className="dashboard-title-panel mb-2">
+          <h2 className="text-4xl font-black dashboard-title-stroked">
+            🎪 Welcome to Musical Chairs! 🎪
           </h2>
         </div>
       </div>

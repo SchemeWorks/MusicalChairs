@@ -264,15 +264,18 @@ export function WalletProvider({ children }: WalletProviderProps) {
     console.log('Connecting to II at:', iiUrl);
     console.log('IS_LOCAL:', IS_LOCAL);
 
+    // Try popup first, fall back to new tab if blocked
+    const popupFeatures = `left=${window.screen.width / 2 - 250},top=${window.screen.height / 2 - 300},toolbar=0,location=0,menubar=0,width=500,height=600`;
+    
+    // Test if popups are blocked by trying to open one
+    const testPopup = window.open('about:blank', '_blank', popupFeatures);
+    const popupsBlocked = !testPopup || testPopup.closed || typeof testPopup.closed === 'undefined';
+    if (testPopup) testPopup.close();
+
     return new Promise<void>((resolve, reject) => {
-      client!.login({
+      const loginOptions: any = {
         identityProvider: iiUrl,
         maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days
-        windowOpenerFeatures: `
-          left=${window.screen.width / 2 - 250},
-          top=${window.screen.height / 2 - 300},
-          toolbar=0,location=0,menubar=0,width=500,height=600
-        `,
         onSuccess: () => {
           console.log('II login successful!');
           const identity = client!.getIdentity();
@@ -281,11 +284,19 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setWalletType('internet-identity');
           resolve();
         },
-        onError: (error) => {
+        onError: (error: string | undefined) => {
           console.error('II login error:', error);
           reject(new Error(error || 'Internet Identity login failed'));
         },
-      });
+      };
+
+      // Only use popup window features if popups aren't blocked
+      if (!popupsBlocked) {
+        loginOptions.windowOpenerFeatures = popupFeatures;
+      }
+      // If popups are blocked, omit windowOpenerFeatures — auth-client will open a new tab instead
+
+      client!.login(loginOptions);
     });
   };
 

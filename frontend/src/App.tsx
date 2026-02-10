@@ -69,11 +69,11 @@ export default function App() {
               <div className="flex flex-col">
                 <div className="flex items-center">
                   {/* Desktop: Full "Musical Chairs" logo */}
-                  <span className="hidden md:block text-2xl font-black musical-chairs-title">
+                  <span className="hidden md:block text-2xl font-black dashboard-title-stroked">
                     Musical Chairs
                   </span>
                   {/* Mobile: "MC" logo */}
-                  <span className="block md:hidden text-2xl font-black musical-chairs-title">
+                  <span className="block md:hidden text-2xl font-black dashboard-title-stroked">
                     MC
                   </span>
                 </div>
@@ -146,10 +146,10 @@ export default function App() {
             {!isAuthenticated ? (
               <div className="text-center py-16">
                 <div className="max-w-2xl mx-auto">
-                  {/* Welcome Header with backdrop blur */}
-                  <div className="relative inline-block mb-2">
-                    <h2 className="text-4xl font-black musical-chairs-title-with-backdrop">
-                      Welcome to Musical Chairs!
+                  {/* Welcome Header matching dashboard style */}
+                  <div className="dashboard-title-panel mb-2">
+                    <h2 className="text-4xl font-black dashboard-title-stroked">
+                      🎪 Welcome to Musical Chairs! 🎪
                     </h2>
                   </div>
                   <div className="mb-6"></div>
