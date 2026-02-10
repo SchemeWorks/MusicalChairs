@@ -42,7 +42,7 @@ const OISY_URL = 'https://oisy.com';
 const ICP_LEDGER_CANISTER_ID = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
 
 // Your backend canister ID (for ICRC-2 approvals)
-const BACKEND_CANISTER_ID = 'xci6a-5iaaa-aaaau-adsxa-cai';
+const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
 
 // Host configuration - detect based on URL
 const IS_LOCAL = typeof window !== 'undefined' && window.location.hostname === 'localhost';

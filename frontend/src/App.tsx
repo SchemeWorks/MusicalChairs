@@ -14,7 +14,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { Button } from '@/components/ui/button';
 import { Menu } from 'lucide-react';
 
-const ADMIN_PRINCIPAL = 's4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe';
+const ADMIN_PRINCIPAL = 'ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae';
 
 export default function App() {
   const { identity, isInitializing } = useInternetIdentity();

@@ -5,7 +5,7 @@ import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
 
 // Backend canister ID - mainnet deployment
-const BACKEND_CANISTER_ID = 'xci6a-5iaaa-aaaau-adsxa-cai';
+const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
 
 // Host configuration - default to mainnet
 const HOST = 'https://icp0.io';

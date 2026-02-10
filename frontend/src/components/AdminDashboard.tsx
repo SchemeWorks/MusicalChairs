@@ -322,11 +322,11 @@ export default function AdminDashboard() {
               </p>
               <ol className="list-decimal list-inside space-y-1 ml-4">
                 <li>Get your backend canister ID from the deployment output</li>
-                <li>Run: <code className="bg-yellow-100 px-2 py-1 rounded">dfx canister call awsqm-4qaaa-aaaau-aclja-cai set_minter '(principal "YOUR_BACKEND_CANISTER_ID")'</code></li>
+                <li>Run: <code className="bg-yellow-100 px-2 py-1 rounded">dfx canister call 5xv2o-iiaaa-aaaac-qeclq-cai set_minter '(principal "YOUR_BACKEND_CANISTER_ID")'</code></li>
                 <li>Verify the minter was set correctly</li>
               </ol>
               <p className="mt-2">
-                <strong>Token Canister ID:</strong> <code className="bg-yellow-100 px-2 py-1 rounded">awsqm-4qaaa-aaaau-aclja-cai</code>
+                <strong>Token Canister ID:</strong> <code className="bg-yellow-100 px-2 py-1 rounded">5xv2o-iiaaa-aaaac-qeclq-cai</code>
               </p>
               <p className="text-xs mt-2 text-yellow-700">
                 Without this configuration, Ponzi Points minting will fail and the game will not function properly.

@@ -21,7 +21,7 @@ export const ICP_LEDGER_CANISTER_ID = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
 
 // Backend canister ID (for ICRC-2 approvals)
 const DFX_NETWORK = import.meta.env.VITE_DFX_NETWORK || 'local';
-export const BACKEND_CANISTER_ID = 'xci6a-5iaaa-aaaau-adsxa-cai';
+export const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
 
 // Host configuration
 const IC_HOST = DFX_NETWORK === 'ic' ? 'https://icp0.io' : 'http://localhost:4943';
