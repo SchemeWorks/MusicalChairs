@@ -1,0 +1,1112 @@
+# MC Continued
+
+## Overview
+A gambling game platform with the tagline "It's a Ponzi!" that allows users to deposit and withdraw ICP tokens directly through various game plans with daily returns and referral rewards. This is explicitly a gambling game where users should only play with money they can afford to lose.
+
+## Game Plans
+The platform offers simplified game plans with constant daily return rates:
+- **21-day Simple plan**: 11% daily return (principal consumed at deposit, only interest paid out)
+- **15-day Compounding plan**: 12% daily return (only compounded interest paid out at maturity, principal consumed)
+- **30-day Compounding plan**: 9% daily return (only compounded interest paid out at maturity, principal consumed)
+
+Users can make multiple deposits and choose different plans for each deposit. For each plan, users can select between two modes:
+- **Simple mode**: Standard game with flexible withdrawal at any time (displayed with 🌱 emoji) - principal is consumed at deposit and only interest accrues
+- **Compounding mode**: Enhanced returns but funds are locked until the plan period ends (displayed with 🔥 emoji) - principal is consumed at deposit and only compounded interest is paid out at maturity
+
+## Core Features
+
+### Musical Chairs Wallet System
+- Each user has a Musical Chairs Wallet within the app that holds their ICP balance
+- Users fund their Musical Chairs Wallet by sending ICP tokens to their provided principal address
+- Users can send ICP tokens from their Musical Chairs Wallet to external principal addresses using the "Send to External Wallet" feature
+- Claimed earnings from game positions are automatically credited to the user's Musical Chairs Wallet balance
+- Users open new game positions using funds from their Musical Chairs Wallet balance
+- **For testing purposes**: Each new user's Musical Chairs Wallet is initialized with 500 dummy ICP tokens
+- Minimum deposit requirement of 0.1 ICP tokens
+- **Maximum deposit limit for simple mode only**: Each user can deposit up to the greater of 20% of the current platform pot balance or 5 ICP, whichever is higher, per deposit when selecting simple mode plans
+- **No maximum deposit limit for compounding mode**: Users can deposit any amount above the minimum of 0.1 ICP when selecting compounding mode plans
+- **Rate limiting**: Each user can open up to 3 new positions per hour, enforced using Internet Identity anchor
+- Real-time ICP balance management within the Musical Chairs Wallet with accurate, live values
+- Full end-to-end functionality for testing with real ICP transactions
+- **ICP value formatting**: All ICP values displayed with unnecessary trailing zeros removed while preserving up to 8 decimal places if present (e.g., "500.00000000 ICP" becomes "500 ICP", "23.45600000 ICP" becomes "23.456 ICP", "1.12345678 ICP" remains "1.12345678 ICP")
+- **8 decimal place input restriction**: All ICP input fields for deposits and withdrawals enforce a maximum of 8 decimal places in both UI and backend validation
+
+### House System
+- **Two dealer types**: The system supports two distinct types of dealers:
+  - **Upstream Dealers**: Users who voluntarily deposit house money through the "Deposit House Money" feature
+  - **Downstream Dealers**: Users selected by The Redistribution Event (formerly hot potato lottery) when the pot empties
+- **House positions are created through explicit user action or The Redistribution Event**: Houses are created when users deposit house money through the "Deposit House Money" feature or when selected during The Redistribution Event
+- **House Entitlement**: Houses are entitled to recoup their deposit plus 12% profit from fees
+- **The Redistribution Event**: At the end of each round (when pot empties), a random unprofitable depositor becomes a new Downstream Dealer
+- **Multiple Houses**: Multiple houses can coexist simultaneously, with fee repayments distributed according to the new fee distribution logic
+- **House Entitlement Calculation**: New Downstream Dealers are entitled to recoup however much they were underwater during the round, plus a 12% dealer bonus
+- **Self-Deposit House Repayment**: When a user is the only house and makes a subsequent deposit in the same round, half of the 3% house maintenance fee from that deposit is immediately credited back to their Musical Chairs Wallet (e.g., for a 5 ICP deposit, 0.075 ICP is returned to the house)
+- **Add House Money Feature**: Users can directly add money to become an Upstream Dealer or increase their house entitlement through a dedicated "Deposit House Money" button, which creates a new Upstream Dealer position or increases existing entitlement by the deposit amount plus 12%, awards 4,000 Ponzi Points per ICP deposited, and adds the deposited amount directly to the platform pot
+- **No maximum limit for house money deposits**: Users can deposit any amount above the minimum of 0.1 ICP to become an Upstream Dealer or increase their house entitlement
+- **Dealer entry management**: When a user deposits house money, the system checks for an existing Upstream Dealer entry for their principal; if found, it increases their total entitlement by the deposit amount plus 12%, otherwise it creates a new Upstream Dealer entry displaying their name from their user profile and recording the date of their first house money deposit
+- **Real-time dealer updates**: The dealer list and entitlement amounts update immediately after a house money deposit, reflecting the correct principal and user name
+- **Custom house money deposit toast notification**: When users successfully deposit house money, a custom in-theme toast notification appears instead of a browser alert, featuring:
+  - **Positioning**: Floats near the top-center of the screen
+  - **Styling**: Frosted-glass card with rounded 2xl corners, backdrop blur, 85% opacity, magenta → violet → midnight blue gradient background, and 1px neon pink glowing border
+  - **Animation**: Fades in with slight upward float (ease-out, ~100ms), auto-dismisses after 3 seconds, and fades out smoothly over 1 second
+  - **Visual effects**: Includes confetti or sparkle burst (3–4 gentle particles) that fades after 1 second
+  - **Content**: Centered text with bold/larger title "🎉 Deposit Successful!", subtitle "You've added [X] ICP as house money and earned [Y] Ponzi Points!" (with numeric/reward portions in gold-orange gradient accent), and fine print "The House thanks you for your generosity." in smaller, faint text
+  - **Button**: Pill-shaped "Nice!" button with lime → turquoise gradient fill, glowing border, and hover effects (brighter/scale up)
+  - **Consistent theming**: Matches the Musical Chairs aesthetic with animations, gradients, and button styles consistent with the rest of the app
+
+### Fee System
+- **House Maintenance Fee**: 3% skimmed from every deposit, sent directly to houses' Musical Chairs Wallets as soon as fees are collected
+- **Exit Toll (Withdrawal Fees)**:
+  - Simple plans: 7% if withdrawn within 3 days, 5% if within 10 days, 3% after 10 days
+  - Compounding plans: Flat 13% fee
+  - All withdrawal fees sent directly to houses' Musical Chairs Wallets as soon as fees are collected
+- **Updated House Repayment Distribution**: Of the 50% of fees earmarked for house repayment:
+  - **35%** goes to the oldest Upstream Dealer (determined by first house money deposit date)
+  - **25%** is split evenly among other Upstream Dealers (excluding the oldest)
+  - **40%** is split evenly among all dealers (both Upstream and Downstream)
+- **Instant House Repayment**: All house repayments are credited instantly and accurately to the house's Musical Chairs Wallet balance, reflecting the correct post-fee amount
+
+### Game Management
+- Users can play their Musical Chairs Wallet ICP tokens in any available game plan
+- Each deposit tracks the plan type, mode (simple/compounding), amount, start date, and accumulated returns
+- **Simple mode calculation**: For simple mode, the principal is consumed at deposit and only interest accrues using the formula: earnings = principal × daily_rate × elapsed_days, where daily_rate is 0.11 (11%) and elapsed_days is calculated from position start time
+- **Compounding mode calculation**: For compounding plans, only the compounded interest is paid out at maturity using the formula: payout = principal × [(1 + daily_rate) ^ days - 1], where the principal is consumed at deposit
+- Users can view all their active games and earnings
+- New games appear immediately after creation on the dashboard
+- After successful deposits to Musical Chairs Wallet, users can immediately open new plans using their available ICP balance
+- Old test data is removed from the system
+
+### Real-Time Earnings Calculation
+- Earnings for each open position are calculated and displayed on-demand when users click the refresh button
+- **Cumulative earnings tracking**: When refreshed, newly calculated earnings are added to the previous total, ensuring the displayed value always shows the total accumulated earnings for each position
+- **For simple mode positions**: Earnings are calculated using the formula: earnings = principal × 0.11 × (elapsed_seconds / 86400), where the principal is consumed at deposit and only interest accrues
+- **For compounding mode positions**: Earnings are calculated using the formula: earnings = principal × [(1 + daily_rate) ^ (elapsed_seconds / 86400) - 1], where only compounded interest accrues and the principal is consumed at deposit
+- Manual refresh button allows users to update earnings display on-demand
+- Backend processes earnings calculations when requested through the refresh functionality using the specified formulas with cumulative tracking
+- **Accumulated earnings display limit**: All accumulated earnings amounts are limited to a maximum of 8 decimal places throughout the application
+
+### Withdrawal System
+- Users can withdraw their accumulated earnings at any time in simple mode
+- Clear withdraw button available for simple mode entries on the dashboard
+- **Withdrawal confirmation dialog**: When users click withdraw, a dialog appears with a solid, readable background showing:
+  - For positions not yet at 3% tier: "You will pay a X% exit toll on this withdrawal. If you wait [amount of time] the exit toll will reduce to Y%."
+  - For positions already at 3% tier: "You will pay a X% exit toll on this withdrawal."
+  - **Dynamic countdown display**: Exit toll countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
+- **Earnings are credited to Musical Chairs Wallet**: When users withdraw earnings, the amount is added to their Musical Chairs Wallet balance
+- **Earnings reset after withdrawal**: After successful withdrawal, the position's accumulated earnings are reset to 0
+- **Post-withdrawal celebration dialog**: After successful withdrawal, show a dialog with:
+  - Header: "🎉 Congratulations!"
+  - Message: "This scheme has earned you [X ICP]! Want to grow it even more? Reinvest in a new plan now!"
+  - Two buttons: "YOLO Again 🚀" (navigates directly to the Game Setup panel) and "Nah" (closes the dialog)
+  - **Proper confetti animation**: Colorful paper pieces, streamers, and geometric shapes in casino colors confetti animation in the background when dialog appears, creating a celebratory and casino-like effect
+  - Dialog styling matches other dialogs with rounded corners, drop shadow, and bold numbers for ICP amounts
+- Withdrawal logic checks if the platform pot has sufficient ICP to cover the user's current earnings:
+  - If pot has enough funds: allow full withdrawal, credit earnings to Musical Chairs Wallet, and reset user's earnings to 0
+  - If pot is insufficient: pay out the remaining pot balance to Musical Chairs Wallet, end the current round, and reset all user earnings
+- Compounding mode locks funds until the plan period completes:
+  - Withdraw button is grayed out for locked positions
+  - Countdown timer displays days/hours/minutes until withdrawal becomes available
+  - Withdrawal only becomes possible after the full plan period has elapsed
+  - **At maturity, only compounded interest is paid out**: When compounding positions mature, users receive only the compounded interest calculated using the formula: payout = principal × [(1 + daily_rate) ^ days - 1]
+
+### Live ROI Calculator
+- Real-time calculator that displays expected returns when users enter deposit amounts
+- **Simple mode ROI calculation**: Shows expected interest-only payout using the formula: payout = principal × 0.11 × 21 = principal × 2.31, displaying ROI multiple as 2.31x and ROI percent as 131%
+- **Compounding mode ROI calculation**: Shows expected compounded interest-only payout using the formula: payout = principal × [(1 + daily_rate) ^ days - 1], displaying the appropriate ROI multiple and percent for each plan
+- **15-day compounding plan ROI**: For 15-day compounding plans at 12% daily rate, the ROI calculation shows approximately 5.37 ICP for a 1 ICP deposit using the formula: payout = 1 × [(1 + 0.12) ^ 15 - 1] ≈ 5.37
+- Shows expected percent ROI and total ICP payout for both simple and compounding modes
+- Calculations assume the round completes successfully
+- Uses proper formulas for simple and compounding interest calculations with principal consumed at deposit
+- Updates instantly as users modify deposit amounts or change plan/mode selections
+- **Ponzi Points calculation**: Calculates Ponzi Points at a base rate of 1000 Ponzi Points per 1 ICP deposited with appropriate plan and mode multipliers
+
+### ICRC-2 Ponzi Points Token System
+- **External token canister integration**: All Ponzi Points operations are handled through the ICRC-2 token canister with ID `awsqm-4qaaa-aaaau-aclja-cai`
+- **Backend as exclusive minter**: The backend canister is the only account with minting rights for Ponzi Points tokens
+- **Centralized token operations**: All Ponzi Points minting, burning, and transfers are routed through the token canister
+- **Automatic token management**: The game automatically mints/burns Ponzi Points for all in-game actions including:
+  - Deposits (base rate 1000 PP per ICP with plan/mode multipliers)
+  - House money deposits (4000 PP per ICP)
+  - Referral rewards (perpetual percentage-based rewards)
+  - Shenanigans effects (minting and burning based on outcomes)
+  - Admin operations (skimming to dealers)
+- **Real-time Ponzi Points balance tracking**: User Ponzi Points balances are maintained and displayed in real-time throughout the application, showing actual earned points from all sources including deposits, referrals, and other in-game activities
+- **Minter configuration reminder**: Admin dashboard includes clear documentation reminding to update the Ponzi Points token canister's minter to the backend canister ID after each new live deployment
+
+### Ponzi Points Reward System
+- **Unlimited supply** reward system for fun only, managed through ICRC-2 token canister
+- **Base Rate**: 1000 Ponzi Points per 1 ICP deposited
+- **Simple Plan Multipliers**: 21-day (1x)
+- **Compounding Plan Multipliers**: 15-day (2x), 30-day (3x)
+- **Add House Money Bonus**: 4,000 Ponzi Points per ICP deposited through the "Deposit House Money" feature
+- **Satirical messaging**: Ponzi Points are for entertainment purposes only with humorous disclaimers
+- **Real-time balance display**: All Ponzi Points counters and displays across the app show the user's actual in-game Ponzi Points balance, not static placeholder numbers
+- **Token canister integration**: All Ponzi Points rewards are minted through the ICRC-2 token canister
+
+### Ponzi Points Referral System
+- **Level 1 (Direct)**: 8% of recruit's Ponzi Points earned perpetually
+- **Level 2**: 5% of recruit's Ponzi Points earned perpetually
+- **Level 3+**: 2% of recruit's Ponzi Points earned perpetually (indefinitely)
+- All referral rewards paid in Ponzi Points only, never ICP
+- Users earn a cut of their referrals' Ponzi Points rewards for as long as those referrals participate
+- Uses vague "passive income" language in referral UI
+- **Real-time referral tracking**: All referral tier counters and earned points display the user's actual earned points from each tier using live in-game data
+- **Token canister integration**: All referral Ponzi Points are minted through the ICRC-2 token canister
+
+### Multi-Level Marketing System
+- Three-level referral structure tracking referral relationships
+- Users receive Ponzi Points rewards perpetually from all referrals at every level:
+  - **Level 1 (Direct referrals)**: 8% of Ponzi Points earned by each direct referral
+  - **Level 2 (Indirect referrals)**: 5% of Ponzi Points earned by each level 2 referral
+  - **Level 3 (Indirect referrals)**: 2% of Ponzi Points earned by each level 3 referral
+- Referral earnings are tracked for each user with ongoing Ponzi Points distribution
+- Users can view their referral network and earnings
+- Clear explanation of referral rules displayed in the interface emphasizing perpetual rewards
+- **Real-time referral data display**: All referral tier counters and the "Total Ponzi Points Earned" display show the user's actual earned points from each tier and the correct total, using live in-game data
+- **Token canister integration**: All multi-level marketing Ponzi Points are minted through the ICRC-2 token canister
+
+### Comprehensive Shenanigans System
+- **Shenanigans Shop**: Users can spend Ponzi Points on various "tricks" that create visual effects and animations but don't affect the actual game mechanics or math
+- **Real-time Ponzi Points balance display**: The Shenanigans page displays the user's real-time Ponzi Points balance directly below "Available Shenanigans"
+- **Strict Guardrails**: All shenanigans effects are limited to Ponzi Points and cosmetic features only - never affecting ICP, pot size, dealer selection, payout math, or round structure
+- **Protection System**: Targets under specified Ponzi Points thresholds are protected from loss effects; no player can go below 0 Ponzi Points
+- **Anti-Self-Targeting**: Block self-targeting across wallets/devices using device fingerprint/session tracking
+- **Magic Mirror Defense**: Players can own up to 2 Magic Mirrors that block one hostile shenanigan each
+- **Cooldown System**: 
+  - Hostile casts: 2-minute global cooldown per caster
+  - 3-minute per-target cooldown
+  - No duplicate triggers per event
+- **Server-Side RNG**: Uses server-side random number generation seeded with round_id and entropy for auditable, unpredictable results
+- **Comprehensive Logging**: Every Ponzi Points-affecting event logged to Ledger Records with human-readable and machine data for admin analytics
+- **Round Budget System**: Each round has a Ponzi Points budget (default 2000) that limits total effects per round
+- **24-hour Cooldown Protection**: Players who are negatively affected by Shenanigans cannot be targeted again for 24 hours
+- **Round-based Effects**: All Shenanigans effects expire when the current round ends
+- **No Refunds Policy**: No refunds or appeals for Shenanigans outcomes
+- **Dealer Cut**: A percentage of Ponzi Points spent on Shenanigans is skimmed to House Dealers
+- **Live Activity Feed**: Real-time display of the 12 most recent Shenanigans cast by all users
+- **Statistics Tracking**: User stats including Ponzi Points spent, total Shenanigans cast, outcome tallies (Good/Bad/Backfire), and Dealer Cut tracker
+- **Round Recap**: Summary of total Shenanigans activity, Ponzi Points burned, and outcome tallies (Good/Bad/Backfire) for the previous round
+- **Token canister integration**: All Shenanigans Ponzi Points operations (spending, minting, burning, transfers) are handled through the ICRC-2 token canister
+
+### Shenanigans Data Model
+- **Player Data**: player_id, wallet, display_name, pp_balance, mirrors_owned, downline_levels (L1[], L2[], L3[]), cosmetic_flags, loss_protection_until
+- **Round Data**: round_id, status, start_ts, end_ts, pp_budget_per_round (default 2000), pp_budget_remaining
+- **ShenaniganItem**: id, label, description, cost_pp, odds (success, fail, backfire), type, cooldowns, caps/conditions, range_weights
+- **ActiveEffect**: id, owner_id, type, params, start_ts, end_ts, scope, paused_if_budget_empty
+- **EventLog**: timestamp, round_id, item_id, caster_id, target_ids, outcome, pp_deltas, notes
+
+### Specific Shenanigans Catalog
+The system includes exactly 11 shenanigans with specific effects and rules:
+
+- **Money Trickster**: Single target shenanigan costing 120 PP with odds 60/25/15 (success/fail/backfire). Steals 2–8% of target's Ponzi Points (weighted 3–5%), maximum 250 PP stolen, requires target to have minimum 400 PP. Magic Mirror blocks this effect.
+
+- **AOE Skim**: Targets all other players, costs 600 PP with odds 40/40/20. Siphons 1–3% from each player (weighted 1%:70%, 2%:25%, 3%:5%), maximum 60 PP per player, protects players below 300 PP. Limited to one cast per round. Magic Mirrors block individually per player.
+
+- **Rename Spell**: Cosmetic effect costing 200 PP with odds 90/5/5. Changes target's display name for 7 days (subject to PG filter/approval). On backfire, changes caster's name for 24 hours. Magic Mirror blocks this effect.
+
+- **Mint Tax Siphon**: Costs 1200 PP with odds 70/20/10. Skims 5% of target's new Ponzi Points for 7 days (maximum 1000 PP total). Magic Mirror blocks. On backfire, caster donates 2% of their new Ponzi Points for 24 hours (maximum 200 PP).
+
+- **Downline Heist**: Costs 500 PP with variable odds based on target's downline (L3:30/L2:20/L1:10/fail:30/backfire:10). Steals one downline member (favoring L3 members). On backfire, one of caster's L3 members defects to target. Limited to one success per round. Magic Mirror blocks.
+
+- **Magic Mirror**: Defensive item costing 200 PP with odds 100/0/0. Equips a shield that blocks one hostile shenanigan. Players can stack up to 2 mirrors. Shows mirror icon and count in UI.
+
+- **PP Booster Aura**: Costs 300 PP with odds 100/0/0. For the rest of the round, player earns +5–15% additional Ponzi Points (weighted 7–10%). Mints from round budget and pauses if budget is empty. Limited to one per player. Shows up-arrow badge in UI.
+
+- **Purse Cutter**: Single target costing 900 PP with odds 20/50/30. Target loses 25–50% of their Ponzi Points (weighted 30–35%). Lost points are redistributed to all other players except caster and target. Requires target to have minimum 1000 PP and more than caster. Maximum loss of 800 PP. Magic Mirror blocks.
+
+- **Whale Rebalance**: Targets top 3 Ponzi Points holders, costs 800 PP with odds 50/30/20. Takes 20% from each top 3 holder (maximum 300 PP per whale), only if they have above 500 PP. Redistributes to all other players. On backfire, caster donates 10% to all players. Magic Mirrors block per whale individually.
+
+- **Downline Boost**: Costs 400 PP with odds 100/0/0. For the rest of the round, downline referrals kick up 1.3x Ponzi Points to the caster. Only one boost active at a time per player.
+
+- **Golden Name**: Cosmetic effect with two options: 100 PP for 24 hours or 400 PP for 7 days, both with odds 100/0/0. Gives golden name styling on leaderboards and throughout the UI. Limited to one slot per player.
+
+### Admin Dashboard System
+- **Authentication**: Admin access restricted to the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
+- **Direct access**: Yellow "Admin" button in the header opens the admin dashboard directly for the authorized principal
+- **Global Controls**: All system settings with real-time configuration and reset to defaults
+- **Minter Configuration Reminder**: Clear documentation and UI note reminding to update the Ponzi Points token canister's minter to the backend canister ID after each new live deployment
+- **Token Canister Integration Status**: Display showing current minter status and connection to the ICRC-2 token canister
+- **Shenanigans Item Editor**: Comprehensive editor for all shenanigan parameters including:
+  - Cost in Ponzi Points (editable)
+  - Success/Fail/Backfire odds (editable, must sum to 100%)
+  - Effect ranges and weights (editable)
+  - Cooldowns and caps (editable)
+  - Per-round limits (editable)
+  - Enable/disable functionality (editable)
+  - Target requirements and protections (editable)
+- **Live Preview**: Show expected value per cast, charts for outcomes, Ponzi Points delta
+- **Logs/Analytics**: Filterable EventLog, export to CSV, top shenanigans by casts/Ponzi Points moved
+- **Simulation Tools**: Run test casts against mock players, show summary stats
+- **QA Hooks**: Admin toggle for 10,000 Ponzi Points in sandbox, "give mirror" button, seeded simulation tool
+- **Persistence**: Versioned configuration, rollback capability, validation for odds/caps
+- **Real-time Updates**: All changes to shenanigan parameters take effect immediately without requiring system restart
+- **Validation System**: Ensures all numeric values are non-negative, odds sum to 100%, and caps/minimums are logically consistent
+
+### Shenanigans Admin Panel
+- **Admin Access Control**: Yellow "Admin" button in the header next to the wallet button, visible only to the user with principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe`
+- **Direct Access**: Admin panel opens directly without password prompt for the authorized principal
+- **Comprehensive Shenanigans Editor**: Full editing interface for all 11 shenanigans with the following editable attributes for each:
+  - **Name**: Text field for shenanigan name
+  - **Description**: Text area for detailed description
+  - **Cost**: Numeric field for Ponzi Points cost
+  - **Odds**: Three separate numeric fields for Success %, Failure %, and Backfire % (must sum to 100%)
+  - **Duration**: Numeric field for hours or checkbox for "Until end of round"
+  - **Cooldown Period**: Numeric field for hours
+  - **Effect Values**: Editable fields for all numeric/percentage values including ranges, weights, and durations
+  - **Cast Limit**: Numeric field or checkbox for per-round limits
+- **Enhanced Visual Separation**: Each shenanigan's edit form displayed in a distinct colored panel with:
+  - **Unique background colors**: Each shenanigan card has a different subtle background color for visual separation
+  - **Improved readability**: All form fields, labels, and text have high contrast against their respective background colors
+  - **Clear visual boundaries**: Each edit form is visually separated from the page background and other shenanigan forms
+- **Individual Card Controls**: Each shenanigan card includes "Save Changes" and "Reset Defaults" buttons
+- **Bulk Operations**: Top-level "Save All Changes" button for updating all shenanigans at once
+- **Readable Styling**: Cards use distinct background colors with clear white text on dark panels for optimal legibility, maintaining hover animations and visual hierarchy consistent with the current design
+- **Real-time Updates**: All parameter changes take effect immediately in the live game without requiring system restart and are instantly reflected on the main Shenanigans page
+- **Live Synchronization**: Changes made to shenanigan attributes in the admin panel immediately update the shenanigan cards on the main Shenanigans page without requiring a page reload
+- **Validation**: Comprehensive validation ensuring odds sum to 100%, numeric values are non-negative, and logical consistency across all parameters
+- **Persistent Changes**: All changes made to shenanigan attributes persist in the backend and remain visible both in the admin panel and on the main Shenanigans cards after navigating away and returning
+
+### Game Reset Mechanism (The Redistribution Event)
+- When the platform's ICP pot is empty (insufficient funds to pay out), the game automatically resets
+- **The Redistribution Event**: Random selection of an unprofitable depositor to become a new Downstream Dealer
+- All pending owed payouts are voided during reset
+- Game starts fresh with clean slate for all users
+- Users are notified when a reset occurs
+
+### Live Game Statistics
+- Real-time tracking of platform pot balance
+- Live calculation of days active since game start
+- Dynamic game statistics displayed throughout the UI
+- All game stats pulled from backend data, no placeholder values
+
+### Hall of Fame System
+- Leaderboard displaying the top 50 Ponzi Points holders and top 50 Ponzi Points burners
+- Shows user names and their total Ponzi Points balance or total Ponzi Points burned
+- If fewer than 50 users exist, displays only available users
+- Top 3 positions highlighted with Gold, Silver, and Bronze styling within each leaderboard
+- Real-time updates as Ponzi Points balances and burning activity change
+- **Gold Name Cosmetic**: Support for gold name styling for special players
+- **Token canister integration**: Ponzi Points balances retrieved from the ICRC-2 token canister
+
+## Backend Data Storage
+The backend stores:
+- **Musical Chairs Wallet balances**: Each user's ICP balance within the app's Musical Chairs Wallet system
+- **Initial wallet funding**: 500 dummy ICP tokens credited to each new user's Musical Chairs Wallet for testing
+- User ICP deposit and withdrawal transaction history between external wallets and Musical Chairs Wallets
+- User game records with plan details, mode selection, amounts, and timestamps
+- **Cumulative earnings tracking**: On-demand earnings calculations for each active position with cumulative totals that add newly calculated earnings to previous totals when refreshed
+- **Simple mode earnings calculation**: Backend system that calculates simple mode earnings using the formula: earnings = principal × 0.11 × (elapsed_seconds / 86400), where the principal is consumed at deposit and only interest accrues
+- **Compounding mode earnings calculation**: Backend system that calculates compounding mode earnings using the formula: earnings = principal × [(1 + daily_rate) ^ (elapsed_seconds / 86400) - 1], where only compounded interest accrues and the principal is consumed at deposit
+- Position start times for accurate earnings calculation timing with precise elapsed time tracking
+- Referral relationships and perpetual Ponzi Points earnings data
+- User account balances and withdrawal history with real-time accuracy
+- Game plan configurations with constant daily return rates
+- Platform's total ICP pot balance for payout tracking with real-time updates
+- Game reset history and notifications
+- Game start timestamp to track how many days the current game has been active
+- Live game statistics including total deposits, withdrawals, and active games
+- Real-time pot balance calculations based on actual deposits and withdrawals
+- Clean data storage without old test entries
+- Accurate Musical Chairs Wallet balance tracking that immediately updates after successful deposits and earnings withdrawals
+- User balance state that allows immediate plan creation after deposits
+- Immediate balance update logic that ensures backend state changes are reflected instantly in user's available balance
+- Atomic deposit processing that guarantees available balance updates occur simultaneously with deposit confirmation
+- Robust balance synchronization mechanisms that prevent discrepancies between actual deposited amounts and displayed available balance
+- Perpetual Ponzi Points referral reward tracking system with ongoing percentage calculations for all levels
+- **On-demand cumulative earnings calculation system**: Processes active positions when requested through refresh functionality, adding newly calculated earnings to previous totals using the specified formulas for simple and compounding modes
+- Position lock status and expiration times for compounding mode countdown functionality
+- **Position rate limiting data**: Timestamp tracking for each user's position openings using Internet Identity anchor to enforce the 3 positions per hour limit
+- **Maximum deposit calculations for simple mode only**: Real-time calculation of the greater of 20% of current pot balance or 5 ICP for simple mode deposit limits
+- **No maximum deposit enforcement for compounding mode**: Backend validation that allows unlimited deposits above the minimum of 0.1 ICP for compounding mode plans
+- Precise elapsed time tracking for each position to support accurate earnings calculations using the specified formulas
+- **Testing wallet initialization**: Automatic crediting of 500 dummy ICP tokens to each new user's Musical Chairs Wallet
+- **Dual dealer type tracking data**: 
+  - **Upstream Dealers**: Created through explicit "Deposit House Money" actions, with tracking of first house money deposit date for determining the "oldest" dealer
+  - **Downstream Dealers**: Created through The Redistribution Event selection process
+  - All active dealers with their type, entitlements, repayment status, and dealer bonuses
+- **Updated fee distribution system**: Implementation of the new fee distribution logic with 35% to oldest Upstream Dealer, 25% split among other Upstream Dealers, and 40% split among all dealers
+- **Direct fee distribution system**: Immediate distribution of fees to houses' Musical Chairs Wallets according to the new distribution percentages
+- **Self-deposit house repayment logic**: Special handling for when the only house makes subsequent deposits, crediting half of the house maintenance fee back to their Musical Chairs Wallet
+- **The Redistribution Event history**: Records of Downstream Dealer appointments and lottery results
+- **ICRC-2 token canister integration**: Connection and communication with the Ponzi Points token canister (ID: `awsqm-4qaaa-aaaau-aclja-cai`) for all Ponzi Points operations
+- **Ponzi Points token operations**: Backend functions for minting, burning, and transferring Ponzi Points through the token canister
+- **Real-time Ponzi Points balance synchronization**: Real-time synchronization and tracking of user Ponzi Points balances with the token canister, ensuring all displays show actual earned points from all sources
+- **Ponzi Points referral tracking**: Multi-level perpetual Ponzi Points referral rewards and relationships with detailed tier counts and earnings per tier, all managed through the token canister
+- **Withdrawal fee calculations**: Time-based fee calculations for Exit Tolls
+- **Unprofitable depositor tracking**: Data for The Redistribution Event lottery eligibility
+- **Instant house repayment processing**: System for crediting house repayments instantly and accurately to Musical Chairs Wallet balances according to the new distribution logic
+- **Withdrawal confirmation data**: Exit toll calculations and time remaining until next tier for withdrawal dialogs
+- **Add House Money tracking**: Records of direct house money deposits with no maximum limit (minimum 0.1 ICP), entitlement increases, associated Ponzi Points awards at 4,000 Ponzi Points per ICP deposited through the token canister, automatic addition of deposited amounts to the platform pot, and first deposit date tracking for Upstream Dealers
+- **Total House Money Added tracking**: Cumulative tracking of all house money deposits made throughout the application's lifetime for statistical display
+- **Outstanding Dealer Debt tracking**: Real-time calculation and tracking of total outstanding debt owed to all dealers for statistical display
+- **ICP value formatting system**: Backend formatting logic that removes unnecessary trailing zeros from all ICP value displays while preserving up to 8 decimal places if present across the application
+- **Accumulated earnings precision control**: Backend system that limits all accumulated earnings calculations and displays to a maximum of 8 decimal places
+- **8 decimal place input validation**: Backend validation system that enforces maximum 8 decimal places for all ICP input fields for deposits and withdrawals
+- **Hall of Fame data**: Leaderboard system storing user names and Ponzi Points balances for top 50 ranking with real-time updates, plus tracking of total Ponzi Points burned per user for the top 50 burners leaderboard, all integrated with the token canister
+- **Comprehensive Shenanigans data storage**: 
+  - **Specific Shenanigans catalog**: Storage for the exact 11 shenanigans with their specific costs, odds, effects, and rules
+  - Individual Shenanigans records with user, type, target, outcome, timestamp, and Ponzi Points cost
+  - User Shenanigans statistics including total Ponzi Points spent, total Shenanigans cast, outcome tallies (Good/Bad/Backfire), and Dealer Cut tracker
+  - Live activity feed data for the 12 most recent Shenanigans cast across all users
+  - Previous round Shenanigans summary data including total activity, Ponzi Points burned, and outcome tallies (Good/Bad/Backfire)
+  - 24-hour cooldown tracking for players who have been negatively affected by Shenanigans
+  - **Ponzi Points burning tracking**: Total Ponzi Points burned per user across all Shenanigans activities for leaderboard ranking, managed through the token canister
+  - **Player protection data**: Loss protection timestamps, mirror ownership, device fingerprinting for anti-self-targeting
+  - **Round budget tracking**: Per-round Ponzi Points budget allocation and remaining budget
+  - **Cooldown management**: Global and per-target cooldown tracking for hostile shenanigans
+  - **Admin configuration storage**: Versioned settings for all shenanigan parameters, odds, caps, and global controls with real-time editing capability
+  - **Event logging**: Comprehensive audit trail of all Ponzi Points-affecting events with human-readable and machine data
+  - **Active effects tracking**: Temporary effects with start/end times, scope, and pause conditions
+  - **Downline data**: Three-level referral arrays (L1, L2, L3) for each player supporting Downline Heist functionality
+  - **Cosmetic effects tracking**: Golden name durations, rename spell effects, and other cosmetic modifications
+- **Dealer entry management system**: Backend logic that checks for existing dealer entries by principal when users deposit house money; if found, increases their total entitlement by the deposit amount plus 12%, otherwise creates a new Upstream Dealer entry with their name from user profile and first deposit date
+- **Real-time dealer list management**: Backend system that maintains and updates the complete list of all dealers with their actual names, dealer types, and provides immediate updates after house money deposits
+- **Comprehensive error handling for house data**: Backend error handling that prevents crashes when house data is missing, corrupted, or in an unexpected state, with fallback mechanisms to provide default values or empty states, graceful degradation when dealer information is unavailable, and robust data validation to ensure the House Ledger section never crashes due to malformed or missing data
+- **Application state recovery system**: Backend mechanisms to recover from corrupted or incomplete data states, ensuring the application can always load successfully even when some data is missing or malformed
+- **Error logging and monitoring**: Comprehensive error tracking system that logs all errors and exceptions for debugging while providing graceful fallbacks to users
+- **User name management system**: Backend storage and updating of user display names with validation and persistence across all user interactions
+- **Admin access control system**: Backend validation that restricts admin panel access to the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
+- **Shenanigans admin configuration storage**: Backend storage for all editable shenanigan parameters including names, descriptions, costs, odds, durations, cooldowns, effect values, and cast limits with versioned configuration and rollback capability
+- **Real-time shenanigan synchronization system**: Backend system that immediately propagates admin changes to shenanigan parameters to all connected clients, ensuring the main Shenanigans page updates instantly when changes are made in the admin panel
+- **Persistent shenanigan configuration system**: Backend storage system that ensures all changes made to shenanigan attributes persist across sessions and remain visible both in the admin panel and on the main Shenanigans cards after navigating away and returning
+
+## Frontend Interface
+- Fun and flashy color scheme with vibrant, eye-catching design
+- **Redesigned top navigation bar** with:
+  - **Solid dark navy (#0b0c10) or black (#000000) background** with a thin gold underline across the bottom
+  - **Left side**: Site title "Musical Chairs" (without emoji), and directly below it, the tagline "It's a Ponzi!" in gold italic
+  - **Playful, bold font and bouncing text effect**: The "Musical Chairs" logo and tagline use a playful, bold font with a subtle bouncing animation for a fun, engaging style
+  - **Center area**: Left blank (no "Welcome, [user]" text)
+  - **Right side**: 
+    - **Admin button (for authorized users only)**: Yellow "Admin" button visible only to the user with principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe`, positioned next to the wallet button, opens admin dashboard directly without password prompt
+    - **Compact, rounded-square Wallet button** with green-to-blue gradient background, subtle shadow, featuring 💳 emoji before "Wallet" text (not pill-shaped)
+    - Logout button as a white ⏻ power icon (no text) on the dark background; on hover, pulses with a faint red glow, and on click, blinks (fade out/in once)
+  - **Typography**: Uses current font family but with lighter weight for a cleaner look; ensures the gold tagline is italicized
+- **Mobile navigation header layout (<768px)**:
+  - **Hamburger button (☰) positioned flush to the far left** with no overlap or cropping of the logo, maintaining clear separation and balanced spacing
+  - **Mobile logo**: Replace full "Musical Chairs" logo with "MC" using the same font, gradient, and effects as the desktop logo, positioned directly to the right of the hamburger button
+  - **Header layout**: [☰ hamburger flush left] [MC logo with clear separation] [admin button (if authorized)] [wallet + power right-aligned]
+  - **Vertical centering**: Hamburger, logo, admin button (if visible), wallet button, and power button are all vertically centered within the header for a visually aligned look
+  - Wallet button remains on the far right, followed by the power button
+- **Enhanced Wallet dropdown functionality**: Clickable wallet button that opens a sleek dropdown directly below the button, styled as:
+  - **Floating card design**: Rounded corners, soft shadow, dark or semi-transparent background with subtle gradient
+  - **Compact size**: Approximately 300px wide
+  - **Smooth animations**: Fade and slide effects when opening/closing
+  - **Click-outside-to-close**: Dropdown closes when clicking outside the wallet area
+  - **Welcome section at top**: "🎭 Welcome, [user's name]! ✏️" displayed prominently at the top of the dropdown with the pencil icon inline to the right of the name
+  - **Inline name editing**: Clicking the pencil icon (✏️) allows inline editing of the name through an input field or modal dialog
+  - **Wallet balance section**: Wallet balance displayed in bold with 🎰 emoji (e.g., "🎰 Balance: 500 ICP") with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+  - **Real-time Ponzi Points balance section**: Ponzi Points balance displayed with 🎯 emoji (e.g., "🎯 Ponzi Points: 15,000 PP") showing the user's actual in-game Ponzi Points balance, not static placeholder numbers
+  - **Two collapsible sections/tabs**:
+    1. **"Fund Wallet"**: Shows user's Principal Address with copy button and concise helper text: "Send ICP to this address to fund your wallet."
+    2. **"Withdraw"**: Input fields for recipient principal and amount with MAX button, plus clean, flat green "Send ICP" button, with 8 decimal place input restriction
+  - **Concise helper text**: All instructions kept brief and clear, removing redundant or lengthy explanations
+  - **Elegant and compact design**: Clean interface focused on essential wallet functions
+- **Redesigned Login page** featuring:
+  - Clean and focused design without plan selection buttons
+  - **Welcome to Musical Chairs! displayed on its own line with bold styling and black background at 15% opacity with 30-pixel Gaussian blur for a more striking and visually appealing effect**
+  - **It's a Ponzi! displayed on a separate line below "Welcome to Musical Chairs!" with a blank line between them for clear separation**
+  - **Single animated gradient frosted-glass outer card**: Main content area styled as a single animated gradient frosted-glass container with rounded corners, backdrop blur, soft glow, and balanced vertical spacing
+  - **All content inside the frosted card**: Slot icon positioned top-center, unchanged header/tagline, green earnings info box, red gambling warning, orange game reset warning, and login button all positioned inside the glassmorphic container
+  - **Styled inner info/warning boxes as separate cards**: 
+    - **Green box**: Solid mint pastel background, rounded corners, left-aligned emoji icons, light drop shadow, clean spacing, very light border, and high-contrast text for readability
+    - **Red box**: Solid blush pink pastel background, rounded corners, left-aligned emoji icons, light drop shadow, clean spacing, very light border, and high-contrast text for readability
+    - **Orange box**: Solid warm golden pastel background, rounded corners, left-aligned emoji icons, light drop shadow, clean spacing, very light border, and high-contrast text for readability
+  - **Slot machine icon**: Top-centered positioning with optional animation on hover
+  - **Internet Computer logo with subtle dark halo**: Positioned at the very bottom of the login page, below all bubbles and outside the main box, displaying the Internet Computer logo (https://internetcomputer.org/img/IC_logo_horizontal_white.svg) centered with a subtle dark halo effect (not white glow)
+  - **Copyright/footer bar**: "© 2025. Built with using caffeine.ai" anchored to the very bottom of the login page, regardless of screen size
+  - Prominent gambling warning that users should only play with money they can afford to lose
+  - No plan selection options visible until after login
+- **Redesigned Name Selection page** featuring:
+  - **Welcome to Musical Chairs! text displayed with bold styling and black background at 15% opacity with 30-pixel Gaussian blur for a more striking and visually appealing effect**
+  - **Single animated gradient frosted-glass outer card**: Main content area styled as a single animated gradient frosted-glass container with rounded corners, backdrop blur, soft glow, and balanced vertical spacing, mirroring the Login Page layout
+  - **All content inside the frosted card**: Slot icon positioned top-center, styled input field, help text, join button, and red gambling warning all positioned inside the glassmorphic container
+  - **Styled input field**: Name entry field with rounded corners, subtle inset shadow, and placeholder text "Choose a name"
+  - **Help text**: "Pick a fun nickname — this is what others will see!" displayed below the input in a smaller, muted font
+  - **Enhanced join button behavior**: "🎟️ JOIN THE GAME!" button that:
+    - **Remains in neutral state by default** with lighter shade of the current color when the name field is empty
+    - **When a value is entered**: Button border glows neon green with a soft animated pulse (gentle fade in/out every ~1.5s)
+    - **On hover**: The glow brightens and the pulse deepens (brighter green fade in/out)
+    - **Includes glowing neon green border** for a more visually striking and on-theme appearance when in the valid state
+  - **Red gambling warning**: Warning styled with solid blush pink pastel background, rounded corners, left-aligned emoji icons, light drop shadow, clean spacing, very light border, and high-contrast text for readability, centered in its bubble, containing the text "⚠️ THIS IS A GAMBLING GAME! ⚠️ Only play with money you can afford to lose!"
+  - **Unified spacing and modern design**: Consistent font sizing, alignment, and modern clickable feel across all elements
+- **Enhanced Mobile Navigation System** (available after login) with clean, intuitive interface containing:
+  - **Dashboard header "🎪 Musical Chairs Dashboard 🎪" displayed with black background at 30% opacity and 30-pixel Gaussian blur behind the text that spans approximately the width of the text rather than the full container, making the text stand out clearly without drop shadow**
+  - **"It's a Ponzi!" displayed on a new line directly below the dashboard header, matching the style and spacing of the login page**
+  - Dashboard header showing "**Please gamble responsibly**" in bold text with white text and drop shadow for visual enhancement
+  - **Desktop Navigation (≥768px)**: Floating vertical dock positioned approximately 60px from the left edge and vertically centered, featuring:
+    - **Dock styling**: Semi-transparent black background (rgba(0,0,0,0.6)) with rounded corners, blur effect, and soft shadow
+    - **Collapsible functionality**: Default shows icons and labels, collapsed shows icons only with smooth expand/collapse animation (200-300ms)
+    - **Toggle button**: Collapse/expand toggle at the bottom of the dock
+    - **Hover expansion**: When collapsed, hovering temporarily expands to show labels
+    - **Navigation items with icons and labels**: Each navigation item displays both an icon and text label in the following order:
+      1. 💰 Profit Center
+      2. 🎯 Pick Your Plan
+      3. 📊 House Ledger
+      4. 🎁 Rewards
+      5. 👥 Multi-Level Marketing
+      6. 🎲 Shenanigans (with special neon glow styling)
+      7. 🏆 Hall of Fame (with special golden glow styling)
+    - **Active item highlighting**: Active navigation item highlighted with a glowing neon border (2px) in purple (#a855f7) and green (#39ff14)
+    - **Default nav item styling**: Default nav items in light gray (#e5e5e5) with muted icons, brightening to white on hover
+    - **Special Shenanigans styling**: 🎲 icon always glowing with neon pulse (text-shadow: 0 0 6px #39ff14, 0 0 6px #a855f7), stronger glow when active, label is bold and slightly larger
+    - **Special Hall of Fame styling**: 🏆 icon with golden glow (text-shadow 0 0 8px #ffd700, 0 0 12px #ffb700), brighter golden pulse and shine animation when active, label is bold and italicized
+    - **Tooltips when collapsed**: Small rounded tooltips with black background and white text on hover; Shenanigans tooltip has neon border (#39ff14); Hall of Fame tooltip has golden border (#ffd700)
+    - **Neon glow pulse**: All active tab icons have neon glow pulse in their respective accent colors
+    - **Default active item**: "Profit Center" set as the default active item on load
+  - **Enhanced Mobile Navigation (<768px)**: Hamburger menu system featuring:
+    - **Hamburger icon (☰) positioned flush to the far left** with no overlap or cropping of the "MC" logo, maintaining clear separation and balanced spacing
+    - **Enhanced sliding drawer**: Smooth 300ms slide-in/out animation from the left (75% width, max 280px)
+    - **Darker gradient background with blur**: Black to transparent gradient background with blur effect
+    - **Subtle animated shimmer**: Animated shimmer effect on the drawer background
+    - **Semi-transparent overlay**: Dark overlay (rgba(0,0,0,0.5)) behind the drawer when open
+    - **Enhanced close functionality**: 
+      - Drawer closes when tapping overlay or the X button
+      - X button positioned top-left inside the drawer with glowing outline
+    - **Improved drawer styling**: 
+      - Increased vertical padding between nav items for better readability
+      - **Neon divider lines**: Thin purple (#a855f7) divider lines separating nav groups:
+        - Core: Profit Center, Pick Your Plan, House Ledger
+        - Extras: Rewards, Multi-Level Marketing  
+        - Fun: Shenanigans, Hall of Fame
+    - **Enhanced nav item styling**:
+      - **Active nav item**: Glowing border and faint gradient background (purple → green)
+      - **Shenanigans icon (🎲)**: Always glowing neon pulse (green + purple)
+      - **Hall of Fame icon (🏆)**: Golden glow pulse
+      - **Other icons**: Brighten on hover/tap
+    - **Animated interactions**: 
+      - Drawer nav items with staggered fade-in (50ms delay each)
+      - Glow pulse when tapped
+    - **Navigation order**: Profit Center 💰, Pick Your Plan 🎯, House Ledger 📊, [divider], Rewards 🎁, Multi-Level Marketing 👥, [divider], Shenanigans 🎲, Hall of Fame 🏆
+    - **Scrollable drawer**: Drawer content is scrollable if needed to accommodate all navigation items
+    - **Special styling preserved**: Shenanigans and Hall of Fame maintain their special glow effects in mobile drawer
+  - **Single section display**: Each navigation item reveals only its corresponding section when clicked, hiding all others (no stacking)
+  - **Main content area**: Content sections display in the main area on desktop and mobile
+
+### Profit Center Section
+- **Redesigned unified frosted glass container**: All three sections ("Your Running Tally," "Your Positions," and "The House Always Wins") wrapped inside a single frosted glass container styled as an info card with:
+  - **Glassmorphism styling**: Semi-transparent background (rgba(255,255,255,0.1)), soft rounded edges, and backdrop blur (blur(12px))
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Subtle padding**: Adequate padding around all content for comfortable reading
+  - **Gradient background overlay**: Harmonized color scheme that works with the pink-purple gradient background
+  - **Mobile responsiveness**: Ensures the design works well on both desktop and mobile devices
+  - **Balanced visual weight**: Overall visual weight balanced with the top of the dashboard without overpowering the page
+- **Your Running Tally section positioned at the very top**: Portfolio Summary section at the top of the unified container, featuring:
+  - **Enhanced title styling**: "Your Running Tally" with clean, solid colors and a single dark drop shadow for contrast if needed, but no glow or soft halo effects:
+    - Current font, emoji, and layout unchanged
+    - Clean, solid text color without any glowing effects
+    - Single dark drop shadow for contrast (1px 1px 2px rgba(0,0,0,0.6)) if needed for readability
+    - No white glow, neon effects, or pinkish glow
+    - Responsive and readable on both desktop and mobile
+  - **Rounded metric cards**: "Total Deposits" and "Total Accumulated Earnings" displayed in rounded cards with clean, bright, and legible fonts without any glowing, neon, or text-shadow effects
+  - **Clean and bright metric values**: Metric values (e.g., "0 ICP") displayed with clean, bright, and legible styling that matches the modern, readable look without any glow or soft shadow effects
+  - **Animated refresh effects**: When "Refresh Earnings" is clicked, totals animate with slot machine number roll or glowing tick-up effect
+  - Portfolio Summary showing Total Deposits in ICP and Total Accumulated Earnings in ICP with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- **Your Positions section positioned below Your Running Tally**: User's positions list placed below the Portfolio Summary within the unified container, featuring:
+  - **White text with drop shadow for positions header**: "Your Positions\nEarnings accumulate in real time" displayed in white text with a drop shadow for visual enhancement
+  - **White no-positions message with drop shadow**: "No positions yet! Start by making your first deposit in one of our game plans below." displayed in white text with drop shadow for clear visibility against the background
+  - **Enhanced user positions list**: User's positions list featuring:
+    - **Subtle separators between positions**: Visual dividers between each position entry for better readability
+    - **Faint vault/safe icon background for Deposits card**: Subtle background icon for deposit information
+    - **Faint jackpot/slot icon background for Earnings card**: Subtle background icon for earnings information
+    - **Enhanced plan card styling with pulsing border effects and soft background colors**:
+      - **21-Day Simple Plans**: Pulsing green border glow (box-shadow: 0 0 8px 2px rgba(0,255,0,0.4)) with animated pulse effect, soft green background (rgba(0,255,100,0.1) or similar pastel mint), and on hover, scale up slightly (1.01x) and brighten the card
+      - **Compounding Plans**: Pulsing purple border glow (box-shadow: 0 0 8px 2px rgba(128,0,255,0.4)) with animated pulse effect, very soft purple background (rgba(150,0,255,0.05) or similar pastel lavender), and on hover, scale up slightly (1.01x) and brighten the card
+      - **Consistent frosted glass effect**: All other card styling (rounded corners, drop shadow, etc.) remains consistent
+      - **Legible text and values**: Text and values remain legible and visually balanced on the new backgrounds
+  - Plan type and mode for each deposit (with 🌱 emoji for simple mode and 🔥 emoji for compounding mode)
+  - Deposit amount with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+  - Start date
+  - **Redesigned Refresh Earnings button styling**: Refresh button styled as pill-shaped with rounded-full class, bright blue color (#00cfff), frosted glass effect, glowing blue border, no shimmer effect, and on hover, the button glows brighter and scales up slightly for a lively, interactive feel, matching the "Start Game" button style but in blue, with no emoji
+  - **Accumulated earnings display**: Shows total accumulated earnings with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present, limited to maximum of 8 decimal places) that update when refresh button is clicked, showing the sum of all earnings calculated since position opening
+  - **Withdraw button for all eligible positions**: For simple mode positions, active withdraw button that credits earnings to Musical Chairs Wallet and resets accumulated earnings to 0, styled consistently with the current UI and appearing only when the plan is active and withdrawal is permitted
+  - For compounding mode positions: grayed-out withdraw button with countdown timer showing days/hours/minutes until withdrawal becomes available, and 13% Jackpot Fee notice
+  - On-demand updates as earnings are recalculated when users click refresh
+- **The House Always Wins section positioned at the very bottom**: Exit Tolls section at the bottom of the unified container, featuring:
+  - **Enhanced solid-color bubble styling with hover effects**: Styled as a solid-color bubble with:
+    - **Soft box-shadow**: Subtle shadow for depth and visual separation
+    - **Rounded corners (16px)**: Smooth, rounded edges for modern appearance
+    - **Subtle border**: Light border for additional depth and definition
+    - **Hover effects**: On hover, increase brightness (brightness(105%)), scale up slightly (1.015x), and transition all changes over 300ms for interactive feedback
+  - **Bold subheader**: "🎰 The House Always Wins 🎰" displayed above the details
+  - **Styled bullet list without emoji icons**: Each line in the bullet list without the previous subtle icons for visual enhancement
+  - Fun sub-tagline under the title: "The House Always Wins — but here's how much."
+  - **Updated exit toll rubric**: Small informational section explaining the 3 exit toll tiers for simple positions ("Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days"), plus the lines: "Successful compounding plans will be charged a 13% Jackpot Fee on their withdrawal. Compounding plans pay out the compounded interest at maturity."
+- **Vertical stacking with clear spacing**: All three sections stacked vertically within the container with clear vertical spacing so each section is visually distinct but clearly part of the same bubble
+- **Centered content**: All content within the unified container is centered for visual balance
+- **Mobile responsive spacing**: Adjusted mobile and responsive layouts to maintain comfortable spacing and avoid sections stacking too tightly
+
+### Pick Your Plan Section
+- **Redesigned Game Setup section with single large frosted glass container**: Game Setup section displays all content (header, Step 1, Step 2, Step 3, and their contents) inside a single large frosted glass container with:
+  - **Rounded corners**: Smooth, rounded edges for modern appearance
+  - **Subtle blur**: Backdrop blur effect for glassmorphism styling
+  - **Soft drop shadow**: Gentle shadow for depth and visual separation
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Frosted glass style matching the rest of the site**: Consistent with other frosted glass elements throughout the application
+- **Game Setup section header inside the container**: "🎮 Game Setup 🎮" displayed as white text with a drop shadow for visual enhancement, positioned at the top inside the frosted glass container
+- **Steps 1-3 as sections within the main container**: Step 1, Step 2, and Step 3 styled as sections within the main frosted glass container using:
+  - **Clear spacing**: Adequate spacing between each step for visual separation
+  - **Dividers for separation**: Visual dividers or spacing elements to clearly separate each step
+  - **No individual frosted glass boxes**: Remove individual frosted glass boxes around each step
+- **Step 1**: Mode selection (Simple or Compounding) with "Step 1: Choose Game Mode" displayed in white text with drop shadow for visual enhancement
+- **Simple mode option**: Shows "21-Day Simple Plan → 11% daily return (interest only)" as the plan details when selected
+- **Compounding mode option**: When selected, reveals Step 2 with plan length options:
+  - "15-Day Compounding → 12% daily return"
+  - "30-Day Compounding → 9% daily return"
+- **Risk warning in yellowish bubble with minimal vertical padding**: "⚠️ The longer the plan, the greater the potential ROI, but also the higher the risk that the round will end before your plan completes." displayed in a yellowish bubble with a dark border and dark text, with no vertical padding (py-0) for a snugger fit around the text content
+- **Step 2 (for Compounding only)**: Plan length selection revealed only after Compounding mode is chosen, featuring:
+  - "Step 2: Select Lockup Period" displayed in white text with drop shadow for visual enhancement
+  - Clear, clickable buttons for 15-day and 30-day compounding plans with neither selected by default
+- **Final Step within the main container**: Deposit amount input and position opening revealed after mode selection (and plan length for compounding), featuring:
+  - "Step 3: Enter Amount & Open Position" (for compounding) or "Step 2: Enter Amount & Open Position" (for simple) displayed in white text with drop shadow for visual enhancement
+  - **Amount entry field positioned at the top** with high contrast background and placeholder text for easy readability, with 8 decimal place input restriction
+  - **Simple header layout**: "Select Amount" label (left-aligned) displayed in white text with drop shadow for visual enhancement and "Available: [wallet balance]" (right-aligned) above the input field with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present), replacing the large wallet balance bubble
+  - **Side-by-side layout**: Deposit field and ROI calculator positioned side by side, horizontally aligned at the same level
+  - **Validation error messages**: When user enters a value below minimum or above maximum (for simple mode only), display error message in plain white text directly below the deposit field and above the deposit information box starting with '⚠️ ' emoji for visibility, with no colored bubble or border
+  - **Above-maximum error message for simple mode only**: "⚠️ Maximum game deposit for simple mode is currently [amount] ICP" with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+  - **Deposit information box positioned directly under the error message area** with left-aligned text in the same font size, displaying as bullet points:
+    - • Minimum Deposit: 0.1 ICP
+    - • Simple mode: Maximum deposit applies (20% of pot or 5 ICP, whichever is higher)
+    - • Compounding mode: No maximum deposit limit
+    - • 3% Entry Skim on every deposit
+    - • Half the skim and exit tolls seed the next round, half repay the House
+  - **Live ROI calculator positioned side by side with the deposit field** horizontally aligned with the deposit field (not with the "Select Amount / Available" line), with reduced top margin/padding by the equivalent of one text line to align the top of the bubble closer to the deposit field while maintaining the side-by-side positioning and keeping the bottom, left, and right limits unchanged
+  - **Updated ROI calculator display for simple mode**: 
+    - **"🚀 Expected ROI if plan matures before the round ends." styled as white text with subtle drop shadow**
+    - **Simple mode calculations**: Shows interest-only payout using the formula: payout = principal × 0.11 × 21 = principal × 2.31, displaying ROI multiple as 2.31x and ROI percent as 131%
+    - Expected total return and Ponzi Points earned displayed in the same box with one left-aligned and the other right-aligned, with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+    - **Ponzi Points calculated at base rate of 1000 Ponzi Points per 1 ICP deposited with appropriate plan and mode multipliers**
+    - No formula line or house maintenance fee box displayed
+  - **Updated ROI calculator display for compounding mode**:
+    - **"🚀 Expected ROI if plan matures before the round ends." styled as white text with subtle drop shadow**
+    - **Compounding mode calculations**: Shows expected compounded interest-only payout using the formula: payout = principal × [(1 + daily_rate) ^ days - 1], displaying the appropriate ROI multiple and percent for each plan
+    - **15-day compounding plan ROI**: For 15-day compounding plans at 12% daily rate, displays approximately 5.37 ICP for a 1 ICP deposit using the corrected formula: payout = 1 × [(1 + 0.12) ^ 15 - 1] ≈ 5.37
+    - Expected total return and Ponzi Points earned displayed in the same box with one left-aligned and the other right-aligned, with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+    - **Ponzi Points calculated at base rate of 1000 Ponzi Points per 1 ICP deposited with appropriate plan and mode multipliers**
+    - Clear indication that only compounded interest is paid out at maturity (principal is consumed)
+  - All numerals, '%', 'ICP', and the phrase '3% fee' are bolded for clarity and emphasis
+  - **Deposit limit display for simple mode only**: Clear indication of maximum allowed deposit amount (the greater of 20% of current pot or 5 ICP) with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present) displayed only when simple mode is selected
+  - **No deposit limit display for compounding mode**: No maximum deposit limit information shown when compounding mode is selected
+  - **Rate limit notification**: Warning message when user attempts to open more than 3 positions within one hour
+  - **Side-by-side bottom layout**: "Start Game" button and gambling warning displayed side by side, with the enhanced "Start Game" button on the left and the gambling warning on the right
+  - **Enhanced Start Game button styling with flash prevention**: Button that:
+    - **Idle state**: Uses a lighter shade of the current color when no value is entered
+    - **When a value is entered**: Button border glows neon green with a soft animated pulse (gentle fade in/out every ~1.5s) only after proper validation
+    - **On hover**: The glow brightens and the pulse deepens (brighter green fade in/out)
+    - **Flash prevention**: Button styling logic that waits for field validation before applying green styling, eliminating the brief flash bug when values are entered
+    - **Pill-shaped with gradient fill and drop shadow**: Maintains current styling with enhanced glow effects
+  - **Gambling warning at bottom right**: Red warning bubble with dark red border and light red fill, centered and matching the width of its column for a balanced appearance, containing the text "⚠️ THIS IS A GAMBLING GAME! ⚠️ Only play with money you can afford to lose!" positioned to the right of the Start Game button
+  - **Toast notification for successful position creation**: When a new position is opened successfully, display a toast notification (temporary overlay) at the top of the screen showing "🎉 Game started successfully! Welcome aboard, and don't stop inviting your friends! 😉" with a visually prominent design that remains visible for a few seconds before fading out, accompanied by **proper confetti animation** featuring colorful paper pieces, streamers, and geometric shapes in casino colors creating a celebratory and casino-like effect
+- **Instant ROI updates**: ROI calculator updates instantly based on the currently selected plan, mode, and entered amount
+
+### House Ledger Section
+- **Redesigned House Ledger section with single frosted glass container**: All House Ledger content wrapped inside a single frosted glass container styled to match the Profit Center and Pick Your Plan sections, featuring:
+  - **Glassmorphism styling**: Semi-transparent background (rgba(255,255,255,0.1)), soft rounded edges, and backdrop blur (blur(12px))
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Subtle padding**: Adequate padding around all content for comfortable reading
+  - **Gradient background overlay**: Harmonized color scheme that works with the pink-purple gradient background
+  - **Soft drop shadow**: Gentle shadow for depth and visual separation
+  - **Mobile responsiveness**: Ensures the design works well on both desktop and mobile devices
+  - **Balanced visual weight**: Overall visual weight balanced with other main section containers for visual consistency
+  - **Matching border styling**: Same small border color, thickness, and subtle glow/drop shadow as seen on the Profit Center and Pick Your Plan frosted glass containers for a unified and visually polished look across all major pages
+- **Dealers section header**: "🏰 Dealers 🏰" styled to match other sections for consistency
+- **Floating segmented tab control**: Centered just below the "Dealers" header, featuring:
+  - **Rounded pill container**: Backdrop blur, faint 1px ring, soft shadow, and 4–6px inner padding
+  - **Two tabs**: "Dealer Positions" and "Ledger Records" (no emojis)
+  - **Active tab styling**: Filled gentle theme tint (green for Dealers, purple for Ledger), white or near-white text, and soft ambient glow
+  - **Inactive tab styling**: Transparent with hairline stroke, dimmed text, and quiet hover state
+  - **Minimum hit area**: 44px tall with comfortable horizontal padding
+  - **Tab functionality**: Swaps content below without full page refresh
+  - **Animated state changes**: 150–200ms transition on background, ring, and text opacity
+  - **Keyboard accessibility**: Obvious focus states with visible focus ring, proper tab roles and aria attributes, left/right arrow key support for focus movement
+  - **Responsive design**: On smaller screens, allows graceful shrinking and horizontal scrolling if needed rather than wrapping
+- **Dealer Positions tab content**: Contains all the explanatory content and functionality for house money deposits, including:
+  - **Own The Casino and stacked stats positioned at the top**: Positioned directly below the tab selectors for immediate visibility when the tab is selected, featuring:
+    - **Side-by-side layout**: "Own The Casino" section on the left and stacked stats on the right
+    - **Stacked stats display**: Outstanding Dealer Debt and Total House Money Added displayed as stacked, prominent stat cards positioned to the right of the deposit field/button and gambling warning:
+      - **Outstanding Dealer Debt card**: Displayed in a red box styled as a clean stat card with no emojis and no extra containers
+      - **Total House Money Added card**: Displayed in a blue box styled as a clean stat card with no emojis and no extra containers, positioned directly below the Outstanding Dealer Debt card
+      - Both stats with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+      - **Responsive stacking**: On mobile devices, the stats stack vertically while maintaining their colored card styling
+      - **Visually aligned and responsive**: Cards are visually aligned and responsive across all device sizes
+    - **Own The Casino section** featuring:
+      - Section label "💰 Own The Casino 💰" displayed in white text with drop shadow for visual enhancement
+      - **Amount label and available balance on same line**: "Amount" label (left-aligned) and "Available: [amount of ICP in wallet] ICP" (right-aligned) displayed on the same line above the input field with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present), matching the layout in the game setup section
+      - **Input field with placeholder**: Inline input field to the left of the button with placeholder text "Min: 0.1 ICP" in gray that disappears when the user enters a value, matching the style of the game setup field, with 8 decimal place input restriction
+      - **Enhanced Deposit House Money button styling**: Primary action button labeled "Deposit House Money" styled exactly like the "Start Game" button with:
+        - **Idle state**: Uses a dull shade of green when inactive (no value entered)
+        - **When a value is entered**: Button border glows neon green with a soft animated pulse (gentle fade in/out every ~1.5s) only after proper validation
+        - **On hover**: The glow brightens and the pulse deepens (brighter green fade in/out), button turns brighter, emits a glow, and has a color animation
+        - **Rounded corners**: Maintains rounded corner styling matching the "Start Game" button
+        - **Flash prevention**: Button styling logic that waits for field validation before applying green styling, eliminating the brief flash bug when values are entered
+        - **Pill-shaped with gradient fill and drop shadow**: Maintains current styling with enhanced glow effects matching the "Start Game" button exactly
+      - **Updated tagline**: "Earn a guaranteed 12% return* + 4000 Ponzi Points per ICP deposited!" displayed directly beneath the button
+      - Disclaimer text "*(Returns not guaranteed)" displayed in smaller, footnote-style text below the tagline
+      - Functionality to create new Upstream Dealer positions or increase existing dealer entitlements by deposit amount plus 12%
+      - Awards 4,000 Ponzi Points per ICP deposited through this feature via the ICRC-2 token canister
+      - **No maximum deposit limit**: Users can deposit any amount above the minimum of 0.1 ICP
+  - **Gambling warning positioned below Own The Casino**: Gambling warning bubble positioned on the left side directly below the "Own The Casino" section, styled identically to the gambling warning on the "Pick Your Plan" page with:
+    - **Red warning bubble**: Dark red border and light red fill, centered and matching the width of its column for a balanced appearance
+    - **Warning text**: "⚠️ THIS IS A GAMBLING GAME! ⚠️ Only play with money you can afford to lose!"
+    - **Subtle zoom on hover**: Same hover effects as applied on the "Pick Your Plan" page
+    - **Matching styling**: Identical styling, spacing, and effects as the gambling warning on the "Pick Your Plan" page for unified premium look
+  - **Current Dealers section positioned below the top sections**: Real-time dealer list display positioned directly below the top sections (Own The Casino, stacked stats, and gambling warning), featuring:
+    - **Section header**: "Current Dealers" displayed in white text with drop shadow for visual enhancement
+    - **Dual dealer type display**: Dealer cards styled differently based on their type:
+      - **Upstream Dealer cards**: Emerald green background with subtle gold trim and faint shimmer animation to suggest prestige, frosted glass backgrounds, and light inner shadows
+      - **Downstream Dealer cards**: Warm amber or gold gradient background with soft purple border glow, frosted glass backgrounds, and light inner shadows
+    - **Dealer card information**: Each dealer card clearly displays:
+      - Dealer type (Upstream Dealer or Downstream Dealer)
+      - User's actual name (as entered during profile setup)
+      - Principal address with "Principal: " label and line break between label and address
+      - For Upstream Dealers: Date of their first house money deposit
+      - Entitlement amount with properly formatted ICP values
+    - **Immediate dealer updates**: The dealer list and entitlement amounts update immediately after a house money deposit, reflecting the correct principal and user name
+  - **Consolidated dealer explanation info card positioned below Current Dealers**: Single, visually engaging info card with frosted glass background and soft drop shadow that combines all dealer explanations, featuring:
+    - **Clear section headings**: "What Are Dealer Positions?", "How Dealer Repayment Works", "Guaranteed Returns", and "Risk & Rewards" as distinct sections within the card
+    - **Playful casino-themed icons**: Visual icons for each section to enhance readability and visual appeal
+    - **Concise, readable text**: Clear and concise explanations for each section
+    - **Updated terminology**: All references to "hot potato lottery" replaced with "The Redistribution Event"
+    - **Updated dealer types explanation**: Clear explanation of Upstream Dealers (voluntary house money deposits) and Downstream Dealers (selected by The Redistribution Event)
+    - **The Redistribution Event highlight**: Brief explanation styled as a visually distinct callout or highlight within the card
+    - **Updated dealer entitlement explanation**: "New Downstream Dealers are entitled to recoup however much they were underwater during the round, plus a 12% dealer bonus."
+    - **Updated fee distribution explanation**: "Fees earmarked for dealer repayment are automatically deposited to dealers' principals according to the new distribution logic as they are collected."
+    - **Simplified fee breakdown**: "Half of House Maintenance fees and Exit Tolls go to repaying the dealers according to the updated distribution system."
+- **Ledger Records tab content**: Contains dealer repayment status and history with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present), plus comprehensive Shenanigans event logging with human-readable entries showing timestamp, round_id, item_id, caster_id, target_ids, outcome, pp_deltas, and notes for admin analytics
+- **Real-time dealer repayment display**: Shows instant updates when dealer repayments are credited to Musical Chairs Wallets according to the new distribution logic
+- **Custom house money deposit toast notification**: When users successfully deposit house money, a custom in-theme toast notification appears instead of a browser alert, featuring:
+  - **Positioning**: Floats near the top-center of the screen
+  - **Styling**: Frosted-glass card with rounded 2xl corners, backdrop blur, 85% opacity, magenta → violet → midnight blue gradient background, and 1px neon pink glowing border
+  - **Animation**: Fades in with slight upward float (ease-out, ~100ms), auto-dismisses after 3 seconds, and fades out smoothly over 1 second
+  - **Visual effects**: Includes confetti or sparkle burst (3–4 gentle particles) that fades after 1 second
+  - **Content**: Centered text with bold/larger title "🎉 Deposit Successful!", subtitle "You've added [X] ICP as house money and earned [Y] Ponzi Points!" (with numeric/reward portions in gold-orange gradient accent), and fine print "The House thanks you for your generosity." in smaller, faint text
+  - **Button**: Pill-shaped "Nice!" button with lime → turquoise gradient fill, glowing border, and hover effects (brighter/scale up)
+  - **Consistent theming**: Matches the Musical Chairs aesthetic with animations, gradients, and button styles consistent with the rest of the app
+- **Comprehensive error handling and fallback UI**: When any data fetch or rendering fails in the House Ledger section, display a user-friendly error message instead of a blank screen, such as "⚠️ Unable to load dealer information. Please try refreshing the page or contact support if the problem persists." The section gracefully handles missing or corrupted dealer data by showing appropriate fallback content and never crashes
+
+### Multi-Level Marketing Section
+- **Redesigned Multi-Level Marketing section with single frosted glass card**: All content below the yellow divider wrapped in a single animated gradient frosted-glass card styled to match the "Your Running Tally" and Login cards, featuring:
+  - **Animated gradient background**: Frosted glass effect with rounded corners, subtle glow, and drop shadow
+  - **Consistent padding and spacing**: All sections flow seamlessly inside the frosted card with consistent internal spacing
+  - **Reordered top elements inside the frosted card**:
+    - **First**: "🔺 Multi-Level Marketing 🔺" displayed in white text with a drop shadow for visual enhancement
+    - **Second**: "More Than Just a Ponzi — It's Also a Pyramid Scheme!" tagline styled with the same yellowish color as the "It's a Ponzi!" logo, displayed horizontally with increased font size and subtle bouncing animation for a playful and prominent branded look
+  - **Build Your Network section**: 
+    - **White text with drop shadow for build network section**: "Build Your Network" displayed in white text with a drop shadow
+    - **Updated Build Your Network section**: "Build your passive income network and earn Ponzi Points from every recruit's activity perpetually! All you need to do is tell two people, who tell two people, who also tell two people 🤑"
+    - **Referral link section with background color**: Referral link bubble with background color fill matching the color used for the "💡 Perpetual Passive Income:" bubble
+    - **Your Referral Link label positioned directly above the URL field**: "Your Referral Link" text positioned directly above the referral URL field, left-aligned, matching the style of the "Amount" label over deposit fields
+  - **Real-time referral tier cards in top row**: Three tier cards displaying actual earned points from each tier using live in-game data:
+    - **Level 1 Direct**: "8% Points" with subtext showing actual number of people and real points earned
+    - **Level 2 Network**: "5% Points" with subtext showing actual number of people and real points earned
+    - **Level 3+ Network**: "2% Points" with subtext showing actual number of people and real points earned
+  - **Real-time total points display**: "Total Ponzi Points Earned" (formerly "Total Network Points Earned") displayed with large, bold font and slight glow positioned below the tier cards, showing the user's actual total earned points from all referral tiers using live in-game data
+  - **Perpetual Passive Income Strategies list**: Full strategies list positioned directly beneath the stats section inside the main card, featuring:
+    - **Bold header**: "🌟 Perpetual Passive Income Strategies 🌟"
+    - **Soft pastel background**: Lavender or pearl background with rounded corners
+    - **Emoji bullets with clean vertical spacing**: 
+      - 💎 Share your link to build direct connections
+      - 🚀 Teach your network to recruit others
+      - 🔥 Earn from unlimited network depth forever
+      - ⚡ Generate passive income perpetually while you sleep
+      - ♾️ No limits - earn as long as your network participates
+      - 🎪 Feel accomplished about nothing indefinitely
+- **Maintains fun, satirical tone**: All content preserves the playful, satirical messaging while being contained within the upgraded card styling
+- **Token canister integration**: All referral Ponzi Points displayed and managed through the ICRC-2 token canister
+
+### Rewards Section
+- **Redesigned Rewards section with single frosted glass container**: All Rewards content wrapped inside a single frosted glass container styled to match the Profit Center, Pick Your Plan, and House Ledger sections, featuring:
+  - **Glassmorphism styling**: Semi-transparent background (rgba(255,255,255,0.1)), soft rounded edges, and backdrop blur (blur(12px))
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Subtle padding**: Adequate padding around all content for comfortable reading
+  - **Gradient background overlay**: Harmonized color scheme that works with the pink-purple gradient background
+  - **Soft drop shadow**: Gentle shadow for depth and visual separation
+  - **Mobile responsiveness**: Ensures the design works well on both desktop and mobile devices
+  - **Balanced visual weight**: Overall visual weight balanced with other main section containers for visual consistency
+  - **Matching border styling**: Same small border color, thickness, and subtle glow/drop shadow as seen on the Profit Center, Pick Your Plan, and House Ledger frosted glass containers for a unified and visually polished look across all major pages
+- **White text with drop shadow for dashboard header**: "🎯 Ponzi Points Dashboard 🎯\nWorthless token rewards for YOLOing into a Ponzi" displayed in white text with a drop shadow for visual enhancement
+- **Real-time Ponzi Points display**: Single bubble containing user's actual total Ponzi Points balance, actual deposit points, and actual referral points using live in-game data, not placeholder values
+- Ponzi Points earning history with multipliers
+- **Side-by-side layout**: "What are Ponzi Points?" and "Point Multipliers" bubbles positioned side by side
+- **Updated satirical messaging**: "Tokens as valuable as the promises of a Ponzi scheme!" replacing the previous ultimate satirical reward system text
+- **Conversational earning explanation**: How users earn Ponzi Points with base rate of 1000 Ponzi Points per 1 ICP deposited, with simple plan multipliers and compounding plan multipliers, plus note about earning a cut from referred users' rewards
+- **🌱 Simple Plan Multipliers**: 21-day (1x)
+- **🔥 Compounding Plan Multipliers**: 🚀 15-Day Plan: 2x multiplier, 💎 30-Day Plan: 3x multiplier
+- **Add House Money Bonus**: 4,000 Ponzi Points per ICP deposited through "Deposit House Money" feature
+- **Updated "⚠️ What They're Worth" section**: "• Essentially nothing in a monetary sense • Bragging rights as you ascend the leaderboard • Not supported for trading, but nothing's stopping you from making a liquidity pool • May be used to unlock cosmetic features at a later date, but probably not"
+- **Updated "🎪 The Real Purpose" section**: "• To gamify your gambling addiction • To make you feel a little better about losing money • To create artificial engagement and FOMO • To incentivize the pyramid scheme"
+- **White text with drop shadow for footer text**: "🎭 Ponzi Points: Making gambling feel rewarding since never! 🎭\nCollect them all! Trade them for nothing! Feel accomplished about meaningless numbers!" displayed in white text with a drop shadow, centered without any bubble or background styling
+- **"What are Ponzi Points?" info card** with satirical copy explaining the reward system
+- **Token canister integration**: All Ponzi Points balances and operations displayed and managed through the ICRC-2 token canister
+
+### Hall of Fame Section
+- **Redesigned Hall of Fame section with single frosted glass container**: All Hall of Fame content wrapped inside a single frosted glass container styled to match the Profit Center, Pick Your Plan, House Ledger, and Rewards sections, featuring:
+  - **Glassmorphism styling**: Semi-transparent background (rgba(255,255,255,0.1)), soft rounded edges, and backdrop blur (blur(12px))
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Subtle padding**: Adequate padding around all content for comfortable reading
+  - **Gradient background overlay**: Harmonized color scheme that works with the pink-purple gradient background
+  - **Soft drop shadow**: Gentle shadow for depth and visual separation
+  - **Mobile responsiveness**: Ensures the design works well on both desktop and mobile devices
+  - **Balanced visual weight**: Overall visual weight balanced with other main section containers for visual consistency
+  - **Matching border styling**: Same small border color, thickness, and subtle glow/drop shadow as seen on the Profit Center, Pick Your Plan, House Ledger, and Rewards frosted glass containers for a unified and visually polished look across all major pages
+- **White text with drop shadow for header**: "🏆 Hall of Fame 🏆" displayed in white text with a drop shadow for visual enhancement
+- **Single unified leaderboard display**: Both "Top Ponzi Points Holders" and "Top Ponzi Points Burners" displayed together in a single bubble without separate scroll boxes
+- **Unified card layout**: Both leaderboards visible in the same card for a more unified and readable leaderboard experience
+- **Side-by-side columns within single bubble**: 
+  - **Left column**: "Top Ponzi Points Holders" showing up to top 50 users with highest Ponzi Points balances retrieved from the ICRC-2 token canister
+  - **Right column**: "Top Ponzi Points Burners" showing up to top 50 users with highest total Ponzi Points burned through Shenanigans
+- **Special highlighting for top 3 within each leaderboard**:
+  - **1st place**: Gold styling and highlighting
+  - **2nd place**: Silver styling and highlighting
+  - **3rd place**: Bronze styling and highlighting
+- **Gold name cosmetic support**: Special gold name styling for designated players throughout the leaderboard
+- **Dynamic display**: If fewer than 50 users exist, shows only available users in each column
+- **Real-time updates**: Both leaderboards update as Ponzi Points balances and burning activity change
+- **Ranking format**: Each entry shows rank number, user name, and total Ponzi Points (held or burned) with proper formatting
+- **Token canister integration**: All Ponzi Points balances retrieved from the ICRC-2 token canister
+
+### Comprehensive Shenanigans Section
+- **Redesigned Shenanigans section with single frosted glass container**: All Shenanigans content wrapped inside a single frosted glass container styled to match the Profit Center, Pick Your Plan, House Ledger, Rewards, and Hall of Fame sections, featuring:
+  - **Glassmorphism styling**: Semi-transparent background (rgba(255,255,255,0.1)), soft rounded edges, and backdrop blur (blur(12px))
+  - **Near-solid opacity (95–98%)**: High opacity for clear content visibility while maintaining frosted glass aesthetic
+  - **Subtle padding**: Adequate padding around all content for comfortable reading
+  - **Gradient background overlay**: Harmonized color scheme that works with the pink-purple gradient background
+  - **Soft drop shadow**: Gentle shadow for depth and visual separation
+  - **Mobile responsiveness**: Ensures the design works well on both desktop and mobile devices
+  - **Balanced visual weight**: Overall visual weight balanced with other main section containers for visual consistency
+  - **Matching border styling**: Same small border color, thickness, and subtle glow/drop shadow as seen on the Profit Center, Pick Your Plan, House Ledger, Rewards, and Hall of Fame frosted glass containers for a unified and visually polished look across all major pages
+- **Header section**: "🃏 Shenanigans — Pure Chaos, Zero Value" displayed in white text with drop shadow for visual enhancement
+- **Subheader**: "Burn your Ponzi Points on ridiculous tricks that don't change the math, only the madness." displayed in white text with drop shadow
+- **Real-time Ponzi Points balance display**: The user's real-time Ponzi Points balance displayed directly below "Available Shenanigans" showing actual earned points, not static placeholder numbers
+- **Available Shenanigans shop positioned at the very top**: Clean and prominent shop grid positioned at the very top of the section, featuring:
+  - **Unified frosted glass panel**: Shop grid displayed within a unified frosted glass panel with consistent styling
+  - **Clean title with soft divider**: "Available Shenanigans" displayed as a large, clear title with a soft divider line or glow underneath for visual hierarchy
+  - **Reduced subtitle opacity**: Subtitle opacity reduced for better visual hierarchy
+  - **Redesigned Shenanigans cards with enhanced readability and no effect values**: Each shenanigan styled as individual cards with thematic gradient backgrounds and enhanced readability features, featuring:
+    - **Soft, colorful gradient backgrounds with readability overlay**: Each card has its own thematic gradient with a subtle semi-transparent dark overlay (rgba(0,0,0,0.08–0.12)) behind all text areas for maximum readability:
+      - **Money Trickster**: #ffd75a → #ffb673 (golden yellow to warm orange) with dark overlay
+      - **AOE Skim**: #8ed4ff → #b8f5ff (sky blue to light cyan) with dark overlay
+      - **Rename Spell**: #ff9ff3 → #f368e0 (bright pink to magenta) with dark overlay
+      - **Mint Tax Siphon**: #a78bfa → #c084fc (purple to light purple) with dark overlay
+      - **Downline Heist**: #34d399 → #6ee7b7 (emerald to light green) with dark overlay
+      - **Magic Mirror**: #fbbf24 → #fcd34d (amber to yellow) with dark overlay
+      - **PP Booster Aura**: #60a5fa → #93c5fd (blue to light blue) with dark overlay
+      - **Purse Cutter**: #f87171 → #fca5a5 (red to light red) with dark overlay
+      - **Whale Rebalance**: #a855f7 → #c084fc (violet to light purple) with dark overlay
+      - **Downline Boost**: #10b981 → #34d399 (teal to emerald) with dark overlay
+      - **Golden Name**: #f59e0b → #fbbf24 (orange to amber) with dark overlay
+    - **Enhanced text readability with improved odds display**: All text (titles, descriptions, odds, labels) displayed in pure white or very light lavender with improved readability for odds text:
+      - **Improved odds text readability**: Odds text enhanced with a slightly darker text shadow or subtle dark overlay behind the odds text for better readability, especially on gold, light blue, pink, and green backgrounds
+      - **Clean, readable odds styling**: Odds text styled to ensure clear readability on every card background while maintaining the design's visual consistency
+    - **Bold, rounded font for titles**: Card titles use bold, rounded font (Poppins SemiBold or Nunito Bold) with faint black text shadow for readability
+    - **Minimum font sizes**: All text is at least 16px for body text, 18–20px for titles
+    - **Equal height cards with consistent padding**: All cards maintain consistent height with uniform padding
+    - **1px inner border and subtle shadow**: Thin semi-transparent inner border (rgba(255,255,255,0.15)) and soft drop shadow for depth
+    - **PP cost badge with enhanced styling**: Ponzi Points cost displayed in a small badge or pill inside each card with golden text (#ffd75a) and a soft background
+    - **No effect values displayed**: Effect values, ranges, weights, and specific numeric details are not displayed on the cards, showing only the basic description without specific percentages or amounts
+    - **Uniform Cast buttons**: "CAST" button styled with vibrant gold-to-orange gradient (#ffd75a → #ff9f40), rounded corners (0.75rem), soft glow, inner highlight, bold white all-caps text, and uniform width/height across all cards
+    - **Current hover behavior maintained**: Cards maintain existing hover effects (slight pop-out and color shift) with no new animations
+    - **Grid layout**: 20–24px gaps with consistent vertical rhythm
+    - **Mobile/touch optimization**: Tap targets ≥44px high with appropriate touch feedback
+    - **Disabled/blocked state**: 50% opacity when ineligible or on cooldown
+    - **Real-time updates from admin changes**: Shenanigan cards automatically update their displayed information (name, description, cost, odds, etc.) when changes are made in the admin panel without requiring a page reload
+  - **Lively, candy-like, casino-inspired aesthetic**: Overall design feels vibrant and premium with cards that stand out from the background while maintaining unified look and maximum text readability
+  - **Comprehensive Shenanigans Shop** displaying the specific 11 shenanigans with the enhanced readability card design and no effect values:
+    - **Money Trickster**: Single target, 120 PP, odds 60/25/15, basic description without specific percentages or amounts
+    - **AOE Skim**: All other players, 600 PP, odds 40/40/20, basic description without specific percentages or amounts
+    - **Rename Spell**: Cosmetic, 200 PP, odds 90/5/5, basic description without specific durations or details
+    - **Mint Tax Siphon**: 1200 PP, odds 70/20/10, basic description without specific percentages or amounts
+    - **Downline Heist**: 500 PP, variable odds, basic description without specific percentages or amounts
+    - **Magic Mirror**: Defense, 200 PP, odds 100/0/0, basic description without specific limits or details
+    - **PP Booster Aura**: 300 PP, odds 100/0/0, basic description without specific percentages or amounts
+    - **Purse Cutter**: Single target, 900 PP, odds 20/50/30, basic description without specific percentages or amounts
+    - **Whale Rebalance**: Top 3, 800 PP, odds 50/30/20, basic description without specific percentages or amounts
+    - **Downline Boost**: 400 PP, odds 100/0/0, basic description without specific multipliers or details
+    - **Golden Name**: Cosmetic, 100 PP (24h) or 400 PP (7d), odds 100/0/0, basic description without specific durations
+  - **Eligibility and cooldown enforcement**: Buttons disabled when ineligible or on cooldown
+  - **Confirmation modals**: Multi-target confirmation dialogs for complex shenanigans
+- **All other content positioned below the shop**: Stats, guardrails, and informational sections positioned below the shop grid, featuring:
+  - **Current Round Stats positioned below the shop**: Wide stats section displaying all four stats side by side on desktop:
+    - Ponzi Points spent this round
+    - Total Shenanigans cast this round
+    - Net outcomes tally (Good/Bad/Backfire) for current round
+    - Dealer Cut Tracker (Ponzi Points skimmed to House Dealers) for current round
+  - **Live Shenanigans Feed and Previous Round Recap positioned side by side below Current Round Stats**:
+    - **📺 Live Shenanigans Feed 📺**: Casino ticker-style feed showing the 12 most recent Shenanigans cast across all users, updating in real time with emoji cues and flash/highlight effects for new entries
+    - **Previous Round Recap**: Summary displaying:
+      - Total Shenanigans cast in the previous round
+      - Total Ponzi Points burned in the previous round
+      - **📈 Outcomes**: Counts for Good, Bad, and Backfire results from the previous round
+      - Clear indication that these stats are from the previous round
+  - **All stats, guardrails, and informational sections remain in frosted glass bubbles**: All content below the shop maintains the existing frosted glass bubble styling
+- **Player-facing casting flow**:
+  - Choose item from shop grid
+  - Select target (with protection for players under specified PP thresholds)
+  - Confirm action with modal dialog
+  - **Visual feedback**: Tasteful animations and sounds for cosmetic effects
+  - **Round header pill tags**: Event indicators in round header
+- **Comprehensive protection system**:
+  - **Loss protection**: Targets under specified PP thresholds protected from loss effects
+  - **Zero floor**: No player can go below 0 Ponzi Points
+  - **Anti-self-targeting**: Device fingerprint/session blocking
+  - **24-hour cooldown protection**: Players affected by negative shenanigans cannot be targeted again for 24 hours
+  - **Cooldown management**: 2-minute global cooldown per caster, 3-minute per-target cooldown
+- **Round budget system**: Each round has a Ponzi Points budget (default 2000) that limits total effects per round
+- **Admin toggle**: Option to disable all Ponzi Points effects (cosmetics only mode)
+- **Satirical copy throughout** emphasizing the pointless nature of Shenanigans while maintaining the playful casino aesthetic
+- **Visual effects and animations** when Shenanigans are cast, providing entertainment value without affecting game mechanics
+- **Token canister integration**: All Shenanigans Ponzi Points operations (spending, minting, burning, transfers) handled through the ICRC-2 token canister
+
+### Shenanigans Admin Panel
+- **Admin Panel Access**: Admin panel accessible only to the user with principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` through the yellow "Admin" button in the header, opening directly without password prompt
+- **Comprehensive Shenanigans Management Interface**: Full-featured admin interface for managing all 11 shenanigans, featuring:
+  - **Clean, scrollable layout**: Grid or list display of all shenanigans with compact form layouts
+  - **Individual shenanigan editing cards with distinct visual separation**: Each shenanigan displayed as a card with unique background colors and editable fields for all parameters:
+    - **Unique background colors for each shenanigan**: Each shenanigan edit form has a distinct, subtle background color that provides clear visual separation from the page background and other shenanigan forms:
+      - **Money Trickster**: Soft golden yellow background (#fff9e6)
+      - **AOE Skim**: Light sky blue background (#e6f7ff)
+      - **Rename Spell**: Pale pink background (#ffe6f7)
+      - **Mint Tax Siphon**: Light purple background (#f3e6ff)
+      - **Downline Heist**: Soft mint green background (#e6fff2)
+      - **Magic Mirror**: Warm amber background (#fff4e6)
+      - **PP Booster Aura**: Light blue background (#e6f2ff)
+      - **Purse Cutter**: Soft coral background (#ffe6e6)
+      - **Whale Rebalance**: Lavender background (#f0e6ff)
+      - **Downline Boost**: Pale teal background (#e6fffa)
+      - **Golden Name**: Light orange background (#fff0e6)
+    - **High contrast text and labels**: All form fields, labels, and text have high contrast against their respective background colors for optimal readability
+    - **Clear visual boundaries**: Each edit form is visually separated from the page background and other shenanigan forms through distinct background colors and subtle borders
+    - **Name**: Text field for shenanigan name
+    - **Description**: Text area for detailed description
+    - **Cost**: Numeric field for Ponzi Points cost
+    - **Success Odds**: Numeric field for success percentage
+    - **Failure Odds**: Numeric field for failure percentage
+    - **Backfire Odds**: Numeric field for backfire percentage
+    - **Duration**: Numeric field for hours or checkbox for "Until end of round"
+    - **Cooldown Period**: Numeric field for hours
+    - **Effect Values**: Multiple editable fields for all numeric/percentage values including ranges, weights, and durations
+    - **Cast Limit**: Numeric field or checkbox for per-round limits
+  - **Individual card controls**: Each shenanigan card includes:
+    - **Save Changes button**: Saves modifications for that specific shenanigan
+    - **Reset Defaults button**: Resets that shenanigan to default values
+  - **Bulk operations**: Top-level "Save All Changes" button for updating all shenanigans simultaneously
+  - **Real-time validation**: Comprehensive validation ensuring:
+    - Success, Failure, and Backfire odds sum to 100%
+    - All numeric values are non-negative
+    - Logical consistency across all parameters
+  - **Immediate effect updates**: All parameter changes take effect immediately in the live game without requiring system restart
+  - **Live synchronization with main Shenanigans page**: Changes made to shenanigan attributes in the admin panel are immediately reflected on the main Shenanigans page without requiring a page reload, including:
+    - **Real-time card updates**: Shenanigan cards on the main page automatically update their displayed name, description, cost, odds, and other attributes when modified in the admin panel
+    - **Instant visual refresh**: Changes appear on the main Shenanigans page within seconds of being saved in the admin panel
+    - **No page reload required**: Users viewing the main Shenanigans page see updates automatically without needing to refresh their browser
+  - **Persistent changes**: All changes made to shenanigan attributes persist in the backend and remain visible both in the admin panel and on the main Shenanigans cards after navigating away and returning
+- **Direct access**: Admin panel opens immediately for the authorized principal without any authentication prompts
+- **Error handling**: Robust error handling for admin operations with user-friendly error messages
+- **Configuration persistence**: All changes are saved to the backend with versioned configuration and rollback capability
+
+### Admin Dashboard (Direct Access)
+- **Direct access system**: Admin dashboard accessible only to the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
+- **Global controls panel**: Real-time configuration of all system settings with reset to defaults option
+- **Minter Configuration Reminder**: Clear documentation and UI note prominently displayed reminding to update the Ponzi Points token canister's minter to the backend canister ID after each new live deployment, featuring:
+  - **Prominent warning banner**: Highly visible banner at the top of the admin dashboard
+  - **Step-by-step instructions**: Clear instructions for updating the minter configuration
+  - **Current minter status display**: Shows the current minter of the Ponzi Points token canister
+  - **Backend canister ID display**: Shows the current backend canister ID that should be set as minter
+  - **Configuration checklist**: Checklist to verify proper token canister integration
+- **Token Canister Integration Status**: Real-time display showing:
+  - Connection status to the ICRC-2 token canister (ID: `awsqm-4qaaa-aaaau-aclja-cai`)
+  - Current minter status and permissions
+  - Token canister health and response times
+  - Recent token operations log
+- **Comprehensive Shenanigans item editor**: Full editor for all 11 specific shenanigans with live editing capability including:
+  - **Cost in Ponzi Points**: Editable numeric field for each shenanigan
+  - **Success/Fail/Backfire odds**: Editable percentages that must sum to 100%
+  - **Effect ranges and weights**: Editable percentage ranges and their probability weights
+  - **Cooldowns and caps**: Editable time limits and maximum effect values
+  - **Per-round limits**: Editable restrictions on usage frequency
+  - **Target requirements**: Editable minimum PP thresholds and other targeting rules
+  - **Enable/disable functionality**: Toggle switches for each shenanigan
+  - **Duration settings**: Editable time periods for temporary effects
+  - **Protection thresholds**: Editable minimum PP values for loss protection
+- **Live preview system**: Shows expected value per cast, outcome charts, Ponzi Points delta projections for each shenanigan
+- **Validation system**: 
+  - Ensures all odds sum to 100%
+  - Validates that all numeric values are non-negative
+  - Checks logical consistency of caps and minimums
+  - Prevents invalid configurations
+- **Analytics and logging**: 
+  - Filterable EventLog with comprehensive search
+  - CSV export functionality
+  - Top shenanigans by casts and Ponzi Points moved
+  - Real-time activity monitoring
+- **Simulation tools**:
+  - Test casts against mock players
+  - Summary statistics and outcome modeling
+  - Seeded simulation for predictable testing
+- **QA and testing hooks**:
+  - Admin toggle for 10,000 Ponzi Points in sandbox mode (minted through token canister)
+  - "Give mirror" button for testing protection
+  - Seeded simulation tool for predictable outcomes
+- **Configuration management**:
+  - Versioned configuration with rollback capability
+  - Real-time config updates without system restart
+  - Backup and restore functionality
+- **Global settings management**:
+  - pp_budget_per_round (default 2000)
+  - mirror_stack_cap (default 2)
+  - Various protection thresholds and cooldown timers
+  - PG wordlist filtering for rename effects
+  - All shenanigan-specific parameters
+
+### General Interface Features
+- **Withdrawal confirmation dialog**: Modal dialog with a solid, readable background that appears when users click withdraw, showing exit toll percentage and time remaining until next tier (if applicable) with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- **Dynamic countdown display**: Exit toll countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
+- **Post-withdrawal celebration dialog**: After successful withdrawal, show a dialog with:
+  - Header: "🎉 Congratulations!"
+  - Message: "This scheme has earned you [X ICP]! Want to grow it even more? Reinvest in a new plan now!"
+  - Two buttons: "YOLO Again 🚀" (navigates directly to the Pick Your Plan section) and "Nah" (closes the dialog)
+  - **Proper confetti animation**: Colorful paper pieces, streamers, and geometric shapes in casino colors confetti animation in the background when dialog appears, creating a celebratory and casino-like effect
+  - Dialog styling matches other dialogs with rounded corners, drop shadow, and bold numbers for ICP amounts
+- **Position validation messages**: Clear error messages when users exceed the 3 positions per hour limit
+- Earnings overview displaying current returns and withdrawal options with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- **White text styling**: All black text that is not inside light-colored bubbles is changed to white for better readability, ensuring that text with drop shadows maintains white color and is not overridden to black
+- All UI elements display real backend data instead of placeholder values with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- Balance display immediately updates after successful deposits to show the correct available amount with perfect backend-frontend synchronization and properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- Available balance UI component refreshes automatically after deposit completion to ensure displayed values match backend state exactly
+- Plan creation interface works seamlessly after deposits, allowing users to start new games without errors
+- All terminology uses "game" or "round" instead of "investment" throughout the interface
+- Instant UI balance refresh mechanism that triggers immediately upon deposit completion to show the exact deposited amount in available balance with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- Real-time balance synchronization that ensures the available balance for new games always accurately reflects the user's Musical Chairs Wallet ICP balance
+- **Manual earnings refresh display**: Updates when users click refresh button to show current total accumulated returns calculated using the specified formulas with cumulative tracking and properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present, limited to maximum of 8 decimal places)
+- Countdown timers for locked compounding positions showing precise time remaining until withdrawal availability
+- **Instant dealer repayment notifications**: Real-time display updates when dealer repayments are credited to user's Musical Chairs Wallet according to the new distribution logic with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- **Consistent ICP value formatting**: All ICP values throughout the interface display with unnecessary trailing zeros removed while preserving up to 8 decimal places if present (e.g., "500.00000000 ICP" becomes "500 ICP", "23.45600000 ICP" becomes "23.456 ICP", "1.12345678 ICP" remains "1.12345678 ICP")
+- **Accumulated earnings precision display**: All accumulated earnings amounts throughout the application are limited to a maximum of 8 decimal places
+- **8 decimal place input restriction**: All ICP input fields for deposits and withdrawals enforce a maximum of 8 decimal places in the UI
+- **Comprehensive crash prevention and error handling**: Robust error handling throughout the application to prevent white screen crashes, especially after depositing house money or when navigating to the House Ledger tab, with user-friendly error messages displayed instead of blank screens. The application gracefully handles all data loading failures, missing information, and unexpected states by showing appropriate fallback content rather than crashing
+- **Real-time Ponzi Points balance display throughout the app**: All Ponzi Points counters and displays across the app (Shenanigans page, Multi-Level Marketing page, Rewards page, wallet dropdown, etc.) show the user's actual in-game Ponzi Points balance, not static placeholder numbers
+- **Token canister integration throughout**: All Ponzi Points balances, operations, and displays integrated with the ICRC-2 token canister
+
+## Technical Requirements
+- All monetary values handled in ICP tokens
+- **On-demand calculation**: Daily returns calculated using the specified formulas when refresh button is clicked, adding newly calculated earnings to previous totals
+- **Manual refresh earnings calculation system**: Processes active positions when users click refresh, adding newly calculated earnings to previous totals using the specified formulas for simple and compounding modes
+- **Simple mode earnings calculation**: Backend system that uses the formula: earnings = principal × 0.11 × (elapsed_seconds / 86400), where the principal is consumed at deposit and only interest accrues
+- **Compounding mode earnings calculation**: Backend system that uses the formula: earnings = principal × [(1 + daily_rate) ^ (elapsed_seconds / 86400) - 1], where only compounded interest accrues and the principal is consumed at deposit
+- Secure handling of user funds and referral distributions
+- **Musical Chairs Wallet system**: Full implementation of Musical Chairs Wallet functionality with deposit/withdrawal capabilities to/from external wallets
+- **External transfer capabilities**: Users can send ICP from their Musical Chairs Wallet to external principal addresses
+- Automatic monitoring of platform pot balance for reset triggers with live updates
+- Real-time tracking of game duration since last reset
+- Live backend data integration for all game statistics and balances with accurate values
+- End-to-end testing capability with real ICP transactions
+- On-demand updates for individual deposit tracking and earnings calculations using the specified formulas with cumulative tracking
+- Immediate display of new games on dashboard after creation
+- Removal of old test data from the system
+- **Musical Chairs Wallet balance logic**: Accurate tracking of each user's Musical Chairs Wallet ICP balance
+- Deposit processing that immediately updates user's available balance for plan creation with guaranteed state synchronization
+- Error-free plan creation functionality after successful deposits
+- Backend balance update operations that trigger immediate frontend balance refresh
+- Robust state management ensuring UI always displays current backend balance values
+- Atomic transaction processing that ensures deposit confirmation and available balance updates happen simultaneously
+- Instant balance synchronization mechanisms that prevent any delay between deposit completion and available balance display updates
+- **Updated ROI calculation engine**: Real-time simple and compounding interest calculations with simple mode showing interest-only payout (2.31x ROI multiple, 131% ROI percent) and compounding mode showing compounded interest-only payout using the corrected formula: payout = principal × [(1 + daily_rate) ^ days - 1], plus correct Ponzi Points calculation at base rate of 1000 per ICP
+- **15-day compounding ROI calculation**: Specific implementation for 15-day compounding plans at 12% daily rate showing approximately 5.37 ICP for a 1 ICP deposit using the corrected formula: payout = 1 × [(1 + 0.12) ^ 15 - 1] ≈ 5.37
+- Perpetual Ponzi Points referral reward calculation system that tracks ongoing rewards at each level with proper percentage distributions
+- **Earnings to wallet crediting**: Withdrawal logic that credits earnings directly to user's Musical Chairs Wallet balance
+- **Earnings reset functionality**: System that resets position accumulated earnings to 0 after successful withdrawal
+- Countdown timer functionality for locked compounding positions
+- **Manual refresh earnings calculation and display system**: Uses the specified formulas with cumulative tracking that adds newly calculated earnings to previous totals when refresh is requested
+- **Deposit limit enforcement for simple mode only**: Backend validation that prevents simple mode deposits exceeding the greater of 20% of current pot balance or 5 ICP
+- **No deposit limit enforcement for compounding mode**: Backend validation that allows unlimited deposits above the minimum of 0.1 ICP for compounding mode plans
+- **Position rate limiting system**: Backend enforcement of maximum 3 positions per hour per Internet Identity anchor
+- **Real-time deposit limit calculation for simple mode only**: Dynamic calculation of maximum allowed deposit based on the greater of 20% of current pot balance or 5 ICP, applied only to simple mode deposits
+- Precise elapsed time tracking for accurate earnings calculations using the specified formulas
+- **Testing wallet initialization**: Automatic crediting of 500 dummy ICP tokens to each new user's Musical Chairs Wallet
+- **Dual dealer type management system**: 
+  - **Upstream Dealers**: Tracking and management created through explicit "Deposit House Money" actions, with first house money deposit date tracking for determining the "oldest" dealer
+  - **Downstream Dealers**: Tracking and management created through The Redistribution Event selection process
+  - All dealer entitlements, repayments, and bonuses for both types
+- **Updated fee distribution system**: Implementation of the new fee distribution logic:
+  - **35%** to the oldest Upstream Dealer (determined by first house money deposit date)
+  - **25%** split evenly among other Upstream Dealers (excluding the oldest)
+  - **40%** split evenly among all dealers (both Upstream and Downstream)
+- **Direct fee distribution system**: Automated immediate distribution of House Maintenance fees and Exit Tolls directly to houses' Musical Chairs Wallets according to the new distribution percentages
+- **Self-deposit house repayment system**: Special logic for when the only house makes subsequent deposits, automatically crediting half of the house maintenance fee back to their Musical Chairs Wallet
+- **The Redistribution Event system**: Random selection of unprofitable depositors for new Downstream Dealer appointments
+- **ICRC-2 Token Canister Integration**: Complete integration with the Ponzi Points token canister (ID: `awsqm-4qaaa-aaaau-aclja-cai`) including:
+  - **Backend as exclusive minter**: Backend canister configured as the only account with minting rights
+  - **Centralized token operations**: All Ponzi Points minting, burning, and transfers routed through the token canister
+  - **Automatic token management**: System automatically mints/burns Ponzi Points for all in-game actions
+  - **Real-time balance synchronization**: Real-time synchronization and tracking of user Ponzi Points balances with the token canister, ensuring all displays show actual earned points from all sources
+  - **Error handling**: Robust error handling for token canister communication failures
+  - **Retry logic**: Automatic retry mechanisms for failed token operations
+  - **Transaction logging**: Comprehensive logging of all token operations for audit purposes
+- **Ponzi Points calculation engine**: Real-time calculation of Ponzi Points with updated plan and mode multipliers (base rate 1000 per ICP, simple plan multiplier 1x, compounding plan multipliers 2x and 3x), all minted through the token canister
+- **Real-time Ponzi Points referral system**: Multi-level perpetual Ponzi Points distribution system with detailed tier count and earnings tracking per tier, displaying actual earned points from each tier using live in-game data, all managed through the token canister
+- **Time-based withdrawal fee calculation**: Dynamic Exit Toll calculation based on deposit timing
+- **Withdrawal confirmation system**: Dialog system with solid, readable background showing exit toll percentages and time remaining until next tier
+- **Dynamic countdown system**: Real-time countdown display in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that updates as time passes
+- **Post-withdrawal celebration dialog system**: Modal dialog system with **proper confetti animation** featuring colorful paper pieces, streamers, and geometric shapes in casino colors creating a celebratory and casino-like effect, styled to match other dialogs with rounded corners, drop shadow, and bold ICP numbers
+- **Navigation system**: Floating dock navigation functionality that navigates directly to the Pick Your Plan section when "YOLO Again 🚀" button is clicked
+- **Proper confetti animation system**: Background animation system that triggers when the post-withdrawal celebration dialog appears and when a new position is successfully created, featuring colorful paper pieces, streamers, and geometric shapes in casino colors that create a celebratory and casino-like effect
+- **Instant house repayment processing**: System for crediting house repayments instantly and accurately to Musical Chairs Wallet balances according to the new distribution logic with real-time updates
+- **Toast notification system**: Temporary overlay notification system that displays success messages at the top of the screen with automatic fade-out functionality, accompanied by **proper confetti animation** featuring colorful paper pieces, streamers, and geometric shapes in casino colors creating a celebratory and casino-like effect
+- **Deposit House Money processing system**: Backend logic to create new Upstream Dealer positions or increase existing Upstream Dealer entitlements by deposit amount plus 12%, award 4,000 Ponzi Points per ICP deposited through the token canister, add the deposited amount directly to the platform pot, record first deposit date for new Upstream Dealers, and ensure users without existing dealer profiles get one created automatically, with no maximum deposit limit (minimum 0.1 ICP)
+- **Total House Money Added tracking system**: Backend implementation for tracking and displaying the cumulative amount of all house money deposits made throughout the application's lifetime
+- **Outstanding Dealer Debt tracking system**: Backend implementation for real-time calculation and tracking of total outstanding debt owed to all dealers for statistical display
+- **ICP value formatting system**: Comprehensive formatting logic that removes unnecessary trailing zeros from all ICP value displays while preserving up to 8 decimal places if present across the entire application, including dashboards, modals, notifications, and all UI components
+- **Accumulated earnings precision control**: Backend system that limits all accumulated earnings calculations and displays to a maximum of 8 decimal places throughout the application
+- **8 decimal place input validation**: Comprehensive backend and frontend validation system that enforces maximum 8 decimal places for all ICP input fields for deposits and withdrawals
+- **Comprehensive Shenanigans backend system**: Full implementation of the specific 11 shenanigans system with strict guardrails:
+  - **Server-side RNG**: Cryptographically secure random number generation seeded with round_id and entropy for auditable, unpredictable results
+  - **Protection enforcement**: Backend validation ensuring targets under specified PP thresholds are protected from loss effects and no player can go below 0 PP
+  - **Anti-self-targeting**: Device fingerprinting and session tracking to prevent self-targeting across wallets/devices
+  - **Magic Mirror system**: Backend logic for mirror ownership (up to 2 per player), blocking hostile shenanigans, and mirror consumption
+  - **Cooldown management**: Enforcement of 2-minute global cooldown per caster, 3-minute per-target cooldown, and 24-hour protection after negative effects
+  - **Round budget enforcement**: Per-round Ponzi Points budget system (default 2000) with remaining budget tracking
+  - **Event logging**: Comprehensive audit trail of all Ponzi Points-affecting events with timestamp, round_id, item_id, caster_id, target_ids, outcome, pp_deltas, and notes
+  - **Active effects management**: Temporary effects with start/end times, scope, and pause conditions when budget is empty
+  - **Downline management**: Three-level referral arrays (L1, L2, L3) supporting atomic updates for Downline Heist functionality
+  - **Specific shenanigan logic**: Implementation of all 11 specific shenanigans with their exact rules, odds, costs, and effects
+  - **Admin configuration**: Versioned settings storage with rollback capability and real-time updates
+  - **Strict guardrail enforcement**: Backend validation ensuring shenanigans never affect ICP, pot size, dealer selection, payout math, or round structure
+  - **Token canister integration**: All Shenanigans Ponzi Points operations (spending, minting, burning, transfers) handled through the ICRC-2 token canister
+- **Admin dashboard backend**: Direct access admin system with:
+  - **Principal-based authentication**: Simple admin role verification for the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
+  - **Global settings management**: Real-time configuration of all shenanigan parameters
+  - **Item management**: CRUD operations for the specific 11 shenanigans with validation
+  - **Live editing capability**: Real-time updates to all shenanigan parameters without system restart
+  - **Validation system**: Ensures odds sum to 100%, all numeric values are non-negative, and logical consistency
+  - **Analytics engine**: Event filtering, aggregation, and CSV export functionality
+  - **Simulation engine**: Test casting system with mock players and outcome modeling
+  - **QA tools**: Sandbox mode with 10,000 PP allocation through token canister, mirror distribution, seeded testing
+  - **Configuration versioning**: Backup, restore, and rollback functionality for all settings
+  - **Token canister monitoring**: Real-time monitoring of token canister integration and minter status
+- **Hall of Fame system**: Backend and frontend implementation of unified leaderboard functionality displaying both top 50 Ponzi Points holders and top 50 Ponzi Points burners in a single frosted glass container without separate scroll boxes, with real-time updates, special styling for top 3 positions (Gold, Silver, Bronze) within each leaderboard, gold name cosmetic support, and dynamic display based on actual user count, all integrated with the token canister
+- **Ponzi Points burning tracking system**: Backend tracking of total Ponzi Points burned per user across all Shenanigans activities for the burners leaderboard, managed through the token canister
+- **Compounding mode maturity payout system**: Implementation of withdrawal logic that pays out only the compounded interest at maturity using the corrected formula: payout = principal × [(1 + daily_rate) ^ days - 1], where the principal is consumed at deposit
+- **Dealer entry management system**: Backend logic that checks for existing dealer entries by principal when users deposit house money; if found, increases their total entitlement by the deposit amount plus 12%, otherwise creates a new Upstream Dealer entry with their name from user profile and first deposit date
+- **Real-time dealer list management**: Backend system that maintains and updates the complete list of all dealers with their actual names, dealer types (Upstream/Downstream), first deposit dates for Upstream Dealers, and provides immediate updates after house money deposits
+- **User name management system**: Backend implementation for storing, updating, and validating user display names with persistence across all user interactions and real-time updates throughout the application
+- **Comprehensive error handling and crash prevention system**: Implementation of robust error handling throughout the application to prevent white screen crashes, with specific focus on application-wide error boundaries, component-level error handling, data loading error handling, state management error handling, navigation error handling, form validation error handling, backend communication error handling, House Ledger crash prevention, fallback UI for data fetch failures, graceful degradation, backend error handling, state management resilience, data validation and sanitization, recovery mechanisms, error logging and monitoring, application state recovery, and token canister communication error handling
+- **Admin access control system**: Backend validation that restricts admin panel access to the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
+- **Shenanigans admin panel backend**: Complete backend system for the admin panel including:
+  - **Principal-based access control**: Verification that only the specified admin principal can access the admin panel without password requirement
+  - **Direct access system**: Admin panel opens immediately for the authorized principal without any authentication prompts
+  - **Shenanigans configuration management**: Backend storage and retrieval of all editable shenanigan parameters
+  - **Real-time parameter updates**: System for updating shenanigan parameters immediately without system restart
+  - **Validation engine**: Backend validation ensuring all parameter changes maintain logical consistency
+  - **Configuration persistence**: Versioned storage of all shenanigan configurations with rollback capability
+  - **Admin operation logging**: Comprehensive logging of all admin actions and parameter changes
+- **Real-time shenanigan synchronization system**: Backend system that immediately propagates admin changes to shenanigan parameters to all connected clients, ensuring the main Shenanigans page updates instantly when changes are made in the admin panel, including:
+  - **WebSocket or polling-based updates**: Real-time communication system that pushes shenanigan parameter changes to all connected clients
+  - **Instant frontend synchronization**: Frontend system that receives and applies shenanigan updates without requiring page reload
+  - **Change propagation**: Automatic propagation of all shenanigan attribute changes (name, description, cost, odds, effect values, etc.) from admin panel to main Shenanigans page
+  - **Live card updates**: Real-time updating of shenanigan cards on the main page when parameters are modified in the admin panel
+- **Persistent shenanigan configuration system**: Backend storage system that ensures all changes made to shenanigan attributes persist across sessions and remain visible both in the admin panel and on the main Shenanigans cards after navigating away and returning
+- **Real-time Ponzi Points balance tracking system**: Backend and frontend system that tracks and displays the user's actual in-game Ponzi Points balance throughout the application, ensuring all Ponzi Points counters and displays show live data instead of static placeholder numbers
+- English language content throughout the application
+
+## Gambling Disclaimer
+The application prominently displays warnings that this is a gambling game and users should only participate with money they can afford to lose. The "It's a Ponzi!" tagline is clearly visible to ensure transparency about the nature of the game.

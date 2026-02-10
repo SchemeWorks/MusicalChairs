@@ -1,0 +1,36 @@
+{
+  "canisters": {
+    "backend": {
+      "main": "backend/main.mo",
+      "type": "motoko"
+    },
+    "frontend": {
+      "dependencies": ["backend"],
+      "source": ["frontend/dist"],
+      "type": "assets",
+      "workspace": "frontend"
+    },
+    "internet-identity": {
+      "type": "pull",
+      "id": "rdmx6-jaaaa-aaaaa-aaadq-cai"
+    },
+    "pp_ledger": {
+      "type": "custom",
+      "candid": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-09-01/ledger.did",
+      "wasm": "https://github.com/dfinity/ic/releases/download/ledger-suite-icrc-2025-09-01/ic-icrc1-ledger.wasm.gz",
+      "init_arg": "(variant { Init = record { token_symbol = \"PP\"; token_name = \"Ponzi Points\"; minting_account = record { owner = principal \"ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae\"; subaccount = null }; transfer_fee = 0 : nat; feature_flags = opt record { icrc2 = true }; initial_balances = vec { record { record { owner = principal \"ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae\"; subaccount = null }; 1_000_000 : nat } }; metadata = vec {}; decimals = opt (0 : nat8); archive_options = record { num_blocks_to_archive = 1_000 : nat64; trigger_threshold = 2_000 : nat64; controller_id = principal \"ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae\"; cycles_for_archive_creation = opt (100_000_000_000 : nat64); max_transactions_per_response = null; max_message_size_bytes = null; node_max_memory_size_bytes = null; more_controller_ids = null } } })"
+    },
+    "pp_assets": {
+      "type": "assets",
+      "source": ["ponzipoints"]
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "output_env_file": ".env",
+  "version": 1
+}

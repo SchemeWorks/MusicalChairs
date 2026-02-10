@@ -1,0 +1,227 @@
+type WalletTransaction = 
+ record {
+   amount: nat;
+   description: text;
+   id: nat;
+   ledgerBlockIndex: opt nat;
+   timestamp: int;
+   txType: variant {
+             deposit;
+             gameDeposit;
+             gameWithdrawal;
+             transfer;
+             withdrawal;
+           };
+   user: principal;
+ };
+type UserRole = 
+ variant {
+   admin;
+   guest;
+   user;
+ };
+type UserProfile = record {name: text;};
+type ShenaniganType = 
+ variant {
+   aoeSkim;
+   downlineBoost;
+   downlineHeist;
+   goldenName;
+   magicMirror;
+   mintTaxSiphon;
+   moneyTrickster;
+   ppBoosterAura;
+   purseCutter;
+   renameSpell;
+   whaleRebalance;
+ };
+type ShenaniganStats = 
+ record {
+   backfires: nat;
+   badOutcomes: nat;
+   dealerCut: float64;
+   goodOutcomes: nat;
+   totalCast: nat;
+   totalSpent: float64;
+ };
+type ShenaniganRecord = 
+ record {
+   cost: float64;
+   id: nat;
+   outcome: ShenaniganOutcome;
+   shenaniganType: ShenaniganType;
+   target: opt principal;
+   timestamp: int;
+   user: principal;
+ };
+type ShenaniganOutcome = 
+ variant {
+   backfire;
+   fail;
+   success;
+ };
+type ShenaniganConfig = 
+ record {
+   backfireOdds: nat;
+   backgroundColor: text;
+   castLimit: nat;
+   cooldown: nat;
+   cost: float64;
+   description: text;
+   duration: nat;
+   effectValues: vec float64;
+   failureOdds: nat;
+   id: nat;
+   name: text;
+   successOdds: nat;
+ };
+type PlatformStats = 
+ record {
+   activeGames: nat;
+   daysActive: nat;
+   potBalance: float64;
+   totalDeposits: float64;
+   totalWithdrawals: float64;
+ };
+type HouseLedgerRecord = 
+ record {
+   amount: float64;
+   description: text;
+   id: nat;
+   timestamp: int;
+ };
+type GameResetRecord = 
+ record {
+   reason: text;
+   resetTime: int;
+ };
+type GameRecord = 
+ record {
+   accumulatedEarnings: float64;
+   amount: float64;
+   id: nat;
+   isActive: bool;
+   isCompounding: bool;
+   lastUpdateTime: int;
+   plan: GamePlan;
+   player: principal;
+   startTime: int;
+ };
+type GamePlan = 
+ variant {
+   compounding15Day;
+   compounding30Day;
+   simple21Day;
+ };
+type DealerType = 
+ variant {
+   downstream;
+   upstream;
+ };
+type DealerPosition = 
+ record {
+   amount: float64;
+   dealerType: DealerType;
+   entitlement: float64;
+   firstDepositDate: opt int;
+   isActive: bool;
+   name: text;
+   owner: principal;
+   startTime: int;
+ };
+service : {
+  addDealerMoney: (amount: float64) -> ();
+  addDownstreamDealer: (amount: float64, underwaterAmount: float64) -> ();
+  addHouseMoney: (amount: float64, description: text) -> ();
+  assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
+  calculateCompoundedROI: () -> (float64) query;
+  calculateEarnings: (game: GameRecord) -> (float64) query;
+  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
+   (ShenaniganOutcome);
+  checkDepositRateLimit: () -> (bool) query;
+  createGame: (plan: GamePlan, amount: float64, isCompounding: bool,
+   referrer: opt principal) -> (nat);
+  depositICP: (amount: nat) -> (variant {
+                                  Err: text;
+                                  Ok: nat;
+                                });
+  distributeFees: (totalFees: float64) -> ();
+  getActiveGameCount: () -> (nat) query;
+  getAllActiveGames: () -> (vec GameRecord) query;
+  getAllGames: () -> (vec GameRecord) query;
+  getAvailableBalance: () -> (float64) query;
+  getCallerUserProfile: () -> (opt UserProfile) query;
+  getCallerUserRole: () -> (UserRole) query;
+  getCanisterICPBalance: () -> (nat);
+  getCanisterPrincipal: () -> (opt principal) query;
+  getDaysActive: () -> (nat) query;
+  getDealerPositions: () -> (vec DealerPosition) query;
+  getDealerRepaymentBalance: () -> (float64) query;
+  getGameById: (gameId: nat) -> (opt GameRecord) query;
+  getGameResetHistory: () -> (vec GameResetRecord) query;
+  getHouseLedger: () -> (vec HouseLedgerRecord) query;
+  getHouseLedgerStats: () ->
+   (record {
+      netBalance: float64;
+      recordCount: nat;
+      totalDeposits: float64;
+      totalWithdrawals: float64;
+    }) query;
+  getMaxDepositLimit: () -> (float64) query;
+  getOldestUpstreamDealer: () -> (opt DealerPosition) query;
+  getPlatformStats: () -> (PlatformStats) query;
+  getPonziPoints: () -> (float64) query;
+  getPonziPointsBalance: () ->
+   (record {
+      depositPoints: float64;
+      referralPoints: float64;
+      totalPoints: float64;
+    }) query;
+  getRecentShenanigans: () -> (vec ShenaniganRecord) query;
+  getReferralEarnings: (user: principal) -> (float64) query;
+  getReferralTierPoints: () ->
+   (record {
+      level1Points: float64;
+      level2Points: float64;
+      level3Points: float64;
+      totalPoints: float64;
+    }) query;
+  getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
+  getShenaniganStats: () -> (ShenaniganStats) query;
+  getTopPonziPointsBurners: () -> (vec record {
+                                         principal;
+                                         float64;
+                                       }) query;
+  getTopPonziPointsHolders: () -> (vec record {
+                                         principal;
+                                         float64;
+                                       }) query;
+  getTotalDealerDebt: () -> (float64) query;
+  getTotalDeposits: () -> (float64) query;
+  getTotalHouseMoneyAdded: () -> (float64) query;
+  getTotalWithdrawals: () -> (float64) query;
+  getUserGames: () -> (vec GameRecord) query;
+  getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getWalletBalance: () -> (nat) query;
+  getWalletBalanceICP: () -> (float64) query;
+  getWalletTransactions: () -> (vec WalletTransaction) query;
+  initializeAccessControl: () -> ();
+  isCallerAdmin: () -> (bool) query;
+  isTestMode: () -> (bool) query;
+  resetShenaniganConfig: (id: nat) -> ();
+  saveAllShenaniganConfigs: (configs: vec ShenaniganConfig) -> ();
+  saveCallerUserProfile: (profile: UserProfile) -> ();
+  setCanisterPrincipal: (p: principal) -> ();
+  setTestMode: (enabled: bool) -> ();
+  transferInternal: (to: principal, amount: nat) -> (variant {
+                                                       Err: text;
+                                                       Ok;
+                                                     });
+  updateShenaniganConfig: (config: ShenaniganConfig) -> ();
+  withdrawEarnings: (gameId: nat) -> (float64);
+  withdrawICP: (amount: nat) -> (variant {
+                                   Err: text;
+                                   Ok: nat;
+                                 });
+}

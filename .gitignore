@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+.dfx/
+
+# Build outputs
+dist/
+frontend/dist/
+.vite/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Generated files
+src/declarations/
+
+# Testing
+coverage/
+
+# Canister IDs (generated)
+canister_ids.json
