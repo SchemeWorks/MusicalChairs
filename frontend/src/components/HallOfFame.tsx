@@ -63,29 +63,29 @@ export default function HallOfFame() {
     switch (rank) {
       case 1:
         return {
-          cardClass: 'border-4 border-yellow-400 bg-gradient-to-r from-yellow-100 to-yellow-200 shadow-lg',
+          cardClass: 'mc-rank-gold rounded-xl p-1',
           badgeClass: 'bg-yellow-500 text-yellow-900',
           emoji: '🥇',
           title: 'Gold'
         };
       case 2:
         return {
-          cardClass: 'border-4 border-gray-400 bg-gradient-to-r from-gray-100 to-gray-200 shadow-lg',
-          badgeClass: 'bg-gray-500 text-gray-900',
+          cardClass: 'mc-rank-silver rounded-xl p-1',
+          badgeClass: 'bg-gray-400 text-gray-900',
           emoji: '🥈',
           title: 'Silver'
         };
       case 3:
         return {
-          cardClass: 'border-4 border-orange-400 bg-gradient-to-r from-orange-100 to-orange-200 shadow-lg',
+          cardClass: 'mc-rank-bronze rounded-xl p-1',
           badgeClass: 'bg-orange-500 text-orange-900',
           emoji: '🥉',
           title: 'Bronze'
         };
       default:
         return {
-          cardClass: 'border-2 border-gray-200 bg-white hover:border-purple-300 hover:shadow-md transition-all',
-          badgeClass: 'bg-purple-100 text-purple-800',
+          cardClass: 'mc-rank-default rounded-xl p-1',
+          badgeClass: 'bg-purple-500/20 text-purple-300',
           emoji: '🏅',
           title: `#${rank}`
         };

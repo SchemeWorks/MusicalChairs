@@ -166,13 +166,11 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
       <div className="space-y-6">
         {/* Single Frosted Glass Container - Error */}
         <div className="profit-center-single-container">
-          <Card className="border-red-500 bg-red-50">
-            <CardContent className="pt-4">
-              <p className="text-red-800 font-bold text-center">
+          <div className="mc-card-status-red p-4">
+              <p className="text-red-300 font-bold text-center">
                 ⚠️ Unable to load profit center data. Please try again later.
               </p>
-            </CardContent>
-          </Card>
+          </div>
         </div>
       </div>
     );
@@ -360,7 +358,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
                 return (
                   <div key={game.id.toString()}>
                     {index > 0 && <Separator className="my-4 bg-gray-300" />}
-                    <Card className={`border-2 hover:shadow-lg bg-gradient-to-r from-gray-50 to-white transition-all ${planCardClass}`}>
+                    <Card className={`mc-card-elevated border-2 hover:shadow-lg transition-all ${planCardClass}`}>
                       <CardContent className="pt-6">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                           {/* Plan Info */}
@@ -369,13 +367,13 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
                               {planEmoji}
                             </div>
                             <div>
-                              <div className="font-black text-gray-900 text-lg">{planName}</div>
+                              <div className="font-black text-white text-lg">{planName}</div>
                               <div className="flex gap-2 mt-1">
                                 <Badge variant={game.isCompounding ? "default" : "outline"}>
                                   {game.isCompounding ? '🔥 Compounding' : '🌱 Simple'}
                                 </Badge>
                               </div>
-                              <div className="text-xs text-gray-500 mt-1">
+                              <div className="text-xs text-white/50 mt-1">
                                 {daysActive} days active
                               </div>
                             </div>
@@ -383,28 +381,28 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
 
                           {/* Game Amount */}
                           <div className="text-center lg:text-left">
-                            <div className="text-sm font-bold text-gray-600 mb-1">Initial Deposit</div>
-                            <div className="text-2xl font-black text-blue-600">
+                            <div className="mc-label mb-1">Initial Deposit</div>
+                            <div className="text-2xl font-black mc-value-blue mc-value-glow">
                               {formatICP(game.amount)} ICP
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-white/40">
                               {formatDate(game.startTime)}
                             </div>
                           </div>
 
                           {/* Accumulated Earnings */}
                           <div className="text-center lg:text-left">
-                            <div className="text-sm font-bold text-gray-600 mb-1">Accumulated Earnings</div>
-                            <div className="text-2xl font-black text-green-600">
+                            <div className="mc-label mb-1">Accumulated Earnings</div>
+                            <div className="text-2xl font-black mc-value-green mc-value-glow-green">
                               {formatICP(currentEarnings)} ICP
                             </div>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-white/40">
                               {game.isCompounding ? 'Compound accumulation' : 'Simple accumulation'}
                             </div>
                           </div>
                         </div>
 
-                        <Separator className="my-4" />
+                        <Separator className="my-4 bg-white/10" />
 
                         {/* Status Bar and Actions */}
                         <div className="flex items-center justify-between">
@@ -412,7 +410,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
                             <Badge variant={game.isActive ? "default" : "secondary"}>
                               {game.isActive ? '🟢 Active' : '⚪ Inactive'}
                             </Badge>
-                            <div className="text-xs text-gray-500">
+                            <div className="text-xs text-white/40">
                               Position #{index + 1}
                             </div>
                             {game.isCompounding && !isUnlocked && (
@@ -464,23 +462,19 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
               })}
 
               {withdrawEarningsMutation.isError && (
-                <Card className="border-red-500 bg-red-50">
-                  <CardContent className="pt-4">
-                    <p className="text-red-800 font-bold text-center text-sm">
+                <div className="mc-card-status-red p-4">
+                    <p className="text-red-300 font-bold text-center text-sm">
                       ❌ {withdrawEarningsMutation.error?.message || 'Withdrawal failed'}
                     </p>
-                  </CardContent>
-                </Card>
+                </div>
               )}
 
               {withdrawEarningsMutation.isSuccess && (
-                <Card className="border-green-500 bg-green-50">
-                  <CardContent className="pt-4">
-                    <p className="text-green-800 font-bold text-center text-sm">
+                <div className="mc-card-status-green p-4">
+                    <p className="text-green-300 font-bold text-center text-sm">
                       ✅ Earnings withdrawn successfully! Withdrawal fee deducted. Net amount credited to your wallet! 🎉
                     </p>
-                  </CardContent>
-                </Card>
+                </div>
               )}
             </div>
           </div>

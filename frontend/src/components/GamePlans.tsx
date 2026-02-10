@@ -147,40 +147,38 @@ export default function GamePlans() {
                   setSelectedMode('simple');
                   setSelectedPlan('21-day-simple');
                 }}
-                className={`cursor-pointer transition-all hover:scale-105 rounded-xl p-6 border-2 ${
-                  selectedMode === 'simple'
-                    ? 'border-green-400 shadow-lg bg-gradient-to-br from-green-50 to-green-100'
-                    : 'border-gray-200 hover:border-green-300 bg-white hover:shadow-md'
+                className={`mc-card-selectable p-6 ${
+                  selectedMode === 'simple' ? 'selected-green' : ''
                 }`}
               >
                 <div className="text-center mb-4">
                   <div className="text-4xl mb-2">🌱</div>
-                  <h4 className="text-xl font-black text-green-800 mb-2">Simple Mode</h4>
-                  <p className="text-sm font-semibold text-green-700">21-Day Simple Plan → 11% daily return (interest only)</p>
+                  <h4 className="text-xl font-black text-green-400 mb-2">Simple Mode</h4>
+                  <p className="text-sm font-semibold text-green-300/70">21-Day Simple Plan → 11% daily return (interest only)</p>
                 </div>
                 
-                <ul className="text-sm text-green-700 space-y-2">
+                <ul className="text-sm text-white/70 space-y-2">
                   <li className="flex items-start">
-                    <span className="text-green-500 mr-2">•</span>
+                    <span className="text-green-400 mr-2">•</span>
                     Principal consumed at deposit - only interest paid out
                   </li>
                   <li className="flex items-start">
-                    <span className="text-green-500 mr-2">•</span>
+                    <span className="text-green-400 mr-2">•</span>
                     Withdraw earnings at any time
                   </li>
                   <li className="flex items-start">
-                    <span className="text-green-500 mr-2">•</span>
+                    <span className="text-green-400 mr-2">•</span>
                     Exit Toll: 7%/5%/3% based on timing
                   </li>
                   <li className="flex items-start">
-                    <span className="text-green-500 mr-2">•</span>
+                    <span className="text-green-400 mr-2">•</span>
                     Ponzi Points: Base multiplier (1x)
                   </li>
                 </ul>
                 
                 {selectedMode === 'simple' && (
-                  <div className="mt-4 bg-green-100 border border-green-400 rounded-lg p-2">
-                    <div className="text-green-800 font-bold text-center text-sm">
+                  <div className="mt-4 mc-card-status-green rounded-lg p-2">
+                    <div className="text-green-300 font-bold text-center text-sm">
                       ✅ Simple Mode Selected
                     </div>
                   </div>
@@ -193,40 +191,38 @@ export default function GamePlans() {
                   setSelectedMode('compounding');
                   setSelectedPlan(''); // Reset plan selection for compounding
                 }}
-                className={`cursor-pointer transition-all hover:scale-105 rounded-xl p-6 border-2 ${
-                  selectedMode === 'compounding'
-                    ? 'border-purple-400 shadow-lg bg-gradient-to-br from-purple-50 to-purple-100'
-                    : 'border-gray-200 hover:border-purple-300 bg-white hover:shadow-md'
+                className={`mc-card-selectable p-6 ${
+                  selectedMode === 'compounding' ? 'selected-purple' : ''
                 }`}
               >
                 <div className="text-center mb-4">
                   <div className="text-4xl mb-2">🔥</div>
-                  <h4 className="text-xl font-black text-purple-800 mb-2">Compounding Mode</h4>
-                  <p className="text-sm font-semibold text-purple-700">Choose plan length below</p>
+                  <h4 className="text-xl font-black text-purple-400 mb-2">Compounding Mode</h4>
+                  <p className="text-sm font-semibold text-purple-300/70">Choose plan length below</p>
                 </div>
                 
-                <ul className="text-sm text-purple-700 space-y-2">
+                <ul className="text-sm text-white/70 space-y-2">
                   <li className="flex items-start">
-                    <span className="text-purple-500 mr-2">•</span>
+                    <span className="text-purple-400 mr-2">•</span>
                     Enhanced returns through compounding
                   </li>
                   <li className="flex items-start">
-                    <span className="text-purple-500 mr-2">•</span>
+                    <span className="text-purple-400 mr-2">•</span>
                     Funds locked until plan period ends
                   </li>
                   <li className="flex items-start">
-                    <span className="text-purple-500 mr-2">•</span>
+                    <span className="text-purple-400 mr-2">•</span>
                     Exit Toll: Flat 13% fee
                   </li>
                   <li className="flex items-start">
-                    <span className="text-purple-500 mr-2">•</span>
+                    <span className="text-purple-400 mr-2">•</span>
                     Ponzi Points: Enhanced multipliers (2x-3x)
                   </li>
                 </ul>
                 
                 {selectedMode === 'compounding' && (
-                  <div className="mt-4 bg-purple-100 border border-purple-400 rounded-lg p-2">
-                    <div className="text-purple-800 font-bold text-center text-sm">
+                  <div className="mt-4 mc-card-status-green rounded-lg p-2">
+                    <div className="text-green-300 font-bold text-center text-sm">
                       ✅ Compounding Mode Selected
                     </div>
                   </div>
@@ -253,10 +249,8 @@ export default function GamePlans() {
                 {/* 15-Day Compounding Plan */}
                 <div
                   onClick={() => setSelectedPlan('15-day-compounding')}
-                  className={`cursor-pointer transition-all hover:scale-105 rounded-xl p-4 border-2 ${
-                    selectedPlan === '15-day-compounding'
-                      ? 'border-yellow-400 shadow-lg bg-gradient-to-br from-yellow-50 to-orange-50'
-                      : 'border-gray-200 hover:border-blue-300 bg-white hover:shadow-md'
+                  className={`mc-card-selectable p-4 ${
+                    selectedPlan === '15-day-compounding' ? 'selected-yellow' : ''
                   }`}
                 >
                   <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-blue-500 rounded-xl flex items-center justify-center text-2xl mb-3 mx-auto">
@@ -264,18 +258,18 @@ export default function GamePlans() {
                   </div>
                   
                   <div className="text-center">
-                    <h4 className="text-lg font-black text-gray-900 mb-2">15-Day Compounding</h4>
-                    <Badge variant="outline" className="mb-2">
+                    <h4 className="text-lg font-black text-white mb-2">15-Day Compounding</h4>
+                    <Badge variant="outline" className="mb-2 text-white/70 border-white/20">
                       12% daily return
                     </Badge>
-                    <div className="text-xs text-purple-600 font-bold">
+                    <div className="text-xs text-purple-400 font-bold">
                       Ponzi Points: 2x multiplier
                     </div>
                   </div>
                   
                   {selectedPlan === '15-day-compounding' && (
-                    <div className="mt-3 bg-yellow-100 border border-yellow-400 rounded-lg p-2">
-                      <div className="text-yellow-800 font-bold text-center text-sm">
+                    <div className="mt-3 mc-card-status-green rounded-lg p-2">
+                      <div className="text-green-300 font-bold text-center text-sm">
                         ✅ Selected
                       </div>
                     </div>
@@ -285,10 +279,8 @@ export default function GamePlans() {
                 {/* 30-Day Compounding Plan */}
                 <div
                   onClick={() => setSelectedPlan('30-day-compounding')}
-                  className={`cursor-pointer transition-all hover:scale-105 rounded-xl p-4 border-2 ${
-                    selectedPlan === '30-day-compounding'
-                      ? 'border-yellow-400 shadow-lg bg-gradient-to-br from-yellow-50 to-orange-50'
-                      : 'border-gray-200 hover:border-blue-300 bg-white hover:shadow-md'
+                  className={`mc-card-selectable p-4 ${
+                    selectedPlan === '30-day-compounding' ? 'selected-yellow' : ''
                   }`}
                 >
                   <div className="w-12 h-12 bg-gradient-to-br from-purple-400 to-pink-500 rounded-xl flex items-center justify-center text-2xl mb-3 mx-auto">
@@ -296,18 +288,18 @@ export default function GamePlans() {
                   </div>
                   
                   <div className="text-center">
-                    <h4 className="text-lg font-black text-gray-900 mb-2">30-Day Compounding</h4>
-                    <Badge variant="outline" className="mb-2">
+                    <h4 className="text-lg font-black text-white mb-2">30-Day Compounding</h4>
+                    <Badge variant="outline" className="mb-2 text-white/70 border-white/20">
                       9% daily return
                     </Badge>
-                    <div className="text-xs text-purple-600 font-bold">
+                    <div className="text-xs text-purple-400 font-bold">
                       Ponzi Points: 3x multiplier
                     </div>
                   </div>
                   
                   {selectedPlan === '30-day-compounding' && (
-                    <div className="mt-3 bg-yellow-100 border border-yellow-400 rounded-lg p-2">
-                      <div className="text-yellow-800 font-bold text-center text-sm">
+                    <div className="mt-3 mc-card-status-green rounded-lg p-2">
+                      <div className="text-green-300 font-bold text-center text-sm">
                         ✅ Selected
                       </div>
                     </div>
@@ -400,16 +392,16 @@ export default function GamePlans() {
                           🚀 Expected ROI if plan matures before the round ends.
                         </h3>
                       </div>
-                      <div className="bg-white rounded-lg p-4">
+                      <div className="mc-card rounded-lg p-4">
                         <div className="flex justify-between items-center">
                           <div className="text-left">
-                            <div className="text-sm font-bold text-gray-600">
+                            <div className="text-sm font-bold text-white/60">
                               {selectedMode === 'simple' ? 'Expected Interest Payout' : 'Expected Compounded Interest Payout'}
                             </div>
-                            <div className="text-xl font-black text-green-600">
+                            <div className="text-xl font-black mc-value-green mc-value-glow-green">
                               {formatICP(roiData.totalReturn)} ICP
                             </div>
-                            <div className="text-sm font-bold text-green-500">
+                            <div className="text-sm font-bold text-green-400/70">
                               {selectedMode === 'simple' 
                                 ? `${(roiData.totalReturn / depositAmount).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
                                 : `${roiData.roiPercent.toFixed(1)}% ROI`
@@ -417,11 +409,11 @@ export default function GamePlans() {
                             </div>
                           </div>
                           <div className="text-right">
-                            <div className="text-sm font-bold text-purple-600">Ponzi Points</div>
-                            <div className="text-xl font-black text-purple-800">
+                            <div className="text-sm font-bold text-purple-400">Ponzi Points</div>
+                            <div className="text-xl font-black mc-value-purple mc-value-glow">
                               {roiData.ponziPoints.toLocaleString()}
                             </div>
-                            <div className="text-xs text-purple-600">
+                            <div className="text-xs text-purple-400/70">
                               {selectedMode === 'simple' ? '1x' : 
                                selectedPlan === '15-day-compounding' ? '2x' : '3x'} multiplier
                             </div>
@@ -431,7 +423,7 @@ export default function GamePlans() {
                     </div>
                   ) : (
                     <div className="h-full flex items-center justify-center">
-                      <div className="text-center text-gray-500">
+                      <div className="text-center text-white/40">
                         <div className="text-4xl mb-2">📊</div>
                         <p className="font-semibold">
                           Enter deposit amount to see ROI

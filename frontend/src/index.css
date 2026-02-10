@@ -9,8 +9,8 @@
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 270 30% 15%;
+    --card-foreground: 0 0% 95%;
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
     --primary: 222.2 47.4% 11.2%;
@@ -86,6 +86,267 @@
   .neon-glow {
     text-shadow: 0 0 5px currentColor, 0 0 10px currentColor, 0 0 15px currentColor;
   }
+
+  /* ============================================================
+     CASINO CARD DESIGN SYSTEM
+     Reusable card styles for consistent casino/arcade aesthetic
+     ============================================================ */
+
+  /* --- Base Casino Card (Level 1 - default inner cards) --- */
+  .mc-card {
+    background: linear-gradient(
+      165deg,
+      rgba(45, 20, 80, 0.85) 0%,
+      rgba(30, 15, 60, 0.9) 50%,
+      rgba(40, 18, 75, 0.85) 100%
+    );
+    border: 1px solid rgba(168, 85, 247, 0.25);
+    border-radius: 16px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow:
+      0 4px 16px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mc-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.15) 50%, transparent 100%);
+  }
+
+  .mc-card:hover {
+    box-shadow:
+      0 8px 24px rgba(0, 0, 0, 0.4),
+      0 0 20px rgba(168, 85, 247, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transform: translateY(-1px);
+    border-color: rgba(168, 85, 247, 0.35);
+  }
+
+  /* --- Elevated Casino Card (Level 2 - featured/highlighted) --- */
+  .mc-card-elevated {
+    background: linear-gradient(
+      165deg,
+      rgba(60, 25, 100, 0.9) 0%,
+      rgba(40, 18, 75, 0.92) 50%,
+      rgba(55, 22, 95, 0.9) 100%
+    );
+    border: 1px solid rgba(168, 85, 247, 0.35);
+    border-radius: 16px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.4),
+      0 0 30px rgba(168, 85, 247, 0.08),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: all 0.25s ease;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mc-card-elevated::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.2) 50%, transparent 100%);
+  }
+
+  .mc-card-elevated:hover {
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.5),
+      0 0 40px rgba(168, 85, 247, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    transform: translateY(-2px);
+    border-color: rgba(168, 85, 247, 0.5);
+  }
+
+  /* --- Accent color variants (top rail glow) --- */
+  .mc-accent-green { border-top: 2px solid rgba(74, 222, 128, 0.6); }
+  .mc-accent-green:hover { border-top-color: rgba(74, 222, 128, 0.8); }
+  .mc-accent-red { border-top: 2px solid rgba(248, 113, 113, 0.6); }
+  .mc-accent-red:hover { border-top-color: rgba(248, 113, 113, 0.8); }
+  .mc-accent-blue { border-top: 2px solid rgba(96, 165, 250, 0.6); }
+  .mc-accent-blue:hover { border-top-color: rgba(96, 165, 250, 0.8); }
+  .mc-accent-purple { border-top: 2px solid rgba(192, 132, 252, 0.6); }
+  .mc-accent-purple:hover { border-top-color: rgba(192, 132, 252, 0.8); }
+  .mc-accent-yellow { border-top: 2px solid rgba(250, 204, 21, 0.6); }
+  .mc-accent-yellow:hover { border-top-color: rgba(250, 204, 21, 0.8); }
+  .mc-accent-orange { border-top: 2px solid rgba(251, 146, 60, 0.6); }
+  .mc-accent-orange:hover { border-top-color: rgba(251, 146, 60, 0.8); }
+  .mc-accent-cyan { border-top: 2px solid rgba(34, 211, 238, 0.6); }
+  .mc-accent-cyan:hover { border-top-color: rgba(34, 211, 238, 0.8); }
+
+  /* --- Selectable Card (for GamePlans mode/plan pickers) --- */
+  .mc-card-selectable {
+    background: linear-gradient(
+      165deg,
+      rgba(45, 20, 80, 0.7) 0%,
+      rgba(30, 15, 60, 0.75) 100%
+    );
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    transition: all 0.25s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .mc-card-selectable:hover {
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 20px rgba(168, 85, 247, 0.1);
+    transform: translateY(-2px) scale(1.02);
+  }
+
+  .mc-card-selectable.selected-green {
+    border-color: rgba(74, 222, 128, 0.6);
+    background: linear-gradient(165deg, rgba(20, 60, 30, 0.85) 0%, rgba(15, 45, 25, 0.9) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 25px rgba(74, 222, 128, 0.15);
+  }
+
+  .mc-card-selectable.selected-purple {
+    border-color: rgba(192, 132, 252, 0.6);
+    background: linear-gradient(165deg, rgba(60, 25, 100, 0.85) 0%, rgba(45, 18, 80, 0.9) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 25px rgba(192, 132, 252, 0.15);
+  }
+
+  .mc-card-selectable.selected-yellow {
+    border-color: rgba(250, 204, 21, 0.6);
+    background: linear-gradient(165deg, rgba(80, 60, 15, 0.85) 0%, rgba(60, 45, 10, 0.9) 100%);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35), 0 0 25px rgba(250, 204, 21, 0.15);
+  }
+
+  /* --- Status / Alert Cards --- */
+  .mc-card-status-red {
+    background: linear-gradient(165deg, rgba(80, 20, 25, 0.9) 0%, rgba(60, 15, 20, 0.92) 100%);
+    border: 1px solid rgba(248, 113, 113, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .mc-card-status-green {
+    background: linear-gradient(165deg, rgba(20, 60, 30, 0.9) 0%, rgba(15, 45, 22, 0.92) 100%);
+    border: 1px solid rgba(74, 222, 128, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .mc-card-status-yellow {
+    background: linear-gradient(165deg, rgba(80, 60, 15, 0.9) 0%, rgba(60, 45, 10, 0.92) 100%);
+    border: 1px solid rgba(250, 204, 21, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .mc-card-status-blue {
+    background: linear-gradient(165deg, rgba(15, 30, 70, 0.9) 0%, rgba(10, 22, 55, 0.92) 100%);
+    border: 1px solid rgba(96, 165, 250, 0.35);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* --- Focal Value Glow (behind big numbers) --- */
+  .mc-value-glow {
+    text-shadow: 0 0 20px rgba(168, 85, 247, 0.3), 0 0 40px rgba(168, 85, 247, 0.1);
+  }
+
+  .mc-value-glow-green {
+    text-shadow: 0 0 20px rgba(74, 222, 128, 0.3), 0 0 40px rgba(74, 222, 128, 0.1);
+  }
+
+  .mc-value-glow-yellow {
+    text-shadow: 0 0 20px rgba(250, 204, 21, 0.3), 0 0 40px rgba(250, 204, 21, 0.1);
+  }
+
+  /* --- Leaderboard / Rank Cards --- */
+  .mc-rank-gold {
+    background: linear-gradient(165deg, rgba(100, 75, 10, 0.9) 0%, rgba(80, 60, 8, 0.92) 100%);
+    border: 2px solid rgba(250, 204, 21, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(250, 204, 21, 0.1);
+  }
+
+  .mc-rank-silver {
+    background: linear-gradient(165deg, rgba(55, 55, 65, 0.9) 0%, rgba(40, 40, 50, 0.92) 100%);
+    border: 2px solid rgba(192, 192, 210, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(192, 192, 210, 0.08);
+  }
+
+  .mc-rank-bronze {
+    background: linear-gradient(165deg, rgba(80, 45, 15, 0.9) 0%, rgba(60, 35, 12, 0.92) 100%);
+    border: 2px solid rgba(205, 127, 50, 0.5);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 20px rgba(205, 127, 50, 0.08);
+  }
+
+  .mc-rank-default {
+    background: linear-gradient(165deg, rgba(45, 20, 80, 0.8) 0%, rgba(30, 15, 60, 0.85) 100%);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    transition: all 0.25s ease;
+  }
+
+  .mc-rank-default:hover {
+    border-color: rgba(168, 85, 247, 0.4);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3), 0 0 15px rgba(168, 85, 247, 0.08);
+  }
+
+  /* --- Info/Warning Bubbles (dark theme versions) --- */
+  .mc-bubble-info {
+    background: linear-gradient(165deg, rgba(25, 35, 60, 0.9) 0%, rgba(18, 25, 50, 0.92) 100%);
+    border: 1px solid rgba(96, 165, 250, 0.25);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: rgba(191, 219, 254, 0.9);
+    transition: all 0.25s ease;
+  }
+
+  .mc-bubble-warning {
+    background: linear-gradient(165deg, rgba(60, 45, 10, 0.9) 0%, rgba(45, 35, 8, 0.92) 100%);
+    border: 1px solid rgba(250, 204, 21, 0.3);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: rgba(253, 230, 138, 0.9);
+    transition: all 0.25s ease;
+  }
+
+  .mc-bubble-danger {
+    background: linear-gradient(165deg, rgba(70, 18, 22, 0.9) 0%, rgba(55, 14, 18, 0.92) 100%);
+    border: 1px solid rgba(248, 113, 113, 0.3);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    color: rgba(254, 202, 202, 0.9);
+    transition: all 0.25s ease;
+  }
+
+  .mc-bubble-info:hover,
+  .mc-bubble-warning:hover,
+  .mc-bubble-danger:hover {
+    transform: scale(1.01);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  }
+
+  /* --- White-on-dark text helpers --- */
+  .mc-label { color: rgba(255, 255, 255, 0.6); font-weight: 600; font-size: 0.875rem; }
+  .mc-value { color: rgba(255, 255, 255, 0.95); font-weight: 800; }
+  .mc-value-green { color: rgba(74, 222, 128, 0.95); font-weight: 800; }
+  .mc-value-red { color: rgba(248, 113, 113, 0.95); font-weight: 800; }
+  .mc-value-yellow { color: rgba(250, 204, 21, 0.95); font-weight: 800; }
+  .mc-value-purple { color: rgba(192, 132, 252, 0.95); font-weight: 800; }
+  .mc-value-blue { color: rgba(96, 165, 250, 0.95); font-weight: 800; }
 
   .portfolio-title-clean {
     color: white;
