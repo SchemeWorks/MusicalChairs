@@ -802,7 +802,7 @@
   }
 
   /* ================================================================
-     SHENANIGAN CARDS
+     SHENANIGAN CARDS — Enhanced with bigger icons & radiating aura
      ================================================================ */
 
   .mc-shenanigan-card {
@@ -810,40 +810,59 @@
     border: 1px solid var(--mc-border);
     border-radius: var(--radius-lg);
     padding: var(--space-lg);
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     position: relative;
-    overflow: hidden;
+    overflow: visible;
   }
 
-  .mc-shenanigan-card::after {
+  .mc-shenanigan-card::before {
     content: '';
     position: absolute;
-    inset: 0;
-    border-radius: inherit;
+    top: -20px; left: -20px; right: -20px; bottom: -20px;
+    border-radius: calc(var(--radius-lg) + 20px);
+    background: radial-gradient(ellipse at 50% 30%, var(--aura-color, rgba(168, 85, 247, 0.15)), transparent 70%);
     opacity: 0;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.4s ease;
     pointer-events: none;
+    z-index: -1;
   }
 
-  .mc-shenanigan-card:hover::after {
+  .mc-shenanigan-card:hover::before {
     opacity: 1;
   }
 
   .mc-shenanigan-card:hover {
-    transform: translateY(-2px);
+    transform: translateY(-4px);
     border-color: var(--mc-border-hover);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   }
 
   .mc-shenanigan-icon {
-    width: 48px;
-    height: 48px;
+    width: 56px;
+    height: 56px;
     border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5rem;
+    font-size: 1.8rem;
     margin: 0 auto var(--space-md);
-    box-shadow: 0 0 20px var(--aura-color, var(--mc-glow-purple));
+    background: radial-gradient(circle, var(--aura-color, rgba(168, 85, 247, 0.3)) 0%, transparent 70%);
+    box-shadow: 0 0 30px var(--aura-color, var(--mc-glow-purple)), 0 0 60px var(--aura-color, var(--mc-glow-purple));
+    position: relative;
+  }
+
+  .mc-shenanigan-icon::after {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    background: radial-gradient(circle, var(--aura-color, rgba(168, 85, 247, 0.15)), transparent 70%);
+    animation: mc-aura-pulse 3s ease-in-out infinite;
+  }
+
+  @keyframes mc-aura-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.15); opacity: 0.8; }
   }
 
   /* ================================================================
@@ -916,6 +935,23 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Staggered card entrance — apply to grids */
+  .mc-stagger > * {
+    opacity: 0;
+    animation: mc-slide-up 0.3s ease-out forwards;
+  }
+  .mc-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .mc-stagger > *:nth-child(2) { animation-delay: 50ms; }
+  .mc-stagger > *:nth-child(3) { animation-delay: 100ms; }
+  .mc-stagger > *:nth-child(4) { animation-delay: 150ms; }
+  .mc-stagger > *:nth-child(5) { animation-delay: 200ms; }
+  .mc-stagger > *:nth-child(6) { animation-delay: 250ms; }
+  .mc-stagger > *:nth-child(7) { animation-delay: 300ms; }
+  .mc-stagger > *:nth-child(8) { animation-delay: 350ms; }
+  .mc-stagger > *:nth-child(9) { animation-delay: 400ms; }
+  .mc-stagger > *:nth-child(10) { animation-delay: 450ms; }
+  .mc-stagger > *:nth-child(11) { animation-delay: 500ms; }
+
   /* Icon glows (shenanigans & hall of fame in nav) */
   .mc-icon-glow-green {
     text-shadow: 0 0 8px var(--mc-neon-green), 0 0 16px var(--mc-glow-green);
@@ -923,6 +959,33 @@
 
   .mc-icon-glow-gold {
     text-shadow: 0 0 8px var(--mc-gold), 0 0 16px var(--mc-glow-gold);
+  }
+
+  /* Enhanced card hover — for position cards, plan cards etc */
+  .mc-card:hover {
+    border-color: var(--mc-border-hover);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px var(--mc-glow-purple);
+  }
+
+  .mc-plan-simple:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-green);
+    border-left-color: rgba(57, 255, 20, 0.7);
+  }
+
+  .mc-plan-compound:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-purple);
+    border-left-color: rgba(168, 85, 247, 0.7);
+  }
+
+  /* Number counter animation for refreshing values */
+  .mc-counter-flash {
+    animation: mc-flash-green 0.6s ease-out;
+  }
+
+  @keyframes mc-flash-green {
+    0% { color: var(--mc-white); transform: scale(1); }
+    30% { color: var(--mc-neon-green); transform: scale(1.08); text-shadow: 0 0 20px var(--mc-glow-green); }
+    100% { color: inherit; transform: scale(1); text-shadow: none; }
   }
 
   /* ================================================================

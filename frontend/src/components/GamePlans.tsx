@@ -75,7 +75,7 @@ export default function GamePlans() {
         {/* Step 1: Mode Selection */}
         <div className="mb-8">
           <div className="mc-label mb-3">Step 1 — Choose Game Mode</div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
             {/* Simple */}
             <div
               onClick={() => { setSelectedMode('simple'); setSelectedPlan('21-day-simple'); }}

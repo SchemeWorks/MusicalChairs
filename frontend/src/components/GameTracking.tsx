@@ -32,12 +32,14 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
   const [withdrawnAmount, setWithdrawnAmount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [flashValues, setFlashValues] = useState(false);
   const [countdown, setCountdown] = useState('');
 
   const handleRefresh = async () => {
     setRefreshing(true);
     await refetch();
-    setTimeout(() => setRefreshing(false), 600);
+    setFlashValues(true);
+    setTimeout(() => { setRefreshing(false); setFlashValues(false); }, 800);
   };
 
   const handleWithdrawClick = (game: GameRecord) => {
@@ -116,11 +118,11 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Total Deposits</div>
-              <div className="text-2xl font-bold mc-text-primary">{formatICP(totalDeposits)} ICP</div>
+              <div className={`text-2xl font-bold mc-text-primary ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalDeposits)} ICP</div>
             </div>
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Accumulated Earnings</div>
-              <div className="text-2xl font-bold mc-text-green mc-glow-green">{formatICP(totalEarnings)} ICP</div>
+              <div className={`text-2xl font-bold mc-text-green mc-glow-green ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalEarnings)} ICP</div>
             </div>
           </div>
         </div>

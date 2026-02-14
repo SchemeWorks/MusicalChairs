@@ -30,7 +30,16 @@ const navItems: NavItem[] = [
   { id: 'halloffame', label: 'Hall of Fame', emoji: '🏆', icon: <Trophy className="h-5 w-5" />, group: 'fun', activeClass: 'active-gold', glowClass: 'mc-icon-glow-gold' },
 ];
 
-// Mobile bottom bar shows these 5; the rest go in "More"
+// Short labels for mobile bottom tabs
+const mobileLabels: Record<TabType, string> = {
+  positions: 'Profit',
+  setup: 'Plans',
+  casino: 'House',
+  rewards: 'Rewards',
+  marketing: 'MLM',
+  shenanigans: 'Tricks',
+  halloffame: 'Fame',
+};
 const mobileMainTabs: TabType[] = ['positions', 'setup', 'casino', 'shenanigans'];
 const mobileMoreTabs: TabType[] = ['rewards', 'marketing', 'halloffame'];
 
@@ -144,7 +153,7 @@ export default function Dashboard() {
                   <span className={`tab-icon ${!isActive && item.glowClass ? item.glowClass : ''}`}>
                     {item.emoji || item.icon}
                   </span>
-                  <span>{item.label.split(' ')[0]}</span>
+                  <span>{mobileLabels[item.id]}</span>
                 </button>
               );
             })}
@@ -174,6 +183,7 @@ export default function Dashboard() {
                   }`}
                 >
                   <span className={`text-lg ${item.glowClass || ''}`}>{item.emoji || ''}</span>
+                  {item.icon}
                   <span className="font-bold text-sm">{item.label}</span>
                 </button>
               );
