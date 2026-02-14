@@ -126,11 +126,11 @@ export default function Shenanigans() {
 
       {/* Shenanigan cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mc-stagger">
-        {availableShenanigans.map(trick => {
+        {availableShenanigans.map((trick, idx) => {
           const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trick.type;
           return (
             <div
-              key={trick.type}
+              key={`shenanigan-${idx}`}
               className="mc-shenanigan-card"
               style={{ '--aura-color': trick.auraColor } as React.CSSProperties}
             >
