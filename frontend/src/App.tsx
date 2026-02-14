@@ -27,7 +27,13 @@ export default function App() {
 
   if (isInitializing) {
     return (
-      <div className="mc-bg min-h-screen flex items-center justify-center">
+      <div className="mc-bg min-h-screen flex flex-col items-center justify-center gap-6">
+        <div className="font-display text-4xl mc-text-primary mc-glow-gold animate-pulse">
+          Musical Chairs
+        </div>
+        <div className="font-display text-base mc-text-gold opacity-60">
+          It's a Ponzi!
+        </div>
         <LoadingSpinner />
       </div>
     );

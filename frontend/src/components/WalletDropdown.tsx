@@ -214,8 +214,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
           {(['deposit', 'withdraw', 'send'] as const).map(tab => (
             <button key={tab} onClick={() => { setActiveTab(tab); setInputError(''); }}
-              className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all capitalize ${
-                activeTab === tab ? 'bg-purple-500/20 mc-text-purple' : 'mc-text-muted hover:mc-text-dim'
+              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all capitalize ${
+                activeTab === tab ? 'bg-purple-500/25 mc-text-primary border border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.15)]' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
               }`}>
               {tab}
             </button>
