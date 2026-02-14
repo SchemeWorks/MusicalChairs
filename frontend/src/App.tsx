@@ -164,8 +164,12 @@ export default function App() {
                 <ProfileSetup />
               </ErrorBoundary>
             ) : profileLoading ? (
-              <div className="flex justify-center py-16">
+              <div className="flex flex-col items-center justify-center py-24 gap-6">
+                <div className="font-display text-3xl mc-text-primary mc-glow-gold animate-pulse">
+                  Musical Chairs
+                </div>
                 <LoadingSpinner />
+                <p className="mc-text-muted text-xs tracking-wider uppercase">Loading your profile...</p>
               </div>
             ) : showAdminPanel ? (
               <ErrorBoundary fallback={

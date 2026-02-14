@@ -172,7 +172,7 @@ export default function Shenanigans() {
                 onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
                 disabled={isDisabled}
                 className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
-                  isDisabled ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'mc-btn-primary'
+                  isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                 }`}
               >
                 {animatingTrick === trick.type ? '✨ Casting...' : 'Cast'}
