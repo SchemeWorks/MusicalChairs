@@ -1,8 +1,6 @@
 import React from 'react';
 import { useGetTopPonziPointsHolders, useGetTopPonziPointsBurners } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 
 interface HallOfFameEntry {
   rank: number;
@@ -16,220 +14,90 @@ export default function HallOfFame() {
   const { data: holdersData, isLoading: holdersLoading, error: holdersError } = useGetTopPonziPointsHolders();
   const { data: burnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
 
-  const isLoading = holdersLoading || burnersLoading;
-  const error = holdersError || burnersError;
+  if (holdersLoading || burnersLoading) return <LoadingSpinner />;
 
-  if (isLoading) {
+  if (holdersError || burnersError) {
     return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-black text-white text-with-backdrop">
-            🏆 Hall of Fame 🏆
-          </h2>
-        </div>
-        
-        <div className="rewards-single-container">
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        </div>
+      <div className="mc-status-red p-4 text-center text-sm">
+        Unable to load Hall of Fame data. Please try again later.
       </div>
     );
   }
-
-  if (error) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-black text-white text-with-backdrop">
-            🏆 Hall of Fame 🏆
-          </h2>
-        </div>
-        
-        <div className="rewards-single-container">
-          <Card className="border-red-500 bg-red-50">
-            <CardContent className="pt-4">
-              <p className="text-red-800 font-bold text-center">
-                ⚠️ Unable to load Hall of Fame data. Please try again later.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
-  const getRankStyling = (rank: number) => {
-    switch (rank) {
-      case 1:
-        return {
-          cardClass: 'mc-rank-gold rounded-xl p-1',
-          badgeClass: 'bg-yellow-500 text-yellow-900',
-          emoji: '🥇',
-          title: 'Gold'
-        };
-      case 2:
-        return {
-          cardClass: 'mc-rank-silver rounded-xl p-1',
-          badgeClass: 'bg-gray-400 text-gray-900',
-          emoji: '🥈',
-          title: 'Silver'
-        };
-      case 3:
-        return {
-          cardClass: 'mc-rank-bronze rounded-xl p-1',
-          badgeClass: 'bg-orange-500 text-orange-900',
-          emoji: '🥉',
-          title: 'Bronze'
-        };
-      default:
-        return {
-          cardClass: 'mc-rank-default rounded-xl p-1',
-          badgeClass: 'bg-purple-500/20 text-purple-300',
-          emoji: '🏅',
-          title: `#${rank}`
-        };
-    }
-  };
-
-  const renderLeaderboardEntry = (entry: HallOfFameEntry, isHolders: boolean) => {
-    const styling = getRankStyling(entry.rank);
-    const value = isHolders ? entry.ponziPoints : entry.ponziPointsBurned;
-    
-    return (
-      <Card 
-        key={`${isHolders ? 'holder' : 'burner'}-${entry.rank}`} 
-        className={styling.cardClass}
-      >
-        <CardContent className="pt-3 pb-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="text-xl">{styling.emoji}</div>
-              <div>
-                <div className="flex items-center space-x-2">
-                  <Badge className={styling.badgeClass}>
-                    {styling.title}
-                  </Badge>
-                  <span className="font-black text-sm text-gray-900">
-                    {entry.name}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <div className="text-lg font-black text-purple-600">
-                {value?.toLocaleString() || 0}
-              </div>
-              <div className="text-xs text-gray-600">
-                {isHolders ? 'Points' : 'Burned'}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  };
 
   const hasData = (holdersData && holdersData.length > 0) || (burnersData && burnersData.length > 0);
 
-  if (!hasData) {
+  const getRankStyle = (rank: number) => {
+    switch (rank) {
+      case 1: return { card: 'mc-rank-gold', emoji: '🥇', label: 'Gold' };
+      case 2: return { card: 'mc-rank-silver', emoji: '🥈', label: 'Silver' };
+      case 3: return { card: 'mc-rank-bronze', emoji: '🥉', label: 'Bronze' };
+      default: return { card: 'mc-rank-default', emoji: '🏅', label: `#${rank}` };
+    }
+  };
+
+  const renderEntry = (entry: HallOfFameEntry, isHolders: boolean) => {
+    const style = getRankStyle(entry.rank);
+    const value = isHolders ? entry.ponziPoints : entry.ponziPointsBurned;
     return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-black text-white text-with-backdrop">
-            🏆 Hall of Fame 🏆
-          </h2>
-        </div>
-        
-        <div className="rewards-single-container">
-          <div className="text-center py-8">
-            <div className="text-6xl mb-4">🏆</div>
-            <p className="text-white font-bold text-lg text-with-backdrop">No Ponzi Points activity yet!</p>
-            <p className="text-white text-sm mt-2 text-with-backdrop">
-              Start playing to earn Ponzi Points and claim your spot on the leaderboard!
-            </p>
+      <div key={`${isHolders ? 'h' : 'b'}-${entry.rank}`} className={`${style.card} p-3 flex items-center justify-between`}>
+        <div className="flex items-center gap-3">
+          <span className="text-xl">{style.emoji}</span>
+          <div>
+            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+              entry.rank <= 3 ? 'bg-white/10' : 'bg-purple-500/10'
+            } mc-text-dim`}>{style.label}</span>
+            <span className="font-bold text-sm mc-text-primary ml-2">{entry.name}</span>
           </div>
         </div>
+        <div className="text-right">
+          <div className="text-lg font-bold mc-text-purple">{value?.toLocaleString() || 0}</div>
+          <div className="text-xs mc-text-muted">{isHolders ? 'Points' : 'Burned'}</div>
+        </div>
+      </div>
+    );
+  };
+
+  if (!hasData) {
+    return (
+      <div className="mc-card-elevated text-center py-10">
+        <div className="text-5xl mb-4">🏆</div>
+        <p className="font-bold mc-text-primary mb-1">No activity yet</p>
+        <p className="text-sm mc-text-dim">Start playing to earn Ponzi Points and claim your spot.</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header outside the container */}
-      <div className="text-center">
-        <h2 className="text-2xl font-black text-white text-with-backdrop">
-          🏆 Hall of Fame 🏆
-        </h2>
-      </div>
-      
-      {/* Single frosted glass container wrapping all content below header */}
-      <div className="rewards-single-container">
-        <div className="space-y-6">
-          {/* Single unified bubble containing both leaderboards */}
-          <Card className="border-4 border-purple-400">
-            <CardContent className="pt-6">
-              {/* Two-column layout within single bubble */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* Left column: Top Ponzi Points Holders */}
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="text-xl font-black text-white text-with-backdrop">
-                      Top Ponzi Points Holders
-                    </h3>
-                    <div className="text-white text-with-backdrop font-semibold text-sm">
-                      Most Points Accumulated
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {holdersData && holdersData.length > 0 ? (
-                      holdersData.map((entry) => renderLeaderboardEntry(entry, true))
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-white text-with-backdrop">No holders yet!</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
+      <div className="mc-card-elevated">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Holders */}
+          <div>
+            <h3 className="font-display text-base mc-text-primary mb-1">Top Holders</h3>
+            <p className="text-xs mc-text-muted mb-4">Most Points Accumulated</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {holdersData && holdersData.length > 0
+                ? holdersData.map(e => renderEntry(e, true))
+                : <p className="text-sm mc-text-dim text-center py-4">No holders yet</p>}
+            </div>
+          </div>
 
-                {/* Right column: Top Ponzi Points Burners */}
-                <div className="space-y-4">
-                  <div className="text-center">
-                    <h3 className="text-xl font-black text-white text-with-backdrop">
-                      Top Ponzi Points Burners
-                    </h3>
-                    <div className="text-white text-with-backdrop font-semibold text-sm">
-                      Most Points Burned on Shenanigans
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-2 max-h-96 overflow-y-auto">
-                    {burnersData && burnersData.length > 0 ? (
-                      burnersData.map((entry) => renderLeaderboardEntry(entry, false))
-                    ) : (
-                      <div className="text-center py-4">
-                        <p className="text-white text-with-backdrop">No burners yet!</p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Footer Message */}
-          <Card className="border-2 border-purple-300 bg-purple-50">
-            <CardContent className="pt-4">
-              <div className="text-center text-purple-800 font-semibold">
-                <div className="text-lg mb-2">🎯 Climb the Leaderboards!</div>
-                <div className="text-sm">
-                  Earn Ponzi Points by making deposits and referring friends. Burn them on Shenanigans to climb the burners leaderboard!
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Burners */}
+          <div>
+            <h3 className="font-display text-base mc-text-primary mb-1">Top Burners</h3>
+            <p className="text-xs mc-text-muted mb-4">Most Points Burned on Shenanigans</p>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {burnersData && burnersData.length > 0
+                ? burnersData.map(e => renderEntry(e, false))
+                : <p className="text-sm mc-text-dim text-center py-4">No burners yet</p>}
+            </div>
+          </div>
         </div>
+      </div>
+
+      <div className="mc-status-blue p-4 text-center text-sm">
+        <span className="font-bold">🎯 Climb the leaderboards!</span>
+        <span className="mc-text-dim"> Earn Ponzi Points by depositing and referring friends. Burn them on Shenanigans to climb the burners board.</span>
       </div>
     </div>
   );

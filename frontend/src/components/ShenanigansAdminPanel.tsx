@@ -208,14 +208,14 @@ export default function ShenanigansAdminPanel() {
     return (
       <div className="space-y-6">
         <div className="text-center">
-          <h2 className="text-2xl font-black text-white text-with-backdrop">
+          <h2 className="text-2xl font-black text-white mc-text-primary">
             🔧 Shenanigans Admin Panel 🔧
           </h2>
-          <p className="text-center text-white text-with-backdrop mt-2">
+          <p className="text-center text-white mc-text-primary mt-2">
             Configure all shenanigan parameters
           </p>
         </div>
-        <div className="rewards-single-container">
+        <div className="mc-card-elevated">
           <div className="flex justify-center py-8">
             <LoadingSpinner />
           </div>
@@ -227,15 +227,15 @@ export default function ShenanigansAdminPanel() {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h2 className="text-2xl font-black text-white text-with-backdrop">
+        <h2 className="text-2xl font-black text-white mc-text-primary">
           🔧 Shenanigans Admin Panel 🔧
         </h2>
-        <p className="text-center text-white text-with-backdrop mt-2">
+        <p className="text-center text-white mc-text-primary mt-2">
           Configure all shenanigan parameters
         </p>
       </div>
 
-      <div className="rewards-single-container">
+      <div className="mc-card-elevated">
         <Alert className="mb-6 bg-yellow-50 border-2 border-yellow-400">
           <Info className="h-5 w-5 text-yellow-600" />
           <AlertDescription className="text-yellow-900">

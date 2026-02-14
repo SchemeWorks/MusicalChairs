@@ -15,66 +15,53 @@ export default function ProfileSetup() {
   };
 
   return (
-    <div className="max-w-md mx-auto">
-      {/* Welcome Header matching dashboard style */}
-      <div className="text-center mb-8">
-        <div className="dashboard-title-panel mb-2">
-          <h2 className="text-4xl font-black dashboard-title-stroked">
-            🎪 Welcome to Musical Chairs! 🎪
-          </h2>
-        </div>
+    <div className="max-w-md mx-auto px-4 py-12 md:py-20">
+      {/* Hero */}
+      <div className="text-center mb-10">
+        <div className="mc-hero-logo text-3xl md:text-4xl">Musical Chairs</div>
+        <div className="mc-tagline text-xl mb-2">It's a Ponzi!</div>
       </div>
 
-      {/* Single Animated Gradient Frosted-Glass Outer Card */}
-      <div className="profile-outer-card">
-        {/* Slot Machine Icon - Top Center */}
-        <div className="text-center mb-6">
-          <div className="text-6xl mb-4 slot-icon">🎰</div>
+      {/* Setup card */}
+      <div className="mc-card-elevated">
+        <div className="text-center mb-8">
+          <div className="text-5xl mb-4">🎰</div>
+          <p className="mc-text-dim text-sm">Pick a name — this is what others will see.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="name-input-field"
-              placeholder="Choose a name"
-              required
-            />
-            <p className="help-text">
-              Pick a fun nickname — this is what others will see!
-            </p>
-          </div>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="mc-input w-full text-center text-lg"
+            placeholder="Choose a name"
+            required
+          />
 
           <button
             type="submit"
             disabled={!isNameValid || saveProfile.isPending}
-            className={isNameValid ? 'join-game-button-active-with-glow' : 'join-game-button-neutral'}
+            className={`w-full py-4 text-lg font-bold rounded-xl transition-all ${
+              isNameValid
+                ? 'mc-btn-primary pulse'
+                : 'mc-btn-primary opacity-50 cursor-not-allowed'
+            }`}
           >
-            {saveProfile.isPending ? '🎰 Joining...' : '🎟️ JOIN THE GAME!'}
+            {saveProfile.isPending ? 'Joining...' : 'JOIN THE GAME'}
           </button>
         </form>
 
         {saveProfile.isError && (
-          <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-            <p className="text-sm text-red-600 font-bold text-center">
-              Failed to save profile. Please try again.
-            </p>
+          <div className="mc-status-red p-3 mt-4 text-center text-sm">
+            Failed to create profile. Please try again.
           </div>
         )}
 
-        {/* Red Gambling Warning Box - Separate Card matching Login Page */}
-        <div className="profile-inner-red-card">
-          <div className="flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-red-800 font-bold text-sm">
-                ⚠️ THIS IS A GAMBLING GAME! ⚠️<br />
-                Only play with money you can afford to lose!
-              </p>
-            </div>
-          </div>
+        {/* Gambling warning */}
+        <div className="mc-status-red p-4 mt-6 text-center">
+          <p className="font-bold text-sm">⚠️ THIS IS A GAMBLING GAME</p>
+          <p className="text-xs mt-1 opacity-80">Only play with money you can afford to lose.</p>
         </div>
       </div>
     </div>
