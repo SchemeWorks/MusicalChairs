@@ -114,12 +114,12 @@ export default function App() {
                 </div>
 
                 {/* Login CTA */}
-                <div className="mb-12">
+                <div className="mb-16">
                   <LoginButton />
                 </div>
 
                 {/* Three info cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-stagger">
                   {/* The Pitch */}
                   <div className="mc-card mc-accent-green p-5">
                     <div className="text-2xl mb-3">🎰</div>

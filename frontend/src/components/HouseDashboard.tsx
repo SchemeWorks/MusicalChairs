@@ -12,15 +12,15 @@ import { Info, DollarSign, TrendingUp, Shield, Zap } from 'lucide-react';
 function TabControl({ activeTab, onTabChange }: { activeTab: 'dealers' | 'ledger'; onTabChange: (t: 'dealers' | 'ledger') => void }) {
   return (
     <div className="flex justify-center mb-6">
-      <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1">
+      <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1 gap-1">
         {(['dealers', 'ledger'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => onTabChange(tab)}
-            className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+            className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
               activeTab === tab
-                ? 'bg-purple-500/20 mc-text-purple shadow-sm'
-                : 'mc-text-muted hover:mc-text-dim'
+                ? 'bg-purple-500/30 mc-text-primary border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
             }`}
           >
             {tab === 'dealers' ? '🏰 Dealers' : '📊 Ledger'}

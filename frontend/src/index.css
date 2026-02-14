@@ -667,13 +667,14 @@
     left: 0;
     right: 0;
     background: rgba(18, 14, 28, 0.98);
-    backdrop-filter: blur(16px);
+    backdrop-filter: blur(20px);
     border-top: 1px solid var(--mc-border);
     border-radius: var(--radius-xl) var(--radius-xl) 0 0;
     padding: var(--space-lg);
     z-index: 39;
     transform: translateY(100%);
     transition: transform 0.3s ease;
+    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
   }
 
   .mc-more-sheet.open {

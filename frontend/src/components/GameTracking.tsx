@@ -114,15 +114,20 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
       <div className="space-y-6">
         {/* Running Tally */}
         <div className="mc-card-elevated">
-          <h2 className="font-display text-lg mc-text-primary mb-4">Your Running Tally</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg mc-text-primary">Your Running Tally</h2>
+            <button onClick={handleRefresh} className="mc-btn-pill" disabled={refreshing}>
+              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
+            </button>
+          </div>
           <div className="grid grid-cols-2 gap-4">
-            <div className="mc-card p-4 text-center">
-              <div className="mc-label mb-1">Total Deposits</div>
-              <div className={`text-2xl font-bold mc-text-primary ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalDeposits)} ICP</div>
+            <div className="mc-card p-5 text-center">
+              <div className="mc-label mb-2">Total Deposits</div>
+              <div className={`text-3xl font-bold mc-text-primary ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalDeposits)} ICP</div>
             </div>
-            <div className="mc-card p-4 text-center">
-              <div className="mc-label mb-1">Accumulated Earnings</div>
-              <div className={`text-2xl font-bold mc-text-green mc-glow-green ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalEarnings)} ICP</div>
+            <div className="mc-card p-5 text-center">
+              <div className="mc-label mb-2">Accumulated Earnings</div>
+              <div className={`text-3xl font-bold mc-text-green mc-glow-green ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalEarnings)} ICP</div>
             </div>
           </div>
         </div>
