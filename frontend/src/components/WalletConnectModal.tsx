@@ -45,12 +45,12 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
 
       {/* Modal */}
-      <div className="relative mc-dropdown w-full max-w-md mx-4 overflow-hidden">
+      <div className="relative mc-dropdown w-full max-w-md mx-auto my-auto overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div className="flex items-center gap-2">

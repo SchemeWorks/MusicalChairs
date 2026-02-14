@@ -148,13 +148,9 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* IC logo */}
+                {/* IC branding */}
                 <div className="flex justify-center mt-12 opacity-40">
-                  <img
-                    src="https://internetcomputer.org/img/IC_logo_horizontal_white.svg"
-                    alt="Internet Computer"
-                    className="h-8 w-auto"
-                  />
+                  <span className="text-sm mc-text-dim font-body tracking-wider">Built on Internet Computer</span>
                 </div>
               </div>
             ) : showProfileSetup ? (
