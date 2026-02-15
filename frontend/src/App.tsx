@@ -14,6 +14,14 @@ import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent } from 'lucide-react';
 import { isCharles, CharlesIcon } from './lib/charles';
 
+const splashQuotes = [
+  "You look like someone who understands opportunity.",
+  "The best time to get in was yesterday. The second best time is right now.",
+  "I've never lied to you. That's more than most can say.",
+  "Smart money moves fast. Scared money doesn't move at all.",
+  "The only guarantee is that there are no guarantees. But the odds are... interesting.",
+];
+
 export default function App() {
   const { identity, principal, isInitializing } = useInternetIdentity();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
@@ -21,6 +29,7 @@ export default function App() {
   const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const walletButtonRef = useRef<HTMLButtonElement>(null);
+  const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
 
   const isAuthenticated = !!identity;
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
@@ -114,52 +123,63 @@ export default function App() {
           }>
             {!isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
-              <div className="mc-hero max-w-2xl mx-auto px-4 py-12 md:py-20">
-                <div className="mc-hero-logo">
-                  Musical Chairs
-                </div>
-                <div className="mc-tagline text-2xl md:text-3xl mb-12">
-                  It's a Ponzi!
+              <div className="mc-hero max-w-2xl mx-auto px-4 py-8 md:py-16">
+                {/* Hero: logo → tagline → Charles hook */}
+                <div className="mc-stagger mc-hero-entrance">
+                  <div className="mc-hero-logo">
+                    Musical Chairs
+                  </div>
+                  <div className="mc-tagline text-2xl md:text-3xl mb-4">
+                    It's a Ponzi!
+                  </div>
+                  <p className="font-accent text-sm mc-text-muted italic mb-10">
+                    You know exactly what this is. That's what makes it fun.
+                  </p>
                 </div>
 
-                {/* Login CTA */}
-                <div className="mb-16">
+                {/* Three info cards — the pitch builds before the ask */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-stagger">
+                  <div className="mc-card mc-accent-green p-5">
+                    <Dices className="h-7 w-7 mc-text-green mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
+                    </p>
+                  </div>
+
+                  <div className="mc-card mc-accent-danger p-5">
+                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
+                    </p>
+                  </div>
+
+                  <div className="mc-card mc-accent-gold p-5">
+                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Charles quote */}
+                <div className="mt-8 text-center">
+                  <p className="font-accent text-sm mc-text-dim italic">
+                    &ldquo;{splashQuote}&rdquo;
+                  </p>
+                  <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
+                </div>
+
+                {/* CTA — after the pitch has landed */}
+                <div className="mt-8 flex justify-center">
                   <LoginButton />
                 </div>
 
-                {/* Three info cards */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-stagger">
-                  {/* The Pitch */}
-                  <div className="mc-card mc-accent-green p-5">
-                    <Dices className="h-7 w-7 mc-text-green mb-3" />
-                    <h3 className="font-display text-base mc-text-green mb-2">The Pitch</h3>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      Earn up to 12% daily. Withdraw anytime or lock to compound for face-melting ROI.
-                    </p>
-                  </div>
-
-                  {/* The Catch */}
-                  <div className="mc-card mc-accent-danger p-5">
-                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
-                    <h3 className="font-display text-base mc-text-danger mb-2">The Catch</h3>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      THIS IS A GAMBLING GAME. Only play with money you can afford to lose.
-                    </p>
-                  </div>
-
-                  {/* The Twist */}
-                  <div className="mc-card mc-accent-gold p-5">
-                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
-                    <h3 className="font-display text-base mc-text-gold mb-2">The Twist</h3>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      When the pot empties, the game resets. All pending payouts? Gone.
-                    </p>
-                  </div>
-                </div>
-
-                {/* IC branding */}
-                <div className="flex justify-center mt-12 opacity-40">
-                  <span className="text-sm mc-text-dim font-body tracking-wider">Built on Internet Computer</span>
+                {/* Responsible gambling — straight-faced, not Charles */}
+                <div className="mt-10 text-center">
+                  <p className="text-xs mc-text-muted opacity-60">
+                    <AlertTriangle className="h-3 w-3 inline-block mr-1 align-text-top" />
+                    This is a gambling game. Please play responsibly.
+                  </p>
                 </div>
               </div>
             ) : showProfileSetup ? (

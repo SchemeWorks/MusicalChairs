@@ -32,18 +32,25 @@ export default function ProfileSetup() {
       <div className="mc-card-elevated">
         <div className="text-center mb-8">
           <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
-          <p className="mc-text-dim text-sm">Every great partnership starts with a name.</p>
+          <p className="mc-text-dim text-sm">Everyone who walks through that door gets a seat at the table.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="mc-input w-full text-center text-lg"
-            placeholder="What should we call you?"
-            required
-          />
+          <div>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="mc-input w-full text-center text-lg"
+              placeholder="Your name, future millionaire"
+              required
+            />
+            {name.trim() && (
+              <p className="text-xs mc-text-muted mt-2 text-center">
+                Players will see you as: <span className="text-white font-bold">{name.trim()}</span>
+              </p>
+            )}
+          </div>
 
           <button
             type="submit"
@@ -54,7 +61,7 @@ export default function ProfileSetup() {
                 : 'mc-btn-primary opacity-50 cursor-not-allowed'
             }`}
           >
-            {saveProfile.isPending ? 'Joining...' : 'JOIN THE GAME'}
+            {saveProfile.isPending ? 'Pulling up a chair...' : isNameValid ? 'TAKE YOUR SEAT' : 'JOIN THE GAME'}
           </button>
         </form>
 
@@ -64,10 +71,19 @@ export default function ProfileSetup() {
           </div>
         )}
 
-        {/* Gambling warning */}
-        <div className="mc-status-red p-4 mt-6 text-center">
-          <p className="font-bold text-sm flex items-center justify-center gap-2"><AlertTriangle className="h-4 w-4" /> THIS IS A GAMBLING GAME</p>
-          <p className="text-xs mt-1 opacity-80">Real ICP. Real risk. Only play with what you can afford to lose.</p>
+        {/* Ponzi disclaimer — Charles voice, normal text */}
+        <div className="mt-6 text-center">
+          <p className="font-bold text-sm mc-text-dim flex items-center justify-center gap-2">
+            <AlertTriangle className="h-4 w-4 mc-text-danger" /> THIS IS A REAL PONZI SCHEME
+          </p>
+          <p className="text-xs mc-text-muted mt-1">Real ICP. Real risk. Real fun. Only put in what you'd comfortably set on fire.</p>
+        </div>
+
+        {/* Gambling disclaimer — straight-faced, red warning box */}
+        <div className="mc-status-red p-3 mt-4 text-center">
+          <p className="text-xs flex items-center justify-center gap-1.5">
+            <AlertTriangle className="h-3 w-3" /> This is a gambling game. Please play responsibly.
+          </p>
         </div>
       </div>
     </div>
