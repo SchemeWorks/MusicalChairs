@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
+import { useCountUp } from '../hooks/useCountUp';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
-import { Lock, ArrowDownCircle, Rocket } from 'lucide-react';
+import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 
@@ -65,6 +66,29 @@ function fmtCountdown(ms: number) {
   return `${d}d ${h}h ${m}m`;
 }
 
+function getPlanDuration(game: GameRecord): number {
+  if ('compounding15Day' in game.plan) return 15;
+  if ('compounding30Day' in game.plan) return 30;
+  return 21;
+}
+
+function getTollBadgeClasses(fee: number): string {
+  if (fee <= 3) return 'bg-green-500/20 text-green-400';
+  if (fee <= 5) return 'bg-yellow-500/20 text-yellow-400';
+  if (fee <= 7) return 'bg-red-500/20 text-red-400';
+  return 'bg-purple-500/20 text-purple-400'; // compounding 13%
+}
+
+function getPositionUrgency(game: GameRecord): number {
+  const planDays = getPlanDuration(game);
+  const days = daysActive(game.startTime);
+  const remaining = planDays - days;
+  if (game.isCompounding && remaining > 0 && remaining <= 3) return 0; // near unlock → highest
+  const tollInfo = getExitTollInfo(game);
+  if (tollInfo.currentFee >= 7) return 1; // high toll
+  return 2 + days; // everything else by age, oldest first
+}
+
 /* ================================================================
    Live Position Card
    ================================================================ */
@@ -117,12 +141,33 @@ function PositionCard({
         </div>
         <div className="text-right">
           <div className="mc-label">Exit Toll</div>
-          <div className="text-base font-bold mc-text-gold">{tollInfo.currentFee}%</div>
+          <div className={`inline-block text-sm font-bold px-2 py-0.5 rounded-full ${getTollBadgeClasses(tollInfo.currentFee)}`}>
+            {tollInfo.currentFee}%
+          </div>
           {tollInfo.nextFee && tollInfo.timeToNext && (
-            <div className="text-xs mc-text-cyan">{fmtCountdown(tollInfo.timeToNext)} to {tollInfo.nextFee}%</div>
+            <div className="text-xs mc-text-cyan mt-0.5">{fmtCountdown(tollInfo.timeToNext)} to {tollInfo.nextFee}%</div>
           )}
         </div>
       </div>
+
+      {/* Progress bar — how far through the plan */}
+      {(() => {
+        const planDays = getPlanDuration(game);
+        const days = daysActive(game.startTime);
+        const pct = Math.min(100, Math.round((days / planDays) * 100));
+        const barColor = game.isCompounding ? 'bg-purple-500' : 'bg-green-500';
+        return (
+          <div className="mb-3">
+            <div className="flex justify-between text-xs mc-text-muted mb-1">
+              <span>Day {days} / {planDays}</span>
+              <span>{pct}%</span>
+            </div>
+            <div className="w-full h-1.5 rounded-full bg-white/5">
+              <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Withdraw button */}
       <button
@@ -195,6 +240,10 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
   const { data: games, isLoading, error } = useGetUserGames();
   const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
+  const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
+  const animatedNetPL = useCountUp(netPL, 1000);
+  const animatedDeposits = useCountUp(portfolio.totalDeposits, 1000);
+  const animatedEarnings = useCountUp(portfolio.totalEarnings, 1000);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [reinvestDialogOpen, setReinvestDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
@@ -247,17 +296,27 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
   return (
     <>
       <div className="space-y-6">
-        {/* Running Tally — live, no refresh needed */}
-        <div className="mc-card-elevated">
-          <h2 className="font-display text-lg mc-text-primary mb-4">Your Running Tally</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="mc-card p-5 text-center">
-              <div className="mc-label mb-2">Total Deposits</div>
-              <div className="text-3xl font-bold mc-text-primary">{formatICP(portfolio.totalDeposits)} ICP</div>
+        {/* Running Tally — hero P/L card */}
+        <div className="mc-card-elevated text-center">
+          <h2 className="font-display text-lg mc-text-primary mb-3">Your Running Tally</h2>
+          {/* Hero P/L number — animated countUp */}
+          <div className="mb-4">
+            <div className="mc-label mb-1">Net P/L</div>
+            <div className={`text-4xl font-bold flex items-center justify-center gap-2 ${
+              netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
+            }`}>
+              {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
+              {netPL >= 0 ? '+' : ''}{formatICP(animatedNetPL)} ICP
             </div>
-            <div className="mc-card p-5 text-center">
-              <div className="mc-label mb-2">Accumulated Earnings</div>
-              <div className="text-3xl font-bold mc-text-green mc-glow-green">{formatICP(portfolio.totalEarnings)} ICP</div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="mc-card p-4 text-center">
+              <div className="mc-label mb-1">Deposited</div>
+              <div className="text-xl font-bold mc-text-primary">{formatICP(animatedDeposits)} ICP</div>
+            </div>
+            <div className="mc-card p-4 text-center">
+              <div className="mc-label mb-1">Earned</div>
+              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICP(animatedEarnings)} ICP</div>
             </div>
           </div>
         </div>
@@ -270,7 +329,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
             <EmptyState onNavigate={onNavigateToGameSetup} />
           ) : (
             <div className="space-y-3">
-              {portfolio.games.map(({ game, earnings }) => (
+              {[...portfolio.games].sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game)).map(({ game, earnings }) => (
                 <PositionCard
                   key={game.id.toString()}
                   game={game}

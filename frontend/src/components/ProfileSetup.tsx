@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSaveUserProfile } from '../hooks/useQueries';
-import { Dices, AlertTriangle } from 'lucide-react';
+import { triggerConfetti } from './ConfettiCanvas';
+import { Dices, AlertTriangle, PartyPopper } from 'lucide-react';
 
 export default function ProfileSetup() {
   const [name, setName] = useState('');
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [savedName, setSavedName] = useState('');
   const saveProfile = useSaveUserProfile();
 
   const isNameValid = name.trim().length > 0;
@@ -11,9 +14,46 @@ export default function ProfileSetup() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (name.trim()) {
-      saveProfile.mutate({ name: name.trim() });
+      const trimmedName = name.trim();
+      setSavedName(trimmedName);
+      saveProfile.mutate({ name: trimmedName }, {
+        onSuccess: () => {
+          setShowCelebration(true);
+          triggerConfetti();
+        },
+      });
     }
   };
+
+  // Auto-dismiss after 4 seconds (React Query will refetch and redirect)
+  useEffect(() => {
+    if (showCelebration) {
+      const timer = setTimeout(() => {
+        // App.tsx will detect the profile exists and redirect automatically
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [showCelebration]);
+
+  if (showCelebration) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center mc-hero-entrance">
+        <PartyPopper className="h-16 w-16 mc-text-gold mx-auto mb-6" />
+        <h1 className="font-display text-3xl mc-text-primary mb-4">
+          Welcome to Musical Chairs, {savedName}!
+        </h1>
+        <p className="font-accent text-sm mc-text-dim italic mb-2">
+          &ldquo;I knew you had it in you.&rdquo;
+        </p>
+        <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
+
+        <div className="mt-10">
+          <div className="mc-spinner mx-auto mb-3" />
+          <p className="text-xs mc-text-muted">Setting up your table...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-12 md:py-20">

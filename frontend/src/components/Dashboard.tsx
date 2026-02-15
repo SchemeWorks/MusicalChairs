@@ -5,12 +5,10 @@ import ReferralSection from './ReferralSection';
 import HouseDashboard from './HouseDashboard';
 import Shenanigans from './Shenanigans';
 import { DollarSign, Rocket, Landmark, Users, Dice5 } from 'lucide-react';
-
-type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
+import type { TabType } from '../App';
 
 interface NavItem {
   id: TabType;
-  label: string;
   mobileLabel: string;
   icon: React.ReactNode;
   activeClass?: string;
@@ -18,11 +16,11 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { id: 'profitCenter', label: 'Profit Center', mobileLabel: 'Profit', icon: <DollarSign className="h-5 w-5" /> },
-  { id: 'invest', label: '\u201CInvest\u201D', mobileLabel: '\u201CInvest\u201D', icon: <Rocket className="h-5 w-5" /> },
-  { id: 'seedRound', label: 'Seed Round', mobileLabel: 'Seed', icon: <Landmark className="h-5 w-5" /> },
-  { id: 'mlm', label: 'MLM', mobileLabel: 'MLM', icon: <Users className="h-5 w-5" /> },
-  { id: 'shenanigans', label: 'Shenanigans', mobileLabel: 'Tricks', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
+  { id: 'profitCenter', mobileLabel: 'Profit', icon: <DollarSign className="h-5 w-5" /> },
+  { id: 'invest', mobileLabel: '\u201CInvest\u201D', icon: <Rocket className="h-5 w-5" /> },
+  { id: 'seedRound', mobileLabel: 'Seed', icon: <Landmark className="h-5 w-5" /> },
+  { id: 'mlm', mobileLabel: 'MLM', icon: <Users className="h-5 w-5" /> },
+  { id: 'shenanigans', mobileLabel: 'Tricks', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
 ];
 
 const sectionSubtitles: Record<TabType, string> = {
@@ -33,8 +31,21 @@ const sectionSubtitles: Record<TabType, string> = {
   shenanigans: "Pure chaos, zero value",
 };
 
-export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
+const sectionLabels: Record<TabType, string> = {
+  profitCenter: 'Profit Center',
+  invest: '\u201CInvest\u201D',
+  seedRound: 'Seed Round',
+  mlm: 'MLM',
+  shenanigans: 'Shenanigans',
+};
+
+interface DashboardProps {
+  activeTab: TabType;
+  onTabChange: (tab: TabType) => void;
+  badges?: Record<TabType, 'red' | 'purple' | null>;
+}
+
+export default function Dashboard({ activeTab, onTabChange, badges }: DashboardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
 
@@ -48,14 +59,12 @@ export default function Dashboard() {
   const handleTabChange = (newTab: TabType) => {
     if (newTab === activeTab) return;
     setIsAnimating(true);
-    setActiveTab(newTab);
+    onTabChange(newTab);
     setTimeout(() => setIsAnimating(false), 250);
   };
 
   const handleNavigateToGameSetup = () => handleTabChange('invest');
   const handleNavigateToProfitCenter = () => handleTabChange('profitCenter');
-
-  const activeItem = navItems.find(n => n.id === activeTab)!;
 
   const renderContent = () => {
     const cls = isAnimating ? 'mc-enter' : '';
@@ -70,57 +79,37 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="flex min-h-[calc(100vh-80px)]">
-      {/* === Desktop Left Rail — fixed 200px, always labeled === */}
-      {!isMobile && (
-        <nav className="mc-rail">
-          {navItems.map((item) => {
-            const isActive = activeTab === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleTabChange(item.id)}
-                className={`mc-rail-item ${isActive ? (item.activeClass || 'active') : ''}`}
-              >
-                <span className={`mc-rail-icon ${!isActive && item.glowClass ? item.glowClass : ''}`}>
-                  {item.icon}
-                </span>
-                <span className="mc-rail-label">{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
-      )}
-
-      {/* === Main Content === */}
-      <div className={`flex-1 ${!isMobile ? 'mc-content-offset' : ''} ${isMobile ? 'pb-20' : ''}`}>
-        {/* Section header */}
-        <div className="max-w-5xl mx-auto px-4 pt-6 md:pt-8">
-          <div className="mc-section-header">
-            <h1 className="mc-section-title">{activeItem.label}</h1>
-            <span className="mc-section-subtitle">{sectionSubtitles[activeTab]}</span>
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="max-w-5xl mx-auto px-4 pb-8">
-          {renderContent()}
+    <div className={`min-h-[calc(100vh-80px)] ${isMobile ? 'pb-20' : ''}`}>
+      {/* Section header */}
+      <div className="max-w-5xl mx-auto px-4 pt-6 md:pt-8">
+        <div className="mc-section-header">
+          <h1 className="mc-section-title">{sectionLabels[activeTab]}</h1>
+          <span className="mc-section-subtitle">{sectionSubtitles[activeTab]}</span>
         </div>
       </div>
 
-      {/* === Mobile Bottom Tabs — all 5 tabs, no More sheet === */}
+      {/* Content */}
+      <div className="max-w-5xl mx-auto px-4 pb-8">
+        {renderContent()}
+      </div>
+
+      {/* === Mobile Bottom Tabs — all 5 tabs === */}
       {isMobile && (
         <nav className="mc-bottom-tabs">
           {navItems.map((item) => {
             const isActive = activeTab === item.id;
+            const badge = badges?.[item.id];
             return (
               <button
                 key={item.id}
                 onClick={() => handleTabChange(item.id)}
                 className={`mc-bottom-tab ${isActive ? (item.activeClass || 'active') : ''}`}
               >
-                <span className={`tab-icon ${!isActive && item.glowClass ? item.glowClass : ''}`}>
+                <span className={`tab-icon relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
                   {item.icon}
+                  {badge && !isActive && (
+                    <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : 'mc-badge-purple'}`} />
+                  )}
                 </span>
                 <span>{item.mobileLabel}</span>
               </button>

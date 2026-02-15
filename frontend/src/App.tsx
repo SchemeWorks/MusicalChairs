@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
-import { useGetCallerUserProfile, useGetInternalWalletBalance } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints } from './hooks/useQueries';
+import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
 import Dashboard from './components/Dashboard';
@@ -10,9 +11,20 @@ import WalletDropdown from './components/WalletDropdown';
 import LogoutButton from './components/LogoutButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
+import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5 } from 'lucide-react';
 import { isCharles, CharlesIcon } from './lib/charles';
+
+export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
+
+const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode; glowClass?: string }> = [
+  { id: 'profitCenter', label: 'Profit Center', icon: <DollarSign className="h-4 w-4" /> },
+  { id: 'invest', label: '\u201CInvest\u201D', icon: <Rocket className="h-4 w-4" /> },
+  { id: 'seedRound', label: 'Seed Round', icon: <Landmark className="h-4 w-4" /> },
+  { id: 'mlm', label: 'MLM', icon: <Users className="h-4 w-4" /> },
+  { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
+];
 
 const splashQuotes = [
   "You look like someone who understands opportunity.",
@@ -28,8 +40,27 @@ export default function App() {
   const { data: balanceData } = useGetInternalWalletBalance();
   const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
+
+  // Badge data — only fetched when authenticated (React Query caches these)
+  const { data: games } = useGetUserGames();
+  const { data: ponziData } = useGetPonziPoints();
+  const portfolio = useLivePortfolio(games);
+
+  // Profit Center badge: any position has positive earnings (withdrawable)
+  const hasWithdrawableEarnings = portfolio.games.some(g => g.earnings > 0);
+  // Shenanigans badge: user has enough PP to cast the cheapest shenanigan (500 PP)
+  const canCastShenanigan = (ponziData?.totalPoints || 0) >= 500;
+
+  const badges: Record<TabType, 'red' | 'purple' | null> = {
+    profitCenter: hasWithdrawableEarnings ? 'red' : null,
+    invest: null,
+    seedRound: null,
+    mlm: null,
+    shenanigans: canCastShenanigan ? 'purple' : null,
+  };
 
   const isAuthenticated = !!identity;
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
@@ -70,6 +101,31 @@ export default function App() {
                 </span>
               </button>
 
+              {/* Desktop header tabs — only when on dashboard */}
+              {showDashboard && !showAdminPanel && (
+                <nav className="mc-header-tabs">
+                  {headerNavItems.map(item => {
+                    const isActive = activeTab === item.id;
+                    const badge = badges[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`mc-header-tab ${isActive ? (item.id === 'shenanigans' ? 'active-green' : 'active') : ''}`}
+                      >
+                        <span className={`relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
+                          {item.icon}
+                          {badge && !isActive && (
+                            <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : 'mc-badge-purple'}`} />
+                          )}
+                        </span>
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              )}
+
               <div className="flex-1" />
 
               {/* Right controls */}
@@ -109,8 +165,11 @@ export default function App() {
           </div>
         </header>
 
+        {/* Status Bar — persistent game stats below header */}
+        {showDashboard && <GameStatusBar />}
+
         {/* Main Content */}
-        <main className="flex-1 pt-16 md:pt-20">
+        <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+36px)] md:pt-[calc(5rem+36px)]' : 'pt-16 md:pt-20'}`}>
           <ErrorBoundary fallback={
             <div className="text-center py-16 px-4">
               <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
@@ -158,6 +217,27 @@ export default function App() {
                     <p className="text-sm mc-text-dim leading-relaxed">
                       When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
                     </p>
+                  </div>
+                </div>
+
+                {/* Live stats ribbon — social proof */}
+                <div className="mt-8 mc-card mc-accent-gold p-4">
+                  <div className="flex items-center justify-center gap-6 flex-wrap text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-gold">🏦</span>
+                      <span className="mc-text-muted">Pot:</span>
+                      <span className="font-bold mc-text-gold">Growing daily</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-green">📈</span>
+                      <span className="mc-text-muted">Rates:</span>
+                      <span className="font-bold mc-text-green">Up to 12% / day</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-cyan">⚡</span>
+                      <span className="mc-text-muted">Status:</span>
+                      <span className="font-bold mc-text-cyan">Live on ICP</span>
+                    </div>
                   </div>
                 </div>
 
@@ -232,7 +312,7 @@ export default function App() {
                   </button>
                 </div>
               }>
-                <Dashboard />
+                <Dashboard activeTab={activeTab} onTabChange={setActiveTab} badges={badges} />
               </ErrorBoundary>
             )}
           </ErrorBoundary>

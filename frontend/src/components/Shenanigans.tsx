@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType } from '../backend';
-import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw } from 'lucide-react';
+import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy } from 'lucide-react';
+import HallOfFame from './HallOfFame';
 
 const successFlavor = [
   "The house smiles upon you.",
@@ -68,12 +69,25 @@ const auraColors: Record<number, string> = {
   10: 'rgba(245, 158, 11, 0.3)',
 };
 
+type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
+
+const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
+const defenseTypes = [5, 6, 9]; // magicMirror, ppBoosterAura, downlineBoost
+const chaosTypes = [2, 10]; // renameSpell, goldenName
+
+function getShenaniganCategory(idx: number): FilterCategory {
+  if (offenseTypes.includes(idx)) return 'offense';
+  if (defenseTypes.includes(idx)) return 'defense';
+  return 'chaos';
+}
+
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const castShenanigan = useCastShenanigan();
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: string } | null>(null);
@@ -168,9 +182,29 @@ export default function Shenanigans() {
         <span className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()} PP</span>
       </div>
 
+      {/* Filter tabs */}
+      <div className="flex rounded-lg bg-white/5 p-0.5">
+        {([
+          { key: 'all' as FilterCategory, label: 'All' },
+          { key: 'offense' as FilterCategory, label: 'Offense' },
+          { key: 'defense' as FilterCategory, label: 'Defense' },
+          { key: 'chaos' as FilterCategory, label: 'Chaos' },
+        ]).map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setFilterCategory(tab.key)}
+            className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
+              filterCategory === tab.key ? 'bg-purple-500/25 mc-text-primary border border-purple-500/30' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
       {/* Shenanigan cards grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mc-stagger">
-        {availableShenanigans.map((trick, idx) => {
+        {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
           const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trick.type;
           return (
             <div
@@ -205,9 +239,9 @@ export default function Shenanigans() {
                   <div className="bg-purple-500" style={{ width: `${trick.odds.backfire}%` }} />
                 </div>
                 <div className="flex justify-between text-xs mc-text-muted">
-                  <span className="mc-text-green">{trick.odds.success}%</span>
-                  <span className="mc-text-danger">{trick.odds.fail}%</span>
-                  <span className="mc-text-purple">{trick.odds.backfire}%</span>
+                  <span className="mc-text-green">✓ {trick.odds.success}%</span>
+                  <span className="mc-text-danger">✗ {trick.odds.fail}%</span>
+                  <span className="mc-text-purple">↩ {trick.odds.backfire}%</span>
                 </div>
               </div>
 
@@ -219,7 +253,7 @@ export default function Shenanigans() {
                   isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                 }`}
               >
-                {animatingTrick === trick.type ? 'Casting...' : 'Cast'}
+                {animatingTrick === trick.type ? 'Casting...' : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
               </button>
             </div>
           );
@@ -247,9 +281,9 @@ export default function Shenanigans() {
 
         {/* Live feed */}
         <h3 className="font-display text-base mc-text-primary mb-3">Live Feed</h3>
-        <div className="space-y-2 max-h-48 overflow-y-auto">
+        <div className="space-y-2 max-h-72 overflow-y-auto">
           {recentShenanigans && recentShenanigans.length > 0 ? (
-            recentShenanigans.slice(0, 12).map(s => (
+            recentShenanigans.slice(0, 20).map(s => (
               <div key={s.id.toString()} className="mc-card p-2 flex items-center justify-between text-xs">
                 <span className="font-bold mc-text-primary">
                   {availableShenanigans.find(a => a.type === s.shenaniganType)?.name || 'Unknown'}{' '}
@@ -291,6 +325,15 @@ export default function Shenanigans() {
             <span><strong className="mc-text-primary">No Refunds</strong> — All shenanigans are final</span>
           </div>
         </div>
+      </div>
+
+      {/* Hall of Fame */}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="h-5 w-5 mc-text-gold" />
+          <h2 className="font-display text-lg mc-text-primary">Hall of Fame</h2>
+        </div>
+        <HallOfFame />
       </div>
 
       {/* Footer */}

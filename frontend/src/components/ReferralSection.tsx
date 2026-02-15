@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useGetReferralStats, useGetPonziPoints } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { Copy, Check, Users } from 'lucide-react';
+import { Copy, Check, Users, Share2, ExternalLink, Award } from 'lucide-react';
 
 const charlesMLMQuotes = [
   "You don't need to sell anything. You just need to tell two friends. And they tell two friends. And suddenly you're retired.",
@@ -92,7 +92,53 @@ export default function ReferralSection() {
               {copied ? <><Check className="h-4 w-4" /> Copied!</> : <><Copy className="h-4 w-4" /> Copy</>}
             </button>
           </div>
+
+          {/* Share buttons */}
+          <div className="flex flex-wrap gap-2 mt-3">
+            <button
+              onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. It's called Musical Chairs.")}&url=${encodeURIComponent(referralLink)}`, '_blank')}
+              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+            >
+              <span>𝕏</span> Twitter
+            </button>
+            <button
+              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Honest Ponzi scheme. Up to 12% daily. Musical Chairs.")}`, '_blank')}
+              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+            >
+              <ExternalLink className="h-3 w-3" /> Telegram
+            </button>
+            <button
+              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. " + referralLink)}`, '_blank')}
+              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+            >
+              <Share2 className="h-3 w-3" /> WhatsApp
+            </button>
+          </div>
         </div>
+
+        {/* Milestones */}
+        {(() => {
+          const totalRefs = (referralStats?.level1Count || 0);
+          const milestones = [
+            { count: 1, name: 'First Blood', color: 'mc-text-danger' },
+            { count: 5, name: 'Networker', color: 'mc-text-cyan' },
+            { count: 10, name: 'Pyramid Architect', color: 'mc-text-gold' },
+            { count: 25, name: 'MLM Legend', color: 'mc-text-purple' },
+          ];
+          return (
+            <div className="flex flex-wrap gap-2 mb-6">
+              {milestones.map(m => (
+                <span key={m.count} className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-bold border ${
+                  totalRefs >= m.count
+                    ? `${m.color} border-current`
+                    : 'mc-text-muted border-white/10 opacity-30'
+                }`}>
+                  <Award className="h-3 w-3" /> {m.name}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
 
         {/* Stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

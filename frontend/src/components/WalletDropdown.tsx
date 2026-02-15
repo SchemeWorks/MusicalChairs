@@ -27,6 +27,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
   const [copied, setCopied] = useState(false);
   const [inputError, setInputError] = useState('');
+  const [shakeInput, setShakeInput] = useState(false);
+  const triggerShake = () => { setShakeInput(true); setTimeout(() => setShakeInput(false), 400); };
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
   const [isApproving, setIsApproving] = useState(false);
@@ -36,6 +38,14 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
 
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 769);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const { data: balanceData, isLoading: balanceLoading, refetch: refetchBalance } = useGetInternalWalletBalance();
   const { data: userProfile } = useGetCallerUserProfile();
@@ -99,7 +109,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
     const amount = parseFloat(depositAmount);
     if (!amount || amount <= 0) return;
     const v = validateICPInput(depositAmount);
-    if (!v.isValid) { setInputError(v.error || ''); return; }
+    if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
     const e8s = icpToE8s(amount);
     if (!approvalComplete) {
       setIsApproving(true);
@@ -155,8 +165,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const depVal = parseFloat(depositAmount) || 0;
   const witVal = parseFloat(withdrawAmount) || 0;
 
-  return (
-    <div ref={dropdownRef} style={dropdownStyle} className="mc-dropdown w-96 max-w-[calc(100vw-2rem)] overflow-hidden">
+  const walletContent = (
+    <>
       {/* Header */}
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-2">
@@ -255,7 +265,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               </div>
               <div className="flex gap-2">
                 <input type="number" value={depositAmount} onChange={handleAmountInput(setDepositAmount, true)}
-                  placeholder="0.0" min="0.1" step="0.00000001" className="mc-input flex-1 text-sm" />
+                  placeholder="0.0" min="0.1" step="0.00000001" className={`mc-input flex-1 text-sm ${shakeInput ? 'mc-shake' : ''}`} />
                 <button onClick={handleMaxDeposit} disabled={externalBalance === null} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg">MAX</button>
               </div>
               <div className="mc-card p-2 text-xs mc-text-muted">
@@ -287,7 +297,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               </div>
               <div className="flex gap-2">
                 <input type="number" value={withdrawAmount} onChange={handleAmountInput(setWithdrawAmount)}
-                  placeholder="0.0" min="0.1" step="0.00000001" className="mc-input flex-1 text-sm" />
+                  placeholder="0.0" min="0.1" step="0.00000001" className={`mc-input flex-1 text-sm ${shakeInput ? 'mc-shake' : ''}`} />
                 <button onClick={handleMaxWithdraw} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg">MAX</button>
               </div>
               <p className="text-xs mc-text-muted">0.0001 ICP transfer fee applies.</p>
@@ -316,7 +326,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             </div>
             <div className="flex gap-2">
               <input type="number" value={withdrawAmount} onChange={handleAmountInput(setWithdrawAmount)}
-                placeholder="0.0" min="0.01" step="0.00000001" className="mc-input flex-1 text-sm" />
+                placeholder="0.0" min="0.01" step="0.00000001" className={`mc-input flex-1 text-sm ${shakeInput ? 'mc-shake' : ''}`} />
               <button onClick={handleMaxWithdraw} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg">MAX</button>
             </div>
             {inputError && <div className="text-xs mc-text-danger">{inputError}</div>}
@@ -342,6 +352,26 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           </div>
         </div>
       </div>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <>
+        <div className="mc-sheet-backdrop" onClick={onClose} />
+        <div ref={dropdownRef} className="mc-bottom-sheet">
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 rounded-full bg-white/20" />
+          </div>
+          {walletContent}
+        </div>
+      </>
+    );
+  }
+
+  return (
+    <div ref={dropdownRef} style={dropdownStyle} className="mc-dropdown w-96 max-w-[calc(100vw-2rem)] overflow-hidden">
+      {walletContent}
     </div>
   );
 }

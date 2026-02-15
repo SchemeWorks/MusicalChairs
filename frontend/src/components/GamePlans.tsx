@@ -41,6 +41,12 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   const [amount, setAmount] = useState('');
   const [inputError, setInputError] = useState('');
   const [successToast, setSuccessToast] = useState<{ quote: string; amount: number } | null>(null);
+  const [shakeInput, setShakeInput] = useState(false);
+
+  const triggerShake = () => {
+    setShakeInput(true);
+    setTimeout(() => setShakeInput(false), 400);
+  };
 
   const { data: balanceData, isLoading: balanceLoading } = useGetInternalWalletBalance();
   const { data: maxDepositLimit, isLoading: maxDepositLoading } = useGetMaxDepositLimit();
@@ -80,7 +86,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     const dep = parseFloat(amount);
     if (dep < minDeposit || dep > walletBalance) return;
     const v = validateICPInput(amount);
-    if (!v.isValid) { setInputError(v.error || ''); return; }
+    if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
     try {
       await createGameMutation.mutateAsync({ planId: selectedPlan, amount: dep, mode: selectedMode });
       triggerConfetti();
@@ -110,7 +116,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
       <div className="mc-card-elevated">
         {/* Step 1: Mode Selection */}
         <div className="mb-8">
-          <div className="mc-label mb-3">Step 1 — Choose Your Poison</div>
+          <div className="mc-label mb-3">Choose Your Poison</div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
             {/* Simple */}
             <div
@@ -157,7 +163,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
         {/* Step 2: Plan Length (compounding only) */}
         {selectedMode === 'compounding' && (
           <div className="mb-8">
-            <div className="mc-label mb-2">Step 2 — Select Lockup Period</div>
+            <div className="mc-label mb-2">Select Lockup Period</div>
             <div className="mc-status-gold p-3 text-xs text-center mb-4">
               <AlertTriangle className="h-3 w-3 inline mr-1" /> The longer the plan, the greater the ROI potential — but also the higher the risk the round ends first.
             </div>
@@ -191,9 +197,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
         {/* Final Step: Amount + CTA */}
         {((selectedMode === 'simple' && selectedPlan) || (selectedMode === 'compounding' && selectedPlan)) && (
           <div>
-            <div className="mc-label mb-3">
-              {selectedMode === 'simple' ? 'Step 2' : 'Step 3'} — Enter Amount & Open Position
-            </div>
+            <div className="mc-label mb-3">Enter Amount & Open Position</div>
 
             {/* Empty wallet prominent CTA */}
             {walletBalance < minDeposit && (
@@ -213,15 +217,28 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                     <span className="text-xs font-bold mc-text-primary">Amount</span>
                     <span className="text-xs mc-text-dim">Available: {formatICP(walletBalance)} ICP</span>
                   </div>
-                  <input
-                    type="number"
-                    value={amount}
-                    onChange={handleAmountChange}
-                    placeholder={selectedMode === 'simple' ? `Min: ${minDeposit}, Max: ${formatICP(maxDeposit)} ICP` : `Min: ${minDeposit} ICP`}
-                    min={minDeposit}
-                    step="0.00000001"
-                    className="mc-input w-full text-center text-lg"
-                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setAmount(minDeposit.toString())}
+                      className="mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap"
+                    >MIN</button>
+                    <input
+                      type="number"
+                      value={amount}
+                      onChange={handleAmountChange}
+                      placeholder={selectedMode === 'simple' ? `Min: ${minDeposit}, Max: ${formatICP(maxDeposit)} ICP` : `Min: ${minDeposit} ICP`}
+                      min={minDeposit}
+                      step="0.00000001"
+                      className={`mc-input flex-1 text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
+                    />
+                    <button
+                      onClick={() => {
+                        const max = selectedMode === 'simple' ? Math.min(walletBalance, maxDeposit) : walletBalance;
+                        setAmount(max.toString());
+                      }}
+                      className="mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap"
+                    >MAX</button>
+                  </div>
 
                   {depositAmount > 0 && (
                     <div className="mt-2 space-y-1 text-xs">

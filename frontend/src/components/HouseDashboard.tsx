@@ -85,25 +85,36 @@ function BackerInfoCard() {
     },
   ];
 
+  const [openSection, setOpenSection] = useState<string | null>(null);
+
   return (
     <div className="space-y-4">
       <h3 className="font-display text-base mc-text-primary text-center">How Backer Positions Work</h3>
       <p className="text-center text-sm mc-text-dim italic font-accent">
         Become a VC — put your money in someone else's scheme and call it strategy.
       </p>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-        {sections.map(s => (
-          <div key={s.title} className={`mc-card ${s.accent} p-4`}>
-            <div className="flex items-center gap-2 mb-2">
-              {s.icon}
-              <span className="font-bold text-sm mc-text-primary">{s.title}</span>
+      <div className="space-y-2">
+        {sections.map(s => {
+          const isOpen = openSection === s.title;
+          return (
+            <div key={s.title} className={`mc-card ${s.accent} overflow-hidden`}>
+              <button
+                onClick={() => setOpenSection(isOpen ? null : s.title)}
+                className="w-full flex items-center justify-between p-4 text-left"
+              >
+                <div className="flex items-center gap-2">
+                  {s.icon}
+                  <span className="font-bold text-sm mc-text-primary">{s.title}</span>
+                </div>
+                <span className={`text-xs mc-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
+              </button>
+              {isOpen && <div className="px-4 pb-4">{s.content}</div>}
             </div>
-            {s.content}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
-      {/* Redistribution Event callout */}
+      {/* Redistribution Event callout — always visible */}
       <div className="mc-card mc-accent-danger p-5">
         <div className="flex items-start gap-3">
           <Flame className="h-6 w-6 mc-text-danger flex-shrink-0" />

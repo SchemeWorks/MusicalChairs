@@ -477,80 +477,57 @@
   }
 
   /* ================================================================
-     NAVIGATION — Desktop Left Rail + Mobile Bottom Tabs
+     NAVIGATION — Desktop Header Tabs + Mobile Bottom Tabs
      ================================================================ */
 
-  /* Desktop left rail — fixed 200px, always labeled */
-  .mc-rail {
-    position: fixed;
-    left: 0;
-    top: 80px; /* below header */
-    bottom: 0;
-    width: 200px;
-    background: rgba(8, 6, 14, 0.95);
-    backdrop-filter: blur(16px);
-    border-right: 1px solid var(--mc-border);
-    z-index: 30;
-    display: flex;
-    flex-direction: column;
-    padding: var(--space-md) 0;
-    gap: var(--space-xs);
-    overflow: hidden;
+  /* Desktop header tabs — inline in the header bar */
+  .mc-header-tabs {
+    display: none; /* hidden on mobile */
+    align-items: center;
+    gap: 2px;
+    margin-left: var(--space-lg);
   }
 
-  /* Content offset for fixed rail */
-  .mc-content-offset {
-    margin-left: 200px;
+  @media (min-width: 769px) {
+    .mc-header-tabs {
+      display: flex;
+    }
   }
 
-  .mc-rail-item {
-    width: 100%;
+  .mc-header-tab {
     display: flex;
     align-items: center;
-    gap: var(--space-md);
-    padding: 10px 16px;
-    color: var(--mc-white-dim);
-    font-size: var(--text-sm);
+    gap: 6px;
+    padding: 6px 12px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
     font-weight: 700;
-    border-radius: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--mc-white-muted);
+    border-radius: var(--radius-sm);
+    border-bottom: 2px solid transparent;
     transition: all 0.15s ease;
     cursor: pointer;
     white-space: nowrap;
-    border-left: 3px solid transparent;
-    text-decoration: none;
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
   }
 
-  .mc-rail-item:hover {
-    color: var(--mc-white);
+  .mc-header-tab:hover {
+    color: var(--mc-white-dim);
     background: rgba(255, 255, 255, 0.04);
   }
 
-  .mc-rail-item.active {
+  .mc-header-tab.active {
     color: var(--mc-white);
-    background: rgba(168, 85, 247, 0.1);
-    border-left-color: var(--mc-purple);
+    border-bottom-color: var(--mc-purple);
   }
 
-  .mc-rail-item.active-green {
-    border-left-color: var(--mc-neon-green);
-    background: rgba(57, 255, 20, 0.05);
-  }
-
-  .mc-rail-item.active-gold {
-    border-left-color: var(--mc-gold);
-    background: rgba(255, 215, 0, 0.05);
-  }
-
-  .mc-rail-icon {
-    min-width: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 1.2rem;
-  }
-
-  .mc-rail-label {
-    opacity: 1;
+  .mc-header-tab.active-green {
+    color: var(--mc-white);
+    border-bottom-color: var(--mc-neon-green);
   }
 
   /* Mobile bottom tabs */
@@ -708,6 +685,42 @@
     to { opacity: 1; transform: translateY(0); }
   }
 
+  /* Mobile bottom sheet (wallet) */
+  .mc-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    z-index: 49;
+    animation: mc-backdrop-in 0.2s ease-out;
+  }
+
+  @keyframes mc-backdrop-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  .mc-bottom-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    max-height: 70vh;
+    overflow-y: auto;
+    z-index: 50;
+    background: rgba(18, 14, 28, 0.98);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--mc-border);
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.6), 0 0 30px var(--mc-glow-purple);
+    animation: mc-sheet-in 0.3s ease-out;
+  }
+
+  @keyframes mc-sheet-in {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+  }
+
   /* ================================================================
      TOAST — celebration notifications
      ================================================================ */
@@ -835,6 +848,79 @@
     margin-bottom: var(--space-md);
   }
 
+  /* ================================================================
+     GAME STATUS BAR — persistent stats below header
+     ================================================================ */
+
+  .mc-status-bar {
+    position: fixed;
+    top: 64px; /* below h-16 header */
+    left: 0;
+    right: 0;
+    height: 36px;
+    z-index: 39;
+    background: rgba(8, 6, 14, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--mc-border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    padding: 0 var(--space-md);
+    font-family: 'Space Mono', monospace;
+  }
+
+  @media (min-width: 769px) {
+    .mc-status-bar {
+      top: 80px; /* below md:h-20 header */
+    }
+  }
+
+  .mc-status-bar-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 var(--space-md);
+    border-right: 1px solid rgba(168, 85, 247, 0.12);
+    height: 100%;
+  }
+
+  .mc-status-bar-stat:last-child {
+    border-right: none;
+  }
+
+  .mc-status-bar-label {
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--mc-white-muted);
+  }
+
+  .mc-status-bar-value {
+    font-size: 12px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+  }
+
+  /* Hide desktop-only stats on mobile */
+  @media (max-width: 768px) {
+    .mc-status-bar-desktop {
+      display: none;
+    }
+    .mc-status-bar-stat {
+      padding: 0 var(--space-sm);
+    }
+    .mc-status-bar-label {
+      display: none;
+    }
+    .mc-status-bar-value {
+      font-size: 11px;
+    }
+  }
+
   /* Hero entrance — fade + slide for splash page */
   .mc-hero-entrance {
     animation: mc-hero-enter 0.6s ease-out both;
@@ -871,6 +957,17 @@
     to { transform: rotate(360deg); }
   }
 
+  /* Shake on error */
+  .mc-shake {
+    animation: mc-shake 0.4s ease-in-out;
+  }
+
+  @keyframes mc-shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-4px); }
+    40%, 80% { transform: translateX(4px); }
+  }
+
   /* Tab content entrance */
   .mc-enter {
     animation: mc-slide-up 0.25s ease-out;
@@ -898,6 +995,32 @@
   .mc-stagger > *:nth-child(10) { animation-delay: 450ms; }
   .mc-stagger > *:nth-child(11) { animation-delay: 500ms; }
 
+  /* Notification badge dots */
+  .mc-badge-dot {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    animation: mc-badge-pulse 2s ease-in-out infinite;
+  }
+
+  .mc-badge-red {
+    background: #ef4444;
+    box-shadow: 0 0 6px rgba(239, 68, 68, 0.6);
+  }
+
+  .mc-badge-purple {
+    background: #a855f7;
+    box-shadow: 0 0 6px rgba(168, 85, 247, 0.6);
+  }
+
+  @keyframes mc-badge-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.7; transform: scale(1.2); }
+  }
+
   /* Icon glows (shenanigans & hall of fame in nav) */
   .mc-icon-glow-green {
     text-shadow: 0 0 8px var(--mc-neon-green), 0 0 16px var(--mc-glow-green);
@@ -924,7 +1047,6 @@
      ================================================================ */
 
   @media (max-width: 768px) {
-    .mc-rail { display: none; }
     .mc-card-elevated { padding: var(--space-lg); }
     .mc-section-header { flex-direction: column; gap: var(--space-xs); }
   }
