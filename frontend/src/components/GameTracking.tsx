@@ -1,12 +1,17 @@
-import React, { useState, useEffect } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, calculateCurrentEarnings, isCompoundingPlanUnlocked, getTimeRemaining } from '../hooks/useQueries';
+import { useState, useEffect } from 'react';
+import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining } from '../hooks/useQueries';
+import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
-import { RefreshCw, Lock, ArrowDownCircle } from 'lucide-react';
+import { Lock, ArrowDownCircle, Rocket } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+
+/* ================================================================
+   Constants
+   ================================================================ */
 
 const planNames: Record<string, string> = {
   [GamePlan.simple21Day]: '21-Day Simple',
@@ -20,27 +25,181 @@ const planAccents: Record<string, string> = {
   [GamePlan.compounding30Day]: 'mc-plan-compound',
 };
 
+// Rotating quotes attributed to Charles — shown in empty state
+const charlesQuotes = [
+  "You're either allocating, or you're watching someone else's allocation work.",
+  "You can sit on the sidelines. That's a decision too.",
+  "I can't guarantee returns. I can guarantee you won't see this entry price again.",
+  "I'm allocating my own capital. I wouldn't put you into something I'm not in.",
+  "The window doesn't close slowly. It just closes.",
+  "Everyone who got in early said it felt too early.",
+  "I don't need you in this. I'm offering because I like you.",
+  "Risk is what happens when you don't have information. You have information.",
+  "You're not early. But you're not late.",
+];
+
+/* ================================================================
+   Helpers
+   ================================================================ */
+
+const formatDate = (ts: bigint) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(Number(ts) / 1_000_000));
+
+const daysActive = (ts: bigint) => Math.floor((Date.now() - Number(ts) / 1_000_000) / 86_400_000);
+
+function getExitTollInfo(game: GameRecord) {
+  const startTime = Number(game.startTime) / 1_000_000;
+  const elapsed = Date.now() - startTime;
+  const days = elapsed / 86_400_000;
+  if (game.isCompounding) return { currentFee: 13, nextFee: null, timeToNext: null };
+  if (days < 3) return { currentFee: 7, nextFee: 5, timeToNext: (3 * 86_400_000) - elapsed };
+  if (days < 10) return { currentFee: 5, nextFee: 3, timeToNext: (10 * 86_400_000) - elapsed };
+  return { currentFee: 3, nextFee: null, timeToNext: null };
+}
+
+function fmtCountdown(ms: number) {
+  if (ms <= 0) return '';
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${d}d ${h}h ${m}m`;
+}
+
+/* ================================================================
+   Live Position Card
+   ================================================================ */
+
+function PositionCard({
+  game,
+  earnings,
+  onWithdraw,
+  withdrawPending,
+}: {
+  game: GameRecord;
+  earnings: number;
+  onWithdraw: (game: GameRecord) => void;
+  withdrawPending: boolean;
+}) {
+  const name = planNames[game.plan] || 'Unknown Plan';
+  const accent = planAccents[game.plan] || '';
+  const unlocked = isCompoundingPlanUnlocked(game);
+  const canWithdraw = !game.isCompounding || unlocked;
+  const hasEarnings = earnings > 0;
+  const timeRem = getTimeRemaining(game);
+  const tollInfo = getExitTollInfo(game);
+
+  return (
+    <div className={`mc-card ${accent} p-4 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg`}>
+      {/* Top row: plan name + badge + days active */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="font-bold mc-text-primary">{name}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+            game.isCompounding ? 'bg-purple-500/20 mc-text-purple' : 'bg-green-500/20 mc-text-green'
+          }`}>
+            {game.isCompounding ? 'Compounding' : 'Simple'}
+          </span>
+        </div>
+        <span className="text-xs mc-text-muted">{daysActive(game.startTime)}d active</span>
+      </div>
+
+      {/* Numbers row: deposit | live earnings | exit toll */}
+      <div className="grid grid-cols-3 gap-3 mb-3">
+        <div>
+          <div className="mc-label">Deposit</div>
+          <div className="text-base font-bold mc-text-primary">{formatICP(game.amount)} ICP</div>
+          <div className="text-xs mc-text-muted">{formatDate(game.startTime)}</div>
+        </div>
+        <div className="text-center">
+          <div className="mc-label">Earnings</div>
+          <div className="text-base font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
+          <div className="text-xs mc-text-muted">live</div>
+        </div>
+        <div className="text-right">
+          <div className="mc-label">Exit Toll</div>
+          <div className="text-base font-bold mc-text-gold">{tollInfo.currentFee}%</div>
+          {tollInfo.nextFee && tollInfo.timeToNext && (
+            <div className="text-xs mc-text-cyan">{fmtCountdown(tollInfo.timeToNext)} to {tollInfo.nextFee}%</div>
+          )}
+        </div>
+      </div>
+
+      {/* Withdraw button */}
+      <button
+        onClick={() => onWithdraw(game)}
+        disabled={withdrawPending || !canWithdraw || !hasEarnings}
+        className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
+          canWithdraw && hasEarnings
+            ? 'mc-btn-primary'
+            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+        }`}
+        title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
+      >
+        {!canWithdraw ? (
+          <span className="flex items-center justify-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
+        ) : (
+          <span className="flex items-center justify-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
+   Empty State with rotating Charles quotes
+   ================================================================ */
+
+function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
+  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * charlesQuotes.length));
+  const [fade, setFade] = useState(true);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setQuoteIndex(prev => (prev + 1) % charlesQuotes.length);
+        setFade(true);
+      }, 400);
+    }, 6000);
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <div className="text-center py-16">
+      <div className="mb-8 min-h-[80px] flex flex-col items-center justify-center">
+        <p
+          className={`font-accent text-sm mc-text-dim italic max-w-md mx-auto leading-relaxed transition-opacity duration-400 ${
+            fade ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          &ldquo;{charlesQuotes[quoteIndex]}&rdquo;
+        </p>
+        <span className="text-xs mc-text-muted mt-2 font-bold">&mdash; Charles</span>
+      </div>
+      <button onClick={onNavigate} className="mc-btn-primary text-sm">
+        <Rocket className="h-4 w-4 inline mr-1" /> Pick Your Plan
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
+   Main Export
+   ================================================================ */
+
 interface GameTrackingProps {
   onNavigateToGameSetup?: () => void;
 }
 
 export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProps) {
-  const { data: games, isLoading, error, refetch } = useGetUserGames();
+  const { data: games, isLoading, error } = useGetUserGames();
+  const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [reinvestDialogOpen, setReinvestDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
   const [withdrawnAmount, setWithdrawnAmount] = useState(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [flashValues, setFlashValues] = useState(false);
   const [countdown, setCountdown] = useState('');
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setFlashValues(true);
-    setTimeout(() => { setRefreshing(false); setFlashValues(false); }, 800);
-  };
 
   const handleWithdrawClick = (game: GameRecord) => {
     setSelectedGame(game);
@@ -61,24 +220,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
     }
   };
 
-  const getExitTollInfo = (game: GameRecord) => {
-    const startTime = Number(game.startTime) / 1000000;
-    const elapsed = Date.now() - startTime;
-    const days = elapsed / (1000 * 60 * 60 * 24);
-    if (game.isCompounding) return { currentFee: 13, nextFee: null, timeToNext: null };
-    if (days < 3) return { currentFee: 7, nextFee: 5, timeToNext: (3 * 86400000) - elapsed };
-    if (days < 10) return { currentFee: 5, nextFee: 3, timeToNext: (10 * 86400000) - elapsed };
-    return { currentFee: 3, nextFee: null, timeToNext: null };
-  };
-
-  const fmtCountdown = (ms: number) => {
-    if (ms <= 0) return '';
-    const d = Math.floor(ms / 86400000);
-    const h = Math.floor((ms % 86400000) / 3600000);
-    const m = Math.floor((ms % 3600000) / 60000);
-    return `${d}d ${h}h ${m}m`;
-  };
-
+  // Live countdown for withdrawal dialog
   useEffect(() => {
     if (!withdrawDialogOpen || !selectedGame) return;
     const update = () => {
@@ -100,127 +242,43 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
     );
   }
 
-  const totalDeposits = games?.reduce((s, g) => s + g.amount, 0) || 0;
-  const totalEarnings = games?.reduce((s, g) => s + calculateCurrentEarnings(g), 0) || 0;
   const hasGames = games && games.length > 0;
-
-  const formatDate = (ts: bigint) =>
-    new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(Number(ts) / 1000000));
-
-  const daysActive = (ts: bigint) => Math.floor((Date.now() - Number(ts) / 1000000) / 86400000);
 
   return (
     <>
       <div className="space-y-6">
-        {/* Running Tally */}
+        {/* Running Tally — live, no refresh needed */}
         <div className="mc-card-elevated">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg mc-text-primary">Your Running Tally</h2>
-            <button onClick={handleRefresh} className="mc-btn-pill" disabled={refreshing}>
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} /> Refresh
-            </button>
-          </div>
+          <h2 className="font-display text-lg mc-text-primary mb-4">Your Running Tally</h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-5 text-center">
               <div className="mc-label mb-2">Total Deposits</div>
-              <div className={`text-3xl font-bold mc-text-primary ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalDeposits)} ICP</div>
+              <div className="text-3xl font-bold mc-text-primary">{formatICP(portfolio.totalDeposits)} ICP</div>
             </div>
             <div className="mc-card p-5 text-center">
               <div className="mc-label mb-2">Accumulated Earnings</div>
-              <div className={`text-3xl font-bold mc-text-green mc-glow-green ${flashValues ? 'mc-counter-flash' : ''}`}>{formatICP(totalEarnings)} ICP</div>
+              <div className="text-3xl font-bold mc-text-green mc-glow-green">{formatICP(portfolio.totalEarnings)} ICP</div>
             </div>
           </div>
         </div>
 
         {/* Positions */}
         <div className="mc-card-elevated">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display text-lg mc-text-primary">Your Positions</h2>
-            {hasGames && (
-              <button onClick={handleRefresh} disabled={refreshing} className="mc-btn-refresh flex items-center gap-2">
-                <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            )}
-          </div>
+          <h2 className="font-display text-lg mc-text-primary mb-4">Your Positions</h2>
 
           {!hasGames ? (
-            <div className="text-center py-12">
-              <div className="text-6xl mb-5 animate-bounce" style={{ animationDuration: '2s' }}>🎰</div>
-              <p className="font-display text-lg mc-text-primary mb-2">No positions yet</p>
-              <p className="text-sm mc-text-dim mb-6 max-w-sm mx-auto">
-                Start by making your first deposit in a game plan. The house is waiting.
-              </p>
-              <button
-                onClick={onNavigateToGameSetup}
-                className="mc-btn-primary text-sm"
-              >
-                Pick Your Plan
-              </button>
-            </div>
+            <EmptyState onNavigate={onNavigateToGameSetup} />
           ) : (
             <div className="space-y-3">
-              {games!.map((game) => {
-                const earnings = calculateCurrentEarnings(game);
-                const name = planNames[game.plan] || 'Unknown Plan';
-                const accent = planAccents[game.plan] || '';
-                const unlocked = isCompoundingPlanUnlocked(game);
-                const canWithdraw = !game.isCompounding || unlocked;
-                const hasEarnings = earnings > 0;
-                const timeRem = getTimeRemaining(game);
-
-                return (
-                  <div key={game.id.toString()} className={`mc-card ${accent} p-4 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg`}>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
-                      {/* Plan info */}
-                      <div>
-                        <div className="font-bold mc-text-primary">{name}</div>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                            game.isCompounding
-                              ? 'bg-purple-500/20 mc-text-purple'
-                              : 'bg-green-500/20 mc-text-green'
-                          }`}>
-                            {game.isCompounding ? 'Compounding' : 'Simple'}
-                          </span>
-                          <span className="text-xs mc-text-muted">{daysActive(game.startTime)}d active</span>
-                        </div>
-                      </div>
-
-                      {/* Deposit */}
-                      <div className="md:text-center">
-                        <div className="mc-label">Deposit</div>
-                        <div className="text-lg font-bold mc-text-primary">{formatICP(game.amount)} ICP</div>
-                        <div className="text-xs mc-text-muted">{formatDate(game.startTime)}</div>
-                      </div>
-
-                      {/* Earnings + action */}
-                      <div className="flex items-center justify-between md:justify-end gap-4">
-                        <div className="md:text-right">
-                          <div className="mc-label">Earnings</div>
-                          <div className="text-lg font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
-                        </div>
-                        <button
-                          onClick={() => handleWithdrawClick(game)}
-                          disabled={withdrawMutation.isPending || !canWithdraw || !hasEarnings}
-                          className={`text-xs px-3 py-2 rounded-lg font-bold transition-all ${
-                            canWithdraw && hasEarnings
-                              ? 'mc-btn-primary'
-                              : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
-                          }`}
-                          title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
-                        >
-                          {!canWithdraw ? (
-                            <span className="flex items-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h</span>
-                          ) : (
-                            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+              {portfolio.games.map(({ game, earnings }) => (
+                <PositionCard
+                  key={game.id.toString()}
+                  game={game}
+                  earnings={earnings}
+                  onWithdraw={handleWithdrawClick}
+                  withdrawPending={withdrawMutation.isPending}
+                />
+              ))}
             </div>
           )}
 
@@ -295,7 +353,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
                 onClick={() => { setReinvestDialogOpen(false); onNavigateToGameSetup?.(); }}
                 className="mc-btn-primary px-5 py-2 rounded-full text-sm"
               >
-                YOLO Again 🚀
+                <><Rocket className="h-4 w-4" /> YOLO Again</>
               </button>
             </div>
           </div>

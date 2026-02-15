@@ -7,13 +7,22 @@ interface HouseMoneyToastProps {
   onClose: () => void;
 }
 
+const charlesQuips = [
+  "The house always appreciates a generous patron.",
+  "Smart money. Or at least, money.",
+  "Every dollar helps. Mostly me.",
+  "You just made the pot a little heavier. Charles approves.",
+  "That's the spirit. Keep it coming.",
+];
+
 export default function HouseMoneyToast({ amount, ponziPoints, onClose }: HouseMoneyToastProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [quip] = useState(() => charlesQuips[Math.floor(Math.random() * charlesQuips.length)]);
 
   useEffect(() => {
     setTimeout(() => setIsVisible(true), 10);
-    const timer = setTimeout(() => handleClose(), 3000);
+    const timer = setTimeout(() => handleClose(), 4000);
     return () => clearTimeout(timer);
   }, []);
 
@@ -29,14 +38,14 @@ export default function HouseMoneyToast({ amount, ponziPoints, onClose }: HouseM
       }`}
     >
       <div className="mc-toast text-center">
-        <div className="font-display text-xl mc-text-primary mb-2">Deposit Successful!</div>
+        <div className="font-display text-xl mc-text-primary mb-2">You're In</div>
         <p className="text-sm mc-text-dim">
-          You've added <span className="mc-toast-accent">{formatICP(amount)} ICP</span> as house money
-          and earned <span className="mc-toast-accent">{ponziPoints.toLocaleString()} Ponzi Points</span>!
+          <span className="mc-toast-accent">{formatICP(amount)} ICP</span> added to the house
+          {ponziPoints > 0 && <> &middot; <span className="mc-toast-accent">{ponziPoints.toLocaleString()} PP</span> earned</>}
         </p>
-        <p className="text-xs mc-text-muted mt-2 font-accent italic">The House thanks you for your generosity.</p>
+        <p className="text-xs mc-text-muted mt-2 font-accent italic">&ldquo;{quip}&rdquo; &mdash; Charles</p>
         <button onClick={handleClose} className="mc-btn-primary px-6 py-2 rounded-full text-sm mt-4 w-full">
-          Nice!
+          Nice
         </button>
       </div>
     </div>

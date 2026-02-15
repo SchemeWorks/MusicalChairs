@@ -1,7 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGetReferralStats, useGetPonziPoints } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { Copy, Check } from 'lucide-react';
+import { Copy, Check, Users } from 'lucide-react';
+
+const charlesMLMQuotes = [
+  "You don't need to sell anything. You just need to tell two friends. And they tell two friends. And suddenly you're retired.",
+  "I'm not asking you to recruit. I'm asking you to share an opportunity.",
+  "The people who build networks early retire first. That's not an opinion, that's math.",
+  "Think of it less as a pyramid and more as a... triangle of opportunity.",
+  "You're not recruiting. You're curating. You're building a team.",
+  "Everyone you know is going to be in this eventually. The question is: are they above you or below you?",
+  "I don't call them downlines. I call them success partners.",
+  "The best time to share this with your friends was yesterday. The second best time is right now.",
+  "You're sitting on a network and you don't even know it. Your group chat is a gold mine.",
+];
+
+function EmptyState() {
+  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * charlesMLMQuotes.length));
+  const [fade, setFade] = useState(true);
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+
+  useEffect(() => {
+    intervalRef.current = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setQuoteIndex(i => (i + 1) % charlesMLMQuotes.length);
+        setFade(true);
+      }, 500);
+    }, 6000);
+    return () => clearInterval(intervalRef.current);
+  }, []);
+
+  return (
+    <div className="mc-card-elevated text-center py-10 px-6">
+      <Users className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
+      <p className="font-display text-lg mc-text-primary mb-2">Your Network Awaits</p>
+      <p className="text-sm mc-text-dim mb-6">Share your referral link and start building your downline.</p>
+      <div className="min-h-[4rem] flex items-center justify-center">
+        <p className={`font-accent text-sm mc-text-dim italic max-w-sm transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
+          &ldquo;{charlesMLMQuotes[quoteIndex]}&rdquo;
+          <span className="block text-xs mc-text-muted font-bold mt-1 not-italic">&mdash; Charles</span>
+        </p>
+      </div>
+    </div>
+  );
+}
 
 export default function ReferralSection() {
   const [copied, setCopied] = useState(false);
@@ -22,6 +65,12 @@ export default function ReferralSection() {
 
   if (isLoading) return <LoadingSpinner />;
 
+  const hasReferrals = referralStats && (
+    (referralStats.level1Count || 0) > 0 ||
+    (referralStats.level2Count || 0) > 0 ||
+    (referralStats.level3Count || 0) > 0
+  );
+
   return (
     <div className="space-y-6">
       <div className="mc-card-elevated">
@@ -29,7 +78,7 @@ export default function ReferralSection() {
         <div className="text-center mb-6">
           <span className="font-accent text-xl mc-text-gold">More Than Just a Ponzi</span>
           <br />
-          <span className="font-accent text-lg mc-text-gold opacity-80">— It's Also a Pyramid Scheme!</span>
+          <span className="font-accent text-lg mc-text-gold opacity-80">&mdash; It's Also a Pyramid Scheme!</span>
         </div>
 
         {/* Referral link */}
@@ -49,15 +98,15 @@ export default function ReferralSection() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <div className="mc-card p-3 text-center">
             <div className="mc-label mb-1">Direct Referrals</div>
-            <div className="text-xl font-bold mc-text-primary">{referralStats?.directReferrals || 0}</div>
+            <div className="text-xl font-bold mc-text-primary">{referralStats?.level1Count || 0}</div>
           </div>
           <div className="mc-card p-3 text-center">
             <div className="mc-label mb-1">Level 2</div>
-            <div className="text-xl font-bold mc-text-primary">{referralStats?.level2Referrals || 0}</div>
+            <div className="text-xl font-bold mc-text-primary">{referralStats?.level2Count || 0}</div>
           </div>
           <div className="mc-card p-3 text-center">
             <div className="mc-label mb-1">Level 3</div>
-            <div className="text-xl font-bold mc-text-primary">{referralStats?.level3Referrals || 0}</div>
+            <div className="text-xl font-bold mc-text-primary">{referralStats?.level3Count || 0}</div>
           </div>
           <div className="mc-card p-3 text-center">
             <div className="mc-label mb-1">Referral PP</div>
@@ -66,18 +115,22 @@ export default function ReferralSection() {
         </div>
       </div>
 
-      {/* How it works */}
-      <div className="mc-card p-5">
-        <h3 className="font-display text-base mc-text-primary mb-3">How the Pyramid Works</h3>
-        <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
-          <p><span className="mc-text-green font-bold">Level 1 (Direct):</span> Earn PP when someone you refer makes a deposit</p>
-          <p><span className="mc-text-cyan font-bold">Level 2:</span> Earn PP when your referrals' referrals deposit</p>
-          <p><span className="mc-text-purple font-bold">Level 3:</span> It goes deeper. Three levels of MLM glory.</p>
+      {/* Empty state with Charles MLM quotes — or how it works */}
+      {!hasReferrals ? (
+        <EmptyState />
+      ) : (
+        <div className="mc-card p-5">
+          <h3 className="font-display text-base mc-text-primary mb-3">How the Pyramid Works</h3>
+          <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
+            <p><span className="mc-text-green font-bold">Level 1 (Direct):</span> Earn PP when someone you refer makes a deposit</p>
+            <p><span className="mc-text-cyan font-bold">Level 2:</span> Earn PP when your referrals' referrals deposit</p>
+            <p><span className="mc-text-purple font-bold">Level 3:</span> It goes deeper. Three levels of MLM glory.</p>
+          </div>
+          <p className="text-xs mc-text-muted mt-3 italic font-accent">
+            We could have hidden the pyramid mechanics, but where's the fun in that?
+          </p>
         </div>
-        <p className="text-xs mc-text-muted mt-3 italic font-accent">
-          We could have hidden the pyramid mechanics, but where's the fun in that?
-        </p>
-      </div>
+      )}
     </div>
   );
 }

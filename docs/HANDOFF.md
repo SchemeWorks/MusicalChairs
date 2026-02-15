@@ -408,4 +408,100 @@ npx vite build && dfx canister install frontend --network ic --mode upgrade
 
 ---
 
-**Last Sync**: This handoff doc created from chat sessions on Feb 5, 2026. Check `DEPLOYMENT_STATUS.md` for latest technical deployment details.
+---
+
+## 🎨 UX Overhaul (Branch: claude/dreamy-swanson)
+
+### Completed Phases
+
+**Phase 1**: Admin gating, wallet dropdown, icon fix
+**Phase 2**: Navigation restructure (7 tabs → 5: Profit Center, Invest, Seed Round, MLM, Shenanigans)
+**Phase 3**: dealer→backer rename, live earnings ticker, GameTracking rewrite, Charles quotes empty state
+**Phase 4**: GamePlans (Invest tab) — success toast, satirical mode copy, daily earnings, empty wallet state
+**Phase 5**: ProfileSetup personality, ReferralSection MLM quotes, HallOfFame Diamond Tier + PP disclaimer
+**Phase 6**: WalletConnectModal entrance, WalletDropdown casino tabs, Shenanigans outcome flavor, ErrorBoundary + App.tsx personality
+**Phase 7**: ShenanigansAdminPanel Charles deepening — personality, form hints, snarky copy
+**Phase 8**: HouseMoneyToast Charles quotes, index.css cleanup (65 lines of dead/duplicate CSS removed)
+
+### Copy/Text Pending User Review
+
+The following text was written by Claude using best judgment based on established tone patterns. All need user review/approval before shipping:
+
+#### Phase 5 — ProfileSetup
+- **Charles welcome quote**: "I'm glad you're here. Truly. Let me show you something special."
+- **Input subtext**: "Every great partnership starts with a name."
+- **Placeholder**: "What should we call you?"
+- **Warning**: "Real ICP. Real risk. Only play with what you can afford to lose."
+
+#### Phase 5 — HallOfFame
+- **Empty state Charles quote**: "Every empire starts with a first transaction."
+- **PP disclaimer copy**: "Ponzi Points are the in-game fun currency. Shenanigans are cosmetic chaos you cast using PP. They don't affect the actual game math — just the madness. Burn those Ponzi Points for glory!"
+- **PP disclaimer warning**: "All effects are limited to Ponzi Points and cosmetics only — never touching ICP, pot size, backer selection, payout math, or round structure."
+- **Footer CTA**: "Earn Ponzi Points by depositing and referring friends. Spend them on Shenanigans to reach Diamond Tier."
+
+#### Phase 6 — WalletConnectModal
+- **Header**: "Step Right In" (was "Connect Wallet")
+- **II description**: "The house standard. Clean, native, no questions asked."
+- **Plug description**: "For those who like to keep their keys close."
+- **OISY description**: "Multi-chain. For the diversified degen."
+- **Footer warning**: "By connecting, you agree that this is a gambling game and that you're fine with that."
+
+#### Phase 6 — WalletDropdown
+- **Tab labels**: "Buy In" / "Cash Out" / "Wire" (was Deposit/Withdraw/Send)
+- **Test mode banner**: "Test Mode — Playing with Monopoly money"
+- **Test deposit**: "Monopoly money mode. You start with 500 ICP to burn through."
+- **Test withdraw**: "Can't cash out Monopoly money. Use 'Wire' for internal transfers."
+- **Deposit success**: "You're in. Good luck."
+- **Withdraw success**: "Cashed out. Smart move — or was it?"
+- **Wire success**: "Wired. The money's gone."
+- **Button labels**: "Approve & Buy In", "Confirm Buy In", "Buying In...", "Cash Out to Wallet", "Cashing Out...", "Wire ICP", "Wiring..."
+
+#### Phase 6 — Shenanigans Outcome Flavor
+- **Success pool** (5): "The house smiles upon you." / "Clean hit. Charles would be proud." / "Flawless execution. You're a natural." / "They never saw it coming." / "That's how it's done in this business."
+- **Fail pool** (5): "The universe said no." / "Not your day. It happens to everyone. Mostly to you." / "Swing and a miss. The PP is still gone, though." / "Nothing happened. Except you're poorer now." / "Better luck next time. Or not. Who knows."
+- **Backfire pool** (5): "Oh no. It hit you instead." / "Karma works fast around here." / "You played yourself. Literally." / "That's what they call a learning experience." / "Charles is laughing somewhere."
+- **Dismiss button**: "Noted"
+
+#### Phase 6 — ErrorBoundary
+- **Error quips** (4): "The house always wins. Except right now." / "Even Ponzis have bad days." / "Charles is looking into it. He's not, but it sounds reassuring." / "Something broke. Probably not the math. Probably."
+- **Button**: "Spin Again" (was "Try Again")
+
+#### Phase 6 — App.tsx
+- **Loading state**: "Counting your chips..." (was "Loading your profile...")
+- **Main error**: Title "The Table Flipped", subtitle "The house always wins, but the website doesn't always cooperate."
+- **Profile error**: Title "Onboarding Hit a Snag", subtitle "Try logging out and back in. Charles apologizes for nothing."
+- **Admin error**: Title "Charles's Office Is on Fire", subtitle "The back office crashed. The front office is fine. Probably."
+- **Dashboard error**: Title "The Dashboard Took a Hit", subtitle "Your money's still there. Probably. Refresh and find out."
+
+#### Phase 7 — ShenanigansAdminPanel
+- **Header subtitle**: "Pull the strings. Tweak the odds. The house edge is whatever you say it is." (was "Pull the strings. Tweak the odds. Charles sees all.")
+- **Instructions heading**: "How This Works" (was "Charles's Instructions")
+- **Instructions footer**: "Remember: you break it, you fix it. The players will notice."
+- **Minter heading**: "Post-Deploy Ritual" (was "Token Canister Minter Config")
+- **Minter copy**: "re-authorize the backend to mint PP. Forget this and shenanigans stop working"
+- **Selector subtext**: "Pick your poison" (was "Select to edit")
+- **Editor subtext**: "Tweak everything. Nobody's watching." (was "Edit all parameters below")
+- **Empty state**: "Pick a shenanigan from the list." + "With great power comes great responsibility. Just kidding. Go nuts."
+- **Cost hint**: "Higher cost = fewer casts = less chaos"
+- **Duration hint**: "0 = instant. Otherwise, how long the effect lingers."
+- **Cooldown hint**: "How long before they can cast again. 0 = spam city."
+- **Effect Values hint**: "Comma-separated. What the shenanigan actually does."
+- **Cast Limit hint**: "0 = unlimited. Set a cap or let anarchy reign."
+
+#### Phase 8 — HouseMoneyToast
+- **Header**: "You're In" (was "Deposit Successful!")
+- **Body**: "{amount} ICP added to the house · {PP} PP earned" (condensed from verbose original)
+- **Charles quotes** (5, random): "The house always appreciates a generous patron." / "Smart money. Or at least, money." / "Every dollar helps. Mostly me." / "You just made the pot a little heavier. Charles approves." / "That's the spirit. Keep it coming."
+- **Button**: "Nice" (was "Nice!")
+
+#### Phase 8 — index.css Cleanup
+- Removed dead CSS: `mc-counter-flash`, `mc-btn-primary.pulse`, `mc-btn-refresh`, `mc-rail-divider`, `mc-display`, `mc-glow-pink`
+- Removed duplicate rules: `.mc-card:hover` (identical duplicate), `.mc-plan-simple:hover`, `.mc-plan-compound:hover` (merged enhanced versions into originals)
+- Removed stale comment ("More sheet removed")
+- 1,002 → 933 lines
+
+### Build Status
+- **TS errors**: 44 (all pre-existing, trending down — started at 49, fixed 5 incidentally)
+- **New errors introduced**: 0
+
+**Last Sync**: This handoff doc updated Feb 15, 2026. Check `DEPLOYMENT_STATUS.md` for latest technical deployment details.

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { Save, RotateCcw, AlertTriangle, CheckCircle, Info, ChevronRight, Wrench } from 'lucide-react';
+import { Save, RotateCcw, AlertTriangle, CheckCircle, Info, ChevronRight, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, SlidersHorizontal } from 'lucide-react';
+import { CharlesIcon } from '../lib/charles';
 import { useGetShenaniganConfigs, useUpdateShenaniganConfig, useSaveAllShenaniganConfigs, useResetShenaniganConfig } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -19,9 +20,11 @@ interface ShenaniganConfig {
   backgroundColor: string;
 }
 
-const shenaniganIcons: Record<number, string> = {
-  0: '💰', 1: '🌊', 2: '✏️', 3: '🏦', 4: '🎯',
-  5: '🪞', 6: '⬆️', 7: '✂️', 8: '🐋', 9: '📈', 10: '✨',
+const shenaniganIcons: Record<number, React.ReactNode> = {
+  0: <Coins className="h-5 w-5" />, 1: <Waves className="h-5 w-5" />, 2: <Pencil className="h-5 w-5" />,
+  3: <Building2 className="h-5 w-5" />, 4: <Target className="h-5 w-5" />, 5: <FlipHorizontal2 className="h-5 w-5" />,
+  6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
+  9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />,
 };
 
 const auraColors: Record<number, string> = {
@@ -195,10 +198,10 @@ export default function ShenanigansAdminPanel() {
       <div className="space-y-6">
         <div className="text-center">
           <h2 className="font-display text-2xl mc-text-primary">
-            <Wrench className="inline h-5 w-5 mr-2 mc-text-gold" />
-            Shenanigans Admin Panel
+            <CharlesIcon className="inline h-5 w-5 mr-2 mc-text-gold" />
+            Charles's Office
           </h2>
-          <p className="mc-text-muted text-sm mt-1">Configure all shenanigan parameters</p>
+          <p className="mc-text-muted text-sm mt-1 font-accent italic">Charles is counting the money...</p>
         </div>
         <div className="mc-card-elevated p-8 flex justify-center"><LoadingSpinner /></div>
       </div>
@@ -214,10 +217,10 @@ export default function ShenanigansAdminPanel() {
       {/* Header */}
       <div className="text-center">
         <h2 className="font-display text-2xl mc-text-primary">
-          <Wrench className="inline h-5 w-5 mr-2 mc-text-gold" />
-          Shenanigans Admin Panel
+          <CharlesIcon className="inline h-5 w-5 mr-2 mc-text-gold" />
+          Charles's Office
         </h2>
-        <p className="mc-text-muted text-sm mt-1">Configure all shenanigan parameters</p>
+        <p className="mc-text-muted text-sm mt-1 font-accent italic">Pull the strings. Tweak the odds. The house edge is whatever you say it is.</p>
       </div>
 
       {/* Instructions callout */}
@@ -225,10 +228,11 @@ export default function ShenanigansAdminPanel() {
         <div className="flex items-start gap-3">
           <Info className="h-5 w-5 mc-text-gold flex-shrink-0 mt-0.5" />
           <div className="text-sm mc-text-dim space-y-1">
-            <p className="font-bold mc-text-gold">Admin Instructions</p>
+            <p className="font-bold mc-text-gold">How This Works</p>
             <p>
               Changes take effect immediately and sync to the Shenanigans page in real-time.
-              Odds must sum to 100%. Use Save Changes per-item or Save All at bottom.
+              Odds must sum to 100%. Save per-item or batch save at bottom.
+              Remember: you break it, you fix it. The players will notice.
             </p>
           </div>
         </div>
@@ -239,8 +243,8 @@ export default function ShenanigansAdminPanel() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="h-5 w-5 mc-text-danger flex-shrink-0 mt-0.5" />
           <div className="text-sm mc-text-dim space-y-1">
-            <p className="font-bold mc-text-danger">Token Canister Minter Config</p>
-            <p>After each new deployment, update the PP token canister minter:</p>
+            <p className="font-bold mc-text-danger">Post-Deploy Ritual</p>
+            <p>After each new deployment, re-authorize the backend to mint PP. Forget this and shenanigans stop working:</p>
             <code className="block bg-white/5 px-3 py-2 rounded text-xs mc-text-gold mt-1 font-mono break-all">
               dfx canister call 5xv2o-iiaaa-aaaac-qeclq-cai set_minter '(principal "YOUR_BACKEND_ID")'
             </code>
@@ -255,7 +259,7 @@ export default function ShenanigansAdminPanel() {
         <div className="lg:col-span-1">
           <div className="mc-card p-4">
             <h3 className="font-display text-sm mc-text-primary mb-3">Shenanigans</h3>
-            <p className="text-xs mc-text-muted mb-4">Select to edit</p>
+            <p className="text-xs mc-text-muted mb-4">Pick your poison</p>
             <div className="space-y-1.5">
               {shenanigans.map(shen => {
                 const isActive = selectedShenanigan?.id === shen.id;
@@ -307,7 +311,7 @@ export default function ShenanigansAdminPanel() {
                   <span className="text-3xl">{shenaniganIcons[selectedShenanigan.id]}</span>
                   <div>
                     <h3 className="font-display text-lg mc-text-primary">{selectedShenanigan.name}</h3>
-                    <p className="text-xs mc-text-muted">ID: {selectedShenanigan.id} · Edit all parameters below</p>
+                    <p className="text-xs mc-text-muted">ID: {selectedShenanigan.id} · Tweak everything. Nobody's watching.</p>
                   </div>
                 </div>
               </div>
@@ -320,7 +324,8 @@ export default function ShenanigansAdminPanel() {
                   <AdminInput label="Name" value={selectedShenanigan.name}
                     onChange={v => updateField('name', v)} />
                   <AdminInput label="Cost (PP)" type="number" value={selectedShenanigan.cost}
-                    onChange={v => updateField('cost', Math.max(0, parseFloat(v) || 0))} min="0" />
+                    onChange={v => updateField('cost', Math.max(0, parseFloat(v) || 0))} min="0"
+                    hint="Higher cost = fewer casts = less chaos" />
                 </div>
 
                 <AdminInput label="Description" value={selectedShenanigan.description}
@@ -368,10 +373,10 @@ export default function ShenanigansAdminPanel() {
                 <div className="grid grid-cols-2 gap-4">
                   <AdminInput label="Duration (hours)" type="number" value={selectedShenanigan.duration}
                     onChange={v => updateField('duration', Math.max(0, parseInt(v) || 0))}
-                    min="0" hint="0 = instant" />
+                    min="0" hint="0 = instant. Otherwise, how long the effect lingers." />
                   <AdminInput label="Cooldown (hours)" type="number" value={selectedShenanigan.cooldown}
                     onChange={v => updateField('cooldown', Math.max(0, parseInt(v) || 0))}
-                    min="0" hint="Time between casts" />
+                    min="0" hint="How long before they can cast again. 0 = spam city." />
                 </div>
 
                 {/* Effects section */}
@@ -381,10 +386,10 @@ export default function ShenanigansAdminPanel() {
                       const values = v.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
                       updateField('effectValues', values);
                     }}
-                    placeholder="e.g., 2.0, 8.0, 250.0" hint="Comma-separated numbers" />
+                    placeholder="e.g., 2.0, 8.0, 250.0" hint="Comma-separated. What the shenanigan actually does." />
                   <AdminInput label="Cast Limit" type="number" value={selectedShenanigan.castLimit}
                     onChange={v => updateField('castLimit', Math.max(0, parseInt(v) || 0))}
-                    min="0" hint="0 = unlimited" />
+                    min="0" hint="0 = unlimited. Set a cap or let anarchy reign." />
                 </div>
 
                 {/* Divider */}
@@ -419,8 +424,9 @@ export default function ShenanigansAdminPanel() {
         ) : (
           <div className="lg:col-span-2 flex items-center justify-center">
             <div className="mc-card p-12 text-center w-full">
-              <div className="text-4xl mb-4">🎛️</div>
-              <p className="mc-text-dim text-sm">Select a shenanigan from the list to edit its parameters</p>
+              <SlidersHorizontal className="h-10 w-10 mc-text-muted mb-4 mx-auto" />
+              <p className="mc-text-dim text-sm">Pick a shenanigan from the list.</p>
+              <p className="mc-text-muted text-xs mt-1 font-accent italic">With great power comes great responsibility. Just kidding. Go nuts.</p>
             </div>
           </div>
         )}

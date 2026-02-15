@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useWallet, WalletType } from '../hooks/useWallet';
 import { X, Wallet, ExternalLink, Loader2, Check, AlertCircle } from 'lucide-react';
 
@@ -6,7 +7,7 @@ interface WalletOption {
   type: WalletType;
   name: string;
   description: string;
-  iconEmoji: string;
+  icon: string;
   installed?: boolean;
   installUrl?: string;
 }
@@ -24,9 +25,9 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const isPlugInstalled = typeof window !== 'undefined' && !!window.ic?.plug;
 
   const walletOptions: WalletOption[] = [
-    { type: 'internet-identity', name: 'Internet Identity', description: 'ICP native identity', iconEmoji: '🔐', installed: true },
-    { type: 'plug', name: 'Plug Wallet', description: 'Browser wallet extension', iconEmoji: '🔌', installed: isPlugInstalled, installUrl: 'https://plugwallet.ooo/' },
-    { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain wallet via II', iconEmoji: '✨', installed: true },
+    { type: 'internet-identity', name: 'Internet Identity', description: 'The house standard. Clean, native, no questions asked.', icon: '/ii-logo.svg', installed: true },
+    { type: 'plug', name: 'Plug Wallet', description: 'For those who like to keep their keys close.', icon: '/plug-logo.svg', installed: isPlugInstalled, installUrl: 'https://plugwallet.ooo/' },
+    { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', installed: true },
   ];
 
   const handleConnect = async (walletType: WalletType) => {
@@ -44,7 +45,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-[15vh] overflow-y-auto">
       {/* Backdrop */}
       <div className="fixed inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -55,7 +56,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
         <div className="flex items-center justify-between p-5 border-b border-white/10">
           <div className="flex items-center gap-2">
             <Wallet className="h-5 w-5 mc-text-purple" />
-            <h2 className="font-display text-lg mc-text-primary">Connect Wallet</h2>
+            <h2 className="font-display text-lg mc-text-primary">Step Right In</h2>
           </div>
           <button onClick={onClose} className="p-2 rounded-lg hover:bg-white/5 transition-colors">
             <X className="h-4 w-4 mc-text-muted" />
@@ -78,7 +79,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-4 rounded-xl mc-card hover:border-white/20 transition-all"
                 >
-                  <span className="text-2xl">{wallet.iconEmoji}</span>
+                  <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
@@ -102,7 +103,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                     : 'bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15'
                 } disabled:opacity-50`}
               >
-                <span className="text-2xl">{wallet.iconEmoji}</span>
+                <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
                 <div className="flex-1">
                   <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
                   <p className="text-xs mc-text-muted mt-0.5">{wallet.description}</p>
@@ -128,10 +129,11 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
         {/* Footer */}
         <div className="px-5 pb-5">
           <p className="text-xs mc-text-muted text-center font-accent italic">
-            By connecting, you acknowledge this is a gambling game.
+            By connecting, you agree that this is a gambling game and that you&rsquo;re fine with that.
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

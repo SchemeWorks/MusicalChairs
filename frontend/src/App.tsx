@@ -11,10 +11,11 @@ import LogoutButton from './components/LogoutButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Shield } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent } from 'lucide-react';
+import { isCharles, CharlesIcon } from './lib/charles';
 
 export default function App() {
-  const { identity, isInitializing } = useInternetIdentity();
+  const { identity, principal, isInitializing } = useInternetIdentity();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
   const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
@@ -50,7 +51,7 @@ export default function App() {
             <div className="flex items-center h-16 md:h-20">
 
               {/* Logo */}
-              <div className="flex flex-col">
+              <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity">
                 <span className="mc-logo text-xl md:text-2xl leading-none">
                   <span className="hidden md:inline">Musical Chairs</span>
                   <span className="md:hidden">MC</span>
@@ -58,7 +59,7 @@ export default function App() {
                 <span className="mc-tagline text-sm md:text-base leading-none">
                   It's a Ponzi!
                 </span>
-              </div>
+              </button>
 
               <div className="flex-1" />
 
@@ -66,16 +67,18 @@ export default function App() {
               <div className="flex items-center gap-3">
                 {isAuthenticated ? (
                   <>
-                    {/* Admin — open to all for now */}
-                    <button
-                      onClick={() => setShowAdminPanel(!showAdminPanel)}
-                      className={`mc-btn-secondary flex items-center gap-2 px-3 py-2 text-xs rounded-lg ${
-                        showAdminPanel ? 'border-yellow-500/50 text-yellow-400' : ''
-                      }`}
-                    >
-                      <Shield className="h-4 w-4" />
-                      <span className="hidden sm:inline">Admin</span>
-                    </button>
+                    {/* Charles's Office — locked to Charles principals */}
+                    {principal && isCharles(principal) && (
+                      <button
+                        onClick={() => setShowAdminPanel(!showAdminPanel)}
+                        className={`mc-btn-secondary flex items-center gap-2 px-3 py-2 text-xs rounded-lg ${
+                          showAdminPanel ? 'border-yellow-500/50 text-yellow-400' : 'mc-text-gold'
+                        }`}
+                      >
+                        <CharlesIcon className="h-4 w-4" />
+                        <span className="hidden sm:inline">Charles</span>
+                      </button>
+                    )}
 
                     {/* Wallet */}
                     <button
@@ -101,11 +104,11 @@ export default function App() {
         <main className="flex-1 pt-16 md:pt-20">
           <ErrorBoundary fallback={
             <div className="text-center py-16 px-4">
-              <div className="text-5xl mb-4">🎰</div>
-              <h2 className="font-display text-xl text-white mb-3">Something Broke</h2>
-              <p className="mc-text-dim mb-6 text-sm">The house always wins, but the website doesn't always load.</p>
+              <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+              <h2 className="font-display text-xl text-white mb-3">The Table Flipped</h2>
+              <p className="mc-text-dim mb-6 text-sm">The house always wins, but the website doesn't always cooperate.</p>
               <button onClick={() => window.location.reload()} className="mc-btn-primary">
-                Refresh Page
+                Spin Again
               </button>
             </div>
           }>
@@ -128,7 +131,7 @@ export default function App() {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-stagger">
                   {/* The Pitch */}
                   <div className="mc-card mc-accent-green p-5">
-                    <div className="text-2xl mb-3">🎰</div>
+                    <Dices className="h-7 w-7 mc-text-green mb-3" />
                     <h3 className="font-display text-base mc-text-green mb-2">The Pitch</h3>
                     <p className="text-sm mc-text-dim leading-relaxed">
                       Earn up to 12% daily. Withdraw anytime or lock to compound for face-melting ROI.
@@ -137,7 +140,7 @@ export default function App() {
 
                   {/* The Catch */}
                   <div className="mc-card mc-accent-danger p-5">
-                    <div className="text-2xl mb-3">⚠️</div>
+                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
                     <h3 className="font-display text-base mc-text-danger mb-2">The Catch</h3>
                     <p className="text-sm mc-text-dim leading-relaxed">
                       THIS IS A GAMBLING GAME. Only play with money you can afford to lose.
@@ -146,7 +149,7 @@ export default function App() {
 
                   {/* The Twist */}
                   <div className="mc-card mc-accent-gold p-5">
-                    <div className="text-2xl mb-3">🎲</div>
+                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
                     <h3 className="font-display text-base mc-text-gold mb-2">The Twist</h3>
                     <p className="text-sm mc-text-dim leading-relaxed">
                       When the pot empties, the game resets. All pending payouts? Gone.
@@ -162,9 +165,9 @@ export default function App() {
             ) : showProfileSetup ? (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-5xl mb-4">🎭</div>
-                  <h2 className="font-display text-xl text-white mb-3">Profile Setup Error</h2>
-                  <p className="mc-text-dim text-sm">Try logging out and back in.</p>
+                  <Users className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">Onboarding Hit a Snag</h2>
+                  <p className="mc-text-dim text-sm">Try logging out and back in. Charles apologizes for nothing.</p>
                 </div>
               }>
                 <ProfileSetup />
@@ -175,29 +178,37 @@ export default function App() {
                   Musical Chairs
                 </div>
                 <LoadingSpinner />
-                <p className="mc-text-muted text-xs tracking-wider uppercase">Loading your profile...</p>
+                <p className="mc-text-muted text-xs tracking-wider uppercase">Counting your chips...</p>
               </div>
             ) : showAdminPanel ? (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-5xl mb-4">🔧</div>
-                  <h2 className="font-display text-xl text-white mb-3">Admin Panel Error</h2>
+                  <Wrench className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">Charles's Office Is on Fire</h2>
+                  <p className="mc-text-dim text-sm mb-4">The back office crashed. The front office is fine. Probably.</p>
                   <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
-                    Refresh
+                    Spin Again
                   </button>
                 </div>
               }>
                 <div className="max-w-7xl mx-auto px-4 py-8">
+                  <button
+                    onClick={() => setShowAdminPanel(false)}
+                    className="mc-btn-secondary flex items-center gap-2 px-4 py-2 text-xs rounded-lg mb-6"
+                  >
+                    &larr; Leave Charles's Office
+                  </button>
                   <ShenanigansAdminPanel />
                 </div>
               </ErrorBoundary>
             ) : (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-5xl mb-4">🎪</div>
-                  <h2 className="font-display text-xl text-white mb-3">Dashboard Error</h2>
+                  <Tent className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">The Dashboard Took a Hit</h2>
+                  <p className="mc-text-dim text-sm mb-4">Your money's still there. Probably. Refresh and find out.</p>
                   <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
-                    Refresh
+                    Spin Again
                   </button>
                 </div>
               }>

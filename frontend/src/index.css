@@ -105,7 +105,7 @@
   }
 
   /* Type presets */
-  h1, h2, h3, .mc-display {
+  h1, h2, h3 {
     font-family: 'Bungee', cursive;
     letter-spacing: 0.02em;
   }
@@ -393,16 +393,6 @@
     opacity: 0.7;
   }
 
-  /* Pulsing variant for when amount is entered */
-  .mc-btn-primary.pulse {
-    animation: mc-btn-pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes mc-btn-pulse {
-    0%, 100% { box-shadow: 0 0 20px var(--mc-glow-green), 0 4px 12px rgba(0, 0, 0, 0.3); }
-    50% { box-shadow: 0 0 35px rgba(57, 255, 20, 0.5), 0 4px 12px rgba(0, 0, 0, 0.3); }
-  }
-
   /* Secondary button — muted/frosted */
   .mc-btn-secondary {
     background: rgba(255, 255, 255, 0.06);
@@ -458,28 +448,6 @@
     cursor: not-allowed;
   }
 
-  /* Blue refresh button */
-  .mc-btn-refresh {
-    background: linear-gradient(135deg, #3b82f6, #2563eb);
-    color: white;
-    border: 2px solid #60a5fa;
-    border-radius: var(--radius-pill);
-    padding: 8px 20px;
-    font-weight: 700;
-    font-size: var(--text-sm);
-    box-shadow: 0 0 15px rgba(59, 130, 246, 0.4);
-    transition: all 0.2s ease;
-  }
-
-  .mc-btn-refresh:hover:not(:disabled) {
-    box-shadow: 0 0 25px rgba(59, 130, 246, 0.6);
-    transform: translateY(-1px);
-  }
-
-  .mc-btn-refresh:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
 
   /* ================================================================
      TEXT UTILITIES
@@ -499,7 +467,6 @@
   .mc-glow-green { text-shadow: 0 0 20px var(--mc-glow-green); }
   .mc-glow-gold { text-shadow: 0 0 20px var(--mc-glow-gold); }
   .mc-glow-purple { text-shadow: 0 0 20px var(--mc-glow-purple); }
-  .mc-glow-pink { text-shadow: 0 0 20px var(--mc-glow-pink); }
 
   .mc-label {
     color: var(--mc-white-muted);
@@ -513,28 +480,27 @@
      NAVIGATION — Desktop Left Rail + Mobile Bottom Tabs
      ================================================================ */
 
-  /* Desktop left rail */
+  /* Desktop left rail — fixed 200px, always labeled */
   .mc-rail {
     position: fixed;
     left: 0;
     top: 80px; /* below header */
     bottom: 0;
-    width: 64px;
+    width: 200px;
     background: rgba(8, 6, 14, 0.95);
     backdrop-filter: blur(16px);
     border-right: 1px solid var(--mc-border);
     z-index: 30;
     display: flex;
     flex-direction: column;
-    align-items: center;
     padding: var(--space-md) 0;
     gap: var(--space-xs);
-    transition: width 0.3s ease;
     overflow: hidden;
   }
 
-  .mc-rail:hover {
-    width: 220px;
+  /* Content offset for fixed rail */
+  .mc-content-offset {
+    margin-left: 200px;
   }
 
   .mc-rail-item {
@@ -584,19 +550,7 @@
   }
 
   .mc-rail-label {
-    opacity: 0;
-    transition: opacity 0.2s ease 0.1s;
-  }
-
-  .mc-rail:hover .mc-rail-label {
     opacity: 1;
-  }
-
-  .mc-rail-divider {
-    width: 32px;
-    height: 1px;
-    background: var(--mc-border);
-    margin: var(--space-sm) 0;
   }
 
   /* Mobile bottom tabs */
@@ -659,27 +613,6 @@
 
   .mc-bottom-tab.active-green::after { background: var(--mc-neon-green); box-shadow: 0 0 8px var(--mc-glow-green); }
   .mc-bottom-tab.active-gold::after { background: var(--mc-gold); box-shadow: 0 0 8px var(--mc-glow-gold); }
-
-  /* Mobile more-sheet */
-  .mc-more-sheet {
-    position: fixed;
-    bottom: 64px;
-    left: 0;
-    right: 0;
-    background: rgba(18, 14, 28, 0.98);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--mc-border);
-    border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-    padding: var(--space-lg);
-    z-index: 39;
-    transform: translateY(100%);
-    transition: transform 0.3s ease;
-    box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.6);
-  }
-
-  .mc-more-sheet.open {
-    transform: translateY(0);
-  }
 
   /* ================================================================
      SECTION HEADERS — slim, snarky
@@ -744,7 +677,8 @@
   }
 
   .mc-plan-simple:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px var(--mc-glow-green);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-green);
+    border-left-color: rgba(57, 255, 20, 0.7);
   }
 
   .mc-plan-compound {
@@ -752,7 +686,8 @@
   }
 
   .mc-plan-compound:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px var(--mc-glow-purple);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-purple);
+    border-left-color: rgba(168, 85, 247, 0.7);
   }
 
   /* ================================================================
@@ -962,33 +897,6 @@
     text-shadow: 0 0 8px var(--mc-gold), 0 0 16px var(--mc-glow-gold);
   }
 
-  /* Enhanced card hover — for position cards, plan cards etc */
-  .mc-card:hover {
-    border-color: var(--mc-border-hover);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px var(--mc-glow-purple);
-  }
-
-  .mc-plan-simple:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-green);
-    border-left-color: rgba(57, 255, 20, 0.7);
-  }
-
-  .mc-plan-compound:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 25px var(--mc-glow-purple);
-    border-left-color: rgba(168, 85, 247, 0.7);
-  }
-
-  /* Number counter animation for refreshing values */
-  .mc-counter-flash {
-    animation: mc-flash-green 0.6s ease-out;
-  }
-
-  @keyframes mc-flash-green {
-    0% { color: var(--mc-white); transform: scale(1); }
-    30% { color: var(--mc-neon-green); transform: scale(1.08); text-shadow: 0 0 20px var(--mc-glow-green); }
-    100% { color: inherit; transform: scale(1); text-shadow: none; }
-  }
-
   /* ================================================================
      DIALOG / MODAL OVERRIDES
      ================================================================ */
@@ -1013,7 +921,6 @@
 
   @media (min-width: 769px) {
     .mc-bottom-tabs { display: none; }
-    .mc-more-sheet { display: none; }
   }
 
   /* ================================================================

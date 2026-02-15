@@ -1,14 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { toast } from 'sonner';
 import { ShenaniganType } from '../backend';
-import { Info, Shield, Zap, AlertTriangle } from 'lucide-react';
+import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw } from 'lucide-react';
+
+const successFlavor = [
+  "The house smiles upon you.",
+  "Clean hit. Charles would be proud.",
+  "Flawless execution. You're a natural.",
+  "They never saw it coming.",
+  "That's how it's done in this business.",
+];
+
+const failFlavor = [
+  "The universe said no.",
+  "Not your day. It happens to everyone. Mostly to you.",
+  "Swing and a miss. The PP is still gone, though.",
+  "Nothing happened. Except you're poorer now.",
+  "Better luck next time. Or not. Who knows.",
+];
+
+const backfireFlavor = [
+  "Oh no. It hit you instead.",
+  "Karma works fast around here.",
+  "You played yourself. Literally.",
+  "That's what they call a learning experience.",
+  "Charles is laughing somewhere.",
+];
 
 interface ShenaniganConfig {
   type: ShenaniganType;
   name: string;
-  icon: string;
+  icon: React.ReactNode;
   cost: number;
   description: string;
   odds: { success: number; fail: number; backfire: number };
@@ -16,9 +39,11 @@ interface ShenaniganConfig {
   auraColor: string;
 }
 
-const shenaniganIcons: Record<number, string> = {
-  0: '💰', 1: '🌊', 2: '✏️', 3: '🏦', 4: '🎯',
-  5: '🪞', 6: '⬆️', 7: '✂️', 8: '🐋', 9: '📈', 10: '✨',
+const shenaniganIcons: Record<number, React.ReactNode> = {
+  0: <Coins className="h-5 w-5" />, 1: <Waves className="h-5 w-5" />, 2: <Pencil className="h-5 w-5" />,
+  3: <Building2 className="h-5 w-5" />, 4: <Target className="h-5 w-5" />, 5: <FlipHorizontal2 className="h-5 w-5" />,
+  6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
+  9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />,
 };
 
 const shenaniganTypes: ShenaniganType[] = [
@@ -52,6 +77,7 @@ export default function Shenanigans() {
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: string } | null>(null);
+  const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
   useEffect(() => {
@@ -86,11 +112,21 @@ export default function Shenanigans() {
 
   const handleCastClick = (type: ShenaniganType, cost: number, name: string, icon: string) => {
     if ((ponziData?.totalPoints || 0) < cost) {
-      toast.error(`Insufficient PP! Need ${cost}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`);
+      setOutcomeToast({
+        name,
+        outcome: 'error',
+        flavor: `Insufficient PP. Need ${cost}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`,
+        cost: 0,
+      });
       return;
     }
     setSelectedShenanigan({ type, name, cost, icon });
     setConfirmOpen(true);
+  };
+
+  const getFlavorText = (outcome: string) => {
+    const pool = outcome === 'success' ? successFlavor : outcome === 'fail' ? failFlavor : backfireFlavor;
+    return pool[Math.floor(Math.random() * pool.length)];
   };
 
   const handleConfirmCast = async () => {
@@ -98,16 +134,24 @@ export default function Shenanigans() {
     setConfirmOpen(false);
     setAnimatingTrick(selectedShenanigan.type);
     try {
-      const outcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: null });
+      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: null });
+      const outcome = String(rawOutcome);
       setTimeout(() => {
-        const emoji = outcome === 'success' ? '✨' : outcome === 'fail' ? '💥' : '🔄';
-        toast.success(`${emoji} ${selectedShenanigan.name} ${outcome}!`, {
-          description: `${selectedShenanigan.cost} PP spent.`
+        setOutcomeToast({
+          name: selectedShenanigan.name,
+          outcome,
+          flavor: getFlavorText(outcome),
+          cost: selectedShenanigan.cost,
         });
         setAnimatingTrick(null);
       }, 1500);
     } catch (error: any) {
-      toast.error(error.message || 'Failed to cast shenanigan!');
+      setOutcomeToast({
+        name: selectedShenanigan.name,
+        outcome: 'error',
+        flavor: error.message || 'Something went wrong. The PP is still gone.',
+        cost: selectedShenanigan.cost,
+      });
       setAnimatingTrick(null);
     }
   };
@@ -175,7 +219,7 @@ export default function Shenanigans() {
                   isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                 }`}
               >
-                {animatingTrick === trick.type ? '✨ Casting...' : 'Cast'}
+                {animatingTrick === trick.type ? 'Casting...' : 'Cast'}
               </button>
             </div>
           );
@@ -191,7 +235,7 @@ export default function Shenanigans() {
             { label: 'PP Spent', value: stats?.totalSpent?.toLocaleString() || '0', color: 'mc-text-cyan' },
             { label: 'Total Cast', value: stats?.totalCast?.toString() || '0', color: 'mc-text-green' },
             { label: 'Outcomes', value: `${stats?.goodOutcomes || 0}/${stats?.badOutcomes || 0}/${stats?.backfires || 0}`, sub: 'good/bad/backfire', color: 'mc-text-purple' },
-            { label: 'Dealer Cut', value: stats?.dealerCut?.toLocaleString() || '0', color: 'mc-text-gold' },
+            { label: 'VC Royalties', value: stats?.dealerCut?.toLocaleString() || '0', color: 'mc-text-gold' },
           ].map(s => (
             <div key={s.label} className="mc-card p-3 text-center">
               <div className="mc-label mb-1">{s.label}</div>
@@ -232,7 +276,7 @@ export default function Shenanigans() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mc-text-dim">
           <div className="flex items-start gap-2">
             <Info className="h-3 w-3 mc-text-cyan mt-0.5 flex-shrink-0" />
-            <span><strong className="mc-text-primary">PP & Cosmetics Only</strong> — Never affects ICP, pot, dealer selection, or payout math</span>
+            <span><strong className="mc-text-primary">PP & Cosmetics Only</strong> — Never affects ICP, pot, backer selection, or payout math</span>
           </div>
           <div className="flex items-start gap-2">
             <Shield className="h-3 w-3 mc-text-green mt-0.5 flex-shrink-0" />
@@ -255,6 +299,38 @@ export default function Shenanigans() {
         <span className="mc-text-dim"> They don't affect game math — just the madness. Effects limited to PP and cosmetics only.</span>
       </div>
 
+      {/* Outcome toast */}
+      {outcomeToast && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+          <div className="mc-toast text-center">
+            <div className={`font-display text-xl mb-2 ${
+              outcomeToast.outcome === 'success' ? 'mc-text-green' :
+              outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
+              outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
+              'mc-text-danger'
+            }`}>
+              {outcomeToast.outcome === 'success' ? 'Success!' :
+               outcomeToast.outcome === 'fail' ? 'Failed.' :
+               outcomeToast.outcome === 'backfire' ? 'Backfire!' :
+               'Error'}
+            </div>
+            <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
+            <p className="font-accent text-xs mc-text-dim italic mb-3">
+              &ldquo;{outcomeToast.flavor}&rdquo;
+            </p>
+            {outcomeToast.cost > 0 && (
+              <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
+            )}
+            <button
+              onClick={() => setOutcomeToast(null)}
+              className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+            >
+              Noted
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Confirm dialog */}
       {confirmOpen && selectedShenanigan && (
         <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
@@ -268,7 +344,7 @@ export default function Shenanigans() {
             <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
             <div className="flex gap-3 justify-center">
               <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
-              <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It! 🎲</button>
+              <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import { useWallet } from '../hooks/useWallet';
 import { useLedger, icpToE8s, formatIcpBalance, ICP_TRANSFER_FEE } from '../hooks/useLedger';
 import { useGetInternalWalletBalance, useSendFromInternalWallet, useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useDepositICP, useWithdrawICP } from '../hooks/useQueries';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import { Copy, Check, RefreshCw, ArrowDown, ArrowUp, Loader2, X } from 'lucide-react';
+import { Copy, Check, RefreshCw, ArrowDown, ArrowUp, Loader2, X, Pencil, CreditCard } from 'lucide-react';
 
 interface WalletDropdownProps {
   isOpen: boolean;
@@ -15,8 +15,14 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const { principal, walletType, isConnected } = useWallet();
   const ledger = useLedger();
 
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'send'>('deposit');
+  const isIIUser = walletType === 'internet-identity';
+  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'send'>(isIIUser ? 'deposit' : 'send');
   const [depositAmount, setDepositAmount] = useState('');
+
+  // Reset active tab when wallet type changes (e.g. logout/login with different wallet)
+  useEffect(() => {
+    setActiveTab(isIIUser ? 'deposit' : 'send');
+  }, [isIIUser]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
   const [copied, setCopied] = useState(false);
@@ -45,12 +51,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const userName = userProfile?.name || 'User';
   const isTestMode = balanceData?.isTestMode ?? true;
 
-  const walletEmoji = walletType === 'internet-identity' ? '🔐' : walletType === 'plug' ? '🔌' : walletType === 'oisy' ? '✨' : '💳';
+  const walletIcon = walletType === 'internet-identity' ? <img src="/ii-logo.svg" alt="II" className="h-4 w-4" /> : walletType === 'plug' ? <img src="/plug-logo.svg" alt="Plug" className="h-4 w-4" /> : walletType === 'oisy' ? <img src="/oisy-logo.svg" alt="OISY" className="h-4 w-4" /> : <CreditCard className="h-4 w-4 mc-text-muted" />;
   const walletName = walletType === 'internet-identity' ? 'Internet Identity' : walletType === 'plug' ? 'Plug' : walletType === 'oisy' ? 'OISY' : 'Wallet';
 
-  // Fetch external balance
+  // Fetch external balance (only relevant for II users who have a separate wallet)
   const fetchExternalBalance = async () => {
-    if (!ledger.isConnected) return;
+    if (!ledger.isConnected || !isIIUser) return;
     setExternalBalanceLoading(true);
     try { setExternalBalance(await ledger.getBalance()); }
     catch (e) { console.error('Balance fetch failed:', e); }
@@ -58,8 +64,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   };
 
   useEffect(() => {
-    if (isOpen && isConnected && !isTestMode) fetchExternalBalance();
-  }, [isOpen, isConnected, isTestMode]);
+    if (isOpen && isConnected && !isTestMode && isIIUser) fetchExternalBalance();
+  }, [isOpen, isConnected, isTestMode, isIIUser]);
 
   // Click outside to close
   useEffect(() => {
@@ -155,7 +161,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
       <div className="p-4 border-b border-white/10">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <span>{walletEmoji}</span>
+            <span className="flex items-center">{walletIcon}</span>
             <span className="text-xs mc-text-muted">{walletName}</span>
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
           </div>
@@ -174,7 +180,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             </div>
           ) : (
             <span className="font-bold text-sm mc-text-primary cursor-pointer hover:mc-text-cyan" onClick={() => { setNewName(userName); setIsEditingName(true); }}>
-              {userName} ✏️
+              {userName} <Pencil className="h-3 w-3 inline ml-1 mc-text-muted" />
             </span>
           )}
         </div>
@@ -190,10 +196,10 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             </div>
             <button onClick={() => refetchBalance()} className="mc-text-muted hover:mc-text-primary"><RefreshCw className="h-3 w-3" /></button>
           </div>
-          {!isTestMode && (
+          {!isTestMode && isIIUser && (
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
               <div>
-                <div className="mc-label">Wallet</div>
+                <div className="mc-label">Wallet Balance</div>
                 <div className="text-sm font-bold mc-text-primary">
                   {externalBalanceLoading ? '...' : externalBalance !== null ? formatIcpBalance(externalBalance) : '—'} ICP
                 </div>
@@ -201,31 +207,46 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary"><RefreshCw className="h-3 w-3" /></button>
             </div>
           )}
+          {!isTestMode && !isIIUser && (
+            <div className="mt-2 pt-2 border-t border-white/5">
+              <p className="text-xs mc-text-muted">Manage ICP in your {walletName} wallet</p>
+            </div>
+          )}
         </div>
 
         <div className="text-center text-xs">
           <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>
         </div>
-        {isTestMode && <div className="mc-status-gold p-2 mt-2 text-center text-xs">Test Mode — Using simulated ICP</div>}
+        {isTestMode && <div className="mc-status-gold p-2 mt-2 text-center text-xs">Test Mode &mdash; Playing with Monopoly money</div>}
       </div>
 
       {/* Tabs */}
       <div className="p-4">
-        <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
-          {(['deposit', 'withdraw', 'send'] as const).map(tab => (
-            <button key={tab} onClick={() => { setActiveTab(tab); setInputError(''); }}
-              className={`flex-1 py-2 text-xs font-bold rounded-md transition-all capitalize ${
-                activeTab === tab ? 'bg-purple-500/25 mc-text-primary border border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.15)]' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
-              }`}>
-              {tab}
-            </button>
-          ))}
-        </div>
+        {isIIUser ? (
+          <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
+            {([
+              { key: 'deposit' as const, label: 'Buy In' },
+              { key: 'withdraw' as const, label: 'Cash Out' },
+              { key: 'send' as const, label: 'Wire' },
+            ]).map(tab => (
+              <button key={tab.key} onClick={() => { setActiveTab(tab.key); setInputError(''); }}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
+                  activeTab === tab.key ? 'bg-purple-500/25 mc-text-primary border border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.15)]' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                }`}>
+                {tab.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-4">
+            <div className="text-xs font-bold mc-text-muted uppercase tracking-wider">Wire ICP</div>
+          </div>
+        )}
 
-        {/* Deposit */}
-        {activeTab === 'deposit' && (
+        {/* Deposit (II users only) */}
+        {isIIUser && activeTab === 'deposit' && (
           isTestMode ? (
-            <div className="mc-status-gold p-3 text-xs text-center">Deposits are simulated in test mode. Balance starts at 500 ICP.</div>
+            <div className="mc-status-gold p-3 text-xs text-center">Monopoly money mode. You start with 500 ICP to burn through.</div>
           ) : (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -245,19 +266,19 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               <button onClick={handleDeposit} disabled={depVal < 0.1 || !!inputError || isApproving || depositMutation.isPending}
                 className="w-full mc-btn-primary py-2 text-xs flex items-center justify-center gap-2">
                 {isApproving ? <><Loader2 className="h-3 w-3 animate-spin" /> Approving...</>
-                  : depositMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Depositing...</>
-                  : approvalComplete ? <><ArrowDown className="h-3 w-3" /> Confirm Deposit</>
-                  : <><ArrowDown className="h-3 w-3" /> Approve &amp; Deposit</>}
+                  : depositMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Buying In...</>
+                  : approvalComplete ? <><ArrowDown className="h-3 w-3" /> Confirm Buy In</>
+                  : <><ArrowDown className="h-3 w-3" /> Approve &amp; Buy In</>}
               </button>
-              {depositMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Deposit successful!</div>}
+              {depositMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">You're in. Good luck.</div>}
             </div>
           )
         )}
 
-        {/* Withdraw */}
-        {activeTab === 'withdraw' && (
+        {/* Withdraw (II users only) */}
+        {isIIUser && activeTab === 'withdraw' && (
           isTestMode ? (
-            <div className="mc-status-gold p-3 text-xs text-center">External withdrawals disabled in test mode. Use "Send" for internal transfers.</div>
+            <div className="mc-status-gold p-3 text-xs text-center">Can't cash out Monopoly money. Use &ldquo;Wire&rdquo; for internal transfers.</div>
           ) : (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
@@ -273,10 +294,10 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               {witVal > walletBalance && <div className="mc-status-red p-2 text-xs text-center">Insufficient balance</div>}
               <button onClick={handleWithdraw} disabled={witVal < 0.1 || witVal > walletBalance || !!inputError || withdrawMutation.isPending}
                 className="w-full mc-btn-primary py-2 text-xs flex items-center justify-center gap-2">
-                {withdrawMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Withdrawing...</>
-                  : <><ArrowUp className="h-3 w-3" /> Withdraw to Wallet</>}
+                {withdrawMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Cashing Out...</>
+                  : <><ArrowUp className="h-3 w-3" /> Cash Out to Wallet</>}
               </button>
-              {withdrawMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Withdrawal successful!</div>}
+              {withdrawMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Cashed out. Smart move &mdash; or was it?</div>}
             </div>
           )
         )}
@@ -302,10 +323,10 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             {witVal > walletBalance && !inputError && <div className="mc-status-red p-2 text-xs text-center">Insufficient balance</div>}
             <button onClick={handleSend} disabled={witVal <= 0 || witVal > walletBalance || !!inputError || !recipientPrincipal.trim() || sendMutation.isPending}
               className="w-full mc-btn-primary py-2 text-xs flex items-center justify-center gap-2">
-              {sendMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Sending...</> : 'Send ICP'}
+              {sendMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Wiring...</> : 'Wire ICP'}
             </button>
-            {sendMutation.isError && <div className="mc-status-red p-2 text-xs text-center">{sendMutation.error?.message || 'Transfer failed'}</div>}
-            {sendMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Transfer successful!</div>}
+            {sendMutation.isError && <div className="mc-status-red p-2 text-xs text-center">{sendMutation.error?.message || 'Wire failed'}</div>}
+            {sendMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Wired. The money's gone.</div>}
           </div>
         )}
 
