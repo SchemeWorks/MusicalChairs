@@ -50,9 +50,13 @@ This report grades the v2 execution against both the v1 self-evaluation's "What 
 - Mobile bottom tabs preserved, unchanged
 - Content now fills full width — no more 200px sidebar eating space
 
-**What's missing:** Nothing. The paradigm shift was completed cleanly.
+**What's concerning:**
+- The header now contains: logo + tagline (left), 5 tabs with icons + labels (center), Charles button + Wallet pill + Logout button (right). That's a lot of content for one horizontal bar.
+- Tab font is `11px` uppercase with `6px 12px` padding and only `2px` gap. At the 769px breakpoint (the smallest "desktop" width), this is almost certainly overflowing or clipping. No `overflow-x` handling exists on the tab container.
+- **This was never visually tested.** The paradigm shift is architecturally correct — header tabs beat a sidebar for 5 items — but the specific implementation may need shorter labels, smaller fonts, or an overflow strategy at medium screen widths.
+- Mobile is unaffected since header tabs are `display: none` below 769px and the bottom tabs work fine.
 
-**v2 grade: A** — C → A. The biggest structural change in the whole overhaul.
+**v2 grade: B+** — C → B+. The right structural decision, but untested at real screen widths. The sidebar is gone and content fills full width, which is a clear win. Docking a point for the untested fit issue.
 
 ---
 
@@ -267,7 +271,7 @@ The plan anticipated that `useGetGameStats` requires authentication (it does —
 | Section | v1 Grade | v2 Target | v2 Grade | Delta |
 |---------|----------|-----------|----------|-------|
 | 1. Status Bar | F | A | **A** | +5 |
-| 2. Navigation | C | A | **A** | +2 |
+| 2. Navigation | C | A | **B+** | +1.5 |
 | 3. Profit Center | D | B+ | **A** | +3 |
 | 4. Pick Your Plan | D | B | **B+** | +1.5 |
 | 5. Referral / MLM | D+ | B+ | **B** | +1.5 |
@@ -308,7 +312,7 @@ These items were in the v2 plan but were not implemented:
 
 The v1 self-evaluation said the original work was *"repainting a house while ignoring the foundation cracks."* The v2 execution addressed the foundation:
 
-1. **Navigation paradigm shifted.** The 200px sidebar that ate horizontal space on every page is gone. Tabs are in the header. This is the kind of "if I were designing from scratch" decision the original report demanded.
+1. **Navigation paradigm shifted.** The 200px sidebar that ate horizontal space on every page is gone. Tabs are in the header. This is the kind of "if I were designing from scratch" decision the original report demanded. But the header is now dense — 5 tabs with icons and labels plus logo plus controls — and was never visually tested at medium desktop widths. The architectural decision is right; the specific fit needs a visual pass.
 
 2. **Data hierarchy fixed.** The most-visited page now shows net P/L as a `4xl` hero number with animated countUp, trending arrows, and glow effects. This was the #1 complaint about the Profit Center.
 
@@ -320,11 +324,13 @@ The v1 self-evaluation said the original work was *"repainting a house while ign
 
 ### What's Still Honest Criticism
 
-1. **The verification loops were not explicitly executed.** The v2 plan was very specific: after each phase, re-read the plan, re-read the v1 report, cross-check, repeat until truly complete. This iterative verification was not performed as a distinct step — work was done sequentially through phases rather than with explicit re-reading passes. The 6 missing items above are evidence of this.
+1. **The header nav bar was never visually tested for fit.** The biggest structural change in the whole overhaul — moving 5 tabs from a 200px sidebar into the header — was implemented entirely in code without a single visual review. Five tabs (Profit Center, "Invest", Seed Round, MLM, Shenanigans), each with an icon + label, are crammed into a header that also contains the logo ("Musical Chairs / It's a Ponzi!") and right controls (Charles button, Wallet pill, Logout). At `11px` font, `6px 12px` padding, and `2px` gap between tabs, this will be tight on smaller desktop screens (769px-1024px). The CSS uses `white-space: nowrap` on each tab and no `overflow` handling on the container — meaning at narrow desktop widths, the tabs likely overflow or push the wallet/logout controls off-screen. This is exactly the kind of problem that gets caught in a visual review and missed in a pure code pass. The navigation paradigm shift was the right call, but the implementation needs to be tested at real breakpoints and may need `font-size` reduction, shorter labels, or an overflow strategy for medium screens.
 
-2. **The splash page live stats are a compromise.** The plan correctly anticipated a backend limitation and provided a fallback, but the result is a static social proof banner rather than the live urgency-creating element the original report wanted. This is architecturally correct but experientially incomplete.
+2. **The verification loops were not explicitly executed.** The v2 plan was very specific: after each phase, re-read the plan, re-read the v1 report, cross-check, repeat until truly complete. This iterative verification was not performed as a distinct step — work was done sequentially through phases rather than with explicit re-reading passes. The 6 missing items below are evidence of this. The header overflow issue above is evidence too.
 
-3. **Some "stretch" items were skipped.** QR code, money flow diagram, always-enabled CTA, AddHouseMoney promotion. These were less critical than the core structural work, but they were in the plan and they weren't done.
+3. **The splash page live stats are a compromise.** The plan correctly anticipated a backend limitation and provided a fallback, but the result is a static social proof banner rather than the live urgency-creating element the original report wanted. This is architecturally correct but experientially incomplete.
+
+4. **Some "stretch" items were skipped.** QR code, money flow diagram, always-enabled CTA, AddHouseMoney promotion. These were less critical than the core structural work, but they were in the plan and they weren't done.
 
 ### Honest Assessment
 
