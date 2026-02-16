@@ -365,7 +365,27 @@ The following items are worse — they were in the original report but never eve
 
 16. **Referral stats context** — The original report said referral "Stats without context." The v2 added share buttons and milestones, but the stats themselves (referral count, earnings from referrals) still have no contextual information — no comparison to average, no explanation of what the tier breakdowns mean, no "you're in the top X%" framing. Numbers without context are still numbers without context.
 
-Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic, trollbox is a major feature). But several — especially the onboarding tour, typography audit, duplicate refresh button check, docs page, and PP enrichment — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped both the polish, two entire original phases, and three items that were lost between the original report and the v1 task list itself.
+The following items are even more buried — they were in the original report but the v1 self-evaluation never mentioned them. They fell through the cracks between the original report and the v1 grading, so no subsequent plan ever had a chance to pick them up:
+
+17. **"Popular Now" / "Trending" indicator on Shenanigans** — The original report explicitly said: "Add a 'Popular Now' or 'Trending' indicator to the most-cast shenanigan." This creates social proof within the Shenanigans page — showing which shenanigans other players are casting. Never mentioned in the v1 self-eval, never in either task list, never in either plan.
+
+18. **Information density inconsistency across tabs** — The original report's cross-cutting section said: "Information density varies wildly. Profit Center and House Ledger are dense. Rewards and MLM are sparse. This creates an uneven experience." The recommendation was that each page should have roughly the same content density, padded with contextual actions where light. The v1 self-eval never mentioned this as a cross-cutting concern. No density parity audit was ever done.
+
+19. **House Ledger tab labels with preview counts** — The original report said the tab control is "disconnected from the content" and suggested "Dealers (3 active)" / "Ledger (47 records)" as preview stats on the tab labels themselves. This helps users know what's inside each tab before clicking. Never in v1 self-eval.
+
+20. **Ledger tab as transaction timeline** — The original report said the ledger should be "a proper transaction timeline with icons, amounts, and types — not just a flat list." The ledger is still a flat list. Never mentioned in v1 self-eval.
+
+21. **PP earn rates as visual comparison table** — The original report said "The 'How to Earn' rates are buried in prose" and should be "a visual comparison table or graphic, not a sentence." The PP section still presents earn rates as prose text. The v1 self-eval gave the PP merge an A without noting this.
+
+22. **"Spend your PP" bridge CTA** — The original report said "No connection to spending. Points are earned here but spent in Shenanigans — there's no bridge. A 'Spend your PP' CTA linking to Shenanigans would close the loop." The loop between earning PP and spending PP is still not closed with any cross-linking CTA. Never in v1 self-eval.
+
+23. **ProfileSetup "casino registration desk" atmospheric visual** — The original report said the name input should be "styled as a casino registration desk — some atmospheric illustration or animated element that makes this feel like walking up to a table." The v1 self-eval listed the functional items (preview, celebration, validation) but never mentioned the atmospheric visual treatment that was supposed to make the form *feel* like a casino, not a JIRA ticket.
+
+24. **Pull-to-refresh on mobile** — The original report's cross-cutting section said "No pull-to-refresh anywhere (standard mobile game pattern)." This is a fundamental mobile UX pattern for data-heavy apps, especially games. Never mentioned in v1 self-eval, never in any plan.
+
+25. **`prefers-reduced-motion` support** — The original report said splash animations should "respect `prefers-reduced-motion`." The v1 task list mentioned it (Phase 4.4 and 13.3), but the v1 self-eval never checked whether it was implemented. The v2 added `mc-hero-entrance`, `mc-stagger`, `mc-shake`, `mc-badge-pulse`, and `useCountUp` — none of which check for `prefers-reduced-motion`. This is an accessibility requirement, not a feature request.
+
+Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic, trollbox is a major feature). But several — especially the onboarding tour, typography audit, duplicate refresh button check, docs page, PP enrichment, and `prefers-reduced-motion` — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped the polish, two entire original phases, three items lost between the original report and the v1 task list, and nine items that fell through the cracks between the original report and the v1 self-evaluation itself.
 
 ---
 
