@@ -1,6 +1,6 @@
 # UX Implementation Plan v3
 
-*Written after a v2 self-evaluation found 56 outstanding issues: 11 plan misses, 39 dropped items, and 6 bugs/regressions. This plan covers all of them.*
+*Written after a v2 self-evaluation found 63 outstanding issues: 11 plan misses, 46 dropped items, and 6 bugs/regressions. This plan covers all of them.*
 
 *Source of truth: `docs/UX_SELF_EVALUATION_V2.md`*
 
@@ -17,21 +17,21 @@
 
 ## How This Plan Is Organized
 
-The v2 self-evaluation identified 56 issues across three categories:
+The v2 self-evaluation identified 63 issues across three categories:
 
 - **Section A (items 1-11):** Things the v2 plan specified but were not implemented correctly
-- **Section B (items 1-39):** Things the original report or v2 plan called for that were dropped at various stages
+- **Section B (items 1-46):** Things the original report, v2 plan, or Design Philosophy called for that were dropped at various stages
 - **Section C (items 1-6):** Bugs and regressions introduced by the v2 work
 
-This plan groups them into 17 implementation phases by area, not by origin. Each phase lists which v2-eval items it resolves.
+This plan groups them into 18 implementation phases by area, not by origin. Each phase lists which v2-eval items it resolves.
 
 ---
 
 ## Phase 1: Bug Fixes and Regressions
 
-*Resolves: C-1, C-2, C-3, C-4, C-5, C-6*
+*Resolves: A-7, C-1, C-2, C-3, C-4, C-5, C-6*
 
-These are things the v2 broke. Fix them first.
+These are things the v2 broke. Fix them first. A-7 (missing proceed button) is bundled here because Phase 1.3 addresses the same component.
 
 ### 1.1 Shenanigans filter empty state (C-1)
 
@@ -679,7 +679,7 @@ The caret blinks 3 times then stops. Clean, lightweight, no JS.
 }
 ```
 
-Add `<div className="mc-splash-bg" />` inside the splash section. Respects `prefers-reduced-motion` (Phase 15).
+Add `<div className="mc-splash-bg" />` inside the splash section. Respects `prefers-reduced-motion` (Phase 13.2).
 
 Subtle, performant, no dependencies.
 
@@ -1002,7 +1002,7 @@ Apply to the Dashboard's main content area. `onRefresh` should call `queryClient
 **Problem:** The ROI calculator updates instantly with no visual feedback. The original report wanted animated countUp and color shifts.
 
 **Fix:**
-1. Apply `useCountUp` to the projected return number in the ROI card
+1. Apply `useCountUp` to the projected return number in the ROI card. **Important:** Use the `resetToken` pattern from Phase 5.1 so the animation replays when inputs change, not just on first load. Pass a token derived from the selected plan/mode/amount so the countUp resets when any input changes.
 2. Add color transitions based on ROI percentage:
 ```
 const roiColor = roiPercent < 50 ? 'mc-text-green' :
@@ -1020,6 +1020,8 @@ const roiColor = roiPercent < 50 ? 'mc-text-green' :
   100% { transform: scale(1); }
 }
 ```
+
+**Note (B-46):** The `resetToken` pattern should be built into `useCountUp` itself as an optional parameter rather than requiring each consumer to implement it independently. Consider adding a `resetOnChange` dependency array or an IntersectionObserver-based auto-reset so all future usages get re-animation for free.
 
 **Effort:** 30 min
 
@@ -1293,18 +1295,28 @@ Pass `timeFilter` to the query hook. Frontend filtering won't work — the data 
 
 **Problem:** WalletDropdown uses a mobile bottom sheet. The withdrawal dialog, reinvest dialog, and shenanigan confirmation dialog still use centered shadcn Dialog modals on mobile.
 
-**Fix:** Create a reusable `MobileSheet` wrapper component that detects mobile and renders as bottom sheet instead of Dialog:
+**Fix:** Create a reusable `MobileSheet` wrapper component that detects mobile and renders as bottom sheet instead of Dialog. **Critical (B-45):** Include the drag-to-dismiss touch handlers from Phase 1.2 in the reusable component — not just the visual drag handle. Phase 1.2 fixes drag for WalletDropdown specifically; the reusable `MobileSheet` must include the same touch event logic by default, or every new bottom sheet will ship with a decorative-only drag handle (the exact bug C-2 identified):
 ```tsx
 function MobileSheet({ open, onOpenChange, children }: { open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) {
   const isMobile = useMobileDetect(); // reuse from WalletDropdown
+  const sheetRef = useRef<HTMLDivElement>(null);
+
+  // Drag-to-dismiss — reuse the touch handler logic from Phase 1.2
+  const handleTouchStart = (e: React.TouchEvent) => { /* track startY */ };
+  const handleTouchMove = (e: React.TouchEvent) => { /* translate sheet */ };
+  const handleTouchEnd = () => { /* if dragged > 30% of height, dismiss */ };
 
   if (isMobile) {
     return (
       <>
         {open && <div className="mc-sheet-backdrop" onClick={() => onOpenChange(false)} />}
         {open && (
-          <div className="mc-bottom-sheet">
-            <div className="mc-drag-handle" />
+          <div ref={sheetRef} className="mc-bottom-sheet">
+            <div className="mc-drag-handle"
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            />
             {children}
           </div>
         )}
@@ -1529,6 +1541,110 @@ This way new users see the first section's content and understand the accordion 
 
 ---
 
+## Phase 18: Design System Compliance + Doc Update
+
+*Resolves: B-40, B-41, B-42, B-43, B-44, B-45 (enhancement to 16.5), B-46 (enhancement to 13.1)*
+
+Found by auditing the UX Design Philosophy doc's rules against the current codebase and by promoting criticisms buried in the v2 self-evaluation prose to tracked items.
+
+### 18.1 Header tab spacing violation (B-40)
+
+**File:** `frontend/src/index.css`
+
+**Problem:** The Design Philosophy says "Never less than `--space-sm` (8px) between interactive elements." The `.mc-header-tabs` container uses `gap: 2px` (line 487) between individually clickable tab buttons. 2px is a 75% violation of the minimum.
+
+**Fix:** Increase the gap to at least `8px` (or `var(--space-sm)`). This will consume more horizontal space, so combine with Phase 17.2's font size work and Phase 1.6's overflow handling:
+```css
+.mc-header-tabs {
+  gap: var(--space-sm); /* 8px — Design Philosophy minimum */
+}
+```
+
+If 8px causes overflow at narrow widths, use `6px` as a pragmatic compromise and note the deviation.
+
+**Effort:** 5 min (but test alongside 17.2)
+
+### 18.2 Remove perpetual tagline bob animation (B-41)
+
+**File:** `frontend/src/index.css`
+
+**Problem:** The Design Philosophy explicitly says "Bad: perpetual bounce on decoration." The tagline has `animation: mc-tagline-bob 3s ease-in-out infinite` — a perpetual bounce on static decoration. Phase 8.2 adds a typewriter effect to the same element. The bob and typewriter can't coexist.
+
+**Fix:** Remove the `mc-tagline-bob` animation. When Phase 8.2 adds the typewriter effect, that becomes the tagline's animation (purposeful — conveys the text appearing). After the typewriter completes, the tagline is static. No more perpetual bob.
+
+```css
+/* DELETE these lines: */
+/* animation: mc-tagline-bob 3s ease-in-out infinite; */
+/* @keyframes mc-tagline-bob { ... } */
+```
+
+Keep the `rotate(-3deg)` transform (that's a static style choice, not an animation).
+
+**Effort:** 5 min
+
+### 18.3 Color token audit (B-42)
+
+**Files:** All component files in `frontend/src/components/`
+
+**Problem:** Several components use Tailwind color classes (`bg-purple-500`, `bg-green-500`, `text-yellow-400`) instead of the `mc-text-*` / `mc-bg-*` design system tokens. This was noted in the v2 self-eval Phase 3 prose but never promoted to a tracked item. Known violations in `GameTracking.tsx`:
+- `bg-purple-500` for compounding position bars
+- `bg-green-500` for simple position bars
+- `bg-purple-500/20` / `bg-green-500/20` for toll and plan type badges
+- `text-yellow-400`, `text-red-400`, `text-green-400` in `getTollBadgeClasses()`
+
+**Fix:** Grep the codebase for Tailwind color classes that have `mc-*` equivalents and replace them:
+- `bg-purple-500` → Create `mc-bg-purple` utility or use inline `style={{ backgroundColor: 'var(--mc-purple)' }}`
+- `bg-green-500` → `mc-bg-green`
+- `text-green-400` → `mc-text-green`
+- `text-yellow-400` → `mc-text-gold`
+- `text-red-400` → `mc-text-danger`
+
+Add the missing `mc-bg-*` utilities to `index.css` if they don't exist:
+```css
+.mc-bg-green { background: var(--mc-neon-green); }
+.mc-bg-purple { background: var(--mc-purple); }
+.mc-bg-gold { background: var(--mc-gold); }
+```
+
+Also audit `.mc-card-select` class names (`active-green`, `active-purple`, `active-gold`) which lack the `mc-` prefix. Rename to `mc-active-green`, etc.
+
+**Effort:** 1 hour
+
+### 18.4 Header content density — design evaluation (B-43)
+
+**Problem:** The v2 self-eval raised this as a design concern beyond just overflow: "that's a lot of content for one horizontal bar." C-6 and B-34 treat it as a sizing/overflow problem. But should the header have fewer elements?
+
+**Options to evaluate:**
+1. **Remove tagline from header on desktop.** The "It's a Ponzi!" tagline is brand flavor but takes ~100px of horizontal space in the header. On the splash page it's prominent. Once logged in, it's redundant — the user already knows what this is.
+2. **Charles button visible only for admin principals.** Non-admin users see a button that does nothing useful. Removing it saves ~40px.
+3. **Collapse logo to icon at medium widths.** At 769-1024px, show just "MC" or a small logo mark instead of the full "Musical Chairs" text.
+
+**Implementation:** This is a design decision, not a code fix. The v3 plan should note that the header density needs a design review. The most impactful change is #1 (remove tagline when logged in):
+```tsx
+{!isAuthenticated && <span className="mc-tagline">It's a Ponzi!</span>}
+```
+
+**Effort:** 15 min for option 1, design review needed for options 2-3
+
+### 18.5 Update Design Philosophy doc (B-44)
+
+**File:** `docs/UX_DESIGN_PHILOSOPHY.md` (main repo)
+
+**Problem:** The Design Philosophy doc — whose stated purpose is "For any agent continuing UX/frontend work on this project" — still prescribes:
+- "Left rail navigation (200px, always labeled)" — deleted in v2
+- "Trollbox panel: fixed right, ~300px, always visible" — deferred indefinitely
+- Layout breakpoints assume sidebar + content + trollbox
+
+**Fix:** Update the Layout Rules section to reflect reality:
+- **Desktop:** Header tab navigation (replaces sidebar). Main content area `max-w-4xl` / `max-w-7xl`. Status bar below header.
+- **Mobile:** Bottom tab bar (unchanged). Status bar compact mode.
+- **Trollbox:** Deferred. Remove from layout rules, add a note in Trollbox Integration Notes that this is planned but not implemented.
+- **Breakpoints:** `769px`: header tabs visible, bottom tabs hidden. Below `769px`: bottom tabs, header tabs hidden. Remove the trollbox-related breakpoints.
+
+**Effort:** 20 min
+
+---
+
 ## Execution Order
 
 Prioritized by: bugs first, then user-facing impact, then polish.
@@ -1547,9 +1663,10 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 12. **Phase 12: Typography + Mobile** — Audit passes, bottom sheets for all dialogs
 13. **Phase 13: Animations + A11y** — ROI animation, prefers-reduced-motion
 14. **Phase 14: Onboarding + Docs** — Tour, docs page (largest new features)
-15. **Phase 15: Remaining Items** — Duplicate buttons, trollbox deferral, density audit, Charles personality
+15. **Phase 15: Remaining Items** — Duplicate buttons, trollbox deferral, density audit
 16. **Phase 16: Final Audit Items** — Splash card pacing, Facebook share, feed panel, leaderboard filters, bottom sheets, Charles, gold badge
 17. **Phase 17: v2 Plan Spec Compliance** — Status bar glow, font size, podium avatars, QR download, Last Payout, timer, accordion state
+18. **Phase 18: Design System Compliance + Doc Update** — Spacing violation, tagline bob, color token audit, header density, Design Philosophy doc update
 
 ---
 
@@ -1569,7 +1686,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | A-9: ProfileSetup shake | 4.1 | |
 | A-10: countUp re-animation | 5.1 | |
 | A-11: shadcn Progress bars | 5.2 | |
-| **B: Dropped Items (39)** | | |
+| **B: Dropped Items (46)** | | |
 | B-1: Typewriter tagline | 8.2 | |
 | B-2: Animated background | 8.3 | |
 | B-3: Docs teaser on splash | 8.4 | |
@@ -1609,6 +1726,13 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | B-37: Last Payout splash stat | 17.5 | Depends on backend |
 | B-38: Celebration timer 3s | 17.6 | |
 | B-39: Accordion first section open | 17.7 | |
+| B-40: Header tab 2px gap violates 8px min | 18.1 | |
+| B-41: Perpetual tagline bob animation | 18.2 | |
+| B-42: Color token inconsistency | 18.3 | |
+| B-43: Header content density (design) | 18.4 | |
+| B-44: Design Philosophy doc outdated | 18.5 | |
+| B-45: MobileSheet missing drag-to-dismiss | 16.5 | Enhancement |
+| B-46: countUp resetToken as built-in pattern | 13.1 | Enhancement |
 | **C: Bugs (6)** | | |
 | C-1: Filter empty state | 1.1 | |
 | C-2: Drag handle decorative | 1.2 | |
@@ -1617,7 +1741,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | C-5: Podium with 2 entries | 1.5 | |
 | C-6: Header tabs overflow | 1.6 | |
 
-**53 items addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat).**
+**60 items addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat).**
 
 ---
 
@@ -1668,8 +1792,9 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | 15: Remaining Items | 1 |
 | 16: Final Audit Items | 4-5 |
 | 17: v2 Plan Spec Compliance | 1-1.5 |
-| **Total** | **~33-47 hours** |
+| 18: Design System + Doc Update | 2-3 |
+| **Total** | **~35-50 hours** |
 
 ---
 
-*End of v3 plan. 56 items accounted for. 53 addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat). No silent drops.*
+*End of v3 plan. 63 items accounted for. 60 addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat). No silent drops.*
