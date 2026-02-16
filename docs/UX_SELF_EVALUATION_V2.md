@@ -397,6 +397,24 @@ The gap between "copy pass" and "UX overhaul" has been meaningfully closed. The 
 
 ---
 
+## Bugs and Regressions Introduced by v2
+
+The report so far covers what was done, what was missed, and what was scoped out. This section covers something different: things the v2 work *broke* or *introduced* that didn't exist before.
+
+1. **Shenanigans filter has no empty state.** When a filter (Offense/Defense/Chaos) returns zero matching cards, the user sees a blank area with no explanation. No "No shenanigans match this filter" message. User doesn't know if the page is broken or empty.
+
+2. **WalletDropdown drag handle is decorative.** The mobile bottom sheet has a visual drag handle (small gray bar at the top) but no touch event handlers. Users cannot swipe down to dismiss — they must tap the backdrop or the X button. This is a missing mobile interaction pattern, not just a missing feature. The handle *implies* drag-to-dismiss works.
+
+3. **ProfileSetup celebration has no explicit refetch.** The `onSuccess` callback triggers confetti and shows the celebration screen, but never calls `queryClient.invalidateQueries()`. It relies entirely on React Query's background refetch interval to detect the new profile. If background refetch is slow, cached, or fails, the user is stuck on a spinner with no way to proceed and no error message. The empty `setTimeout` callback compounds this — when the 4-second timer expires, literally nothing happens.
+
+4. **MAX button in GamePlans doesn't disable on zero balance.** If wallet balance is 0 (or below minDeposit), the MAX button is still clickable. It sets the amount to "0", which then fails validation. The button should be disabled when it would produce an invalid result.
+
+5. **HallOfFame podium with exactly 2 entries.** The podium layout reorders entries for visual hierarchy but the height styling assumes 3 blocks. With exactly 2 entries, you get one tall block and one short block with an empty space where the 3rd would be. Not a crash, but visually awkward.
+
+6. **Header tabs have no overflow handling** (reiterated from Phase 2 critique). The `.mc-header-tabs` container has no `overflow-x`, no `flex-shrink`, no `min-width: 0`. At narrow desktop widths (769px-1024px), tabs will overflow or push right-side controls off-screen. This is a layout regression — the old sidebar never had this problem because it was a fixed 200px column.
+
+---
+
 ## Technical Notes
 
 - **Zero new TypeScript errors introduced** across all 13 phases. The 44 pre-existing errors remain but are all in pre-existing backend declaration files and hook type mismatches.
