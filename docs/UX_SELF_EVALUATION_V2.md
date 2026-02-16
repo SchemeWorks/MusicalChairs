@@ -327,6 +327,36 @@ These items were in the v2 plan but were not implemented:
 
 ---
 
+## What the v2 Plan Quietly Dropped From the Original Report
+
+The v2 report above grades against the v2 *plan*. But the v2 plan itself silently scoped out several items that the original UX report called for and the v1 self-evaluation flagged as missing. These items never made it into any of the 13 phases — they were quietly forgotten during planning, not explicitly deprioritized.
+
+1. **Typewriter effect on tagline** — Original report wanted the "It's a Ponzi!" tagline to type out letter by letter. Never in v2 plan.
+
+2. **Animated background** — Original report called for particles or gradient shifts on the splash page. Never in v2 plan.
+
+3. **Docs teaser / "How It Works" expandable section** — Original report wanted an expandable section on the splash explaining the game. Never in v2 plan.
+
+4. **Character count / validation feedback while typing** (ProfileSetup) — v1 self-evaluation flagged this as missing. Never in v2 plan.
+
+5. **Guided tooltip onboarding tour** — v1 self-evaluation flagged this in both the ProfileSetup section ("Guided tooltip tour after profile setup") and the Cross-Cutting section ("No onboarding tour"). Never in v2 plan.
+
+6. **Duplicate refresh buttons in Profit Center** — v1 said "Duplicate refresh buttons may still exist." The v2 plan never addressed this. Nobody checked whether they're still there.
+
+7. **Animated ROI calculator** (Pick Your Plan) — Original report wanted the returns calculator to animate. Never in v2 plan.
+
+8. **Referral activity feed** — v1 said "No referral activity feed." The v2 plan added share buttons and milestones but didn't include an activity feed showing recent referral signups/earnings.
+
+9. **Typography inconsistency** — v1 Section 12 said "Typography inconsistent." The v2 plan never addressed typography as a cross-cutting concern. No type audit was done.
+
+10. **Network visualization** (MLM/Referral) — v1 said "No network visualization." This was never in v2 plan — showing a visual tree/graph of the user's referral network.
+
+11. **"Mobile is an afterthought"** — v1 Section 12 made this a cross-cutting criticism. The v2 added a mobile bottom sheet (Phase 8) and mobile badge dots (Phase 12), but there was never a dedicated mobile audit or responsive design pass. The status bar is arguably too dense on mobile. The header tabs hide on mobile, but the overall mobile experience was never evaluated as a whole.
+
+Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic). But several — especially the onboarding tour, typography audit, and duplicate refresh button check — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped the polish.
+
+---
+
 ## The Big Picture
 
 ### What Changed From v1 to v2
@@ -352,6 +382,8 @@ The v1 self-evaluation said the original work was *"repainting a house while ign
 3. **The splash page live stats are a compromise.** The plan correctly anticipated a backend limitation and provided a fallback, but the result is a static social proof banner rather than the live urgency-creating element the original report wanted. This is architecturally correct but experientially incomplete.
 
 4. **Some "stretch" items were skipped.** QR code, money flow diagram, always-enabled CTA, AddHouseMoney promotion. These were less critical than the core structural work, but they were in the plan and they weren't done.
+
+5. **The v2 plan itself silently dropped items from the original report.** Typewriter effect, animated background, docs teaser, onboarding tour, typography audit, ROI calculator animation, referral activity feed, network visualization. The v2 plan was supposed to be "fix everything the v1 missed" — but it cherry-picked the structural items and quietly omitted the polish. The 75-80% estimate above measures against the v2 plan. Measured against the *original report's full list*, the number is lower.
 
 ### Honest Assessment
 
