@@ -357,7 +357,15 @@ The v2 report above grades against the v2 *plan*. But the v2 plan itself silentl
 
 13. **Trollbox / live chat** — The original v1 task list had a "Phase 12 (Trollbox)" that was never started. The v1 self-evaluation noted it was "expected" to be skipped (it was the last phase). The v2 plan dropped it entirely. A social/chat feature for a gambling game is a legitimate feature — players want to talk to each other, gloat, commiserate. But it was never even mentioned in v2 planning.
 
-Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic, trollbox is a major feature). But several — especially the onboarding tour, typography audit, duplicate refresh button check, and docs page — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped both the polish and two entire original phases.
+The following items are worse — they were in the original report but never even made it into the v1 task list, so they were never tracked by either self-evaluation:
+
+14. **Scroll-triggered animations on splash** — The original report said "scroll-animate entrance," meaning elements animate as they scroll into view (IntersectionObserver pattern). What was implemented is a page-load CSS animation (`mc-hero-entrance`, `mc-stagger`). The distinction matters: on a phone, the cards are below the fold. A page-load animation fires before the user scrolls down to see them — they animate into empty air. Scroll-triggered animations are the standard solution for this. Neither the v1 task list nor the v2 plan ever specified this; both just said "entrance animation" and lost the scroll-trigger part.
+
+15. **Ponzi Points enrichment after page merge** — The original report said the PP page was too thin and needed "activity feed, spending suggestions, earn-rate comparison." The v1 correctly merged PP into Profit Center and the v1 self-eval gave it an A. But the merge relocated thin content without enriching it. There's still no PP activity feed, no suggestions for what to spend PP on, no comparison of your earn rate to others. The original report's concern — PP info is thin and context-free — was never addressed, just moved to a different tab.
+
+16. **Referral stats context** — The original report said referral "Stats without context." The v2 added share buttons and milestones, but the stats themselves (referral count, earnings from referrals) still have no contextual information — no comparison to average, no explanation of what the tier breakdowns mean, no "you're in the top X%" framing. Numbers without context are still numbers without context.
+
+Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic, trollbox is a major feature). But several — especially the onboarding tour, typography audit, duplicate refresh button check, docs page, and PP enrichment — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped both the polish, two entire original phases, and three items that were lost between the original report and the v1 task list itself.
 
 ---
 
