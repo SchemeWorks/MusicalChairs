@@ -1,6 +1,6 @@
 # UX Implementation Plan v3
 
-*Written after a v2 self-evaluation found 42 outstanding issues: 11 plan misses, 25 dropped items, and 6 bugs/regressions. This plan covers all of them.*
+*Written after a v2 self-evaluation found 49 outstanding issues: 11 plan misses, 32 dropped items, and 6 bugs/regressions. This plan covers all of them.*
 
 *Source of truth: `docs/UX_SELF_EVALUATION_V2.md`*
 
@@ -20,7 +20,7 @@
 The v2 self-evaluation identified 42 issues across three categories:
 
 - **Section A (items 1-11):** Things the v2 plan specified but were not implemented correctly
-- **Section B (items 1-25):** Things the original report called for that the v2 plan silently dropped
+- **Section B (items 1-32):** Things the original report called for that were dropped at various stages
 - **Section C (items 1-6):** Bugs and regressions introduced by the v2 work
 
 This plan groups them into 15 implementation phases by area, not by origin. Each phase lists which v2-eval items it resolves.
@@ -1183,6 +1183,209 @@ This is an assessment pass, not a coding phase. Time it after everything else is
 
 ---
 
+## Phase 16: Items That Survived Every Audit Round
+
+*Resolves: B-26, B-27, B-28, B-29, B-30, B-31, B-32*
+
+These items were found by cross-referencing the original report and v1 task list against everything already tracked. They slipped through every previous audit.
+
+### 16.1 Splash card narrative pacing / visual differentiation (B-26)
+
+**File:** `frontend/src/App.tsx`, `frontend/src/index.css`
+
+**Problem:** The three splash info cards are equally-sized in a uniform grid. The report said "The Pitch is the hook, the Catch is the friction, the Twist is the payoff — they need dramatic pacing, not a uniform grid."
+
+**Fix:** Give each card a different visual weight:
+- **Card 1 (Pitch/green):** Slightly larger, more padding, the "hook" — `p-6` instead of `p-5`, maybe a subtle pulsing border glow to draw the eye first
+- **Card 2 (Catch/danger):** Standard size but with a distinctive treatment — a strikethrough or caution tape motif, `border-dashed` or a subtle diagonal stripe pattern
+- **Card 3 (Twist/gold):** The payoff — `mc-card-elevated` with a gold glow, feels premium and final
+
+On mobile (single-column), the stagger timing should increase so each card lands with deliberate pacing: 0ms, 400ms, 800ms instead of the tighter desktop stagger.
+
+**Effort:** 30 min
+
+### 16.2 Facebook share button (B-27)
+
+**File:** `frontend/src/components/ReferralSection.tsx`
+
+**Problem:** The v1 task list (owner-approved Decision Log) listed "Twitter/X, Telegram, WhatsApp, Facebook, QR Code" as share targets. Facebook was silently dropped.
+
+**Fix:** Add a Facebook share button alongside the existing three:
+```tsx
+<a
+  href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`}
+  target="_blank"
+  rel="noopener noreferrer"
+  className="mc-btn-secondary px-4 py-2 rounded-lg text-xs flex items-center gap-1.5"
+>
+  <Globe className="h-3.5 w-3.5" /> {/* or Facebook-specific icon */}
+  Facebook
+</a>
+```
+
+Note: Facebook's sharer only accepts a URL (no custom text). The referral link itself is the share content.
+
+**Effort:** 10 min
+
+### 16.3 Shenanigans live feed as desktop right-side panel (B-28)
+
+**File:** `frontend/src/components/Shenanigans.tsx`, `frontend/src/index.css`
+
+**Problem:** The live feed is below the cards on both desktop and mobile. The report said it should be a right-side panel on desktop.
+
+**Fix:** On desktop (≥1024px), restructure the Shenanigans layout to a 2-column grid:
+```css
+@media (min-width: 1024px) {
+  .mc-shenanigans-layout {
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+  }
+}
+```
+
+Left column: filter tabs + shenanigan cards grid + guardrails.
+Right column: stats grid + live feed (sticky, `position: sticky; top: 160px; max-height: calc(100vh - 200px); overflow-y: auto`).
+
+On mobile: unchanged (everything stacks vertically, feed at bottom).
+
+This makes the feed always visible while scrolling through cards on desktop.
+
+**Effort:** 1 hour
+
+### 16.4 Time-based leaderboard filters (B-29)
+
+**File:** `frontend/src/components/HallOfFame.tsx`
+
+**Problem:** No "This Round" / "All Time" toggle. The data always shows all-time stats.
+
+**Backend dependency:** Requires a round-scoped leaderboard query (filtering by current round's start date). If the backend doesn't track round boundaries in a queryable way, this is **blocked**.
+
+**If backend supports it:** Add a toggle above the leaderboard:
+```tsx
+const [timeFilter, setTimeFilter] = useState<'round' | 'allTime'>('allTime');
+
+<div className="flex gap-2 mb-4 justify-center">
+  <button
+    onClick={() => setTimeFilter('round')}
+    className={`mc-btn-pill text-xs ${timeFilter === 'round' ? 'mc-btn-primary' : ''}`}
+  >
+    This Round
+  </button>
+  <button
+    onClick={() => setTimeFilter('allTime')}
+    className={`mc-btn-pill text-xs ${timeFilter === 'allTime' ? 'mc-btn-primary' : ''}`}
+  >
+    All Time
+  </button>
+</div>
+```
+
+Pass `timeFilter` to the query hook. Frontend filtering won't work — the data must come from the backend.
+
+**If blocked:** Add the UI toggle but disable "This Round" with a tooltip: "Coming after next round reset." This shows the feature is planned without faking data.
+
+**Effort:** 30 min (frontend only), blocked on backend
+
+### 16.5 Mobile bottom sheets for all dialogs (B-30)
+
+**Files:** `frontend/src/components/GameTracking.tsx`, `frontend/src/components/Shenanigans.tsx`
+
+**Problem:** WalletDropdown uses a mobile bottom sheet. The withdrawal dialog, reinvest dialog, and shenanigan confirmation dialog still use centered shadcn Dialog modals on mobile.
+
+**Fix:** Create a reusable `MobileSheet` wrapper component that detects mobile and renders as bottom sheet instead of Dialog:
+```tsx
+function MobileSheet({ open, onOpenChange, children }: { open: boolean; onOpenChange: (open: boolean) => void; children: React.ReactNode }) {
+  const isMobile = useMobileDetect(); // reuse from WalletDropdown
+
+  if (isMobile) {
+    return (
+      <>
+        {open && <div className="mc-sheet-backdrop" onClick={() => onOpenChange(false)} />}
+        {open && (
+          <div className="mc-bottom-sheet">
+            <div className="mc-drag-handle" />
+            {children}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="mc-dialog">
+        {children}
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+Replace `Dialog` with `MobileSheet` in:
+- `GameTracking.tsx` — withdrawal and reinvest dialogs
+- `Shenanigans.tsx` — cast confirmation dialog
+
+Reuse the existing `mc-bottom-sheet` and `mc-sheet-backdrop` CSS from WalletDropdown.
+
+**Effort:** 1-2 hours
+
+### 16.6 Charles personality throughout the app (B-31)
+
+**Files:** `frontend/src/components/HouseDashboard.tsx`, `frontend/src/components/GameTracking.tsx`, various
+
+**Problem:** Charles only appears in the admin panel and GameTracking empty state. The v1 task list Phase 13.4 wanted Charles throughout the app.
+
+**Fix:** Add Charles personality to these specific locations:
+- **HouseDashboard info cards:** "Charles takes a 3% maintenance fee on every deposit" (in the fee explanation section)
+- **HouseDashboard redistribution callout:** "When the pot runs dry, Charles resets the table. No exceptions." (replace or augment existing copy)
+- **GameTracking exit toll info:** "Charles collects a 7% exit toll if you leave within 3 days. His table, his rules." (in the info card)
+- **Error states (global):** When an API call fails, show "Even Charles couldn't fix this one. Try again?" alongside the retry button
+- **Loading states:** Where relevant, "Charles is counting the money..." or "Charles is shuffling the deck..." instead of generic spinners
+
+These are copy changes, not structural changes. The pattern is: anywhere there's an explanation of game mechanics or a wait state, inject Charles's voice.
+
+**Effort:** 45 min
+
+### 16.7 Gold notification badge on The Pyramid tab (B-32)
+
+**File:** `frontend/src/App.tsx`
+
+**Problem:** Red (Profit Center) and purple (Shenanigans) badge dots exist. Gold (The Pyramid) for unviewed referral activity was specified but never implemented.
+
+**Fix:** Add to the badge computation in App.tsx:
+```tsx
+const hasNewReferrals = referralStats?.directReferrals > 0 &&
+  referralStats.directReferrals > (parseInt(localStorage.getItem('mc_last_seen_referrals') || '0'));
+
+const badges = {
+  profitCenter: hasWithdrawableEarnings ? 'red' : null,
+  shenanigans: canCastShenanigan ? 'purple' : null,
+  mlm: hasNewReferrals ? 'gold' : null,
+};
+```
+
+When the user visits The Pyramid tab, update localStorage:
+```tsx
+useEffect(() => {
+  if (activeTab === 'mlm' && referralStats) {
+    localStorage.setItem('mc_last_seen_referrals', String(referralStats.directReferrals));
+  }
+}, [activeTab, referralStats]);
+```
+
+Add `.mc-badge-gold` CSS:
+```css
+.mc-badge-gold {
+  background: var(--mc-gold);
+  box-shadow: 0 0 6px rgba(255, 215, 0, 0.5);
+}
+```
+
+**Effort:** 20 min
+
+---
+
 ## Execution Order
 
 Prioritized by: bugs first, then user-facing impact, then polish.
@@ -1193,15 +1396,16 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 4. **Phase 4: ProfileSetup Polish** — Shake, char count, atmosphere
 5. **Phase 5: CountUp + Progress Bars** — Animation consistency
 6. **Phase 6: House Ledger** — Hero promotion, dramatic treatment, timeline
-7. **Phase 7: Referral Enrichment** — QR, stats context, bridge CTA, activity feed
-8. **Phase 8: Splash Enhancements** — Typewriter, animated BG, docs teaser, scroll-trigger
+7. **Phase 7: Referral Enrichment** — QR, stats context, bridge CTA, activity feed, Facebook
+8. **Phase 8: Splash Enhancements** — Typewriter, animated BG, docs teaser, scroll-trigger, card pacing
 9. **Phase 9: Wallet Flow Indicator** — Money flow diagram
-10. **Phase 10: Shenanigans Polish** — Popular indicator
+10. **Phase 10: Shenanigans Polish** — Popular indicator, desktop feed panel
 11. **Phase 11: PP Enrichment** — Rate table, spending suggestions, activity
-12. **Phase 12: Typography + Mobile** — Audit passes
+12. **Phase 12: Typography + Mobile** — Audit passes, bottom sheets for all dialogs
 13. **Phase 13: Animations + A11y** — ROI animation, prefers-reduced-motion
 14. **Phase 14: Onboarding + Docs** — Tour, docs page (largest new features)
-15. **Phase 15: Remaining Items** — Duplicate buttons, trollbox deferral, density audit
+15. **Phase 15: Remaining Items** — Duplicate buttons, trollbox deferral, density audit, Charles personality
+16. **Phase 16: Final Audit Items** — Splash card pacing, Facebook share, feed panel, leaderboard filters, bottom sheets, Charles, gold badge
 
 ---
 
@@ -1247,6 +1451,13 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | B-23: Casino registration atmosphere | 4.3 | |
 | B-24: Pull-to-refresh | 12.3 | |
 | B-25: prefers-reduced-motion | 13.2 | |
+| B-26: Splash card narrative pacing | 16.1 | |
+| B-27: Facebook share button | 16.2 | |
+| B-28: Live feed desktop panel | 16.3 | |
+| B-29: Time-based leaderboard filters | 16.4 | BLOCKED (backend) |
+| B-30: Bottom sheets for all dialogs | 16.5 | |
+| B-31: Charles personality throughout | 16.6 | |
+| B-32: Gold badge on Pyramid tab | 16.7 | |
 | **C: Bugs (6)** | | |
 | C-1: Filter empty state | 1.1 | |
 | C-2: Drag handle decorative | 1.2 | |
@@ -1255,7 +1466,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | C-5: Podium with 2 entries | 1.5 | |
 | C-6: Header tabs overflow | 1.6 | |
 
-**41 items implemented. 1 item explicitly deferred (Trollbox).**
+**47 items implemented. 1 explicitly deferred (Trollbox). 1 blocked on backend (time-based leaderboard filters).**
 
 ---
 
@@ -1304,8 +1515,9 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | 13: Animations + A11y | 1 |
 | 14: Onboarding + Docs | 6-9 |
 | 15: Remaining Items | 1 |
-| **Total** | **~28-40 hours** |
+| 16: Final Audit Items | 4-5 |
+| **Total** | **~32-45 hours** |
 
 ---
 
-*End of v3 plan. 42 items accounted for. 41 addressed. 1 explicitly deferred. No silent drops.*
+*End of v3 plan. 49 items accounted for. 47 addressed. 1 explicitly deferred (Trollbox). 1 blocked on backend (time-based leaderboard filters). No silent drops.*
