@@ -1,6 +1,6 @@
 # UX Implementation Plan v3
 
-*Written after a v2 self-evaluation found 49 outstanding issues: 11 plan misses, 32 dropped items, and 6 bugs/regressions. This plan covers all of them.*
+*Written after a v2 self-evaluation found 56 outstanding issues: 11 plan misses, 39 dropped items, and 6 bugs/regressions. This plan covers all of them.*
 
 *Source of truth: `docs/UX_SELF_EVALUATION_V2.md`*
 
@@ -17,13 +17,13 @@
 
 ## How This Plan Is Organized
 
-The v2 self-evaluation identified 42 issues across three categories:
+The v2 self-evaluation identified 56 issues across three categories:
 
 - **Section A (items 1-11):** Things the v2 plan specified but were not implemented correctly
-- **Section B (items 1-32):** Things the original report called for that were dropped at various stages
+- **Section B (items 1-39):** Things the original report or v2 plan called for that were dropped at various stages
 - **Section C (items 1-6):** Bugs and regressions introduced by the v2 work
 
-This plan groups them into 15 implementation phases by area, not by origin. Each phase lists which v2-eval items it resolves.
+This plan groups them into 17 implementation phases by area, not by origin. Each phase lists which v2-eval items it resolves.
 
 ---
 
@@ -1386,6 +1386,149 @@ Add `.mc-badge-gold` CSS:
 
 ---
 
+## Phase 17: v2 Plan Spec Compliance
+
+*Resolves: B-33, B-34, B-35, B-36, B-37, B-38, B-39*
+
+These items are specific sub-items from the v2 plan itself that were neither implemented to spec nor tracked for future work. Found by cross-referencing every v2 plan sub-item against the actual codebase.
+
+### 17.1 Status bar P/L glow effect (B-33)
+
+**File:** `frontend/src/components/GameStatusBar.tsx`
+
+**Problem:** The v2 plan specified `mc-glow-green` on the P/L stat when positive. `GameTracking.tsx` correctly uses `mc-glow-green` on its P/L hero number (line 306), but `GameStatusBar.tsx` only uses `mc-text-green` with no glow. The same data point (net P/L) is styled differently in the two places it appears.
+
+**Fix:** Change line 31 of GameStatusBar.tsx from:
+```
+className={`mc-status-bar-value ${isUp ? 'mc-text-green' : 'mc-text-danger'}`}
+```
+to:
+```
+className={`mc-status-bar-value ${isUp ? 'mc-text-green mc-glow-green' : 'mc-text-danger'}`}
+```
+
+**Effort:** 2 min
+
+### 17.2 Header tab base font size spec compliance (B-34)
+
+**File:** `frontend/src/index.css`
+
+**Problem:** The v2 plan specified `13px` for header tab font size (Phase 2, line 107). The implementation uses `11px` (line 503 of index.css). The v3 Phase 1.6 proposes shrinking further to `10px` at narrow breakpoints — moving in the opposite direction.
+
+**Fix:** This requires a design decision: the v2 spec said 13px, the implementation chose 11px (likely because 13px caused overflow at narrower widths), and the v3 plan proposes 10px. The honest resolution is:
+1. Try `12px` as a compromise between spec (13px) and current (11px)
+2. At `@media (max-width: 1024px)`, drop to `11px`
+3. At `@media (max-width: 900px)`, drop to `10px` or switch to icon-only
+4. Verify at 769px, 900px, 1024px, 1200px breakpoints
+
+This supersedes the approach in v3 Phase 1.6. Do both items together.
+
+**Effort:** 30 min (including visual testing)
+
+### 17.3 Podium avatar/initial circles (B-35)
+
+**File:** `frontend/src/components/HallOfFame.tsx`
+
+**Problem:** The v2 plan specified "Avatar/initial circle" on each podium block. The implementation uses medal icons (Crown, Medal) inside colored circles. The code comment on line 42 says "Avatar + name" but the content is a medal icon, not the player's initial.
+
+**Fix:** Replace the medal icon in the circle with the player's first letter initial. Move the medal/crown to a smaller badge overlapping the circle:
+```tsx
+<div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5 relative`} style={{ boxShadow: m.glow }}>
+  <span className={`font-display text-sm ${m.text}`}>{entry.name.charAt(0).toUpperCase()}</span>
+  <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
+    {m.icon}
+  </div>
+</div>
+```
+
+This shows user identity (initial) as primary and rank identity (medal) as a badge — matching the v2 plan's intent while keeping the rank medals.
+
+**Effort:** 15 min
+
+### 17.4 QR code download button (B-36)
+
+**File:** `frontend/src/components/ReferralSection.tsx`
+
+**Problem:** The v2 plan specified a downloadable QR ("wrap in a canvas and provide a 'Download QR' button"). The v3 Phase 7.1 adds QR display but not download.
+
+**Fix:** Use `qrcode.react`'s `QRCodeCanvas` (not `QRCodeSVG`) and add a download handler:
+```tsx
+import { QRCodeCanvas } from 'qrcode.react';
+
+const qrRef = useRef<HTMLCanvasElement>(null);
+
+const downloadQR = () => {
+  const canvas = qrRef.current;
+  if (!canvas) return;
+  const url = canvas.toDataURL('image/png');
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'musical-chairs-referral-qr.png';
+  link.click();
+};
+
+<QRCodeCanvas ref={qrRef} value={referralLink} size={160} bgColor="#0a0812" fgColor="#ffffff" level="M" />
+<button onClick={downloadQR} className="mc-btn-secondary text-xs mt-2 flex items-center gap-1.5 mx-auto">
+  <Download className="h-3.5 w-3.5" /> Download QR
+</button>
+```
+
+This replaces the `QRCodeSVG` in v3 Phase 7.1 with `QRCodeCanvas` to enable download.
+
+**Effort:** 15 min
+
+### 17.5 "Last Payout" stat on splash ribbon (B-37)
+
+**File:** `frontend/src/App.tsx`
+
+**Problem:** The v2 plan specified "Last Payout: 2.4 ICP" as one of three splash ribbon stats. Both the current implementation and v3 Phase 8.1 use "Live on ICP" instead. "Last Payout" is more compelling social proof — it tells visitors someone recently got paid.
+
+**Fix (depends on data availability):**
+1. **If public stats include last payout data:** Show `💰 Last Payout: {formatICP(lastPayout)} ICP` as the third ribbon stat
+2. **If no public endpoint for this:** Show it when live data becomes available (after v3 Phase 8.1 adds public stats). Add "Last Payout" to the proposed `getPublicStats()` return type
+3. **Static fallback:** If truly blocked, note it as a backend dependency and keep "Live on ICP"
+
+The key point: when the public stats endpoint is eventually added (Phase 8.1), include `lastPayout` in the return value. Don't settle for "Live on ICP" if the data can be made available.
+
+**Effort:** 10 min (frontend), depends on backend for data
+
+### 17.6 Celebration timer correction (B-38)
+
+**File:** `frontend/src/components/ProfileSetup.tsx`
+
+**Problem:** The v2 plan said "After 3 seconds, auto-navigate." The implementation uses `4000`. The v3 Phase 1.3 fixes the empty callback and adds a proceed button but doesn't correct the timer.
+
+**Fix:** When implementing v3 Phase 1.3, also change `4000` to `3000` on line 33:
+```
+}, 3000);
+```
+
+Trivial fix that should be bundled with Phase 1.3's other celebration fixes.
+
+**Effort:** 1 min
+
+### 17.7 House Ledger accordion — first section expanded by default (B-39)
+
+**File:** `frontend/src/components/HouseDashboard.tsx`
+
+**Problem:** The v2 plan said "Default: all collapsed (the first one optionally expanded)." The implementation starts with `openSection = null` (all closed). The common progressive disclosure pattern is first-section-open so users see content immediately rather than a wall of closed headers.
+
+**Fix:** Change the initial state:
+```tsx
+const [openSection, setOpenSection] = useState<string | null>(sections[0]?.title || null);
+```
+
+Or hardcode to the first section title if the array is static:
+```tsx
+const [openSection, setOpenSection] = useState<string | null>('What Is This?');
+```
+
+This way new users see the first section's content and understand the accordion pattern. Returning users who've read it can collapse it.
+
+**Effort:** 5 min
+
+---
+
 ## Execution Order
 
 Prioritized by: bugs first, then user-facing impact, then polish.
@@ -1406,6 +1549,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 14. **Phase 14: Onboarding + Docs** — Tour, docs page (largest new features)
 15. **Phase 15: Remaining Items** — Duplicate buttons, trollbox deferral, density audit, Charles personality
 16. **Phase 16: Final Audit Items** — Splash card pacing, Facebook share, feed panel, leaderboard filters, bottom sheets, Charles, gold badge
+17. **Phase 17: v2 Plan Spec Compliance** — Status bar glow, font size, podium avatars, QR download, Last Payout, timer, accordion state
 
 ---
 
@@ -1425,7 +1569,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | A-9: ProfileSetup shake | 4.1 | |
 | A-10: countUp re-animation | 5.1 | |
 | A-11: shadcn Progress bars | 5.2 | |
-| **B: Dropped Items (25)** | | |
+| **B: Dropped Items (39)** | | |
 | B-1: Typewriter tagline | 8.2 | |
 | B-2: Animated background | 8.3 | |
 | B-3: Docs teaser on splash | 8.4 | |
@@ -1458,6 +1602,13 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | B-30: Bottom sheets for all dialogs | 16.5 | |
 | B-31: Charles personality throughout | 16.6 | |
 | B-32: Gold badge on Pyramid tab | 16.7 | |
+| B-33: Status bar P/L glow | 17.1 | |
+| B-34: Header tab font size spec | 17.2 | |
+| B-35: Podium avatar/initials | 17.3 | |
+| B-36: QR code download button | 17.4 | |
+| B-37: Last Payout splash stat | 17.5 | Depends on backend |
+| B-38: Celebration timer 3s | 17.6 | |
+| B-39: Accordion first section open | 17.7 | |
 | **C: Bugs (6)** | | |
 | C-1: Filter empty state | 1.1 | |
 | C-2: Drag handle decorative | 1.2 | |
@@ -1466,7 +1617,7 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | C-5: Podium with 2 entries | 1.5 | |
 | C-6: Header tabs overflow | 1.6 | |
 
-**47 items implemented. 1 explicitly deferred (Trollbox). 1 blocked on backend (time-based leaderboard filters).**
+**53 items addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat).**
 
 ---
 
@@ -1516,8 +1667,9 @@ Prioritized by: bugs first, then user-facing impact, then polish.
 | 14: Onboarding + Docs | 6-9 |
 | 15: Remaining Items | 1 |
 | 16: Final Audit Items | 4-5 |
-| **Total** | **~32-45 hours** |
+| 17: v2 Plan Spec Compliance | 1-1.5 |
+| **Total** | **~33-47 hours** |
 
 ---
 
-*End of v3 plan. 49 items accounted for. 47 addressed. 1 explicitly deferred (Trollbox). 1 blocked on backend (time-based leaderboard filters). No silent drops.*
+*End of v3 plan. 56 items accounted for. 53 addressed. 1 explicitly deferred (Trollbox). 2 blocked on backend (time-based leaderboard filters, Last Payout stat). No silent drops.*
