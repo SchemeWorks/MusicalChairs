@@ -353,7 +353,11 @@ The v2 report above grades against the v2 *plan*. But the v2 plan itself silentl
 
 11. **"Mobile is an afterthought"** — v1 Section 12 made this a cross-cutting criticism. The v2 added a mobile bottom sheet (Phase 8) and mobile badge dots (Phase 12), but there was never a dedicated mobile audit or responsive design pass. The status bar is arguably too dense on mobile. The header tabs hide on mobile, but the overall mobile experience was never evaluated as a whole.
 
-Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic). But several — especially the onboarding tour, typography audit, and duplicate refresh button check — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped the polish.
+12. **Docs page** — The original v1 task list had a "Phase 11 (Docs)" that was never started. The v1 self-evaluation explicitly called this out. The v2 plan renumbered everything and never included a docs/help page. There is no "How to Play" page, no rules explanation, no FAQ — the entire app assumes you already understand the game mechanics. For a gambling dApp with novel Ponzi mechanics, lock-up periods, compounding tiers, exit tolls, and a redistribution event, the lack of any in-app documentation is a real gap.
+
+13. **Trollbox / live chat** — The original v1 task list had a "Phase 12 (Trollbox)" that was never started. The v1 self-evaluation noted it was "expected" to be skipped (it was the last phase). The v2 plan dropped it entirely. A social/chat feature for a gambling game is a legitimate feature — players want to talk to each other, gloat, commiserate. But it was never even mentioned in v2 planning.
+
+Some of these were reasonable to scope out (network visualization is a big feature, animated background is cosmetic, trollbox is a major feature). But several — especially the onboarding tour, typography audit, duplicate refresh button check, and docs page — are exactly the kind of detail work that keeps getting deferred. The v2 plan's thesis was "fix everything the v1 missed." It didn't. It fixed the *structural* things the v1 missed and quietly dropped both the polish and two entire original phases.
 
 ---
 
