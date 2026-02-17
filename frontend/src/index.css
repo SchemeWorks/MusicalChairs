@@ -1213,6 +1213,14 @@
     box-shadow: 0 0 20px rgba(255, 215, 0, 0.1);
   }
 
+  /* Gambling warning box — always prominent, red border, matches palette */
+  .mc-warning-box {
+    background: rgba(255, 68, 68, 0.08);
+    border: 1.5px solid rgba(255, 68, 68, 0.4);
+    border-radius: var(--radius-md);
+    padding: 16px 20px;
+  }
+
   /* Respect reduced motion — comprehensive */
   @media (prefers-reduced-motion: reduce) {
     /* Disable all MC animations */

@@ -305,7 +305,7 @@ export default function App() {
                     <LogoutButton />
                   </>
                 ) : (
-                  <LoginButton />
+                  <LoginButton compact />
                 )}
               </div>
             </div>
@@ -347,53 +347,56 @@ export default function App() {
                 </div>
 
                 {/* Three info cards — the pitch builds before the ask */}
-                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-splash-cards mc-scroll-animate">
-                  {/* Card 1: The Hook — bigger, pulsing glow */}
+                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mc-splash-cards mc-scroll-animate">
+                  {/* Card 1: The Hook */}
                   <div className="mc-card mc-accent-green p-6 mc-card-hook">
-                    <Dices className="h-7 w-7 mc-text-green mb-3" />
+                    <Dices className="h-7 w-7 mc-text-green mb-3 mx-auto" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
                     </p>
                   </div>
 
-                  {/* Card 2: The Friction — dashed border, caution feel */}
-                  <div className="mc-card mc-accent-danger p-5 border-dashed">
-                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
+                  {/* Card 2: The Warning */}
+                  <div className="mc-card mc-accent-danger p-5">
+                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3 mx-auto" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
                     </p>
                   </div>
 
-                  {/* Card 3: The Payoff — elevated, gold glow */}
+                  {/* Card 3: The Payoff */}
                   <div className="mc-card-elevated mc-accent-gold p-5 mc-card-payoff">
-                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
+                    <Dices className="h-7 w-7 mc-text-gold mb-3 mx-auto" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
                     </p>
                   </div>
                 </div>
 
-                {/* Live stats ribbon — social proof */}
-                <div ref={ribbonRef} className="mt-8 mc-card mc-accent-gold p-4 mc-scroll-animate">
-                  <div className="flex items-center justify-center gap-6 flex-wrap text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-gold">🏦</span>
-                      <span className="mc-text-muted">Pot:</span>
-                      <span className="font-bold mc-text-gold">
-                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : 'Growing daily'}
-                      </span>
+                {/* Live stats ribbon */}
+                <div ref={ribbonRef} className="mt-8 mc-card p-4 mc-scroll-animate">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-xs">
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Pot Balance</div>
+                      <div className="font-bold mc-text-gold text-sm">
+                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : '—'}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-green">📈</span>
-                      <span className="mc-text-muted">Players:</span>
-                      <span className="font-bold mc-text-green">
-                        {publicStats ? `${Number(publicStats.activeGames)} active` : 'Up to 12% / day'}
-                      </span>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Active Positions</div>
+                      <div className="font-bold mc-text-green text-sm">
+                        {publicStats ? Number(publicStats.activeGames) : '—'}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-cyan">⚡</span>
-                      <span className="mc-text-muted">Status:</span>
-                      <span className="font-bold mc-text-cyan">Live on ICP</span>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Total Deposited</div>
+                      <div className="font-bold mc-text-purple text-sm">
+                        {publicStats ? `${formatICP(publicStats.totalDeposits)} ICP` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Status</div>
+                      <div className="font-bold mc-text-cyan text-sm">Live on ICP</div>
                     </div>
                   </div>
                 </div>
@@ -442,12 +445,15 @@ export default function App() {
                   <LoginButton />
                 </div>
 
-                {/* Responsible gambling — straight-faced, not Charles */}
-                <div className="mt-10 text-center">
-                  <p className="text-xs mc-text-muted opacity-60">
-                    <AlertTriangle className="h-3 w-3 inline-block mr-1 align-text-top" />
-                    This is a gambling game. Please play responsibly.
-                  </p>
+                {/* Responsible gambling warning — always prominent, no jokes */}
+                <div className="mt-10 mx-auto max-w-lg mc-warning-box">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-bold text-red-300">This is a gambling game.</p>
+                      <p className="text-xs text-red-300/80 mt-1">Only deposit what you can afford to lose. All positions carry risk of total loss. Please play responsibly.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : showProfileSetup ? (
