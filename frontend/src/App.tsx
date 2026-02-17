@@ -341,9 +341,7 @@ export default function App() {
                   <div className="mc-tagline text-2xl md:text-3xl mb-4">
                     <span ref={taglineRef} style={{ display: 'inline-block', opacity: 0 }}>It's a Ponzi!</span>
                   </div>
-                  <p className="font-accent text-sm mc-text-muted italic mb-10">
-                    You know exactly what this is. That's what makes it fun.
-                  </p>
+                  <div className="mb-10" />
                 </div>
 
                 {/* Three info cards — the pitch builds before the ask */}
@@ -375,7 +373,7 @@ export default function App() {
 
                 {/* Live stats ribbon */}
                 <div ref={ribbonRef} className="mt-8 mc-card p-4 mc-scroll-animate">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center text-xs">
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center text-xs">
                     <div>
                       <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Pot Balance</div>
                       <div className="font-bold mc-text-gold text-sm">
@@ -395,20 +393,35 @@ export default function App() {
                       </div>
                     </div>
                     <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Total Withdrawn</div>
+                      <div className="font-bold mc-text-cyan text-sm">
+                        {publicStats ? `${formatICP(publicStats.totalWithdrawals)} ICP` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Days Active</div>
+                      <div className="font-bold mc-text-primary text-sm">
+                        {publicStats ? Number(publicStats.daysActive) : '—'}
+                      </div>
+                    </div>
+                    <div>
                       <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Status</div>
                       <div className="font-bold mc-text-cyan text-sm">Live on ICP</div>
                     </div>
                   </div>
                 </div>
 
-                {/* How It Works — expandable */}
+                {/* How It Works — visible card, not hidden */}
                 <div ref={howItWorksRef} className="mt-6 mc-scroll-animate">
                   <button
                     onClick={() => setShowHowItWorks(!showHowItWorks)}
-                    className="flex items-center gap-2 mx-auto text-xs mc-text-dim hover:mc-text-primary transition-colors"
+                    className="w-full mc-card p-4 flex items-center justify-between hover:border-white/20 transition-colors group"
                   >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
-                    How does it work?
+                    <div className="flex items-center gap-3">
+                      <HelpCircle className="h-5 w-5 mc-text-cyan" />
+                      <span className="text-sm font-bold mc-text-primary">How does it work?</span>
+                    </div>
+                    <ChevronDown className={`h-4 w-4 mc-text-muted transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
                   </button>
                   {showHowItWorks && (
                     <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
@@ -446,14 +459,14 @@ export default function App() {
                 </div>
 
                 {/* Responsible gambling warning — always prominent, no jokes */}
-                <div className="mt-10 mx-auto max-w-lg mc-warning-box">
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-bold text-red-300">This is a gambling game.</p>
-                      <p className="text-xs text-red-300/80 mt-1">Only deposit what you can afford to lose. All positions carry risk of total loss. Please play responsibly.</p>
-                    </div>
+                <div className="mt-10 mx-auto max-w-lg mc-warning-box text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+                    <span className="text-base font-bold text-red-300 uppercase tracking-wide">This is a gambling game</span>
+                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
                   </div>
+                  <p className="text-sm text-red-300/80">All positions carry risk of total loss.</p>
+                  <p className="text-sm text-red-300/80">Please play responsibly.</p>
                 </div>
               </div>
             ) : showProfileSetup ? (
