@@ -1,6 +1,6 @@
 # Musical Chairs - Project Handoff Document
 
-**Last Updated**: February 2026  
+**Last Updated**: February 17, 2026
 **Project Location**: `/Users/robertripley/coding/musicalchairs`
 
 ---
@@ -65,28 +65,57 @@ musicalchairs/
 │       └── access-control.mo      # Admin access control
 ├── frontend/
 │   ├── src/
+│   │   ├── App.tsx                       # Main app: splash page, header, auth, routing
+│   │   ├── index.css                     # All custom CSS (mc-* design system, animations)
 │   │   ├── components/
+│   │   │   ├── Dashboard.tsx             # Tab-based main UI (5 tabs)
+│   │   │   ├── GameTracking.tsx          # Profit Center tab — active games
+│   │   │   ├── GamePlans.tsx             # Invest tab — plan selection
+│   │   │   ├── GameStatusBar.tsx         # Live game status bar
+│   │   │   ├── HouseDashboard.tsx        # Seed Round tab
+│   │   │   ├── ReferralSection.tsx       # MLM tab — referral system
+│   │   │   ├── Shenanigans.tsx           # Shenanigans tab — cosmetic items
+│   │   │   ├── PonziPointsDashboard.tsx  # PP display in Shenanigans
+│   │   │   ├── HallOfFame.tsx            # Leaderboards
 │   │   │   ├── WalletConnectModal.tsx    # Multi-wallet selection UI
-│   │   │   ├── WalletDropdown.tsx        # Deposit/Withdraw/Send interface
-│   │   │   └── LoginButton.tsx           # Wallet connection button
+│   │   │   ├── WalletDropdown.tsx        # Buy In/Cash Out/Wire interface
+│   │   │   ├── LoginButton.tsx           # Wallet connection button
+│   │   │   ├── LogoutButton.tsx          # Logout button
+│   │   │   ├── ProfileSetup.tsx          # New user onboarding
+│   │   │   ├── OnboardingTour.tsx        # 5-step guided tooltip tour
+│   │   │   ├── GameDocs.tsx              # In-app docs overlay (9 sections)
+│   │   │   ├── MobileSheet.tsx           # Bottom-sheet for mobile nav
+│   │   │   ├── HouseMoneyToast.tsx       # Deposit success toast
+│   │   │   ├── AddHouseMoney.tsx         # House money addition UI
+│   │   │   ├── ConfettiCanvas.tsx        # Confetti celebration effect
+│   │   │   ├── ErrorBoundary.tsx         # Error handling with personality
+│   │   │   ├── LoadingSpinner.tsx        # Loading indicator
+│   │   │   └── ShenanigansAdminPanel.tsx # Admin panel for shenanigan config
 │   │   ├── hooks/
 │   │   │   ├── useWallet.tsx             # Multi-wallet context (II, Plug, OISY)
 │   │   │   ├── useLedger.ts              # ICRC ledger operations
-│   │   │   ├── useQueries.ts             # React Query hooks
-│   │   │   └── useInternetIdentity.tsx   # Legacy compatibility wrapper
-│   │   ├── lib/                          # Utility functions
+│   │   │   ├── useQueries.ts             # React Query hooks + mutations
+│   │   │   ├── useLiveEarnings.ts        # Live portfolio earnings ticker
+│   │   │   └── useInternetIdentity.tsx   # Internet Identity hook
+│   │   ├── lib/
+│   │   │   ├── formatICP.ts              # ICP formatting utilities
+│   │   │   └── charles.ts               # Charles persona utilities
 │   │   └── declarations/                 # Generated Candid types
-│   │       ├── backend/
-│   │       │   ├── backend.did.d.ts      # Backend type definitions
-│   │       │   └── index.ts              # Re-exports
+│   │       └── backend/
+│   │           ├── backend.did.d.ts      # Backend type definitions
+│   │           └── index.ts              # Re-exports
 │   └── index.html
 ├── docs/
 │   ├── HANDOFF.md                         # This document
-│   └── DEPLOYMENT_STATUS.md               # Technical deployment details
+│   ├── DEPLOYMENT_STATUS.md               # Technical deployment details
+│   ├── TASK_LIST_V3.md                    # Master task list (63 items, all completed)
+│   └── phases_v3/                         # Phase plans and reports (A-L)
+│       ├── V3_PHASE_{A..L}.md             # Phase plans
+│       └── V3_PHASE_{A..L}_REPORT.md      # Phase completion reports
 ├── dfx.json                               # DFX canister configuration
 ├── canister_ids.json                      # Network-specific canister IDs
 ├── package.json                           # NPM dependencies
-├── vite.config.ts                         # Vite bundler config
+├── vite.config.ts                         # Vite bundler config (root: 'frontend')
 ├── tailwind.config.js                     # Tailwind + shadcn/ui theme
 ├── postcss.config.js                      # PostCSS/Tailwind pipeline
 └── .npmrc                                 # Fixes NODE_ENV issues from Claude Desktop
@@ -131,14 +160,19 @@ dfx canister call backend isTestMode             # Check current status
 ### Mainnet Deployment Commands
 
 ```bash
-# Build frontend
+# IMPORTANT: Must use CharlesPonzi identity for frontend deploys
+dfx identity use CharlesPonzi
+
+# Build frontend (DO NOT use `npm run build` — tsc fails on 44 pre-existing errors)
 npx vite build
 
-# Deploy to mainnet
-dfx deploy --network ic
-
-# Or upgrade existing canister
+# Deploy frontend to mainnet (DO NOT use `dfx deploy` — workspace errors)
 dfx canister install frontend --network ic --mode upgrade
+
+# If permission error: re-grant Prepare/Commit
+CALLER=$(dfx identity get-principal)
+dfx canister call frontend grant_permission '(record { to_principal = principal "'$CALLER'"; permission = variant { Prepare } })' --network ic
+dfx canister call frontend grant_permission '(record { to_principal = principal "'$CALLER'"; permission = variant { Commit } })' --network ic
 
 # Check canister status
 dfx canister status --network ic --all
@@ -199,78 +233,59 @@ dfx canister status --network ic --all
 
 ## 🚧 Priority TODO List
 
-### 🔥 HIGH PRIORITY (Do First)
+### ✅ COMPLETED (from prior TODO)
+- ~~Update Hardcoded Canister IDs~~ — done
+- ~~Domain & Hosting~~ — musicalchairs.fun live, pointing to frontend canister
+- ~~UI/UX Polish~~ — full 63-task UX overhaul completed (Phases A-L)
+- ~~Documentation~~ — in-app GameDocs with 9 sections, onboarding tour
 
-1. **Update Hardcoded Canister IDs**
-   - [ ] Search codebase for old canister IDs and replace with new ones:
-     - Old backend: `uxrrr-q7777-77774-qaaaq-cai` → New: `5zxxg-tyaaa-aaaac-qeckq-cai`
-     - Old PP ledger: `awsqm-4qaaa-aaaau-aclja-cai` → New: `5xv2o-iiaaa-aaaac-qeclq-cai`
-   - Files likely affected: `*.ts`, `*.tsx`, `*.mo`, `.env`, `canister_ids.json`
-   - Command to find: `grep -rn "uxrrr-q7777\|awsqm-4qaaa" --include="*.ts" --include="*.tsx" --include="*.mo" .`
+### 🔥 HIGH PRIORITY
 
-2. **Configure Git User Info**
-   - [ ] Set git config with new identity:
-     ```bash
-     git config user.name "Your Name"
-     git config user.email "your@email.com"
-     ```
+1. **Fix 44 Pre-existing TypeScript Errors**
+   - These don't block Vite builds (we skip tsc) but should be cleaned up
+   - Mostly in `backend.did.d.ts` type re-exports and wallet hooks
+   - Trend: started at 49, now at 44 (5 fixed incidentally during UX work)
 
-3. **Fix Frontend Build TypeScript Errors**
-   - [ ] Address TypeScript errors in build output (seen in recent deployment)
-   - [ ] Check `backend.did.d.ts` and type re-exports
-   - [ ] Verify all wallet type exports are correct
-
-4. **Set Up GitHub Organization**
-   - [ ] Create GitHub org (options: fun/funny name vs "MusicalChairsDOTfun")
-   - [ ] Transfer repository to org
-   - [ ] Set up team access and branch protection
-
-### 📋 MEDIUM PRIORITY
-
-5. **Test Multi-Wallet Flow on Mainnet**
+2. **Test Multi-Wallet Flow on Mainnet**
    - [ ] Test Internet Identity connection
    - [ ] Test Plug wallet connection
    - [ ] Test OISY wallet connection
-   - [ ] Verify wallet switching works correctly
-   - [ ] Test session restoration after page refresh
+   - [ ] Verify wallet switching and session restoration
 
-6. **Verify Real ICP Deposit/Withdraw Flow**
+3. **Verify Real ICP Deposit/Withdraw Flow**
    - [ ] Ensure testMode is disabled on mainnet backend
    - [ ] Test deposit: approve → depositICP
-   - [ ] Test withdrawal: withdrawICP → verify ICP received in wallet
+   - [ ] Test withdrawal: withdrawICP → verify ICP received
    - [ ] Test internal transfers between players
 
-### 🎯 LOWER PRIORITY (Future Enhancements)
+### 📋 MEDIUM PRIORITY
 
-7. **Domain & Hosting**
-   - [ ] Configure musicalchairs.fun domain to point to frontend canister
-   - [ ] Set up custom domain in IC settings
-   - [ ] Test domain resolution
-
-8. **Complete Game Features**
+4. **Complete Game Feature Testing**
    - [ ] Test all three game plans end-to-end
-   - [ ] Verify dealer fee distribution
+   - [ ] Verify dealer/backer fee distribution
    - [ ] Test all 11 Shenanigans items
    - [ ] Verify referral system (3-level MLM)
    - [ ] Test Hall of Fame leaderboards
 
-9. **Security & Access Control**
+5. **Security & Access Control**
    - [ ] Review admin access control system
    - [ ] Audit wallet transaction flows
    - [ ] Test edge cases (insufficient balance, concurrent withdrawals)
-   - [ ] Review ICRC-2 approval amounts and expiration
 
-10. **UI/UX Polish**
-    - [ ] Review casino aesthetic consistency
-    - [ ] Test mobile responsiveness
-    - [ ] Add loading states for blockchain operations
-    - [ ] Improve error messages for failed transactions
+6. **Trollbox Implementation**
+   - Currently a "Coming Soon" teaser in Shenanigans tab
+   - Was explicitly deferred during Phase L (#62)
 
-11. **Documentation**
-    - [ ] Write user guide (how to play)
-    - [ ] Create dealer onboarding docs
-    - [ ] Document Shenanigans mechanics
-    - [ ] Add API documentation for backend functions
+### 🎯 LOWER PRIORITY
+
+7. **Set Up GitHub Organization**
+   - [ ] Create GitHub org
+   - [ ] Transfer repository to org
+   - [ ] Set up branch protection
+
+8. **Mobile Testing**
+   - All components built mobile-first but need real-device testing
+   - MobileSheet bottom-sheet for nav, responsive grids, touch targets
 
 ---
 
@@ -375,6 +390,8 @@ dfx canister status --network ic frontend
 
 ### Quick Mainnet Deploy
 ```bash
+# Must be CharlesPonzi identity
+dfx identity use CharlesPonzi
 # Build and upgrade frontend in one command
 npx vite build && dfx canister install frontend --network ic --mode upgrade
 ```
@@ -402,7 +419,7 @@ npx vite build && dfx canister install frontend --network ic --mode upgrade
 - **PP Assets**: `4236a-haaaa-aaaac-qecma-cai`
 
 ### External Links
-- **Domain**: musicalchairs.fun (purchased, needs DNS configuration)
+- **Domain**: https://musicalchairs.fun/ (live, pointing to frontend canister)
 - **ICP Dashboard**: https://dashboard.internetcomputer.org/
 - **Candid UI**: https://a4gq6-oaaaa-aaaab-qaa4q-cai.raw.icp0.io/?id=<canister-id>
 
@@ -500,8 +517,39 @@ The following text was written by Claude using best judgment based on establishe
 - Removed stale comment ("More sheet removed")
 - 1,002 → 933 lines
 
-### Build Status
-- **TS errors**: 44 (all pre-existing, trending down — started at 49, fixed 5 incidentally)
-- **New errors introduced**: 0
+**Phase I (9)**: Invest tab polish — ROI badge animation, plan card hover lift, empty-state "no active positions" card, deposit CTA on empty wallet
+**Phase J (10)**: Mobile/responsive — MobileSheet bottom-nav, header tab scroll, touch targets ≥44px, safe-area insets, viewport meta tag
+**Phase K (11)**: Onboarding & docs — OnboardingTour.tsx (5-step localStorage-gated tooltip tour), GameDocs.tsx (full-page overlay with 9 collapsible accordion sections covering all game mechanics)
+**Phase L (12)**: Final polish — duplicate refresh button audit (none found), Trollbox "Coming Soon" teaser in Shenanigans tab, information density audit (all 5 tabs balanced, no changes needed)
 
-**Last Sync**: This handoff doc updated Feb 15, 2026. Check `DEPLOYMENT_STATUS.md` for latest technical deployment details.
+### Post-Phase Work (Feb 17, 2026)
+
+**Merged to main**: All 63 tasks committed, PR #1 created and merged. 54 files changed, 7,195 insertions, 392 deletions.
+
+**Splash page fixes** (post-merge, deployed directly):
+1. **Invisible content bug**: `useScrollAnimate` hook refs were null on mount because splash page renders conditionally. Fixed by adding `enabled` parameter gated on `splashVisible = !isInitializing && !identity` + 100ms layout-settling delay.
+2. **First card invisible**: CSS animation conflict — `.mc-card-hook` overrode `.mc-splash-cards > *`'s `mc-card-enter` animation. Fixed by combining both animations.
+3. **Tagline animation**: Replaced typewriter with JS-driven spring-physics drop animation (`useSpringDrop` hook in App.tsx). Uses damped harmonic oscillator `A · e^(-ζt) · cos(ωt)` for perfectly smooth 60/120fps motion. Drops from above, bounces elastically, settles at -3° rotation.
+4. **Header tagline**: Restored diagonal slant (removed erroneous `transform: none` override).
+
+### Build & Deploy Status
+- **TS errors**: 44 (all pre-existing, trending down — started at 49, fixed 5 incidentally)
+- **New errors introduced**: 0 across all phases
+- **Build command**: `npx vite build` (NOT `npm run build` — tsc fails)
+- **Deploy command**: `dfx canister install frontend --network ic --mode upgrade`
+- **Identity for deploys**: CharlesPonzi (`6pwpo-d5iaw-mfjrn-owfb3-v4oz6-72woh-pc5t2-cwn73-zrzeq-4bjeh-tqe`)
+- **Live URL**: https://musicalchairs.fun/
+
+### Key Technical Patterns
+
+**Worktree workflow**: Development happens in `.claude/worktrees/dreamy-swanson/`. Files are copied to the main repo at project root for building/deploying.
+
+**Vite config**: `vite.config.ts` at project root with `root: 'frontend'` and `@` alias → `frontend/src`. Must run Vite from project root.
+
+**mc-* design system**: Custom CSS in `index.css` with design tokens, card hierarchy (mc-card, mc-card-elevated), accent variants (mc-accent-green/gold/danger/purple), glow effects, and scroll-triggered animations.
+
+**TabType**: `'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans'`
+
+**localStorage keys**: `mc_tour_completed`, `mc_last_seen_referral_earnings`
+
+**Last Sync**: Feb 17, 2026. All 63 UX tasks complete. Splash page fixes deployed.
