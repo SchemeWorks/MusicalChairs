@@ -13,8 +13,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle, BookOpen } from 'lucide-react';
 import GameDocs from './components/GameDocs';
+import DocsPage from './components/DocsPage';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 
@@ -155,6 +156,7 @@ export default function App() {
   const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
   const [showDocs, setShowDocs] = useState(false);
+  const [showDocsPage, setShowDocsPage] = useState(false);
   const { data: publicStats } = useGetPublicStats();
 
   // Scroll-triggered animation refs
@@ -283,13 +285,22 @@ export default function App() {
                       </button>
                     )}
 
-                    {/* Docs */}
+                    {/* Quick help overlay */}
                     <button
                       onClick={() => setShowDocs(true)}
                       className="w-8 h-8 rounded-full flex items-center justify-center mc-text-muted hover:mc-text-primary hover:bg-white/5 transition-all"
-                      title="How To Play"
+                      title="Quick Reference"
                     >
                       <HelpCircle className="h-4 w-4" />
+                    </button>
+
+                    {/* Full docs page */}
+                    <button
+                      onClick={() => setShowDocsPage(true)}
+                      className="text-xs mc-text-muted hover:mc-text-primary transition-colors hidden sm:block"
+                      title="Documentation"
+                    >
+                      Docs
                     </button>
 
                     {/* Wallet */}
@@ -443,6 +454,14 @@ export default function App() {
                       </div>
                     </div>
                   )}
+                  {/* Read the Docs link — always visible */}
+                  <button
+                    onClick={() => setShowDocsPage(true)}
+                    className="flex items-center gap-2 mx-auto mt-4 text-xs mc-text-cyan hover:mc-text-primary transition-colors"
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    Read the full documentation
+                  </button>
                 </div>
 
                 {/* Charles quote */}
@@ -536,6 +555,13 @@ export default function App() {
 
         {/* Docs overlay */}
         {showDocs && <GameDocs onClose={() => setShowDocs(false)} />}
+
+        {/* Full docs page */}
+        {showDocsPage && (
+          <div className="fixed inset-0 z-50 mc-bg overflow-y-auto">
+            <DocsPage onBack={() => setShowDocsPage(false)} />
+          </div>
+        )}
 
         {/* Toast */}
         <Toaster
