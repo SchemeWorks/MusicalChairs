@@ -1,17 +1,8 @@
 import React from 'react';
 
 export default function ConfettiCanvas() {
-  return (
-    <div className="fixed inset-0 pointer-events-none z-0">
-      {/* Animated background elements */}
-      <div className="absolute top-10 left-10 text-2xl animate-bounce opacity-20">🎰</div>
-      <div className="absolute top-20 right-20 text-2xl animate-bounce opacity-20" style={{ animationDelay: '0.5s' }}>🎲</div>
-      <div className="absolute bottom-20 left-20 text-2xl animate-bounce opacity-20" style={{ animationDelay: '1s' }}>🎪</div>
-      <div className="absolute bottom-10 right-10 text-2xl animate-bounce opacity-20" style={{ animationDelay: '1.5s' }}>🎭</div>
-      <div className="absolute top-1/2 left-1/4 text-2xl animate-bounce opacity-20" style={{ animationDelay: '2s' }}>💰</div>
-      <div className="absolute top-1/3 right-1/3 text-2xl animate-bounce opacity-20" style={{ animationDelay: '2.5s' }}>🎯</div>
-    </div>
-  );
+  // Render nothing — confetti only appears when triggerConfetti() is called
+  return null;
 }
 
 // Enhanced confetti trigger function with proper colorful paper pieces, streamers, and geometric shapes

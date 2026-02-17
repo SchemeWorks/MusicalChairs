@@ -1,61 +1,269 @@
-import React, { useState, useEffect } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, calculateCurrentEarnings, isCompoundingPlanUnlocked, getTimeRemaining, calculateExitTollFee } from '../hooks/useQueries';
+import { useState, useEffect, useRef } from 'react';
+import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useLivePortfolio } from '../hooks/useLiveEarnings';
+import { useCountUp } from '../hooks/useCountUp';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
+import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown, Dice5 } from 'lucide-react';
+import type { TabType } from '../App';
+import MobileSheet from './MobileSheet';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Progress } from '@/components/ui/progress';
 
-const planNames: { [key in GamePlan]: string } = {
-  [GamePlan.simple21Day]: '21-Day Simple Plan',
-  [GamePlan.compounding15Day]: '15-Day Compounding Plan',
-  [GamePlan.compounding30Day]: '30-Day Compounding Plan'
+/* ================================================================
+   Constants
+   ================================================================ */
+
+const planNames: Record<string, string> = {
+  [GamePlan.simple21Day]: '21-Day Simple',
+  [GamePlan.compounding15Day]: '15-Day Compounding',
+  [GamePlan.compounding30Day]: '30-Day Compounding',
 };
 
-const planEmojis: { [key in GamePlan]: string } = {
-  [GamePlan.simple21Day]: '🌱',
-  [GamePlan.compounding15Day]: '🚀',
-  [GamePlan.compounding30Day]: '💎'
+const planAccents: Record<string, string> = {
+  [GamePlan.simple21Day]: 'mc-plan-simple',
+  [GamePlan.compounding15Day]: 'mc-plan-compound',
+  [GamePlan.compounding30Day]: 'mc-plan-compound',
 };
 
-const planGradients: { [key in GamePlan]: string } = {
-  [GamePlan.simple21Day]: 'from-green-400 to-green-600',
-  [GamePlan.compounding15Day]: 'from-green-400 to-blue-500',
-  [GamePlan.compounding30Day]: 'from-purple-400 to-pink-500'
-};
+// Rotating quotes attributed to Charles — shown in empty state
+const charlesQuotes = [
+  "You're either allocating, or you're watching someone else's allocation work.",
+  "You can sit on the sidelines. That's a decision too.",
+  "I can't guarantee returns. I can guarantee you won't see this entry price again.",
+  "I'm allocating my own capital. I wouldn't put you into something I'm not in.",
+  "The window doesn't close slowly. It just closes.",
+  "Everyone who got in early said it felt too early.",
+  "I don't need you in this. I'm offering because I like you.",
+  "Risk is what happens when you don't have information. You have information.",
+  "You're not early. But you're not late.",
+];
+
+/* ================================================================
+   Helpers
+   ================================================================ */
+
+const formatDate = (ts: bigint) =>
+  new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(Number(ts) / 1_000_000));
+
+const daysActive = (ts: bigint) => Math.floor((Date.now() - Number(ts) / 1_000_000) / 86_400_000);
+
+function getExitTollInfo(game: GameRecord) {
+  const startTime = Number(game.startTime) / 1_000_000;
+  const elapsed = Date.now() - startTime;
+  const days = elapsed / 86_400_000;
+  if (game.isCompounding) return { currentFee: 13, nextFee: null, timeToNext: null };
+  if (days < 3) return { currentFee: 7, nextFee: 5, timeToNext: (3 * 86_400_000) - elapsed };
+  if (days < 10) return { currentFee: 5, nextFee: 3, timeToNext: (10 * 86_400_000) - elapsed };
+  return { currentFee: 3, nextFee: null, timeToNext: null };
+}
+
+function fmtCountdown(ms: number) {
+  if (ms <= 0) return '';
+  const d = Math.floor(ms / 86_400_000);
+  const h = Math.floor((ms % 86_400_000) / 3_600_000);
+  const m = Math.floor((ms % 3_600_000) / 60_000);
+  return `${d}d ${h}h ${m}m`;
+}
+
+function getPlanDuration(game: GameRecord): number {
+  if ('compounding15Day' in game.plan) return 15;
+  if ('compounding30Day' in game.plan) return 30;
+  return 21;
+}
+
+function getTollBadgeClasses(fee: number): string {
+  if (fee <= 3) return 'bg-[var(--mc-neon-green)]/20 mc-text-green';
+  if (fee <= 5) return 'bg-[var(--mc-gold)]/20 mc-text-gold';
+  if (fee <= 7) return 'bg-[var(--mc-danger)]/20 mc-text-danger';
+  return 'bg-[var(--mc-purple)]/20 mc-text-purple'; // compounding 13%
+}
+
+function getPositionUrgency(game: GameRecord): number {
+  const planDays = getPlanDuration(game);
+  const days = daysActive(game.startTime);
+  const remaining = planDays - days;
+  if (game.isCompounding && remaining > 0 && remaining <= 3) return 0; // near unlock → highest
+  const tollInfo = getExitTollInfo(game);
+  if (tollInfo.currentFee >= 7) return 1; // high toll
+  return 2 + days; // everything else by age, oldest first
+}
+
+/* ================================================================
+   Live Position Card
+   ================================================================ */
+
+function PositionCard({
+  game,
+  earnings,
+  onWithdraw,
+  withdrawPending,
+}: {
+  game: GameRecord;
+  earnings: number;
+  onWithdraw: (game: GameRecord) => void;
+  withdrawPending: boolean;
+}) {
+  const name = planNames[game.plan] || 'Unknown Plan';
+  const accent = planAccents[game.plan] || '';
+  const unlocked = isCompoundingPlanUnlocked(game);
+  const canWithdraw = !game.isCompounding || unlocked;
+  const hasEarnings = earnings > 0;
+  const timeRem = getTimeRemaining(game);
+  const tollInfo = getExitTollInfo(game);
+
+  return (
+    <div className={`mc-card ${accent} p-4 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg`}>
+      {/* Top row: plan name + badge + days active */}
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="font-bold mc-text-primary">{name}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+            game.isCompounding ? 'bg-[var(--mc-purple)]/20 mc-text-purple' : 'bg-[var(--mc-neon-green)]/20 mc-text-green'
+          }`}>
+            {game.isCompounding ? 'Compounding' : 'Simple'}
+          </span>
+        </div>
+        <span className="text-xs mc-text-muted">{daysActive(game.startTime)}d active</span>
+      </div>
+
+      {/* Numbers row: deposit | live earnings | exit toll */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        <div>
+          <div className="mc-label">Deposit</div>
+          <div className="text-base font-bold mc-text-primary">{formatICP(game.amount)} ICP</div>
+          <div className="text-xs mc-text-muted">{formatDate(game.startTime)}</div>
+        </div>
+        <div className="text-center">
+          <div className="mc-label">Earnings</div>
+          <div className="text-base font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
+          <div className="text-xs mc-text-muted">live</div>
+        </div>
+        <div className="text-right">
+          <div className="mc-label">Exit Toll</div>
+          <div className={`inline-block text-sm font-bold px-2 py-0.5 rounded-full ${getTollBadgeClasses(tollInfo.currentFee)}`}>
+            {tollInfo.currentFee}%
+          </div>
+          {tollInfo.nextFee && tollInfo.timeToNext && (
+            <div className="text-xs mc-text-cyan mt-0.5">{fmtCountdown(tollInfo.timeToNext)} to {tollInfo.nextFee}%</div>
+          )}
+        </div>
+      </div>
+
+      {/* Progress bar — how far through the plan (shadcn Progress for consistency with HouseDashboard) */}
+      {(() => {
+        const planDays = getPlanDuration(game);
+        const days = daysActive(game.startTime);
+        const pct = Math.min(100, Math.round((days / planDays) * 100));
+        const indicatorColor = game.isCompounding ? 'mc-bg-purple' : 'mc-bg-green';
+        return (
+          <div className="mb-3">
+            <div className="flex justify-between text-xs mc-text-muted mb-1">
+              <span>Day {days} / {planDays}</span>
+              <span>{pct}%</span>
+            </div>
+            <Progress value={pct} className="h-1.5 bg-white/5" indicatorClassName={indicatorColor} />
+          </div>
+        );
+      })()}
+
+      {/* Withdraw button */}
+      <button
+        onClick={() => onWithdraw(game)}
+        disabled={withdrawPending || !canWithdraw || !hasEarnings}
+        className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
+          canWithdraw && hasEarnings
+            ? 'mc-btn-primary'
+            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+        }`}
+        title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
+      >
+        {!canWithdraw ? (
+          <span className="flex items-center justify-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
+        ) : (
+          <span className="flex items-center justify-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
+        )}
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
+   Empty State with rotating Charles quotes
+   ================================================================ */
+
+function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
+  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * charlesQuotes.length));
+  const [fade, setFade] = useState(true);
+
+  useEffect(() => {
+    const iv = setInterval(() => {
+      setFade(false);
+      setTimeout(() => {
+        setQuoteIndex(prev => (prev + 1) % charlesQuotes.length);
+        setFade(true);
+      }, 400);
+    }, 6000);
+    return () => clearInterval(iv);
+  }, []);
+
+  return (
+    <div className="text-center py-16">
+      <div className="mb-8 min-h-[80px] flex flex-col items-center justify-center">
+        <p
+          className={`font-accent text-sm mc-text-dim italic max-w-md mx-auto leading-relaxed transition-opacity duration-400 ${
+            fade ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          &ldquo;{charlesQuotes[quoteIndex]}&rdquo;
+        </p>
+        <span className="text-xs mc-text-muted mt-2 font-bold">&mdash; Charles</span>
+      </div>
+      <button onClick={onNavigate} className="mc-btn-primary text-sm">
+        <Rocket className="h-4 w-4 inline mr-1" /> Pick Your Plan
+      </button>
+    </div>
+  );
+}
+
+/* ================================================================
+   Main Export
+   ================================================================ */
 
 interface GameTrackingProps {
   onNavigateToGameSetup?: () => void;
+  onTabChange?: (tab: TabType) => void;
+  visible?: boolean;
 }
 
-export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProps) {
-  const { data: games, isLoading, error, refetch } = useGetUserGames();
-  const withdrawEarningsMutation = useWithdrawGameEarnings();
+export default function GameTracking({ onNavigateToGameSetup, onTabChange, visible = true }: GameTrackingProps) {
+  const { data: games, isLoading, error } = useGetUserGames();
+  const { data: ponziData } = useGetPonziPoints();
+  const { data: shenaniganConfigs } = useGetShenaniganConfigs();
+  const portfolio = useLivePortfolio(games);
+  const withdrawMutation = useWithdrawGameEarnings();
+  const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
+
+  // Re-animate countUp values when tab becomes visible
+  const [resetToken, setResetToken] = useState(0);
+  const prevVisible = useRef(visible);
+  useEffect(() => {
+    if (visible && !prevVisible.current) {
+      setResetToken(t => t + 1);
+    }
+    prevVisible.current = visible;
+  }, [visible]);
+
+  const animatedNetPL = useCountUp(netPL, 1000, resetToken);
+  const animatedDeposits = useCountUp(portfolio.totalDeposits, 1000, resetToken);
+  const animatedEarnings = useCountUp(portfolio.totalEarnings, 1000, resetToken);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [reinvestDialogOpen, setReinvestDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
-  const [withdrawnAmount, setWithdrawnAmount] = useState<number>(0);
-  const [refreshing, setRefreshing] = useState(false);
-  const [countdown, setCountdown] = useState<string>('');
-  const [animatingTotals, setAnimatingTotals] = useState(false);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    setAnimatingTotals(true);
-    
-    await refetch();
-    
-    // Keep animation running for visual effect
-    setTimeout(() => {
-      setAnimatingTotals(false);
-    }, 2000);
-    
-    setRefreshing(false);
-  };
+  const [withdrawnAmount, setWithdrawnAmount] = useState(0);
+  const [countdown, setCountdown] = useState('');
 
   const handleWithdrawClick = (game: GameRecord) => {
     setSelectedGame(game);
@@ -64,515 +272,258 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
 
   const handleWithdrawConfirm = async () => {
     if (!selectedGame) return;
-    
     try {
-      const result = await withdrawEarningsMutation.mutateAsync(selectedGame.id);
+      const result = await withdrawMutation.mutateAsync(selectedGame.id);
       setWithdrawnAmount(result.netEarnings);
       setWithdrawDialogOpen(false);
       setSelectedGame(null);
-      
-      // Trigger confetti celebration
       triggerConfetti();
       setReinvestDialogOpen(true);
-    } catch (error) {
-      console.error('Withdrawal failed:', error);
+    } catch (err) {
+      console.error('Withdrawal failed:', err);
     }
   };
 
-  const handleReinvestClick = () => {
-    setReinvestDialogOpen(false);
-    if (onNavigateToGameSetup) {
-      onNavigateToGameSetup();
-    }
-  };
-
-  const getExitTollInfo = (game: GameRecord) => {
-    const startTime = Number(game.startTime) / 1000000;
-    const elapsedTime = Date.now() - startTime;
-    const elapsedDays = elapsedTime / (1000 * 60 * 60 * 24);
-    
-    if (game.isCompounding) {
-      return { currentFee: 13, nextFee: null, timeToNext: null };
-    }
-    
-    if (elapsedDays < 3) {
-      const timeToNext = (3 * 24 * 60 * 60 * 1000) - elapsedTime;
-      return { 
-        currentFee: 7, 
-        nextFee: 5, 
-        timeToNext 
-      };
-    } else if (elapsedDays < 10) {
-      const timeToNext = (10 * 24 * 60 * 60 * 1000) - elapsedTime;
-      return { 
-        currentFee: 5, 
-        nextFee: 3, 
-        timeToNext 
-      };
-    } else {
-      return { currentFee: 3, nextFee: null, timeToNext: null };
-    }
-  };
-
-  const formatCountdown = (timeInMs: number): string => {
-    if (timeInMs <= 0) return '';
-    
-    const days = Math.floor(timeInMs / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((timeInMs % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const minutes = Math.floor((timeInMs % (1000 * 60 * 60)) / (1000 * 60));
-    const seconds = Math.floor((timeInMs % (1000 * 60)) / 1000);
-    
-    return `${days} days, ${hours} hours, ${minutes} minutes, ${seconds} seconds`;
-  };
-
-  // Update countdown every second when dialog is open
+  // Live countdown for withdrawal dialog
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    
-    if (withdrawDialogOpen && selectedGame) {
-      const updateCountdown = () => {
-        const exitTollInfo = getExitTollInfo(selectedGame);
-        if (exitTollInfo.timeToNext) {
-          setCountdown(formatCountdown(exitTollInfo.timeToNext));
-        }
-      };
-      
-      updateCountdown(); // Initial update
-      interval = setInterval(updateCountdown, 1000);
-    }
-    
-    return () => {
-      if (interval) {
-        clearInterval(interval);
-      }
+    if (!withdrawDialogOpen || !selectedGame) return;
+    const update = () => {
+      const info = getExitTollInfo(selectedGame);
+      if (info.timeToNext) setCountdown(fmtCountdown(info.timeToNext));
     };
+    update();
+    const iv = setInterval(update, 1000);
+    return () => clearInterval(iv);
   }, [withdrawDialogOpen, selectedGame]);
 
-  if (isLoading) {
-    return (
-      <div className="space-y-6">
-        {/* Single Frosted Glass Container - Loading */}
-        <div className="profit-center-single-container">
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (isLoading) return <LoadingSpinner />;
 
   if (error) {
     return (
-      <div className="space-y-6">
-        {/* Single Frosted Glass Container - Error */}
-        <div className="profit-center-single-container">
-          <div className="mc-card-status-red p-4">
-              <p className="text-red-300 font-bold text-center">
-                ⚠️ Unable to load profit center data. Please try again later.
-              </p>
-          </div>
-        </div>
+      <div className="mc-status-red p-4 text-center text-sm">
+        <p className="font-accent italic mb-1">&ldquo;Even Charles couldn't fix this one.&rdquo;</p>
+        Unable to load profit center data. Please try again later.
       </div>
     );
   }
 
-  if (!games || games.length === 0) {
-    return (
-      <div className="space-y-6">
-        {/* Single Frosted Glass Container - Empty State */}
-        <div className="profit-center-single-container">
-          {/* Your Running Tally Section */}
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-bold text-white text-with-backdrop mb-6">
-              Your Running Tally
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <Card className="portfolio-metric-card !bg-transparent border-0">
-                <CardContent className="pt-4 text-center">
-                  <div className="text-sm font-bold text-white mb-1">Total Deposits</div>
-                  <div className="text-3xl font-black text-white portfolio-icp-clean">0 ICP</div>
-                </CardContent>
-              </Card>
-              <Card className="portfolio-metric-card !bg-transparent border-0">
-                <CardContent className="pt-4 text-center">
-                  <div className="text-sm font-bold text-white mb-1">Total Accumulated Earnings</div>
-                  <div className="text-4xl font-black text-white portfolio-icp-clean">0 ICP</div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-
-          <Separator className="bg-white/20 mb-8" />
-
-          {/* Your Positions Section */}
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-bold text-white text-with-backdrop mb-6">
-              Your Positions
-            </h2>
-            <p className="text-sm text-white text-with-backdrop mb-4">
-              Earnings accumulate in real time
-            </p>
-            <div className="py-8">
-              <div className="text-6xl mb-4">🎰</div>
-              <p className="text-white font-bold text-lg text-with-backdrop">No positions yet!</p>
-              <p className="text-white text-sm mt-2 text-with-backdrop">
-                Start by making your first deposit in one of our game plans below.
-              </p>
-            </div>
-          </div>
-
-          <Separator className="bg-white/20 mb-8" />
-
-          {/* The House Always Wins Section */}
-          <div className="text-center">
-            <div className="house-always-wins-card">
-              <div className="text-lg font-black text-gray-900 mb-2">🎰 The House Always Wins 🎰</div>
-              <div className="text-sm text-gray-700 italic font-semibold mb-4">The House Always Wins — but here's how much.</div>
-              <div className="text-sm text-gray-800 space-y-3 font-medium text-left max-w-2xl mx-auto">
-                <div>
-                  Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days.
-                </div>
-                <div>
-                  Successful compounding plans will be charged a 13% Jackpot Fee on their withdrawal.
-                </div>
-                <div>
-                  Compounding plans pay out the compounded interest at maturity.
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  const formatDate = (timestamp: bigint) => {
-    const date = new Date(Number(timestamp) / 1000000); // Convert nanoseconds to milliseconds
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    }).format(date);
-  };
-
-  const calculateDaysActive = (startTime: bigint) => {
-    const now = Date.now();
-    const startDate = Number(startTime) / 1000000; // Convert nanoseconds to milliseconds
-    const diffTime = Math.abs(now - startDate);
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const CountdownTimer = ({ game }: { game: GameRecord }) => {
-    const timeRemaining = getTimeRemaining(game);
-    
-    if (timeRemaining.days === 0 && timeRemaining.hours === 0 && timeRemaining.minutes === 0) {
-      return <span className="text-green-600 font-bold">✅ Unlocked</span>;
-    }
-    
-    return (
-      <div className="text-orange-600 font-bold text-sm">
-        🔒 {timeRemaining.days}d {timeRemaining.hours}h {timeRemaining.minutes}m
-      </div>
-    );
-  };
+  const hasGames = games && games.length > 0;
 
   return (
     <>
       <div className="space-y-6">
-        {/* Single Frosted Glass Container with All Three Sections */}
-        <div className="profit-center-single-container">
-          {/* Your Running Tally Section */}
-          <div className="text-center mb-8">
-            <h2 className="text-xl font-bold text-white text-with-backdrop mb-6">
-              Your Running Tally
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <Card className="portfolio-metric-card !bg-transparent border-0">
-                <CardContent className="pt-4 text-center">
-                  <div className="text-sm font-bold text-white mb-1">Total Deposits</div>
-                  <div className={`text-3xl font-black text-white portfolio-icp-clean ${animatingTotals ? 'animate-slot-roll' : ''}`}>
-                    {formatICP(games.reduce((sum, game) => sum + game.amount, 0))} ICP
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className="portfolio-metric-card !bg-transparent border-0">
-                <CardContent className="pt-4 text-center">
-                  <div className="text-sm font-bold text-white mb-1">Total Accumulated Earnings</div>
-                  <div className={`text-4xl font-black text-white portfolio-icp-clean ${animatingTotals ? 'animate-jackpot-glow' : ''}`}>
-                    {formatICP(games.reduce((sum, game) => sum + calculateCurrentEarnings(game), 0))} ICP
-                  </div>
-                </CardContent>
-              </Card>
+        {/* Running Tally — hero P/L card */}
+        <div className="mc-card-elevated text-center">
+          <h2 className="font-display text-lg mc-text-primary mb-3">Your Running Tally</h2>
+          {/* Hero P/L number — animated countUp */}
+          <div className="mb-4">
+            <div className="mc-label mb-1">Net P/L</div>
+            <div className={`text-2xl sm:text-4xl font-bold flex items-center justify-center gap-2 ${
+              netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
+            }`}>
+              {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
+              {netPL >= 0 ? '+' : ''}{formatICP(animatedNetPL)} ICP
             </div>
           </div>
-
-          <Separator className="bg-white/20 mb-8" />
-
-          {/* Your Positions Section */}
-          <div className="mb-8">
-            <div className="text-center mb-6">
-              <h2 className="text-xl font-bold text-white text-with-backdrop">
-                Your Positions
-              </h2>
-              <p className="text-sm text-white text-with-backdrop">
-                Earnings accumulate in real time
-              </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="mc-card p-4 text-center">
+              <div className="mc-label mb-1">Deposited</div>
+              <div className="text-xl font-bold mc-text-primary">{formatICP(animatedDeposits)} ICP</div>
             </div>
-            
-            {/* Control Bar with Refresh Button Only */}
-            <div className="flex justify-start items-center mb-4">
-              <Button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="refresh-earnings-button-redesigned rounded-full"
-              >
-                {refreshing ? (
-                  <div className="flex items-center">
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Refreshing...
-                  </div>
-                ) : (
-                  'Refresh Earnings'
-                )}
-              </Button>
-            </div>
-
-            <div className="space-y-4">
-              {games.map((game, index) => {
-                // Get accumulated earnings from our tracking system
-                const currentEarnings = calculateCurrentEarnings(game);
-                const daysActive = calculateDaysActive(game.startTime);
-                const planName = planNames[game.plan];
-                const planEmoji = planEmojis[game.plan];
-                const planGradient = planGradients[game.plan];
-                const isUnlocked = isCompoundingPlanUnlocked(game);
-                const canWithdraw = !game.isCompounding || isUnlocked;
-                const hasEarnings = currentEarnings > 0;
-
-                // Determine plan card styling based on plan type
-                const planCardClass = game.isCompounding ? 'plan-card-compounding' : 'plan-card-simple';
-
-                return (
-                  <div key={game.id.toString()}>
-                    {index > 0 && <Separator className="my-4 bg-gray-300" />}
-                    <Card className={`mc-card-elevated border-2 hover:shadow-lg transition-all ${planCardClass}`}>
-                      <CardContent className="pt-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                          {/* Plan Info */}
-                          <div className="flex items-center">
-                            <div className={`w-12 h-12 bg-gradient-to-br ${planGradient} rounded-xl flex items-center justify-center text-xl mr-4`}>
-                              {planEmoji}
-                            </div>
-                            <div>
-                              <div className="font-black text-white text-lg">{planName}</div>
-                              <div className="flex gap-2 mt-1">
-                                <Badge variant={game.isCompounding ? "default" : "outline"}>
-                                  {game.isCompounding ? '🔥 Compounding' : '🌱 Simple'}
-                                </Badge>
-                              </div>
-                              <div className="text-xs text-white/50 mt-1">
-                                {daysActive} days active
-                              </div>
-                            </div>
-                          </div>
-
-                          {/* Game Amount */}
-                          <div className="text-center lg:text-left">
-                            <div className="mc-label mb-1">Initial Deposit</div>
-                            <div className="text-2xl font-black mc-value-blue mc-value-glow">
-                              {formatICP(game.amount)} ICP
-                            </div>
-                            <div className="text-xs text-white/40">
-                              {formatDate(game.startTime)}
-                            </div>
-                          </div>
-
-                          {/* Accumulated Earnings */}
-                          <div className="text-center lg:text-left">
-                            <div className="mc-label mb-1">Accumulated Earnings</div>
-                            <div className="text-2xl font-black mc-value-green mc-value-glow-green">
-                              {formatICP(currentEarnings)} ICP
-                            </div>
-                            <div className="text-xs text-white/40">
-                              {game.isCompounding ? 'Compound accumulation' : 'Simple accumulation'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <Separator className="my-4 bg-white/10" />
-
-                        {/* Status Bar and Actions */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-4">
-                            <Badge variant={game.isActive ? "default" : "secondary"}>
-                              {game.isActive ? '🟢 Active' : '⚪ Inactive'}
-                            </Badge>
-                            <div className="text-xs text-white/40">
-                              Position #{index + 1}
-                            </div>
-                            {game.isCompounding && !isUnlocked && (
-                              <div className="text-xs">
-                                <CountdownTimer game={game} />
-                              </div>
-                            )}
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {/* Show withdraw button for all active plans */}
-                            {game.isActive && (
-                              <Button
-                                onClick={() => handleWithdrawClick(game)}
-                                disabled={withdrawEarningsMutation.isPending || !canWithdraw || !hasEarnings}
-                                size="sm"
-                                className={`${
-                                  canWithdraw && hasEarnings
-                                    ? 'bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700' 
-                                    : 'bg-gray-400 cursor-not-allowed'
-                                }`}
-                                title={
-                                  !canWithdraw 
-                                    ? 'Locked until plan period completes' 
-                                    : !hasEarnings 
-                                      ? 'No earnings to withdraw yet'
-                                      : 'Withdraw earnings'
-                                }
-                              >
-                                {withdrawEarningsMutation.isPending ? (
-                                  <div className="flex items-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-1"></div>
-                                    Withdrawing...
-                                  </div>
-                                ) : !canWithdraw ? (
-                                  '🔒 Locked'
-                                ) : !hasEarnings ? (
-                                  '💰 No Earnings'
-                                ) : (
-                                  '💰 Withdraw'
-                                )}
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                );
-              })}
-
-              {withdrawEarningsMutation.isError && (
-                <div className="mc-card-status-red p-4">
-                    <p className="text-red-300 font-bold text-center text-sm">
-                      ❌ {withdrawEarningsMutation.error?.message || 'Withdrawal failed'}
-                    </p>
-                </div>
-              )}
-
-              {withdrawEarningsMutation.isSuccess && (
-                <div className="mc-card-status-green p-4">
-                    <p className="text-green-300 font-bold text-center text-sm">
-                      ✅ Earnings withdrawn successfully! Withdrawal fee deducted. Net amount credited to your wallet! 🎉
-                    </p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <Separator className="bg-white/20 mb-8" />
-
-          {/* The House Always Wins Section */}
-          <div className="text-center">
-            <div className="house-always-wins-card">
-              <div className="text-lg font-black text-gray-900 mb-2">🎰 The House Always Wins 🎰</div>
-              <div className="text-sm text-gray-700 italic font-semibold mb-4">The House Always Wins — but here's how much.</div>
-              <div className="text-sm text-gray-800 space-y-3 font-medium text-left max-w-2xl mx-auto">
-                <div>
-                  Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days.
-                </div>
-                <div>
-                  Successful compounding plans will be charged a 13% Jackpot Fee on their withdrawal.
-                </div>
-                <div>
-                  Compounding plans pay out the compounded interest at maturity.
-                </div>
-              </div>
+            <div className="mc-card p-4 text-center">
+              <div className="mc-label mb-1">Earned</div>
+              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICP(animatedEarnings)} ICP</div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Withdrawal Confirmation Dialog - Updated with dynamic countdown */}
-      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
-        <DialogContent className="bg-white border-2 border-gray-300 shadow-lg rounded-lg">
-          <DialogHeader>
-            <DialogTitle className="text-gray-900">Confirm Withdrawal</DialogTitle>
-            <DialogDescription className="text-gray-700">
-              {selectedGame && (() => {
-                const exitTollInfo = getExitTollInfo(selectedGame);
-                if (exitTollInfo.nextFee && exitTollInfo.timeToNext) {
-                  return (
-                    <>
-                      You will pay a <strong>{exitTollInfo.currentFee}%</strong> exit toll on this withdrawal. 
-                      If you wait <strong>{countdown}</strong> the exit toll will reduce to <strong>{exitTollInfo.nextFee}%</strong>.
-                    </>
-                  );
-                } else {
-                  return `You will pay a ${exitTollInfo.currentFee}% exit toll on this withdrawal.`;
-                }
-              })()}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleWithdrawConfirm} disabled={withdrawEarningsMutation.isPending}>
-              {withdrawEarningsMutation.isPending ? 'Processing...' : 'Confirm Withdrawal'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Positions */}
+        <div className="mc-card-elevated">
+          <h2 className="font-display text-lg mc-text-primary mb-4">Your Positions</h2>
 
-      {/* Post-Withdrawal Celebration Toast - Updated to match house money toast style */}
-      {reinvestDialogOpen && (
-        <div
-          className="fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-300 ease-out opacity-100 translate-y-0"
-          style={{ pointerEvents: 'auto' }}
-        >
-          {/* Confetti container */}
-          <div id="withdrawal-confetti" className="absolute inset-0 pointer-events-none" />
-          
-          {/* Toast card */}
-          <div className="house-money-toast-card relative">
-            {/* Content */}
-            <div className="text-center space-y-3">
-              {/* Title */}
-              <div className="text-2xl font-black text-white">
-                🎉 Congratulations!
+          {!hasGames ? (
+            <EmptyState onNavigate={onNavigateToGameSetup} />
+          ) : (
+            <div className="space-y-3">
+              {[...portfolio.games].sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game)).map(({ game, earnings }) => (
+                <PositionCard
+                  key={game.id.toString()}
+                  game={game}
+                  earnings={earnings}
+                  onWithdraw={handleWithdrawClick}
+                  withdrawPending={withdrawMutation.isPending}
+                />
+              ))}
+            </div>
+          )}
+
+          {withdrawMutation.isError && (
+            <div className="mc-status-red p-3 mt-3 text-center text-sm">
+              {withdrawMutation.error?.message || 'Withdrawal failed'}
+            </div>
+          )}
+        </div>
+
+        {/* House info */}
+        <div className="mc-house-card">
+          <h3 className="font-display text-base mc-text-gold mb-3">The House Always Wins</h3>
+          <p className="font-accent text-sm mc-text-muted italic mb-3">&ldquo;Charles collects a 7% exit toll if you leave within 3 days. His table, his rules.&rdquo;</p>
+          <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
+            <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
+            <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>
+            <p>Compounding plans pay out compounded interest at maturity.</p>
+          </div>
+        </div>
+
+        {/* Ponzi Points section */}
+        <div className="mc-card-elevated">
+          <h2 className="font-display text-lg mc-text-primary mb-4">Ponzi Points</h2>
+
+          {/* PP balance */}
+          <div className="text-center mb-4">
+            <div className="mc-label mb-1">Your Balance</div>
+            <div className="text-2xl font-bold mc-text-purple mc-glow-purple">
+              {(ponziData?.totalPoints || 0).toLocaleString()} PP
+            </div>
+          </div>
+
+          {/* Earn rates comparison table */}
+          <div className="mb-4">
+            <div className="mc-label mb-2">Earn Rates</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
+              <div className="mc-card p-3">
+                <div className="mc-text-green font-bold text-sm">1,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Simple 21-day</div>
               </div>
-              
-              {/* Subtitle with gradient accent on numbers */}
-              <div className="text-base text-white/90 leading-relaxed">
-                This scheme has earned you{' '}
-                <span className="house-toast-accent font-black">{formatICP(withdrawnAmount)} ICP</span>!
-                Want to grow it even more? Reinvest in a new plan now!
+              <div className="mc-card p-3">
+                <div className="mc-text-purple font-bold text-sm">2,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Compound 15-day</div>
+              </div>
+              <div className="mc-card p-3">
+                <div className="mc-text-gold font-bold text-sm">3,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Compound 30-day</div>
               </div>
             </div>
-            
-            {/* Buttons */}
-            <div className="flex justify-center space-x-4 mt-4">
+          </div>
+
+          {/* PP source breakdown */}
+          {ponziData && (
+            <div className="mb-4">
+              <div className="mc-label mb-2">Sources</div>
+              <div className="text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="mc-text-muted">From deposits</span>
+                  <span className="mc-text-green font-bold">+{(ponziData.depositPoints || 0).toLocaleString()} PP</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="mc-text-muted">From referrals</span>
+                  <span className="mc-text-cyan font-bold">+{(ponziData.referralPoints || 0).toLocaleString()} PP</span>
+                </div>
+                {(() => {
+                  const spent = Math.max(0, (ponziData.depositPoints || 0) + (ponziData.referralPoints || 0) - (ponziData.totalPoints || 0));
+                  return spent > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="mc-text-muted">Spent on shenanigans</span>
+                      <span className="mc-text-danger font-bold">−{spent.toLocaleString()} PP</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Spending suggestions */}
+          {(() => {
+            const pp = ponziData?.totalPoints || 0;
+            if (pp < 100 || !shenaniganConfigs) return null;
+            const affordable = shenaniganConfigs
+              .filter(c => Number(c.cost) <= pp)
+              .sort((a, b) => Number(a.cost) - Number(b.cost))
+              .slice(0, 3);
+            if (affordable.length === 0) return null;
+            return (
+              <div>
+                <div className="mc-label mb-2">You can afford</div>
+                <div className="flex flex-wrap gap-2">
+                  {affordable.map(s => (
+                    <span key={s.name} className="text-xs mc-card px-2 py-1">
+                      {s.name} <span className="mc-text-purple">({Number(s.cost).toLocaleString()} PP)</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Spend PP bridge CTA */}
+        {(ponziData?.totalPoints || 0) >= 100 && onTabChange && (
+          <div className="text-center">
+            <button
+              onClick={() => onTabChange('shenanigans')}
+              className="mc-btn-secondary flex items-center gap-2 mx-auto text-xs"
+            >
+              <Dice5 className="h-4 w-4 mc-text-purple" />
+              Spend your {ponziData?.totalPoints?.toLocaleString()} PP on Shenanigans →
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Withdrawal Dialog — MobileSheet for bottom sheet on mobile */}
+      <MobileSheet open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+        <div className="space-y-4">
+          <h2 className="font-display text-lg mc-text-primary">Confirm Withdrawal</h2>
+          <p className="mc-text-dim text-sm">
+            {selectedGame && (() => {
+              const info = getExitTollInfo(selectedGame);
+              if (info.nextFee && info.timeToNext) {
+                return (
+                  <span>
+                    You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.
+                    Wait <strong className="mc-text-cyan">{countdown}</strong> to reduce it to <strong className="mc-text-green">{info.nextFee}%</strong>.
+                  </span>
+                );
+              }
+              return <span>You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.</span>;
+            })()}
+          </p>
+          <div className="flex gap-2 justify-end">
+            <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)} className="mc-btn-secondary">
+              Cancel
+            </Button>
+            <Button onClick={handleWithdrawConfirm} disabled={withdrawMutation.isPending} className="mc-btn-primary">
+              {withdrawMutation.isPending ? 'Processing...' : 'Confirm'}
+            </Button>
+          </div>
+        </div>
+      </MobileSheet>
+
+      {/* Post-withdrawal celebration toast */}
+      {reinvestDialogOpen && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+          <div className="mc-toast text-center">
+            <div className="font-display text-xl mc-text-primary mb-2">Congratulations!</div>
+            <p className="text-sm mc-text-dim mb-1">
+              This scheme earned you{' '}
+              <span className="mc-toast-accent">{formatICP(withdrawnAmount)} ICP</span>
+            </p>
+            <p className="text-xs mc-text-muted mb-4">Want to grow it? Reinvest now.</p>
+            <div className="flex gap-3 justify-center">
               <button
                 onClick={() => setReinvestDialogOpen(false)}
-                className="px-6 py-3 rounded-full bg-gray-600 hover:bg-gray-700 text-white font-bold transition-all"
+                className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
               >
                 Nah
               </button>
               <button
-                onClick={handleReinvestClick}
-                className="house-toast-button"
+                onClick={() => { setReinvestDialogOpen(false); onNavigateToGameSetup?.(); }}
+                className="mc-btn-primary px-5 py-2 rounded-full text-sm"
               >
-                YOLO Again 🚀
+                <><Rocket className="h-4 w-4" /> YOLO Again</>
               </button>
             </div>
           </div>

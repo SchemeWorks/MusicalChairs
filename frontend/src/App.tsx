@@ -1,6 +1,7 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
-import { useGetCallerUserProfile, useGetInternalWalletBalance } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
+import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
 import Dashboard from './components/Dashboard';
@@ -10,33 +11,113 @@ import WalletDropdown from './components/WalletDropdown';
 import LogoutButton from './components/LogoutButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
+import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Button } from '@/components/ui/button';
-import { Menu } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle } from 'lucide-react';
+import GameDocs from './components/GameDocs';
+import { formatICP } from './lib/formatICP';
+import { isCharles, CharlesIcon } from './lib/charles';
 
-const ADMIN_PRINCIPAL = 'ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae';
+export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
+
+const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode; glowClass?: string }> = [
+  { id: 'profitCenter', label: 'Profit Center', icon: <DollarSign className="h-4 w-4" /> },
+  { id: 'invest', label: '\u201CInvest\u201D', icon: <Rocket className="h-4 w-4" /> },
+  { id: 'seedRound', label: 'Seed Round', icon: <Landmark className="h-4 w-4" /> },
+  { id: 'mlm', label: 'MLM', icon: <Users className="h-4 w-4" /> },
+  { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
+];
+
+const splashQuotes = [
+  "You look like someone who understands opportunity.",
+  "The best time to get in was yesterday. The second best time is right now.",
+  "I've never lied to you. That's more than most can say.",
+  "Smart money moves fast. Scared money doesn't move at all.",
+  "The only guarantee is that there are no guarantees. But the odds are... interesting.",
+];
+
+function useScrollAnimate(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add('mc-scroll-visible');
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+}
 
 export default function App() {
-  const { identity, isInitializing } = useInternetIdentity();
+  const { identity, principal, isInitializing } = useInternetIdentity();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
   const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
+  const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
+  const { data: publicStats } = useGetPublicStats();
+
+  // Scroll-triggered animation refs
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const ribbonRef = useRef<HTMLDivElement>(null);
+  const howItWorksRef = useRef<HTMLDivElement>(null);
+  useScrollAnimate(cardsRef);
+  useScrollAnimate(ribbonRef);
+  useScrollAnimate(howItWorksRef);
+
+  // Badge data — only fetched when authenticated (React Query caches these)
+  const { data: games } = useGetUserGames();
+  const { data: ponziData } = useGetPonziPoints();
+  const { data: referralStats } = useGetReferralStats();
+  const portfolio = useLivePortfolio(games);
+
+  // Profit Center badge: any position has positive earnings (withdrawable)
+  const hasWithdrawableEarnings = portfolio.games.some(g => g.earnings > 0);
+  // Shenanigans badge: user has enough PP to cast the cheapest shenanigan (500 PP)
+  const canCastShenanigan = (ponziData?.totalPoints || 0) >= 500;
+  // MLM badge: referral earnings increased since last visit (gold dot)
+  const currentReferralEarnings = referralStats?.totalEarnings || 0;
+  const lastSeenReferralEarnings = parseInt(localStorage.getItem('mc_last_seen_referral_earnings') || '0');
+  const hasNewReferralActivity = currentReferralEarnings > lastSeenReferralEarnings;
+
+  // Clear MLM badge when user visits the tab
+  useEffect(() => {
+    if (activeTab === 'mlm' && referralStats) {
+      localStorage.setItem('mc_last_seen_referral_earnings', String(referralStats.totalEarnings || 0));
+    }
+  }, [activeTab, referralStats]);
+
+  const badges: Record<TabType, 'red' | 'purple' | 'gold' | null> = {
+    profitCenter: hasWithdrawableEarnings ? 'red' : null,
+    invest: null,
+    seedRound: null,
+    mlm: hasNewReferralActivity ? 'gold' : null,
+    shenanigans: canCastShenanigan ? 'purple' : null,
+  };
 
   const isAuthenticated = !!identity;
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
-  const internalBalance = balanceData?.internalBalance || 0;
-  const houseRepaymentBalance = balanceData?.houseRepaymentBalance || 0;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
-  
-  // Check if current user is admin
-  const isAdmin = isAuthenticated && identity?.getPrincipal().toString() === ADMIN_PRINCIPAL;
 
   if (isInitializing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 flex items-center justify-center">
+      <div className="mc-bg min-h-screen flex flex-col items-center justify-center gap-6">
+        <div className="font-display text-4xl mc-text-primary mc-glow-gold animate-pulse">
+          Musical Chairs
+        </div>
+        <div className="font-display text-base mc-text-gold opacity-60">
+          It's a Ponzi!
+        </div>
         <LoadingSpinner />
       </div>
     );
@@ -44,78 +125,90 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 relative flex flex-col">
+      <div className="mc-bg min-h-screen flex flex-col">
         <ConfettiCanvas />
-        
-        {/* Fixed Header with playful design */}
-        <header className="fixed top-0 left-0 right-0 z-40 bg-dark-navy border-b border-gold shadow-lg">
+
+        {/* Header */}
+        <header className="mc-header fixed top-0 left-0 right-0 z-40">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center h-20">
-              {/* Mobile Hamburger Menu - Far Left */}
+            <div className="flex items-center h-16 md:h-20">
+
+              {/* Logo */}
+              <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity">
+                <span className="mc-logo text-xl md:text-2xl leading-none">
+                  <span className="hidden md:inline">Musical Chairs</span>
+                  <span className="md:hidden">MC</span>
+                </span>
+                {!showDashboard && (
+                  <span className="mc-tagline text-sm md:text-base leading-none">
+                    It's a Ponzi!
+                  </span>
+                )}
+              </button>
+
+              {/* Desktop header tabs — only when on dashboard */}
               {showDashboard && !showAdminPanel && (
-                <div className="md:hidden mr-4">
-                  <Button
-                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                    className="mobile-menu-button bg-black/80 hover:bg-black/90 border-2 border-purple-500 p-3 rounded-lg shadow-lg backdrop-blur-sm"
-                    variant="ghost"
-                    size="icon"
-                  >
-                    <Menu className="h-6 w-6 text-white" />
-                  </Button>
-                </div>
+                <nav className="mc-header-tabs">
+                  {headerNavItems.map(item => {
+                    const isActive = activeTab === item.id;
+                    const badge = badges[item.id];
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setActiveTab(item.id)}
+                        className={`mc-header-tab ${isActive ? (item.id === 'shenanigans' ? 'active-green' : 'active') : ''}`}
+                      >
+                        <span className={`relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
+                          {item.icon}
+                          {badge && !isActive && (
+                            <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : badge === 'gold' ? 'mc-badge-gold' : 'mc-badge-purple'}`} />
+                          )}
+                        </span>
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
               )}
 
-              {/* Left side - Site title and tagline with responsive logo */}
-              <div className="flex flex-col">
-                <div className="flex items-center">
-                  {/* Desktop: Full "Musical Chairs" logo */}
-                  <span className="hidden md:block text-2xl font-black dashboard-title-stroked">
-                    Musical Chairs
-                  </span>
-                  {/* Mobile: "MC" logo */}
-                  <span className="block md:hidden text-2xl font-black dashboard-title-stroked">
-                    MC
-                  </span>
-                </div>
-                <div className="ponzi-tagline text-yellow-300 text-lg">
-                  It's a Ponzi!
-                </div>
-              </div>
-              
-              {/* Center area - intentionally left blank */}
-              <div className="flex-1"></div>
-              
-              {/* Right side - Admin, Wallet and Logout buttons */}
-              <div className="flex items-center space-x-4">
+              <div className="flex-1" />
+
+              {/* Right controls */}
+              <div className="flex items-center gap-3">
                 {isAuthenticated ? (
                   <>
-                    {/* Admin Button - Only visible to admin principal */}
-                    {isAdmin && (
+                    {/* Charles's Office — locked to Charles principals */}
+                    {principal && isCharles(principal) && (
                       <button
                         onClick={() => setShowAdminPanel(!showAdminPanel)}
-                        className={`
-                          flex items-center space-x-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl
-                          ${showAdminPanel 
-                            ? 'bg-yellow-600 hover:bg-yellow-700 text-white' 
-                            : 'bg-yellow-400 hover:bg-yellow-500 text-black'
-                          }
-                        `}
+                        className={`mc-btn-secondary flex items-center gap-2 px-3 py-2 text-xs rounded-lg ${
+                          showAdminPanel ? 'border-yellow-500/50 text-yellow-400' : 'mc-text-gold'
+                        }`}
                       >
-                        <span>Admin</span>
+                        <CharlesIcon className="h-4 w-4" />
+                        <span className="hidden sm:inline">Charles</span>
                       </button>
                     )}
-                    
-                    {/* Wallet Button - Redesigned */}
+
+                    {/* Docs */}
+                    <button
+                      onClick={() => setShowDocs(true)}
+                      className="w-8 h-8 rounded-full flex items-center justify-center mc-text-muted hover:mc-text-primary hover:bg-white/5 transition-all"
+                      title="How To Play"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                    </button>
+
+                    {/* Wallet */}
                     <button
                       ref={walletButtonRef}
                       onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)}
-                      className="wallet-button-new flex items-center space-x-2 bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-4 py-2 rounded-lg font-medium transition-all duration-200 shadow-lg hover:shadow-xl"
+                      className="mc-btn-pill flex items-center gap-2"
                     >
-                      <span className="text-lg">💳</span>
+                      <Wallet className="h-4 w-4" />
                       <span>Wallet</span>
                     </button>
-                    
-                    {/* Logout Button */}
+
                     <LogoutButton />
                   </>
                 ) : (
@@ -126,181 +219,225 @@ export default function App() {
           </div>
         </header>
 
-        {/* Main Content with top padding to account for fixed header */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 pt-28 grow">
+        {/* Status Bar — persistent game stats below header */}
+        {showDashboard && <GameStatusBar />}
+
+        {/* Main Content */}
+        <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
           <ErrorBoundary fallback={
-            <div className="text-center py-16">
-              <div className="text-6xl mb-4">🎰</div>
-              <h2 className="text-2xl font-bold text-white mb-4">Content Loading Error</h2>
-              <p className="text-white/80 mb-6">
-                There was an issue loading the main content. Please refresh the page.
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200"
-              >
-                🔄 Refresh Page
+            <div className="text-center py-16 px-4">
+              <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+              <h2 className="font-display text-xl text-white mb-3">The Table Flipped</h2>
+              <p className="mc-text-dim mb-6 text-sm">The house always wins, but the website doesn't always cooperate.</p>
+              <button onClick={() => window.location.reload()} className="mc-btn-primary">
+                Spin Again
               </button>
             </div>
           }>
             {!isAuthenticated ? (
-              <div className="text-center py-16">
-                <div className="max-w-2xl mx-auto">
-                  {/* Welcome Header matching dashboard style */}
-                  <div className="dashboard-title-panel mb-2">
-                    <h2 className="text-4xl font-black dashboard-title-stroked">
-                      🎪 Welcome to Musical Chairs! 🎪
-                    </h2>
+              /* === SPLASH / LOGIN PAGE === */
+              <div className="mc-hero max-w-2xl mx-auto px-4 py-8 md:py-16">
+                {/* Animated gradient background */}
+                <div className="mc-splash-bg" />
+
+                {/* Hero: logo → tagline → Charles hook */}
+                <div className="mc-stagger mc-hero-entrance">
+                  <div className="mc-hero-logo">
+                    Musical Chairs
                   </div>
-                  <div className="mb-6"></div>
-                  <div className="ponzi-tagline text-yellow-300 text-3xl font-bold mb-8">
-                    It's a Ponzi!
+                  <div className="mc-tagline text-2xl md:text-3xl mb-4">
+                    <span className="mc-typewriter">It's a Ponzi!</span>
+                  </div>
+                  <p className="font-accent text-sm mc-text-muted italic mb-10">
+                    You know exactly what this is. That's what makes it fun.
+                  </p>
+                </div>
+
+                {/* Three info cards — the pitch builds before the ask */}
+                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-splash-cards mc-scroll-animate">
+                  {/* Card 1: The Hook — bigger, pulsing glow */}
+                  <div className="mc-card mc-accent-green p-6 mc-card-hook">
+                    <Dices className="h-7 w-7 mc-text-green mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
+                    </p>
                   </div>
 
-                  {/* Single Animated Gradient Frosted-Glass Outer Card */}
-                  <div className="login-outer-card">
-                    {/* Slot Machine Icon - Top Center */}
-                    <div className="text-6xl mb-6 slot-icon">🎰</div>
-                    
-                    {/* Green Earnings Info Box - Separate Card */}
-                    <div className="login-inner-green-card mb-6">
-                      <div className="flex items-start space-x-3">
-                        <div className="text-2xl">🚀</div>
-                        <div className="text-left">
-                          <p className="text-green-800 font-bold text-lg leading-relaxed">
-                            Earn up to 12% daily! 💸<br />
-                            Earnings accumulate in real time! 📈<br />
-                            Withdraw earnings at any time, or lock your deposit to compound and have a chance at a face-melting ROI! 🤯
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Card 2: The Friction — dashed border, caution feel */}
+                  <div className="mc-card mc-accent-danger p-5 border-dashed">
+                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
+                    </p>
+                  </div>
 
-                    {/* Red Gambling Warning Box - Separate Card */}
-                    <div className="login-inner-red-card mb-6">
-                      <div className="flex items-start space-x-3">
-                        <div className="text-2xl">⚠️</div>
-                        <div className="text-left">
-                          <p className="text-red-800 font-bold text-xl">
-                            THIS IS A GAMBLING GAME!
-                          </p>
-                          <p className="text-red-700 font-semibold">
-                            Only play with money you can afford to lose!
-                          </p>
-                        </div>
-                      </div>
-                    </div>
+                  {/* Card 3: The Payoff — elevated, gold glow */}
+                  <div className="mc-card-elevated mc-accent-gold p-5 mc-card-payoff">
+                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
+                    <p className="text-sm mc-text-dim leading-relaxed">
+                      When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
+                    </p>
+                  </div>
+                </div>
 
-                    {/* Orange Game Reset Warning Box - Separate Card */}
-                    <div className="login-inner-orange-card mb-6">
-                      <div className="flex items-start space-x-3">
-                        <div className="text-2xl">🎲</div>
-                        <div className="text-left">
-                          <p className="text-orange-800 font-bold">
-                            When the pot runs empty, the game resets and all pending payouts are voided!
-                          </p>
-                        </div>
-                      </div>
+                {/* Live stats ribbon — social proof */}
+                <div ref={ribbonRef} className="mt-8 mc-card mc-accent-gold p-4 mc-scroll-animate">
+                  <div className="flex items-center justify-center gap-6 flex-wrap text-xs">
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-gold">🏦</span>
+                      <span className="mc-text-muted">Pot:</span>
+                      <span className="font-bold mc-text-gold">
+                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : 'Growing daily'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-green">📈</span>
+                      <span className="mc-text-muted">Players:</span>
+                      <span className="font-bold mc-text-green">
+                        {publicStats ? `${Number(publicStats.activeGames)} active` : 'Up to 12% / day'}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="mc-text-cyan">⚡</span>
+                      <span className="mc-text-muted">Status:</span>
+                      <span className="font-bold mc-text-cyan">Live on ICP</span>
                     </div>
                   </div>
-                  
-                  {/* Internet Computer Logo with Subtle Dark Halo */}
-                  <div className="flex justify-center mt-8">
-                    <div className="ic-logo-container-dark">
-                      <img 
-                        src="https://internetcomputer.org/img/IC_logo_horizontal_white.svg" 
-                        alt="Internet Computer" 
-                        className="h-12 w-auto relative z-10 px-4 py-2"
-                      />
+                </div>
+
+                {/* How It Works — expandable */}
+                <div ref={howItWorksRef} className="mt-6 mc-scroll-animate">
+                  <button
+                    onClick={() => setShowHowItWorks(!showHowItWorks)}
+                    className="flex items-center gap-2 mx-auto text-xs mc-text-dim hover:mc-text-primary transition-colors"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
+                    How does it work?
+                  </button>
+                  {showHowItWorks && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-green mb-2">Deposit ICP</h4>
+                        <p className="text-xs mc-text-dim">Choose a plan. Simple earns 11%/day for 21 days. Compounding earns more but locks your money.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-gold mb-2">Earn Daily</h4>
+                        <p className="text-xs mc-text-dim">Your position earns interest from the pot. Withdraw anytime — earlier exits pay a higher toll.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-purple mb-2">Cast Shenanigans</h4>
+                        <p className="text-xs mc-text-dim">Earn Ponzi Points. Spend them on cosmetic chaos — rename other players, skim their earnings, boost your referrals.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-danger mb-2">The Catch</h4>
+                        <p className="text-xs mc-text-dim">When the pot empties, the game resets. If you're still in — total loss. That's the Ponzi part.</p>
+                      </div>
                     </div>
-                  </div>
+                  )}
+                </div>
+
+                {/* Charles quote */}
+                <div className="mt-8 text-center">
+                  <p className="font-accent text-sm mc-text-dim italic">
+                    &ldquo;{splashQuote}&rdquo;
+                  </p>
+                  <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
+                </div>
+
+                {/* CTA — after the pitch has landed */}
+                <div className="mt-8 flex justify-center">
+                  <LoginButton />
+                </div>
+
+                {/* Responsible gambling — straight-faced, not Charles */}
+                <div className="mt-10 text-center">
+                  <p className="text-xs mc-text-muted opacity-60">
+                    <AlertTriangle className="h-3 w-3 inline-block mr-1 align-text-top" />
+                    This is a gambling game. Please play responsibly.
+                  </p>
                 </div>
               </div>
             ) : showProfileSetup ? (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-6xl mb-4">🎭</div>
-                  <h2 className="text-2xl font-bold text-white mb-4">Profile Setup Error</h2>
-                  <p className="text-white/80 mb-6">
-                    There was an issue with the profile setup. Please try logging out and back in.
-                  </p>
+                  <Users className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">Onboarding Hit a Snag</h2>
+                  <p className="mc-text-dim text-sm">Try logging out and back in. Charles apologizes for nothing.</p>
                 </div>
               }>
                 <ProfileSetup />
               </ErrorBoundary>
             ) : profileLoading ? (
-              <div className="flex justify-center py-16">
+              <div className="flex flex-col items-center justify-center py-24 gap-6">
+                <div className="font-display text-3xl mc-text-primary mc-glow-gold animate-pulse">
+                  Musical Chairs
+                </div>
                 <LoadingSpinner />
+                <p className="mc-text-muted text-xs tracking-wider uppercase">Counting your chips...</p>
               </div>
             ) : showAdminPanel ? (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-6xl mb-4">🔧</div>
-                  <h2 className="text-2xl font-bold text-white mb-4">Admin Panel Error</h2>
-                  <p className="text-white/80 mb-6">
-                    There was an issue loading the admin panel. Please refresh the page.
-                  </p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200"
-                  >
-                    🔄 Refresh Page
+                  <Wrench className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">Charles's Office Is on Fire</h2>
+                  <p className="mc-text-dim text-sm mb-4">The back office crashed. The front office is fine. Probably.</p>
+                  <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
+                    Spin Again
                   </button>
                 </div>
               }>
-                <ShenanigansAdminPanel />
+                <div className="max-w-7xl mx-auto px-4 py-8">
+                  <button
+                    onClick={() => setShowAdminPanel(false)}
+                    className="mc-btn-secondary flex items-center gap-2 px-4 py-2 text-xs rounded-lg mb-6"
+                  >
+                    &larr; Leave Charles's Office
+                  </button>
+                  <ShenanigansAdminPanel />
+                </div>
               </ErrorBoundary>
             ) : (
               <ErrorBoundary fallback={
                 <div className="text-center py-16">
-                  <div className="text-6xl mb-4">🎪</div>
-                  <h2 className="text-2xl font-bold text-white mb-4">Dashboard Error</h2>
-                  <p className="text-white/80 mb-6">
-                    There was an issue loading the dashboard. Please refresh the page.
-                  </p>
-                  <button
-                    onClick={() => window.location.reload()}
-                    className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6 py-3 rounded-lg font-bold transition-all duration-200"
-                  >
-                    🔄 Refresh Dashboard
+                  <Tent className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+                  <h2 className="font-display text-xl text-white mb-3">The Dashboard Took a Hit</h2>
+                  <p className="mc-text-dim text-sm mb-4">Your money's still there. Probably. Refresh and find out.</p>
+                  <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
+                    Spin Again
                   </button>
                 </div>
               }>
-                <Dashboard 
-                  isMobileMenuOpen={isMobileMenuOpen} 
-                  setIsMobileMenuOpen={setIsMobileMenuOpen} 
-                />
+                <Dashboard activeTab={activeTab} onTabChange={setActiveTab} badges={badges} />
               </ErrorBoundary>
             )}
           </ErrorBoundary>
         </main>
 
         {/* Wallet Dropdown */}
-        <ErrorBoundary fallback={
-          <div className="fixed top-20 right-4 bg-red-500 text-white p-4 rounded-lg z-50">
-            Wallet Error - Please refresh
-          </div>
-        }>
-          <WalletDropdown 
-            isOpen={isWalletDropdownOpen} 
+        <ErrorBoundary fallback={null}>
+          <WalletDropdown
+            isOpen={isWalletDropdownOpen}
             onClose={() => setIsWalletDropdownOpen(false)}
             buttonRef={walletButtonRef}
           />
         </ErrorBoundary>
 
-        {/* Toast Notifications */}
-        <Toaster 
+        {/* Docs overlay */}
+        {showDocs && <GameDocs onClose={() => setShowDocs(false)} />}
+
+        {/* Toast */}
+        <Toaster
           position="top-center"
           toastOptions={{
             style: {
-              background: 'linear-gradient(135deg, #10b981, #3b82f6)',
-              color: 'white',
-              border: '2px solid #fbbf24',
-              fontSize: '16px',
-              fontWeight: 'bold',
-              padding: '16px 20px',
-              borderRadius: '12px',
-              boxShadow: '0 10px 25px rgba(0, 0, 0, 0.2)',
+              background: 'var(--mc-felt-raised)',
+              color: 'var(--mc-white)',
+              border: '1px solid var(--mc-border)',
+              fontSize: '14px',
+              fontWeight: '700',
+              padding: '12px 16px',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
             },
             duration: 4000,
           }}

@@ -1,68 +1,85 @@
 import React, { useState, useEffect } from 'react';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { toast } from 'sonner';
 import { ShenaniganType } from '../backend';
-import { Info, Shield, Zap, AlertTriangle } from 'lucide-react';
+import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy } from 'lucide-react';
+import HallOfFame from './HallOfFame';
+
+const successFlavor = [
+  "The house smiles upon you.",
+  "Clean hit. Charles would be proud.",
+  "Flawless execution. You're a natural.",
+  "They never saw it coming.",
+  "That's how it's done in this business.",
+];
+
+const failFlavor = [
+  "The universe said no.",
+  "Not your day. It happens to everyone. Mostly to you.",
+  "Swing and a miss. The PP is still gone, though.",
+  "Nothing happened. Except you're poorer now.",
+  "Better luck next time. Or not. Who knows.",
+];
+
+const backfireFlavor = [
+  "Oh no. It hit you instead.",
+  "Karma works fast around here.",
+  "You played yourself. Literally.",
+  "That's what they call a learning experience.",
+  "Charles is laughing somewhere.",
+];
 
 interface ShenaniganConfig {
   type: ShenaniganType;
   name: string;
-  icon: string;
+  icon: React.ReactNode;
   cost: number;
   description: string;
   odds: { success: number; fail: number; backfire: number };
   effects: string;
-  gradient: string;
+  auraColor: string;
 }
 
-// Icon mapping
-const shenaniganIcons: Record<number, string> = {
-  0: '💰',
-  1: '🌊',
-  2: '✏️',
-  3: '🏦',
-  4: '🎯',
-  5: '🪞',
-  6: '⬆️',
-  7: '✂️',
-  8: '🐋',
-  9: '📈',
-  10: '✨',
+const shenaniganIcons: Record<number, React.ReactNode> = {
+  0: <Coins className="h-5 w-5" />, 1: <Waves className="h-5 w-5" />, 2: <Pencil className="h-5 w-5" />,
+  3: <Building2 className="h-5 w-5" />, 4: <Target className="h-5 w-5" />, 5: <FlipHorizontal2 className="h-5 w-5" />,
+  6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
+  9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />,
 };
 
-// Type mapping
 const shenaniganTypes: ShenaniganType[] = [
-  ShenaniganType.moneyTrickster,
-  ShenaniganType.aoeSkim,
-  ShenaniganType.renameSpell,
-  ShenaniganType.mintTaxSiphon,
-  ShenaniganType.downlineHeist,
-  ShenaniganType.magicMirror,
-  ShenaniganType.ppBoosterAura,
-  ShenaniganType.purseCutter,
-  ShenaniganType.whaleRebalance,
-  ShenaniganType.downlineBoost,
-  ShenaniganType.goldenName,
+  ShenaniganType.moneyTrickster, ShenaniganType.aoeSkim, ShenaniganType.renameSpell,
+  ShenaniganType.mintTaxSiphon, ShenaniganType.downlineHeist, ShenaniganType.magicMirror,
+  ShenaniganType.ppBoosterAura, ShenaniganType.purseCutter, ShenaniganType.whaleRebalance,
+  ShenaniganType.downlineBoost, ShenaniganType.goldenName,
 ];
 
-// Gradient mapping
-const shenaniganGradients: Record<number, string> = {
-  0: 'linear-gradient(135deg, #ffd75a 0%, #ffb673 100%)',
-  1: 'linear-gradient(135deg, #8ed4ff 0%, #b8f5ff 100%)',
-  2: 'linear-gradient(135deg, #ff9ff3 0%, #f368e0 100%)',
-  3: 'linear-gradient(135deg, #a78bfa 0%, #c084fc 100%)',
-  4: 'linear-gradient(135deg, #34d399 0%, #6ee7b7 100%)',
-  5: 'linear-gradient(135deg, #fbbf24 0%, #fcd34d 100%)',
-  6: 'linear-gradient(135deg, #60a5fa 0%, #93c5fd 100%)',
-  7: 'linear-gradient(135deg, #f87171 0%, #fca5a5 100%)',
-  8: 'linear-gradient(135deg, #a855f7 0%, #c084fc 100%)',
-  9: 'linear-gradient(135deg, #10b981 0%, #34d399 100%)',
-  10: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%)',
+// Dark-themed aura colors for each shenanigan
+const auraColors: Record<number, string> = {
+  0: 'rgba(255, 215, 90, 0.3)',
+  1: 'rgba(100, 200, 255, 0.3)',
+  2: 'rgba(255, 130, 200, 0.3)',
+  3: 'rgba(168, 85, 247, 0.3)',
+  4: 'rgba(57, 255, 20, 0.3)',
+  5: 'rgba(255, 215, 0, 0.3)',
+  6: 'rgba(100, 165, 255, 0.3)',
+  7: 'rgba(255, 100, 100, 0.3)',
+  8: 'rgba(168, 85, 247, 0.3)',
+  9: 'rgba(16, 185, 129, 0.3)',
+  10: 'rgba(245, 158, 11, 0.3)',
 };
+
+type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
+
+const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
+const defenseTypes = [5, 6, 9]; // magicMirror, ppBoosterAura, downlineBoost
+const chaosTypes = [2, 10]; // renameSpell, goldenName
+
+function getShenaniganCategory(idx: number): FilterCategory {
+  if (offenseTypes.includes(idx)) return 'offense';
+  if (defenseTypes.includes(idx)) return 'defense';
+  return 'chaos';
+}
 
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
@@ -70,580 +87,354 @@ export default function Shenanigans() {
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const castShenanigan = useCastShenanigan();
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
-  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
-  const [selectedShenanigan, setSelectedShenanigan] = useState<{
-    type: ShenaniganType;
-    name: string;
-    cost: number;
-    icon: string;
-  } | null>(null);
-  
-  // State for shenanigans that can be updated in real-time
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: string } | null>(null);
+  const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
-  // Load configs from backend
   useEffect(() => {
     if (backendConfigs) {
-      const mappedConfigs = backendConfigs.map(config => {
+      setAvailableShenanigans(backendConfigs.map(config => {
         const id = Number(config.id);
         return {
-          type: shenaniganTypes[id],
-          name: config.name,
-          icon: shenaniganIcons[id],
-          cost: config.cost,
-          description: config.description,
-          odds: {
-            success: Number(config.successOdds),
-            fail: Number(config.failureOdds),
-            backfire: Number(config.backfireOdds)
-          },
-          effects: config.effectValues.join(', '),
-          gradient: shenaniganGradients[id],
+          type: shenaniganTypes[id], name: config.name, icon: shenaniganIcons[id],
+          cost: config.cost, description: config.description,
+          odds: { success: Number(config.successOdds), fail: Number(config.failureOdds), backfire: Number(config.backfireOdds) },
+          effects: config.effectValues.join(', '), auraColor: auraColors[id] || auraColors[0],
         };
-      });
-      setAvailableShenanigans(mappedConfigs);
+      }));
     }
   }, [backendConfigs]);
 
-  // Listen for shenanigan updates from admin panel
+  // Listen for admin panel live updates
   useEffect(() => {
-    const handleShenaniganUpdate = (event: CustomEvent) => {
-      const updatedConfig = event.detail;
-      
-      // Update the shenanigans list
-      setAvailableShenanigans(prev => 
-        prev.map(shen => {
-          const shenId = shenaniganTypes.indexOf(shen.type);
-          if (shenId === updatedConfig.id) {
-            return {
-              ...shen,
-              name: updatedConfig.name,
-              icon: updatedConfig.icon,
-              cost: updatedConfig.cost,
-              description: updatedConfig.description,
-              odds: {
-                success: updatedConfig.successOdds,
-                fail: updatedConfig.failOdds,
-                backfire: updatedConfig.backfireOdds
-              },
-              effects: updatedConfig.effectValues,
-            };
-          }
-          return shen;
-        })
-      );
+    const handler = (event: CustomEvent) => {
+      const u = event.detail;
+      setAvailableShenanigans(prev => prev.map(s => {
+        if (shenaniganTypes.indexOf(s.type) === u.id) {
+          return { ...s, name: u.name, icon: u.icon, cost: u.cost, description: u.description,
+            odds: { success: u.successOdds, fail: u.failOdds, backfire: u.backfireOdds }, effects: u.effectValues };
+        }
+        return s;
+      }));
     };
-
-    window.addEventListener('shenaniganUpdated', handleShenaniganUpdate as EventListener);
-    
-    return () => {
-      window.removeEventListener('shenaniganUpdated', handleShenaniganUpdate as EventListener);
-    };
+    window.addEventListener('shenaniganUpdated', handler as EventListener);
+    return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
   }, []);
 
-  const handleCastClick = (shenaniganType: ShenaniganType, cost: number, name: string, icon: string) => {
-    const userPoints = ponziData?.totalPoints || 0;
-    
-    if (userPoints < cost) {
-      toast.error(`Insufficient Ponzi Points! You need ${cost} but only have ${userPoints.toLocaleString()}.`);
+  const handleCastClick = (type: ShenaniganType, cost: number, name: string, icon: string) => {
+    if ((ponziData?.totalPoints || 0) < cost) {
+      setOutcomeToast({
+        name,
+        outcome: 'error',
+        flavor: `Insufficient PP. Need ${cost}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`,
+        cost: 0,
+      });
       return;
     }
+    setSelectedShenanigan({ type, name, cost, icon });
+    setConfirmOpen(true);
+  };
 
-    setSelectedShenanigan({ type: shenaniganType, name, cost, icon });
-    setConfirmDialogOpen(true);
+  const getFlavorText = (outcome: string) => {
+    const pool = outcome === 'success' ? successFlavor : outcome === 'fail' ? failFlavor : backfireFlavor;
+    return pool[Math.floor(Math.random() * pool.length)];
   };
 
   const handleConfirmCast = async () => {
     if (!selectedShenanigan) return;
-
-    setConfirmDialogOpen(false);
+    setConfirmOpen(false);
     setAnimatingTrick(selectedShenanigan.type);
-    
     try {
-      const outcome = await castShenanigan.mutateAsync({ 
-        shenaniganType: selectedShenanigan.type, 
-        target: null 
-      });
-      
-      // Show outcome with animation
+      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: null });
+      const outcome = String(rawOutcome);
       setTimeout(() => {
-        const outcomeEmoji = outcome === 'success' ? '✨' : outcome === 'fail' ? '💥' : '🔄';
-        const outcomeText = outcome === 'success' ? 'Success!' : outcome === 'fail' ? 'Failed!' : 'Backfired!';
-        
-        toast.success(`${outcomeEmoji} Shenanigan ${outcomeText}`, {
-          description: `Your ${selectedShenanigan.name} ${outcome}! ${selectedShenanigan.cost} Ponzi Points spent.`
+        setOutcomeToast({
+          name: selectedShenanigan.name,
+          outcome,
+          flavor: getFlavorText(outcome),
+          cost: selectedShenanigan.cost,
         });
-        
         setAnimatingTrick(null);
       }, 1500);
     } catch (error: any) {
-      const errorMessage = error.message || 'Failed to cast shenanigan!';
-      toast.error(errorMessage);
+      setOutcomeToast({
+        name: selectedShenanigan.name,
+        outcome: 'error',
+        flavor: error.message || 'Something went wrong. The PP is still gone.',
+        cost: selectedShenanigan.cost,
+      });
       setAnimatingTrick(null);
     }
   };
 
-  const getShenaniganName = (type: ShenaniganType): string => {
-    return availableShenanigans.find(s => s.type === type)?.name || 'Unknown';
-  };
-
-  const getOutcomeColor = (outcome: string): string => {
-    switch (outcome) {
-      case 'success': return 'text-green-600';
-      case 'fail': return 'text-red-600';
-      case 'backfire': return 'text-purple-600';
-      default: return 'text-gray-600';
+  // Compute most popular shenanigan from recent feed
+  const mostPopularType = (() => {
+    if (!recentShenanigans || recentShenanigans.length < 3) return null;
+    const counts: Record<string, number> = {};
+    for (const s of recentShenanigans) {
+      const key = String(s.shenaniganType);
+      counts[key] = (counts[key] || 0) + 1;
     }
-  };
+    const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return sorted[0]?.[0] ?? null;
+  })();
 
-  // Mock data for previous round recap
-  const mockPreviousRoundData = {
-    totalShenanigans: 47,
-    totalPointsBurned: 8950,
-    outcomes: {
-      good: 28,
-      bad: 12,
-      backfire: 7
-    }
-  };
+  if (statsLoading || recentLoading || configsLoading || ponziLoading) return <LoadingSpinner />;
 
-  if (statsLoading || recentLoading || configsLoading || ponziLoading) {
-    return (
-      <div className="space-y-6">
-        <div className="text-center">
-          <h2 className="text-2xl font-black text-white text-with-backdrop">
-            🃏 Shenanigans — Pure Chaos, Zero Value
-          </h2>
-          <p className="text-center text-white text-with-backdrop mt-2">
-            Burn your Ponzi Points on ridiculous tricks that don't change the math, only the madness.
-          </p>
-        </div>
-        
-        <div className="rewards-single-container">
-          <div className="flex justify-center py-8">
-            <LoadingSpinner />
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const userPoints = ponziData?.totalPoints || 0;
 
   return (
     <div className="space-y-6">
-      {/* Header outside the container */}
-      <div className="text-center">
-        <h2 className="text-2xl font-black text-white text-with-backdrop">
-          🃏 Shenanigans — Pure Chaos, Zero Value
-        </h2>
-        <p className="text-center text-white text-with-backdrop mt-2 opacity-80">
-          Burn your Ponzi Points on ridiculous tricks that don't change the math, only the madness.
-          <br />
-          <span className="text-yellow-300 font-bold">Your Ponzi Points: {ponziData?.totalPoints.toLocaleString() || '0'}</span>
-        </p>
+      {/* PP balance bar */}
+      <div className="mc-card p-3 flex items-center justify-center gap-3">
+        <span className="mc-label">Your Ponzi Points:</span>
+        <span className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()} PP</span>
       </div>
-      
-      {/* Available Shenanigans Shop - Wrapped in unified frosted glass panel */}
-      <div className="rewards-single-container">
-        <div className="space-y-4">
-          <div className="text-center space-y-2">
-            <h3 className="text-2xl font-bold text-white text-with-backdrop">
-              Available Shenanigans
-            </h3>
-            <div 
-              className="w-full h-px mx-auto"
-              style={{
-                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.3) 20%, rgba(255,255,255,0.6) 50%, rgba(255,255,255,0.3) 80%, transparent 100%)',
-                boxShadow: '0 0 8px rgba(255,255,255,0.4)'
-              }}
-            />
+
+      {/* Desktop 2-column layout: cards left, feed right */}
+      <div className="mc-shenanigans-layout">
+        {/* Left column: filter + cards + guardrails */}
+        <div className="space-y-6">
+          {/* Filter tabs */}
+          <div className="flex rounded-lg bg-white/5 p-0.5">
+            {([
+              { key: 'all' as FilterCategory, label: 'All' },
+              { key: 'offense' as FilterCategory, label: 'Offense' },
+              { key: 'defense' as FilterCategory, label: 'Defense' },
+              { key: 'chaos' as FilterCategory, label: 'Chaos' },
+            ]).map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setFilterCategory(tab.key)}
+                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
+                  filterCategory === tab.key ? 'bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
-          
-          {/* Redesigned Shenanigans cards with enhanced readability and no effect values */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {availableShenanigans.map((trick) => {
-              const isDisabled = castShenanigan.isPending || (ponziData?.totalPoints || 0) < trick.cost || animatingTrick === trick.type;
-              
+
+          {/* Shenanigan cards grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
+            {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
+              const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trick.type;
               return (
-                <div 
-                  key={trick.type} 
-                  className="shenanigan-card-gradient group"
-                  style={{
-                    background: trick.gradient,
-                    borderRadius: '1rem',
-                    boxShadow: '0 8px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3)',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    transition: 'all 200ms ease',
-                    cursor: isDisabled ? 'not-allowed' : 'pointer',
-                    opacity: isDisabled ? 0.5 : 1,
-                    padding: '20px',
-                    minHeight: '280px',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    position: 'relative',
-                    overflow: 'hidden'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (!isDisabled) {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.boxShadow = '0 0 24px rgba(255, 255, 255, 0.4), 0 12px 28px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.transform = 'translateY(0)';
-                    e.currentTarget.style.boxShadow = '0 8px 20px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.3)';
-                  }}
+                <div
+                  key={`shenanigan-${idx}`}
+                  className="mc-shenanigan-card"
+                  style={{ '--aura-color': trick.auraColor } as React.CSSProperties}
                 >
-                  {/* Dark overlay for text readability */}
-                  <div 
-                    style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
-                      background: 'rgba(0, 0, 0, 0.10)',
-                      borderRadius: '1rem',
-                      pointerEvents: 'none'
-                    }}
-                  />
-
-                  {/* Content with relative positioning to appear above overlay */}
-                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%' }}>
-                    {/* Icon and Title */}
-                    <div className="flex items-center gap-2 mb-3">
-                      <span className="text-2xl">{trick.icon}</span>
-                      <h3 
-                        style={{
-                          fontSize: '20px',
-                          lineHeight: '1.2',
-                          color: '#ffffff',
-                          textShadow: '1px 1px 3px rgba(0, 0, 0, 0.5)',
-                          fontWeight: '700',
-                          fontFamily: '"Nunito", "Poppins", sans-serif'
-                        }}
-                      >
-                        {trick.name}
-                      </h3>
-                    </div>
-
-                    {/* PP Cost Badge */}
-                    <div 
-                      className="inline-block px-3 py-1 rounded-full mb-3 self-start"
-                      style={{
-                        background: 'rgba(0, 0, 0, 0.3)',
-                        backdropFilter: 'blur(8px)',
-                        border: '1px solid rgba(255, 255, 255, 0.2)',
-                        fontSize: '14px',
-                        fontWeight: '700',
-                        color: '#ffd75a',
-                        textShadow: '1px 1px 3px rgba(0, 0, 0, 0.6)'
-                      }}
-                    >
-                      {trick.cost} PP
-                    </div>
-
-                    {/* Description */}
-                    <p 
-                      className="mb-3 flex-grow"
-                      style={{
-                        fontSize: '16px',
-                        color: '#ffffff',
-                        lineHeight: '1.5',
-                        textShadow: '1px 1px 3px rgba(0, 0, 0, 0.5)',
-                        fontWeight: '400'
-                      }}
-                    >
-                      {trick.description}
-                    </p>
-
-                    {/* Odds with improved readability */}
-                    <div 
-                      className="mb-4"
-                      style={{
-                        fontSize: '14px',
-                        color: '#ffffff',
-                        lineHeight: '1.5',
-                        textShadow: '1px 1px 4px rgba(0, 0, 0, 0.7)',
-                        background: 'rgba(0, 0, 0, 0.15)',
-                        padding: '8px 12px',
-                        borderRadius: '8px',
-                        backdropFilter: 'blur(4px)'
-                      }}
-                    >
-                      <div className="font-semibold mb-1" style={{ fontWeight: '600' }}>Odds:</div>
-                      <div>Success: {trick.odds.success}% | Fail: {trick.odds.fail}% | Backfire: {trick.odds.backfire}%</div>
-                    </div>
-
-                    {/* Cast Button */}
-                    <button
-                      onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
-                      disabled={isDisabled}
-                      className="w-full py-2.5 rounded-xl font-bold transition-all duration-200 uppercase text-sm"
-                      style={{
-                        background: 'linear-gradient(135deg, #ffd75a 0%, #ff9f40 100%)',
-                        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4)',
-                        color: '#ffffff',
-                        textShadow: '1px 1px 2px rgba(0, 0, 0, 0.3)',
-                        cursor: isDisabled ? 'not-allowed' : 'pointer',
-                        border: 'none',
-                        fontWeight: '700'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isDisabled) {
-                          e.currentTarget.style.background = 'linear-gradient(135deg, #ffe270 0%, #ffb055 100%)';
-                          e.currentTarget.style.boxShadow = '0 0 16px rgba(255, 215, 90, 0.6), 0 6px 16px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.5)';
-                          e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.background = 'linear-gradient(135deg, #ffd75a 0%, #ff9f40 100%)';
-                        e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.4)';
-                        e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                      }}
-                    >
-                      {animatingTrick === trick.type ? '✨ Casting...' : 'CAST'}
-                    </button>
+                  {/* Popular badge */}
+                  {mostPopularType !== null && String(trick.type) === mostPopularType && (
+                    <span className="absolute -top-2 -right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold z-10">
+                      🔥 Popular
+                    </span>
+                  )}
+                  {/* Icon */}
+                  <div
+                    className="mc-shenanigan-icon"
+                    style={{ background: `linear-gradient(135deg, ${trick.auraColor}, transparent)` }}
+                  >
+                    {trick.icon}
                   </div>
+
+                  {/* Title + cost */}
+                  <h3 className="font-display text-sm mc-text-primary text-center mb-1">{trick.name}</h3>
+                  <div className="text-center mb-3">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple">
+                      {trick.cost} PP
+                    </span>
+                  </div>
+
+                  {/* Description */}
+                  <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
+
+                  {/* Odds bar */}
+                  <div className="mb-4">
+                    <div className="flex h-2 rounded-full overflow-hidden mb-1">
+                      <div className="mc-bg-green" style={{ width: `${trick.odds.success}%` }} />
+                      <div className="mc-bg-danger" style={{ width: `${trick.odds.fail}%` }} />
+                      <div className="mc-bg-purple" style={{ width: `${trick.odds.backfire}%` }} />
+                    </div>
+                    <div className="flex justify-between text-xs mc-text-muted">
+                      <span className="mc-text-green">✓ {trick.odds.success}%</span>
+                      <span className="mc-text-danger">✗ {trick.odds.fail}%</span>
+                      <span className="mc-text-purple">↩ {trick.odds.backfire}%</span>
+                    </div>
+                  </div>
+
+                  {/* Cast button */}
+                  <button
+                    onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
+                    disabled={isDisabled}
+                    className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
+                      isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
+                    }`}
+                  >
+                    {animatingTrick === trick.type ? 'Casting...' : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
+                  </button>
                 </div>
               );
             })}
           </div>
-        </div>
-      </div>
 
-      {/* Single frosted glass container wrapping all content below shop */}
-      <div className="rewards-single-container">
-        <div className="space-y-6">
-          {/* Current Round Stats - Full Width with 4 Stats Side by Side */}
-          <Card className="border-4 border-orange-300 bg-gradient-to-r from-orange-100 to-red-100">
-            <CardHeader>
-              <CardTitle className="text-lg text-center text-orange-800">
-                📊 Current Round Stats 📊
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-blue-100 rounded-lg p-3 border border-blue-300 text-center">
-                  <div className="text-sm font-bold text-blue-800">💸 PP Spent</div>
-                  <div className="text-xl font-black text-blue-900">
-                    {stats?.totalSpent.toLocaleString() || '0'}
-                  </div>
-                  <div className="text-xs text-blue-600">This Round</div>
-                </div>
-                <div className="bg-green-100 rounded-lg p-3 border border-green-300 text-center">
-                  <div className="text-sm font-bold text-green-800">🎪 Total Cast</div>
-                  <div className="text-xl font-black text-green-900">
-                    {stats?.totalCast.toString() || '0'}
-                  </div>
-                  <div className="text-xs text-green-600">Shenanigans</div>
-                </div>
-                <div className="bg-purple-100 rounded-lg p-3 border border-purple-300 text-center">
-                  <div className="text-sm font-bold text-purple-800">📈 Outcomes</div>
-                  <div className="text-xs text-purple-900 space-y-1">
-                    <div>✅ Good: {stats?.goodOutcomes.toString() || '0'}</div>
-                    <div>❌ Bad: {stats?.badOutcomes.toString() || '0'}</div>
-                    <div>🔄 Backfire: {stats?.backfires.toString() || '0'}</div>
-                  </div>
-                </div>
-                <div className="bg-yellow-100 rounded-lg p-3 border border-yellow-300 text-center">
-                  <div className="text-sm font-bold text-yellow-800">🏰 Dealer Cut</div>
-                  <div className="text-xl font-black text-yellow-900">
-                    {stats?.dealerCut.toLocaleString() || '0'}
-                  </div>
-                  <div className="text-xs text-yellow-600">PP Skimmed</div>
-                </div>
+          {/* Empty state when filter matches nothing */}
+          {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).length === 0 && (
+            <div className="text-center py-12">
+              <Dices className="h-10 w-10 mc-text-muted mb-3 mx-auto" />
+              <p className="mc-text-dim text-sm">No shenanigans in this category.</p>
+              <button onClick={() => setFilterCategory('all')} className="mc-text-purple text-xs mt-2 hover:underline">
+                Show all
+              </button>
+            </div>
+          )}
+
+          {/* Guardrails */}
+          <div className="mc-card p-5">
+            <h3 className="font-display text-sm mc-text-primary mb-3 flex items-center gap-2">
+              <Shield className="h-4 w-4 mc-text-cyan" /> Guardrails
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mc-text-dim">
+              <div className="flex items-start gap-2">
+                <Info className="h-3 w-3 mc-text-cyan mt-0.5 flex-shrink-0" />
+                <span><strong className="mc-text-primary">PP & Cosmetics Only</strong> — Never affects ICP, pot, backer selection, or payout math</span>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Guardrails Info Card */}
-          <Card className="border-2 border-cyan-400 bg-gradient-to-r from-cyan-50 to-blue-50">
-            <CardHeader>
-              <CardTitle className="text-lg text-center text-cyan-800 flex items-center justify-center gap-2">
-                <Shield className="h-5 w-5" />
-                Shenanigans Guardrails
-                <Shield className="h-5 w-5" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                <div className="bg-white/80 rounded-lg p-3 border border-cyan-200">
-                  <div className="flex items-start gap-2">
-                    <Info className="h-4 w-4 text-cyan-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-cyan-800">PP & Cosmetics Only</div>
-                      <div className="text-cyan-900 text-xs">Never affects ICP, pot size, dealer selection, payout math, or round structure</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white/80 rounded-lg p-3 border border-green-200">
-                  <div className="flex items-start gap-2">
-                    <Shield className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-green-800">Loss Protection</div>
-                      <div className="text-green-900 text-xs">Targets under 200 PP protected from loss; no one goes below 0 PP</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white/80 rounded-lg p-3 border border-purple-200">
-                  <div className="flex items-start gap-2">
-                    <Zap className="h-4 w-4 text-purple-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-purple-800">Cooldowns</div>
-                      <div className="text-purple-900 text-xs">2-min global cooldown per caster; 3-min per-target; 24-hr protection after negative effects</div>
-                    </div>
-                  </div>
-                </div>
-                <div className="bg-white/80 rounded-lg p-3 border border-orange-200">
-                  <div className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold text-orange-800">No Refunds</div>
-                      <div className="text-orange-900 text-xs">All shenanigans are final - no refunds or appeals for outcomes</div>
-                    </div>
-                  </div>
-                </div>
+              <div className="flex items-start gap-2">
+                <Shield className="h-3 w-3 mc-text-green mt-0.5 flex-shrink-0" />
+                <span><strong className="mc-text-primary">Loss Protection</strong> — Targets under 200 PP protected; no one goes below 0</span>
               </div>
-            </CardContent>
-          </Card>
-
-          {/* Live Shenanigans Feed and Previous Round Recap - Side by Side */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Live Activity Feed */}
-            <Card className="border-2 border-cyan-400 bg-gradient-to-r from-cyan-50 to-blue-50">
-              <CardHeader>
-                <CardTitle className="text-lg text-center text-cyan-800">
-                  📺 Live Shenanigans Feed 📺
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="casino-ticker space-y-2 max-h-48 overflow-y-auto">
-                  {recentShenanigans && recentShenanigans.length > 0 ? (
-                    recentShenanigans.slice(0, 12).map((shenanigan) => (
-                      <div 
-                        key={shenanigan.id.toString()} 
-                        className="ticker-item bg-white rounded-lg p-2 border border-gray-200 text-sm transition-all duration-300"
-                      >
-                        <div className="flex justify-between items-center">
-                          <span className="font-semibold">
-                            {getShenaniganName(shenanigan.shenaniganType)} {availableShenanigans.find(s => s.type === shenanigan.shenaniganType)?.icon}
-                          </span>
-                          <span className={`font-bold ${getOutcomeColor(shenanigan.outcome)}`}>
-                            {shenanigan.outcome.toUpperCase()}
-                          </span>
-                        </div>
-                        <div className="text-xs text-gray-600">
-                          Cost: {shenanigan.cost} PP • {new Date(Number(shenanigan.timestamp) / 1000000).toLocaleTimeString()}
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <div className="text-center text-gray-500 py-4">
-                      No shenanigans cast yet! Be the first to cause some chaos! 🎭
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Previous Round Recap */}
-            <Card className="border-2 border-indigo-400 bg-gradient-to-r from-indigo-100 to-purple-100">
-              <CardHeader>
-                <CardTitle className="text-lg text-center text-indigo-800">
-                  🎭 Previous Round Recap 🎭
-                </CardTitle>
-                <CardDescription className="text-center text-indigo-700 text-sm">
-                  Stats from the previous round
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 gap-3 text-sm">
-                  <div className="bg-white rounded-lg p-3 border border-indigo-300">
-                    <div className="font-bold text-indigo-800">Total Shenanigans Cast</div>
-                    <div className="text-2xl font-black text-indigo-900">
-                      {mockPreviousRoundData.totalShenanigans}
-                    </div>
-                    <div className="text-xs text-indigo-600">Previous Round</div>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-purple-300">
-                    <div className="font-bold text-purple-800">PP Burned</div>
-                    <div className="text-2xl font-black text-purple-900">
-                      {mockPreviousRoundData.totalPointsBurned.toLocaleString()}
-                    </div>
-                    <div className="text-xs text-purple-600">Total Spent</div>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-pink-300">
-                    <div className="font-bold text-pink-800">📈 Outcomes</div>
-                    <div className="text-xs text-pink-900 space-y-1">
-                      <div>✅ Good: {mockPreviousRoundData.outcomes.good}</div>
-                      <div>❌ Bad: {mockPreviousRoundData.outcomes.bad}</div>
-                      <div>🔄 Backfire: {mockPreviousRoundData.outcomes.backfire}</div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Footer Message */}
-          <Card className="border-2 border-purple-300 bg-purple-50">
-            <CardContent className="pt-4">
-              <div className="text-center text-purple-800 font-semibold">
-                <div className="text-lg mb-2">🎪 Remember: Shenanigans are pure entertainment! 🎪</div>
-                <div className="text-sm">
-                  They don't affect the actual game math, just the madness! Burn those Ponzi Points for glory!
-                </div>
-                <div className="text-xs mt-2 text-purple-600 italic">
-                  ⚠️ All effects are limited to Ponzi Points and cosmetics only - never touching ICP, pot size, dealer selection, payout math, or round structure.
-                </div>
+              <div className="flex items-start gap-2">
+                <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />
+                <span><strong className="mc-text-primary">Cooldowns</strong> — 2-min global, 3-min per-target, 24-hr protection after negative effects</span>
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Confirmation Dialog - Warning removed */}
-      {confirmDialogOpen && selectedShenanigan && (
-        <div
-          className="fixed top-8 left-1/2 transform -translate-x-1/2 z-[9999] transition-all duration-300 ease-out opacity-100 translate-y-0"
-          style={{ pointerEvents: 'auto' }}
-        >
-          {/* Toast card */}
-          <div className="house-money-toast-card relative">
-            {/* Content */}
-            <div className="text-center space-y-3">
-              {/* Title */}
-              <div className="text-2xl font-black text-white">
-                {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
-              </div>
-              
-              {/* Subtitle */}
-              <div className="text-base text-white/90 leading-relaxed">
-                This will cost{' '}
-                <span className="house-toast-accent font-black">{selectedShenanigan.cost} Ponzi Points</span>
-              </div>
-              
-              {/* Description */}
-              <div className="text-sm text-white/80">
-                Are you sure you want to cast this shenanigan? The outcome is random and there are no refunds!
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-3 w-3 mc-text-gold mt-0.5 flex-shrink-0" />
+                <span><strong className="mc-text-primary">No Refunds</strong> — All shenanigans are final</span>
               </div>
             </div>
-            
-            {/* Buttons */}
-            <div className="flex justify-center space-x-4 mt-4">
-              <button
-                onClick={() => setConfirmDialogOpen(false)}
-                className="px-6 py-3 rounded-full bg-gray-600 hover:bg-gray-700 text-white font-bold transition-all"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleConfirmCast}
-                className="house-toast-button"
-              >
-                Cast It! 🎲
-              </button>
+          </div>
+        </div>
+
+        {/* Right column (desktop): Stats + Live Feed — sticky */}
+        <div className="mc-shenanigans-sidebar">
+          <div className="mc-card-elevated">
+            {/* Current round stats */}
+            <h3 className="font-display text-base mc-text-primary mb-4">Current Round Stats</h3>
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {[
+                { label: 'PP Spent', value: stats?.totalSpent?.toLocaleString() || '0', color: 'mc-text-cyan' },
+                { label: 'Total Cast', value: stats?.totalCast?.toString() || '0', color: 'mc-text-green' },
+                { label: 'Outcomes', value: `${stats?.goodOutcomes || 0}/${stats?.badOutcomes || 0}/${stats?.backfires || 0}`, sub: 'good/bad/backfire', color: 'mc-text-purple' },
+                { label: 'VC Royalties', value: stats?.dealerCut?.toLocaleString() || '0', color: 'mc-text-gold' },
+              ].map(s => (
+                <div key={s.label} className="mc-card p-3 text-center">
+                  <div className="mc-label mb-1">{s.label}</div>
+                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
+                  {s.sub && <div className="text-xs mc-text-muted">{s.sub}</div>}
+                </div>
+              ))}
+            </div>
+
+            {/* Live feed */}
+            <h3 className="font-display text-base mc-text-primary mb-3">Live Feed</h3>
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {recentShenanigans && recentShenanigans.length > 0 ? (
+                recentShenanigans.slice(0, 20).map(s => (
+                  <div key={s.id.toString()} className="mc-card p-2 flex items-center justify-between text-xs">
+                    <span className="font-bold mc-text-primary">
+                      {availableShenanigans.find(a => a.type === s.shenaniganType)?.name || 'Unknown'}{' '}
+                      {availableShenanigans.find(a => a.type === s.shenaniganType)?.icon}
+                    </span>
+                    <span className={`font-bold ${
+                      s.outcome === 'success' ? 'mc-text-green' : s.outcome === 'fail' ? 'mc-text-danger' : 'mc-text-purple'
+                    }`}>
+                      {s.outcome.toUpperCase()}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <p className="text-center mc-text-muted text-sm py-4">No shenanigans cast yet. Be the first!</p>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Hall of Fame */}
+      <div className="mt-2">
+        <div className="flex items-center gap-2 mb-4">
+          <Trophy className="h-5 w-5 mc-text-gold" />
+          <h2 className="font-display text-lg mc-text-primary">Hall of Fame</h2>
+        </div>
+        <HallOfFame />
+      </div>
+
+      {/* Trollbox teaser — coming soon */}
+      <div className="mc-card mc-accent-cyan p-5 text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <RefreshCw className="h-4 w-4 mc-text-cyan animate-spin" style={{ animationDuration: '3s' }} />
+          <span className="font-display text-sm mc-text-cyan">Trollbox</span>
+        </div>
+        <p className="text-xs mc-text-dim">Live chat where everyone can trash-talk, flex, and watch the chaos unfold in real time.</p>
+        <p className="text-xs mc-text-muted mt-1 font-accent italic">Coming soon.</p>
+      </div>
+
+      {/* Footer */}
+      <div className="mc-status-blue p-4 text-center text-xs">
+        <span className="font-bold">Shenanigans are pure entertainment.</span>
+        <span className="mc-text-dim"> They don't affect game math — just the madness. Effects limited to PP and cosmetics only.</span>
+      </div>
+
+      {/* Outcome toast */}
+      {outcomeToast && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+          <div className="mc-toast text-center">
+            <div className={`font-display text-xl mb-2 ${
+              outcomeToast.outcome === 'success' ? 'mc-text-green' :
+              outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
+              outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
+              'mc-text-danger'
+            }`}>
+              {outcomeToast.outcome === 'success' ? 'Success!' :
+               outcomeToast.outcome === 'fail' ? 'Failed.' :
+               outcomeToast.outcome === 'backfire' ? 'Backfire!' :
+               'Error'}
+            </div>
+            <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
+            <p className="font-accent text-xs mc-text-dim italic mb-3">
+              &ldquo;{outcomeToast.flavor}&rdquo;
+            </p>
+            {outcomeToast.cost > 0 && (
+              <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
+            )}
+            <button
+              onClick={() => setOutcomeToast(null)}
+              className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+            >
+              Noted
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm dialog */}
+      {confirmOpen && selectedShenanigan && (
+        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+          <div className="mc-toast text-center">
+            <div className="font-display text-xl mc-text-primary mb-2">
+              {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
+            </div>
+            <p className="text-sm mc-text-dim mb-1">
+              This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
+            </p>
+            <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
+            <div className="flex gap-3 justify-center">
+              <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
+              <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
             </div>
           </div>
         </div>

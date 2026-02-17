@@ -1,8 +1,16 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useWallet } from './useWallet';
-import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
+import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
+// Re-export backend's DealerPosition as BackerPosition for the rest of the app
+export type { BackerPosition };
 import { Principal } from '@dfinity/principal';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory } from '../declarations/backend';
+import type { _SERVICE } from '../declarations/backend';
+
+const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
+const HOST = 'https://icp0.io';
 
 // User Profile Queries
 export function useGetCallerUserProfile() {
@@ -57,6 +65,23 @@ export function useGetGameStats() {
   });
 }
 
+// Public stats — no auth required, uses anonymous actor for splash page
+export function useGetPublicStats() {
+  return useQuery<PlatformStats>({
+    queryKey: ['publicStats'],
+    queryFn: async () => {
+      const agent = new HttpAgent({ host: HOST });
+      const anonActor = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+      return anonActor.getPlatformStats();
+    },
+    refetchInterval: 30000,
+    staleTime: 15000,
+  });
+}
+
 // Deposit Limits and Rate Limiting Queries
 export function useGetMaxDepositLimit() {
   const { actor, isFetching: actorFetching } = useActor();
@@ -86,20 +111,22 @@ export function useCheckDepositRateLimit() {
   });
 }
 
-// House Repayment Balance Query
-export function useGetHouseRepaymentBalance() {
+// Backer Repayment Balance Query
+export function useGetBackerRepaymentBalance() {
   const { actor, isFetching: actorFetching } = useActor();
 
   return useQuery<number>({
-    queryKey: ['houseRepaymentBalance'],
+    queryKey: ['backerRepaymentBalance'],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      return actor.getDealerRepaymentBalance();
+      return actor.getDealerRepaymentBalance(); // Backend Candid name unchanged
     },
     enabled: !!actor && !actorFetching,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
   });
 }
+// Legacy alias
+export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 
 // House Ledger Queries with enhanced error handling
 export function useGetHouseLedger() {
@@ -171,7 +198,7 @@ export function useGetHouseLedgerStats() {
 export function useGetInternalWalletBalance() {
   const { actor, isFetching: actorFetching } = useActor();
   const { principal, isConnected, walletType } = useWallet();
-  const { data: houseRepaymentBalance } = useGetHouseRepaymentBalance();
+  const { data: houseRepaymentBalance } = useGetBackerRepaymentBalance();
 
   return useQuery({
     queryKey: ['internalWalletBalance', principal, houseRepaymentBalance],
@@ -324,8 +351,8 @@ export function useSendFromInternalWallet() {
   });
 }
 
-// Add Dealer Money Mutation - New function for regular users
-export function useAddDealerMoney() {
+// Add Backer Money Mutation — regular users become Series A backers
+export function useAddBackerMoney() {
   const { actor } = useActor();
   const { principal } = useWallet();
   const queryClient = useQueryClient();
@@ -343,18 +370,18 @@ export function useAddDealerMoney() {
       }
       
       try {
-        // Call backend to add dealer money (this will deduct from internal wallet)
-        await actor.addDealerMoney(amount);
-        
-        return { 
-          success: true, 
+        // Call backend to add backer money (this will deduct from internal wallet)
+        await actor.addDealerMoney(amount); // Backend Candid name unchanged
+
+        return {
+          success: true,
           amount,
           expectedReturn: amount * 1.12,
-          ponziPoints: amount * 4000, // 4000 points per ICP for dealer money
+          ponziPoints: amount * 4000, // 4000 points per ICP for backer money
           timestamp: new Date()
         };
       } catch (error: any) {
-        console.error('Failed to add dealer money:', error);
+        console.error('Failed to add backer money:', error);
         // Provide more user-friendly error messages
         if (error.message?.includes('Amount must be greater than 0')) {
           throw new Error('Please enter a valid amount greater than 0.');
@@ -363,7 +390,7 @@ export function useAddDealerMoney() {
         } else if (error.message?.includes('decimal places')) {
           throw new Error('Amount cannot have more than 8 decimal places.');
         } else {
-          throw new Error('Failed to deposit dealer money. Please try again or contact support.');
+          throw new Error('Failed to deposit backer money. Please try again or contact support.');
         }
       }
     },
@@ -371,19 +398,21 @@ export function useAddDealerMoney() {
       // Immediately invalidate and refetch all related queries for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['dealerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['backerPositions'] });
       queryClient.invalidateQueries({ queryKey: ['houseLedger'] });
       queryClient.invalidateQueries({ queryKey: ['houseLedgerStats'] });
       queryClient.invalidateQueries({ queryKey: ['gameStats'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
       queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
-      queryClient.refetchQueries({ queryKey: ['dealerPositions'] });
+      queryClient.refetchQueries({ queryKey: ['backerPositions'] });
       queryClient.refetchQueries({ queryKey: ['houseLedger'] });
       queryClient.refetchQueries({ queryKey: ['houseLedgerStats'] });
     },
   });
 }
+// Legacy alias
+export const useAddDealerMoney = useAddBackerMoney;
 
 // Add House Money Mutation with enhanced error handling (for admin use)
 export function useAddHouseMoney() {
@@ -430,14 +459,14 @@ export function useAddHouseMoney() {
       // Immediately invalidate and refetch all related queries for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['dealerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['backerPositions'] });
       queryClient.invalidateQueries({ queryKey: ['houseLedger'] });
       queryClient.invalidateQueries({ queryKey: ['houseLedgerStats'] });
       queryClient.invalidateQueries({ queryKey: ['gameStats'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
       queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
-      queryClient.refetchQueries({ queryKey: ['dealerPositions'] });
+      queryClient.refetchQueries({ queryKey: ['backerPositions'] });
       queryClient.refetchQueries({ queryKey: ['houseLedger'] });
       queryClient.refetchQueries({ queryKey: ['houseLedgerStats'] });
     },
@@ -925,91 +954,88 @@ export function useGetPonziPoints() {
   });
 }
 
-// Dealer Positions Query - Enhanced with error handling
-export function useGetDealerPositions() {
+// Backer Positions Query
+export function useGetBackerPositions() {
   const { actor, isFetching: actorFetching } = useActor();
 
-  return useQuery<DealerPosition[]>({
-    queryKey: ['dealerPositions'],
+  return useQuery<BackerPosition[]>({
+    queryKey: ['backerPositions'],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       try {
-        const positions = await actor.getDealerPositions();
+        const positions = await actor.getDealerPositions(); // Backend Candid name unchanged
         return positions || [];
       } catch (error: any) {
-        console.error('Failed to fetch dealer positions:', error);
-        // Return empty array instead of throwing to prevent crashes
+        console.error('Failed to fetch backer positions:', error);
         return [];
       }
     },
     enabled: !!actor && !actorFetching,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
-    // Provide fallback data to prevent crashes
     placeholderData: [],
   });
 }
+// Legacy alias
+export const useGetDealerPositions = useGetBackerPositions;
 
-// Simplified House Dashboard Query - Removed complex dependencies
-export function useGetHouseDashboard() {
-  const { data: dealerPositions, isLoading: dealersLoading, error: dealersError } = useGetDealerPositions();
+// Seed Round Dashboard Query
+export function useGetSeedRoundDashboard() {
+  const { data: backerPositions, isLoading: backersLoading } = useGetBackerPositions();
   const { actor } = useActor();
 
   return useQuery({
-    queryKey: ['houseDashboard', dealerPositions],
+    queryKey: ['seedRoundDashboard', backerPositions],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      
+
       try {
-        // Use dealer positions directly, with fallback for empty data
-        const positions = dealerPositions || [];
-        
-        // Create dealer data with names from the backend
-        const dealersWithNames = positions.map((dealer, index) => ({
-          id: dealer.owner.toString(),
-          principal: dealer.owner.toString(),
-          name: dealer.name || `Dealer ${index + 1}`, // Use name from backend or fallback
-          entitlement: dealer.entitlement,
-          repaid: dealer.entitlement - dealer.amount, // Calculate repaid amount
-          remaining: dealer.amount,
-          dealerBonus: dealer.entitlement - dealer.amount,
-          appointedAt: new Date(Number(dealer.startTime) / 1000000), // Convert nanoseconds to milliseconds
+        const positions = backerPositions || [];
+
+        const backersWithNames = positions.map((backer, index) => ({
+          id: backer.owner.toString(),
+          principal: backer.owner.toString(),
+          name: backer.name || `Backer ${index + 1}`,
+          entitlement: backer.entitlement,
+          repaid: backer.entitlement - backer.amount,
+          remaining: backer.amount,
+          backerBonus: backer.entitlement - backer.amount,
+          appointedAt: new Date(Number(backer.startTime) / 1000000),
         }));
 
-        // Calculate total outstanding debt
-        const totalOutstandingDebt = positions.reduce((sum, dealer) => sum + dealer.amount, 0);
+        const totalOutstandingDebt = positions.reduce((sum, backer) => sum + backer.amount, 0);
 
         return {
-          houses: dealersWithNames,
+          backers: backersWithNames,
           totalOutstandingDebt,
-          seedVaultBalance: 0, // TODO: Implement if needed
-          repaymentPoolBalance: 0, // TODO: Implement if needed
+          seedVaultBalance: 0,
+          repaymentPoolBalance: 0,
         };
       } catch (error: any) {
-        console.error('Failed to process house dashboard data:', error);
-        // Return fallback data instead of throwing to prevent crashes
+        console.error('Failed to process seed round dashboard data:', error);
         return {
-          houses: [],
+          backers: [],
           totalOutstandingDebt: 0,
           seedVaultBalance: 0,
           repaymentPoolBalance: 0,
         };
       }
     },
-    enabled: !!actor && !dealersLoading,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    enabled: !!actor && !backersLoading,
+    refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
-    // Provide fallback data to prevent crashes
     placeholderData: {
-      houses: [],
+      backers: [],
       totalOutstandingDebt: 0,
       seedVaultBalance: 0,
       repaymentPoolBalance: 0,
     },
   });
 }
+// Legacy alias
+export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
 // Hall of Fame Queries - Updated to use separate backend calls
 export function useGetTopPonziPointsHolders() {

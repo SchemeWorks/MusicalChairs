@@ -1,80 +1,165 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSaveUserProfile } from '../hooks/useQueries';
+import { triggerConfetti } from './ConfettiCanvas';
+import { Dices, AlertTriangle, PartyPopper, CreditCard } from 'lucide-react';
+
+const MAX_NAME_LENGTH = 20;
 
 export default function ProfileSetup() {
   const [name, setName] = useState('');
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [savedName, setSavedName] = useState('');
+  const [shakeInput, setShakeInput] = useState(false);
+  const queryClient = useQueryClient();
   const saveProfile = useSaveUserProfile();
 
-  const isNameValid = name.trim().length > 0;
+  const trimmedName = name.trim();
+  const isNameValid = trimmedName.length > 0 && trimmedName.length <= MAX_NAME_LENGTH;
+
+  const triggerShake = () => {
+    setShakeInput(true);
+    setTimeout(() => setShakeInput(false), 400);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      saveProfile.mutate({ name: name.trim() });
-    }
+    if (!trimmedName) { triggerShake(); return; }
+    if (trimmedName.length > MAX_NAME_LENGTH) { triggerShake(); return; }
+    setSavedName(trimmedName);
+    saveProfile.mutate({ name: trimmedName }, {
+      onSuccess: () => {
+        setShowCelebration(true);
+        triggerConfetti();
+        // Explicitly refetch user profile so App.tsx detects it and redirects
+        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      },
+    });
   };
 
+  // Fallback: if React Query hasn't redirected after 3 seconds, force another refetch
+  useEffect(() => {
+    if (showCelebration) {
+      const timer = setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [showCelebration, queryClient]);
+
+  if (showCelebration) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center mc-hero-entrance">
+        <PartyPopper className="h-16 w-16 mc-text-gold mx-auto mb-6" />
+        <h1 className="font-display text-2xl sm:text-3xl mc-text-primary mb-4">
+          Welcome to Musical Chairs, {savedName}!
+        </h1>
+        <p className="font-accent text-sm mc-text-dim italic mb-2">
+          &ldquo;I knew you had it in you.&rdquo;
+        </p>
+        <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
+
+        <div className="mt-10">
+          <div className="mc-spinner mx-auto mb-3" />
+          <p className="text-xs mc-text-muted">Setting up your table...</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+            className="mc-btn-primary mt-4 px-6 py-2 text-sm"
+          >
+            TAKE ME TO THE TABLE
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="max-w-md mx-auto">
-      {/* Welcome Header matching dashboard style */}
-      <div className="text-center mb-8">
-        <div className="dashboard-title-panel mb-2">
-          <h2 className="text-4xl font-black dashboard-title-stroked">
-            🎪 Welcome to Musical Chairs! 🎪
-          </h2>
+    <div className="max-w-md mx-auto px-4 py-12 md:py-20">
+      {/* Hero */}
+      <div className="text-center mb-10">
+        <div className="mc-hero-logo text-3xl md:text-4xl">Musical Chairs</div>
+        <div className="mc-tagline text-xl mb-4">It's a Ponzi!</div>
+        <p className="font-accent text-sm mc-text-dim italic leading-relaxed max-w-xs mx-auto">
+          &ldquo;I&rsquo;m glad you&rsquo;re here. Truly.
+          Let me show you something special.&rdquo;
+        </p>
+        <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
+      </div>
+
+      {/* Decorative casino registration icon */}
+      <div className="flex justify-center mb-6 opacity-40">
+        <div className="relative">
+          <CreditCard className="h-12 w-12 mc-text-gold absolute -rotate-12 -translate-x-2" />
+          <CreditCard className="h-12 w-12 mc-text-purple rotate-6 translate-x-2" />
         </div>
       </div>
 
-      {/* Single Animated Gradient Frosted-Glass Outer Card */}
-      <div className="profile-outer-card">
-        {/* Slot Machine Icon - Top Center */}
-        <div className="text-center mb-6">
-          <div className="text-6xl mb-4 slot-icon">🎰</div>
+      {/* Setup card */}
+      <div className="mc-card-elevated mc-registration-glow">
+        <div className="text-center mb-8">
+          <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
+          <p className="mc-text-dim text-sm">Everyone who walks through that door gets a seat at the table.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <input
               type="text"
-              id="name"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="name-input-field"
-              placeholder="Choose a name"
+              className={`mc-input w-full text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
+              placeholder="Your name, future millionaire"
+              maxLength={MAX_NAME_LENGTH + 5} /* soft limit — let them type a bit over to see the counter turn red */
               required
             />
-            <p className="help-text">
-              Pick a fun nickname — this is what others will see!
-            </p>
+            {/* Character count & validation feedback */}
+            <div className="flex justify-between mt-1.5 text-xs">
+              <span className={name.length > MAX_NAME_LENGTH ? 'mc-text-danger' : 'mc-text-muted'}>
+                {name.length > 0 ? `${name.length}/${MAX_NAME_LENGTH} characters` : ''}
+              </span>
+              {name.length > MAX_NAME_LENGTH && (
+                <span className="mc-text-danger">Too long</span>
+              )}
+            </div>
+            {trimmedName && trimmedName.length <= MAX_NAME_LENGTH && (
+              <p className="text-xs mc-text-muted mt-1 text-center">
+                Players will see you as: <span className="text-white font-bold">{trimmedName}</span>
+              </p>
+            )}
           </div>
 
           <button
             type="submit"
             disabled={!isNameValid || saveProfile.isPending}
-            className={isNameValid ? 'join-game-button-active-with-glow' : 'join-game-button-neutral'}
+            className={`w-full py-4 text-lg font-bold rounded-xl transition-all ${
+              isNameValid
+                ? 'mc-btn-primary pulse'
+                : 'mc-btn-primary opacity-50 cursor-not-allowed'
+            }`}
           >
-            {saveProfile.isPending ? '🎰 Joining...' : '🎟️ JOIN THE GAME!'}
+            {saveProfile.isPending ? 'Pulling up a chair...' : isNameValid ? 'TAKE YOUR SEAT' : 'JOIN THE GAME'}
           </button>
         </form>
 
         {saveProfile.isError && (
-          <div className="mt-4 p-4 bg-red-50 border-2 border-red-200 rounded-xl">
-            <p className="text-sm text-red-600 font-bold text-center">
-              Failed to save profile. Please try again.
-            </p>
+          <div className="mc-status-red p-3 mt-4 text-center text-sm">
+            Failed to create profile. Please try again.
           </div>
         )}
 
-        {/* Red Gambling Warning Box - Separate Card matching Login Page */}
-        <div className="profile-inner-red-card">
-          <div className="flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-red-800 font-bold text-sm">
-                ⚠️ THIS IS A GAMBLING GAME! ⚠️<br />
-                Only play with money you can afford to lose!
-              </p>
-            </div>
-          </div>
+        {/* Ponzi disclaimer — Charles voice, normal text */}
+        <div className="mt-6 text-center">
+          <p className="font-bold text-sm mc-text-dim flex items-center justify-center gap-2">
+            <AlertTriangle className="h-4 w-4 mc-text-danger" /> THIS IS A REAL PONZI SCHEME
+          </p>
+          <p className="text-xs mc-text-muted mt-1">Real ICP. Real risk. Real fun. Only put in what you'd comfortably set on fire.</p>
+        </div>
+
+        {/* Gambling disclaimer — straight-faced, red warning box */}
+        <div className="mc-status-red p-3 mt-4 text-center">
+          <p className="text-xs flex items-center justify-center gap-1.5">
+            <AlertTriangle className="h-3 w-3" /> This is a gambling game. Please play responsibly.
+          </p>
         </div>
       </div>
     </div>
