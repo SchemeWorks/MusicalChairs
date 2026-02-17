@@ -267,16 +267,18 @@ export default function App() {
               <div className="flex-1" />
 
               {/* Right controls */}
-              <div className="flex items-center gap-3">
-                {/* Docs — always visible */}
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Docs — always visible, visually distinct */}
                 <button
                   onClick={() => setShowDocsPage(true)}
-                  className="text-xs mc-text-muted hover:mc-text-primary transition-colors hidden sm:flex items-center gap-1.5"
-                  title="Documentation"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
                 >
-                  <BookOpen className="h-3.5 w-3.5" />
-                  Docs
+                  <BookOpen className="h-4 w-4" />
+                  <span>Docs</span>
                 </button>
+
+                {/* Separator dot */}
+                <div className="w-px h-4 bg-white/10 hidden sm:block" />
 
                 {isAuthenticated ? (
                   <>
@@ -328,7 +330,12 @@ export default function App() {
               </button>
             </div>
           }>
-            {!isAuthenticated ? (
+            {showDocsPage ? (
+              /* === DOCS PAGE === */
+              <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+                <DocsPage onBack={() => setShowDocsPage(false)} />
+              </div>
+            ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
               <div className="mc-hero max-w-2xl mx-auto px-4 py-8 md:py-16">
                 {/* Animated gradient background */}
@@ -345,36 +352,42 @@ export default function App() {
                   <div className="mb-10" />
                 </div>
 
-                {/* Three info cards */}
-                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-center mc-splash-cards mc-scroll-animate">
+                {/* Three info cards — icon discs float above the top rail */}
+                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center mc-splash-cards mc-scroll-animate">
                   {/* Card 1: The Hook */}
-                  <div className="mc-card mc-accent-green p-6 mc-card-hook">
-                    <div className="mc-icon-disc mc-icon-disc-green mx-auto mb-4">
-                      <Dices className="h-6 w-6" />
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-green mb-[-20px] z-10">
+                      <Dices className="h-7 w-7 mc-text-green" />
                     </div>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
-                    </p>
+                    <div className="mc-card mc-accent-green pt-8 pb-5 px-5 mc-card-hook w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Card 2: The Warning */}
-                  <div className="mc-card mc-accent-danger p-5">
-                    <div className="mc-icon-disc mc-icon-disc-danger mx-auto mb-4">
-                      <AlertTriangle className="h-6 w-6" />
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-danger mb-[-20px] z-10">
+                      <AlertTriangle className="h-7 w-7 mc-text-danger" />
                     </div>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
-                    </p>
+                    <div className="mc-card mc-accent-danger pt-8 pb-5 px-5 w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
+                      </p>
+                    </div>
                   </div>
 
                   {/* Card 3: The Payoff */}
-                  <div className="mc-card-elevated mc-accent-gold p-5 mc-card-payoff">
-                    <div className="mc-icon-disc mc-icon-disc-gold mx-auto mb-4">
-                      <Dices className="h-6 w-6" />
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-gold mb-[-20px] z-10">
+                      <Dices className="h-7 w-7 mc-text-gold" />
                     </div>
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
-                    </p>
+                    <div className="mc-card-elevated mc-accent-gold pt-8 pb-5 px-5 mc-card-payoff w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
@@ -543,12 +556,7 @@ export default function App() {
           />
         </ErrorBoundary>
 
-        {/* Full docs page */}
-        {showDocsPage && (
-          <div className="fixed inset-0 z-50 mc-bg overflow-y-auto">
-            <DocsPage onBack={() => setShowDocsPage(false)} />
-          </div>
-        )}
+        {/* DocsPage is rendered inline in main content — see showDocsPage conditional above */}
 
         {/* Toast */}
         <Toaster

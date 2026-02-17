@@ -898,7 +898,8 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    animation: mc-gradient-shift 6s ease infinite;
+    /* Combine slide-up (stagger entry) + gradient shift so parent .mc-stagger > * doesn't override */
+    animation: mc-slide-up 0.3s ease-out forwards, mc-gradient-shift 6s 0.3s ease infinite;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
     line-height: 1.2;
     margin-bottom: var(--space-md);
