@@ -36,22 +36,112 @@ const splashQuotes = [
   "The only guarantee is that there are no guarantees. But the odds are... interesting.",
 ];
 
-function useScrollAnimate(ref: React.RefObject<HTMLElement | null>) {
+function useScrollAnimate(ref: React.RefObject<HTMLElement | null>, enabled: boolean = true) {
   useEffect(() => {
+    if (!enabled) return;
     const el = ref.current;
     if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          el.classList.add('mc-scroll-visible');
-          observer.unobserve(el);
+
+    // Small delay to let layout settle, then check if already visible
+    const timer = setTimeout(() => {
+      const rect = el.getBoundingClientRect();
+      if (rect.top < window.innerHeight && rect.bottom > 0) {
+        el.classList.add('mc-scroll-visible');
+        return;
+      }
+      // Otherwise, observe for scroll
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) {
+            el.classList.add('mc-scroll-visible');
+            observer.unobserve(el);
+          }
+        },
+        { threshold: 0.1 }
+      );
+      observer.observe(el);
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [ref, enabled]);
+}
+
+/**
+ * Spring-physics drop animation. Uses damped harmonic oscillator:
+ *   y(t) = A · e^(-ζt) · cos(ωt)
+ * Produces perfectly smooth motion — no keyframe seams.
+ */
+function useSpringDrop(
+  ref: React.RefObject<HTMLElement | null>,
+  enabled: boolean = true,
+  {
+    startY = -350,       // px above resting position
+    damping = 4.2,       // ζ — how fast bounces decay
+    frequency = 8.5,     // ω — bounce frequency (rad/s)
+    duration = 2.0,      // total animation seconds
+    delay = 700,         // ms before animation starts
+    restRotation = -3,   // final rotation in degrees
+  } = {}
+) {
+  useEffect(() => {
+    if (!enabled) return;
+    const el = ref.current;
+    if (!el) return;
+
+    // Respect reduced-motion preference
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      el.style.opacity = '1';
+      el.style.transform = `rotate(${restRotation}deg)`;
+      return;
+    }
+
+    // Hide initially
+    el.style.opacity = '0';
+    el.style.transform = `translateY(${startY}px) rotate(0deg)`;
+
+    const delayTimer = setTimeout(() => {
+      const startTime = performance.now();
+      const durationMs = duration * 1000;
+
+      function tick(now: number) {
+        const elapsed = now - startTime;
+        const t = Math.min(elapsed / durationMs, 1);
+        const tSec = t * duration;
+
+        // Damped spring: displacement from rest
+        const springVal = Math.exp(-damping * tSec) * Math.cos(frequency * tSec);
+        // Y position: startY * springVal (at t=0, springVal≈1 → full offset; at t=∞ → 0)
+        const y = startY * springVal;
+
+        // Rotation eases in as it settles
+        const rotationProgress = 1 - Math.exp(-damping * tSec * 0.6);
+        const rotation = restRotation * rotationProgress;
+
+        // Subtle squash/stretch on vertical velocity
+        const velocity = -damping * springVal + Math.exp(-damping * tSec) * (-frequency * Math.sin(frequency * tSec));
+        const squash = 1 + Math.abs(velocity) * 0.012;
+        const scaleX = 1 + (squash - 1) * 0.4;
+        const scaleY = 1 / scaleX; // preserve area
+
+        // Fade in quickly
+        const opacity = Math.min(1, tSec * 6);
+
+        el.style.opacity = String(opacity);
+        el.style.transform = `translateY(${y}px) rotate(${rotation}deg) scaleX(${scaleX.toFixed(4)}) scaleY(${scaleY.toFixed(4)})`;
+
+        if (t < 1) {
+          requestAnimationFrame(tick);
+        } else {
+          // Snap to exact final values
+          el.style.opacity = '1';
+          el.style.transform = `translateY(0px) rotate(${restRotation}deg) scale(1)`;
         }
-      },
-      { threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref]);
+      }
+
+      requestAnimationFrame(tick);
+    }, delay);
+
+    return () => clearTimeout(delayTimer);
+  }, [ref, enabled]);
 }
 
 export default function App() {
@@ -71,9 +161,12 @@ export default function App() {
   const cardsRef = useRef<HTMLDivElement>(null);
   const ribbonRef = useRef<HTMLDivElement>(null);
   const howItWorksRef = useRef<HTMLDivElement>(null);
-  useScrollAnimate(cardsRef);
-  useScrollAnimate(ribbonRef);
-  useScrollAnimate(howItWorksRef);
+  const taglineRef = useRef<HTMLSpanElement>(null);
+  const splashVisible = !isInitializing && !identity;
+  useScrollAnimate(cardsRef, splashVisible);
+  useScrollAnimate(ribbonRef, splashVisible);
+  useScrollAnimate(howItWorksRef, splashVisible);
+  useSpringDrop(taglineRef, splashVisible);
 
   // Badge data — only fetched when authenticated (React Query caches these)
   const { data: games } = useGetUserGames();
@@ -246,7 +339,7 @@ export default function App() {
                     Musical Chairs
                   </div>
                   <div className="mc-tagline text-2xl md:text-3xl mb-4">
-                    <span className="mc-typewriter">It's a Ponzi!</span>
+                    <span ref={taglineRef} style={{ display: 'inline-block', opacity: 0 }}>It's a Ponzi!</span>
                   </div>
                   <p className="font-accent text-sm mc-text-muted italic mb-10">
                     You know exactly what this is. That's what makes it fun.
