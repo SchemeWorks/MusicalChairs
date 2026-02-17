@@ -26,7 +26,7 @@ export default function PonziPointsDashboard() {
         {/* Main balance */}
         <div className="text-center mb-6">
           <div className="mc-label mb-2">Your Ponzi Points Balance</div>
-          <div className="text-4xl font-bold mc-text-purple mc-glow-purple font-display">
+          <div className="text-2xl sm:text-4xl mc-text-purple mc-glow-purple font-display">
             {totalPoints.toLocaleString()} PP
           </div>
           <p className="text-xs mc-text-muted mt-2 font-accent italic">Worthless tokens for YOLOing into a Ponzi</p>

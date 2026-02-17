@@ -25,13 +25,13 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
 
   const heights = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
   const medals = {
-    1: { bg: 'bg-yellow-500/20', border: 'border-yellow-500/40', text: 'text-yellow-400', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Crown className="h-5 w-5 text-yellow-400" /> },
-    2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-4 w-4 text-gray-300" /> },
-    3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-4 w-4 text-amber-500" /> },
+    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Crown className="h-3.5 w-3.5 mc-text-gold" /> },
+    2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-3 w-3 text-gray-300" /> },
+    3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-3 w-3 text-amber-500" /> },
   };
 
   return (
-    <div className={`flex items-end justify-center gap-2 mb-6 ${podiumOrder.length === 1 ? '' : ''}`}>
+    <div className={`flex items-end justify-center gap-2 mb-6`} style={{ minHeight: '140px' }}>
       {podiumOrder.map(entry => {
         const rank = entry.rank as 1 | 2 | 3;
         const m = medals[rank];
@@ -39,9 +39,12 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
         const value = isHolders ? entry.ponziPoints : entry.ponziPointsBurned;
         return (
           <div key={entry.rank} className="flex flex-col items-center" style={{ minWidth: '90px' }}>
-            {/* Avatar + name */}
-            <div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5`} style={{ boxShadow: m.glow }}>
-              {m.icon}
+            {/* Avatar initial + medal badge */}
+            <div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5 relative`} style={{ boxShadow: m.glow }}>
+              <span className={`font-display text-sm ${m.text}`}>{entry.name.charAt(0).toUpperCase()}</span>
+              <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
+                {m.icon}
+              </div>
             </div>
             <span className="text-xs font-bold mc-text-primary truncate max-w-[80px] text-center">{entry.name}</span>
             <span className="text-xs font-bold mc-text-purple">{(value || 0).toLocaleString()}</span>
@@ -82,7 +85,7 @@ export default function HallOfFame() {
 
   const getRankStyle = (rank: number) => {
     switch (rank) {
-      case 1: return { card: 'mc-rank-gold', icon: <Medal className="h-5 w-5 text-yellow-400" />, label: 'Gold' };
+      case 1: return { card: 'mc-rank-gold', icon: <Medal className="h-5 w-5 mc-text-gold" />, label: 'Gold' };
       case 2: return { card: 'mc-rank-silver', icon: <Medal className="h-5 w-5 text-gray-300" />, label: 'Silver' };
       case 3: return { card: 'mc-rank-bronze', icon: <Medal className="h-5 w-5 text-amber-600" />, label: 'Bronze' };
       default: return { card: 'mc-rank-default', icon: <Medal className="h-5 w-5 mc-text-purple" />, label: `#${rank}` };
@@ -112,7 +115,7 @@ export default function HallOfFame() {
           <span className="flex items-center">{style.icon}</span>
           <div>
             <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              isTop3 ? 'bg-white/10' : 'bg-purple-500/10'
+              isTop3 ? 'bg-white/10' : 'bg-[var(--mc-purple)]/10'
             } mc-text-dim`}>{style.label}</span>
             <span className={`font-bold text-sm ml-2 ${isUser ? 'mc-text-cyan' : 'mc-text-primary'}`}>
               {entry.name}{isUser ? ' (you)' : ''}
@@ -143,6 +146,22 @@ export default function HallOfFame() {
 
   return (
     <div className="space-y-6">
+      {/* Time filter toggle */}
+      <div className="flex gap-2 justify-center">
+        <button
+          disabled
+          title="Coming after next round reset"
+          className="px-4 py-2 rounded-full text-xs font-bold mc-text-muted bg-white/5 border border-white/10 cursor-not-allowed opacity-50"
+        >
+          This Round
+        </button>
+        <button
+          className="px-4 py-2 rounded-full text-xs font-bold bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30"
+        >
+          All Time
+        </button>
+      </div>
+
       {/* Your Rank banner */}
       <div className="mc-card p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -175,12 +194,12 @@ export default function HallOfFame() {
               <h3 className="font-display text-base mc-text-primary">Top Holders</h3>
             </div>
             <p className="text-xs mc-text-muted mb-4">Most Points Accumulated</p>
-            {holdersData && holdersData.length >= 3 && (
+            {holdersData && holdersData.length >= 2 && (
               <Podium entries={holdersData} isHolders={true} />
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {holdersData && holdersData.length > 0
-                ? holdersData.slice(3).map(e => renderEntry(e, true))
+                ? holdersData.slice(holdersData.length >= 2 ? Math.min(3, holdersData.length) : 0).map(e => renderEntry(e, true))
                 : <p className="text-sm mc-text-dim text-center py-4">No holders yet</p>}
             </div>
           </div>
@@ -192,12 +211,12 @@ export default function HallOfFame() {
               <h3 className="font-display text-base mc-text-primary">Diamond Tier</h3>
             </div>
             <p className="text-xs mc-text-muted mb-4">Most Points Spent on Shenanigans</p>
-            {burnersData && burnersData.length >= 3 && (
+            {burnersData && burnersData.length >= 2 && (
               <Podium entries={burnersData} isHolders={false} />
             )}
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {burnersData && burnersData.length > 0
-                ? burnersData.slice(3).map(e => renderEntry(e, false))
+                ? burnersData.slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0).map(e => renderEntry(e, false))
                 : <p className="text-sm mc-text-dim text-center py-4">No Diamond Tier members yet</p>}
             </div>
           </div>

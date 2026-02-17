@@ -28,14 +28,14 @@ export default function GameStatusBar() {
       {/* Net P/L — hero stat */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">P/L</span>
-        <span className={`mc-status-bar-value ${isUp ? 'mc-text-green' : 'mc-text-danger'}`}>
+        <span className={`mc-status-bar-value ${isUp ? 'mc-text-green mc-glow-green' : 'mc-text-danger'}`}>
           {isUp ? <TrendingUp className="h-3 w-3 inline mr-0.5" /> : <TrendingDown className="h-3 w-3 inline mr-0.5" />}
           {isUp ? '+' : ''}{formatICP(netPL)}
         </span>
       </div>
 
-      {/* Positions */}
-      <div className="mc-status-bar-stat">
+      {/* Positions — hidden on mobile to reduce density */}
+      <div className="mc-status-bar-stat mc-status-bar-mobile-hide">
         <span className="mc-status-bar-label">Positions</span>
         <span className="mc-status-bar-value mc-text-cyan">{activeGames}</span>
       </div>

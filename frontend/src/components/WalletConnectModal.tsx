@@ -99,7 +99,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                 disabled={isConnecting}
                 className={`flex items-center gap-3 p-4 rounded-xl w-full text-left transition-all border ${
                   isSelected
-                    ? 'bg-purple-500/15 border-purple-400/40'
+                    ? 'bg-[var(--mc-purple)]/15 border-[var(--mc-purple)]/40'
                     : 'bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15'
                 } disabled:opacity-50`}
               >

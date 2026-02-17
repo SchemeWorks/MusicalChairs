@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
-import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
@@ -13,7 +13,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5 } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle } from 'lucide-react';
+import GameDocs from './components/GameDocs';
+import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
@@ -34,6 +36,24 @@ const splashQuotes = [
   "The only guarantee is that there are no guarantees. But the odds are... interesting.",
 ];
 
+function useScrollAnimate(ref: React.RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          el.classList.add('mc-scroll-visible');
+          observer.unobserve(el);
+        }
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [ref]);
+}
+
 export default function App() {
   const { identity, principal, isInitializing } = useInternetIdentity();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
@@ -43,22 +63,45 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [showDocs, setShowDocs] = useState(false);
+  const { data: publicStats } = useGetPublicStats();
+
+  // Scroll-triggered animation refs
+  const cardsRef = useRef<HTMLDivElement>(null);
+  const ribbonRef = useRef<HTMLDivElement>(null);
+  const howItWorksRef = useRef<HTMLDivElement>(null);
+  useScrollAnimate(cardsRef);
+  useScrollAnimate(ribbonRef);
+  useScrollAnimate(howItWorksRef);
 
   // Badge data — only fetched when authenticated (React Query caches these)
   const { data: games } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
+  const { data: referralStats } = useGetReferralStats();
   const portfolio = useLivePortfolio(games);
 
   // Profit Center badge: any position has positive earnings (withdrawable)
   const hasWithdrawableEarnings = portfolio.games.some(g => g.earnings > 0);
   // Shenanigans badge: user has enough PP to cast the cheapest shenanigan (500 PP)
   const canCastShenanigan = (ponziData?.totalPoints || 0) >= 500;
+  // MLM badge: referral earnings increased since last visit (gold dot)
+  const currentReferralEarnings = referralStats?.totalEarnings || 0;
+  const lastSeenReferralEarnings = parseInt(localStorage.getItem('mc_last_seen_referral_earnings') || '0');
+  const hasNewReferralActivity = currentReferralEarnings > lastSeenReferralEarnings;
 
-  const badges: Record<TabType, 'red' | 'purple' | null> = {
+  // Clear MLM badge when user visits the tab
+  useEffect(() => {
+    if (activeTab === 'mlm' && referralStats) {
+      localStorage.setItem('mc_last_seen_referral_earnings', String(referralStats.totalEarnings || 0));
+    }
+  }, [activeTab, referralStats]);
+
+  const badges: Record<TabType, 'red' | 'purple' | 'gold' | null> = {
     profitCenter: hasWithdrawableEarnings ? 'red' : null,
     invest: null,
     seedRound: null,
-    mlm: null,
+    mlm: hasNewReferralActivity ? 'gold' : null,
     shenanigans: canCastShenanigan ? 'purple' : null,
   };
 
@@ -96,9 +139,11 @@ export default function App() {
                   <span className="hidden md:inline">Musical Chairs</span>
                   <span className="md:hidden">MC</span>
                 </span>
-                <span className="mc-tagline text-sm md:text-base leading-none">
-                  It's a Ponzi!
-                </span>
+                {!showDashboard && (
+                  <span className="mc-tagline text-sm md:text-base leading-none">
+                    It's a Ponzi!
+                  </span>
+                )}
               </button>
 
               {/* Desktop header tabs — only when on dashboard */}
@@ -116,7 +161,7 @@ export default function App() {
                         <span className={`relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
                           {item.icon}
                           {badge && !isActive && (
-                            <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : 'mc-badge-purple'}`} />
+                            <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : badge === 'gold' ? 'mc-badge-gold' : 'mc-badge-purple'}`} />
                           )}
                         </span>
                         <span>{item.label}</span>
@@ -145,6 +190,15 @@ export default function App() {
                       </button>
                     )}
 
+                    {/* Docs */}
+                    <button
+                      onClick={() => setShowDocs(true)}
+                      className="w-8 h-8 rounded-full flex items-center justify-center mc-text-muted hover:mc-text-primary hover:bg-white/5 transition-all"
+                      title="How To Play"
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                    </button>
+
                     {/* Wallet */}
                     <button
                       ref={walletButtonRef}
@@ -169,7 +223,7 @@ export default function App() {
         {showDashboard && <GameStatusBar />}
 
         {/* Main Content */}
-        <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+36px)] md:pt-[calc(5rem+36px)]' : 'pt-16 md:pt-20'}`}>
+        <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
           <ErrorBoundary fallback={
             <div className="text-center py-16 px-4">
               <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
@@ -183,13 +237,16 @@ export default function App() {
             {!isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
               <div className="mc-hero max-w-2xl mx-auto px-4 py-8 md:py-16">
+                {/* Animated gradient background */}
+                <div className="mc-splash-bg" />
+
                 {/* Hero: logo → tagline → Charles hook */}
                 <div className="mc-stagger mc-hero-entrance">
                   <div className="mc-hero-logo">
                     Musical Chairs
                   </div>
                   <div className="mc-tagline text-2xl md:text-3xl mb-4">
-                    It's a Ponzi!
+                    <span className="mc-typewriter">It's a Ponzi!</span>
                   </div>
                   <p className="font-accent text-sm mc-text-muted italic mb-10">
                     You know exactly what this is. That's what makes it fun.
@@ -197,22 +254,25 @@ export default function App() {
                 </div>
 
                 {/* Three info cards — the pitch builds before the ask */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-stagger">
-                  <div className="mc-card mc-accent-green p-5">
+                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-splash-cards mc-scroll-animate">
+                  {/* Card 1: The Hook — bigger, pulsing glow */}
+                  <div className="mc-card mc-accent-green p-6 mc-card-hook">
                     <Dices className="h-7 w-7 mc-text-green mb-3" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
                     </p>
                   </div>
 
-                  <div className="mc-card mc-accent-danger p-5">
+                  {/* Card 2: The Friction — dashed border, caution feel */}
+                  <div className="mc-card mc-accent-danger p-5 border-dashed">
                     <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
                     </p>
                   </div>
 
-                  <div className="mc-card mc-accent-gold p-5">
+                  {/* Card 3: The Payoff — elevated, gold glow */}
+                  <div className="mc-card-elevated mc-accent-gold p-5 mc-card-payoff">
                     <Dices className="h-7 w-7 mc-text-gold mb-3" />
                     <p className="text-sm mc-text-dim leading-relaxed">
                       When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
@@ -221,17 +281,21 @@ export default function App() {
                 </div>
 
                 {/* Live stats ribbon — social proof */}
-                <div className="mt-8 mc-card mc-accent-gold p-4">
+                <div ref={ribbonRef} className="mt-8 mc-card mc-accent-gold p-4 mc-scroll-animate">
                   <div className="flex items-center justify-center gap-6 flex-wrap text-xs">
                     <div className="flex items-center gap-1.5">
                       <span className="mc-text-gold">🏦</span>
                       <span className="mc-text-muted">Pot:</span>
-                      <span className="font-bold mc-text-gold">Growing daily</span>
+                      <span className="font-bold mc-text-gold">
+                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : 'Growing daily'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="mc-text-green">📈</span>
-                      <span className="mc-text-muted">Rates:</span>
-                      <span className="font-bold mc-text-green">Up to 12% / day</span>
+                      <span className="mc-text-muted">Players:</span>
+                      <span className="font-bold mc-text-green">
+                        {publicStats ? `${Number(publicStats.activeGames)} active` : 'Up to 12% / day'}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <span className="mc-text-cyan">⚡</span>
@@ -239,6 +303,37 @@ export default function App() {
                       <span className="font-bold mc-text-cyan">Live on ICP</span>
                     </div>
                   </div>
+                </div>
+
+                {/* How It Works — expandable */}
+                <div ref={howItWorksRef} className="mt-6 mc-scroll-animate">
+                  <button
+                    onClick={() => setShowHowItWorks(!showHowItWorks)}
+                    className="flex items-center gap-2 mx-auto text-xs mc-text-dim hover:mc-text-primary transition-colors"
+                  >
+                    <ChevronDown className={`h-4 w-4 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
+                    How does it work?
+                  </button>
+                  {showHowItWorks && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-green mb-2">Deposit ICP</h4>
+                        <p className="text-xs mc-text-dim">Choose a plan. Simple earns 11%/day for 21 days. Compounding earns more but locks your money.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-gold mb-2">Earn Daily</h4>
+                        <p className="text-xs mc-text-dim">Your position earns interest from the pot. Withdraw anytime — earlier exits pay a higher toll.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-purple mb-2">Cast Shenanigans</h4>
+                        <p className="text-xs mc-text-dim">Earn Ponzi Points. Spend them on cosmetic chaos — rename other players, skim their earnings, boost your referrals.</p>
+                      </div>
+                      <div className="mc-card p-4">
+                        <h4 className="font-display text-sm mc-text-danger mb-2">The Catch</h4>
+                        <p className="text-xs mc-text-dim">When the pot empties, the game resets. If you're still in — total loss. That's the Ponzi part.</p>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Charles quote */}
@@ -327,6 +422,9 @@ export default function App() {
           />
         </ErrorBoundary>
 
+        {/* Docs overlay */}
+        {showDocs && <GameDocs onClose={() => setShowDocs(false)} />}
+
         {/* Toast */}
         <Toaster
           position="top-center"
@@ -335,7 +433,6 @@ export default function App() {
               background: 'var(--mc-felt-raised)',
               color: 'var(--mc-white)',
               border: '1px solid var(--mc-border)',
-              fontFamily: "'Space Mono', monospace",
               fontSize: '14px',
               fontWeight: '700',
               padding: '12px 16px',

@@ -40,6 +40,34 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const [isMobile, setIsMobile] = useState(false);
 
+  // Drag-to-dismiss touch state
+  const [touchStartY, setTouchStartY] = useState<number | null>(null);
+  const [dragDelta, setDragDelta] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartY(e.touches[0].clientY);
+    setIsDragging(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartY === null) return;
+    const delta = e.touches[0].clientY - touchStartY;
+    if (delta > 0) {
+      setDragDelta(delta);
+      setIsDragging(true);
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (dragDelta > 100) {
+      onClose();
+    }
+    setTouchStartY(null);
+    setDragDelta(0);
+    setIsDragging(false);
+  };
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 769);
     check();
@@ -175,7 +203,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             <span className="text-xs mc-text-muted">{walletName}</span>
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
           </div>
-          <button onClick={onClose} className="p-1 rounded hover:bg-white/5"><X className="h-4 w-4 mc-text-muted" /></button>
+          <button onClick={onClose} className="p-2 rounded hover:bg-white/5"><X className="h-4 w-4 mc-text-muted" /></button>
         </div>
 
         {/* Name */}
@@ -185,8 +213,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             <div className="flex items-center gap-1">
               <input value={newName} onChange={e => setNewName(e.target.value)} className="mc-input h-6 text-xs px-2 w-24" autoFocus
                 onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') { setIsEditingName(false); setNewName(''); } }} />
-              <button onClick={handleSaveName} className="text-xs mc-text-green">✓</button>
-              <button onClick={() => { setIsEditingName(false); setNewName(''); }} className="text-xs mc-text-danger">✕</button>
+              <button onClick={handleSaveName} className="text-xs mc-text-green p-2">✓</button>
+              <button onClick={() => { setIsEditingName(false); setNewName(''); }} className="text-xs mc-text-danger p-2">✕</button>
             </div>
           ) : (
             <span className="font-bold text-sm mc-text-primary cursor-pointer hover:mc-text-cyan" onClick={() => { setNewName(userName); setIsEditingName(true); }}>
@@ -204,7 +232,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                 {balanceLoading ? '...' : formatICP(walletBalance)} ICP
               </div>
             </div>
-            <button onClick={() => refetchBalance()} className="mc-text-muted hover:mc-text-primary"><RefreshCw className="h-3 w-3" /></button>
+            <button onClick={() => refetchBalance()} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
           </div>
           {!isTestMode && isIIUser && (
             <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
@@ -214,7 +242,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                   {externalBalanceLoading ? '...' : externalBalance !== null ? formatIcpBalance(externalBalance) : '—'} ICP
                 </div>
               </div>
-              <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary"><RefreshCw className="h-3 w-3" /></button>
+              <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
             </div>
           )}
           {!isTestMode && !isIIUser && (
@@ -228,6 +256,25 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>
         </div>
         {isTestMode && <div className="mc-status-gold p-2 mt-2 text-center text-xs">Test Mode &mdash; Playing with Monopoly money</div>}
+
+        {/* Money flow diagram */}
+        {(() => {
+          // Determine which step to highlight based on user state
+          const step = walletBalance > 0 ? 1 : 0; // 0=wallet, 1=balance, 2=position, 3=earnings
+          const highlight = (i: number, color: string) =>
+            step === i ? `${color} font-bold` : '';
+          return (
+            <div className="flex items-center justify-center gap-1 text-xs mc-text-muted py-2 mt-2 border-t border-white/5">
+              <span className={highlight(0, 'mc-text-primary')}>Wallet</span>
+              <span className="opacity-50">→</span>
+              <span className={highlight(1, 'mc-text-primary')}>Game Balance</span>
+              <span className="opacity-50">→</span>
+              <span className={highlight(2, 'mc-text-green')}>Position</span>
+              <span className="opacity-50">→</span>
+              <span className={highlight(3, 'mc-text-gold')}>Earnings</span>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Tabs */}
@@ -241,7 +288,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             ]).map(tab => (
               <button key={tab.key} onClick={() => { setActiveTab(tab.key); setInputError(''); }}
                 className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
-                  activeTab === tab.key ? 'bg-purple-500/25 mc-text-primary border border-purple-500/30 shadow-[0_0_8px_rgba(168,85,247,0.15)]' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                  activeTab === tab.key ? 'bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30 shadow-[0_0_8px_rgba(168,85,247,0.15)]' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
                 }`}>
                 {tab.label}
               </button>
@@ -359,8 +406,21 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
     return (
       <>
         <div className="mc-sheet-backdrop" onClick={onClose} />
-        <div ref={dropdownRef} className="mc-bottom-sheet">
-          <div className="flex justify-center pt-3 pb-1">
+        <div
+          ref={dropdownRef}
+          className="mc-bottom-sheet"
+          style={{
+            transform: dragDelta > 0 ? `translateY(${dragDelta}px)` : undefined,
+            transition: isDragging ? 'none' : 'transform 0.3s ease-out',
+            willChange: 'transform',
+          }}
+        >
+          <div
+            className="flex justify-center pt-3 pb-1 cursor-grab active:cursor-grabbing"
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
             <div className="w-10 h-1 rounded-full bg-white/20" />
           </div>
           {walletContent}

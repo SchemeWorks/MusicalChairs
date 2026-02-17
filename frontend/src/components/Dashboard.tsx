@@ -1,11 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import GamePlans from './GamePlans';
 import GameTracking from './GameTracking';
 import ReferralSection from './ReferralSection';
 import HouseDashboard from './HouseDashboard';
 import Shenanigans from './Shenanigans';
-import { DollarSign, Rocket, Landmark, Users, Dice5 } from 'lucide-react';
+import { DollarSign, Rocket, Landmark, Users, Dice5, RefreshCw } from 'lucide-react';
 import type { TabType } from '../App';
+import { usePullToRefresh } from '../hooks/usePullToRefresh';
+import OnboardingTour from './OnboardingTour';
 
 interface NavItem {
   id: TabType;
@@ -42,12 +45,13 @@ const sectionLabels: Record<TabType, string> = {
 interface DashboardProps {
   activeTab: TabType;
   onTabChange: (tab: TabType) => void;
-  badges?: Record<TabType, 'red' | 'purple' | null>;
+  badges?: Record<TabType, 'red' | 'purple' | 'gold' | null>;
 }
 
 export default function Dashboard({ activeTab, onTabChange, badges }: DashboardProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const queryClient = useQueryClient();
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 769);
@@ -55,6 +59,15 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
     window.addEventListener('resize', check);
     return () => window.removeEventListener('resize', check);
   }, []);
+
+  const handleRefresh = useCallback(async () => {
+    await queryClient.invalidateQueries();
+  }, [queryClient]);
+
+  const { containerRef, pulling, pullDistance, refreshing, isTriggered } = usePullToRefresh({
+    onRefresh: handleRefresh,
+    disabled: !isMobile,
+  });
 
   const handleTabChange = (newTab: TabType) => {
     if (newTab === activeTab) return;
@@ -69,17 +82,27 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
   const renderContent = () => {
     const cls = isAnimating ? 'mc-enter' : '';
     switch (activeTab) {
-      case 'profitCenter': return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} /></div>;
+      case 'profitCenter': return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} onTabChange={handleTabChange} visible={activeTab === 'profitCenter'} /></div>;
       case 'invest': return <div className={cls}><GamePlans onNavigateToProfitCenter={handleNavigateToProfitCenter} /></div>;
       case 'seedRound': return <div className={cls}><HouseDashboard /></div>;
-      case 'mlm': return <div className={cls}><ReferralSection /></div>;
+      case 'mlm': return <div className={cls}><ReferralSection onTabChange={handleTabChange} /></div>;
       case 'shenanigans': return <div className={cls}><Shenanigans /></div>;
-      default: return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} /></div>;
+      default: return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} onTabChange={handleTabChange} visible={activeTab === 'profitCenter'} /></div>;
     }
   };
 
   return (
-    <div className={`min-h-[calc(100vh-80px)] ${isMobile ? 'pb-20' : ''}`}>
+    <div ref={containerRef} className={`min-h-[calc(100vh-80px)] ${isMobile ? 'pb-20' : ''}`}>
+      {/* Pull-to-refresh indicator (mobile only) */}
+      {isMobile && pulling && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all"
+          style={{ height: `${pullDistance}px` }}
+        >
+          <RefreshCw className={`h-5 w-5 mc-text-muted transition-transform ${refreshing ? 'animate-spin' : ''} ${isTriggered ? 'mc-text-green scale-110' : ''}`} />
+        </div>
+      )}
+
       {/* Section header */}
       <div className="max-w-5xl mx-auto px-4 pt-6 md:pt-8">
         <div className="mc-section-header">
@@ -92,6 +115,9 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
       <div className="max-w-5xl mx-auto px-4 pb-8">
         {renderContent()}
       </div>
+
+      {/* Onboarding tour — first visit only */}
+      <OnboardingTour onTabChange={handleTabChange} isMobile={isMobile} />
 
       {/* === Mobile Bottom Tabs — all 5 tabs === */}
       {isMobile && (
@@ -108,7 +134,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
                 <span className={`tab-icon relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
                   {item.icon}
                   {badge && !isActive && (
-                    <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : 'mc-badge-purple'}`} />
+                    <span className={`mc-badge-dot ${badge === 'red' ? 'mc-badge-red' : badge === 'gold' ? 'mc-badge-gold' : 'mc-badge-purple'}`} />
                   )}
                 </span>
                 <span>{item.mobileLabel}</span>

@@ -1,14 +1,16 @@
-import { useState, useEffect } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining } from '../hooks/useQueries';
+import { useState, useEffect, useRef } from 'react';
+import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useCountUp } from '../hooks/useCountUp';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
-import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown, Dice5 } from 'lucide-react';
+import type { TabType } from '../App';
+import MobileSheet from './MobileSheet';
 import { Button } from '@/components/ui/button';
+import { Progress } from '@/components/ui/progress';
 
 /* ================================================================
    Constants
@@ -73,10 +75,10 @@ function getPlanDuration(game: GameRecord): number {
 }
 
 function getTollBadgeClasses(fee: number): string {
-  if (fee <= 3) return 'bg-green-500/20 text-green-400';
-  if (fee <= 5) return 'bg-yellow-500/20 text-yellow-400';
-  if (fee <= 7) return 'bg-red-500/20 text-red-400';
-  return 'bg-purple-500/20 text-purple-400'; // compounding 13%
+  if (fee <= 3) return 'bg-[var(--mc-neon-green)]/20 mc-text-green';
+  if (fee <= 5) return 'bg-[var(--mc-gold)]/20 mc-text-gold';
+  if (fee <= 7) return 'bg-[var(--mc-danger)]/20 mc-text-danger';
+  return 'bg-[var(--mc-purple)]/20 mc-text-purple'; // compounding 13%
 }
 
 function getPositionUrgency(game: GameRecord): number {
@@ -119,7 +121,7 @@ function PositionCard({
         <div className="flex items-center gap-2">
           <span className="font-bold mc-text-primary">{name}</span>
           <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-            game.isCompounding ? 'bg-purple-500/20 mc-text-purple' : 'bg-green-500/20 mc-text-green'
+            game.isCompounding ? 'bg-[var(--mc-purple)]/20 mc-text-purple' : 'bg-[var(--mc-neon-green)]/20 mc-text-green'
           }`}>
             {game.isCompounding ? 'Compounding' : 'Simple'}
           </span>
@@ -128,7 +130,7 @@ function PositionCard({
       </div>
 
       {/* Numbers row: deposit | live earnings | exit toll */}
-      <div className="grid grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
           <div className="mc-label">Deposit</div>
           <div className="text-base font-bold mc-text-primary">{formatICP(game.amount)} ICP</div>
@@ -150,21 +152,19 @@ function PositionCard({
         </div>
       </div>
 
-      {/* Progress bar — how far through the plan */}
+      {/* Progress bar — how far through the plan (shadcn Progress for consistency with HouseDashboard) */}
       {(() => {
         const planDays = getPlanDuration(game);
         const days = daysActive(game.startTime);
         const pct = Math.min(100, Math.round((days / planDays) * 100));
-        const barColor = game.isCompounding ? 'bg-purple-500' : 'bg-green-500';
+        const indicatorColor = game.isCompounding ? 'mc-bg-purple' : 'mc-bg-green';
         return (
           <div className="mb-3">
             <div className="flex justify-between text-xs mc-text-muted mb-1">
               <span>Day {days} / {planDays}</span>
               <span>{pct}%</span>
             </div>
-            <div className="w-full h-1.5 rounded-full bg-white/5">
-              <div className={`h-full rounded-full ${barColor} transition-all`} style={{ width: `${pct}%` }} />
-            </div>
+            <Progress value={pct} className="h-1.5 bg-white/5" indicatorClassName={indicatorColor} />
           </div>
         );
       })()}
@@ -234,16 +234,31 @@ function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
 
 interface GameTrackingProps {
   onNavigateToGameSetup?: () => void;
+  onTabChange?: (tab: TabType) => void;
+  visible?: boolean;
 }
 
-export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProps) {
+export default function GameTracking({ onNavigateToGameSetup, onTabChange, visible = true }: GameTrackingProps) {
   const { data: games, isLoading, error } = useGetUserGames();
+  const { data: ponziData } = useGetPonziPoints();
+  const { data: shenaniganConfigs } = useGetShenaniganConfigs();
   const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
   const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
-  const animatedNetPL = useCountUp(netPL, 1000);
-  const animatedDeposits = useCountUp(portfolio.totalDeposits, 1000);
-  const animatedEarnings = useCountUp(portfolio.totalEarnings, 1000);
+
+  // Re-animate countUp values when tab becomes visible
+  const [resetToken, setResetToken] = useState(0);
+  const prevVisible = useRef(visible);
+  useEffect(() => {
+    if (visible && !prevVisible.current) {
+      setResetToken(t => t + 1);
+    }
+    prevVisible.current = visible;
+  }, [visible]);
+
+  const animatedNetPL = useCountUp(netPL, 1000, resetToken);
+  const animatedDeposits = useCountUp(portfolio.totalDeposits, 1000, resetToken);
+  const animatedEarnings = useCountUp(portfolio.totalEarnings, 1000, resetToken);
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [reinvestDialogOpen, setReinvestDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
@@ -286,6 +301,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
   if (error) {
     return (
       <div className="mc-status-red p-4 text-center text-sm">
+        <p className="font-accent italic mb-1">&ldquo;Even Charles couldn't fix this one.&rdquo;</p>
         Unable to load profit center data. Please try again later.
       </div>
     );
@@ -302,7 +318,7 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
           {/* Hero P/L number — animated countUp */}
           <div className="mb-4">
             <div className="mc-label mb-1">Net P/L</div>
-            <div className={`text-4xl font-bold flex items-center justify-center gap-2 ${
+            <div className={`text-2xl sm:text-4xl font-bold flex items-center justify-center gap-2 ${
               netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
             }`}>
               {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
@@ -351,45 +367,140 @@ export default function GameTracking({ onNavigateToGameSetup }: GameTrackingProp
         {/* House info */}
         <div className="mc-house-card">
           <h3 className="font-display text-base mc-text-gold mb-3">The House Always Wins</h3>
-          <p className="font-accent text-sm mc-text-muted italic mb-3">But here's how much.</p>
+          <p className="font-accent text-sm mc-text-muted italic mb-3">&ldquo;Charles collects a 7% exit toll if you leave within 3 days. His table, his rules.&rdquo;</p>
           <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
             <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
             <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>
             <p>Compounding plans pay out compounded interest at maturity.</p>
           </div>
         </div>
+
+        {/* Ponzi Points section */}
+        <div className="mc-card-elevated">
+          <h2 className="font-display text-lg mc-text-primary mb-4">Ponzi Points</h2>
+
+          {/* PP balance */}
+          <div className="text-center mb-4">
+            <div className="mc-label mb-1">Your Balance</div>
+            <div className="text-2xl font-bold mc-text-purple mc-glow-purple">
+              {(ponziData?.totalPoints || 0).toLocaleString()} PP
+            </div>
+          </div>
+
+          {/* Earn rates comparison table */}
+          <div className="mb-4">
+            <div className="mc-label mb-2">Earn Rates</div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
+              <div className="mc-card p-3">
+                <div className="mc-text-green font-bold text-sm">1,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Simple 21-day</div>
+              </div>
+              <div className="mc-card p-3">
+                <div className="mc-text-purple font-bold text-sm">2,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Compound 15-day</div>
+              </div>
+              <div className="mc-card p-3">
+                <div className="mc-text-gold font-bold text-sm">3,000</div>
+                <div className="mc-text-muted">PP per ICP</div>
+                <div className="mc-text-dim mt-1">Compound 30-day</div>
+              </div>
+            </div>
+          </div>
+
+          {/* PP source breakdown */}
+          {ponziData && (
+            <div className="mb-4">
+              <div className="mc-label mb-2">Sources</div>
+              <div className="text-xs space-y-1.5">
+                <div className="flex justify-between">
+                  <span className="mc-text-muted">From deposits</span>
+                  <span className="mc-text-green font-bold">+{(ponziData.depositPoints || 0).toLocaleString()} PP</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="mc-text-muted">From referrals</span>
+                  <span className="mc-text-cyan font-bold">+{(ponziData.referralPoints || 0).toLocaleString()} PP</span>
+                </div>
+                {(() => {
+                  const spent = Math.max(0, (ponziData.depositPoints || 0) + (ponziData.referralPoints || 0) - (ponziData.totalPoints || 0));
+                  return spent > 0 ? (
+                    <div className="flex justify-between">
+                      <span className="mc-text-muted">Spent on shenanigans</span>
+                      <span className="mc-text-danger font-bold">−{spent.toLocaleString()} PP</span>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            </div>
+          )}
+
+          {/* Spending suggestions */}
+          {(() => {
+            const pp = ponziData?.totalPoints || 0;
+            if (pp < 100 || !shenaniganConfigs) return null;
+            const affordable = shenaniganConfigs
+              .filter(c => Number(c.cost) <= pp)
+              .sort((a, b) => Number(a.cost) - Number(b.cost))
+              .slice(0, 3);
+            if (affordable.length === 0) return null;
+            return (
+              <div>
+                <div className="mc-label mb-2">You can afford</div>
+                <div className="flex flex-wrap gap-2">
+                  {affordable.map(s => (
+                    <span key={s.name} className="text-xs mc-card px-2 py-1">
+                      {s.name} <span className="mc-text-purple">({Number(s.cost).toLocaleString()} PP)</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Spend PP bridge CTA */}
+        {(ponziData?.totalPoints || 0) >= 100 && onTabChange && (
+          <div className="text-center">
+            <button
+              onClick={() => onTabChange('shenanigans')}
+              className="mc-btn-secondary flex items-center gap-2 mx-auto text-xs"
+            >
+              <Dice5 className="h-4 w-4 mc-text-purple" />
+              Spend your {ponziData?.totalPoints?.toLocaleString()} PP on Shenanigans →
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* Withdrawal Dialog */}
-      <Dialog open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
-        <DialogContent className="mc-dialog">
-          <DialogHeader>
-            <DialogTitle className="font-display">Confirm Withdrawal</DialogTitle>
-            <DialogDescription className="mc-text-dim text-sm">
-              {selectedGame && (() => {
-                const info = getExitTollInfo(selectedGame);
-                if (info.nextFee && info.timeToNext) {
-                  return (
-                    <span>
-                      You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.
-                      Wait <strong className="mc-text-cyan">{countdown}</strong> to reduce it to <strong className="mc-text-green">{info.nextFee}%</strong>.
-                    </span>
-                  );
-                }
-                return <span>You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.</span>;
-              })()}
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="gap-2">
+      {/* Withdrawal Dialog — MobileSheet for bottom sheet on mobile */}
+      <MobileSheet open={withdrawDialogOpen} onOpenChange={setWithdrawDialogOpen}>
+        <div className="space-y-4">
+          <h2 className="font-display text-lg mc-text-primary">Confirm Withdrawal</h2>
+          <p className="mc-text-dim text-sm">
+            {selectedGame && (() => {
+              const info = getExitTollInfo(selectedGame);
+              if (info.nextFee && info.timeToNext) {
+                return (
+                  <span>
+                    You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.
+                    Wait <strong className="mc-text-cyan">{countdown}</strong> to reduce it to <strong className="mc-text-green">{info.nextFee}%</strong>.
+                  </span>
+                );
+              }
+              return <span>You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.</span>;
+            })()}
+          </p>
+          <div className="flex gap-2 justify-end">
             <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)} className="mc-btn-secondary">
               Cancel
             </Button>
             <Button onClick={handleWithdrawConfirm} disabled={withdrawMutation.isPending} className="mc-btn-primary">
               {withdrawMutation.isPending ? 'Processing...' : 'Confirm'}
             </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      </MobileSheet>
 
       {/* Post-withdrawal celebration toast */}
       {reinvestDialogOpen && (

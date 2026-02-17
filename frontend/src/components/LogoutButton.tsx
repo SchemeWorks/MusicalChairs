@@ -21,7 +21,7 @@ export default function LogoutButton() {
     <button
       onClick={handleLogout}
       disabled={isConnecting}
-      className={`w-9 h-9 rounded-lg flex items-center justify-center text-white/50 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 disabled:opacity-50 ${
+      className={`w-10 h-10 rounded-lg flex items-center justify-center text-white/50 hover:text-red-400 hover:bg-red-500/10 transition-all duration-200 disabled:opacity-50 ${
         isBlinking ? 'opacity-30' : ''
       }`}
       title="Logout"

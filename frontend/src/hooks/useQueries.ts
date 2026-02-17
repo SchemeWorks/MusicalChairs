@@ -5,6 +5,12 @@ import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, Shena
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
 export type { BackerPosition };
 import { Principal } from '@dfinity/principal';
+import { Actor, HttpAgent } from '@dfinity/agent';
+import { idlFactory } from '../declarations/backend';
+import type { _SERVICE } from '../declarations/backend';
+
+const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
+const HOST = 'https://icp0.io';
 
 // User Profile Queries
 export function useGetCallerUserProfile() {
@@ -56,6 +62,23 @@ export function useGetGameStats() {
     },
     enabled: !!actor && !actorFetching,
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
+  });
+}
+
+// Public stats — no auth required, uses anonymous actor for splash page
+export function useGetPublicStats() {
+  return useQuery<PlatformStats>({
+    queryKey: ['publicStats'],
+    queryFn: async () => {
+      const agent = new HttpAgent({ host: HOST });
+      const anonActor = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
+        canisterId: BACKEND_CANISTER_ID,
+      });
+      return anonActor.getPlatformStats();
+    },
+    refetchInterval: 30000,
+    staleTime: 15000,
   });
 }
 

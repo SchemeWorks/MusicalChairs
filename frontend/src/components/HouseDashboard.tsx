@@ -4,12 +4,17 @@ import LoadingSpinner from './LoadingSpinner';
 import AddHouseMoney from './AddHouseMoney';
 import { formatICP } from '../lib/formatICP';
 import { Progress } from '@/components/ui/progress';
-import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, AlertTriangle } from 'lucide-react';
+import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, AlertTriangle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 /* ================================================================
    Tab Control
    ================================================================ */
-function TabControl({ activeTab, onTabChange }: { activeTab: 'backers' | 'ledger'; onTabChange: (t: 'backers' | 'ledger') => void }) {
+function TabControl({ activeTab, onTabChange, backerCount, ledgerCount }: {
+  activeTab: 'backers' | 'ledger';
+  onTabChange: (t: 'backers' | 'ledger') => void;
+  backerCount?: number;
+  ledgerCount?: number;
+}) {
   return (
     <div className="flex justify-center mb-6">
       <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1 gap-1">
@@ -19,11 +24,15 @@ function TabControl({ activeTab, onTabChange }: { activeTab: 'backers' | 'ledger
             onClick={() => onTabChange(tab)}
             className={`px-6 py-2.5 rounded-full text-sm font-bold transition-all ${
               activeTab === tab
-                ? 'bg-purple-500/30 mc-text-primary border border-purple-500/40 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
+                ? 'bg-[var(--mc-purple)]/30 mc-text-primary border border-[var(--mc-purple)]/40 shadow-[0_0_12px_rgba(168,85,247,0.2)]'
                 : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
             }`}
           >
-            {tab === 'backers' ? <><Landmark className="h-4 w-4 inline mr-1" /> Backers</> : <><BarChart3 className="h-4 w-4 inline mr-1" /> Ledger</>}
+            {tab === 'backers' ? (
+              <><Landmark className="h-4 w-4 inline mr-1" /> Backers{backerCount !== undefined && <span className="mc-text-muted ml-1">({backerCount})</span>}</>
+            ) : (
+              <><BarChart3 className="h-4 w-4 inline mr-1" /> Ledger{ledgerCount !== undefined && <span className="mc-text-muted ml-1">({ledgerCount})</span>}</>
+            )}
           </button>
         ))}
       </div>
@@ -77,15 +86,16 @@ function BackerInfoCard() {
       title: 'Risk & Rewards',
       accent: 'mc-accent-gold',
       content: (
-        <p className="text-xs mc-text-dim">
-          Repayment depends on platform activity. More players = faster repayment.
-          You also earn <strong className="mc-text-purple">4,000 Ponzi Points per ICP</strong> deposited.
-        </p>
+        <div className="text-xs mc-text-dim space-y-1">
+          <p>Repayment depends on platform activity. More players = faster repayment.
+          You also earn <strong className="mc-text-purple">4,000 Ponzi Points per ICP</strong> deposited.</p>
+          <p className="font-accent italic mc-text-muted">&ldquo;Charles takes a cut on every deposit. His table, his rules.&rdquo;</p>
+        </div>
       ),
     },
   ];
 
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>('What Are Backer Positions?');
 
   return (
     <div className="space-y-4">
@@ -114,8 +124,8 @@ function BackerInfoCard() {
         })}
       </div>
 
-      {/* Redistribution Event callout — always visible */}
-      <div className="mc-card mc-accent-danger p-5">
+      {/* Redistribution Event callout — always visible, dramatic treatment */}
+      <div className="mc-card mc-accent-danger mc-redistribution-pulse p-5">
         <div className="flex items-start gap-3">
           <Flame className="h-6 w-6 mc-text-danger flex-shrink-0" />
           <div>
@@ -126,7 +136,7 @@ function BackerInfoCard() {
               <p><strong className="mc-text-primary">When the pot empties:</strong> A random unprofitable depositor becomes a Series B Backer.</p>
               <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus a 12% backer bonus.</p>
               <p><strong className="mc-text-primary">Multiple backers</strong> can coexist, sharing fee payments via the distribution system.</p>
-              <p className="mc-text-muted italic mt-2">This ensures the casino always has backing, even when players drain the pot.</p>
+              <p className="mc-text-muted italic mt-2">&ldquo;When the pot runs dry, Charles resets the table. No exceptions.&rdquo; &mdash; Charles</p>
             </div>
           </div>
         </div>
@@ -181,35 +191,43 @@ function HouseLedgerRecords() {
         ))}
       </div>
 
-      {/* Records */}
+      {/* Transaction Timeline */}
       {records.length === 0 ? (
         <div className="text-center py-8">
           <BarChart3 className="h-10 w-10 mc-text-muted mb-3 mx-auto opacity-40" />
           <p className="mc-text-dim text-sm">No house ledger records yet.</p>
         </div>
       ) : (
-        <div className="space-y-2 max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-y-auto">
           {records
             .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
-            .map(record => (
-              <div
-                key={Number(record.id)}
-                className={`mc-card p-3 flex items-center justify-between ${
-                  record.amount > 0 ? 'mc-accent-green' : 'mc-accent-danger'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  {record.amount > 0 ? <Coins className="h-5 w-5 mc-text-green" /> : <Banknote className="h-5 w-5 mc-text-danger" />}
-                  <div>
-                    <div className="font-bold text-sm mc-text-primary">{record.description || 'House Money Transaction'}</div>
-                    <div className="text-xs mc-text-muted">{fmtDate(record.timestamp)}</div>
-                  </div>
+            .map((record, i) => (
+              <div key={Number(record.id)} className="flex gap-3 py-3 border-b border-white/5 last:border-0">
+                {/* Timeline dot + line */}
+                <div className="flex flex-col items-center">
+                  <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
+                    record.amount > 0 ? 'mc-bg-green' : 'mc-bg-danger'
+                  }`} />
+                  {i < records.length - 1 && (
+                    <div className="w-px flex-1 bg-white/10 mt-1" />
+                  )}
                 </div>
-                <div className="text-right">
-                  <div className={`text-lg font-bold ${record.amount > 0 ? 'mc-text-green' : 'mc-text-danger'}`}>
-                    {record.amount > 0 ? '+' : ''}{formatICP(record.amount)} ICP
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    {record.amount > 0 ? (
+                      <ArrowDownLeft className="h-3.5 w-3.5 mc-text-green flex-shrink-0" />
+                    ) : (
+                      <ArrowUpRight className="h-3.5 w-3.5 mc-text-danger flex-shrink-0" />
+                    )}
+                    <span className="text-sm font-bold truncate mc-text-primary">{record.description || 'House Money Transaction'}</span>
                   </div>
-                  <div className="text-xs mc-text-muted">#{Number(record.id)}</div>
+                  <div className="flex justify-between mt-1 text-xs mc-text-muted">
+                    <span>{fmtDate(record.timestamp)}</span>
+                    <span className={record.amount > 0 ? 'mc-text-green' : 'mc-text-danger'}>
+                      {record.amount > 0 ? '+' : ''}{formatICP(record.amount)} ICP
+                    </span>
+                  </div>
                 </div>
               </div>
             ))}
@@ -249,26 +267,29 @@ function BackerPositions() {
 
   return (
     <div className="space-y-6">
-      {/* Add house money + stats */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="space-y-4">
-          <div className="mc-card p-5">
-            <AddHouseMoney />
-          </div>
-          <div className="mc-status-red p-3 text-center text-sm font-bold">
+      {/* Hero: Back the House — elevated above the grid */}
+      <div className="mc-card-elevated p-6">
+        <h3 className="font-display text-lg mc-text-gold mb-3">Back the House</h3>
+        <p className="text-sm mc-text-dim mb-4">
+          Become a dealer. Earn your 12% entitlement. (Returns not guaranteed — this is still a Ponzi.)
+        </p>
+        <AddHouseMoney />
+      </div>
+
+      {/* Stats + warning */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="mc-card mc-accent-danger p-5 text-center">
+          <div className="mc-label mb-1">Outstanding Backer Debt</div>
+          <div className="text-2xl font-bold mc-text-danger">{formatICP(totalDebt)} ICP</div>
+        </div>
+        <div className="mc-card mc-accent-cyan p-5 text-center">
+          <div className="mc-label mb-1">Total House Money Added</div>
+          <div className="text-2xl font-bold mc-text-cyan">{formatICP(totalHouseMoney)} ICP</div>
+        </div>
+        <div className="mc-status-red p-5 flex items-center justify-center text-center text-sm font-bold">
+          <div>
             <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
             <span className="font-normal text-xs opacity-80">Only play with money you can afford to lose</span>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          <div className="mc-card mc-accent-danger p-5 text-center">
-            <div className="mc-label mb-1">Outstanding Backer Debt</div>
-            <div className="text-2xl font-bold mc-text-danger">{formatICP(totalDebt)} ICP</div>
-          </div>
-          <div className="mc-card mc-accent-cyan p-5 text-center">
-            <div className="mc-label mb-1">Total House Money Added</div>
-            <div className="text-2xl font-bold mc-text-cyan">{formatICP(totalHouseMoney)} ICP</div>
           </div>
         </div>
       </div>
@@ -290,14 +311,14 @@ function BackerPositions() {
                   {/* Info */}
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${
-                      isSeriesA ? 'bg-green-500/20' : 'bg-yellow-500/20'
+                      isSeriesA ? 'bg-[var(--mc-neon-green)]/20' : 'bg-[var(--mc-gold)]/20'
                     }`}>
                       {isSeriesA ? <Gem className="h-5 w-5 mc-text-green" /> : <Dice5 className="h-5 w-5 mc-text-gold" />}
                     </div>
                     <div>
                       <div className="font-bold mc-text-primary">{backer.name}</div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-                        isSeriesA ? 'bg-green-500/20 mc-text-green' : 'bg-yellow-500/20 mc-text-gold'
+                        isSeriesA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'
                       }`}>
                         {isSeriesA ? 'Series A' : 'Series B'}
                       </span>
@@ -335,7 +356,7 @@ function BackerPositions() {
       ) : (
         <div className="text-center py-8">
           <Landmark className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
-          <p className="font-bold mc-text-primary mb-1">No backers yet</p>
+          <p className="font-display text-sm mc-text-primary mb-1">No backers yet</p>
           <p className="text-sm mc-text-dim">Deposit house money above to become the first Series A backer.</p>
         </div>
       )}
@@ -351,10 +372,15 @@ function BackerPositions() {
    ================================================================ */
 export default function HouseDashboard() {
   const [activeTab, setActiveTab] = useState<'backers' | 'ledger'>('backers');
+  const { data: backerPositions } = useGetBackerPositions();
+  const { data: ledgerRecords } = useGetHouseLedger();
+
+  const backerCount = Array.isArray(backerPositions) ? backerPositions.length : 0;
+  const ledgerCount = Array.isArray(ledgerRecords) ? ledgerRecords.length : 0;
 
   return (
     <div className="space-y-6">
-      <TabControl activeTab={activeTab} onTabChange={setActiveTab} />
+      <TabControl activeTab={activeTab} onTabChange={setActiveTab} backerCount={backerCount} ledgerCount={ledgerCount} />
       <div className="mc-enter">
         {activeTab === 'backers' ? <BackerPositions /> : <HouseLedgerRecords />}
       </div>

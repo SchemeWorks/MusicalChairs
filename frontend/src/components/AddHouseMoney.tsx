@@ -49,7 +49,7 @@ export default function AddHouseMoney() {
       )}
 
       <div className="text-center mb-3">
-        <span className="font-display text-sm mc-text-gold">Own The Casino</span>
+        <span className="font-accent text-sm mc-text-gold">Own The Casino</span>
       </div>
 
       <div className="space-y-3">

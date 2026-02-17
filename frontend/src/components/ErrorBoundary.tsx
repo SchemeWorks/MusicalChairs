@@ -36,7 +36,7 @@ export default class ErrorBoundary extends Component<Props, State> {
       return (
         <div className="mc-status-red p-6 text-center m-4 rounded-xl">
           <Zap className="h-8 w-8 mc-text-danger mb-3 mx-auto" />
-          <p className="font-display text-sm mc-text-primary mb-2">{quip}</p>
+          <p className="font-accent text-sm mc-text-primary mb-2">{quip}</p>
           <p className="text-xs mc-text-dim mb-4">{this.state.error?.message || 'Unknown error'}</p>
           <button
             onClick={() => this.setState({ hasError: false, error: null })}

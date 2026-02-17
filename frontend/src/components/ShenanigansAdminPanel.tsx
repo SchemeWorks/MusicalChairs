@@ -65,8 +65,8 @@ function OddsBadge({ total }: { total: number }) {
   return (
     <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold border ${
       valid
-        ? 'bg-green-500/10 text-green-400 border-green-500/30'
-        : 'bg-red-500/10 text-red-400 border-red-500/30 animate-pulse'
+        ? 'bg-[var(--mc-neon-green)]/10 mc-text-green border-[var(--mc-neon-green)]/30'
+        : 'bg-[var(--mc-danger)]/10 mc-text-danger border-[var(--mc-danger)]/30 animate-pulse'
     }`}>
       {valid ? <CheckCircle className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
       {total}%
@@ -269,7 +269,7 @@ export default function ShenanigansAdminPanel() {
                     onClick={() => setSelectedShenanigan(shen)}
                     className={`w-full text-left p-3 rounded-lg border transition-all group ${
                       isActive
-                        ? 'border-purple-500/50 bg-purple-500/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
+                        ? 'border-[var(--mc-purple)]/50 bg-[var(--mc-purple)]/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
                         : 'border-white/5 bg-white/[0.02] hover:border-white/15 hover:bg-white/5'
                     }`}
                   >
@@ -355,14 +355,14 @@ export default function ShenanigansAdminPanel() {
                   </div>
                   {/* Visual odds bar */}
                   <div className="flex rounded-full h-2 overflow-hidden mt-3 bg-white/5">
-                    <div className="bg-green-500 transition-all" style={{ width: `${selectedShenanigan.successOdds}%` }} />
-                    <div className="bg-yellow-500 transition-all" style={{ width: `${selectedShenanigan.failureOdds}%` }} />
-                    <div className="bg-red-500 transition-all" style={{ width: `${selectedShenanigan.backfireOdds}%` }} />
+                    <div className="mc-bg-green transition-all" style={{ width: `${selectedShenanigan.successOdds}%` }} />
+                    <div className="mc-bg-gold transition-all" style={{ width: `${selectedShenanigan.failureOdds}%` }} />
+                    <div className="mc-bg-danger transition-all" style={{ width: `${selectedShenanigan.backfireOdds}%` }} />
                   </div>
                   <div className="flex justify-between text-[10px] mt-1 mc-text-muted">
-                    <span className="text-green-400">Success</span>
-                    <span className="text-yellow-400">Fail</span>
-                    <span className="text-red-400">Backfire</span>
+                    <span className="mc-text-green">Success</span>
+                    <span className="mc-text-gold">Fail</span>
+                    <span className="mc-text-danger">Backfire</span>
                   </div>
                 </div>
 
@@ -401,7 +401,7 @@ export default function ShenanigansAdminPanel() {
                     onClick={handleSaveShenanigan}
                     disabled={updateConfig.isPending || oddsTotal !== 100}
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold text-sm transition-all
-                      bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30 hover:shadow-[0_0_20px_rgba(34,197,94,0.15)]
+                      bg-[var(--mc-neon-green)]/20 mc-text-green border border-[var(--mc-neon-green)]/30 hover:bg-[var(--mc-neon-green)]/30 hover:shadow-[0_0_20px_rgba(34,197,94,0.15)]
                       disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     <Save className="h-4 w-4" />

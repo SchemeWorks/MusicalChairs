@@ -1,45 +1,57 @@
 import React, { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useSaveUserProfile } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
-import { Dices, AlertTriangle, PartyPopper } from 'lucide-react';
+import { Dices, AlertTriangle, PartyPopper, CreditCard } from 'lucide-react';
+
+const MAX_NAME_LENGTH = 20;
 
 export default function ProfileSetup() {
   const [name, setName] = useState('');
   const [showCelebration, setShowCelebration] = useState(false);
   const [savedName, setSavedName] = useState('');
+  const [shakeInput, setShakeInput] = useState(false);
+  const queryClient = useQueryClient();
   const saveProfile = useSaveUserProfile();
 
-  const isNameValid = name.trim().length > 0;
+  const trimmedName = name.trim();
+  const isNameValid = trimmedName.length > 0 && trimmedName.length <= MAX_NAME_LENGTH;
+
+  const triggerShake = () => {
+    setShakeInput(true);
+    setTimeout(() => setShakeInput(false), 400);
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (name.trim()) {
-      const trimmedName = name.trim();
-      setSavedName(trimmedName);
-      saveProfile.mutate({ name: trimmedName }, {
-        onSuccess: () => {
-          setShowCelebration(true);
-          triggerConfetti();
-        },
-      });
-    }
+    if (!trimmedName) { triggerShake(); return; }
+    if (trimmedName.length > MAX_NAME_LENGTH) { triggerShake(); return; }
+    setSavedName(trimmedName);
+    saveProfile.mutate({ name: trimmedName }, {
+      onSuccess: () => {
+        setShowCelebration(true);
+        triggerConfetti();
+        // Explicitly refetch user profile so App.tsx detects it and redirects
+        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      },
+    });
   };
 
-  // Auto-dismiss after 4 seconds (React Query will refetch and redirect)
+  // Fallback: if React Query hasn't redirected after 3 seconds, force another refetch
   useEffect(() => {
     if (showCelebration) {
       const timer = setTimeout(() => {
-        // App.tsx will detect the profile exists and redirect automatically
-      }, 4000);
+        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+      }, 3000);
       return () => clearTimeout(timer);
     }
-  }, [showCelebration]);
+  }, [showCelebration, queryClient]);
 
   if (showCelebration) {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center mc-hero-entrance">
         <PartyPopper className="h-16 w-16 mc-text-gold mx-auto mb-6" />
-        <h1 className="font-display text-3xl mc-text-primary mb-4">
+        <h1 className="font-display text-2xl sm:text-3xl mc-text-primary mb-4">
           Welcome to Musical Chairs, {savedName}!
         </h1>
         <p className="font-accent text-sm mc-text-dim italic mb-2">
@@ -50,6 +62,12 @@ export default function ProfileSetup() {
         <div className="mt-10">
           <div className="mc-spinner mx-auto mb-3" />
           <p className="text-xs mc-text-muted">Setting up your table...</p>
+          <button
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+            className="mc-btn-primary mt-4 px-6 py-2 text-sm"
+          >
+            TAKE ME TO THE TABLE
+          </button>
         </div>
       </div>
     );
@@ -68,8 +86,16 @@ export default function ProfileSetup() {
         <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
       </div>
 
+      {/* Decorative casino registration icon */}
+      <div className="flex justify-center mb-6 opacity-40">
+        <div className="relative">
+          <CreditCard className="h-12 w-12 mc-text-gold absolute -rotate-12 -translate-x-2" />
+          <CreditCard className="h-12 w-12 mc-text-purple rotate-6 translate-x-2" />
+        </div>
+      </div>
+
       {/* Setup card */}
-      <div className="mc-card-elevated">
+      <div className="mc-card-elevated mc-registration-glow">
         <div className="text-center mb-8">
           <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
           <p className="mc-text-dim text-sm">Everyone who walks through that door gets a seat at the table.</p>
@@ -81,13 +107,23 @@ export default function ProfileSetup() {
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="mc-input w-full text-center text-lg"
+              className={`mc-input w-full text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
               placeholder="Your name, future millionaire"
+              maxLength={MAX_NAME_LENGTH + 5} /* soft limit — let them type a bit over to see the counter turn red */
               required
             />
-            {name.trim() && (
-              <p className="text-xs mc-text-muted mt-2 text-center">
-                Players will see you as: <span className="text-white font-bold">{name.trim()}</span>
+            {/* Character count & validation feedback */}
+            <div className="flex justify-between mt-1.5 text-xs">
+              <span className={name.length > MAX_NAME_LENGTH ? 'mc-text-danger' : 'mc-text-muted'}>
+                {name.length > 0 ? `${name.length}/${MAX_NAME_LENGTH} characters` : ''}
+              </span>
+              {name.length > MAX_NAME_LENGTH && (
+                <span className="mc-text-danger">Too long</span>
+              )}
+            </div>
+            {trimmedName && trimmedName.length <= MAX_NAME_LENGTH && (
+              <p className="text-xs mc-text-muted mt-1 text-center">
+                Players will see you as: <span className="text-white font-bold">{trimmedName}</span>
               </p>
             )}
           </div>

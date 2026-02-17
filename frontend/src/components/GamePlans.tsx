@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCreateGame, useGetInternalWalletBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
+import { useCountUp } from '../hooks/useCountUp';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
@@ -42,10 +43,18 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   const [inputError, setInputError] = useState('');
   const [successToast, setSuccessToast] = useState<{ quote: string; amount: number } | null>(null);
   const [shakeInput, setShakeInput] = useState(false);
+  const [clickError, setClickError] = useState('');
+  const [shakeError, setShakeError] = useState(false);
 
   const triggerShake = () => {
     setShakeInput(true);
     setTimeout(() => setShakeInput(false), 400);
+  };
+
+  const triggerClickError = (msg: string) => {
+    setClickError(msg);
+    setShakeError(true);
+    setTimeout(() => setShakeError(false), 400);
   };
 
   const { data: balanceData, isLoading: balanceLoading } = useGetInternalWalletBalance();
@@ -63,11 +72,16 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     const validation = validateICPInput(restricted);
     setAmount(restricted);
     setInputError(validation.error || '');
+    setClickError(''); // Clear CTA error when user adjusts input
   };
 
   const [roiData, setRoiData] = useState<{
     totalReturn: number; profit: number; roiPercent: number; ponziPoints: number;
   } | null>(null);
+
+  // Reset token for countUp — changes when any ROI input changes
+  const roiResetToken = useRef(0);
+  const prevRoiKey = useRef('');
 
   useEffect(() => {
     if (depositAmount > 0 && selectedPlan && selectedMode) {
@@ -76,22 +90,46 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
         ? calculateSimpleROI(depositAmount, selectedPlan, days)
         : calculateCompoundingROI(depositAmount, selectedPlan, days);
       setRoiData({ ...roi, ponziPoints: calculatePonziPoints(depositAmount, selectedPlan, selectedMode) });
+      // Bump reset token when inputs change
+      const key = `${depositAmount}-${selectedPlan}-${selectedMode}`;
+      if (key !== prevRoiKey.current) {
+        roiResetToken.current += 1;
+        prevRoiKey.current = key;
+      }
     } else {
       setRoiData(null);
     }
   }, [depositAmount, selectedPlan, selectedMode]);
 
+  // Animated ROI values
+  const animatedReturn = useCountUp(roiData?.totalReturn || 0, 800, roiResetToken.current);
+  const animatedPP = useCountUp(roiData?.ponziPoints || 0, 800, roiResetToken.current);
+
+  // Color shift based on ROI percentage
+  const roiColor = !roiData ? 'mc-text-green' :
+    roiData.roiPercent < 50 ? 'mc-text-green' :
+    roiData.roiPercent < 200 ? 'mc-text-purple mc-glow-purple' :
+    'mc-text-gold mc-glow-gold';
+
   const handleCreateGame = async () => {
-    if (!selectedPlan || !selectedMode || !amount) return;
+    // Always-enabled CTA — validate on click and show inline error
+    if (!selectedMode) { triggerClickError('Choose a mode first'); return; }
+    if (!selectedPlan) { triggerClickError('Select a plan first'); return; }
+    if (!amount) { triggerClickError('Enter an amount'); return; }
     const dep = parseFloat(amount);
-    if (dep < minDeposit || dep > walletBalance) return;
+    if (dep < minDeposit) { triggerClickError(`Amount below minimum (${minDeposit} ICP)`); triggerShake(); return; }
+    if (dep > walletBalance) { triggerClickError('Insufficient balance'); triggerShake(); return; }
+    if (selectedMode === 'simple' && dep > maxDeposit) { triggerClickError(`Max for simple mode: ${formatICP(maxDeposit)} ICP`); triggerShake(); return; }
+    if (!canDeposit) { triggerClickError('Rate limited — wait before opening another position'); return; }
     const v = validateICPInput(amount);
     if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
+    if (inputError) { triggerClickError('Fix input error first'); triggerShake(); return; }
+    setClickError('');
     try {
       await createGameMutation.mutateAsync({ planId: selectedPlan, amount: dep, mode: selectedMode });
       triggerConfetti();
       setSuccessToast({ quote: getRandomCharlesQuote(), amount: dep });
-      setAmount(''); setSelectedPlan(''); setSelectedMode(''); setInputError('');
+      setAmount(''); setSelectedPlan(''); setSelectedMode(''); setInputError(''); setClickError('');
     } catch (error) {
       console.error('Game creation failed:', error);
     }
@@ -120,8 +158,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
             {/* Simple */}
             <div
-              onClick={() => { setSelectedMode('simple'); setSelectedPlan('21-day-simple'); }}
-              className={`mc-card-select p-5 ${selectedMode === 'simple' ? 'active-green' : ''}`}
+              onClick={() => { setSelectedMode('simple'); setSelectedPlan('21-day-simple'); setClickError(''); }}
+              className={`mc-card-select p-5 ${selectedMode === 'simple' ? 'mc-active-green' : ''}`}
             >
               <Sprout className="h-8 w-8 mc-text-green mb-3 mx-auto" />
               <h4 className="font-display text-base mc-text-green text-center mb-1">Simple Mode</h4>
@@ -140,8 +178,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
             {/* Compounding */}
             <div
-              onClick={() => { setSelectedMode('compounding'); setSelectedPlan(''); }}
-              className={`mc-card-select p-5 ${selectedMode === 'compounding' ? 'active-purple' : ''}`}
+              onClick={() => { setSelectedMode('compounding'); setSelectedPlan(''); setClickError(''); }}
+              className={`mc-card-select p-5 ${selectedMode === 'compounding' ? 'mc-active-purple' : ''}`}
             >
               <Flame className="h-8 w-8 mc-text-purple mb-3 mx-auto" />
               <h4 className="font-display text-base mc-text-purple text-center mb-1">Compounding Mode</h4>
@@ -169,22 +207,22 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div
-                onClick={() => setSelectedPlan('15-day-compounding')}
-                className={`mc-card-select p-4 text-center ${selectedPlan === '15-day-compounding' ? 'active-gold' : ''}`}
+                onClick={() => { setSelectedPlan('15-day-compounding'); setClickError(''); }}
+                className={`mc-card-select p-4 text-center ${selectedPlan === '15-day-compounding' ? 'mc-active-gold' : ''}`}
               >
                 <Rocket className="h-6 w-6 mc-text-gold mb-2 mx-auto" />
-                <h4 className="font-bold mc-text-primary mb-1">15-Day Compounding</h4>
+                <h4 className="font-display text-base mc-text-primary mb-1">15-Day Compounding</h4>
                 <span className="text-xs mc-text-dim">12% daily — 2x Ponzi Points</span>
                 {selectedPlan === '15-day-compounding' && (
                   <div className="mc-status-green p-1 mt-2 text-center text-xs font-bold">Selected</div>
                 )}
               </div>
               <div
-                onClick={() => setSelectedPlan('30-day-compounding')}
-                className={`mc-card-select p-4 text-center ${selectedPlan === '30-day-compounding' ? 'active-gold' : ''}`}
+                onClick={() => { setSelectedPlan('30-day-compounding'); setClickError(''); }}
+                className={`mc-card-select p-4 text-center ${selectedPlan === '30-day-compounding' ? 'mc-active-gold' : ''}`}
               >
                 <Gem className="h-6 w-6 mc-text-gold mb-2 mx-auto" />
-                <h4 className="font-bold mc-text-primary mb-1">30-Day Compounding</h4>
+                <h4 className="font-display text-base mc-text-primary mb-1">30-Day Compounding</h4>
                 <span className="text-xs mc-text-dim">9% daily — 3x Ponzi Points</span>
                 {selectedPlan === '30-day-compounding' && (
                   <div className="mc-status-green p-1 mt-2 text-center text-xs font-bold">Selected</div>
@@ -220,7 +258,10 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                   <div className="flex gap-2">
                     <button
                       onClick={() => setAmount(minDeposit.toString())}
-                      className="mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap"
+                      disabled={walletBalance < minDeposit}
+                      className={`mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap ${
+                        walletBalance < minDeposit ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     >MIN</button>
                     <input
                       type="number"
@@ -236,7 +277,10 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                         const max = selectedMode === 'simple' ? Math.min(walletBalance, maxDeposit) : walletBalance;
                         setAmount(max.toString());
                       }}
-                      className="mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap"
+                      disabled={!walletBalance || walletBalance < minDeposit}
+                      className={`mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap ${
+                        !walletBalance || walletBalance < minDeposit ? 'opacity-50 cursor-not-allowed' : ''
+                      }`}
                     >MAX</button>
                   </div>
 
@@ -268,8 +312,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                         <div className="flex justify-between items-center">
                           <div>
                             <div className="mc-label">{selectedMode === 'simple' ? 'Interest Payout' : 'Compounded Interest'}</div>
-                            <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICP(roiData.totalReturn)} ICP</div>
-                            <div className="text-xs mc-text-green opacity-70">
+                            <div className={`text-xl font-bold mc-roi-pop ${roiColor}`}>{formatICP(animatedReturn)} ICP</div>
+                            <div className={`text-xs opacity-70 ${roiColor}`}>
                               {selectedMode === 'simple'
                                 ? `${(roiData.totalReturn / depositAmount).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
                                 : `${roiData.roiPercent.toFixed(1)}% ROI`}
@@ -277,7 +321,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                           </div>
                           <div className="text-right">
                             <div className="mc-label">Ponzi Points</div>
-                            <div className="text-xl font-bold mc-text-purple mc-glow-purple">{roiData.ponziPoints.toLocaleString()}</div>
+                            <div className="text-xl font-bold mc-text-purple mc-glow-purple mc-roi-pop">{Math.round(animatedPP).toLocaleString()}</div>
                             <div className="text-xs mc-text-purple opacity-70">
                               {selectedMode === 'simple' ? '1x' : selectedPlan === '15-day-compounding' ? '2x' : '3x'} multiplier
                             </div>
@@ -314,16 +358,20 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 </div>
                 <button
                   onClick={handleCreateGame}
-                  disabled={!amount || !selectedPlan || !selectedMode || !isAmountValid || !canDeposit || createGameMutation.isPending || walletBalance < minDeposit || !!inputError}
-                  className={`w-full py-4 text-base font-bold rounded-xl transition-all ${
-                    hasValidAmount ? 'mc-btn-primary pulse' : 'mc-btn-primary'
+                  disabled={createGameMutation.isPending}
+                  className={`w-full py-4 text-base font-bold rounded-xl transition-all mc-btn-primary ${
+                    hasValidAmount ? 'pulse' : ''
                   }`}
                 >
-                  {createGameMutation.isPending ? 'Starting Game...'
-                    : !canDeposit ? 'Rate Limited'
-                    : inputError ? 'Fix Input Error'
+                  {createGameMutation.isPending
+                    ? 'Starting Game...'
                     : <><Dices className="h-4 w-4" /> START GAME</>}
                 </button>
+                {clickError && (
+                  <p className={`text-xs mc-text-danger mt-2 text-center ${shakeError ? 'mc-shake' : ''}`}>
+                    {clickError}
+                  </p>
+                )}
               </div>
             )}
           </div>
