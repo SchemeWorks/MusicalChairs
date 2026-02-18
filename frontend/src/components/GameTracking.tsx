@@ -191,32 +191,16 @@ function PositionCard({
 }
 
 /* ================================================================
-   Empty State with rotating Charles quotes
+   Empty State — random Charles quote, picked once on mount
    ================================================================ */
 
 function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
-  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * charlesQuotes.length));
-  const [fade, setFade] = useState(true);
-
-  useEffect(() => {
-    const iv = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setQuoteIndex(prev => (prev + 1) % charlesQuotes.length);
-        setFade(true);
-      }, 400);
-    }, 6000);
-    return () => clearInterval(iv);
-  }, []);
+  const [quoteIndex] = useState(() => Math.floor(Math.random() * charlesQuotes.length));
 
   return (
     <div className="text-center py-16">
       <div className="mb-8 min-h-[80px] flex flex-col items-center justify-center">
-        <p
-          className={`font-accent text-sm mc-text-dim italic max-w-md mx-auto leading-relaxed transition-opacity duration-400 ${
-            fade ? 'opacity-100' : 'opacity-0'
-          }`}
-        >
+        <p className="font-accent text-sm mc-text-dim italic max-w-md mx-auto leading-relaxed">
           &ldquo;{charlesQuotes[quoteIndex]}&rdquo;
         </p>
         <span className="text-xs mc-text-muted mt-2 font-bold">&mdash; Charles</span>

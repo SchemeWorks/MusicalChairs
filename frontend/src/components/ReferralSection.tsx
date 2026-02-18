@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { useGetReferralStats, useGetPonziPoints } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import { Copy, Check, Users, Share2, ExternalLink, Award, Download, Dice5, Globe } from 'lucide-react';
@@ -18,20 +18,7 @@ const charlesMLMQuotes = [
 ];
 
 function EmptyState() {
-  const [quoteIndex, setQuoteIndex] = useState(() => Math.floor(Math.random() * charlesMLMQuotes.length));
-  const [fade, setFade] = useState(true);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
-
-  useEffect(() => {
-    intervalRef.current = setInterval(() => {
-      setFade(false);
-      setTimeout(() => {
-        setQuoteIndex(i => (i + 1) % charlesMLMQuotes.length);
-        setFade(true);
-      }, 500);
-    }, 6000);
-    return () => clearInterval(intervalRef.current);
-  }, []);
+  const [quoteIndex] = useState(() => Math.floor(Math.random() * charlesMLMQuotes.length));
 
   return (
     <div className="mc-card-elevated text-center py-10 px-6">
@@ -39,7 +26,7 @@ function EmptyState() {
       <p className="font-display text-lg mc-text-primary mb-2">Your Network Awaits</p>
       <p className="text-sm mc-text-dim mb-6">Share your referral link and start building your downline.</p>
       <div className="min-h-[4rem] flex items-center justify-center">
-        <p className={`font-accent text-sm mc-text-dim italic max-w-sm transition-opacity duration-500 ${fade ? 'opacity-100' : 'opacity-0'}`}>
+        <p className="font-accent text-sm mc-text-dim italic max-w-sm">
           &ldquo;{charlesMLMQuotes[quoteIndex]}&rdquo;
           <span className="block text-xs mc-text-muted font-bold mt-1 not-italic">&mdash; Charles</span>
         </p>
