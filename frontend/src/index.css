@@ -1253,6 +1253,73 @@
     padding: 16px 20px;
   }
 
+  /* ================================================================
+     PROGRESSIVE REVEAL — Sales Pitch phase transitions
+     ================================================================ */
+
+  /* Phase content entrance: slide up + fade in */
+  .mc-phase-in {
+    animation: mc-phase-enter 0.35s ease-out both;
+  }
+
+  @keyframes mc-phase-enter {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Phase content exit: fade out before swap */
+  .mc-phase-out {
+    opacity: 0;
+    transition: opacity 0.2s ease-out;
+  }
+
+  /* Summary strip entrance: slide down + fade in */
+  .mc-strip-enter {
+    animation: mc-strip-enter 0.3s ease-out both;
+  }
+
+  @keyframes mc-strip-enter {
+    from { opacity: 0; transform: translateY(-8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Charles quote entrance */
+  .mc-charles-enter {
+    animation: mc-charles-fade 0.4s ease-out both;
+  }
+
+  @keyframes mc-charles-fade {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* Summary strip — compact clickable bar */
+  .mc-summary-strip {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--mc-border);
+    border-radius: 0.5rem;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .mc-summary-strip:hover {
+    border-color: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.03);
+  }
+  .mc-summary-strip-green  { border-left: 3px solid rgba(57, 255, 20, 0.5); }
+  .mc-summary-strip-purple { border-left: 3px solid rgba(168, 85, 247, 0.5); }
+  .mc-summary-strip-gold   { border-left: 3px solid rgba(255, 215, 0, 0.5); }
+
+  /* Charles quote banner */
+  .mc-charles-banner {
+    border-left: 3px solid rgba(255, 215, 0, 0.4);
+    background: linear-gradient(165deg, rgba(50, 40, 8, 0.3) 0%, transparent 100%);
+    border-radius: 0.5rem;
+    padding: 1rem 1.25rem;
+  }
+
   /* Respect reduced motion — comprehensive */
   @media (prefers-reduced-motion: reduce) {
     /* Disable all MC animations */
@@ -1268,9 +1335,16 @@
     .mc-dropdown,
     .mc-toast,
     .mc-bottom-sheet,
-    .shenanigan-card::before {
+    .shenanigan-card::before,
+    .mc-phase-in,
+    .mc-strip-enter,
+    .mc-charles-enter {
       animation: none !important;
       transition: none !important;
+    }
+    .mc-phase-out {
+      transition: none !important;
+      opacity: 1 !important;
     }
     /* Splash background drift + gradient shifts */
     .mc-splash-bg,
