@@ -890,6 +890,7 @@
     padding: var(--space-2xl) 0;
   }
 
+  .mc-stagger > .mc-hero-logo,
   .mc-hero-logo {
     font-family: 'Bungee', cursive;
     font-size: clamp(2.5rem, 6vw, 4rem);
@@ -898,7 +899,7 @@
     -webkit-background-clip: text;
     background-clip: text;
     -webkit-text-fill-color: transparent;
-    /* Combine slide-up (stagger entry) + gradient shift so parent .mc-stagger > * doesn't override */
+    /* Higher specificity so .mc-stagger > * can't strip the gradient shift */
     animation: mc-slide-up 0.3s ease-out forwards, mc-gradient-shift 6s 0.3s ease infinite;
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5));
     line-height: 1.2;

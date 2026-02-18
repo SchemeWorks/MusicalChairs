@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle, BookOpen } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
 import DocsPage from './components/DocsPage';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
@@ -28,12 +28,33 @@ const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode;
   { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
 ];
 
-const splashQuotes = [
-  "You look like someone who understands opportunity.",
-  "The best time to get in was yesterday. The second best time is right now.",
-  "I've never lied to you. That's more than most can say.",
-  "Smart money moves fast. Scared money doesn't move at all.",
-  "The only guarantee is that there are no guarantees. But the odds are... interesting.",
+const charlesExplains: { title: string; body: string; color: string; fine?: string }[] = [
+  {
+    title: 'Pick Your Plan',
+    body: `Make the "investment" and choose your plan wisely. This is going to be the best decision you ever made. Believe me.`,
+    color: 'green',
+  },
+  {
+    title: 'Collect Returns',
+    body: 'Congratulations on the passive income. Risk-averse plans let you withdraw anytime. Visionary investors lock in their plan until maturity for life-changing returns.',
+    color: 'gold',
+  },
+  {
+    title: 'The Reset',
+    body: 'Instead of skipping town when the pot empties, we just start the whole thing over again. You knew this was a Ponzi going in.',
+    color: 'danger',
+  },
+  {
+    title: 'Consolation Prizes',
+    body: `No crying at the casino. We'll give you some mostly worthless tokens to play some games while you get yourself together.`,
+    color: 'purple',
+  },
+  {
+    title: 'Loyalty Rewards',
+    body: 'Alpha exit-liquidity providers with the most Ponzi Points will be featured in our monthly newsletter and be eligible to win an all-expense-paid trip* to Cancun!',
+    color: 'cyan',
+    fine: '*Expenses do not include food, transportation, or lodging.',
+  },
 ];
 
 function useScrollAnimate(ref: React.RefObject<HTMLElement | null>, enabled: boolean = true) {
@@ -66,82 +87,188 @@ function useScrollAnimate(ref: React.RefObject<HTMLElement | null>, enabled: boo
 }
 
 /**
- * Spring-physics drop animation. Uses damped harmonic oscillator:
- *   y(t) = A · e^(-ζt) · cos(ωt)
- * Produces perfectly smooth motion — no keyframe seams.
+ * Letter-by-letter spring-drop animation with idle ripple.
+ * Each letter drops from above with damped harmonic oscillator physics,
+ * staggered sequentially. After settling, a gentle wave ripples through
+ * the letters every few seconds.
  */
-function useSpringDrop(
-  ref: React.RefObject<HTMLElement | null>,
-  enabled: boolean = true,
-  {
-    startY = -350,       // px above resting position
-    damping = 4.2,       // ζ — how fast bounces decay
-    frequency = 8.5,     // ω — bounce frequency (rad/s)
-    duration = 2.0,      // total animation seconds
-    delay = 700,         // ms before animation starts
-    restRotation = -3,   // final rotation in degrees
-  } = {}
-) {
+function LetterReveal({
+  text,
+  enabled,
+  delay = 700,            // ms before first letter drops
+  letterDelay = 80,       // ms stagger between each letter's drop
+  startY = -200,          // px above resting position
+  damping = 5.0,          // ζ — how fast bounces decay (higher = less bouncy)
+  frequency = 9.0,        // ω — bounce frequency (rad/s)
+  duration = 1.2,         // seconds each letter animates
+  restRotation = -3,      // rotation of the whole text (applied immediately)
+  rippleInterval = 3000,  // ms between ripple waves
+  rippleAmplitude = 4,    // px max displacement per letter
+  rippleStagger = 40,     // ms stagger between letters in ripple
+}: {
+  text: string;
+  enabled: boolean;
+  delay?: number;
+  letterDelay?: number;
+  startY?: number;
+  damping?: number;
+  frequency?: number;
+  duration?: number;
+  restRotation?: number;
+  rippleInterval?: number;
+  rippleAmplitude?: number;
+  rippleStagger?: number;
+}) {
+  const lettersRef = useRef<(HTMLSpanElement | null)[]>([]);
+  const dropDoneRef = useRef(false);
+
+  // Phase 1: Drop-in animation
   useEffect(() => {
     if (!enabled) return;
-    const el = ref.current;
-    if (!el) return;
 
-    // Respect reduced-motion preference
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      el.style.opacity = '1';
-      el.style.transform = `rotate(${restRotation}deg)`;
+    const els = lettersRef.current;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // Respect reduced-motion
+    if (reducedMotion) {
+      els.forEach(el => {
+        if (!el) return;
+        el.style.opacity = '1';
+        el.style.transform = 'translateY(0px)';
+      });
+      dropDoneRef.current = true;
       return;
     }
 
-    // Hide initially
-    el.style.opacity = '0';
-    el.style.transform = `translateY(${startY}px) rotate(0deg)`;
+    // Hide all letters initially
+    els.forEach(el => {
+      if (!el) return;
+      el.style.opacity = '0';
+      el.style.transform = `translateY(${startY}px)`;
+    });
 
-    const delayTimer = setTimeout(() => {
-      const startTime = performance.now();
-      const durationMs = duration * 1000;
+    const timers: number[] = [];
+    const rafs: number[] = [];
+    let settled = 0;
 
-      function tick(now: number) {
-        const elapsed = now - startTime;
-        const t = Math.min(elapsed / durationMs, 1);
-        const tSec = t * duration;
+    // Stagger each letter's spring animation
+    const nonSpaceCount = els.filter(Boolean).length;
+    els.forEach((el, i) => {
+      if (!el) return;
 
-        // Damped spring: displacement from rest
-        const springVal = Math.exp(-damping * tSec) * Math.cos(frequency * tSec);
-        // Y position: startY * springVal (at t=0, springVal≈1 → full offset; at t=∞ → 0)
-        const y = startY * springVal;
+      const timer = window.setTimeout(() => {
+        const startTime = performance.now();
+        const durationMs = duration * 1000;
 
-        // Rotation eases in as it settles
-        const rotationProgress = 1 - Math.exp(-damping * tSec * 0.6);
-        const rotation = restRotation * rotationProgress;
+        function tick(now: number) {
+          const elapsed = now - startTime;
+          const t = Math.min(elapsed / durationMs, 1);
+          const tSec = t * duration;
 
-        // Subtle squash/stretch on vertical velocity
-        const velocity = -damping * springVal + Math.exp(-damping * tSec) * (-frequency * Math.sin(frequency * tSec));
-        const squash = 1 + Math.abs(velocity) * 0.012;
-        const scaleX = 1 + (squash - 1) * 0.4;
-        const scaleY = 1 / scaleX; // preserve area
+          // Damped spring: displacement from rest
+          const springVal = Math.exp(-damping * tSec) * Math.cos(frequency * tSec);
+          const y = startY * springVal;
 
-        // Fade in quickly
-        const opacity = Math.min(1, tSec * 6);
+          // Fade in quickly
+          const opacity = Math.min(1, tSec * 8);
 
-        el.style.opacity = String(opacity);
-        el.style.transform = `translateY(${y}px) rotate(${rotation}deg) scaleX(${scaleX.toFixed(4)}) scaleY(${scaleY.toFixed(4)})`;
+          el.style.opacity = String(opacity);
+          el.style.transform = `translateY(${y}px)`;
 
-        if (t < 1) {
-          requestAnimationFrame(tick);
-        } else {
-          // Snap to exact final values
-          el.style.opacity = '1';
-          el.style.transform = `translateY(0px) rotate(${restRotation}deg) scale(1)`;
+          if (t < 1) {
+            rafs.push(requestAnimationFrame(tick));
+          } else {
+            el.style.opacity = '1';
+            el.style.transform = 'translateY(0px)';
+            settled++;
+            if (settled >= nonSpaceCount) dropDoneRef.current = true;
+          }
         }
-      }
 
-      requestAnimationFrame(tick);
-    }, delay);
+        rafs.push(requestAnimationFrame(tick));
+      }, delay + i * letterDelay);
 
-    return () => clearTimeout(delayTimer);
-  }, [ref, enabled]);
+      timers.push(timer);
+    });
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+      rafs.forEach(r => cancelAnimationFrame(r));
+    };
+  }, [enabled]);
+
+  // Phase 2: Idle ripple — gentle wave every rippleInterval ms
+  useEffect(() => {
+    if (!enabled) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    // Wait for drop to finish before starting ripple loop
+    const totalDropTime = delay + (text.length - 1) * letterDelay + duration * 1000 + 500;
+    const rafs: number[] = [];
+
+    function runRipple() {
+      const els = lettersRef.current;
+      els.forEach((el, i) => {
+        if (!el) return;
+        // Each letter does a quick mini-bounce: up then back
+        const letterStart = performance.now() + i * rippleStagger;
+        const rippleDuration = 400; // ms for one letter's bounce
+
+        function rippleTick(now: number) {
+          const elapsed = now - letterStart;
+          if (elapsed < 0) { rafs.push(requestAnimationFrame(rippleTick)); return; }
+          const t = Math.min(elapsed / rippleDuration, 1);
+          // Sine wave: up then back to 0
+          const y = -rippleAmplitude * Math.sin(Math.PI * t);
+          el.style.transform = `translateY(${y}px)`;
+          if (t < 1) {
+            rafs.push(requestAnimationFrame(rippleTick));
+          } else {
+            el.style.transform = 'translateY(0px)';
+          }
+        }
+        rafs.push(requestAnimationFrame(rippleTick));
+      });
+    }
+
+    let interval: number;
+    const startTimer = window.setTimeout(() => {
+      runRipple(); // first ripple right after drop settles
+      interval = window.setInterval(runRipple, rippleInterval);
+    }, totalDropTime);
+
+    return () => {
+      clearTimeout(startTimer);
+      if (interval) clearInterval(interval);
+      rafs.forEach(r => cancelAnimationFrame(r));
+    };
+  }, [enabled]);
+
+  if (!enabled) return null;
+
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        transform: `rotate(${restRotation}deg)`,
+      }}
+    >
+      {text.split('').map((char, i) => (
+        <span
+          key={i}
+          ref={el => { lettersRef.current[i] = el; }}
+          style={{
+            display: 'inline-block',
+            opacity: 0,
+            // preserve whitespace width even when hidden
+            width: char === ' ' ? '0.3em' : undefined,
+          }}
+        >
+          {char}
+        </span>
+      ))}
+    </span>
+  );
 }
 
 export default function App() {
@@ -152,21 +279,42 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
-  const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
-  const [showHowItWorks, setShowHowItWorks] = useState(false);
+  const [charlesSlide, setCharlesSlide] = useState(0);
+  const [slideFading, setSlideFading] = useState(false);
+  const [timerEpoch, setTimerEpoch] = useState(0);
   const [showDocsPage, setShowDocsPage] = useState(false);
   const { data: publicStats } = useGetPublicStats();
+
+  // Crossfade helper: fade out body, swap slide, fade back in
+  const goToSlide = (next: number, resetTimer = false) => {
+    if (slideFading) return;
+    setSlideFading(true);
+    setTimeout(() => {
+      setCharlesSlide(next);
+      setSlideFading(false);
+    }, 200);
+    if (resetTimer) setTimerEpoch(prev => prev + 1);
+  };
+
+  // Auto-cycle — 8s per slide, resets when user manually navigates
+  useEffect(() => {
+    if (isInitializing || identity) return;
+    const timer = setInterval(() => {
+      setSlideFading(true);
+      setTimeout(() => {
+        setCharlesSlide(prev => (prev + 1) % charlesExplains.length);
+        setSlideFading(false);
+      }, 200);
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [isInitializing, identity, timerEpoch]);
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
   const ribbonRef = useRef<HTMLDivElement>(null);
-  const howItWorksRef = useRef<HTMLDivElement>(null);
-  const taglineRef = useRef<HTMLSpanElement>(null);
   const splashVisible = !isInitializing && !identity;
   useScrollAnimate(cardsRef, splashVisible);
   useScrollAnimate(ribbonRef, splashVisible);
-  useScrollAnimate(howItWorksRef, splashVisible);
-  useSpringDrop(taglineRef, splashVisible);
 
   // Badge data — only fetched when authenticated (React Query caches these)
   const { data: games } = useGetUserGames();
@@ -227,8 +375,8 @@ export default function App() {
             <div className="flex items-center h-16 md:h-20">
 
               {/* Logo */}
-              <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity">
-                <span className="mc-logo text-xl md:text-2xl leading-none">
+              <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity shrink-0">
+                <span className="mc-logo text-xl md:text-2xl leading-none whitespace-nowrap">
                   <span className="hidden md:inline">Musical Chairs</span>
                   <span className="md:hidden">MC</span>
                 </span>
@@ -344,8 +492,8 @@ export default function App() {
                   <div className="mc-hero-logo">
                     Musical Chairs
                   </div>
-                  <div className="mc-tagline text-2xl md:text-3xl mb-4">
-                    <span ref={taglineRef} style={{ display: 'inline-block', opacity: 0 }}>It's a Ponzi!</span>
+                  <div className="mc-tagline text-3xl md:text-4xl mb-4">
+                    <LetterReveal text="It's a Ponzi!" enabled={splashVisible} />
                   </div>
                   <div className="mb-10" />
                 </div>
@@ -383,7 +531,7 @@ export default function App() {
                     </div>
                     <div className="mc-card-elevated mc-accent-gold pt-8 pb-5 px-5 mc-card-payoff w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        The music is playing. Seats are filling. When it stops, whoever's still standing loses it all. Then the music starts again.
+                        When the music stops, whoever's still standing loses. Then it starts all over again.
                       </p>
                     </div>
                   </div>
@@ -429,39 +577,56 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* How It Works — left-aligned accordion */}
-                <div ref={howItWorksRef} className="mt-6 mc-scroll-animate">
-                  <div className={`mc-card overflow-hidden ${showHowItWorks ? 'border-white/15' : ''}`}>
-                    <button
-                      onClick={() => setShowHowItWorks(!showHowItWorks)}
-                      className="w-full p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+                {/* How It Works — instructional carousel */}
+                <div className="mt-8 relative">
+                  <div className="mc-card overflow-hidden">
+                    {/* Fixed header — always top-left, same position */}
+                    <div className="px-5 pt-4 pb-2 border-b border-white/5 text-left">
+                      <span className="font-display text-xs mc-text-muted uppercase tracking-widest">
+                        How it works {charlesSlide + 1}/{charlesExplains.length}:
+                      </span>
+                      <span className={`font-display text-xs ml-1.5 mc-text-${charlesExplains[charlesSlide].color} uppercase tracking-widest`}>
+                        {charlesExplains[charlesSlide].title}
+                      </span>
+                    </div>
+
+                    {/* Body — crossfade on slide change */}
+                    <div
+                      className="px-10 py-4 min-h-[80px] flex flex-col justify-center text-left transition-opacity duration-200"
+                      style={{ opacity: slideFading ? 0 : 1 }}
                     >
-                      <div className="flex items-center gap-3">
-                        <HelpCircle className="h-5 w-5 mc-text-cyan" />
-                        <span className="text-sm font-bold mc-text-primary">How does it work?</span>
-                      </div>
-                      <ChevronDown className={`h-4 w-4 mc-text-muted transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        {charlesExplains[charlesSlide].body}
+                      </p>
+                      {charlesExplains[charlesSlide].fine && (
+                        <p className="text-[9px] mc-text-muted mt-2 opacity-50">{charlesExplains[charlesSlide].fine}</p>
+                      )}
+                    </div>
+
+                    {/* Navigation arrows */}
+                    <button
+                      onClick={() => goToSlide((charlesSlide - 1 + charlesExplains.length) % charlesExplains.length, true)}
+                      className="absolute left-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
+                    >
+                      <ChevronLeft className="h-4 w-4" />
                     </button>
-                    {showHowItWorks && (
-                      <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
-                        <div className="mc-card p-4">
-                          <h4 className="font-display text-sm mc-text-green mb-2">Deposit ICP</h4>
-                          <p className="text-xs mc-text-dim">Choose a plan. Simple earns 11%/day for 21 days. Compounding earns more but locks your money.</p>
-                        </div>
-                        <div className="mc-card p-4">
-                          <h4 className="font-display text-sm mc-text-gold mb-2">Earn Daily</h4>
-                          <p className="text-xs mc-text-dim">Your position earns interest from the pot. Withdraw anytime — earlier exits pay a higher toll.</p>
-                        </div>
-                        <div className="mc-card p-4">
-                          <h4 className="font-display text-sm mc-text-purple mb-2">Cast Shenanigans</h4>
-                          <p className="text-xs mc-text-dim">Earn Ponzi Points. Spend them on cosmetic chaos — rename other players, skim their earnings, boost your referrals.</p>
-                        </div>
-                        <div className="mc-card p-4">
-                          <h4 className="font-display text-sm mc-text-danger mb-2">The Catch</h4>
-                          <p className="text-xs mc-text-dim">When the pot empties, the game resets. If you're still in — total loss. That's the Ponzi part.</p>
-                        </div>
-                      </div>
-                    )}
+                    <button
+                      onClick={() => goToSlide((charlesSlide + 1) % charlesExplains.length, true)}
+                      className="absolute right-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  {/* Dot indicators */}
+                  <div className="flex justify-center gap-1.5 mt-3">
+                    {charlesExplains.map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => goToSlide(i, true)}
+                        className={`h-1.5 rounded-full transition-all ${i === charlesSlide ? `w-3 bg-white/60` : 'w-1.5 bg-white/20 hover:bg-white/30'}`}
+                      />
+                    ))}
                   </div>
                 </div>
 
@@ -479,14 +644,6 @@ export default function App() {
                   </div>
                   <p className="text-sm text-red-300/80">All positions carry risk of total loss.</p>
                   <p className="text-sm text-red-300/80">Please play responsibly.</p>
-                </div>
-
-                {/* Charles quote — below the warning */}
-                <div className="mt-8 text-center">
-                  <p className="font-accent text-sm mc-text-dim italic">
-                    &ldquo;{splashQuote}&rdquo;
-                  </p>
-                  <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
                 </div>
               </div>
             ) : showProfileSetup ? (
