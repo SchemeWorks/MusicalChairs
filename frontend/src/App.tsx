@@ -232,11 +232,9 @@ export default function App() {
                   <span className="hidden md:inline">Musical Chairs</span>
                   <span className="md:hidden">MC</span>
                 </span>
-                {!showDashboard && (
-                  <span className="mc-tagline text-sm md:text-base leading-none">
-                    It's a Ponzi!
-                  </span>
-                )}
+                <span className="mc-tagline text-sm md:text-base leading-none">
+                  It's a Ponzi!
+                </span>
               </button>
 
               {/* Desktop header tabs — only when on dashboard */}
@@ -361,7 +359,7 @@ export default function App() {
                     </div>
                     <div className="mc-card mc-accent-green pt-8 pb-5 px-5 mc-card-hook w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
+                        Up to 12% daily. Withdraw anytime, or lock &amp; compound for a face-melting ROI.
                       </p>
                     </div>
                   </div>
@@ -373,7 +371,7 @@ export default function App() {
                     </div>
                     <div className="mc-card mc-accent-danger pt-8 pb-5 px-5 w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
+                        This is literally a Ponzi scheme. The smart money gets in early and gets out earlier.
                       </p>
                     </div>
                   </div>
@@ -385,7 +383,7 @@ export default function App() {
                     </div>
                     <div className="mc-card-elevated mc-accent-gold pt-8 pb-5 px-5 mc-card-payoff w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
+                        The music is playing. Seats are filling. When it stops, whoever's still standing loses it all. Then the music starts again.
                       </p>
                     </div>
                   </div>

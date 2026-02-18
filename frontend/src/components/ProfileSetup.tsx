@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSaveUserProfile } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
-import { Dices, AlertTriangle, PartyPopper, CreditCard } from 'lucide-react';
+import { Dices, AlertTriangle, PartyPopper } from 'lucide-react';
 
 const MAX_NAME_LENGTH = 20;
 
@@ -74,93 +74,96 @@ export default function ProfileSetup() {
   }
 
   return (
-    <div className="max-w-md mx-auto px-4 py-12 md:py-20">
-      {/* Hero */}
-      <div className="text-center mb-10">
-        <div className="mc-hero-logo text-3xl md:text-4xl">Musical Chairs</div>
-        <div className="mc-tagline text-xl mb-4">It's a Ponzi!</div>
+    <div className="max-w-2xl mx-auto px-4 py-8 md:py-16">
+      {/* Hero — matches splash page sizing, no stagger (avoids transform override) */}
+      <div className="text-center">
+        <div className="mc-hero-logo">
+          Musical Chairs
+        </div>
+        <div className="text-2xl md:text-3xl mb-4">
+          <span className="mc-tagline" style={{ display: 'inline-block' }}>It's a Ponzi!</span>
+        </div>
+        <div className="mb-10" />
+      </div>
+
+      {/* Setup card — dice icon floats above the top rail */}
+      <div className="flex flex-col items-center max-w-md mx-auto">
+        <div className="mc-icon-disc mc-icon-disc-purple mb-[-20px] z-10">
+          <Dices className="h-7 w-7 mc-text-purple" />
+        </div>
+        <div className="mc-card-elevated mc-registration-glow pt-8 w-full">
+          <div className="text-center mb-8">
+            <p className="mc-text-primary text-sm font-display tracking-wide">
+              Everyone who walks through that door gets a seat at the table.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6 px-1">
+            <div>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className={`mc-input w-full text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
+                placeholder="What do they call you?"
+                maxLength={MAX_NAME_LENGTH + 5} /* soft limit — let them type a bit over to see the counter turn red */
+                required
+              />
+              {/* Character count & validation feedback */}
+              <div className="flex justify-between mt-1.5 text-xs">
+                <span className={name.length > MAX_NAME_LENGTH ? 'mc-text-danger' : 'mc-text-muted'}>
+                  {name.length > 0 ? `${name.length}/${MAX_NAME_LENGTH} characters` : ''}
+                </span>
+                {name.length > MAX_NAME_LENGTH && (
+                  <span className="mc-text-danger">Too long</span>
+                )}
+              </div>
+              {trimmedName && trimmedName.length <= MAX_NAME_LENGTH && (
+                <p className="text-xs mc-text-muted mt-1 text-center">
+                  Players will see you as: <span className="text-white font-bold">{trimmedName}</span>
+                </p>
+              )}
+            </div>
+
+            <button
+              type="submit"
+              disabled={!isNameValid || saveProfile.isPending}
+              className={`w-full py-4 text-lg font-bold rounded-xl transition-all ${
+                isNameValid
+                  ? 'mc-btn-primary pulse'
+                  : 'mc-btn-primary opacity-50 cursor-not-allowed'
+              }`}
+            >
+              {saveProfile.isPending ? 'Pulling up a chair...' : isNameValid ? 'TAKE YOUR SEAT' : 'JOIN THE GAME'}
+            </button>
+          </form>
+
+          {saveProfile.isError && (
+            <div className="mc-status-red p-3 mt-4 text-center text-sm">
+              Failed to create profile. Please try again.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Warning box — matches splash page exactly */}
+      <div className="mt-10 mx-auto max-w-lg mc-warning-box text-center">
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+          <span className="text-base font-bold text-red-300 uppercase tracking-wide">This is a gambling game</span>
+          <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+        </div>
+        <p className="text-sm text-red-300/80">All positions carry risk of total loss.</p>
+        <p className="text-sm text-red-300/80">Please play responsibly.</p>
+      </div>
+
+      {/* Charles quote — below the warning */}
+      <div className="mt-6 text-center">
         <p className="font-accent text-sm mc-text-dim italic leading-relaxed max-w-xs mx-auto">
           &ldquo;I&rsquo;m glad you&rsquo;re here. Truly.
           Let me show you something special.&rdquo;
         </p>
         <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
-      </div>
-
-      {/* Decorative casino registration icon */}
-      <div className="flex justify-center mb-6 opacity-40">
-        <div className="relative">
-          <CreditCard className="h-12 w-12 mc-text-gold absolute -rotate-12 -translate-x-2" />
-          <CreditCard className="h-12 w-12 mc-text-purple rotate-6 translate-x-2" />
-        </div>
-      </div>
-
-      {/* Setup card */}
-      <div className="mc-card-elevated mc-registration-glow">
-        <div className="text-center mb-8">
-          <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
-          <p className="mc-text-dim text-sm">Everyone who walks through that door gets a seat at the table.</p>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className={`mc-input w-full text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
-              placeholder="Your name, future millionaire"
-              maxLength={MAX_NAME_LENGTH + 5} /* soft limit — let them type a bit over to see the counter turn red */
-              required
-            />
-            {/* Character count & validation feedback */}
-            <div className="flex justify-between mt-1.5 text-xs">
-              <span className={name.length > MAX_NAME_LENGTH ? 'mc-text-danger' : 'mc-text-muted'}>
-                {name.length > 0 ? `${name.length}/${MAX_NAME_LENGTH} characters` : ''}
-              </span>
-              {name.length > MAX_NAME_LENGTH && (
-                <span className="mc-text-danger">Too long</span>
-              )}
-            </div>
-            {trimmedName && trimmedName.length <= MAX_NAME_LENGTH && (
-              <p className="text-xs mc-text-muted mt-1 text-center">
-                Players will see you as: <span className="text-white font-bold">{trimmedName}</span>
-              </p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={!isNameValid || saveProfile.isPending}
-            className={`w-full py-4 text-lg font-bold rounded-xl transition-all ${
-              isNameValid
-                ? 'mc-btn-primary pulse'
-                : 'mc-btn-primary opacity-50 cursor-not-allowed'
-            }`}
-          >
-            {saveProfile.isPending ? 'Pulling up a chair...' : isNameValid ? 'TAKE YOUR SEAT' : 'JOIN THE GAME'}
-          </button>
-        </form>
-
-        {saveProfile.isError && (
-          <div className="mc-status-red p-3 mt-4 text-center text-sm">
-            Failed to create profile. Please try again.
-          </div>
-        )}
-
-        {/* Ponzi disclaimer — Charles voice, normal text */}
-        <div className="mt-6 text-center">
-          <p className="font-bold text-sm mc-text-dim flex items-center justify-center gap-2">
-            <AlertTriangle className="h-4 w-4 mc-text-danger" /> THIS IS A REAL PONZI SCHEME
-          </p>
-          <p className="text-xs mc-text-muted mt-1">Real ICP. Real risk. Real fun. Only put in what you'd comfortably set on fire.</p>
-        </div>
-
-        {/* Gambling disclaimer — straight-faced, red warning box */}
-        <div className="mc-status-red p-3 mt-4 text-center">
-          <p className="text-xs flex items-center justify-center gap-1.5">
-            <AlertTriangle className="h-3 w-3" /> This is a gambling game. Please play responsibly.
-          </p>
-        </div>
       </div>
     </div>
   );

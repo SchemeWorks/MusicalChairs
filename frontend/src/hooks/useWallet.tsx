@@ -118,6 +118,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
   const initializeWallet = async () => {
     try {
+      // Always pre-create AuthClient so it's ready when the user clicks login.
+      // Safari blocks popups if window.open() is called after an async gap —
+      // creating the client here ensures the click→login()→window.open() path is synchronous.
+      const client = await AuthClient.create({
+        idleOptions: {
+          idleTimeout: 1000 * 60 * 30, // 30 minutes
+          disableDefaultIdleCallback: true,
+        },
+      });
+      setAuthClient(client);
+
       // Check for saved wallet type
       const savedWalletType = localStorage.getItem('musical-chairs-wallet-type') as WalletType | null;
 
@@ -125,8 +136,14 @@ export function WalletProvider({ children }: WalletProviderProps) {
         // Try to restore Plug connection
         await restorePlugConnection();
       } else if (savedWalletType === 'internet-identity' || savedWalletType === 'oisy') {
-        // Try to restore II/OISY connection
-        await restoreIIConnection(savedWalletType);
+        // Restore II/OISY using the already-created client
+        const isAuthenticated = await client.isAuthenticated();
+        if (isAuthenticated) {
+          const ident = client.getIdentity();
+          setIdentity(ident);
+          setPrincipal(ident.getPrincipal().toString());
+          setWalletType(savedWalletType);
+        }
       }
     } catch (error) {
       console.error('Failed to restore wallet connection:', error);
@@ -160,29 +177,6 @@ export function WalletProvider({ children }: WalletProviderProps) {
       }
     } catch (error) {
       console.error('Failed to restore Plug connection:', error);
-    }
-  };
-
-  const restoreIIConnection = async (type: 'internet-identity' | 'oisy') => {
-    try {
-      const client = await AuthClient.create({
-        idleOptions: {
-          idleTimeout: 1000 * 60 * 30, // 30 minutes
-          disableDefaultIdleCallback: true,
-        },
-      });
-
-      setAuthClient(client);
-
-      const isAuthenticated = await client.isAuthenticated();
-      if (isAuthenticated) {
-        const identity = client.getIdentity();
-        setIdentity(identity);
-        setPrincipal(identity.getPrincipal().toString());
-        setWalletType(type);
-      }
-    } catch (error) {
-      console.error('Failed to restore II connection:', error);
     }
   };
 
@@ -248,29 +242,22 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   const connectInternetIdentity = async () => {
-    let client = authClient;
-
-    if (!client) {
-      client = await AuthClient.create({
-        idleOptions: {
-          idleTimeout: 1000 * 60 * 30,
-          disableDefaultIdleCallback: true,
-        },
-      });
-      setAuthClient(client);
+    // authClient is pre-created during initialization (see initializeWallet).
+    // This keeps the click→login()→window.open() path synchronous,
+    // which is required for Safari/iOS to allow the popup.
+    if (!authClient) {
+      throw new Error('AuthClient not initialized — please wait for the app to finish loading.');
     }
 
     const iiUrl = IS_LOCAL ? II_URL_LOCAL : II_URL_MAINNET;
-    console.log('Connecting to II at:', iiUrl);
-    console.log('IS_LOCAL:', IS_LOCAL);
 
     return new Promise<void>((resolve, reject) => {
-      client!.login({
+      authClient.login({
         identityProvider: iiUrl,
         maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days
         onSuccess: () => {
           console.log('II login successful!');
-          const identity = client!.getIdentity();
+          const identity = authClient!.getIdentity();
           setIdentity(identity);
           setPrincipal(identity.getPrincipal().toString());
           setWalletType('internet-identity');
