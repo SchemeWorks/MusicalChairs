@@ -1,10 +1,58 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSaveUserProfile } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { Dices, AlertTriangle, PartyPopper } from 'lucide-react';
 
 const MAX_NAME_LENGTH = 20;
+
+/** Idle ripple — letters are visible immediately, gentle wave every 3s */
+function RippleText({ text, interval = 3000, amplitude = 4, stagger = 40 }: {
+  text: string; interval?: number; amplitude?: number; stagger?: number;
+}) {
+  const lettersRef = useRef<(HTMLSpanElement | null)[]>([]);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function runRipple() {
+      const els = lettersRef.current;
+      const rafs: number[] = [];
+      els.forEach((el, i) => {
+        if (!el) return;
+        const letterStart = performance.now() + i * stagger;
+        const dur = 400;
+        function tick(now: number) {
+          const elapsed = now - letterStart;
+          if (elapsed < 0) { rafs.push(requestAnimationFrame(tick)); return; }
+          const t = Math.min(elapsed / dur, 1);
+          el.style.transform = `translateY(${-amplitude * Math.sin(Math.PI * t)}px)`;
+          if (t < 1) rafs.push(requestAnimationFrame(tick));
+          else el.style.transform = 'translateY(0px)';
+        }
+        rafs.push(requestAnimationFrame(tick));
+      });
+    }
+
+    const timer = setInterval(runRipple, interval);
+    const firstRipple = setTimeout(runRipple, 1000); // first ripple after 1s
+    return () => { clearInterval(timer); clearTimeout(firstRipple); };
+  }, []);
+
+  return (
+    <span className="mc-tagline" style={{ display: 'inline-block' }}>
+      {text.split('').map((char, i) => (
+        <span
+          key={i}
+          ref={el => { lettersRef.current[i] = el; }}
+          style={{ display: 'inline-block', width: char === ' ' ? '0.3em' : undefined }}
+        >
+          {char}
+        </span>
+      ))}
+    </span>
+  );
+}
 
 export default function ProfileSetup() {
   const [name, setName] = useState('');
@@ -31,18 +79,18 @@ export default function ProfileSetup() {
       onSuccess: () => {
         setShowCelebration(true);
         triggerConfetti();
-        // Explicitly refetch user profile so App.tsx detects it and redirects
-        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+        // Delay redirect so the celebration screen lingers for the user to read
+        // The query invalidation triggers App.tsx to swap ProfileSetup → Dashboard
       },
     });
   };
 
-  // Fallback: if React Query hasn't redirected after 3 seconds, force another refetch
+  // Let the celebration screen breathe — redirect after 5 seconds
   useEffect(() => {
     if (showCelebration) {
       const timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['userProfile'] });
-      }, 3000);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [showCelebration, queryClient]);
@@ -80,8 +128,8 @@ export default function ProfileSetup() {
         <div className="mc-hero-logo">
           Musical Chairs
         </div>
-        <div className="text-2xl md:text-3xl mb-4">
-          <span className="mc-tagline" style={{ display: 'inline-block' }}>It's a Ponzi!</span>
+        <div className="text-3xl md:text-4xl mb-4">
+          <RippleText text="It's a Ponzi!" />
         </div>
         <div className="mb-10" />
       </div>

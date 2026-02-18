@@ -551,7 +551,7 @@ export function useCreateGame() {
       }
       
       const isCompounding = mode === 'compounding';
-      const gameId = await actor.createGame(plan, amount, isCompounding, null);
+      const gameId = await actor.createGame(plan, amount, isCompounding, []);
       
       // Initialize earnings tracking for the new game
       gameEarningsStore.set(gameId.toString(), {
@@ -674,7 +674,7 @@ export function useCastShenanigan() {
   return useMutation({
     mutationFn: async ({ shenaniganType, target }: { shenaniganType: ShenaniganType; target: Principal | null }) => {
       if (!actor) throw new Error('Actor not available');
-      return actor.castShenanigan(shenaniganType, target);
+      return actor.castShenanigan(shenaniganType, target ? [target] : []);
     },
     onSuccess: () => {
       // Invalidate and refetch all related queries for instant UI updates
