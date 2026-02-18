@@ -279,35 +279,20 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
-  const [charlesSlide, setCharlesSlide] = useState(0);
+  const [charlesSlide, setCharlesSlide] = useState(() => Math.floor(Math.random() * charlesExplains.length));
   const [slideFading, setSlideFading] = useState(false);
-  const [timerEpoch, setTimerEpoch] = useState(0);
   const [showDocsPage, setShowDocsPage] = useState(false);
   const { data: publicStats } = useGetPublicStats();
 
-  // Crossfade helper: fade out body, swap slide, fade back in
-  const goToSlide = (next: number, resetTimer = false) => {
+  // Crossfade helper for manual navigation
+  const goToSlide = (next: number) => {
     if (slideFading) return;
     setSlideFading(true);
     setTimeout(() => {
       setCharlesSlide(next);
       setSlideFading(false);
     }, 200);
-    if (resetTimer) setTimerEpoch(prev => prev + 1);
   };
-
-  // Auto-cycle — 8s per slide, resets when user manually navigates
-  useEffect(() => {
-    if (isInitializing || identity) return;
-    const timer = setInterval(() => {
-      setSlideFading(true);
-      setTimeout(() => {
-        setCharlesSlide(prev => (prev + 1) % charlesExplains.length);
-        setSlideFading(false);
-      }, 200);
-    }, 8000);
-    return () => clearInterval(timer);
-  }, [isInitializing, identity, timerEpoch]);
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -605,13 +590,13 @@ export default function App() {
 
                     {/* Navigation arrows */}
                     <button
-                      onClick={() => goToSlide((charlesSlide - 1 + charlesExplains.length) % charlesExplains.length, true)}
+                      onClick={() => goToSlide((charlesSlide - 1 + charlesExplains.length) % charlesExplains.length)}
                       className="absolute left-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => goToSlide((charlesSlide + 1) % charlesExplains.length, true)}
+                      onClick={() => goToSlide((charlesSlide + 1) % charlesExplains.length)}
                       className="absolute right-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -623,7 +608,7 @@ export default function App() {
                     {charlesExplains.map((_, i) => (
                       <button
                         key={i}
-                        onClick={() => goToSlide(i, true)}
+                        onClick={() => goToSlide(i)}
                         className={`h-1.5 rounded-full transition-all ${i === charlesSlide ? `w-3 bg-white/60` : 'w-1.5 bg-white/20 hover:bg-white/30'}`}
                       />
                     ))}
