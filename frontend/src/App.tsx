@@ -13,8 +13,8 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle } from 'lucide-react';
-import GameDocs from './components/GameDocs';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronDown, HelpCircle, BookOpen } from 'lucide-react';
+import DocsPage from './components/DocsPage';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 
@@ -154,7 +154,7 @@ export default function App() {
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [splashQuote] = useState(() => splashQuotes[Math.floor(Math.random() * splashQuotes.length)]);
   const [showHowItWorks, setShowHowItWorks] = useState(false);
-  const [showDocs, setShowDocs] = useState(false);
+  const [showDocsPage, setShowDocsPage] = useState(false);
   const { data: publicStats } = useGetPublicStats();
 
   // Scroll-triggered animation refs
@@ -232,11 +232,9 @@ export default function App() {
                   <span className="hidden md:inline">Musical Chairs</span>
                   <span className="md:hidden">MC</span>
                 </span>
-                {!showDashboard && (
-                  <span className="mc-tagline text-sm md:text-base leading-none">
-                    It's a Ponzi!
-                  </span>
-                )}
+                <span className="mc-tagline text-sm md:text-base leading-none">
+                  It's a Ponzi!
+                </span>
               </button>
 
               {/* Desktop header tabs — only when on dashboard */}
@@ -267,7 +265,19 @@ export default function App() {
               <div className="flex-1" />
 
               {/* Right controls */}
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
+                {/* Docs — always visible, visually distinct */}
+                <button
+                  onClick={() => setShowDocsPage(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
+                >
+                  <BookOpen className="h-4 w-4" />
+                  <span>Docs</span>
+                </button>
+
+                {/* Separator dot */}
+                <div className="w-px h-4 bg-white/10 hidden sm:block" />
+
                 {isAuthenticated ? (
                   <>
                     {/* Charles's Office — locked to Charles principals */}
@@ -283,15 +293,6 @@ export default function App() {
                       </button>
                     )}
 
-                    {/* Docs */}
-                    <button
-                      onClick={() => setShowDocs(true)}
-                      className="w-8 h-8 rounded-full flex items-center justify-center mc-text-muted hover:mc-text-primary hover:bg-white/5 transition-all"
-                      title="How To Play"
-                    >
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-
                     {/* Wallet */}
                     <button
                       ref={walletButtonRef}
@@ -305,7 +306,7 @@ export default function App() {
                     <LogoutButton />
                   </>
                 ) : (
-                  <LoginButton />
+                  <LoginButton compact />
                 )}
               </div>
             </div>
@@ -327,7 +328,12 @@ export default function App() {
               </button>
             </div>
           }>
-            {!isAuthenticated ? (
+            {showDocsPage ? (
+              /* === DOCS PAGE === */
+              <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+                <DocsPage onBack={() => setShowDocsPage(false)} />
+              </div>
+            ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
               <div className="mc-hero max-w-2xl mx-auto px-4 py-8 md:py-16">
                 {/* Animated gradient background */}
@@ -341,113 +347,146 @@ export default function App() {
                   <div className="mc-tagline text-2xl md:text-3xl mb-4">
                     <span ref={taglineRef} style={{ display: 'inline-block', opacity: 0 }}>It's a Ponzi!</span>
                   </div>
-                  <p className="font-accent text-sm mc-text-muted italic mb-10">
-                    You know exactly what this is. That's what makes it fun.
-                  </p>
+                  <div className="mb-10" />
                 </div>
 
-                {/* Three info cards — the pitch builds before the ask */}
-                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-4 text-left mc-splash-cards mc-scroll-animate">
-                  {/* Card 1: The Hook — bigger, pulsing glow */}
-                  <div className="mc-card mc-accent-green p-6 mc-card-hook">
-                    <Dices className="h-7 w-7 mc-text-green mb-3" />
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      Up to 12% daily. Withdraw anytime, or lock it in and let compound interest do its thing.
-                    </p>
-                  </div>
-
-                  {/* Card 2: The Friction — dashed border, caution feel */}
-                  <div className="mc-card mc-accent-danger p-5 border-dashed">
-                    <AlertTriangle className="h-7 w-7 mc-text-danger mb-3" />
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      This is literally a Ponzi scheme. Only put in what you'd comfortably light on fire.
-                    </p>
-                  </div>
-
-                  {/* Card 3: The Payoff — elevated, gold glow */}
-                  <div className="mc-card-elevated mc-accent-gold p-5 mc-card-payoff">
-                    <Dices className="h-7 w-7 mc-text-gold mb-3" />
-                    <p className="text-sm mc-text-dim leading-relaxed">
-                      When the pot empties, the whole thing starts over. If you're still in when that happens — Loss.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Live stats ribbon — social proof */}
-                <div ref={ribbonRef} className="mt-8 mc-card mc-accent-gold p-4 mc-scroll-animate">
-                  <div className="flex items-center justify-center gap-6 flex-wrap text-xs">
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-gold">🏦</span>
-                      <span className="mc-text-muted">Pot:</span>
-                      <span className="font-bold mc-text-gold">
-                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : 'Growing daily'}
-                      </span>
+                {/* Three info cards — icon discs float above the top rail */}
+                <div ref={cardsRef} className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center mc-splash-cards mc-scroll-animate">
+                  {/* Card 1: The Hook */}
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-green mb-[-20px] z-10">
+                      <Dices className="h-7 w-7 mc-text-green" />
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-green">📈</span>
-                      <span className="mc-text-muted">Players:</span>
-                      <span className="font-bold mc-text-green">
-                        {publicStats ? `${Number(publicStats.activeGames)} active` : 'Up to 12% / day'}
-                      </span>
+                    <div className="mc-card mc-accent-green pt-8 pb-5 px-5 mc-card-hook w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        Up to 12% daily. Withdraw anytime, or lock &amp; compound for a face-melting ROI.
+                      </p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <span className="mc-text-cyan">⚡</span>
-                      <span className="mc-text-muted">Status:</span>
-                      <span className="font-bold mc-text-cyan">Live on ICP</span>
+                  </div>
+
+                  {/* Card 2: The Warning */}
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-danger mb-[-20px] z-10">
+                      <AlertTriangle className="h-7 w-7 mc-text-danger" />
+                    </div>
+                    <div className="mc-card mc-accent-danger pt-8 pb-5 px-5 w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        This is literally a Ponzi scheme. The smart money gets in early and gets out earlier.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Card 3: The Payoff */}
+                  <div className="flex flex-col items-center">
+                    <div className="mc-icon-disc mc-icon-disc-gold mb-[-20px] z-10">
+                      <Dices className="h-7 w-7 mc-text-gold" />
+                    </div>
+                    <div className="mc-card-elevated mc-accent-gold pt-8 pb-5 px-5 mc-card-payoff w-full flex-1">
+                      <p className="text-sm mc-text-dim leading-relaxed">
+                        The music is playing. Seats are filling. When it stops, whoever's still standing loses it all. Then the music starts again.
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* How It Works — expandable */}
+                {/* Live stats ribbon */}
+                <div ref={ribbonRef} className="mt-8 mc-card p-4 mc-scroll-animate">
+                  <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center text-xs">
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Pot Balance</div>
+                      <div className="font-bold mc-text-gold text-sm">
+                        {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Active Positions</div>
+                      <div className="font-bold mc-text-green text-sm">
+                        {publicStats ? Number(publicStats.activeGames) : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Total Deposited</div>
+                      <div className="font-bold mc-text-purple text-sm">
+                        {publicStats ? `${formatICP(publicStats.totalDeposits)} ICP` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Total Withdrawn</div>
+                      <div className="font-bold mc-text-cyan text-sm">
+                        {publicStats ? `${formatICP(publicStats.totalWithdrawals)} ICP` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Days Active</div>
+                      <div className="font-bold mc-text-primary text-sm">
+                        {publicStats ? Number(publicStats.daysActive) : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Status</div>
+                      <div className="font-bold mc-text-cyan text-sm">Live on ICP</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* How It Works — left-aligned accordion */}
                 <div ref={howItWorksRef} className="mt-6 mc-scroll-animate">
-                  <button
-                    onClick={() => setShowHowItWorks(!showHowItWorks)}
-                    className="flex items-center gap-2 mx-auto text-xs mc-text-dim hover:mc-text-primary transition-colors"
-                  >
-                    <ChevronDown className={`h-4 w-4 transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
-                    How does it work?
-                  </button>
-                  {showHowItWorks && (
-                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
-                      <div className="mc-card p-4">
-                        <h4 className="font-display text-sm mc-text-green mb-2">Deposit ICP</h4>
-                        <p className="text-xs mc-text-dim">Choose a plan. Simple earns 11%/day for 21 days. Compounding earns more but locks your money.</p>
+                  <div className={`mc-card overflow-hidden ${showHowItWorks ? 'border-white/15' : ''}`}>
+                    <button
+                      onClick={() => setShowHowItWorks(!showHowItWorks)}
+                      className="w-full p-4 flex items-center justify-between hover:bg-white/[0.02] transition-colors"
+                    >
+                      <div className="flex items-center gap-3">
+                        <HelpCircle className="h-5 w-5 mc-text-cyan" />
+                        <span className="text-sm font-bold mc-text-primary">How does it work?</span>
                       </div>
-                      <div className="mc-card p-4">
-                        <h4 className="font-display text-sm mc-text-gold mb-2">Earn Daily</h4>
-                        <p className="text-xs mc-text-dim">Your position earns interest from the pot. Withdraw anytime — earlier exits pay a higher toll.</p>
+                      <ChevronDown className={`h-4 w-4 mc-text-muted transition-transform ${showHowItWorks ? 'rotate-180' : ''}`} />
+                    </button>
+                    {showHowItWorks && (
+                      <div className="px-4 pb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-left mc-stagger">
+                        <div className="mc-card p-4">
+                          <h4 className="font-display text-sm mc-text-green mb-2">Deposit ICP</h4>
+                          <p className="text-xs mc-text-dim">Choose a plan. Simple earns 11%/day for 21 days. Compounding earns more but locks your money.</p>
+                        </div>
+                        <div className="mc-card p-4">
+                          <h4 className="font-display text-sm mc-text-gold mb-2">Earn Daily</h4>
+                          <p className="text-xs mc-text-dim">Your position earns interest from the pot. Withdraw anytime — earlier exits pay a higher toll.</p>
+                        </div>
+                        <div className="mc-card p-4">
+                          <h4 className="font-display text-sm mc-text-purple mb-2">Cast Shenanigans</h4>
+                          <p className="text-xs mc-text-dim">Earn Ponzi Points. Spend them on cosmetic chaos — rename other players, skim their earnings, boost your referrals.</p>
+                        </div>
+                        <div className="mc-card p-4">
+                          <h4 className="font-display text-sm mc-text-danger mb-2">The Catch</h4>
+                          <p className="text-xs mc-text-dim">When the pot empties, the game resets. If you're still in — total loss. That's the Ponzi part.</p>
+                        </div>
                       </div>
-                      <div className="mc-card p-4">
-                        <h4 className="font-display text-sm mc-text-purple mb-2">Cast Shenanigans</h4>
-                        <p className="text-xs mc-text-dim">Earn Ponzi Points. Spend them on cosmetic chaos — rename other players, skim their earnings, boost your referrals.</p>
-                      </div>
-                      <div className="mc-card p-4">
-                        <h4 className="font-display text-sm mc-text-danger mb-2">The Catch</h4>
-                        <p className="text-xs mc-text-dim">When the pot empties, the game resets. If you're still in — total loss. That's the Ponzi part.</p>
-                      </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                {/* Charles quote */}
+                {/* CTA */}
+                <div className="mt-8 flex justify-center">
+                  <LoginButton />
+                </div>
+
+                {/* Responsible gambling warning — always prominent, no jokes */}
+                <div className="mt-10 mx-auto max-w-lg mc-warning-box text-center">
+                  <div className="flex items-center justify-center gap-2 mb-2">
+                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+                    <span className="text-base font-bold text-red-300 uppercase tracking-wide">This is a gambling game</span>
+                    <AlertTriangle className="h-5 w-5 text-red-400 shrink-0" />
+                  </div>
+                  <p className="text-sm text-red-300/80">All positions carry risk of total loss.</p>
+                  <p className="text-sm text-red-300/80">Please play responsibly.</p>
+                </div>
+
+                {/* Charles quote — below the warning */}
                 <div className="mt-8 text-center">
                   <p className="font-accent text-sm mc-text-dim italic">
                     &ldquo;{splashQuote}&rdquo;
                   </p>
                   <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
-                </div>
-
-                {/* CTA — after the pitch has landed */}
-                <div className="mt-8 flex justify-center">
-                  <LoginButton />
-                </div>
-
-                {/* Responsible gambling — straight-faced, not Charles */}
-                <div className="mt-10 text-center">
-                  <p className="text-xs mc-text-muted opacity-60">
-                    <AlertTriangle className="h-3 w-3 inline-block mr-1 align-text-top" />
-                    This is a gambling game. Please play responsibly.
-                  </p>
                 </div>
               </div>
             ) : showProfileSetup ? (
@@ -515,8 +554,7 @@ export default function App() {
           />
         </ErrorBoundary>
 
-        {/* Docs overlay */}
-        {showDocs && <GameDocs onClose={() => setShowDocs(false)} />}
+        {/* DocsPage is rendered inline in main content — see showDocsPage conditional above */}
 
         {/* Toast */}
         <Toaster

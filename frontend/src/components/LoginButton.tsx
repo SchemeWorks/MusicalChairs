@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import WalletConnectModal from './WalletConnectModal';
 import { Wallet, LogOut, Loader2 } from 'lucide-react';
 
-export default function LoginButton() {
+export default function LoginButton({ compact }: { compact?: boolean } = {}) {
   const { isConnected, isConnecting, isInitializing, disconnect, walletType } = useWallet();
   const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -42,7 +42,7 @@ export default function LoginButton() {
         ) : isConnected ? (
           <><LogOut className="h-4 w-4" /> Disconnect {walletName}</>
         ) : (
-          <><Wallet className="h-4 w-4" /> Connect Wallet</>
+          <><Wallet className="h-4 w-4" /> {compact ? 'Connect' : 'Connect Wallet'}</>
         )}
       </button>
 

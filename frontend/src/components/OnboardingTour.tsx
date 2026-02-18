@@ -76,7 +76,7 @@ export default function OnboardingTour({ onTabChange, isMobile }: OnboardingTour
       <div
         ref={tooltipRef}
         className={`fixed z-[61] mc-card-elevated p-5 rounded-xl shadow-2xl max-w-xs w-[calc(100vw-2rem)] mc-enter ${
-          isMobile ? 'bottom-24 left-1/2 -translate-x-1/2' : 'top-24 left-1/2 -translate-x-1/2'
+          isMobile ? 'bottom-24 left-1/2 -translate-x-1/2' : 'top-[140px] left-1/2 -translate-x-1/2'
         }`}
       >
         {/* Progress bar */}
