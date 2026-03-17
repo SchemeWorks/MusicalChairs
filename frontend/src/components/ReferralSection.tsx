@@ -25,10 +25,9 @@ function EmptyState() {
       <Users className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
       <p className="font-display text-lg mc-text-primary mb-2">Your Network Awaits</p>
       <p className="text-sm mc-text-dim mb-6">Share your referral link and start building your downline.</p>
-      <div className="min-h-[4rem] flex items-center justify-center">
+      <div className="flex items-center justify-center">
         <p className="font-accent text-sm mc-text-dim italic max-w-sm">
-          &ldquo;{charlesMLMQuotes[quoteIndex]}&rdquo;
-          <span className="block text-xs mc-text-muted font-bold mt-1 not-italic">&mdash; Charles</span>
+          {charlesMLMQuotes[quoteIndex]}
         </p>
       </div>
     </div>
@@ -80,9 +79,9 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
       <div className="mc-card-elevated">
         {/* Tagline */}
         <div className="text-center mb-6">
-          <span className="font-accent text-xl mc-text-gold">More Than Just a Ponzi</span>
+          <span className="font-accent text-2xl mc-text-gold">More Than Just a Ponzi</span>
           <br />
-          <span className="font-accent text-lg mc-text-gold opacity-80">&mdash; It's Also a Pyramid Scheme!</span>
+          <span className="font-accent text-xl mc-text-gold opacity-80">It's Also a Pyramid Scheme!</span>
         </div>
 
         {/* Referral link */}

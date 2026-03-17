@@ -5,10 +5,10 @@
       "type": "motoko"
     },
     "frontend": {
-      "dependencies": ["backend"],
+      "dependencies": [],
       "source": ["frontend/dist"],
       "type": "assets",
-      "workspace": "frontend"
+      "build": ["npx vite build"]
     },
     "internet-identity": {
       "type": "pull",

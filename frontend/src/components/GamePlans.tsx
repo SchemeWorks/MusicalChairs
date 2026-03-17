@@ -7,31 +7,6 @@ import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/for
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 
 /* ================================================================
-   Charles quotes — per-phase, random on mount
-   ================================================================ */
-
-const charlesModeQuotes = [
-  "Let me ask you something. Do you want to drive a Honda... or a Lamborghini?",
-  "Everybody starts somewhere. Some people start on a yacht.",
-  "Two doors. One leads to a paycheck. The other leads to a lifestyle.",
-  "I'm going to show you two paths. One of them is going to change your life.",
-];
-
-const charlesPlanQuotes = [
-  "Now we're talking. Do you want the standard package, or the executive suite?",
-  "I don't show this tier to just anyone. You've earned a look at both options.",
-  "This is where it gets interesting. Two packages — both exclusive. One is just a little more exclusive.",
-  "You want to retire early, or retire really early?",
-];
-
-const charlesAmountQuotes = [
-  "Here's the real question: how much do you want to make?",
-  "Winners don't think about what they're spending. They think about what they're earning.",
-  "This is the part where you decide if you're serious or just window shopping.",
-  "The only limit is your imagination. Well, that and your wallet balance.",
-];
-
-/* ================================================================
    Post-deposit Charles quotes
    ================================================================ */
 
@@ -77,12 +52,6 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   // Progressive reveal state
   const [phase, setPhase] = useState<Phase>(1);
   const [phaseTransitioning, setPhaseTransitioning] = useState(false);
-  const [charlesQuotes] = useState(() => ({
-    mode: charlesModeQuotes[Math.floor(Math.random() * charlesModeQuotes.length)],
-    plan: charlesPlanQuotes[Math.floor(Math.random() * charlesPlanQuotes.length)],
-    amount: charlesAmountQuotes[Math.floor(Math.random() * charlesAmountQuotes.length)],
-  }));
-
   const phaseRef = useRef<HTMLDivElement>(null);
 
   const triggerShake = () => {
@@ -228,21 +197,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     : depositAmount >= minDeposit && depositAmount <= walletBalance && !inputError;
   const hasValidAmount = amount && isAmountValid;
 
-  // Current phase's Charles quote
-  const currentCharlesQuote = phase === 1 ? charlesQuotes.mode
-    : phase === 2 ? charlesQuotes.plan
-    : charlesQuotes.amount;
-
   return (
     <div className="space-y-4">
-      {/* Charles Quote Banner */}
-      <div key={phase} className="mc-charles-banner mc-charles-enter">
-        <p className="font-accent text-sm md:text-base mc-text-dim italic leading-relaxed">
-          &ldquo;{currentCharlesQuote}&rdquo;
-        </p>
-        <span className="text-xs mc-text-muted font-bold mt-1 block">&mdash; Charles</span>
-      </div>
-
       {/* Summary Strips — collapsed previous selections */}
       {phase > 1 && (
         <div
@@ -535,10 +491,9 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           <div className="mc-toast text-center">
             <div className="font-display text-xl mc-text-primary mb-2">You're In.</div>
             <p className="font-accent text-sm mc-text-dim italic mb-3">
-              &ldquo;{successToast.quote}&rdquo;
+              {successToast.quote}
             </p>
-            <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
-            <p className="text-sm mc-text-dim mt-3 mb-4">
+            <p className="text-sm mc-text-dim mt-2 mb-4">
               <span className="mc-toast-accent">{formatICP(successToast.amount)} ICP</span> is now earning.
             </p>
             <div className="flex gap-3 justify-center">

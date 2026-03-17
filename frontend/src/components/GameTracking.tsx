@@ -191,7 +191,7 @@ function PositionCard({
 }
 
 /* ================================================================
-   Empty State — random Charles quote, picked once on mount
+   Empty State with rotating Charles quotes
    ================================================================ */
 
 function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
@@ -199,11 +199,10 @@ function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="text-center py-16">
-      <div className="mb-8 min-h-[80px] flex flex-col items-center justify-center">
+      <div className="mb-8 flex flex-col items-center justify-center">
         <p className="font-accent text-sm mc-text-dim italic max-w-md mx-auto leading-relaxed">
-          &ldquo;{charlesQuotes[quoteIndex]}&rdquo;
+          {charlesQuotes[quoteIndex]}
         </p>
-        <span className="text-xs mc-text-muted mt-2 font-bold">&mdash; Charles</span>
       </div>
       <button onClick={onNavigate} className="mc-btn-primary text-sm">
         <Rocket className="h-4 w-4 inline mr-1" /> Pick Your Plan
@@ -285,7 +284,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   if (error) {
     return (
       <div className="mc-status-red p-4 text-center text-sm">
-        <p className="font-accent italic mb-1">&ldquo;Even Charles couldn't fix this one.&rdquo;</p>
+        <p className="font-accent italic mb-1">Even Charles couldn't fix this one.</p>
         Unable to load profit center data. Please try again later.
       </div>
     );
@@ -351,7 +350,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
         {/* House info */}
         <div className="mc-house-card">
           <h3 className="font-display text-base mc-text-gold mb-3">The House Always Wins</h3>
-          <p className="font-accent text-sm mc-text-muted italic mb-3">&ldquo;Charles collects a 7% exit toll if you leave within 3 days. His table, his rules.&rdquo;</p>
+          <p className="font-accent text-sm mc-text-muted italic mb-3">Charles collects a 7% exit toll if you leave within 3 days. His table, his rules.</p>
           <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
             <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
             <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>

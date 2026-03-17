@@ -26,12 +26,50 @@ const navItems: NavItem[] = [
   { id: 'shenanigans', mobileLabel: 'Tricks', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
 ];
 
+const profitCenterSubtitles = [
+  "You didn't come this far to stop now",
+  "This is just the beginning. Reinvest and watch it compound",
+  "Winners don't withdraw. They double down",
+  "Your money's working harder than you are. Keep it going",
+  "Smart money stays in the game",
+];
+
+const investSubtitles = [
+  "Let me show you something special",
+  "You've got great timing. Seriously",
+  "I only show this page to people I believe in",
+  "Two paths. Both lead to the lifestyle you deserve",
+];
+
+const seedRoundSubtitles = [
+  "Every empire needs a foundation. This is yours",
+  "Think of it as angel investing, but with better vibes",
+  "Get in on the ground floor of someone else's brilliance",
+  "Institutional-grade opportunity, retail-friendly entry",
+];
+
+const mlmSubtitles = [
+  "All you need to do is tell two friends. And they tell two friends. And they tell two friends",
+  "Your network is your net worth. I didn't make that up, but I live by it",
+  "Everyone you know is going to be in this eventually. The question is whether they're above you or below you",
+  "You're not recruiting. You're giving people access",
+];
+
+const shenanigansSubtitles = [
+  "Spend your hard-earned Ponzi Points on things that annoy other people",
+  "This is where loyalty is rewarded and rivalries are born",
+  "A little chaos keeps things interesting",
+  "The real game is played here",
+];
+
+const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
+
 const sectionSubtitles: Record<TabType, string> = {
-  profitCenter: "Don't get too attached",
-  invest: "Choose your own adventure (all roads lead to losses)",
-  seedRound: "Become a VC — put your money in someone else's scheme and call it strategy",
-  mlm: "More than just a Ponzi — it's also a Pyramid Scheme",
-  shenanigans: "Pure chaos, zero value",
+  profitCenter: pickRandom(profitCenterSubtitles),
+  invest: pickRandom(investSubtitles),
+  seedRound: pickRandom(seedRoundSubtitles),
+  mlm: pickRandom(mlmSubtitles),
+  shenanigans: pickRandom(shenanigansSubtitles),
 };
 
 const sectionLabels: Record<TabType, string> = {

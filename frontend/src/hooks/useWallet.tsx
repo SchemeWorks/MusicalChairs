@@ -251,10 +251,16 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
     const iiUrl = IS_LOCAL ? II_URL_LOCAL : II_URL_MAINNET;
 
+    // Frontend canister origin — used as derivationOrigin so II recognises
+    // requests from the custom domain (musicalchairs.fun).
+    const FRONTEND_CANISTER_ORIGIN = 'https://5qu42-fqaaa-aaaac-qecla-cai.icp0.io';
+
     return new Promise<void>((resolve, reject) => {
       authClient.login({
         identityProvider: iiUrl,
         maxTimeToLive: BigInt(7 * 24 * 60 * 60 * 1000 * 1000 * 1000), // 7 days
+        // Tell II to derive the principal from the canister origin, not the custom domain
+        ...(IS_LOCAL ? {} : { derivationOrigin: FRONTEND_CANISTER_ORIGIN }),
         onSuccess: () => {
           console.log('II login successful!');
           const identity = authClient!.getIdentity();

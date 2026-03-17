@@ -283,7 +283,7 @@ export default function GameDocs({ onClose }: GameDocsProps) {
       {/* Content */}
       <div className="max-w-2xl mx-auto w-full px-4 py-6 space-y-2">
         <p className="text-xs mc-text-muted mb-4 text-center font-accent italic">
-          "Knowledge is power. Power is money. Money is what you're about to lose." — Charles
+          Knowledge is power. Power is money. Money is what you're about to lose.
         </p>
 
         {sections.map(section => (

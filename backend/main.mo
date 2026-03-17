@@ -78,6 +78,7 @@ persistent actor {
         isActive : Bool;
         lastUpdateTime : Int;
         accumulatedEarnings : Float;
+        totalWithdrawn : Float;
     };
 
     // Referral Record
@@ -745,6 +746,39 @@ persistent actor {
         };
     };
 
+    // Admin: Seed a game record with a custom start time (for recovery/testing)
+    public shared ({ caller }) func seedGame(player : Principal, plan : GamePlan, amount : Float, isCompounding : Bool, startTimeNanos : Int) : async Nat {
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            Debug.trap("Unauthorized: Only admins can seed games");
+        };
+
+        let gameId = nextGameId;
+        nextGameId += 1;
+
+        let newGame : GameRecord = {
+            id = gameId;
+            player;
+            plan;
+            amount;
+            startTime = startTimeNanos;
+            isCompounding;
+            isActive = true;
+            lastUpdateTime = startTimeNanos;
+            accumulatedEarnings = 0.0;
+            totalWithdrawn = 0.0;
+        };
+
+        gameRecords := natMap.put(gameRecords, gameId, newGame);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + amount;
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + amount;
+        };
+
+        gameId;
+    };
+
     // Add House Money
     public shared ({ caller }) func addHouseMoney(amount : Float, description : Text) : async () {
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
@@ -907,6 +941,7 @@ persistent actor {
             isActive = true;
             lastUpdateTime = Time.now();
             accumulatedEarnings = 0.0;
+            totalWithdrawn = 0.0;
         };
 
         gameRecords := natMap.put(gameRecords, gameId, newGame);
@@ -1102,6 +1137,15 @@ persistent actor {
                     triggerGameReset("Insufficient funds for payout");
                     Debug.trap("Game reset due to insufficient funds");
                 };
+
+                // Reset the game record: zero out accumulated earnings & reset lastUpdateTime
+                let updatedGame : GameRecord = {
+                    game with
+                    accumulatedEarnings = 0.0;
+                    lastUpdateTime = Time.now();
+                    totalWithdrawn = game.totalWithdrawn + earnings;
+                };
+                gameRecords := natMap.put(gameRecords, gameId, updatedGame);
 
                 platformStats := {
                     platformStats with

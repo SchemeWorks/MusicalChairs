@@ -137,8 +137,7 @@ export default function HallOfFame() {
         <p className="font-display text-lg mc-text-primary mb-2">The Leaderboard Is Empty</p>
         <p className="text-sm mc-text-dim mb-4">Start playing to earn Ponzi Points and claim your spot.</p>
         <p className="font-accent text-xs mc-text-dim italic">
-          &ldquo;Every empire starts with a first transaction.&rdquo;
-          <span className="block mc-text-muted font-bold mt-1 not-italic">&mdash; Charles</span>
+          Every empire starts with a first transaction.
         </p>
       </div>
     );

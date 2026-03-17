@@ -103,9 +103,8 @@ export default function ProfileSetup() {
           Welcome to Musical Chairs, {savedName}!
         </h1>
         <p className="font-accent text-sm mc-text-dim italic mb-2">
-          &ldquo;I knew you had it in you.&rdquo;
+          I knew you had it in you.
         </p>
-        <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
 
         <div className="mt-10">
           <div className="mc-spinner mx-auto mb-3" />
@@ -208,10 +207,9 @@ export default function ProfileSetup() {
       {/* Charles quote — below the warning */}
       <div className="mt-6 text-center">
         <p className="font-accent text-sm mc-text-dim italic leading-relaxed max-w-xs mx-auto">
-          &ldquo;I&rsquo;m glad you&rsquo;re here. Truly.
-          Let me show you something special.&rdquo;
+          I'm glad you're here. Truly.
+          Let me show you something special.
         </p>
-        <span className="text-xs mc-text-muted font-bold">&mdash; Charles</span>
       </div>
     </div>
   );

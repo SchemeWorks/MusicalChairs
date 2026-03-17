@@ -89,7 +89,7 @@ function BackerInfoCard() {
         <div className="text-xs mc-text-dim space-y-1">
           <p>Repayment depends on platform activity. More players = faster repayment.
           You also earn <strong className="mc-text-purple">4,000 Ponzi Points per ICP</strong> deposited.</p>
-          <p className="font-accent italic mc-text-muted">&ldquo;Charles takes a cut on every deposit. His table, his rules.&rdquo;</p>
+          <p className="font-accent italic mc-text-muted">Charles takes a cut on every deposit. His table, his rules.</p>
         </div>
       ),
     },
@@ -136,7 +136,7 @@ function BackerInfoCard() {
               <p><strong className="mc-text-primary">When the pot empties:</strong> A random unprofitable depositor becomes a Series B Backer.</p>
               <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus a 12% backer bonus.</p>
               <p><strong className="mc-text-primary">Multiple backers</strong> can coexist, sharing fee payments via the distribution system.</p>
-              <p className="mc-text-muted italic mt-2">&ldquo;When the pot runs dry, Charles resets the table. No exceptions.&rdquo; &mdash; Charles</p>
+              <p className="mc-text-muted italic mt-2">When the pot runs dry, Charles resets the table. No exceptions.</p>
             </div>
           </div>
         </div>

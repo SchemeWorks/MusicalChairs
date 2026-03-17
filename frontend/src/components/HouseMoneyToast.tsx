@@ -43,7 +43,7 @@ export default function HouseMoneyToast({ amount, ponziPoints, onClose }: HouseM
           <span className="mc-toast-accent">{formatICP(amount)} ICP</span> added to the house
           {ponziPoints > 0 && <> &middot; <span className="mc-toast-accent">{ponziPoints.toLocaleString()} PP</span> earned</>}
         </p>
-        <p className="text-xs mc-text-muted mt-2 font-accent italic">&ldquo;{quip}&rdquo; &mdash; Charles</p>
+        <p className="text-xs mc-text-muted mt-2 font-accent italic">{quip}</p>
         <button onClick={handleClose} className="mc-btn-primary px-6 py-2 rounded-full text-sm mt-4 w-full">
           Nice
         </button>

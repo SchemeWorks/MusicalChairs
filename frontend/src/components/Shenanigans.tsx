@@ -406,7 +406,7 @@ export default function Shenanigans() {
             </div>
             <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
             <p className="font-accent text-xs mc-text-dim italic mb-3">
-              &ldquo;{outcomeToast.flavor}&rdquo;
+              {outcomeToast.flavor}
             </p>
             {outcomeToast.cost > 0 && (
               <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
