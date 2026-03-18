@@ -16,12 +16,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const ledger = useLedger();
 
   const isIIUser = walletType === 'internet-identity';
-  const [activeTab, setActiveTab] = useState<'deposit' | 'withdraw' | 'send'>(isIIUser ? 'deposit' : 'send');
+  const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>(isIIUser ? 'withdraw' : 'send');
   const [depositAmount, setDepositAmount] = useState('');
 
   // Reset active tab when wallet type changes (e.g. logout/login with different wallet)
   useEffect(() => {
-    setActiveTab(isIIUser ? 'deposit' : 'send');
+    setActiveTab(isIIUser ? 'withdraw' : 'send');
   }, [isIIUser]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
@@ -102,7 +102,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   };
 
   useEffect(() => {
-    if (isOpen && isConnected && !isTestMode && isIIUser) fetchExternalBalance();
+    if (isOpen && isConnected) fetchExternalBalance();
   }, [isOpen, isConnected, isTestMode, isIIUser]);
 
   // Click outside to close
@@ -223,58 +223,22 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           )}
         </div>
 
-        {/* Balances */}
+        {/* Balance */}
         <div className="mc-card p-3 mb-2">
           <div className="flex items-center justify-between">
             <div>
-              <div className="mc-label">Game Balance</div>
+              <div className="mc-label">ICP Balance</div>
               <div className="text-lg font-bold mc-text-green mc-glow-green">
-                {balanceLoading ? '...' : formatICP(walletBalance)} ICP
+                {externalBalanceLoading ? '...' : externalBalance !== null ? formatIcpBalance(externalBalance) : '—'} ICP
               </div>
             </div>
-            <button onClick={() => refetchBalance()} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
+            <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
           </div>
-          {!isTestMode && isIIUser && (
-            <div className="flex items-center justify-between mt-2 pt-2 border-t border-white/5">
-              <div>
-                <div className="mc-label">Wallet Balance</div>
-                <div className="text-sm font-bold mc-text-primary">
-                  {externalBalanceLoading ? '...' : externalBalance !== null ? formatIcpBalance(externalBalance) : '—'} ICP
-                </div>
-              </div>
-              <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
-            </div>
-          )}
-          {!isTestMode && !isIIUser && (
-            <div className="mt-2 pt-2 border-t border-white/5">
-              <p className="text-xs mc-text-muted">Manage ICP in your {walletName} wallet</p>
-            </div>
-          )}
         </div>
 
         <div className="text-center text-xs">
           <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>
         </div>
-        {isTestMode && <div className="mc-status-gold p-2 mt-2 text-center text-xs">Test Mode &mdash; Playing with Monopoly money</div>}
-
-        {/* Money flow diagram */}
-        {(() => {
-          // Determine which step to highlight based on user state
-          const step = walletBalance > 0 ? 1 : 0; // 0=wallet, 1=balance, 2=position, 3=earnings
-          const highlight = (i: number, color: string) =>
-            step === i ? `${color} font-bold` : '';
-          return (
-            <div className="flex items-center justify-center gap-1 text-xs mc-text-muted py-2 mt-2 border-t border-white/5">
-              <span className={highlight(0, 'mc-text-primary')}>Wallet</span>
-              <span className="opacity-50">→</span>
-              <span className={highlight(1, 'mc-text-primary')}>Game Balance</span>
-              <span className="opacity-50">→</span>
-              <span className={highlight(2, 'mc-text-green')}>Position</span>
-              <span className="opacity-50">→</span>
-              <span className={highlight(3, 'mc-text-gold')}>Earnings</span>
-            </div>
-          );
-        })()}
       </div>
 
       {/* Tabs */}
@@ -282,7 +246,6 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         {isIIUser ? (
           <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
             {([
-              { key: 'deposit' as const, label: 'Buy In' },
               { key: 'withdraw' as const, label: 'Cash Out' },
               { key: 'send' as const, label: 'Wire' },
             ]).map(tab => (
@@ -300,43 +263,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           </div>
         )}
 
-        {/* Deposit (II users only) */}
-        {isIIUser && activeTab === 'deposit' && (
-          isTestMode ? (
-            <div className="mc-status-gold p-3 text-xs text-center">Monopoly money mode. You start with 500 ICP to burn through.</div>
-          ) : (
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="mc-label">Amount</span>
-                <span className="text-xs mc-text-muted">Min: 0.1 ICP</span>
-              </div>
-              <div className="flex gap-2">
-                <input type="number" value={depositAmount} onChange={handleAmountInput(setDepositAmount, true)}
-                  placeholder="0.0" min="0.1" step="0.00000001" className={`mc-input flex-1 text-sm ${shakeInput ? 'mc-shake' : ''}`} />
-                <button onClick={handleMaxDeposit} disabled={externalBalance === null} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg">MAX</button>
-              </div>
-              <div className="mc-card p-2 text-xs mc-text-muted">
-                <span className={approvalComplete ? 'mc-text-green' : ''}>1. Approve transfer{approvalComplete ? ' ✓' : ''}</span>
-                <span className="mx-1">→</span>
-                <span>2. Confirm deposit</span>
-              </div>
-              <button onClick={handleDeposit} disabled={depVal < 0.1 || !!inputError || isApproving || depositMutation.isPending}
-                className="w-full mc-btn-primary py-2 text-xs flex items-center justify-center gap-2">
-                {isApproving ? <><Loader2 className="h-3 w-3 animate-spin" /> Approving...</>
-                  : depositMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Buying In...</>
-                  : approvalComplete ? <><ArrowDown className="h-3 w-3" /> Confirm Buy In</>
-                  : <><ArrowDown className="h-3 w-3" /> Approve &amp; Buy In</>}
-              </button>
-              {depositMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">You're in. Good luck.</div>}
-            </div>
-          )
-        )}
-
         {/* Withdraw (II users only) */}
         {isIIUser && activeTab === 'withdraw' && (
-          isTestMode ? (
-            <div className="mc-status-gold p-3 text-xs text-center">Can't cash out Monopoly money. Use &ldquo;Wire&rdquo; for internal transfers.</div>
-          ) : (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="mc-label">Amount</span>
@@ -356,7 +284,6 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               </button>
               {withdrawMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Cashed out. Smart move &mdash; or was it?</div>}
             </div>
-          )
         )}
 
         {/* Send */}

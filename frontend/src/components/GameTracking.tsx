@@ -46,11 +46,10 @@ const charlesQuotes = [
    Helpers
    ================================================================ */
 
-/** Format ICP for animated display — caps at 4 decimals to prevent digit flicker */
+/** Format ICP for display — full 8 decimal precision */
 const formatICPDisplay = (value: number): string => {
-  if (isNaN(value) || !isFinite(value)) return '0';
-  const rounded = Math.round(value * 10000) / 10000;
-  return rounded.toFixed(4).replace(/\.?0+$/, '');
+  if (isNaN(value) || !isFinite(value)) return '0.00000000';
+  return value.toFixed(8);
 };
 
 const formatDate = (ts: bigint) =>
