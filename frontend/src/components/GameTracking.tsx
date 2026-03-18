@@ -257,7 +257,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
     if (!selectedGame) return;
     try {
       const result = await withdrawMutation.mutateAsync(selectedGame.id);
-      setWithdrawnAmount(result.netEarnings);
+      setWithdrawnAmount(result.earnings);
       setWithdrawDialogOpen(false);
       setSelectedGame(null);
       triggerConfetti();

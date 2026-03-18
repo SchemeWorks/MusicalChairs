@@ -599,21 +599,11 @@ export function useWithdrawGameEarnings() {
       if (!principal) throw new Error('Not authenticated');
       
       const earnings = await actor.withdrawEarnings(gameId);
-      
+
       // Reset accumulated earnings for this game after withdrawal
       gameEarningsStore.delete(gameId.toString());
-      
-      // Calculate Exit Toll fee (mock implementation)
-      // TODO: Replace with actual backend calculation
-      const exitTollFee = earnings * 0.07; // Assuming 7% for demo
-      const netEarnings = earnings - exitTollFee;
-      
-      // Add net earnings to Musical Chairs Wallet balance
-      initializeWalletIfNeeded(principal);
-      const currentBalance = simulatedMusicalChairsWallets.get(principal) || 500.0;
-      simulatedMusicalChairsWallets.set(principal, currentBalance + netEarnings);
-      
-      return { earnings, netEarnings, exitTollFee, gameId };
+
+      return { earnings, gameId };
     },
     onSuccess: () => {
       // Immediately invalidate and refetch all related queries for instant UI updates
