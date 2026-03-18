@@ -1,0 +1,65 @@
+type ShenaniganType = 
+ variant {
+   aoeSkim;
+   downlineBoost;
+   downlineHeist;
+   goldenName;
+   magicMirror;
+   mintTaxSiphon;
+   moneyTrickster;
+   ppBoosterAura;
+   purseCutter;
+   renameSpell;
+   whaleRebalance;
+ };
+type ShenaniganStats = 
+ record {
+   backfires: nat;
+   badOutcomes: nat;
+   dealerCut: float64;
+   goodOutcomes: nat;
+   totalCast: nat;
+   totalSpent: float64;
+ };
+type ShenaniganRecord = 
+ record {
+   cost: float64;
+   id: nat;
+   outcome: ShenaniganOutcome;
+   shenaniganType: ShenaniganType;
+   target: opt principal;
+   timestamp: int;
+   user: principal;
+ };
+type ShenaniganOutcome = 
+ variant {
+   backfire;
+   fail;
+   success;
+ };
+type ShenaniganConfig = 
+ record {
+   backfireOdds: nat;
+   backgroundColor: text;
+   castLimit: nat;
+   cooldown: nat;
+   cost: float64;
+   description: text;
+   duration: nat;
+   effectValues: vec float64;
+   failureOdds: nat;
+   id: nat;
+   name: text;
+   successOdds: nat;
+ };
+service : {
+  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
+   (ShenaniganOutcome);
+  getRecentShenanigans: () -> (vec ShenaniganRecord) query;
+  getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
+  getShenaniganStats: () -> (ShenaniganStats) query;
+  initialize: (backendCanisterId: principal) -> ();
+  resetShenaniganConfig: (id: nat) -> ();
+  saveAllShenaniganConfigs: (configs: vec ShenaniganConfig) -> ();
+  updateShenaniganConfig: (config: ShenaniganConfig) -> ();
+}

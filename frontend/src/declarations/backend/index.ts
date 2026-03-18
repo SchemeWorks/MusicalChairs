@@ -11,11 +11,6 @@ export type {
   GameResetRecord,
   DealerType,
   DealerPosition,
-  ShenaniganType,
-  ShenaniganOutcome,
-  ShenaniganRecord,
-  ShenaniganStats,
-  ShenaniganConfig,
   HouseLedgerRecord,
   WalletTransaction,
   _SERVICE,
@@ -28,30 +23,8 @@ export const GamePlan = {
   compounding30Day: { 'compounding30Day': null } as const,
 };
 
-// ShenaniganType enum values for frontend use  
-export const ShenaniganType = {
-  moneyTrickster: { 'moneyTrickster': null } as const,
-  aoeSkim: { 'aoeSkim': null } as const,
-  renameSpell: { 'renameSpell': null } as const,
-  mintTaxSiphon: { 'mintTaxSiphon': null } as const,
-  downlineHeist: { 'downlineHeist': null } as const,
-  magicMirror: { 'magicMirror': null } as const,
-  ppBoosterAura: { 'ppBoosterAura': null } as const,
-  purseCutter: { 'purseCutter': null } as const,
-  whaleRebalance: { 'whaleRebalance': null } as const,
-  downlineBoost: { 'downlineBoost': null } as const,
-  goldenName: { 'goldenName': null } as const,
-};
-
 // DealerType enum values for frontend use
 export const DealerType = {
   upstream: { 'upstream': null } as const,
   downstream: { 'downstream': null } as const,
-};
-
-// ShenaniganOutcome enum values for frontend use
-export const ShenaniganOutcome = {
-  success: { 'success': null } as const,
-  fail: { 'fail': null } as const,
-  backfire: { 'backfire': null } as const,
 };

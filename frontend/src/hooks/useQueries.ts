@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
+import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
@@ -628,46 +629,45 @@ export function useCalculateGameEarnings() {
   });
 }
 
-// Shenanigans Queries
+// Shenanigans Queries — routed to standalone shenanigans canister
 export function useGetShenaniganStats() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
 
   return useQuery<ShenaniganStats>({
     queryKey: ['shenaniganStats'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.getShenaniganStats();
     },
     enabled: !!actor && !actorFetching,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
   });
 }
 
 export function useGetRecentShenanigans() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
 
   return useQuery<ShenaniganRecord[]>({
     queryKey: ['recentShenanigans'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.getRecentShenanigans();
     },
     enabled: !!actor && !actorFetching,
-    refetchInterval: 3000, // Refetch every 3 seconds for live feed updates
+    refetchInterval: 3000,
   });
 }
 
 export function useCastShenanigan() {
-  const { actor } = useActor();
+  const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async ({ shenaniganType, target }: { shenaniganType: ShenaniganType; target: Principal | null }) => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.castShenanigan(shenaniganType, target ? [target] : []);
     },
     onSuccess: () => {
-      // Invalidate and refetch all related queries for instant UI updates
       queryClient.invalidateQueries({ queryKey: ['shenaniganStats'] });
       queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
@@ -679,30 +679,29 @@ export function useCastShenanigan() {
 
 // Shenanigans Configuration Queries
 export function useGetShenaniganConfigs() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
 
   return useQuery<ShenaniganConfig[]>({
     queryKey: ['shenaniganConfigs'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.getShenaniganConfigs();
     },
     enabled: !!actor && !actorFetching,
-    refetchInterval: 10000, // Refetch every 10 seconds for updates
+    refetchInterval: 10000,
   });
 }
 
 export function useUpdateShenaniganConfig() {
-  const { actor } = useActor();
+  const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (config: ShenaniganConfig) => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.updateShenaniganConfig(config);
     },
     onSuccess: () => {
-      // Invalidate and refetch shenanigan configs
       queryClient.invalidateQueries({ queryKey: ['shenaniganConfigs'] });
       queryClient.refetchQueries({ queryKey: ['shenaniganConfigs'] });
     },
@@ -710,16 +709,15 @@ export function useUpdateShenaniganConfig() {
 }
 
 export function useSaveAllShenaniganConfigs() {
-  const { actor } = useActor();
+  const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (configs: ShenaniganConfig[]) => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.saveAllShenaniganConfigs(configs);
     },
     onSuccess: () => {
-      // Invalidate and refetch shenanigan configs
       queryClient.invalidateQueries({ queryKey: ['shenaniganConfigs'] });
       queryClient.refetchQueries({ queryKey: ['shenaniganConfigs'] });
     },
@@ -727,16 +725,15 @@ export function useSaveAllShenaniganConfigs() {
 }
 
 export function useResetShenaniganConfig() {
-  const { actor } = useActor();
+  const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (id: bigint) => {
-      if (!actor) throw new Error('Actor not available');
+      if (!actor) throw new Error('Shenanigans actor not available');
       return actor.resetShenaniganConfig(id);
     },
     onSuccess: () => {
-      // Invalidate and refetch shenanigan configs
       queryClient.invalidateQueries({ queryKey: ['shenaniganConfigs'] });
       queryClient.refetchQueries({ queryKey: ['shenaniganConfigs'] });
     },
