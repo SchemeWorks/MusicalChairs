@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
+import { useLedger, BACKEND_CANISTER_ID } from './useLedger';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
 export type { BackerPosition };
@@ -222,6 +223,23 @@ export function useGetInternalWalletBalance() {
     },
     enabled: !!actor && !actorFetching && !!principal && isConnected,
     refetchInterval: 5000, // Refetch every 5 seconds for live balance updates
+  });
+}
+
+// Real ICP balance from the NNS ledger (what the user actually has in their wallet)
+export function useICPBalance() {
+  const { principal, isConnected } = useWallet();
+  const ledger = useLedger();
+
+  return useQuery({
+    queryKey: ['icpLedgerBalance', principal],
+    queryFn: async () => {
+      if (!principal || !isConnected) throw new Error('Not connected');
+      const balanceE8s = await ledger.getBalance();
+      return Number(balanceE8s) / 100_000_000;
+    },
+    enabled: !!principal && isConnected && ledger.isConnected,
+    refetchInterval: 5000,
   });
 }
 
@@ -521,20 +539,20 @@ export function useCreateGame() {
   const { actor } = useActor();
   const { principal } = useWallet();
   const queryClient = useQueryClient();
+  const ledger = useLedger();
 
   return useMutation({
     mutationFn: async ({ planId, amount, mode }: { planId: string; amount: number; mode: 'simple' | 'compounding' }) => {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
-      
-      // Get current wallet balance from backend
-      const currentBalance = await actor.getWalletBalanceICP();
-      
-      if (amount > currentBalance) {
-        throw new Error('Insufficient balance in Musical Chairs Wallet. Please fund your wallet first.');
-      }
-      
-      // Convert planId to GamePlan enum based on new plan structure
+
+      // Step 1: Approve the canister to transfer ICP on user's behalf (ICRC-2)
+      const amountE8s = BigInt(Math.round(amount * 100_000_000));
+      // Approve slightly more to cover the ledger fee
+      const approveAmount = amountE8s + 20_000n; // extra for fees
+      await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
+
+      // Step 2: Call createGame — backend does the ICRC-2 transfer_from
       let plan: GamePlan;
       switch (planId) {
         case '21-day-simple':
@@ -549,7 +567,7 @@ export function useCreateGame() {
         default:
           throw new Error('Invalid plan ID');
       }
-      
+
       const isCompounding = mode === 'compounding';
       const gameId = await actor.createGame(plan, amount, isCompounding, []);
       

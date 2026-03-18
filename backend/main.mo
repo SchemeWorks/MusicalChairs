@@ -653,6 +653,43 @@ persistent actor {
             Debug.trap("Amount cannot have more than 8 decimal places");
         };
 
+        // Transfer ICP from user to canister via ICRC-2 transfer_from
+        // User must have called icrc2_approve on the ICP ledger first
+        let selfPrincipal = switch (canisterPrincipal) {
+            case (null) { Debug.trap("Canister principal not set") };
+            case (?p) { p };
+        };
+
+        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+
+        let transferResult = await icpLedger.icrc2_transfer_from({
+            spender_subaccount = null;
+            from = { owner = caller; subaccount = null };
+            to = { owner = selfPrincipal; subaccount = null };
+            amount = amountE8s;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        });
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                let errMsg = switch (err) {
+                    case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
+                    case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
+                    case (#BadFee(_)) { "Bad fee" };
+                    case (#BadBurn(_)) { "Bad burn" };
+                    case (#TooOld) { "Transaction too old" };
+                    case (#CreatedInFuture(_)) { "Transaction created in future" };
+                    case (#Duplicate(_)) { "Duplicate transaction" };
+                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                    case (#GenericError(e)) { "Error: " # e.message };
+                };
+                Debug.trap(errMsg);
+            };
+            case (#Ok(_blockIndex)) {};
+        };
+
         // Check deposit rate limit
         let currentTime = Time.now();
         let currentHour = currentTime / 3600000000000; // Convert to hours
@@ -740,7 +777,7 @@ persistent actor {
         gameId;
     };
 
-    // Add Dealer Money
+    // Add Dealer Money (Seed Round — transfers ICP directly from user's wallet)
     public shared ({ caller }) func addDealerMoney(amount : Float) : async () {
         if (amount < 0.1) {
             Debug.trap("Minimum deposit is 0.1 ICP");
@@ -749,6 +786,42 @@ persistent actor {
         // Validate 8 decimal places
         if (not validateEightDecimals(amount)) {
             Debug.trap("Amount cannot have more than 8 decimal places");
+        };
+
+        // Transfer ICP from user to canister via ICRC-2 transfer_from
+        let selfPrincipal = switch (canisterPrincipal) {
+            case (null) { Debug.trap("Canister principal not set") };
+            case (?p) { p };
+        };
+
+        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+
+        let transferResult = await icpLedger.icrc2_transfer_from({
+            spender_subaccount = null;
+            from = { owner = caller; subaccount = null };
+            to = { owner = selfPrincipal; subaccount = null };
+            amount = amountE8s;
+            fee = null;
+            memo = null;
+            created_at_time = null;
+        });
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                let errMsg = switch (err) {
+                    case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
+                    case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
+                    case (#BadFee(_)) { "Bad fee" };
+                    case (#BadBurn(_)) { "Bad burn" };
+                    case (#TooOld) { "Transaction too old" };
+                    case (#CreatedInFuture(_)) { "Transaction created in future" };
+                    case (#Duplicate(_)) { "Duplicate transaction" };
+                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                    case (#GenericError(e)) { "Error: " # e.message };
+                };
+                Debug.trap(errMsg);
+            };
+            case (#Ok(_blockIndex)) {};
         };
 
         let entitlement = amount * 1.24; // Series A: 24% bonus

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useCreateGame, useGetInternalWalletBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
+import { useCreateGame, useICPBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
 import { useCountUp } from '../hooks/useCountUp';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -66,12 +66,12 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   // Hooks
-  const { data: balanceData, isLoading: balanceLoading } = useGetInternalWalletBalance();
+  const { data: icpBalance, isLoading: balanceLoading } = useICPBalance();
   const { data: maxDepositLimit, isLoading: maxDepositLoading } = useGetMaxDepositLimit();
   const { data: canDeposit, isLoading: rateLimitLoading } = useCheckDepositRateLimit();
   const createGameMutation = useCreateGame();
 
-  const walletBalance = balanceData?.internalBalance || 0;
+  const walletBalance = icpBalance || 0;
   const maxDeposit = maxDepositLimit || 0;
   const minDeposit = 0.1;
   const depositAmount = parseFloat(amount) || 0;
