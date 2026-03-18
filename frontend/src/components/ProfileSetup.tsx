@@ -89,7 +89,7 @@ export default function ProfileSetup() {
   useEffect(() => {
     if (showCelebration) {
       const timer = setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ['userProfile'] });
+        queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
       }, 5000);
       return () => clearTimeout(timer);
     }
@@ -110,7 +110,7 @@ export default function ProfileSetup() {
           <div className="mc-spinner mx-auto mb-3" />
           <p className="text-xs mc-text-muted">Preparing your portfolio...</p>
           <button
-            onClick={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] })}
             className="mc-btn-primary mt-4 px-6 py-2 text-sm"
           >
             SHOW ME THE YIELD
