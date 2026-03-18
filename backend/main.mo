@@ -18,7 +18,7 @@ import Ledger "ledger";
 
 persistent actor {
     // Access Control State
-    transient let accessControlState = AccessControl.initState();
+    let accessControlState = AccessControl.initState();
 
     // Initialize Access Control
     public shared ({ caller }) func initializeAccessControl() : async () {
@@ -175,7 +175,7 @@ persistent actor {
     var nextWalletTxId = 0;
     
     // Test mode flag - when true, gives users 500 fake ICP for testing
-    var testMode : Bool = true;
+    var testMode : Bool = false;
     
     // This canister's ID (set during init or known from dfx.json)
     // For local: uxrrr-q7777-77774-qaaaq-cai
