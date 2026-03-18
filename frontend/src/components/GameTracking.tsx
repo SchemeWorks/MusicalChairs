@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
-import { useCountUp } from '../hooks/useCountUp';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -16,17 +15,19 @@ import { Progress } from '@/components/ui/progress';
    Constants
    ================================================================ */
 
-const planNames: Record<string, string> = {
-  [GamePlan.simple21Day]: '21-Day Simple',
-  [GamePlan.compounding15Day]: '15-Day Compounding',
-  [GamePlan.compounding30Day]: '30-Day Compounding',
-};
+function getPlanName(plan: any): string {
+  if ('simple21Day' in plan) return '21-Day Simple';
+  if ('compounding15Day' in plan) return '15-Day Compounding';
+  if ('compounding30Day' in plan) return '30-Day Compounding';
+  return 'Unknown Plan';
+}
 
-const planAccents: Record<string, string> = {
-  [GamePlan.simple21Day]: 'mc-plan-simple',
-  [GamePlan.compounding15Day]: 'mc-plan-compound mc-plan-executive',
-  [GamePlan.compounding30Day]: 'mc-plan-compound mc-plan-chairman',
-};
+function getPlanAccent(plan: any): string {
+  if ('simple21Day' in plan) return 'mc-plan-simple';
+  if ('compounding15Day' in plan) return 'mc-plan-compound';
+  if ('compounding30Day' in plan) return 'mc-plan-compound';
+  return '';
+}
 
 // Rotating quotes attributed to Charles — shown in empty state
 const charlesQuotes = [
@@ -113,8 +114,8 @@ function PositionCard({
   onWithdraw: (game: GameRecord) => void;
   withdrawPending: boolean;
 }) {
-  const name = planNames[game.plan] || 'Unknown Plan';
-  const accent = planAccents[game.plan] || '';
+  const name = getPlanName(game.plan);
+  const accent = getPlanAccent(game.plan);
   const unlocked = isCompoundingPlanUnlocked(game);
   const canWithdraw = !game.isCompounding || unlocked;
   const hasEarnings = earnings > 0;
@@ -239,19 +240,8 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const withdrawMutation = useWithdrawGameEarnings();
   const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
 
-  // Re-animate countUp values when tab becomes visible
-  const [resetToken, setResetToken] = useState(0);
-  const prevVisible = useRef(visible);
-  useEffect(() => {
-    if (visible && !prevVisible.current) {
-      setResetToken(t => t + 1);
-    }
-    prevVisible.current = visible;
-  }, [visible]);
-
-  const animatedNetPL = useCountUp(netPL, 1000, resetToken);
-  const animatedDeposits = useCountUp(portfolio.totalDeposits, 1000, resetToken);
-  const animatedEarnings = useCountUp(portfolio.totalEarnings, 1000, resetToken);
+  // Live values — no countUp animation since portfolio updates every second
+  // and countUp fights with the live tick, causing erratic jumps
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
   const [reinvestDialogOpen, setReinvestDialogOpen] = useState(false);
   const [selectedGame, setSelectedGame] = useState<GameRecord | null>(null);
@@ -315,17 +305,17 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
             }`}>
               {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
-              {netPL >= 0 ? '+' : ''}{formatICPDisplay(animatedNetPL)} ICP
+              {netPL >= 0 ? '+' : ''}{formatICPDisplay(netPL)} ICP
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Deposited</div>
-              <div className="text-xl font-bold mc-text-primary">{formatICPDisplay(animatedDeposits)} ICP</div>
+              <div className="text-xl font-bold mc-text-primary">{formatICPDisplay(portfolio.totalDeposits)} ICP</div>
             </div>
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Earned</div>
-              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICPDisplay(animatedEarnings)} ICP</div>
+              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICPDisplay(portfolio.totalEarnings)} ICP</div>
             </div>
           </div>
         </div>

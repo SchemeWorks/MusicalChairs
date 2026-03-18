@@ -698,35 +698,6 @@
     border-left-color: rgba(168, 85, 247, 0.7);
   }
 
-  /* Executive Package (15-day compounding) — purple shimmer */
-  .mc-plan-executive {
-    border-left-color: rgba(168, 85, 247, 0.6);
-    box-shadow: inset 0 0 30px rgba(168, 85, 247, 0.05);
-    animation: mc-shimmer-purple 3s ease-in-out infinite;
-  }
-
-  @keyframes mc-shimmer-purple {
-    0%, 100% { box-shadow: inset 0 0 20px rgba(168, 85, 247, 0.04), 0 0 8px rgba(168, 85, 247, 0.08); }
-    50% { box-shadow: inset 0 0 30px rgba(168, 85, 247, 0.08), 0 0 15px rgba(168, 85, 247, 0.15); }
-  }
-
-  /* Chairman's Circle (30-day compounding) — glowing gold */
-  .mc-plan-chairman {
-    border-left-color: rgba(255, 215, 0, 0.6);
-    box-shadow: inset 0 0 30px rgba(255, 215, 0, 0.05), 0 0 12px rgba(255, 215, 0, 0.1);
-    animation: mc-glow-gold-pulse 2.5s ease-in-out infinite;
-  }
-
-  .mc-plan-chairman:hover {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 30px var(--mc-glow-gold);
-    border-left-color: rgba(255, 215, 0, 0.8);
-  }
-
-  @keyframes mc-glow-gold-pulse {
-    0%, 100% { box-shadow: inset 0 0 20px rgba(255, 215, 0, 0.04), 0 0 10px rgba(255, 215, 0, 0.08); }
-    50% { box-shadow: inset 0 0 40px rgba(255, 215, 0, 0.08), 0 0 20px rgba(255, 215, 0, 0.18); }
-  }
-
   /* ================================================================
      WALLET DROPDOWN
      ================================================================ */
