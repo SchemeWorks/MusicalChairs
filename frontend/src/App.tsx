@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, ChevronLeft, ChevronRight, BookOpen } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign } from 'lucide-react';
 import DocsPage from './components/DocsPage';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
@@ -28,30 +28,35 @@ const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode;
   { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
 ];
 
-const charlesExplains: { title: string; body: string; color: string; fine?: string }[] = [
+const howItWorks: { step: string; title: string; body: string; color: string; fine?: string }[] = [
   {
+    step: '1',
     title: 'Pick Your Plan',
-    body: `Make the "investment" and choose your plan wisely. This is going to be the best decision you ever made. Believe me.`,
+    body: `Choose your "investment" wisely. This is the best decision you'll ever make.`,
     color: 'green',
   },
   {
+    step: '2',
     title: 'Collect Returns',
-    body: 'Congratulations on the passive income. Risk-averse plans let you withdraw anytime. Visionary investors lock in their plan until maturity for life-changing returns.',
+    body: 'Withdraw anytime, or lock in until maturity for life-changing returns.',
     color: 'gold',
   },
   {
+    step: '3',
     title: 'The Reset',
-    body: 'Instead of skipping town when the pot empties, we just start the whole thing over again. You knew this was a Ponzi going in.',
+    body: 'Pot empties, round resets, whole thing starts over. You knew this going in.',
     color: 'danger',
   },
   {
+    step: '4',
     title: 'Consolation Prizes',
-    body: `No crying at the casino. We'll give you some mostly worthless tokens to play some games while you get yourself together.`,
+    body: `Losers get mostly worthless tokens. Play some games, pull yourself together.`,
     color: 'purple',
   },
   {
+    step: '5',
     title: 'Loyalty Rewards',
-    body: 'Alpha exit-liquidity providers with the most Ponzi Points will be featured in our monthly newsletter and be eligible to win an all-expense-paid trip* to Cancun!',
+    body: 'Top exit-liquidity providers win an all-expense-paid trip* to Cancun!',
     color: 'cyan',
     fine: '*Expenses do not include food, transportation, or lodging.',
   },
@@ -279,20 +284,8 @@ export default function App() {
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
-  const [charlesSlide, setCharlesSlide] = useState(() => Math.floor(Math.random() * charlesExplains.length));
-  const [slideFading, setSlideFading] = useState(false);
   const [showDocsPage, setShowDocsPage] = useState(false);
   const { data: publicStats } = useGetPublicStats();
-
-  // Crossfade helper for manual navigation
-  const goToSlide = (next: number) => {
-    if (slideFading) return;
-    setSlideFading(true);
-    setTimeout(() => {
-      setCharlesSlide(next);
-      setSlideFading(false);
-    }, 200);
-  };
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -562,56 +555,28 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* How It Works — instructional carousel */}
-                <div className="mt-8 relative">
-                  <div className="mc-card overflow-hidden">
-                    {/* Fixed header — always top-left, same position */}
-                    <div className="px-5 pt-4 pb-2 border-b border-white/5 text-left">
-                      <span className="font-display text-xs mc-text-muted uppercase tracking-widest">
-                        How it works {charlesSlide + 1}/{charlesExplains.length}:
-                      </span>
-                      <span className={`font-display text-xs ml-1.5 mc-text-${charlesExplains[charlesSlide].color} uppercase tracking-widest`}>
-                        {charlesExplains[charlesSlide].title}
-                      </span>
-                    </div>
-
-                    {/* Body — crossfade on slide change */}
-                    <div
-                      className="px-10 py-4 min-h-[80px] flex flex-col justify-center text-left transition-opacity duration-200"
-                      style={{ opacity: slideFading ? 0 : 1 }}
-                    >
-                      <p className="text-sm mc-text-dim leading-relaxed">
-                        {charlesExplains[charlesSlide].body}
-                      </p>
-                      {charlesExplains[charlesSlide].fine && (
-                        <p className="text-[9px] mc-text-muted mt-2 opacity-50">{charlesExplains[charlesSlide].fine}</p>
-                      )}
-                    </div>
-
-                    {/* Navigation arrows */}
-                    <button
-                      onClick={() => goToSlide((charlesSlide - 1 + charlesExplains.length) % charlesExplains.length)}
-                      className="absolute left-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
-                    >
-                      <ChevronLeft className="h-4 w-4" />
-                    </button>
-                    <button
-                      onClick={() => goToSlide((charlesSlide + 1) % charlesExplains.length)}
-                      className="absolute right-2 bottom-[50px] p-1 mc-text-muted hover:mc-text-primary transition-colors"
-                    >
-                      <ChevronRight className="h-4 w-4" />
-                    </button>
+                {/* How It Works — 3×2 grid */}
+                <div className="mt-8">
+                  <div className="text-center mb-4">
+                    <span className="font-display text-xs mc-text-muted uppercase tracking-widest">How it works</span>
                   </div>
-
-                  {/* Dot indicators */}
-                  <div className="flex justify-center gap-1.5 mt-3">
-                    {charlesExplains.map((_, i) => (
-                      <button
-                        key={i}
-                        onClick={() => goToSlide(i)}
-                        className={`h-1.5 rounded-full transition-all ${i === charlesSlide ? `w-3 bg-white/60` : 'w-1.5 bg-white/20 hover:bg-white/30'}`}
-                      />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {howItWorks.map((step, i) => (
+                      <div key={i} className={`mc-step-card mc-accent-${step.color}`}>
+                        <span className={`mc-step-number mc-text-${step.color}`}>{step.step}</span>
+                        <span className={`font-display text-xs mc-text-${step.color} uppercase tracking-wider`}>{step.title}</span>
+                        <p className="text-xs mc-text-dim leading-snug mt-1">{step.body}</p>
+                        {step.fine && (
+                          <p className="text-[9px] mc-text-muted mt-1 opacity-50">{step.fine}</p>
+                        )}
+                      </div>
                     ))}
+                    {/* 6th slot — the punchline */}
+                    <div className="mc-step-card mc-accent-pink flex flex-col items-center justify-center">
+                      <CircleDollarSign className="h-8 w-8 mc-text-pink mb-2 opacity-70" />
+                      <span className="font-display text-xs mc-text-pink uppercase tracking-wider">Profit</span>
+                      <p className="text-[10px] mc-text-muted mt-1 opacity-60">Repeat until music stops.</p>
+                    </div>
                   </div>
                 </div>
 
