@@ -21,60 +21,6 @@ type UserRole =
    user;
  };
 type UserProfile = record {name: text;};
-type ShenaniganType = 
- variant {
-   aoeSkim;
-   downlineBoost;
-   downlineHeist;
-   goldenName;
-   magicMirror;
-   mintTaxSiphon;
-   moneyTrickster;
-   ppBoosterAura;
-   purseCutter;
-   renameSpell;
-   whaleRebalance;
- };
-type ShenaniganStats = 
- record {
-   backfires: nat;
-   badOutcomes: nat;
-   dealerCut: float64;
-   goodOutcomes: nat;
-   totalCast: nat;
-   totalSpent: float64;
- };
-type ShenaniganRecord = 
- record {
-   cost: float64;
-   id: nat;
-   outcome: ShenaniganOutcome;
-   shenaniganType: ShenaniganType;
-   target: opt principal;
-   timestamp: int;
-   user: principal;
- };
-type ShenaniganOutcome = 
- variant {
-   backfire;
-   fail;
-   success;
- };
-type ShenaniganConfig = 
- record {
-   backfireOdds: nat;
-   backgroundColor: text;
-   castLimit: nat;
-   cooldown: nat;
-   cost: float64;
-   description: text;
-   duration: nat;
-   effectValues: vec float64;
-   failureOdds: nat;
-   id: nat;
-   name: text;
-   successOdds: nat;
- };
 type PlatformStats = 
  record {
    activeGames: nat;
@@ -106,6 +52,7 @@ type GameRecord =
    plan: GamePlan;
    player: principal;
    startTime: int;
+   totalWithdrawn: float64;
  };
 type GamePlan = 
  variant {
@@ -134,18 +81,19 @@ service : {
   addDownstreamDealer: (amount: float64, underwaterAmount: float64) -> ();
   addHouseMoney: (amount: float64, description: text) -> ();
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  burnPonziPoints: (user: principal, amount: float64) -> ();
   calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
   calculateCompoundedROI: () -> (float64) query;
   calculateEarnings: (game: GameRecord) -> (float64) query;
-  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
-   (ShenaniganOutcome);
   checkDepositRateLimit: () -> (bool) query;
   createGame: (plan: GamePlan, amount: float64, isCompounding: bool,
    referrer: opt principal) -> (nat);
+  deductPonziPoints: (user: principal, amount: float64) -> ();
   depositICP: (amount: nat) -> (variant {
                                   Err: text;
                                   Ok: nat;
                                 });
+  distributeDealerCutFromShenanigans: (amount: float64) -> ();
   distributeFees: (totalFees: float64) -> ();
   getActiveGameCount: () -> (nat) query;
   getAllActiveGames: () -> (vec GameRecord) query;
@@ -178,7 +126,7 @@ service : {
       referralPoints: float64;
       totalPoints: float64;
     }) query;
-  getRecentShenanigans: () -> (vec ShenaniganRecord) query;
+  getPonziPointsBalanceFor: (user: principal) -> (float64);
   getReferralEarnings: (user: principal) -> (float64) query;
   getReferralTierPoints: () ->
    (record {
@@ -187,8 +135,6 @@ service : {
       level3Points: float64;
       totalPoints: float64;
     }) query;
-  getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
-  getShenaniganStats: () -> (ShenaniganStats) query;
   getTopPonziPointsBurners: () -> (vec record {
                                          principal;
                                          float64;
@@ -209,16 +155,18 @@ service : {
   initializeAccessControl: () -> ();
   isCallerAdmin: () -> (bool) query;
   isTestMode: () -> (bool) query;
-  resetShenaniganConfig: (id: nat) -> ();
-  saveAllShenaniganConfigs: (configs: vec ShenaniganConfig) -> ();
   saveCallerUserProfile: (profile: UserProfile) -> ();
+  seedGame: (player: principal, plan: GamePlan, amount: float64,
+   isCompounding: bool, startTimeNanos: int) -> (nat);
   setCanisterPrincipal: (p: principal) -> ();
+  setShenanigansPrincipal: (p: principal) -> ();
   setTestMode: (enabled: bool) -> ();
   transferInternal: (to: principal, amount: nat) -> (variant {
                                                        Err: text;
                                                        Ok;
                                                      });
-  updateShenaniganConfig: (config: ShenaniganConfig) -> ();
+  transferPonziPoints: (from: principal, to: principal, amount: float64) ->
+   ();
   withdrawEarnings: (gameId: nat) -> (float64);
   withdrawICP: (amount: nat) -> (variant {
                                    Err: text;

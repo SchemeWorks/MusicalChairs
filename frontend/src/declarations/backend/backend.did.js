@@ -18,25 +18,8 @@ export const idlFactory = ({ IDL }) => {
     'accumulatedEarnings' : IDL.Float64,
     'lastUpdateTime' : IDL.Int,
     'isCompounding' : IDL.Bool,
+    'totalWithdrawn' : IDL.Float64,
     'amount' : IDL.Float64,
-  });
-  const ShenaniganType = IDL.Variant({
-    'ppBoosterAura' : IDL.Null,
-    'goldenName' : IDL.Null,
-    'whaleRebalance' : IDL.Null,
-    'downlineBoost' : IDL.Null,
-    'moneyTrickster' : IDL.Null,
-    'mintTaxSiphon' : IDL.Null,
-    'aoeSkim' : IDL.Null,
-    'magicMirror' : IDL.Null,
-    'downlineHeist' : IDL.Null,
-    'renameSpell' : IDL.Null,
-    'purseCutter' : IDL.Null,
-  });
-  const ShenaniganOutcome = IDL.Variant({
-    'backfire' : IDL.Null,
-    'fail' : IDL.Null,
-    'success' : IDL.Null,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
   const DealerType = IDL.Variant({
@@ -70,37 +53,6 @@ export const idlFactory = ({ IDL }) => {
     'activeGames' : IDL.Nat,
     'totalDeposits' : IDL.Float64,
   });
-  const ShenaniganRecord = IDL.Record({
-    'id' : IDL.Nat,
-    'shenaniganType' : ShenaniganType,
-    'cost' : IDL.Float64,
-    'user' : IDL.Principal,
-    'target' : IDL.Opt(IDL.Principal),
-    'timestamp' : IDL.Int,
-    'outcome' : ShenaniganOutcome,
-  });
-  const ShenaniganConfig = IDL.Record({
-    'id' : IDL.Nat,
-    'backgroundColor' : IDL.Text,
-    'duration' : IDL.Nat,
-    'cost' : IDL.Float64,
-    'successOdds' : IDL.Nat,
-    'name' : IDL.Text,
-    'backfireOdds' : IDL.Nat,
-    'castLimit' : IDL.Nat,
-    'description' : IDL.Text,
-    'effectValues' : IDL.Vec(IDL.Float64),
-    'failureOdds' : IDL.Nat,
-    'cooldown' : IDL.Nat,
-  });
-  const ShenaniganStats = IDL.Record({
-    'backfires' : IDL.Nat,
-    'dealerCut' : IDL.Float64,
-    'totalCast' : IDL.Nat,
-    'goodOutcomes' : IDL.Nat,
-    'totalSpent' : IDL.Float64,
-    'badOutcomes' : IDL.Nat,
-  });
   const WalletTransaction = IDL.Record({
     'id' : IDL.Nat,
     'user' : IDL.Principal,
@@ -121,6 +73,7 @@ export const idlFactory = ({ IDL }) => {
     'addDownstreamDealer' : IDL.Func([IDL.Float64, IDL.Float64], [], []),
     'addHouseMoney' : IDL.Func([IDL.Float64, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
+    'burnPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'calculateCompoundedEarnings' : IDL.Func(
         [GameRecord],
         [IDL.Float64],
@@ -128,22 +81,19 @@ export const idlFactory = ({ IDL }) => {
       ),
     'calculateCompoundedROI' : IDL.Func([], [IDL.Float64], ['query']),
     'calculateEarnings' : IDL.Func([GameRecord], [IDL.Float64], ['query']),
-    'castShenanigan' : IDL.Func(
-        [ShenaniganType, IDL.Opt(IDL.Principal)],
-        [ShenaniganOutcome],
-        [],
-      ),
     'checkDepositRateLimit' : IDL.Func([], [IDL.Bool], ['query']),
     'createGame' : IDL.Func(
         [GamePlan, IDL.Float64, IDL.Bool, IDL.Opt(IDL.Principal)],
         [IDL.Nat],
         [],
       ),
+    'deductPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'depositICP' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'distributeDealerCutFromShenanigans' : IDL.Func([IDL.Float64], [], []),
     'distributeFees' : IDL.Func([IDL.Float64], [], []),
     'getActiveGameCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getAllActiveGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
@@ -190,11 +140,7 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
-    'getRecentShenanigans' : IDL.Func(
-        [],
-        [IDL.Vec(ShenaniganRecord)],
-        ['query'],
-      ),
+    'getPonziPointsBalanceFor' : IDL.Func([IDL.Principal], [IDL.Float64], []),
     'getReferralEarnings' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
     'getReferralTierPoints' : IDL.Func(
         [],
@@ -208,12 +154,6 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
-    'getShenaniganConfigs' : IDL.Func(
-        [],
-        [IDL.Vec(ShenaniganConfig)],
-        ['query'],
-      ),
-    'getShenaniganStats' : IDL.Func([], [ShenaniganStats], ['query']),
     'getTopPonziPointsBurners' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
@@ -244,17 +184,25 @@ export const idlFactory = ({ IDL }) => {
     'initializeAccessControl' : IDL.Func([], [], []),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isTestMode' : IDL.Func([], [IDL.Bool], ['query']),
-    'resetShenaniganConfig' : IDL.Func([IDL.Nat], [], []),
-    'saveAllShenaniganConfigs' : IDL.Func([IDL.Vec(ShenaniganConfig)], [], []),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'seedGame' : IDL.Func(
+        [IDL.Principal, GamePlan, IDL.Float64, IDL.Bool, IDL.Int],
+        [IDL.Nat],
+        [],
+      ),
     'setCanisterPrincipal' : IDL.Func([IDL.Principal], [], []),
+    'setShenanigansPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setTestMode' : IDL.Func([IDL.Bool], [], []),
     'transferInternal' : IDL.Func(
         [IDL.Principal, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
-    'updateShenaniganConfig' : IDL.Func([ShenaniganConfig], [], []),
+    'transferPonziPoints' : IDL.Func(
+        [IDL.Principal, IDL.Principal, IDL.Float64],
+        [],
+        [],
+      ),
     'withdrawEarnings' : IDL.Func([IDL.Nat], [IDL.Float64], []),
     'withdrawICP' : IDL.Func(
         [IDL.Nat],

@@ -26,6 +26,7 @@ export interface GameRecord {
   'accumulatedEarnings' : number,
   'lastUpdateTime' : bigint,
   'isCompounding' : boolean,
+  'totalWithdrawn' : number,
   'amount' : number,
 }
 export interface GameResetRecord { 'resetTime' : bigint, 'reason' : string }
@@ -42,51 +43,6 @@ export interface PlatformStats {
   'activeGames' : bigint,
   'totalDeposits' : number,
 }
-export interface ShenaniganConfig {
-  'id' : bigint,
-  'backgroundColor' : string,
-  'duration' : bigint,
-  'cost' : number,
-  'successOdds' : bigint,
-  'name' : string,
-  'backfireOdds' : bigint,
-  'castLimit' : bigint,
-  'description' : string,
-  'effectValues' : Array<number>,
-  'failureOdds' : bigint,
-  'cooldown' : bigint,
-}
-export type ShenaniganOutcome = { 'backfire' : null } |
-  { 'fail' : null } |
-  { 'success' : null };
-export interface ShenaniganRecord {
-  'id' : bigint,
-  'shenaniganType' : ShenaniganType,
-  'cost' : number,
-  'user' : Principal,
-  'target' : [] | [Principal],
-  'timestamp' : bigint,
-  'outcome' : ShenaniganOutcome,
-}
-export interface ShenaniganStats {
-  'backfires' : bigint,
-  'dealerCut' : number,
-  'totalCast' : bigint,
-  'goodOutcomes' : bigint,
-  'totalSpent' : number,
-  'badOutcomes' : bigint,
-}
-export type ShenaniganType = { 'ppBoosterAura' : null } |
-  { 'goldenName' : null } |
-  { 'whaleRebalance' : null } |
-  { 'downlineBoost' : null } |
-  { 'moneyTrickster' : null } |
-  { 'mintTaxSiphon' : null } |
-  { 'aoeSkim' : null } |
-  { 'magicMirror' : null } |
-  { 'downlineHeist' : null } |
-  { 'renameSpell' : null } |
-  { 'purseCutter' : null };
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -109,19 +65,18 @@ export interface _SERVICE {
   'addDownstreamDealer' : ActorMethod<[number, number], undefined>,
   'addHouseMoney' : ActorMethod<[number, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'burnPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'calculateCompoundedEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedROI' : ActorMethod<[], number>,
   'calculateEarnings' : ActorMethod<[GameRecord], number>,
-  'castShenanigan' : ActorMethod<
-    [ShenaniganType, [] | [Principal]],
-    ShenaniganOutcome
-  >,
   'checkDepositRateLimit' : ActorMethod<[], boolean>,
   'createGame' : ActorMethod<
     [GamePlan, number, boolean, [] | [Principal]],
     bigint
   >,
+  'deductPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'depositICP' : ActorMethod<[bigint], { 'Ok' : bigint } | { 'Err' : string }>,
+  'distributeDealerCutFromShenanigans' : ActorMethod<[number], undefined>,
   'distributeFees' : ActorMethod<[number], undefined>,
   'getActiveGameCount' : ActorMethod<[], bigint>,
   'getAllActiveGames' : ActorMethod<[], Array<GameRecord>>,
@@ -158,7 +113,7 @@ export interface _SERVICE {
       'totalPoints' : number,
     }
   >,
-  'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
+  'getPonziPointsBalanceFor' : ActorMethod<[Principal], number>,
   'getReferralEarnings' : ActorMethod<[Principal], number>,
   'getReferralTierPoints' : ActorMethod<
     [],
@@ -169,8 +124,6 @@ export interface _SERVICE {
       'level2Points' : number,
     }
   >,
-  'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
-  'getShenaniganStats' : ActorMethod<[], ShenaniganStats>,
   'getTopPonziPointsBurners' : ActorMethod<[], Array<[Principal, number]>>,
   'getTopPonziPointsHolders' : ActorMethod<[], Array<[Principal, number]>>,
   'getTotalDealerDebt' : ActorMethod<[], number>,
@@ -185,20 +138,23 @@ export interface _SERVICE {
   'initializeAccessControl' : ActorMethod<[], undefined>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isTestMode' : ActorMethod<[], boolean>,
-  'resetShenaniganConfig' : ActorMethod<[bigint], undefined>,
-  'saveAllShenaniganConfigs' : ActorMethod<
-    [Array<ShenaniganConfig>],
-    undefined
-  >,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'seedGame' : ActorMethod<
+    [Principal, GamePlan, number, boolean, bigint],
+    bigint
+  >,
   'setCanisterPrincipal' : ActorMethod<[Principal], undefined>,
+  'setShenanigansPrincipal' : ActorMethod<[Principal], undefined>,
   'setTestMode' : ActorMethod<[boolean], undefined>,
   'transferInternal' : ActorMethod<
     [Principal, bigint],
     { 'Ok' : null } |
       { 'Err' : string }
   >,
-  'updateShenaniganConfig' : ActorMethod<[ShenaniganConfig], undefined>,
+  'transferPonziPoints' : ActorMethod<
+    [Principal, Principal, number],
+    undefined
+  >,
   'withdrawEarnings' : ActorMethod<[bigint], number>,
   'withdrawICP' : ActorMethod<[bigint], { 'Ok' : bigint } | { 'Err' : string }>,
 }
