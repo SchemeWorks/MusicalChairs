@@ -108,12 +108,12 @@ export default function ProfileSetup() {
 
         <div className="mt-10">
           <div className="mc-spinner mx-auto mb-3" />
-          <p className="text-xs mc-text-muted">Setting up your table...</p>
+          <p className="text-xs mc-text-muted">Preparing your portfolio...</p>
           <button
             onClick={() => queryClient.invalidateQueries({ queryKey: ['userProfile'] })}
             className="mc-btn-primary mt-4 px-6 py-2 text-sm"
           >
-            TAKE ME TO THE TABLE
+            SHOW ME THE YIELD
           </button>
         </div>
       </div>
@@ -141,7 +141,7 @@ export default function ProfileSetup() {
         <div className="mc-card-elevated mc-registration-glow pt-8 w-full">
           <div className="text-center mb-8">
             <p className="mc-text-primary text-sm font-display tracking-wide">
-              Everyone who walks through that door gets a seat at the table.
+              Everyone who walks through that door gets a chance at financial freedom.
             </p>
           </div>
 
