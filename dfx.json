@@ -4,6 +4,10 @@
       "main": "backend/main.mo",
       "type": "motoko"
     },
+    "shenanigans": {
+      "main": "shenanigans/main.mo",
+      "type": "motoko"
+    },
     "frontend": {
       "dependencies": [],
       "source": ["frontend/dist"],

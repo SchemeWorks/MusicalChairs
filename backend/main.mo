@@ -122,65 +122,6 @@ persistent actor {
         firstDepositDate : ?Int;
     };
 
-    // Shenanigan Types
-    public type ShenaniganType = {
-        #moneyTrickster;
-        #aoeSkim;
-        #renameSpell;
-        #mintTaxSiphon;
-        #downlineHeist;
-        #magicMirror;
-        #ppBoosterAura;
-        #purseCutter;
-        #whaleRebalance;
-        #downlineBoost;
-        #goldenName;
-    };
-
-    // Shenanigan Outcome Types
-    public type ShenaniganOutcome = {
-        #success;
-        #fail;
-        #backfire;
-    };
-
-    // Shenanigan Record
-    public type ShenaniganRecord = {
-        id : Nat;
-        user : Principal;
-        shenaniganType : ShenaniganType;
-        target : ?Principal;
-        outcome : ShenaniganOutcome;
-        timestamp : Int;
-        cost : Float;
-    };
-
-    // Shenanigan Stats
-    public type ShenaniganStats = {
-        totalSpent : Float;
-        totalCast : Nat;
-        goodOutcomes : Nat;
-        badOutcomes : Nat;
-        backfires : Nat;
-        dealerCut : Float;
-    };
-
-    // Shenanigan Config
-    public type ShenaniganConfig = {
-        id : Nat;
-        name : Text;
-        description : Text;
-        cost : Float;
-        successOdds : Nat;
-        failureOdds : Nat;
-        backfireOdds : Nat;
-        duration : Nat;
-        cooldown : Nat;
-        effectValues : [Float];
-        castLimit : Nat;
-        backgroundColor : Text;
-    };
-
     // Initialize OrderedMaps
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMapNat = OrderedMap.Make<Principal>(Principal.compare);
@@ -209,11 +150,6 @@ persistent actor {
 
     // Ponzi Points Tracking
     transient var ponziPoints = principalMapNat.empty<Float>();
-
-    // Shenanigans Tracking
-    transient var shenanigans = natMap.empty<ShenaniganRecord>();
-    transient var shenaniganStats = principalMapNat.empty<ShenaniganStats>();
-    transient var nextShenaniganId = 0;
 
     // Ponzi Points Burned Tracking
     transient var ponziPointsBurned = principalMapNat.empty<Float>();
@@ -279,175 +215,8 @@ persistent actor {
     transient var houseLedger = natMap.empty<HouseLedgerRecord>();
     transient var nextHouseLedgerId = 0;
 
-    // Shenanigan Configurations
-    transient var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
-
-    // Initialize default shenanigan configs
-    func initializeDefaultShenanigans() {
-        let defaultConfigs : [ShenaniganConfig] = [
-            {
-                id = 0;
-                name = "Money Trickster";
-                description = "Steals 2–8% of target's Ponzi Points (max 250 PP).";
-                cost = 120.0;
-                successOdds = 60;
-                failureOdds = 25;
-                backfireOdds = 15;
-                duration = 0;
-                cooldown = 2;
-                effectValues = [2.0, 8.0, 250.0];
-                castLimit = 0;
-                backgroundColor = "#fff9e6";
-            },
-            {
-                id = 1;
-                name = "AOE Skim";
-                description = "Siphons 1–3% from each player (max 60 PP per player).";
-                cost = 600.0;
-                successOdds = 40;
-                failureOdds = 40;
-                backfireOdds = 20;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [1.0, 3.0, 60.0];
-                castLimit = 1;
-                backgroundColor = "#e6f7ff";
-            },
-            {
-                id = 2;
-                name = "Rename Spell";
-                description = "Changes target's display name for 7 days.";
-                cost = 200.0;
-                successOdds = 90;
-                failureOdds = 5;
-                backfireOdds = 5;
-                duration = 168;
-                cooldown = 0;
-                effectValues = [7.0];
-                castLimit = 0;
-                backgroundColor = "#ffe6f7";
-            },
-            {
-                id = 3;
-                name = "Mint Tax Siphon";
-                description = "Skims 5% of target's new PP for 7 days (max 1000 PP).";
-                cost = 1200.0;
-                successOdds = 70;
-                failureOdds = 20;
-                backfireOdds = 10;
-                duration = 168;
-                cooldown = 0;
-                effectValues = [5.0, 1000.0];
-                castLimit = 0;
-                backgroundColor = "#f3e6ff";
-            },
-            {
-                id = 4;
-                name = "Downline Heist";
-                description = "Steals one downline member (favor L3).";
-                cost = 500.0;
-                successOdds = 30;
-                failureOdds = 60;
-                backfireOdds = 10;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [];
-                castLimit = 1;
-                backgroundColor = "#e6fff2";
-            },
-            {
-                id = 5;
-                name = "Magic Mirror";
-                description = "Equips shield (blocks one hostile shenanigan).";
-                cost = 200.0;
-                successOdds = 100;
-                failureOdds = 0;
-                backfireOdds = 0;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [];
-                castLimit = 2;
-                backgroundColor = "#fff4e6";
-            },
-            {
-                id = 6;
-                name = "PP Booster Aura";
-                description = "Earn +5–15% additional PP for rest of round.";
-                cost = 300.0;
-                successOdds = 100;
-                failureOdds = 0;
-                backfireOdds = 0;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [5.0, 15.0];
-                castLimit = 1;
-                backgroundColor = "#e6f2ff";
-            },
-            {
-                id = 7;
-                name = "Purse Cutter";
-                description = "Target loses 25–50% PP (max 800 PP).";
-                cost = 900.0;
-                successOdds = 20;
-                failureOdds = 50;
-                backfireOdds = 30;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [25.0, 50.0, 800.0];
-                castLimit = 0;
-                backgroundColor = "#ffe6e6";
-            },
-            {
-                id = 8;
-                name = "Whale Rebalance";
-                description = "Takes 20% from top 3 holders (max 300 PP/whale).";
-                cost = 800.0;
-                successOdds = 50;
-                failureOdds = 30;
-                backfireOdds = 20;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [20.0, 300.0];
-                castLimit = 0;
-                backgroundColor = "#f0e6ff";
-            },
-            {
-                id = 9;
-                name = "Downline Boost";
-                description = "Downline referrals kick up 1.3x PP for rest of round.";
-                cost = 400.0;
-                successOdds = 100;
-                failureOdds = 0;
-                backfireOdds = 0;
-                duration = 0;
-                cooldown = 0;
-                effectValues = [1.3];
-                castLimit = 1;
-                backgroundColor = "#e6fffa";
-            },
-            {
-                id = 10;
-                name = "Golden Name";
-                description = "Gives gold name on leaderboard (24h or 7d).";
-                cost = 100.0;
-                successOdds = 100;
-                failureOdds = 0;
-                backfireOdds = 0;
-                duration = 24;
-                cooldown = 0;
-                effectValues = [24.0, 168.0];
-                castLimit = 1;
-                backgroundColor = "#fff0e6";
-            },
-        ];
-
-        for (config in defaultConfigs.vals()) {
-            shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
-        };
-    };
-
-    // Initialize default shenanigans on first deployment
-    initializeDefaultShenanigans();
+    // Authorized shenanigans canister principal
+    transient var shenanigansPrincipal : ?Principal = null;
 
     // ========================================================================
     // Musical Chairs Wallet API
@@ -1453,223 +1222,73 @@ persistent actor {
         rounded == value;
     };
 
-    // Cast Shenanigan
-    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
-        let cost = switch (shenaniganType) {
-            case (#moneyTrickster) { 120.0 };
-            case (#aoeSkim) { 600.0 };
-            case (#renameSpell) { 200.0 };
-            case (#mintTaxSiphon) { 1200.0 };
-            case (#downlineHeist) { 500.0 };
-            case (#magicMirror) { 200.0 };
-            case (#ppBoosterAura) { 300.0 };
-            case (#purseCutter) { 900.0 };
-            case (#whaleRebalance) { 800.0 };
-            case (#downlineBoost) { 400.0 };
-            case (#goldenName) { 100.0 };
-        };
+    // === Cross-canister API for Shenanigans canister ===
 
-        // Check if user has enough Ponzi Points
-        let userPoints = switch (principalMapNat.get(ponziPoints, caller)) {
+    func requireShenanigansCanister(caller : Principal) {
+        switch (shenanigansPrincipal) {
+            case (null) { Debug.trap("Shenanigans canister not configured") };
+            case (?p) {
+                if (caller != p) {
+                    Debug.trap("Unauthorized: only shenanigans canister can call this");
+                };
+            };
+        };
+    };
+
+    public shared ({ caller }) func setShenanigansPrincipal(p : Principal) : async () {
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            Debug.trap("Unauthorized: Only admins can set shenanigans principal");
+        };
+        shenanigansPrincipal := ?p;
+    };
+
+    public shared ({ caller }) func deductPonziPoints(user : Principal, amount : Float) : async () {
+        requireShenanigansCanister(caller);
+        let current = switch (principalMapNat.get(ponziPoints, user)) {
             case (null) { 0.0 };
             case (?points) { points };
         };
+        if (current < amount) { Debug.trap("Insufficient points") };
+        ponziPoints := principalMapNat.put(ponziPoints, user, current - amount);
+    };
 
-        if (userPoints < cost) {
-            Debug.trap("Insufficient Ponzi Points to cast this shenanigan");
-        };
-
-        // Deduct Ponzi Points
-        ponziPoints := principalMapNat.put(ponziPoints, caller, userPoints - cost);
-
-        // Track Ponzi Points burned
-        let burned = switch (principalMapNat.get(ponziPointsBurned, caller)) {
+    public shared ({ caller }) func transferPonziPoints(from : Principal, to : Principal, amount : Float) : async () {
+        requireShenanigansCanister(caller);
+        let fromBalance = switch (principalMapNat.get(ponziPoints, from)) {
             case (null) { 0.0 };
-            case (?existingBurned) { existingBurned };
+            case (?points) { points };
         };
-        ponziPointsBurned := principalMapNat.put(ponziPointsBurned, caller, burned + cost);
-
-        // Determine outcome
-        let outcome = determineOutcome(shenaniganType);
-
-        // Apply backfire effect if outcome is backfire
-        if (outcome == #backfire) {
-            switch (shenaniganType) {
-                case (#moneyTrickster) {
-                    // If backfire, caster loses 2–8% of their own PP to the target
-                    switch (target) {
-                        case (null) {};
-                        case (?targetPrincipal) {
-                            let casterPoints = switch (principalMapNat.get(ponziPoints, caller)) {
-                                case (null) { 0.0 };
-                                case (?points) { points };
-                            };
-                            let lossPercentage = 0.02 + (Float.fromInt(Int.abs(Time.now()) % 7) / 100.0); // 2–8%
-                            let lossAmount = casterPoints * lossPercentage;
-                            let cappedLoss = Float.min(lossAmount, 250.0);
-
-                            // Deduct from caster
-                            ponziPoints := principalMapNat.put(ponziPoints, caller, casterPoints - cappedLoss);
-
-                            // Add to target
-                            let targetPoints = switch (principalMapNat.get(ponziPoints, targetPrincipal)) {
-                                case (null) { cappedLoss };
-                                case (?points) { points + cappedLoss };
-                            };
-                            ponziPoints := principalMapNat.put(ponziPoints, targetPrincipal, targetPoints);
-                        };
-                    };
-                };
-                case (#aoeSkim) {
-                    // If backfire, caster loses 1–3% of their PP, distributed to all other players
-                    let casterPoints = switch (principalMapNat.get(ponziPoints, caller)) {
-                        case (null) { 0.0 };
-                        case (?points) { points };
-                    };
-                    let lossPercentage = 0.01 + (Float.fromInt(Int.abs(Time.now()) % 3) / 100.0); // 1–3%
-                    let lossAmount = casterPoints * lossPercentage;
-
-                    // Deduct from caster
-                    ponziPoints := principalMapNat.put(ponziPoints, caller, casterPoints - lossAmount);
-
-                    // Distribute to all other players
-                    let allPlayers = Iter.toArray(principalMapNat.entries(ponziPoints));
-                    let otherPlayers = List.toArray(
-                        List.filter(
-                            List.fromArray(allPlayers),
-                            func(entry : (Principal, Float)) : Bool {
-                                entry.0 != caller;
-                            },
-                        )
-                    );
-                    if (otherPlayers.size() > 0) {
-                        let perPlayerAmount = lossAmount / Float.fromInt(otherPlayers.size());
-                        for (entry in otherPlayers.vals()) {
-                            let (player, points) = entry;
-                            ponziPoints := principalMapNat.put(ponziPoints, player, points + perPlayerAmount);
-                        };
-                    };
-                };
-                case (#downlineHeist) {
-                    // If backfire, caster loses an L3 downline member to the target
-                    switch (target) {
-                        case (null) {};
-                        case (?targetPrincipal) {
-                            // Remove L3 downline from caster and add to target
-                            // This is a simplified implementation; actual downline management would be more complex
-                            // For now, just log the action
-                            Debug.print("Backfire: " # Principal.toText(caller) # " loses an L3 downline member to " # Principal.toText(targetPrincipal));
-                        };
-                    };
-                };
-                // Add similar backfire logic for other shenanigans as needed
-                case (_) {};
-            };
+        if (fromBalance < amount) { Debug.trap("Insufficient points") };
+        ponziPoints := principalMapNat.put(ponziPoints, from, fromBalance - amount);
+        let toBalance = switch (principalMapNat.get(ponziPoints, to)) {
+            case (null) { 0.0 };
+            case (?points) { points };
         };
-
-        // Record shenanigan
-        let shenaniganId = nextShenaniganId;
-        nextShenaniganId += 1;
-
-        let newShenanigan : ShenaniganRecord = {
-            id = shenaniganId;
-            user = caller;
-            shenaniganType;
-            target;
-            outcome;
-            timestamp = Time.now();
-            cost;
-        };
-
-        shenanigans := natMap.put(shenanigans, shenaniganId, newShenanigan);
-
-        // Update user stats
-        updateShenaniganStats(caller, cost, outcome);
-
-        // Update dealer cut (10% of cost goes to dealers)
-        let dealerCut = cost * 0.1;
-        updateDealerCut(dealerCut);
-
-        outcome;
+        ponziPoints := principalMapNat.put(ponziPoints, to, toBalance + amount);
     };
 
-    // Determine outcome based on shenanigan type
-    func determineOutcome(shenaniganType : ShenaniganType) : ShenaniganOutcome {
-        let randomValue = Int.abs(Time.now()) % 100;
+    public shared ({ caller }) func distributeDealerCutFromShenanigans(amount : Float) : async () {
+        requireShenanigansCanister(caller);
+        updateDealerCut(amount);
+    };
 
-        switch (shenaniganType) {
-            case (#moneyTrickster) {
-                if (randomValue < 60) { #success } // 60% success
-                else if (randomValue < 85) { #fail } // 25% fail
-                else { #backfire }; // 15% backfire
-            };
-            case (#aoeSkim) {
-                if (randomValue < 40) { #success } // 40% success
-                else if (randomValue < 80) { #fail } // 40% fail
-                else { #backfire }; // 20% backfire
-            };
-            case (#renameSpell) {
-                if (randomValue < 90) { #success } // 90% success
-                else if (randomValue < 95) { #fail } // 5% fail
-                else { #backfire }; // 5% backfire
-            };
-            case (#mintTaxSiphon) {
-                if (randomValue < 70) { #success } // 70% success
-                else if (randomValue < 90) { #fail } // 20% fail
-                else { #backfire }; // 10% backfire
-            };
-            case (#downlineHeist) {
-                if (randomValue < 30) { #success } // 30% success
-                else if (randomValue < 50) { #fail } // 20% fail
-                else if (randomValue < 60) { #fail } // 10% fail
-                else if (randomValue < 90) { #fail } // 30% fail
-                else { #backfire }; // 10% backfire
-            };
-            case (#magicMirror) { #success }; // 100% success
-            case (#ppBoosterAura) { #success }; // 100% success
-            case (#purseCutter) {
-                if (randomValue < 20) { #success } // 20% success
-                else if (randomValue < 70) { #fail } // 50% fail
-                else { #backfire }; // 30% backfire
-            };
-            case (#whaleRebalance) {
-                if (randomValue < 50) { #success } // 50% success
-                else if (randomValue < 80) { #fail } // 30% fail
-                else { #backfire }; // 20% backfire
-            };
-            case (#downlineBoost) { #success }; // 100% success
-            case (#goldenName) { #success }; // 100% success
+    public shared func getPonziPointsBalanceFor(user : Principal) : async Float {
+        switch (principalMapNat.get(ponziPoints, user)) {
+            case (null) { 0.0 };
+            case (?points) { points };
         };
     };
 
-    // Update user shenanigan stats
-    func updateShenaniganStats(user : Principal, cost : Float, outcome : ShenaniganOutcome) {
-        let currentStats = switch (principalMapNat.get(shenaniganStats, user)) {
-            case (null) {
-                {
-                    totalSpent = 0.0;
-                    totalCast = 0;
-                    goodOutcomes = 0;
-                    badOutcomes = 0;
-                    backfires = 0;
-                    dealerCut = 0.0;
-                };
-            };
-            case (?stats) { stats };
+    public shared ({ caller }) func burnPonziPoints(user : Principal, amount : Float) : async () {
+        requireShenanigansCanister(caller);
+        let burned = switch (principalMapNat.get(ponziPointsBurned, user)) {
+            case (null) { 0.0 };
+            case (?existing) { existing };
         };
-
-        let updatedStats = {
-            currentStats with
-            totalSpent = currentStats.totalSpent + cost;
-            totalCast = currentStats.totalCast + 1;
-            goodOutcomes = currentStats.goodOutcomes + (if (outcome == #success) 1 else 0);
-            badOutcomes = currentStats.badOutcomes + (if (outcome == #fail) 1 else 0);
-            backfires = currentStats.backfires + (if (outcome == #backfire) 1 else 0);
-            dealerCut = currentStats.dealerCut + (cost * 0.1);
-        };
-
-        shenaniganStats := principalMapNat.put(shenaniganStats, user, updatedStats);
+        ponziPointsBurned := principalMapNat.put(ponziPointsBurned, user, burned + amount);
     };
+
+    // castShenanigan, determineOutcome, updateShenaniganStats — moved to shenanigans canister
 
     // Update dealer cut (distribute among active dealers)
     func updateDealerCut(amount : Float) {
@@ -1688,30 +1307,7 @@ persistent actor {
         };
     };
 
-    // Get user shenanigan stats
-    public query ({ caller }) func getShenaniganStats() : async ShenaniganStats {
-        switch (principalMapNat.get(shenaniganStats, caller)) {
-            case (null) {
-                {
-                    totalSpent = 0.0;
-                    totalCast = 0;
-                    goodOutcomes = 0;
-                    badOutcomes = 0;
-                    backfires = 0;
-                    dealerCut = 0.0;
-                };
-            };
-            case (?stats) { stats };
-        };
-    };
-
-    // Get recent shenanigans (last 12)
-    public query func getRecentShenanigans() : async [ShenaniganRecord] {
-        let allShenanigans = Iter.toArray(natMap.vals(shenanigans));
-        let sorted = List.fromArray(allShenanigans);
-        let recent = List.take(sorted, 12);
-        List.toArray(recent);
-    };
+    // getShenaniganStats, getRecentShenanigans — moved to shenanigans canister
 
     // Get Top Ponzi Points Holders
     public query func getTopPonziPointsHolders() : async [(Principal, Float)] {
@@ -1869,224 +1465,7 @@ persistent actor {
         };
     };
 
-    // Get Shenanigan Configurations
-    public query func getShenaniganConfigs() : async [ShenaniganConfig] {
-        Iter.toArray(natMap.vals(shenaniganConfigs));
-    };
-
-    // Update Shenanigan Config
-    public shared ({ caller }) func updateShenaniganConfig(config : ShenaniganConfig) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can update shenanigan configs");
-        };
-
-        // Validate odds sum to 100
-        if (config.successOdds + config.failureOdds + config.backfireOdds != 100) {
-            Debug.trap("Success, failure, and backfire odds must sum to 100");
-        };
-
-        // Validate non-negative values
-        if (config.cost < 0.0 or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
-            Debug.trap("Cost, duration, cooldown, and cast limit must be non-negative");
-        };
-
-        shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
-    };
-
-    // Reset Shenanigan Config to Default
-    public shared ({ caller }) func resetShenaniganConfig(id : Nat) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can reset shenanigan configs");
-        };
-
-        switch (natMap.get(shenaniganConfigs, id)) {
-            case (null) { Debug.trap("Shenanigan config not found") };
-            case (?_) {
-                let defaultConfigs : [ShenaniganConfig] = [
-                    {
-                        id = 0;
-                        name = "Money Trickster";
-                        description = "Steals 2–8% of target's Ponzi Points (max 250 PP).";
-                        cost = 120.0;
-                        successOdds = 60;
-                        failureOdds = 25;
-                        backfireOdds = 15;
-                        duration = 0;
-                        cooldown = 2;
-                        effectValues = [2.0, 8.0, 250.0];
-                        castLimit = 0;
-                        backgroundColor = "#fff9e6";
-                    },
-                    {
-                        id = 1;
-                        name = "AOE Skim";
-                        description = "Siphons 1–3% from each player (max 60 PP per player).";
-                        cost = 600.0;
-                        successOdds = 40;
-                        failureOdds = 40;
-                        backfireOdds = 20;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [1.0, 3.0, 60.0];
-                        castLimit = 1;
-                        backgroundColor = "#e6f7ff";
-                    },
-                    {
-                        id = 2;
-                        name = "Rename Spell";
-                        description = "Changes target's display name for 7 days.";
-                        cost = 200.0;
-                        successOdds = 90;
-                        failureOdds = 5;
-                        backfireOdds = 5;
-                        duration = 168;
-                        cooldown = 0;
-                        effectValues = [7.0];
-                        castLimit = 0;
-                        backgroundColor = "#ffe6f7";
-                    },
-                    {
-                        id = 3;
-                        name = "Mint Tax Siphon";
-                        description = "Skims 5% of target's new PP for 7 days (max 1000 PP).";
-                        cost = 1200.0;
-                        successOdds = 70;
-                        failureOdds = 20;
-                        backfireOdds = 10;
-                        duration = 168;
-                        cooldown = 0;
-                        effectValues = [5.0, 1000.0];
-                        castLimit = 0;
-                        backgroundColor = "#f3e6ff";
-                    },
-                    {
-                        id = 4;
-                        name = "Downline Heist";
-                        description = "Steals one downline member (favor L3).";
-                        cost = 500.0;
-                        successOdds = 30;
-                        failureOdds = 60;
-                        backfireOdds = 10;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [];
-                        castLimit = 1;
-                        backgroundColor = "#e6fff2";
-                    },
-                    {
-                        id = 5;
-                        name = "Magic Mirror";
-                        description = "Equips shield (blocks one hostile shenanigan).";
-                        cost = 200.0;
-                        successOdds = 100;
-                        failureOdds = 0;
-                        backfireOdds = 0;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [];
-                        castLimit = 2;
-                        backgroundColor = "#fff4e6";
-                    },
-                    {
-                        id = 6;
-                        name = "PP Booster Aura";
-                        description = "Earn +5–15% additional PP for rest of round.";
-                        cost = 300.0;
-                        successOdds = 100;
-                        failureOdds = 0;
-                        backfireOdds = 0;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [5.0, 15.0];
-                        castLimit = 1;
-                        backgroundColor = "#e6f2ff";
-                    },
-                    {
-                        id = 7;
-                        name = "Purse Cutter";
-                        description = "Target loses 25–50% PP (max 800 PP).";
-                        cost = 900.0;
-                        successOdds = 20;
-                        failureOdds = 50;
-                        backfireOdds = 30;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [25.0, 50.0, 800.0];
-                        castLimit = 0;
-                        backgroundColor = "#ffe6e6";
-                    },
-                    {
-                        id = 8;
-                        name = "Whale Rebalance";
-                        description = "Takes 20% from top 3 holders (max 300 PP/whale).";
-                        cost = 800.0;
-                        successOdds = 50;
-                        failureOdds = 30;
-                        backfireOdds = 20;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [20.0, 300.0];
-                        castLimit = 0;
-                        backgroundColor = "#f0e6ff";
-                    },
-                    {
-                        id = 9;
-                        name = "Downline Boost";
-                        description = "Downline referrals kick up 1.3x PP for rest of round.";
-                        cost = 400.0;
-                        successOdds = 100;
-                        failureOdds = 0;
-                        backfireOdds = 0;
-                        duration = 0;
-                        cooldown = 0;
-                        effectValues = [1.3];
-                        castLimit = 1;
-                        backgroundColor = "#e6fffa";
-                    },
-                    {
-                        id = 10;
-                        name = "Golden Name";
-                        description = "Gives gold name on leaderboard (24h or 7d).";
-                        cost = 100.0;
-                        successOdds = 100;
-                        failureOdds = 0;
-                        backfireOdds = 0;
-                        duration = 24;
-                        cooldown = 0;
-                        effectValues = [24.0, 168.0];
-                        castLimit = 1;
-                        backgroundColor = "#fff0e6";
-                    },
-                ];
-
-                for (config in defaultConfigs.vals()) {
-                    if (config.id == id) {
-                        shenaniganConfigs := natMap.put(shenaniganConfigs, id, config);
-                    };
-                };
-            };
-        };
-    };
-
-    // Save All Shenanigan Configs
-    public shared ({ caller }) func saveAllShenaniganConfigs(configs : [ShenaniganConfig]) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can save all shenanigan configs");
-        };
-
-        for (config in configs.vals()) {
-            // Validate odds sum to 100
-            if (config.successOdds + config.failureOdds + config.backfireOdds != 100) {
-                Debug.trap("Success, failure, and backfire odds must sum to 100");
-            };
-
-            // Validate non-negative values
-            if (config.cost < 0.0 or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
-                Debug.trap("Cost, duration, cooldown, and cast limit must be non-negative");
-            };
-
-            shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
-        };
-    };
+    // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,
+    // saveAllShenaniganConfigs — moved to shenanigans canister
 };
 
