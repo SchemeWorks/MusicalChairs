@@ -24,8 +24,8 @@ const planNames: Record<string, string> = {
 
 const planAccents: Record<string, string> = {
   [GamePlan.simple21Day]: 'mc-plan-simple',
-  [GamePlan.compounding15Day]: 'mc-plan-compound',
-  [GamePlan.compounding30Day]: 'mc-plan-compound',
+  [GamePlan.compounding15Day]: 'mc-plan-compound mc-plan-executive',
+  [GamePlan.compounding30Day]: 'mc-plan-compound mc-plan-chairman',
 };
 
 // Rotating quotes attributed to Charles — shown in empty state
@@ -44,6 +44,13 @@ const charlesQuotes = [
 /* ================================================================
    Helpers
    ================================================================ */
+
+/** Format ICP for animated display — caps at 4 decimals to prevent digit flicker */
+const formatICPDisplay = (value: number): string => {
+  if (isNaN(value) || !isFinite(value)) return '0';
+  const rounded = Math.round(value * 10000) / 10000;
+  return rounded.toFixed(4).replace(/\.?0+$/, '');
+};
 
 const formatDate = (ts: bigint) =>
   new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }).format(new Date(Number(ts) / 1_000_000));
@@ -138,7 +145,7 @@ function PositionCard({
         </div>
         <div className="text-center">
           <div className="mc-label">Earnings</div>
-          <div className="text-base font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
+          <div className="text-lg sm:text-xl font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
           <div className="text-xs mc-text-muted">live</div>
         </div>
         <div className="text-right">
@@ -152,40 +159,43 @@ function PositionCard({
         </div>
       </div>
 
-      {/* Progress bar — how far through the plan (shadcn Progress for consistency with HouseDashboard) */}
-      {(() => {
-        const planDays = getPlanDuration(game);
-        const days = daysActive(game.startTime);
-        const pct = Math.min(100, Math.round((days / planDays) * 100));
-        const indicatorColor = game.isCompounding ? 'mc-bg-purple' : 'mc-bg-green';
-        return (
-          <div className="mb-3">
-            <div className="flex justify-between text-xs mc-text-muted mb-1">
-              <span>Day {days} / {planDays}</span>
-              <span>{pct}%</span>
+      {/* Progress bar + Withdraw button side by side */}
+      <div className="flex items-end gap-3">
+        {/* Progress bar — left side, fills remaining space */}
+        {(() => {
+          const planDays = getPlanDuration(game);
+          const days = daysActive(game.startTime);
+          const pct = Math.min(100, Math.round((days / planDays) * 100));
+          const indicatorColor = game.isCompounding ? 'mc-bg-purple' : 'mc-bg-green';
+          return (
+            <div className="flex-1">
+              <div className="flex justify-between text-xs mc-text-muted mb-1">
+                <span>Day {days} / {planDays}</span>
+                <span>{pct}%</span>
+              </div>
+              <Progress value={pct} className="h-1.5 bg-white/5" indicatorClassName={indicatorColor} />
             </div>
-            <Progress value={pct} className="h-1.5 bg-white/5" indicatorClassName={indicatorColor} />
-          </div>
-        );
-      })()}
+          );
+        })()}
 
-      {/* Withdraw button */}
-      <button
-        onClick={() => onWithdraw(game)}
-        disabled={withdrawPending || !canWithdraw || !hasEarnings}
-        className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
-          canWithdraw && hasEarnings
-            ? 'mc-btn-primary'
-            : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
-        }`}
-        title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
-      >
-        {!canWithdraw ? (
-          <span className="flex items-center justify-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
-        ) : (
-          <span className="flex items-center justify-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
-        )}
-      </button>
+        {/* Withdraw button — right-aligned, compact */}
+        <button
+          onClick={() => onWithdraw(game)}
+          disabled={withdrawPending || !canWithdraw || !hasEarnings}
+          className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap ${
+            canWithdraw && hasEarnings
+              ? 'mc-btn-primary'
+              : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+          }`}
+          title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
+        >
+          {!canWithdraw ? (
+            <span className="flex items-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
+          ) : (
+            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
+          )}
+        </button>
+      </div>
     </div>
   );
 }
@@ -305,17 +315,17 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
             }`}>
               {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
-              {netPL >= 0 ? '+' : ''}{formatICP(animatedNetPL)} ICP
+              {netPL >= 0 ? '+' : ''}{formatICPDisplay(animatedNetPL)} ICP
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Deposited</div>
-              <div className="text-xl font-bold mc-text-primary">{formatICP(animatedDeposits)} ICP</div>
+              <div className="text-xl font-bold mc-text-primary">{formatICPDisplay(animatedDeposits)} ICP</div>
             </div>
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Earned</div>
-              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICP(animatedEarnings)} ICP</div>
+              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICPDisplay(animatedEarnings)} ICP</div>
             </div>
           </div>
         </div>
@@ -347,10 +357,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           )}
         </div>
 
-        {/* House info */}
+        {/* Fee disclosure */}
         <div className="mc-house-card">
-          <h3 className="font-display text-base mc-text-gold mb-3">The House Always Wins</h3>
-          <p className="font-accent text-sm mc-text-muted italic mb-3">Charles collects a 7% exit toll if you leave within 3 days. His table, his rules.</p>
+          <h3 className="font-display text-base mc-text-gold mb-3">Powering the Ecosystem</h3>
+          <p className="font-accent text-sm mc-text-muted italic mb-3">A small reinvestment keeps the engine running — and your returns flowing.</p>
           <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
             <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
             <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>

@@ -48,11 +48,7 @@ export default function AddHouseMoney() {
         <HouseMoneyToast amount={toastData.amount} ponziPoints={toastData.ponziPoints} onClose={() => { setShowToast(false); setToastData(null); }} />
       )}
 
-      <div className="text-center mb-3">
-        <span className="font-accent text-sm mc-text-gold">Own The Casino</span>
-      </div>
-
-      <div className="space-y-3">
+      <div className="space-y-3 max-w-sm">
         <div className="flex justify-between items-center">
           <span className="mc-label">Amount</span>
           <span className="text-xs mc-text-dim">Available: {formatICP(walletBalance)} ICP</span>
@@ -85,8 +81,8 @@ export default function AddHouseMoney() {
           </div>
         )}
 
-        <div className="text-center space-y-1">
-          <p className="text-xs mc-text-green font-bold">Earn a guaranteed 12% return* + 4,000 PP per ICP!</p>
+        <div className="space-y-1">
+          <p className="text-xs mc-text-green font-bold">Earn a guaranteed* 24% Series A return + 4,000 PP per ICP!</p>
           <p className="text-xs mc-text-muted italic">*(Returns not guaranteed)</p>
         </div>
       </div>

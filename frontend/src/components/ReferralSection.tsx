@@ -40,6 +40,7 @@ interface ReferralSectionProps {
 
 export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
   const [copied, setCopied] = useState(false);
+  const [showQR, setShowQR] = useState(false);
   const qrRef = useRef<HTMLCanvasElement>(null);
   const { data: referralStats, isLoading, error } = useGetReferralStats();
   const { data: ponziData } = useGetPonziPoints();
@@ -84,11 +85,11 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
           <span className="font-accent text-xl mc-text-gold opacity-80">It's Also a Pyramid Scheme!</span>
         </div>
 
-        {/* Referral link */}
+        {/* Referral link + Share buttons — compact layout */}
         <div className="mb-6">
           <div className="mc-label mb-2">Your Referral Link</div>
-          <div className="flex gap-2">
-            <div className="mc-card flex-1 p-3 text-xs mc-text-dim truncate font-mono">
+          <div className="flex gap-2 mb-3">
+            <div className="mc-card flex-1 p-3 text-xs mc-text-dim truncate font-mono min-w-0">
               {referralLink}
             </div>
             <button onClick={copyToClipboard} className="mc-btn-pill flex items-center gap-1 whitespace-nowrap">
@@ -96,23 +97,24 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
             </button>
           </div>
 
-          {/* Share buttons */}
-          <div className="flex flex-wrap gap-2 mt-3">
+          {/* Share buttons — inline with socials */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs mc-text-muted font-bold">Share:</span>
             <button
               onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. It's called Musical Chairs.")}&url=${encodeURIComponent(referralLink)}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
             >
               <span>𝕏</span> Twitter
             </button>
             <button
-              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Honest Ponzi scheme. Up to 12% daily. Musical Chairs.")}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Musical Chairs — Up to 12% daily | Honest Ponzi Scheme!")}`, '_blank')}
+              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
             >
               <ExternalLink className="h-3 w-3" /> Telegram
             </button>
             <button
               onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. " + referralLink)}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
             >
               <Share2 className="h-3 w-3" /> WhatsApp
             </button>
@@ -120,20 +122,28 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="mc-btn-secondary flex items-center gap-1.5 px-4 py-2 text-xs rounded-lg"
+              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
             >
               <Globe className="h-3 w-3" /> Facebook
             </a>
-          </div>
-
-          {/* QR Code */}
-          <div className="flex flex-col items-center mt-4 p-4 mc-card">
-            <QRCodeCanvas ref={qrRef} value={referralLink} size={160} bgColor="#0a0812" fgColor="#ffffff" level="M" />
-            <p className="text-xs mc-text-muted mt-2">Scan to join your pyramid</p>
-            <button onClick={downloadQR} className="mc-btn-secondary text-xs mt-2 flex items-center gap-1.5">
-              <Download className="h-3.5 w-3.5" /> Download QR
+            <button
+              onClick={() => setShowQR(!showQR)}
+              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
+            >
+              {showQR ? 'Hide QR' : 'QR Code'}
             </button>
           </div>
+
+          {/* QR Code — hidden by default */}
+          {showQR && (
+            <div className="flex flex-col items-center mt-4 p-4 mc-card">
+              <QRCodeCanvas ref={qrRef} value={referralLink} size={160} bgColor="#0a0812" fgColor="#ffffff" level="M" />
+              <p className="text-xs mc-text-muted mt-2">Scan to join your pyramid</p>
+              <button onClick={downloadQR} className="mc-btn-secondary text-xs mt-2 flex items-center gap-1.5">
+                <Download className="h-3.5 w-3.5" /> Download QR
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Milestones */}

@@ -189,7 +189,39 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   if (balanceLoading || maxDepositLoading || rateLimitLoading) {
-    return <LoadingSpinner />;
+    return (
+      <>
+        <LoadingSpinner />
+        {/* Keep toast visible during loading so it doesn't flicker */}
+        {successToast && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="mc-toast text-center">
+              <div className="font-display text-xl mc-text-primary mb-2">You're In.</div>
+              <p className="font-accent text-sm mc-text-dim italic mb-3">
+                {successToast.quote}
+              </p>
+              <p className="text-sm mc-text-dim mt-2 mb-4">
+                <span className="mc-toast-accent">{formatICP(successToast.amount)} ICP</span> is now earning.
+              </p>
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setSuccessToast(null)}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+                >
+                  Stay Here
+                </button>
+                <button
+                  onClick={() => { setSuccessToast(null); onNavigateToProfitCenter?.(); }}
+                  className="mc-btn-primary px-5 py-2 rounded-full text-sm inline-flex items-center gap-2"
+                >
+                  <TrendingUp className="h-4 w-4" /> Watch It Climb
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
   }
 
   const isAmountValid = selectedMode === 'simple'
@@ -246,7 +278,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
       >
         {/* ============ PHASE 1: Mode Selection ============ */}
         {phase === 1 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
             {/* The Starter Package (Simple) */}
             <div
               onClick={() => handleSelectMode('simple')}
@@ -293,7 +325,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
         {/* ============ PHASE 2: Plan Selection (Compounding only) ============ */}
         {phase === 2 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
             {/* The Executive Package (15-day) */}
             <div
               onClick={() => handleSelectPlan('15-day-compounding')}
@@ -378,7 +410,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                       <button
                         onClick={() => {
                           const max = selectedMode === 'simple' ? Math.min(walletBalance, maxDeposit) : walletBalance;
-                          setAmount(max.toString());
+                          const truncated = Math.floor(max * 100000000) / 100000000;
+                          setAmount(truncated.toFixed(8).replace(/\.?0+$/, ''));
                         }}
                         disabled={!walletBalance || walletBalance < minDeposit}
                         className={`mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap ${
@@ -399,7 +432,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
                     <div className="mc-status-blue p-3 mt-3 text-xs space-y-1">
                       <p>3% Entry Skim on every deposit</p>
-                      <p>Half of skim + tolls seed the next round, half repay the House</p>
+                      <p>Half of skim + tolls seed the next round, half repay our backers</p>
                       {selectedMode === 'simple' && <p>Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
                   </div>
@@ -451,7 +484,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 </div>
 
                 {/* Warning + CTA */}
-                <div className="space-y-3">
+                <div className="space-y-3 max-w-sm mx-auto">
                   <div className="mc-status-red p-3 text-center text-sm font-bold">
                     <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
                     <span className="font-normal text-xs opacity-80">Only play with money you can afford to lose</span>
@@ -459,13 +492,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                   <button
                     onClick={handleCreateGame}
                     disabled={createGameMutation.isPending}
-                    className={`w-full py-4 text-base font-bold rounded-xl transition-all mc-btn-primary ${
+                    className={`w-full py-3 text-sm font-bold rounded-xl transition-all mc-btn-primary inline-flex items-center justify-center gap-2 ${
                       hasValidAmount ? 'pulse' : ''
                     }`}
                   >
                     {createGameMutation.isPending
                       ? 'Starting Game...'
-                      : <><Dices className="h-4 w-4" /> START GAME</>}
+                      : <><Dices className="h-5 w-5" /> START GAME</>}
                   </button>
                   {clickError && (
                     <p className={`text-xs mc-text-danger mt-2 text-center ${shakeError ? 'mc-shake' : ''}`}>
@@ -505,9 +538,9 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               </button>
               <button
                 onClick={() => { setSuccessToast(null); onNavigateToProfitCenter?.(); }}
-                className="mc-btn-primary px-5 py-2 rounded-full text-sm"
+                className="mc-btn-primary px-5 py-2 rounded-full text-sm inline-flex items-center gap-2"
               >
-                <><TrendingUp className="h-4 w-4" /> Watch It Climb</>
+                <TrendingUp className="h-4 w-4" /> Watch It Climb
               </button>
             </div>
           </div>

@@ -130,7 +130,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
   };
 
   return (
-    <div ref={containerRef} className={`min-h-[calc(100vh-80px)] ${isMobile ? 'pb-20' : ''}`}>
+    <div ref={containerRef} className={`${isMobile ? 'pb-20' : ''}`}>
       {/* Pull-to-refresh indicator (mobile only) */}
       {isMobile && pulling && (
         <div

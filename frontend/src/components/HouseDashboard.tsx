@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useWallet } from '../hooks/useWallet';
 import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import AddHouseMoney from './AddHouseMoney';
@@ -51,9 +52,9 @@ function BackerInfoCard() {
       accent: 'mc-accent-cyan',
       content: (
         <div className="text-xs mc-text-dim space-y-1">
-          <p><strong className="mc-text-primary">Series A Backers:</strong> Users who voluntarily deposit house money</p>
-          <p><strong className="mc-text-primary">Series B Backers:</strong> Users selected by The Redistribution Event</p>
-          <p className="mt-2">All backers earn a <strong className="mc-text-green">12% return</strong> on investment plus direct fee payments.</p>
+          <p><strong className="mc-text-primary">Series A Backers:</strong> Visionary early investors who fund the project voluntarily</p>
+          <p><strong className="mc-text-primary">Series B Backers:</strong> Investors promoted via Emergency Equity Conversion</p>
+          <p className="mt-2">Series A backers earn a <strong className="mc-text-green">24% return</strong>. Series B earns <strong className="mc-text-green">16%</strong>. Plus direct fee payments.</p>
         </div>
       ),
     },
@@ -64,7 +65,7 @@ function BackerInfoCard() {
       content: (
         <div className="text-xs mc-text-dim space-y-1">
           <p>Of the 50% of fees earmarked for backer repayment:</p>
-          <p><strong className="mc-text-primary">35%</strong> goes to the oldest Series A Backer</p>
+          <p><strong className="mc-text-primary">35%</strong> goes to the earliest Series A Backer</p>
           <p><strong className="mc-text-primary">25%</strong> split evenly among other Series A Backers</p>
           <p><strong className="mc-text-primary">40%</strong> split evenly among all backers</p>
         </div>
@@ -72,12 +73,13 @@ function BackerInfoCard() {
     },
     {
       icon: <TrendingUp className="h-5 w-5 mc-text-green" />,
-      title: 'Guaranteed Returns',
+      title: 'Guaranteed Returns*',
       accent: 'mc-accent-green',
       content: (
         <p className="text-xs mc-text-dim">
-          Every ICP deposited as house money entitles you to <strong className="mc-text-green">1.12 ICP back (12% bonus)</strong>.
-          This debt is automatically repaid through platform fees.
+          Series A: <strong className="mc-text-green">1.24 ICP back per ICP (24% bonus)</strong>.
+          Series B: <strong className="mc-text-green">1.16 ICP back per ICP (16% bonus)</strong>.
+          Repaid automatically through platform fees.
         </p>
       ),
     },
@@ -87,41 +89,30 @@ function BackerInfoCard() {
       accent: 'mc-accent-gold',
       content: (
         <div className="text-xs mc-text-dim space-y-1">
-          <p>Repayment depends on platform activity. More players = faster repayment.
+          <p>Repayment depends on platform activity. More investors = faster repayment.
           You also earn <strong className="mc-text-purple">4,000 Ponzi Points per ICP</strong> deposited.</p>
-          <p className="font-accent italic mc-text-muted">Charles takes a cut on every deposit. His table, his rules.</p>
+          <p className="font-accent italic mc-text-muted">Management reserves the right to a modest operational fee on every deposit.</p>
         </div>
       ),
     },
   ];
 
-  const [openSection, setOpenSection] = useState<string | null>('What Are Backer Positions?');
-
   return (
     <div className="space-y-4">
       <h3 className="font-display text-base mc-text-primary text-center">How Backer Positions Work</h3>
       <p className="text-center text-sm mc-text-dim italic font-accent">
-        Become a VC — put your money in someone else's scheme and call it strategy.
+        Become a VC — put your money in someone else's project and call it strategy.
       </p>
-      <div className="space-y-2">
-        {sections.map(s => {
-          const isOpen = openSection === s.title;
-          return (
-            <div key={s.title} className={`mc-card ${s.accent} overflow-hidden`}>
-              <button
-                onClick={() => setOpenSection(isOpen ? null : s.title)}
-                className="w-full flex items-center justify-between p-4 text-left"
-              >
-                <div className="flex items-center gap-2">
-                  {s.icon}
-                  <span className="font-bold text-sm mc-text-primary">{s.title}</span>
-                </div>
-                <span className={`text-xs mc-text-muted transition-transform ${isOpen ? 'rotate-180' : ''}`}>▼</span>
-              </button>
-              {isOpen && <div className="px-4 pb-4">{s.content}</div>}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {sections.map(s => (
+          <div key={s.title} className={`mc-card ${s.accent} p-4`}>
+            <div className="flex items-center gap-2 mb-2">
+              {s.icon}
+              <span className="font-bold text-sm mc-text-primary">{s.title}</span>
             </div>
-          );
-        })}
+            <div>{s.content}</div>
+          </div>
+        ))}
       </div>
 
       {/* Redistribution Event callout — always visible, dramatic treatment */}
@@ -130,13 +121,13 @@ function BackerInfoCard() {
           <Flame className="h-6 w-6 mc-text-danger flex-shrink-0" />
           <div>
             <h4 className="font-display text-sm mc-text-danger mb-2 flex items-center gap-2">
-              The Redistribution Event <Zap className="h-4 w-4" />
+              Emergency Equity Conversion <Zap className="h-4 w-4" />
             </h4>
             <div className="text-xs mc-text-dim space-y-1 leading-relaxed">
-              <p><strong className="mc-text-primary">When the pot empties:</strong> A random unprofitable depositor becomes a Series B Backer.</p>
-              <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus a 12% backer bonus.</p>
+              <p><strong className="mc-text-primary">When the pot empties:</strong> A random unprofitable depositor is promoted to Series B Investor.</p>
+              <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus the Series B return.</p>
               <p><strong className="mc-text-primary">Multiple backers</strong> can coexist, sharing fee payments via the distribution system.</p>
-              <p className="mc-text-muted italic mt-2">When the pot runs dry, Charles resets the table. No exceptions.</p>
+              <p className="mc-text-muted italic mt-2">When the fund runs dry, management restructures. Standard operating procedure.</p>
             </div>
           </div>
         </div>
@@ -241,6 +232,7 @@ function HouseLedgerRecords() {
    Backer Positions
    ================================================================ */
 function BackerPositions() {
+  const { principal } = useWallet();
   const { data: backerPositions = [], isLoading, error, refetch } = useGetBackerPositions();
 
   if (error) {
@@ -267,29 +259,35 @@ function BackerPositions() {
 
   return (
     <div className="space-y-6">
-      {/* Hero: Back the House — elevated above the grid */}
-      <div className="mc-card-elevated p-6">
-        <h3 className="font-display text-lg mc-text-gold mb-3">Back the House</h3>
-        <p className="text-sm mc-text-dim mb-4">
-          Become a dealer. Earn your 12% entitlement. (Returns not guaranteed — this is still a Ponzi.)
-        </p>
-        <AddHouseMoney />
-      </div>
+      {/* Fund the Project — deposit card with warning inline + stats side by side */}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4">
+        <div className="mc-card-elevated p-6">
+          <h3 className="font-display text-lg mc-text-gold mb-3">Fund the Project</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-start">
+            <div>
+              <p className="text-sm mc-text-dim mb-4">
+                Back the next generation of yield innovation. Earn your entitlement — guaranteed* by the same people who built this.
+              </p>
+              <AddHouseMoney />
+            </div>
+            <div className="mc-status-red p-4 flex items-center justify-center text-center text-xs font-bold sm:w-48 rounded-lg">
+              <div>
+                <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
+                <span className="font-normal text-[10px] opacity-80">Only play with money you can afford to lose</span>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* Stats + warning */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="mc-card mc-accent-danger p-5 text-center">
-          <div className="mc-label mb-1">Outstanding Backer Debt</div>
-          <div className="text-2xl font-bold mc-text-danger">{formatICP(totalDebt)} ICP</div>
-        </div>
-        <div className="mc-card mc-accent-cyan p-5 text-center">
-          <div className="mc-label mb-1">Total House Money Added</div>
-          <div className="text-2xl font-bold mc-text-cyan">{formatICP(totalHouseMoney)} ICP</div>
-        </div>
-        <div className="mc-status-red p-5 flex items-center justify-center text-center text-sm font-bold">
-          <div>
-            <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
-            <span className="font-normal text-xs opacity-80">Only play with money you can afford to lose</span>
+        {/* Stats stacked to the right — two cards matching Fund the Project height */}
+        <div className="flex flex-col gap-3 lg:w-56">
+          <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
+            <div className="mc-label mb-1">Outstanding Backer Debt</div>
+            <div className="text-xl font-bold mc-text-danger">{formatICP(totalDebt)} ICP</div>
+          </div>
+          <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
+            <div className="mc-label mb-1">Total Funds Raised</div>
+            <div className="text-xl font-bold mc-text-cyan">{formatICP(totalHouseMoney)} ICP</div>
           </div>
         </div>
       </div>
@@ -316,7 +314,9 @@ function BackerPositions() {
                       {isSeriesA ? <Gem className="h-5 w-5 mc-text-green" /> : <Dice5 className="h-5 w-5 mc-text-gold" />}
                     </div>
                     <div>
-                      <div className="font-bold mc-text-primary">{backer.name}</div>
+                      <div className="font-bold mc-text-primary">
+                        {backer.owner.toString() === principal ? 'My Equity' : (backer.name && backer.name !== 'Unknown Dealer' ? backer.name : 'Anonymous Backer')}
+                      </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         isSeriesA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'
                       }`}>
@@ -357,7 +357,7 @@ function BackerPositions() {
         <div className="text-center py-8">
           <Landmark className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
           <p className="font-display text-sm mc-text-primary mb-1">No backers yet</p>
-          <p className="text-sm mc-text-dim">Deposit house money above to become the first Series A backer.</p>
+          <p className="text-sm mc-text-dim">Fund the project above to become the first Series A backer.</p>
         </div>
       )}
 

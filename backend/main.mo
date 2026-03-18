@@ -805,12 +805,12 @@ persistent actor {
             potBalance = platformStats.potBalance + amount;
         };
 
-        // Update dealer entitlement for the admin
-        let entitlement = amount * 1.12; // 12% bonus
+        // Update dealer entitlement for the admin (Series A: 24% bonus)
+        let entitlement = amount * 1.24;
 
         // Get the admin's name from their profile
         let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Unknown Dealer" };
+            case (null) { "Anonymous Backer" };
             case (?profile) { profile.name };
         };
 
@@ -982,11 +982,11 @@ persistent actor {
             Debug.trap("Amount cannot have more than 8 decimal places");
         };
 
-        let entitlement = amount * 1.12; // 12% bonus
+        let entitlement = amount * 1.24; // Series A: 24% bonus
 
         // Get the user's name from their profile
         let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Unknown Dealer" };
+            case (null) { "Anonymous Backer" };
             case (?profile) { profile.name };
         };
 
@@ -1751,11 +1751,11 @@ persistent actor {
             Debug.trap("Amount cannot have more than 8 decimal places");
         };
 
-        let entitlement = underwaterAmount * 1.12; // 12% bonus on underwater amount
+        let entitlement = underwaterAmount * 1.16; // Series B: 16% bonus on underwater amount
 
         // Get the user's name from their profile
         let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Unknown Dealer" };
+            case (null) { "Anonymous Backer" };
             case (?profile) { profile.name };
         };
 
