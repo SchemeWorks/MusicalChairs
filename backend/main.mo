@@ -46,7 +46,7 @@ persistent actor {
     };
 
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
-    transient var userProfiles = principalMap.empty<UserProfile>();
+    var userProfiles = principalMap.empty<UserProfile>();
 
     public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
         principalMap.get(userProfiles, caller);
@@ -127,39 +127,39 @@ persistent actor {
     transient let principalMapNat = OrderedMap.Make<Principal>(Principal.compare);
     transient let intMap = OrderedMap.Make<Int>(Int.compare);
 
-    transient var gameRecords = natMap.empty<GameRecord>();
-    transient var referralRecords = principalMapNat.empty<ReferralRecord>();
-    transient var platformStats : PlatformStats = {
+    var gameRecords = natMap.empty<GameRecord>();
+    var referralRecords = principalMapNat.empty<ReferralRecord>();
+    var platformStats : PlatformStats = {
         totalDeposits = 0.0;
         totalWithdrawals = 0.0;
         activeGames = 0;
         potBalance = 0.0;
         daysActive = 0;
     };
-    transient var gameResetHistory = intMap.empty<GameResetRecord>();
-    transient var nextGameId = 0;
+    var gameResetHistory = intMap.empty<GameResetRecord>();
+    var nextGameId = 0;
 
     // Deposit Rate Limiting
-    transient var depositTimestamps = principalMapNat.empty<List.List<Int>>();
+    var depositTimestamps = principalMapNat.empty<List.List<Int>>();
 
     // Dealer Repayment Tracking
-    transient var dealerRepayments = principalMapNat.empty<Float>();
+    var dealerRepayments = principalMapNat.empty<Float>();
 
     // Dealer Positions
-    transient var dealerPositions = principalMapNat.empty<DealerPosition>();
+    var dealerPositions = principalMapNat.empty<DealerPosition>();
 
     // Ponzi Points Tracking
-    transient var ponziPoints = principalMapNat.empty<Float>();
+    var ponziPoints = principalMapNat.empty<Float>();
 
     // Ponzi Points Burned Tracking
-    transient var ponziPointsBurned = principalMapNat.empty<Float>();
+    var ponziPointsBurned = principalMapNat.empty<Float>();
 
     // ========================================================================
     // Musical Chairs Wallet System (Real ICP Integration)
     // ========================================================================
     
     // User wallet balances (in e8s - 1 ICP = 100_000_000 e8s)
-    transient var walletBalances = principalMapNat.empty<Nat>();
+    var walletBalances = principalMapNat.empty<Nat>();
     
     // Wallet transaction history
     public type WalletTransaction = {
@@ -171,11 +171,11 @@ persistent actor {
         ledgerBlockIndex : ?Nat;  // Block index on ICP ledger (if applicable)
         description : Text;
     };
-    transient var walletTransactions = natMap.empty<WalletTransaction>();
-    transient var nextWalletTxId = 0;
+    var walletTransactions = natMap.empty<WalletTransaction>();
+    var nextWalletTxId = 0;
     
     // Test mode flag - when true, gives users 500 fake ICP for testing
-    transient var testMode : Bool = true;
+    var testMode : Bool = true;
     
     // This canister's ID (set during init or known from dfx.json)
     // For local: uxrrr-q7777-77774-qaaaq-cai
@@ -183,7 +183,7 @@ persistent actor {
     stable var canisterPrincipal : ?Principal = null;
     
     // ICP Ledger actor reference (mainnet)
-    let icpLedger : Ledger.LedgerActor = actor(Ledger.ICP_LEDGER_CANISTER_ID);
+    transient let icpLedger : Ledger.LedgerActor = actor(Ledger.ICP_LEDGER_CANISTER_ID);
     
     // Set this canister's principal (called once by admin after deployment)
     public shared ({ caller }) func setCanisterPrincipal(p : Principal) : async () {
@@ -212,11 +212,11 @@ persistent actor {
         description : Text;
     };
 
-    transient var houseLedger = natMap.empty<HouseLedgerRecord>();
-    transient var nextHouseLedgerId = 0;
+    var houseLedger = natMap.empty<HouseLedgerRecord>();
+    var nextHouseLedgerId = 0;
 
     // Authorized shenanigans canister principal
-    transient var shenanigansPrincipal : ?Principal = null;
+    var shenanigansPrincipal : ?Principal = null;
 
     // ========================================================================
     // Musical Chairs Wallet API

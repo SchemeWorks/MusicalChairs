@@ -88,16 +88,16 @@ persistent actor {
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
 
-    transient var shenanigans = natMap.empty<ShenaniganRecord>();
-    transient var shenaniganStats = principalMap.empty<ShenaniganStats>();
-    transient var nextShenaniganId = 0;
-    transient var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
+    var shenanigans = natMap.empty<ShenaniganRecord>();
+    var shenaniganStats = principalMap.empty<ShenaniganStats>();
+    var nextShenaniganId = 0;
+    var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
 
     // Admin state
-    transient var adminPrincipal : ?Principal = null;
+    var adminPrincipal : ?Principal = null;
 
     // Backend canister principal (set by admin after deployment)
-    transient var backendPrincipal : ?Principal = null;
+    var backendPrincipal : ?Principal = null;
 
     // ================================================================
     // Initialization
