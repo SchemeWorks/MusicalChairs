@@ -38,16 +38,15 @@ export function useGetCallerUserProfile() {
 
 export function useSaveUserProfile() {
   const { actor } = useActor();
-  const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async (profile: UserProfile) => {
       if (!actor) throw new Error('Actor not available');
       return actor.saveCallerUserProfile(profile);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
-    },
+    // No onSuccess invalidation — ProfileSetup handles the delayed
+    // invalidation after 5s so the celebration screen has time to
+    // display before App.tsx swaps to Dashboard.
   });
 }
 
