@@ -15,6 +15,7 @@ import Option "mo:base/Option";
 
 import AccessControl "authorization/access-control";
 import Ledger "ledger";
+import Icrc21 "icrc21";
 
 persistent actor {
     // Access Control State
@@ -1043,7 +1044,8 @@ persistent actor {
     public query func getPlatformStats() : async PlatformStats {
         {
             platformStats with
-            daysActive = Int.abs((Time.now() - 0) / 86400000000000);
+            // March 16 2026 00:00 PST — first mainnet deployment
+            daysActive = Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
         };
     };
 
@@ -1540,5 +1542,20 @@ persistent actor {
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,
     // saveAllShenaniganConfigs — moved to shenanigans canister
+
+    // ICRC-21 Consent Messages
+    public shared func icrc21_canister_call_consent_message(request : Icrc21.ConsentMessageRequest) : async Icrc21.ConsentMessageResponse {
+        Icrc21.consentMessage(request);
+    };
+
+    // ICRC-28 Trusted Origins
+    public query func icrc28_trusted_origins() : async Icrc21.TrustedOriginsResponse {
+        Icrc21.trustedOrigins();
+    };
+
+    // ICRC-10 Supported Standards
+    public query func icrc10_supported_standards() : async [Icrc21.StandardRecord] {
+        Icrc21.supportedStandards();
+    };
 };
 
