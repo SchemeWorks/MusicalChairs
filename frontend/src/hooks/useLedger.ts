@@ -37,7 +37,7 @@ export const ICP_TRANSFER_FEE = 10_000n; // 0.0001 ICP
 // IDL Factory for ICRC-1/ICRC-2 Ledger
 // ============================================================================
 
-const icrcLedgerIDL = ({ IDL }: { IDL: any }) => {
+export const icrcLedgerIDL = ({ IDL }: { IDL: any }) => {
   const Subaccount = IDL.Vec(IDL.Nat8);
   const Account = IDL.Record({
     owner: IDL.Principal,
