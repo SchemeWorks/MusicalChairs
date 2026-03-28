@@ -120,7 +120,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   }, []);
   const closeWallet = useCallback(() => setIsOpen(false), []);
 
-  const isConnected = !!identity && walletType !== 'none';
+  const isConnected = walletType !== 'none' && (!!identity || walletType === 'oisy');
 
   // ============================================================================
   // Initialization - Check for existing sessions
@@ -149,8 +149,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
       if (savedWalletType === 'plug') {
         // Try to restore Plug connection
         await restorePlugConnection();
-      } else if (savedWalletType === 'internet-identity' || savedWalletType === 'oisy') {
-        // Restore II/OISY using the already-created client
+      } else if (savedWalletType === 'internet-identity') {
+        // Restore II using the already-created client
         const isAuthenticated = await client.isAuthenticated();
         if (isAuthenticated) {
           const ident = client.getIdentity();
@@ -292,35 +292,24 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   const connectOisy = async () => {
-    // OISY uses the signer standards (ICRC-25, ICRC-27, etc.)
-    // Import dynamically to avoid bundling issues
-    const { IcpWallet } = await import('@dfinity/oisy-wallet-signer/icp-wallet');
-    
-    try {
-      // Connect to OISY wallet signer
-      const wallet = await IcpWallet.connect({
-        url: 'https://oisy.com/sign',
-      });
+    // Use @slide-computer/signer v4 to get Oisy accounts
+    const { oisySigner } = await import('../lib/oisySigner');
 
-      // IcrcAccounts is an array of { owner: string; subaccount?: string }
-      const accounts = await wallet.accounts();
-      console.log('OISY accounts response:', accounts);
+    try {
+      const accounts = await oisySigner.accounts();
 
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts returned from OISY');
       }
 
       const account = accounts[0];
-      // ICRC-27 accounts: owner is a textual principal (IcrcAccountSchema)
-      const principalText = account.owner;
+      // @slide-computer/signer v4 returns owner as a Principal object
+      const principalText = account.owner.toText();
 
       console.log('OISY principal:', principalText);
 
-      // Store the wallet reference for later use
-      (window as any).__oisyWallet = wallet;
-
       setPrincipal(principalText);
-      setIdentity(new AnonymousIdentity()); // OISY handles signing via signer protocol
+      // Don't set identity — Oisy path uses SignerAgent in useActor, not an Identity
       setWalletType('oisy');
     } catch (error) {
       console.error('OISY connection error:', error);
@@ -336,6 +325,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
     try {
       if (walletType === 'plug' && window.ic?.plug) {
         await window.ic.plug.disconnect();
+      } else if (walletType === 'oisy') {
+        const { clearOisySigner } = await import('../lib/oisySigner');
+        clearOisySigner();
       } else if (authClient) {
         await authClient.logout();
       }

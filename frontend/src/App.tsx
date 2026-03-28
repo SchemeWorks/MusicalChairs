@@ -281,7 +281,7 @@ function LetterReveal({
 }
 
 export default function App() {
-  const { identity, principal, isInitializing } = useInternetIdentity();
+  const { identity, principal, isInitializing, isAuthenticated } = useInternetIdentity();
   const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
@@ -335,7 +335,8 @@ export default function App() {
     shenanigans: canCastShenanigan ? 'purple' : null,
   };
 
-  const isAuthenticated = !!identity;
+  // isAuthenticated comes from useInternetIdentity (wraps useWallet.isConnected)
+  // which handles Oisy (no identity, but walletType === 'oisy')
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
   const isOnLandingHero = !identity && !showDocsPage && !showProfileSetup && !showAdminPanel && !profileLoading;
