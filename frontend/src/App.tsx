@@ -15,6 +15,7 @@ import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign } from 'lucide-react';
 import DocsPage from './components/DocsPage';
+import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 
@@ -317,6 +318,13 @@ export default function App() {
       localStorage.setItem('mc_last_seen_referral_earnings', String(referralStats.totalEarnings || 0));
     }
   }, [activeTab, referralStats]);
+
+  // Footer "Docs" link — mirrors the header Docs button
+  useEffect(() => {
+    const handler = (_e: Event) => setShowDocsPage(true);
+    window.addEventListener('mc:open-docs', handler);
+    return () => window.removeEventListener('mc:open-docs', handler);
+  }, []);
 
   const badges: Record<TabType, 'red' | 'purple' | 'gold' | null> = {
     profitCenter: hasWithdrawableEarnings ? 'red' : null,
@@ -652,6 +660,7 @@ export default function App() {
               </ErrorBoundary>
             )}
           </ErrorBoundary>
+          <Footer />
         </main>
 
         {/* Wallet Dropdown */}
