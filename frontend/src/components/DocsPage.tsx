@@ -436,11 +436,11 @@ export default function DocsPage({ onBack }: DocsPageProps) {
 
   return (
     <div className="max-w-2xl mx-auto w-full px-4 py-8 md:py-12">
-      {/* Floating close — always visible while scrolling */}
+      {/* Floating close — always visible while scrolling, below header + status bar */}
       <button
         onClick={onBack}
         aria-label="Close docs"
-        className="fixed top-20 right-4 z-50 mc-bg-elev-2 hover:mc-bg-elev-3 mc-border-subtle border rounded-full p-2 shadow-lg transition-colors"
+        className="fixed top-32 right-4 z-50 mc-bg-elev-2 hover:mc-bg-elev-3 mc-border-subtle border rounded-full p-2 shadow-lg transition-colors"
       >
         <X className="h-4 w-4 mc-text-primary" />
       </button>

@@ -337,6 +337,15 @@ export default function App() {
     return () => window.removeEventListener('mc:open-docs', handler);
   }, []);
 
+  // Navigating to a tab always dismisses the docs page.
+  const goToTab = (tab: TabType) => {
+    setActiveTab(tab);
+    if (showDocsPage) {
+      history.replaceState(null, '', window.location.pathname);
+      setShowDocsPage(false);
+    }
+  };
+
   const badges: Record<TabType, 'red' | 'purple' | 'gold' | null> = {
     profitCenter: hasWithdrawableEarnings ? 'red' : null,
     invest: null,
@@ -395,7 +404,7 @@ export default function App() {
                       <button
                         key={item.id}
                         data-tour-id={`tab-${item.id}`}
-                        onClick={() => setActiveTab(item.id)}
+                        onClick={() => goToTab(item.id)}
                         className={`mc-header-tab ${isActive ? (item.id === 'shenanigans' ? 'active-green' : 'active') : ''}`}
                       >
                         <span className={`relative ${!isActive && item.glowClass ? item.glowClass : ''}`}>
@@ -463,7 +472,7 @@ export default function App() {
         </header>
 
         {/* Status Bar — persistent game stats below header */}
-        {showDashboard && <GameStatusBar onNavigate={setActiveTab} />}
+        {showDashboard && <GameStatusBar onNavigate={goToTab} />}
 
         {/* Main Content */}
         <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
@@ -674,7 +683,7 @@ export default function App() {
                   </button>
                 </div>
               }>
-                <Dashboard activeTab={activeTab} onTabChange={setActiveTab} badges={badges} />
+                <Dashboard activeTab={activeTab} onTabChange={goToTab} badges={badges} />
               </ErrorBoundary>
             )}
           </ErrorBoundary>
