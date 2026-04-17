@@ -94,10 +94,11 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
   useEffect(() => {
     if (depositAmount > 0 && selectedPlan && selectedMode) {
+      const net = depositAmount * 0.97;
       const days = getPlanDays(selectedPlan);
       const roi = selectedMode === 'simple'
-        ? calculateSimpleROI(depositAmount, selectedPlan, days)
-        : calculateCompoundingROI(depositAmount, selectedPlan, days);
+        ? calculateSimpleROI(net, selectedPlan, days)
+        : calculateCompoundingROI(net, selectedPlan, days);
       setRoiData({ ...roi, ponziPoints: calculatePonziPoints(depositAmount, selectedPlan, selectedMode) });
       const key = `${depositAmount}-${selectedPlan}-${selectedMode}`;
       if (key !== prevRoiKey.current) {
@@ -117,9 +118,26 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     roiData.roiPercent < 200 ? 'mc-text-purple mc-glow-purple' :
     'mc-text-gold mc-glow-gold';
 
+  const netDeposit = depositAmount * 0.97;
+
   const dailyEarnings = depositAmount > 0 && selectedPlan && selectedMode
-    ? depositAmount * getDailyRate(selectedPlan)
+    ? netDeposit * getDailyRate(selectedPlan)
     : 0;
+
+  // Toll tier schedule per plan
+  const tollTiers: Record<string, Array<{ daysFrom: number; daysTo: number | null; tollPct: number }>> = {
+    '21-day-simple': [
+      { daysFrom: 0, daysTo: 3, tollPct: 7 },
+      { daysFrom: 3, daysTo: 10, tollPct: 5 },
+      { daysFrom: 10, daysTo: null, tollPct: 3 },
+    ],
+    '15-day-compounding': [
+      { daysFrom: 0, daysTo: null, tollPct: 13 },
+    ],
+    '30-day-compounding': [
+      { daysFrom: 0, daysTo: null, tollPct: 13 },
+    ],
+  };
 
   // Phase transitions
   const advancePhase = (nextPhase: Phase) => {
@@ -430,11 +448,36 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                       </div>
                     )}
 
-                    <div className="mc-status-blue p-3 mt-3 text-xs space-y-1">
-                      <p>3% Entry Skim on every deposit</p>
-                      <p>Half of skim + tolls seed the next round, half repay our backers</p>
-                      {selectedMode === 'simple' && <p>Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
+                    <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-500/10 mt-3 text-xs space-y-1">
+                      <p>
+                        <span className="font-semibold text-amber-300">3% entry skim</span>
+                        <span className="mc-text-muted"> goes to the pot. You deposit N, the house books N×0.97.</span>
+                      </p>
+                      <p className="mc-text-muted">Half of skim + tolls seed the next round, half repay our backers</p>
+                      {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
+
+                    {selectedPlan && tollTiers[selectedPlan] && (
+                      <details className="mt-3 text-xs mc-text-muted">
+                        <summary className="cursor-pointer hover:mc-text-primary">
+                          Exit toll schedule →
+                        </summary>
+                        <div className="mt-2 space-y-1 pl-3">
+                          {tollTiers[selectedPlan].map((tier) => (
+                            <div key={tier.daysFrom} className="flex justify-between">
+                              <span>
+                                {tier.daysTo === null
+                                  ? `Day ${tier.daysFrom}+`
+                                  : `Day ${tier.daysFrom}–${tier.daysTo}`}
+                              </span>
+                              <span className={tier.tollPct > 10 ? 'text-red-400' : tier.tollPct > 4 ? 'text-amber-400' : 'text-green-400'}>
+                                {tier.tollPct}% toll
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
 
                   {/* ROI Calculator */}
@@ -451,7 +494,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                               <div className={`text-xl font-bold mc-roi-pop ${roiColor}`}>{formatICP(animatedReturn)} ICP</div>
                               <div className={`text-xs opacity-70 ${roiColor}`}>
                                 {selectedMode === 'simple'
-                                  ? `${(roiData.totalReturn / depositAmount).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
+                                  ? `${(roiData.totalReturn / netDeposit).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
                                   : `${roiData.roiPercent.toFixed(1)}% ROI`}
                               </div>
                             </div>
@@ -463,12 +506,26 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                               </div>
                             </div>
                           </div>
-                          <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <TrendingUp className="h-3.5 w-3.5 mc-text-cyan" />
-                              <span className="text-xs mc-text-dim">Daily earnings</span>
+                          <div className="border-t border-white/10 pt-3 space-y-1.5">
+                            <div className="flex justify-between text-sm">
+                              <span className="mc-text-muted">Entry skim (3%)</span>
+                              <span className="mc-text-primary font-medium">
+                                -{formatICP(depositAmount * 0.03)} ICP
+                              </span>
                             </div>
-                            <span className="text-sm font-bold mc-text-cyan">{formatICP(dailyEarnings)} ICP/day</span>
+                            <div className="flex justify-between text-sm">
+                              <span className="mc-text-muted">Net deposit</span>
+                              <span className="mc-text-primary font-medium">
+                                {formatICP(netDeposit)} ICP
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between pt-1">
+                              <div className="flex items-center gap-1.5">
+                                <TrendingUp className="h-3.5 w-3.5 mc-text-cyan" />
+                                <span className="text-xs mc-text-dim">Daily earnings</span>
+                              </div>
+                              <span className="text-sm font-bold mc-text-cyan">{formatICP(dailyEarnings)} ICP/day</span>
+                            </div>
                           </div>
                         </div>
                       </div>
