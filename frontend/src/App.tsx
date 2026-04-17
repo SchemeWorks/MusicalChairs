@@ -683,7 +683,7 @@ export default function App() {
 
         {/* Toast */}
         <Toaster
-          position="top-center"
+          position="bottom-center"
           toastOptions={{
             style: {
               background: 'var(--mc-felt-raised)',
