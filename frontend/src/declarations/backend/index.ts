@@ -1,30 +1,31 @@
-export { idlFactory, init } from './backend.did.js';
-export * from './backend.did.d.ts';
+import type {
+  GamePlan as GamePlanT,
+  DealerType as DealerTypeT,
+} from './backend.did';
 
-// Re-export types for convenience (only types that exist in backend.did.d.ts)
+export { idlFactory, init } from './backend.did.js';
+
 export type {
   UserRole,
   UserProfile,
-  GamePlan,
   GameRecord,
   PlatformStats,
   GameResetRecord,
-  DealerType,
   DealerPosition,
   HouseLedgerRecord,
   WalletTransaction,
   _SERVICE,
-} from './backend.did.d.ts';
+} from './backend.did';
 
-// GamePlan enum values for frontend use
+export type GamePlan = GamePlanT;
 export const GamePlan = {
-  simple21Day: { 'simple21Day': null } as const,
-  compounding15Day: { 'compounding15Day': null } as const,
-  compounding30Day: { 'compounding30Day': null } as const,
+  simple21Day: { simple21Day: null } as GamePlanT,
+  compounding15Day: { compounding15Day: null } as GamePlanT,
+  compounding30Day: { compounding30Day: null } as GamePlanT,
 };
 
-// DealerType enum values for frontend use
+export type DealerType = DealerTypeT;
 export const DealerType = {
-  upstream: { 'upstream': null } as const,
-  downstream: { 'downstream': null } as const,
+  upstream: { upstream: null } as DealerTypeT,
+  downstream: { downstream: null } as DealerTypeT,
 };

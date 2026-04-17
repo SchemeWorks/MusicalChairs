@@ -160,6 +160,7 @@ function LetterReveal({
     const nonSpaceCount = els.filter(Boolean).length;
     els.forEach((el, i) => {
       if (!el) return;
+      const letterEl = el;
 
       const timer = window.setTimeout(() => {
         const startTime = performance.now();
@@ -177,14 +178,14 @@ function LetterReveal({
           // Fade in quickly
           const opacity = Math.min(1, tSec * 8);
 
-          el.style.opacity = String(opacity);
-          el.style.transform = `translateY(${y}px)`;
+          letterEl.style.opacity = String(opacity);
+          letterEl.style.transform = `translateY(${y}px)`;
 
           if (t < 1) {
             rafs.push(requestAnimationFrame(tick));
           } else {
-            el.style.opacity = '1';
-            el.style.transform = 'translateY(0px)';
+            letterEl.style.opacity = '1';
+            letterEl.style.transform = 'translateY(0px)';
             settled++;
             if (settled >= nonSpaceCount) dropDoneRef.current = true;
           }
@@ -215,6 +216,7 @@ function LetterReveal({
       const els = lettersRef.current;
       els.forEach((el, i) => {
         if (!el) return;
+        const letterEl = el;
         // Each letter does a quick mini-bounce: up then back
         const letterStart = performance.now() + i * rippleStagger;
         const rippleDuration = 400; // ms for one letter's bounce
@@ -225,11 +227,11 @@ function LetterReveal({
           const t = Math.min(elapsed / rippleDuration, 1);
           // Sine wave: up then back to 0
           const y = -rippleAmplitude * Math.sin(Math.PI * t);
-          el.style.transform = `translateY(${y}px)`;
+          letterEl.style.transform = `translateY(${y}px)`;
           if (t < 1) {
             rafs.push(requestAnimationFrame(rippleTick));
           } else {
-            el.style.transform = 'translateY(0px)';
+            letterEl.style.transform = 'translateY(0px)';
           }
         }
         rafs.push(requestAnimationFrame(rippleTick));

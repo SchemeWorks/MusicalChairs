@@ -20,15 +20,16 @@ function RippleText({ text, interval = 3000, amplitude = 4, stagger = 40 }: {
       const rafs: number[] = [];
       els.forEach((el, i) => {
         if (!el) return;
+        const letterEl = el;
         const letterStart = performance.now() + i * stagger;
         const dur = 400;
         function tick(now: number) {
           const elapsed = now - letterStart;
           if (elapsed < 0) { rafs.push(requestAnimationFrame(tick)); return; }
           const t = Math.min(elapsed / dur, 1);
-          el.style.transform = `translateY(${-amplitude * Math.sin(Math.PI * t)}px)`;
+          letterEl.style.transform = `translateY(${-amplitude * Math.sin(Math.PI * t)}px)`;
           if (t < 1) rafs.push(requestAnimationFrame(tick));
-          else el.style.transform = 'translateY(0px)';
+          else letterEl.style.transform = 'translateY(0px)';
         }
         rafs.push(requestAnimationFrame(tick));
       });
