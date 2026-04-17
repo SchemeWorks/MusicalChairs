@@ -149,23 +149,17 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     }, 200);
   };
 
-  // Auto-advance simple mode through Phase 2 after a short beat
-  useEffect(() => {
-    if (selectedMode === 'simple' && phase === 2 && !selectedPlan) {
-      const t = setTimeout(() => {
-        setSelectedPlan('21-day-simple');
-        advancePhase(3);
-      }, 600);
-      return () => clearTimeout(t);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedMode, phase, selectedPlan]);
-
   const handleSelectMode = (mode: 'simple' | 'compounding') => {
     setSelectedMode(mode);
-    setSelectedPlan('');
     setClickError('');
-    advancePhase(2);
+    if (mode === 'simple') {
+      // Simple mode has only one plan — skip Phase 2 and go straight to amount entry.
+      setSelectedPlan('21-day-simple');
+      advancePhase(3);
+    } else {
+      setSelectedPlan('');
+      advancePhase(2);
+    }
   };
 
   const handleSelectPlan = (planId: string) => {
@@ -347,33 +341,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           </div>
         )}
 
-        {/* ============ PHASE 2: Plan Selection ============ */}
-        {phase === 2 && selectedMode === 'simple' && (
-          <div className="max-w-2xl mx-auto">
-            <div
-              className="mc-card-select p-6 opacity-60 cursor-default select-none"
-              aria-disabled="true"
-            >
-              <Sprout className="h-10 w-10 mc-text-green mb-4 mx-auto" />
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <h4 className="font-display text-lg mc-text-green">Simple Plan</h4>
-                <span className="text-xs mc-text-muted border border-white/20 rounded px-2 py-0.5">Auto-selected</span>
-              </div>
-              <p className="font-accent text-xs mc-text-dim text-center italic mb-4">
-                Daily yield, exit anytime, pay the toll for the day you leave.
-              </p>
-              <ul className="text-xs mc-text-muted space-y-1.5">
-                <li>• 21 days · 11% daily returns</li>
-                <li>• Withdraw your earnings anytime</li>
-                <li>• Exit Toll: 7% / 5% / 3% based on timing</li>
-              </ul>
-              <p className="text-xs mc-text-muted italic mt-4 text-center">
-                Only one plan available for Simple mode.
-              </p>
-            </div>
-          </div>
-        )}
-
+        {/* ============ PHASE 2: Plan Selection (compounding only; simple skips this) ============ */}
         {phase === 2 && selectedMode === 'compounding' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
             {/* The Executive Package (15-day) */}
