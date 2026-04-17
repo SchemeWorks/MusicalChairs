@@ -924,15 +924,25 @@ persistent actor {
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let transferResult = await icpLedger.icrc2_transfer_from({
-            spender_subaccount = null;
-            from = { owner = caller; subaccount = null };
-            to = { owner = selfPrincipal; subaccount = null };
-            amount = amountE8s;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        });
+        // Wrap the ledger await in try/catch: if the inter-canister call
+        // throws (destination trap, transport failure, etc.) instead of
+        // returning #Err, the lock acquired above is already committed at the
+        // await and would otherwise stay held forever. Release it before
+        // re-trapping so the caller isn't permanently stuck.
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
         switch (transferResult) {
             case (#Err(err)) {
@@ -1050,15 +1060,22 @@ persistent actor {
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let transferResult = await icpLedger.icrc2_transfer_from({
-            spender_subaccount = null;
-            from = { owner = caller; subaccount = null };
-            to = { owner = selfPrincipal; subaccount = null };
-            amount = amountE8s;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        });
+        // See createGame for the rationale — wrap the ledger await so that an
+        // inter-canister exception doesn't strand the caller lock.
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
         switch (transferResult) {
             case (#Err(err)) {
