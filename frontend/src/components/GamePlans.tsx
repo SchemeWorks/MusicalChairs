@@ -4,6 +4,7 @@ import { useCountUp } from '../hooks/useCountUp';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
+import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 
@@ -126,19 +127,15 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     ? netDeposit * getDailyRate(selectedPlan)
     : 0;
 
-  // Toll tier schedule per plan
+  // Toll tier schedule per plan — derived from gameConstants to avoid drift
   const tollTiers: Record<string, Array<{ daysFrom: number; daysTo: number | null; tollPct: number }>> = {
     '21-day-simple': [
-      { daysFrom: 0, daysTo: 3, tollPct: 7 },
-      { daysFrom: 3, daysTo: 10, tollPct: 5 },
-      { daysFrom: 10, daysTo: null, tollPct: 3 },
+      { daysFrom: 0, daysTo: 3, tollPct: Math.round(EXIT_TOLL_EARLY * 100) },
+      { daysFrom: 3, daysTo: 10, tollPct: Math.round(EXIT_TOLL_MID * 100) },
+      { daysFrom: 10, daysTo: null, tollPct: Math.round(EXIT_TOLL_LATE * 100) },
     ],
-    '15-day-compounding': [
-      { daysFrom: 0, daysTo: null, tollPct: 13 },
-    ],
-    '30-day-compounding': [
-      { daysFrom: 0, daysTo: null, tollPct: 13 },
-    ],
+    '15-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
+    '30-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
   };
 
   // Phase transitions

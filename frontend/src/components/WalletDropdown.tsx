@@ -26,8 +26,11 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
 
   // When the wallet opens, jump to the requested panel
   useEffect(() => {
-    if (isOpen) setActiveTab(initialPanel);
-  }, [isOpen, initialPanel]);
+    if (isOpen) {
+      // Non-II wallets only support the 'send' panel — clamp to that for them
+      setActiveTab(isIIUser ? initialPanel : 'send');
+    }
+  }, [isOpen, initialPanel, isIIUser]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
   const [copied, setCopied] = useState(false);
