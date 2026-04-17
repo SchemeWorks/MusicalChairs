@@ -1,21 +1,19 @@
-// Re-export everything from backend declarations
-export * from './declarations/backend/index.ts';
-export {
-  idlFactory,
-  GamePlan,
-  DealerType
-} from './declarations/backend/index.ts';
+export { idlFactory, GamePlan, DealerType } from './declarations/backend';
+export type {
+  UserRole,
+  UserProfile,
+  GameRecord,
+  PlatformStats,
+  GameResetRecord,
+  DealerPosition,
+  HouseLedgerRecord,
+  WalletTransaction,
+  _SERVICE,
+} from './declarations/backend';
 
-export type { DealerPosition, WalletTransaction } from './declarations/backend/index.ts';
-
-// Re-export shenanigan types from shenanigans canister declarations
-export {
-  ShenaniganType,
-  ShenaniganOutcome,
-} from './declarations/shenanigans/index.ts';
-
+export { ShenaniganType, ShenaniganOutcome } from './declarations/shenanigans';
 export type {
   ShenaniganRecord,
   ShenaniganStats,
   ShenaniganConfig,
-} from './declarations/shenanigans/index.ts';
+} from './declarations/shenanigans';

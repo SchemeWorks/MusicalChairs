@@ -16,8 +16,7 @@ export default function PonziPointsDashboard() {
   }
 
   const totalPoints = ponziData?.totalPoints || 0;
-  const pointsEarned = ponziData?.pointsEarned || 0;
-  const pointsBurned = ponziData?.pointsBurned || 0;
+  const depositPoints = ponziData?.depositPoints || 0;
   const referralPoints = ponziData?.referralPoints || 0;
 
   return (
@@ -33,14 +32,10 @@ export default function PonziPointsDashboard() {
         </div>
 
         {/* Breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="mc-card mc-accent-green p-4 text-center">
             <div className="mc-label mb-1">Earned from Deposits</div>
-            <div className="text-xl font-bold mc-text-green">{pointsEarned.toLocaleString()}</div>
-          </div>
-          <div className="mc-card mc-accent-pink p-4 text-center">
-            <div className="mc-label mb-1">Burned on Shenanigans</div>
-            <div className="text-xl font-bold mc-text-pink">{pointsBurned.toLocaleString()}</div>
+            <div className="text-xl font-bold mc-text-green">{depositPoints.toLocaleString()}</div>
           </div>
           <div className="mc-card mc-accent-cyan p-4 text-center">
             <div className="mc-label mb-1">From Referrals</div>

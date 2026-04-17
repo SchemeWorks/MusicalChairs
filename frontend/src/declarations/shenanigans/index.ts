@@ -1,33 +1,35 @@
+import type {
+  ShenaniganType as ShenaniganTypeT,
+  ShenaniganOutcome as ShenaniganOutcomeT,
+} from './shenanigans.did';
+
 export { idlFactory, init } from './shenanigans.did.js';
-export * from './shenanigans.did.d.ts';
 
 export type {
-  ShenaniganType,
-  ShenaniganOutcome,
   ShenaniganRecord,
   ShenaniganStats,
   ShenaniganConfig,
   _SERVICE,
-} from './shenanigans.did.d.ts';
+} from './shenanigans.did';
 
-// ShenaniganType enum values for frontend use
+export type ShenaniganType = ShenaniganTypeT;
 export const ShenaniganType = {
-  moneyTrickster: { 'moneyTrickster': null } as const,
-  aoeSkim: { 'aoeSkim': null } as const,
-  renameSpell: { 'renameSpell': null } as const,
-  mintTaxSiphon: { 'mintTaxSiphon': null } as const,
-  downlineHeist: { 'downlineHeist': null } as const,
-  magicMirror: { 'magicMirror': null } as const,
-  ppBoosterAura: { 'ppBoosterAura': null } as const,
-  purseCutter: { 'purseCutter': null } as const,
-  whaleRebalance: { 'whaleRebalance': null } as const,
-  downlineBoost: { 'downlineBoost': null } as const,
-  goldenName: { 'goldenName': null } as const,
+  moneyTrickster: { moneyTrickster: null } as ShenaniganTypeT,
+  aoeSkim: { aoeSkim: null } as ShenaniganTypeT,
+  renameSpell: { renameSpell: null } as ShenaniganTypeT,
+  mintTaxSiphon: { mintTaxSiphon: null } as ShenaniganTypeT,
+  downlineHeist: { downlineHeist: null } as ShenaniganTypeT,
+  magicMirror: { magicMirror: null } as ShenaniganTypeT,
+  ppBoosterAura: { ppBoosterAura: null } as ShenaniganTypeT,
+  purseCutter: { purseCutter: null } as ShenaniganTypeT,
+  whaleRebalance: { whaleRebalance: null } as ShenaniganTypeT,
+  downlineBoost: { downlineBoost: null } as ShenaniganTypeT,
+  goldenName: { goldenName: null } as ShenaniganTypeT,
 };
 
-// ShenaniganOutcome enum values for frontend use
+export type ShenaniganOutcome = ShenaniganOutcomeT;
 export const ShenaniganOutcome = {
-  success: { 'success': null } as const,
-  fail: { 'fail': null } as const,
-  backfire: { 'backfire': null } as const,
+  success: { success: null } as ShenaniganOutcomeT,
+  fail: { fail: null } as ShenaniganOutcomeT,
+  backfire: { backfire: null } as ShenaniganOutcomeT,
 };

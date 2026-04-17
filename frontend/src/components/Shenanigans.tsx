@@ -73,13 +73,16 @@ type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
 
 const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
 const defenseTypes = [5, 6, 9]; // magicMirror, ppBoosterAura, downlineBoost
-const chaosTypes = [2, 10]; // renameSpell, goldenName
 
 function getShenaniganCategory(idx: number): FilterCategory {
   if (offenseTypes.includes(idx)) return 'offense';
   if (defenseTypes.includes(idx)) return 'defense';
   return 'chaos';
 }
+
+// Variant tags are objects like { success: null }; extract the single key.
+const variantKey = (v: unknown): string =>
+  v && typeof v === 'object' ? Object.keys(v as Record<string, unknown>)[0] ?? '' : '';
 
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
@@ -90,7 +93,7 @@ export default function Shenanigans() {
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: string } | null>(null);
+  const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
   const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
@@ -124,7 +127,7 @@ export default function Shenanigans() {
     return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
   }, []);
 
-  const handleCastClick = (type: ShenaniganType, cost: number, name: string, icon: string) => {
+  const handleCastClick = (type: ShenaniganType, cost: number, name: string, icon: React.ReactNode) => {
     if ((ponziData?.totalPoints || 0) < cost) {
       setOutcomeToast({
         name,
@@ -146,10 +149,10 @@ export default function Shenanigans() {
   const handleConfirmCast = async () => {
     if (!selectedShenanigan) return;
     setConfirmOpen(false);
-    setAnimatingTrick(selectedShenanigan.type);
+    setAnimatingTrick(variantKey(selectedShenanigan.type));
     try {
       const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: null });
-      const outcome = String(rawOutcome);
+      const outcome = variantKey(rawOutcome);
       setTimeout(() => {
         setOutcomeToast({
           name: selectedShenanigan.name,
@@ -175,7 +178,7 @@ export default function Shenanigans() {
     if (!recentShenanigans || recentShenanigans.length < 3) return null;
     const counts: Record<string, number> = {};
     for (const s of recentShenanigans) {
-      const key = String(s.shenaniganType);
+      const key = variantKey(s.shenaniganType);
       counts[key] = (counts[key] || 0) + 1;
     }
     const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
@@ -221,7 +224,8 @@ export default function Shenanigans() {
           {/* Shenanigan cards grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
             {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
-              const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trick.type;
+              const trickKey = variantKey(trick.type);
+              const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
               return (
                 <div
                   key={`shenanigan-${idx}`}
@@ -229,7 +233,7 @@ export default function Shenanigans() {
                   style={{ '--aura-color': trick.auraColor } as React.CSSProperties}
                 >
                   {/* Popular badge */}
-                  {mostPopularType !== null && String(trick.type) === mostPopularType && (
+                  {mostPopularType !== null && trickKey === mostPopularType && (
                     <span className="absolute -top-2 -right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold z-10">
                       🔥 Popular
                     </span>
@@ -275,7 +279,7 @@ export default function Shenanigans() {
                       isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                     }`}
                   >
-                    {animatingTrick === trick.type ? 'Casting...' : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
+                    {animatingTrick === trickKey ? 'Casting...' : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
                   </button>
                 </div>
               );
@@ -349,11 +353,16 @@ export default function Shenanigans() {
                       {availableShenanigans.find(a => a.type === s.shenaniganType)?.name || 'Unknown'}{' '}
                       {availableShenanigans.find(a => a.type === s.shenaniganType)?.icon}
                     </span>
-                    <span className={`font-bold ${
-                      s.outcome === 'success' ? 'mc-text-green' : s.outcome === 'fail' ? 'mc-text-danger' : 'mc-text-purple'
-                    }`}>
-                      {s.outcome.toUpperCase()}
-                    </span>
+                    {(() => {
+                      const outcomeKey = variantKey(s.outcome);
+                      return (
+                        <span className={`font-bold ${
+                          outcomeKey === 'success' ? 'mc-text-green' : outcomeKey === 'fail' ? 'mc-text-danger' : 'mc-text-purple'
+                        }`}>
+                          {outcomeKey.toUpperCase()}
+                        </span>
+                      );
+                    })()}
                   </div>
                 ))
               ) : (

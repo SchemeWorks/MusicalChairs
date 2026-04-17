@@ -11,7 +11,6 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
 
-const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
 const HOST = 'https://icp0.io';
 
 // User Profile Queries
@@ -20,11 +19,11 @@ export function useGetCallerUserProfile() {
 
   const query = useQuery<UserProfile | null>({
     queryKey: ['currentUserProfile'],
-    queryFn: async () => {
+    queryFn: async (): Promise<UserProfile | null> => {
       if (!actor) throw new Error('Actor not available');
       const result = await actor.getCallerUserProfile();
       // Convert Candid optional ([] | [UserProfile]) to UserProfile | null
-      return result.length > 0 ? result[0] : null;
+      return result.length > 0 ? result[0] ?? null : null;
     },
     enabled: !!actor && !actorFetching,
     retry: false,

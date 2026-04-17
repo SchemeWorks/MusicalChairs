@@ -288,24 +288,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
         url: 'https://oisy.com/sign',
       });
 
-      // Get accounts from OISY - returns { accounts: Account[] }
-      const response = await wallet.accounts();
-      console.log('OISY accounts response:', response);
-      
-      // The response structure is { accounts: [{ owner: Principal, subaccount?: Uint8Array }] }
-      const accounts = response?.accounts || response;
-      
+      // IcrcAccounts is an array of { owner: string; subaccount?: string }
+      const accounts = await wallet.accounts();
+      console.log('OISY accounts response:', accounts);
+
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts returned from OISY');
       }
 
       const account = accounts[0];
-      // owner is a Principal object
-      const principalText = typeof account.owner === 'string' 
-        ? account.owner 
-        : account.owner.toText 
-          ? account.owner.toText() 
-          : account.owner.toString();
+      // ICRC-27 accounts: owner is a textual principal (IcrcAccountSchema)
+      const principalText = account.owner;
 
       console.log('OISY principal:', principalText);
 
