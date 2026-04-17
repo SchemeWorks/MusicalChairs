@@ -108,6 +108,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
     }
     try {
       await payManagementMutation.mutateAsync(bucketE8s);
+      // Refresh external balance — the ICP just landed in the admin's wallet.
+      fetchExternalBalance();
     } catch (err: any) {
       setPayManagementError(err?.message || 'Pay Management failed');
     }
