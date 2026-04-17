@@ -451,7 +451,7 @@ export default function App() {
         </header>
 
         {/* Status Bar — persistent game stats below header */}
-        {showDashboard && <GameStatusBar />}
+        {showDashboard && <GameStatusBar onNavigate={setActiveTab} />}
 
         {/* Main Content */}
         <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
