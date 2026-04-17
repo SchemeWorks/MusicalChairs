@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useWallet, WalletPanel } from '../hooks/useWallet';
 import { useLedger, icpToE8s, formatIcpBalance, ICP_TRANSFER_FEE } from '../hooks/useLedger';
-import { useGetInternalWalletBalance, useSendFromInternalWallet, useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useDepositICP, useWithdrawICP } from '../hooks/useQueries';
+import { useGetInternalWalletBalance, useSendFromInternalWallet, useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useDepositICP, useWithdrawICP, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin } from '../hooks/useQueries';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import { Copy, Check, RefreshCw, ArrowDown, ArrowUp, Loader2, X, Pencil, CreditCard } from 'lucide-react';
+import { Copy, Check, RefreshCw, ArrowDown, ArrowUp, Loader2, X, Pencil, CreditCard, Briefcase } from 'lucide-react';
 
 interface WalletDropdownProps {
   isOpen: boolean;
@@ -90,6 +90,30 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const withdrawMutation = useWithdrawICP();
   const sendMutation = useSendFromInternalWallet();
   const saveProfileMutation = useSaveUserProfile();
+
+  // Cover Charge — admin only. Hooks below are no-ops unless the connected
+  // principal matches COVER_CHARGE_RECIPIENT (backend enforces independently).
+  const isAdmin = isCoverChargeAdmin(principal);
+  const { data: coverChargeData, isLoading: coverChargeLoading } = useGetCoverChargeBalance();
+  const payManagementMutation = useWithdrawCoverCharges();
+  const [payManagementError, setPayManagementError] = useState('');
+
+  const handlePayManagement = async () => {
+    setPayManagementError('');
+    const bucketE8s = coverChargeData?.e8s ?? 0n;
+    // Transfer fee is absorbed by the bucket; need more than the fee to proceed.
+    if (bucketE8s <= ICP_TRANSFER_FEE) {
+      setPayManagementError('Balance must exceed the ledger transfer fee');
+      return;
+    }
+    try {
+      await payManagementMutation.mutateAsync(bucketE8s);
+      // Refresh external balance — the ICP just landed in the admin's wallet.
+      fetchExternalBalance();
+    } catch (err: any) {
+      setPayManagementError(err?.message || 'Pay Management failed');
+    }
+  };
 
   const principalId = principal || '';
   const walletBalance = balanceData?.internalBalance || 0;
@@ -243,6 +267,45 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             <button onClick={fetchExternalBalance} className="mc-text-muted hover:mc-text-primary p-2"><RefreshCw className="h-3 w-3" /></button>
           </div>
         </div>
+
+        {/* Cover Charges — admin only. Displayed as a separate sub-account
+            so it never mingles with the player-facing ICP balance above. */}
+        {isAdmin && (
+          <div className="mc-card p-3 mb-2 border border-amber-500/30 bg-amber-500/5">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="mc-label flex items-center gap-1.5">
+                  <Briefcase className="h-3 w-3 mc-text-gold" />
+                  Cover Charges
+                </div>
+                <div className="text-lg font-bold mc-text-gold">
+                  {coverChargeLoading ? '...' : coverChargeData ? formatICP(coverChargeData.icp) : '—'} ICP
+                </div>
+              </div>
+              <button
+                onClick={handlePayManagement}
+                disabled={
+                  payManagementMutation.isPending ||
+                  !coverChargeData ||
+                  coverChargeData.e8s <= ICP_TRANSFER_FEE
+                }
+                className="mc-btn-primary px-3 py-1.5 text-xs flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {payManagementMutation.isPending ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Paying…</>
+                ) : (
+                  <>Pay Management</>
+                )}
+              </button>
+            </div>
+            {payManagementError && (
+              <div className="mc-status-red p-2 text-xs text-center mt-2">{payManagementError}</div>
+            )}
+            {payManagementMutation.isSuccess && !payManagementError && (
+              <div className="mc-status-green p-2 text-xs text-center mt-2">Management has been paid.</div>
+            )}
+          </div>
+        )}
 
         <div className="text-center text-xs">
           <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>

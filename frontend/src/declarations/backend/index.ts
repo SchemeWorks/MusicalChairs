@@ -14,6 +14,7 @@ export type {
   DealerPosition,
   HouseLedgerRecord,
   WalletTransaction,
+  CoverChargeEntry,
   ConsentInfo,
   ConsentMessage,
   ConsentMessageMetadata,

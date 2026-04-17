@@ -230,7 +230,35 @@ persistent actor {
     };
     var walletTransactions = natMap.empty<WalletTransaction>();
     var nextWalletTxId = 0;
-    
+
+    // ========================================================================
+    // Cover Charge — 2% skimmed from every deposit, routed to a dedicated
+    // admin bucket ("Pay Management"). Separate from walletBalances and
+    // walletTransactions so it doesn't meddle with player-visible accounting.
+    // Exit tolls continue to use the 50/50 pot/backer split in
+    // distributeExitTollToBackers — this change only touches the entry fee.
+    // ========================================================================
+
+    // Hardcoded admin principal — the only caller allowed to query or
+    // withdraw from coverChargeBalance.
+    transient let COVER_CHARGE_RECIPIENT : Principal =
+        Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe");
+    transient let COVER_CHARGE_RATE : Float = 0.02;
+
+    // Dedicated bucket — never mingled with walletBalances.
+    var coverChargeBalance : Nat = 0;
+
+    // Separate audit log — never mingled with walletTransactions.
+    public type CoverChargeEntry = {
+        id : Nat;
+        gameId : Nat;
+        player : Principal;
+        amount : Nat;  // in e8s
+        timestamp : Int;
+    };
+    var coverChargeTransactions = natMap.empty<CoverChargeEntry>();
+    var nextCoverChargeTxId : Nat = 0;
+
     // Test mode flag - when true, gives users 500 fake ICP for testing
     var testMode : Bool = false;
     
@@ -343,6 +371,107 @@ persistent actor {
             func(tx : WalletTransaction) : Bool { tx.user == caller }
         );
         List.toArray(userTxs);
+    };
+
+    // Record a cover charge entry (separate audit log — see the Cover Charge
+    // state block above).
+    func recordCoverChargeTransaction(gameId : Nat, player : Principal, amount : Nat) {
+        let entry : CoverChargeEntry = {
+            id = nextCoverChargeTxId;
+            gameId;
+            player;
+            amount;
+            timestamp = Time.now();
+        };
+        coverChargeTransactions := natMap.put(coverChargeTransactions, nextCoverChargeTxId, entry);
+        nextCoverChargeTxId += 1;
+    };
+
+    // ========================================================================
+    // Cover Charge — admin-only queries and withdrawal ("Pay Management")
+    // ========================================================================
+
+    // Current accumulated cover-charge balance (e8s). Admin only.
+    public query ({ caller }) func getCoverChargeBalance() : async Nat {
+        if (caller != COVER_CHARGE_RECIPIENT) {
+            Debug.trap("Unauthorized");
+        };
+        coverChargeBalance;
+    };
+
+    // Full cover-charge audit log. Admin only.
+    public query ({ caller }) func getCoverChargeTransactions() : async [CoverChargeEntry] {
+        if (caller != COVER_CHARGE_RECIPIENT) {
+            Debug.trap("Unauthorized");
+        };
+        Iter.toArray(natMap.vals(coverChargeTransactions));
+    };
+
+    // Pay Management — withdraw accumulated cover charges to the admin's
+    // external ICP wallet. Admin only. Follows the saga pattern used by
+    // withdrawICP: deduct first, refund on ledger failure. No minimum.
+    //
+    // `amount` is the number of e8s to deduct from the cover-charge bucket.
+    // The admin receives (amount - ICP_TRANSFER_FEE) e8s in their wallet;
+    // the fee is absorbed by the bucket itself. Callers must pass an amount
+    // greater than the transfer fee or the call rejects.
+    public shared ({ caller }) func withdrawCoverCharges(amount : Nat) : async { #Ok : Nat; #Err : Text } {
+        if (caller != COVER_CHARGE_RECIPIENT) {
+            return #Err("Unauthorized");
+        };
+        if (amount == 0) {
+            return #Err("Amount must be greater than zero");
+        };
+        if (amount <= Ledger.ICP_TRANSFER_FEE) {
+            return #Err("Amount must exceed the ledger transfer fee of " # Nat.toText(Ledger.ICP_TRANSFER_FEE) # " e8s");
+        };
+        if (amount > coverChargeBalance) {
+            return #Err("Insufficient cover-charge balance. Have " # Nat.toText(coverChargeBalance) # " e8s, requested " # Nat.toText(amount) # " e8s");
+        };
+
+        acquireCallerLock(caller);
+
+        // Deduct from bucket BEFORE the transfer (saga pattern).
+        coverChargeBalance -= amount;
+
+        try {
+            let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+            let transferResult = await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = caller; subaccount = null };
+                amount = transferAmount;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+
+            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
+                case (#Ok(blockIndex)) { #Ok(blockIndex) };
+                case (#Err(err)) {
+                    // Compensate: refund the bucket since the transfer failed.
+                    coverChargeBalance += amount;
+                    let errMsg = switch (err) {
+                        case (#BadFee(_)) { "Bad fee" };
+                        case (#BadBurn(_)) { "Bad burn" };
+                        case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                        case (#TooOld) { "Transaction too old" };
+                        case (#CreatedInFuture(_)) { "Transaction created in future" };
+                        case (#Duplicate(_)) { "Duplicate transaction" };
+                        case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                        case (#GenericError(e)) { "Error: " # e.message };
+                    };
+                    #Err(errMsg);
+                };
+            };
+            releaseCallerLock(caller);
+            result;
+        } catch (e) {
+            // Compensate on catch (network failure — transfer status unknown,
+            // conservative refund matches withdrawICP's behaviour).
+            coverChargeBalance += amount;
+            releaseCallerLock(caller);
+            #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
     };
 
     // ========================================================================
@@ -838,15 +967,23 @@ persistent actor {
             };
         };
 
-        // House Maintenance Fee: 3% skimmed from every deposit
-        // Split 50/50: half seeds the pot, half goes to dealer repayment (35/25/40 formula)
-        let houseFee = amount * 0.03;
-        let potSeedFromFee = distributeFeeToHouses(houseFee);
-        // Pot gets: deposit minus fee, plus the portion of fee that seeds the pot
-        let netAmount = amount - houseFee + potSeedFromFee;
+        // Cover Charge: 2% skimmed from every deposit, routed 100% to the
+        // admin bucket (see coverChargeBalance). Exit tolls still use the
+        // 50/50 pot/backer split via distributeExitTollToBackers — only the entry
+        // fee changed. Pot receives 98% of the gross deposit.
+        let coverCharge = amount * COVER_CHARGE_RATE;
+        let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
+        coverChargeBalance += coverChargeE8s;
+        let netAmount = amount - coverCharge;
 
         let gameId = nextGameId;
         nextGameId += 1;
+
+        // Log the cover charge (separate audit trail from walletTransactions).
+        // Skip zero-amount entries — only possible with sub-satoshi deposits.
+        if (coverChargeE8s > 0) {
+            recordCoverChargeTransaction(gameId, caller, coverChargeE8s);
+        };
 
         // Game record tracks the full deposit amount (for earnings calculation)
         let newGame : GameRecord = {
@@ -1072,84 +1209,91 @@ persistent actor {
     // Fee Distribution System
     // ========================================================================
 
-    // Credit dealer repayment balance (internal bookkeeping, not yet in wallet)
-    func creditDealerRepayment(dealer : Principal, amount : Float) {
-        let current = switch (principalMapNat.get(dealerRepayments, dealer)) {
+    // Credit a backer's repayment balance (internal bookkeeping, not yet in wallet).
+    // Note: the underlying state map (dealerRepayments) and Candid type
+    // (DealerPosition) retain their original names — renaming those is a
+    // stable-storage migration tracked separately. This is a pure internal rename.
+    func creditBackerRepayment(backer : Principal, amount : Float) {
+        let current = switch (principalMapNat.get(dealerRepayments, backer)) {
             case (null) { 0.0 };
             case (?existing) { existing };
         };
-        dealerRepayments := principalMapNat.put(dealerRepayments, dealer, current + amount);
+        dealerRepayments := principalMapNat.put(dealerRepayments, backer, current + amount);
     };
 
-    // Distribute fees using the 35/25/40 formula to dealer repayment balances.
-    // `feeAmount` is the FULL fee — this function handles the 50/50 pot/dealer split.
-    // Returns the amount that stays in the pot (for caller to account for).
-    func distributeFeeToHouses(feeAmount : Float) : Float {
-        let potSeedAmount = feeAmount * 0.5;      // 50% seeds the next round (stays in pot)
-        let dealerRepaymentAmount = feeAmount * 0.5; // 50% to dealer repayment
+    // Distribute an exit toll using the 35/25/40 formula to backer repayment
+    // balances. `tollAmount` is the FULL toll — this function handles the
+    // 50/50 pot/backer split. Returns the portion that stays in the pot.
+    //
+    // This is called ONLY from exit toll paths after the cover-charge refactor.
+    // The entry fee (cover charge) routes 100% to Management and never enters
+    // this function.
+    func distributeExitTollToBackers(tollAmount : Float) : Float {
+        let potSeedAmount = tollAmount * 0.5;           // 50% seeds the next round
+        let backerRepaymentAmount = tollAmount * 0.5;   // 50% to backer repayment
 
-        // Get all dealers
-        let allDealers = Iter.toArray(principalMapNat.vals(dealerPositions));
-        if (allDealers.size() == 0) {
-            // No dealers — everything stays in pot
-            return feeAmount;
+        // Get all backers
+        let allBackers = Iter.toArray(principalMapNat.vals(dealerPositions));
+        if (allBackers.size() == 0) {
+            // No backers — everything stays in pot
+            return tollAmount;
         };
 
-        let upstreamDealers = List.toArray(
+        let seriesABackers = List.toArray(
             List.filter(
-                List.fromArray(allDealers),
+                List.fromArray(allBackers),
                 func(dealer : DealerPosition) : Bool {
                     dealer.dealerType == #upstream;
                 },
             )
         );
 
-        // Find oldest upstream dealer
-        var oldestDealer : ?DealerPosition = null;
+        // Find oldest Series A (upstream) backer
+        var oldestBacker : ?DealerPosition = null;
         var oldestTime : Int = 0;
-        for (dealer in upstreamDealers.vals()) {
+        for (dealer in seriesABackers.vals()) {
             switch (dealer.firstDepositDate) {
                 case (null) {};
                 case (?date) {
-                    if (oldestDealer == null or date < oldestTime) {
-                        oldestDealer := ?dealer;
+                    if (oldestBacker == null or date < oldestTime) {
+                        oldestBacker := ?dealer;
                         oldestTime := date;
                     };
                 };
             };
         };
 
-        // 35% to oldest upstream dealer
-        switch (oldestDealer) {
+        // 35% to oldest Series A backer
+        switch (oldestBacker) {
             case (null) {};
             case (?dealer) {
-                creditDealerRepayment(dealer.owner, dealerRepaymentAmount * 0.35);
+                creditBackerRepayment(dealer.owner, backerRepaymentAmount * 0.35);
             };
         };
 
-        // 25% split among other upstream dealers
-        let otherUpstreamDealers = List.toArray(
+        // 25% split among other Series A backers
+        let otherSeriesABackers = List.toArray(
             List.filter(
-                List.fromArray(upstreamDealers),
+                List.fromArray(seriesABackers),
                 func(dealer : DealerPosition) : Bool {
-                    switch (oldestDealer) {
+                    switch (oldestBacker) {
                         case (null) { true };
                         case (?oldest) { dealer.owner != oldest.owner };
                     };
                 },
             )
         );
-        if (otherUpstreamDealers.size() > 0) {
-            let perDealer = dealerRepaymentAmount * 0.25 / Float.fromInt(otherUpstreamDealers.size());
-            for (dealer in otherUpstreamDealers.vals()) {
-                creditDealerRepayment(dealer.owner, perDealer);
+        if (otherSeriesABackers.size() > 0) {
+            let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesABackers.size());
+            for (dealer in otherSeriesABackers.vals()) {
+                creditBackerRepayment(dealer.owner, perBacker);
             };
         };
 
-        // 40% split among all dealers
-        let perDealer = dealerRepaymentAmount * 0.4 / Float.fromInt(allDealers.size());
-        for (dealer in allDealers.vals()) {
-            creditDealerRepayment(dealer.owner, perDealer);
+        // 40% split among all backers
+        let perBacker = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
+        for (dealer in allBackers.vals()) {
+            creditBackerRepayment(dealer.owner, perBacker);
         };
 
         potSeedAmount; // Return the portion that stays in pot
@@ -1211,7 +1355,7 @@ persistent actor {
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
 
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeFeeToHouses(exitToll);
+                let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Check solvency against what actually leaves the pot
                 // Pot loses: netEarnings (to player) + dealer portion of toll
@@ -1299,7 +1443,7 @@ persistent actor {
                 let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings
 
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeFeeToHouses(exitToll);
+                let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Pot loses: totalPayout (to player) + dealer portion of toll
                 let potDeduction = totalPayout + (exitToll - potSeedFromToll);
@@ -1846,15 +1990,17 @@ persistent actor {
         oldestDealer;
     };
 
-    // Distribute Fees to Dealers (admin only — for manual fee distribution)
-    // Uses the same distributeFeeToHouses formula as automatic fee distribution
+    // Manual backer-repayment distribution (admin only).
+    // Uses the same 50/50 pot/backer split as automatic exit-toll distribution.
+    // The public Candid name stays `distributeFees` for backward compatibility;
+    // internally it delegates to `distributeExitTollToBackers`.
     public shared ({ caller }) func distributeFees(totalFees : Float) : async () {
         requireAuthenticated(caller);
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
             Debug.trap("Unauthorized: Only admins can distribute fees");
         };
         validateAmount(totalFees);
-        ignore distributeFeeToHouses(totalFees);
+        ignore distributeExitTollToBackers(totalFees);
     };
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,

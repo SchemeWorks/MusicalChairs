@@ -100,6 +100,14 @@ type DealerPosition =
    owner: principal;
    startTime: int;
  };
+type CoverChargeEntry = 
+ record {
+   amount: nat;
+   gameId: nat;
+   id: nat;
+   player: principal;
+   timestamp: int;
+ };
 type ConsentMessageSpec = 
  record {
    device_spec: opt DeviceSpec;
@@ -160,6 +168,8 @@ service : {
   getCallerUserRole: () -> (UserRole) query;
   getCanisterICPBalance: () -> (nat);
   getCanisterPrincipal: () -> (opt principal) query;
+  getCoverChargeBalance: () -> (nat) query;
+  getCoverChargeTransactions: () -> (vec CoverChargeEntry) query;
   getDaysActive: () -> (nat) query;
   getDealerPositions: () -> (vec DealerPosition) query;
   getDealerRepaymentBalance: () -> (float64) query;
@@ -230,6 +240,10 @@ service : {
                                                      });
   transferPonziPoints: (from: principal, to: principal, amount: float64) ->
    ();
+  withdrawCoverCharges: (amount: nat) -> (variant {
+                                            Err: text;
+                                            Ok: nat;
+                                          });
   withdrawEarnings: (gameId: nat) -> (float64);
   withdrawICP: (amount: nat) -> (variant {
                                    Err: text;
