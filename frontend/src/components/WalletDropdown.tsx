@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useWallet } from '../hooks/useWallet';
+import { useWallet, WalletPanel } from '../hooks/useWallet';
 import { useLedger, icpToE8s, formatIcpBalance, ICP_TRANSFER_FEE } from '../hooks/useLedger';
 import { useGetInternalWalletBalance, useSendFromInternalWallet, useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useDepositICP, useWithdrawICP } from '../hooks/useQueries';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
@@ -12,17 +12,25 @@ interface WalletDropdownProps {
 }
 
 export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDropdownProps) {
-  const { principal, walletType, isConnected } = useWallet();
+  const { principal, walletType, isConnected, initialPanel } = useWallet();
   const ledger = useLedger();
 
   const isIIUser = walletType === 'internet-identity';
-  const [activeTab, setActiveTab] = useState<'withdraw' | 'send'>(isIIUser ? 'withdraw' : 'send');
+  const [activeTab, setActiveTab] = useState<WalletPanel>(isIIUser ? 'deposit' : 'send');
   const [depositAmount, setDepositAmount] = useState('');
 
   // Reset active tab when wallet type changes (e.g. logout/login with different wallet)
   useEffect(() => {
-    setActiveTab(isIIUser ? 'withdraw' : 'send');
+    setActiveTab(isIIUser ? 'deposit' : 'send');
   }, [isIIUser]);
+
+  // When the wallet opens, jump to the requested panel
+  useEffect(() => {
+    if (isOpen) {
+      // Non-II wallets only support the 'send' panel — clamp to that for them
+      setActiveTab(isIIUser ? initialPanel : 'send');
+    }
+  }, [isOpen, initialPanel, isIIUser]);
   const [withdrawAmount, setWithdrawAmount] = useState('');
   const [recipientPrincipal, setRecipientPrincipal] = useState('');
   const [copied, setCopied] = useState(false);
@@ -246,6 +254,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         {isIIUser ? (
           <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
             {([
+              { key: 'deposit' as const, label: 'Deposit' },
               { key: 'withdraw' as const, label: 'Cash Out' },
               { key: 'send' as const, label: 'Wire' },
             ]).map(tab => (
@@ -260,6 +269,31 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         ) : (
           <div className="mb-4">
             <div className="text-xs font-bold mc-text-muted uppercase tracking-wider">Wire ICP</div>
+          </div>
+        )}
+
+        {/* Deposit (II users only) */}
+        {isIIUser && activeTab === 'deposit' && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="mc-label">Amount</span>
+              <span className="text-xs mc-text-muted">Available: {externalBalanceLoading ? '...' : externalBalance !== null ? formatIcpBalance(externalBalance) : '—'} ICP</span>
+            </div>
+            <div className="flex gap-2">
+              <input type="number" value={depositAmount} onChange={handleAmountInput(setDepositAmount, true)}
+                placeholder="0.0" min="0.1" step="0.00000001" className={`mc-input flex-1 text-sm ${shakeInput ? 'mc-shake' : ''}`} />
+              <button onClick={handleMaxDeposit} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg">MAX</button>
+            </div>
+            <p className="text-xs mc-text-muted">Two steps: approve then deposit. 0.0001 ICP fee each.</p>
+            {inputError && <div className="text-xs mc-text-danger">{inputError}</div>}
+            <button onClick={handleDeposit} disabled={depVal <= 0 || !!inputError || isApproving || depositMutation.isPending}
+              className="w-full mc-btn-primary py-2 text-xs flex items-center justify-center gap-2">
+              {isApproving ? <><Loader2 className="h-3 w-3 animate-spin" /> Approving...</>
+                : depositMutation.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Depositing...</>
+                : approvalComplete ? <><ArrowDown className="h-3 w-3" /> Confirm Deposit</>
+                : <><ArrowDown className="h-3 w-3" /> Deposit ICP</>}
+            </button>
+            {depositMutation.isSuccess && <div className="mc-status-green p-2 text-xs text-center">Deposited. Now go lose it.</div>}
           </div>
         )}
 

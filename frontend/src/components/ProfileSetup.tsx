@@ -86,12 +86,12 @@ export default function ProfileSetup() {
     });
   };
 
-  // Let the celebration screen breathe — redirect after 5 seconds
+  // Let the celebration screen breathe — redirect after 3 seconds
   useEffect(() => {
     if (showCelebration) {
       const timer = setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
-      }, 5000);
+      }, 3000);
       return () => clearTimeout(timer);
     }
   }, [showCelebration, queryClient]);
@@ -148,12 +148,20 @@ export default function ProfileSetup() {
 
           <form onSubmit={handleSubmit} className="space-y-6 px-1">
             <div>
+              <label className="mc-text-primary text-sm font-medium" htmlFor="display-name">
+                Pick a display name
+              </label>
+              <p className="text-xs mc-text-muted mb-2">
+                Shown on leaderboards, the live feed, and when other players interact with you.
+                You can change it later from the wallet menu.
+              </p>
               <input
+                id="display-name"
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 className={`mc-input w-full text-center text-lg ${shakeInput ? 'mc-shake' : ''}`}
-                placeholder="What do they call you?"
+                placeholder="Your name here"
                 maxLength={MAX_NAME_LENGTH + 5} /* soft limit — let them type a bit over to see the counter turn red */
                 required
               />

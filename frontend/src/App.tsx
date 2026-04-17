@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
+import { useWallet } from './hooks/useWallet';
 import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
@@ -13,8 +14,9 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
 import DocsPage from './components/DocsPage';
+import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 
@@ -280,9 +282,9 @@ function LetterReveal({
 
 export default function App() {
   const { identity, principal, isInitializing } = useInternetIdentity();
+  const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
-  const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
@@ -318,6 +320,13 @@ export default function App() {
     }
   }, [activeTab, referralStats]);
 
+  // Footer "Docs" link — mirrors the header Docs button
+  useEffect(() => {
+    const handler = (_e: Event) => setShowDocsPage(true);
+    window.addEventListener('mc:open-docs', handler);
+    return () => window.removeEventListener('mc:open-docs', handler);
+  }, []);
+
   const badges: Record<TabType, 'red' | 'purple' | 'gold' | null> = {
     profitCenter: hasWithdrawableEarnings ? 'red' : null,
     invest: null,
@@ -329,6 +338,7 @@ export default function App() {
   const isAuthenticated = !!identity;
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
+  const isOnLandingHero = !identity && !showDocsPage && !showProfileSetup && !showAdminPanel && !profileLoading;
 
   if (isInitializing) {
     return (
@@ -374,6 +384,7 @@ export default function App() {
                     return (
                       <button
                         key={item.id}
+                        data-tour-id={`tab-${item.id}`}
                         onClick={() => setActiveTab(item.id)}
                         className={`mc-header-tab ${isActive ? (item.id === 'shenanigans' ? 'active-green' : 'active') : ''}`}
                       >
@@ -424,7 +435,7 @@ export default function App() {
                     {/* Wallet */}
                     <button
                       ref={walletButtonRef}
-                      onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)}
+                      onClick={() => isWalletDropdownOpen ? closeWallet() : openWallet()}
                       className="mc-btn-pill flex items-center gap-2"
                     >
                       <Wallet className="h-4 w-4" />
@@ -434,7 +445,7 @@ export default function App() {
                     <LogoutButton />
                   </>
                 ) : (
-                  <LoginButton compact />
+                  !isOnLandingHero && <LoginButton compact />
                 )}
               </div>
             </div>
@@ -442,7 +453,7 @@ export default function App() {
         </header>
 
         {/* Status Bar — persistent game stats below header */}
-        {showDashboard && <GameStatusBar />}
+        {showDashboard && <GameStatusBar onNavigate={setActiveTab} />}
 
         {/* Main Content */}
         <main className={`flex-1 ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
@@ -476,6 +487,11 @@ export default function App() {
                     <LetterReveal text="It's a Ponzi!" enabled={splashVisible} />
                   </div>
                   <div className="mb-10" />
+                </div>
+
+                {/* Scroll hint */}
+                <div className="mt-4 flex justify-center animate-bounce">
+                  <ChevronDown className="w-6 h-6 mc-text-muted opacity-60" aria-hidden />
                 </div>
 
                 {/* Three info cards — icon discs float above the top rail */}
@@ -652,13 +668,14 @@ export default function App() {
               </ErrorBoundary>
             )}
           </ErrorBoundary>
+          <Footer />
         </main>
 
         {/* Wallet Dropdown */}
         <ErrorBoundary fallback={null}>
           <WalletDropdown
             isOpen={isWalletDropdownOpen}
-            onClose={() => setIsWalletDropdownOpen(false)}
+            onClose={closeWallet}
             buttonRef={walletButtonRef}
           />
         </ErrorBoundary>
@@ -667,7 +684,7 @@ export default function App() {
 
         {/* Toast */}
         <Toaster
-          position="top-center"
+          position="bottom-center"
           toastOptions={{
             style: {
               background: 'var(--mc-felt-raised)',

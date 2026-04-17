@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType } from '../backend';
-import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy } from 'lucide-react';
+import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy, LayoutGrid, List } from 'lucide-react';
 import HallOfFame from './HallOfFame';
 
 const successFlavor = [
@@ -91,6 +91,7 @@ export default function Shenanigans() {
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const castShenanigan = useCastShenanigan();
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
+  const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
@@ -201,90 +202,144 @@ export default function Shenanigans() {
       <div className="mc-shenanigans-layout">
         {/* Left column: filter + cards + guardrails */}
         <div className="space-y-6">
-          {/* Filter tabs */}
-          <div className="flex rounded-lg bg-white/5 p-0.5">
-            {([
-              { key: 'all' as FilterCategory, label: 'All' },
-              { key: 'offense' as FilterCategory, label: 'Offense' },
-              { key: 'defense' as FilterCategory, label: 'Defense' },
-              { key: 'chaos' as FilterCategory, label: 'Chaos' },
-            ]).map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setFilterCategory(tab.key)}
-                className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
-                  filterCategory === tab.key ? 'bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Shenanigan cards grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
-            {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
-              const trickKey = variantKey(trick.type);
-              const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
-              return (
-                <div
-                  key={`shenanigan-${idx}`}
-                  className="mc-shenanigan-card"
-                  style={{ '--aura-color': trick.auraColor } as React.CSSProperties}
+          {/* Filter tabs + view toggle */}
+          <div className="flex items-center gap-2">
+            <div className="flex flex-1 rounded-lg bg-white/5 p-0.5">
+              {([
+                { key: 'all' as FilterCategory, label: 'All' },
+                { key: 'offense' as FilterCategory, label: 'Offense' },
+                { key: 'defense' as FilterCategory, label: 'Defense' },
+                { key: 'chaos' as FilterCategory, label: 'Chaos' },
+              ]).map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setFilterCategory(tab.key)}
+                  className={`flex-1 py-2 text-xs font-bold rounded-md transition-all ${
+                    filterCategory === tab.key ? 'bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30' : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                  }`}
                 >
-                  {/* Popular badge */}
-                  {mostPopularType !== null && trickKey === mostPopularType && (
-                    <span className="absolute -top-2 -right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold z-10">
-                      🔥 Popular
-                    </span>
-                  )}
-                  {/* Icon */}
-                  <div
-                    className="mc-shenanigan-icon"
-                    style={{ background: `linear-gradient(135deg, ${trick.auraColor}, transparent)` }}
-                  >
-                    {trick.icon}
-                  </div>
-
-                  {/* Title + cost */}
-                  <h3 className="font-display text-sm mc-text-primary text-center mb-1">{trick.name}</h3>
-                  <div className="text-center mb-3">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple">
-                      {trick.cost} PP
-                    </span>
-                  </div>
-
-                  {/* Description */}
-                  <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
-
-                  {/* Odds bar */}
-                  <div className="mb-4">
-                    <div className="flex h-2 rounded-full overflow-hidden mb-1">
-                      <div className="mc-bg-green" style={{ width: `${trick.odds.success}%` }} />
-                      <div className="mc-bg-danger" style={{ width: `${trick.odds.fail}%` }} />
-                      <div className="mc-bg-purple" style={{ width: `${trick.odds.backfire}%` }} />
-                    </div>
-                    <div className="flex justify-between text-xs mc-text-muted">
-                      <span className="mc-text-green">✓ {trick.odds.success}%</span>
-                      <span className="mc-text-danger">✗ {trick.odds.fail}%</span>
-                      <span className="mc-text-purple">↩ {trick.odds.backfire}%</span>
-                    </div>
-                  </div>
-
-                  {/* Cast button */}
-                  <button
-                    onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
-                    disabled={isDisabled}
-                    className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
-                      isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
-                    }`}
-                  >
-                    {animatingTrick === trickKey ? 'Casting...' : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
-                  </button>
-                </div>
-              );
-            })}
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                type="button"
+                onClick={() => setViewMode('cards')}
+                className={viewMode === 'cards' ? 'mc-bg-elev-2 rounded p-1' : 'p-1 opacity-60 hover:opacity-100'}
+                aria-label="Card view"
+              >
+                <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setViewMode('compact')}
+                className={viewMode === 'compact' ? 'mc-bg-elev-2 rounded p-1' : 'p-1 opacity-60 hover:opacity-100'}
+                aria-label="List view"
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
+          {/* Shenanigan cards grid / compact list */}
+          {viewMode === 'cards' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
+              {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
+                const trickKey = variantKey(trick.type);
+                const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
+                return (
+                  <div
+                    key={`shenanigan-${idx}`}
+                    className="mc-shenanigan-card"
+                    style={{ '--aura-color': trick.auraColor } as React.CSSProperties}
+                  >
+                    {/* Popular badge */}
+                    {mostPopularType !== null && trickKey === mostPopularType && (
+                      <span className="absolute -top-2 -right-2 text-xs bg-orange-500/20 text-orange-400 px-2 py-0.5 rounded-full font-bold z-10">
+                        🔥 Popular
+                      </span>
+                    )}
+                    {/* Icon */}
+                    <div
+                      className="mc-shenanigan-icon"
+                      style={{ background: `linear-gradient(135deg, ${trick.auraColor}, transparent)` }}
+                    >
+                      {trick.icon}
+                    </div>
+
+                    {/* Title + cost */}
+                    <h3 className="font-display text-sm mc-text-primary text-center mb-1">{trick.name}</h3>
+                    <div className="text-center mb-3">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple">
+                        {trick.cost} PP
+                      </span>
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
+
+                    {/* Mechanical effect */}
+                    <div className="text-xs mc-text-muted mt-1 italic mb-3">
+                      Effect: {trick.effects || 'see docs'}
+                    </div>
+
+                    {/* Odds bar */}
+                    <div className="mb-4">
+                      <div className="flex h-2 rounded-full overflow-hidden mb-1">
+                        <div className="mc-bg-green" style={{ width: `${trick.odds.success}%` }} />
+                        <div className="mc-bg-danger" style={{ width: `${trick.odds.fail}%` }} />
+                        <div className="mc-bg-purple" style={{ width: `${trick.odds.backfire}%` }} />
+                      </div>
+                      <div className="flex justify-between text-xs mc-text-muted">
+                        <span className="mc-text-green">✓ {trick.odds.success}%</span>
+                        <span className="mc-text-danger">✗ {trick.odds.fail}%</span>
+                        <span className="mc-text-purple">↩ {trick.odds.backfire}%</span>
+                      </div>
+                    </div>
+
+                    {/* Cast button */}
+                    <button
+                      onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
+                      disabled={isDisabled}
+                      className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
+                        isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
+                      }`}
+                    >
+                      {animatingTrick === trickKey ? (
+                        <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
+                      ) : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="divide-y mc-border-subtle">
+              {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
+                const trickKey = variantKey(trick.type);
+                const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
+                return (
+                  <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
+                    <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
+                    <span className="text-xs mc-text-muted">{trick.cost} PP</span>
+                    <span className="text-xs mc-text-dim">{trick.odds.success}% win</span>
+                    <button
+                      onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
+                      disabled={isDisabled}
+                      className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
+                        isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
+                      }`}
+                    >
+                      {animatingTrick === trickKey ? (
+                        <><span className="inline-block animate-spin mr-1">🎲</span>Casting…</>
+                      ) : 'Cast'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {/* Empty state when filter matches nothing */}
           {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).length === 0 && (

@@ -1,38 +1,11 @@
 import React, { useState, useRef } from 'react';
 import { useGetReferralStats, useGetPonziPoints } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import { Copy, Check, Users, Share2, ExternalLink, Award, Download, Dice5, Globe } from 'lucide-react';
+import { Copy, Check, Share2, ExternalLink, Award, Download, Dice5, Globe } from 'lucide-react';
 import type { TabType } from '../App';
 import { QRCodeCanvas } from 'qrcode.react';
+import { REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE, pct } from '../lib/gameConstants';
 
-const charlesMLMQuotes = [
-  "You don't need to sell anything. You just need to tell two friends. And they tell two friends. And suddenly you're retired.",
-  "I'm not asking you to recruit. I'm asking you to share an opportunity.",
-  "The people who build networks early retire first. That's not an opinion, that's math.",
-  "Think of it less as a pyramid and more as a... triangle of opportunity.",
-  "You're not recruiting. You're curating. You're building a team.",
-  "Everyone you know is going to be in this eventually. The question is: are they above you or below you?",
-  "I don't call them downlines. I call them success partners.",
-  "The best time to share this with your friends was yesterday. The second best time is right now.",
-  "You're sitting on a network and you don't even know it. Your group chat is a gold mine.",
-];
-
-function EmptyState() {
-  const [quoteIndex] = useState(() => Math.floor(Math.random() * charlesMLMQuotes.length));
-
-  return (
-    <div className="mc-card-elevated text-center py-10 px-6">
-      <Users className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
-      <p className="font-display text-lg mc-text-primary mb-2">Your Network Awaits</p>
-      <p className="text-sm mc-text-dim mb-6">Share your referral link and start building your downline.</p>
-      <div className="flex items-center justify-center">
-        <p className="font-accent text-sm mc-text-dim italic max-w-sm">
-          {charlesMLMQuotes[quoteIndex]}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 interface ReferralSectionProps {
   onTabChange?: (tab: TabType) => void;
@@ -69,12 +42,6 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
 
   if (isLoading) return <LoadingSpinner />;
 
-  const hasReferrals = referralStats && (
-    (referralStats.level1Count || 0) > 0 ||
-    (referralStats.level2Count || 0) > 0 ||
-    (referralStats.level3Count || 0) > 0
-  );
-
   return (
     <div className="space-y-6">
       <div className="mc-card-elevated">
@@ -100,24 +67,31 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
           {/* Share buttons — inline with socials */}
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-xs mc-text-muted font-bold">Share:</span>
-            <button
-              onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. It's called Musical Chairs.")}&url=${encodeURIComponent(referralLink)}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
-            >
-              <span>𝕏</span> Twitter
-            </button>
-            <button
-              onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent("Musical Chairs — Up to 12% daily | Honest Ponzi Scheme!")}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
-            >
-              <ExternalLink className="h-3 w-3" /> Telegram
-            </button>
-            <button
-              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent("I found a Ponzi scheme that's honest about being a Ponzi scheme. Up to 12% daily. " + referralLink)}`, '_blank')}
-              className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
-            >
-              <Share2 className="h-3 w-3" /> WhatsApp
-            </button>
+            {(() => {
+              const shareText = "I joined the Musical Chairs Ponzi. Come get stuck in with me before the music stops. 🪑";
+              return (
+                <>
+                  <button
+                    onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(referralLink)}`, '_blank')}
+                    className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
+                  >
+                    <span>𝕏</span> Twitter
+                  </button>
+                  <button
+                    onClick={() => window.open(`https://t.me/share/url?url=${encodeURIComponent(referralLink)}&text=${encodeURIComponent(shareText)}`, '_blank')}
+                    className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
+                  >
+                    <ExternalLink className="h-3 w-3" /> Telegram
+                  </button>
+                  <button
+                    onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(shareText + " " + referralLink)}`, '_blank')}
+                    className="mc-btn-secondary flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg"
+                  >
+                    <Share2 className="h-3 w-3" /> WhatsApp
+                  </button>
+                </>
+              );
+            })()}
             <a
               href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(referralLink)}`}
               target="_blank"
@@ -224,20 +198,9 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
         )}
       </div>
 
-      {/* Referral activity feed — blocked on backend, placeholder for now */}
-      {hasReferrals && (
-        <div className="mc-card p-4">
-          <h4 className="mc-label mb-2">Recent Activity</h4>
-          <p className="text-xs mc-text-muted italic">Referral activity feed coming soon</p>
-        </div>
-      )}
-
       {/* Network visualization / How it works */}
-      {!hasReferrals ? (
-        <EmptyState />
-      ) : (
-        <div className="mc-card p-5">
-          <h3 className="font-display text-base mc-text-primary mb-4">Your Pyramid</h3>
+      <div className="mc-card p-5">
+        <h3 className="font-display text-base mc-text-primary mb-4">Your Pyramid</h3>
           {/* Visual pyramid tiers */}
           <div className="flex flex-col items-center gap-2 mb-4">
             {/* You — top of pyramid */}
@@ -253,7 +216,7 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
               <div className="flex items-center gap-2">
                 <div className="h-px w-6 bg-[var(--mc-neon-green)]/30" />
                 <div className="px-3 py-1.5 rounded-full bg-[var(--mc-neon-green)]/10 border border-[var(--mc-neon-green)]/30 text-xs font-bold mc-text-green">
-                  L1 · {referralStats?.level1Points?.toLocaleString() || 0} PP
+                  L1 · <span className="mc-text-muted">{pct(REFERRAL_L1_RATE)} of their PP</span> · {referralStats?.level1Points?.toLocaleString() || 0} PP
                 </div>
                 <div className="h-px w-6 bg-[var(--mc-neon-green)]/30" />
               </div>
@@ -265,7 +228,7 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
               <div className="flex items-center gap-2">
                 <div className="h-px w-10 bg-[var(--mc-cyan)]/30" />
                 <div className="px-3 py-1.5 rounded-full bg-[var(--mc-cyan)]/10 border border-[var(--mc-cyan)]/30 text-xs font-bold mc-text-cyan">
-                  L2 · {referralStats?.level2Points?.toLocaleString() || 0} PP
+                  L2 · <span className="mc-text-muted">{pct(REFERRAL_L2_RATE)} of their PP</span> · {referralStats?.level2Points?.toLocaleString() || 0} PP
                 </div>
                 <div className="h-px w-10 bg-[var(--mc-cyan)]/30" />
               </div>
@@ -277,7 +240,7 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
               <div className="flex items-center gap-2">
                 <div className="h-px w-14 bg-[var(--mc-purple)]/30" />
                 <div className="px-3 py-1.5 rounded-full bg-[var(--mc-purple)]/10 border border-[var(--mc-purple)]/30 text-xs font-bold mc-text-purple">
-                  L3 · {referralStats?.level3Points?.toLocaleString() || 0} PP
+                  L3 · <span className="mc-text-muted">{pct(REFERRAL_L3_RATE)} of their PP</span> · {referralStats?.level3Points?.toLocaleString() || 0} PP
                 </div>
                 <div className="h-px w-14 bg-[var(--mc-purple)]/30" />
               </div>
@@ -288,7 +251,6 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
             We could have hidden the pyramid mechanics, but where's the fun in that?
           </p>
         </div>
-      )}
     </div>
   );
 }

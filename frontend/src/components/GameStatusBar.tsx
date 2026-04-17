@@ -3,7 +3,13 @@ import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { formatICP } from '../lib/formatICP';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
-export default function GameStatusBar() {
+type NavigableTab = 'profitCenter' | 'shenanigans';
+
+interface GameStatusBarProps {
+  onNavigate?: (tab: NavigableTab) => void;
+}
+
+export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
   const { data: balanceData } = useGetInternalWalletBalance();
   const { data: games } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
@@ -28,10 +34,17 @@ export default function GameStatusBar() {
       {/* Net P/L — hero stat */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">P/L</span>
-        <span className={`mc-status-bar-value ${isUp ? 'mc-text-green mc-glow-green' : 'mc-text-danger'}`}>
-          {isUp ? <TrendingUp className="h-3 w-3 inline mr-0.5" /> : <TrendingDown className="h-3 w-3 inline mr-0.5" />}
-          {isUp ? '+' : ''}{formatICP(netPL)}
-        </span>
+        <button
+          type="button"
+          onClick={() => onNavigate?.('profitCenter')}
+          className="text-left hover:mc-bg-elev-2 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+          aria-label="Go to Profit Center"
+        >
+          <span className={`mc-status-bar-value ${isUp ? 'mc-text-green mc-glow-green' : 'mc-text-danger'}`}>
+            {isUp ? <TrendingUp className="h-3 w-3 inline mr-0.5" /> : <TrendingDown className="h-3 w-3 inline mr-0.5" />}
+            {isUp ? '+' : ''}{formatICP(netPL)}
+          </span>
+        </button>
       </div>
 
       {/* Positions — hidden on mobile to reduce density */}
@@ -43,7 +56,14 @@ export default function GameStatusBar() {
       {/* PP */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">PP</span>
-        <span className="mc-status-bar-value mc-text-purple">{ponziPoints >= 1000 ? `${(ponziPoints / 1000).toFixed(1)}k` : ponziPoints.toLocaleString()}</span>
+        <button
+          type="button"
+          onClick={() => onNavigate?.('shenanigans')}
+          className="text-left hover:mc-bg-elev-2 rounded px-2 py-1 -mx-2 -my-1 transition-colors"
+          aria-label="Go to Shenanigans"
+        >
+          <span className="mc-status-bar-value mc-text-purple">{ponziPoints >= 1000 ? `${(ponziPoints / 1000).toFixed(1)}k` : ponziPoints.toLocaleString()}</span>
+        </button>
       </div>
 
       {/* Pot — desktop only */}

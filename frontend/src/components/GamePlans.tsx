@@ -4,7 +4,9 @@ import { useCountUp } from '../hooks/useCountUp';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
+import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
+import { useWallet } from '../hooks/useWallet';
 
 /* ================================================================
    Post-deposit Charles quotes
@@ -66,6 +68,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   // Hooks
+  const { openWallet } = useWallet();
   const { data: icpBalance, isLoading: balanceLoading } = useICPBalance();
   const { data: maxDepositLimit, isLoading: maxDepositLoading } = useGetMaxDepositLimit();
   const { data: canDeposit, isLoading: rateLimitLoading } = useCheckDepositRateLimit();
@@ -94,10 +97,11 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
   useEffect(() => {
     if (depositAmount > 0 && selectedPlan && selectedMode) {
+      const net = depositAmount * 0.97;
       const days = getPlanDays(selectedPlan);
       const roi = selectedMode === 'simple'
-        ? calculateSimpleROI(depositAmount, selectedPlan, days)
-        : calculateCompoundingROI(depositAmount, selectedPlan, days);
+        ? calculateSimpleROI(net, selectedPlan, days)
+        : calculateCompoundingROI(net, selectedPlan, days);
       setRoiData({ ...roi, ponziPoints: calculatePonziPoints(depositAmount, selectedPlan, selectedMode) });
       const key = `${depositAmount}-${selectedPlan}-${selectedMode}`;
       if (key !== prevRoiKey.current) {
@@ -117,9 +121,22 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     roiData.roiPercent < 200 ? 'mc-text-purple mc-glow-purple' :
     'mc-text-gold mc-glow-gold';
 
+  const netDeposit = depositAmount * 0.97;
+
   const dailyEarnings = depositAmount > 0 && selectedPlan && selectedMode
-    ? depositAmount * getDailyRate(selectedPlan)
+    ? netDeposit * getDailyRate(selectedPlan)
     : 0;
+
+  // Toll tier schedule per plan — derived from gameConstants to avoid drift
+  const tollTiers: Record<string, Array<{ daysFrom: number; daysTo: number | null; tollPct: number }>> = {
+    '21-day-simple': [
+      { daysFrom: 0, daysTo: 3, tollPct: Math.round(EXIT_TOLL_EARLY * 100) },
+      { daysFrom: 3, daysTo: 10, tollPct: Math.round(EXIT_TOLL_MID * 100) },
+      { daysFrom: 10, daysTo: null, tollPct: Math.round(EXIT_TOLL_LATE * 100) },
+    ],
+    '15-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
+    '30-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
+  };
 
   // Phase transitions
   const advancePhase = (nextPhase: Phase) => {
@@ -132,16 +149,23 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     }, 200);
   };
 
+  // Auto-advance simple mode through Phase 2 after a short beat
+  useEffect(() => {
+    if (selectedMode === 'simple' && phase === 2 && !selectedPlan) {
+      const t = setTimeout(() => {
+        setSelectedPlan('21-day-simple');
+        advancePhase(3);
+      }, 600);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedMode, phase, selectedPlan]);
+
   const handleSelectMode = (mode: 'simple' | 'compounding') => {
     setSelectedMode(mode);
+    setSelectedPlan('');
     setClickError('');
-    if (mode === 'simple') {
-      setSelectedPlan('21-day-simple');
-      advancePhase(3);
-    } else {
-      setSelectedPlan('');
-      advancePhase(2);
-    }
+    advancePhase(2);
   };
 
   const handleSelectPlan = (planId: string) => {
@@ -323,8 +347,34 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           </div>
         )}
 
-        {/* ============ PHASE 2: Plan Selection (Compounding only) ============ */}
-        {phase === 2 && (
+        {/* ============ PHASE 2: Plan Selection ============ */}
+        {phase === 2 && selectedMode === 'simple' && (
+          <div className="max-w-2xl mx-auto">
+            <div
+              className="mc-card-select p-6 opacity-60 cursor-default select-none"
+              aria-disabled="true"
+            >
+              <Sprout className="h-10 w-10 mc-text-green mb-4 mx-auto" />
+              <div className="flex items-center justify-center gap-2 mb-2">
+                <h4 className="font-display text-lg mc-text-green">Simple Plan</h4>
+                <span className="text-xs mc-text-muted border border-white/20 rounded px-2 py-0.5">Auto-selected</span>
+              </div>
+              <p className="font-accent text-xs mc-text-dim text-center italic mb-4">
+                Daily yield, exit anytime, pay the toll for the day you leave.
+              </p>
+              <ul className="text-xs mc-text-muted space-y-1.5">
+                <li>• 21 days · 11% daily returns</li>
+                <li>• Withdraw your earnings anytime</li>
+                <li>• Exit Toll: 7% / 5% / 3% based on timing</li>
+              </ul>
+              <p className="text-xs mc-text-muted italic mt-4 text-center">
+                Only one plan available for Simple mode.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {phase === 2 && selectedMode === 'compounding' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
             {/* The Executive Package (15-day) */}
             <div
@@ -377,7 +427,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <Wallet className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
                 <p className="font-display text-base mc-text-primary mb-2">Fund Your Wallet First</p>
                 <p className="text-sm mc-text-dim mb-1">You need at least {minDeposit} ICP to open a position.</p>
-                <p className="text-xs mc-text-muted">Use the wallet dropdown in the top-right to deposit ICP.</p>
+                <p className="text-xs mc-text-muted mb-4">Deposit ICP from your external wallet (Plug, Oisy, etc.) before picking a plan.</p>
+                <button
+                  onClick={() => openWallet('deposit')}
+                  className="mc-btn-primary px-4 py-2 text-sm"
+                >
+                  Open deposit panel →
+                </button>
               </div>
             )}
 
@@ -430,11 +486,36 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                       </div>
                     )}
 
-                    <div className="mc-status-blue p-3 mt-3 text-xs space-y-1">
-                      <p>3% Entry Skim on every deposit</p>
-                      <p>Half of skim + tolls seed the next round, half repay our backers</p>
-                      {selectedMode === 'simple' && <p>Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
+                    <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-500/10 mt-3 text-xs space-y-1">
+                      <p>
+                        <span className="font-semibold text-amber-300">3% entry skim</span>
+                        <span className="mc-text-muted"> goes to the pot. You deposit N, the house books N×0.97.</span>
+                      </p>
+                      <p className="mc-text-muted">Half of skim + tolls seed the next round, half repay our backers</p>
+                      {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
+
+                    {selectedPlan && tollTiers[selectedPlan] && (
+                      <details className="mt-3 text-xs mc-text-muted">
+                        <summary className="cursor-pointer hover:mc-text-primary">
+                          Exit toll schedule →
+                        </summary>
+                        <div className="mt-2 space-y-1 pl-3">
+                          {tollTiers[selectedPlan].map((tier) => (
+                            <div key={tier.daysFrom} className="flex justify-between">
+                              <span>
+                                {tier.daysTo === null
+                                  ? `Day ${tier.daysFrom}+`
+                                  : `Day ${tier.daysFrom}–${tier.daysTo}`}
+                              </span>
+                              <span className={tier.tollPct > 10 ? 'text-red-400' : tier.tollPct > 4 ? 'text-amber-400' : 'text-green-400'}>
+                                {tier.tollPct}% toll
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                   </div>
 
                   {/* ROI Calculator */}
@@ -451,7 +532,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                               <div className={`text-xl font-bold mc-roi-pop ${roiColor}`}>{formatICP(animatedReturn)} ICP</div>
                               <div className={`text-xs opacity-70 ${roiColor}`}>
                                 {selectedMode === 'simple'
-                                  ? `${(roiData.totalReturn / depositAmount).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
+                                  ? `${(roiData.totalReturn / netDeposit).toFixed(2)}x ROI (${roiData.roiPercent.toFixed(0)}%)`
                                   : `${roiData.roiPercent.toFixed(1)}% ROI`}
                               </div>
                             </div>
@@ -463,12 +544,26 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                               </div>
                             </div>
                           </div>
-                          <div className="border-t border-white/10 pt-3 flex items-center justify-between">
-                            <div className="flex items-center gap-1.5">
-                              <TrendingUp className="h-3.5 w-3.5 mc-text-cyan" />
-                              <span className="text-xs mc-text-dim">Daily earnings</span>
+                          <div className="border-t border-white/10 pt-3 space-y-1.5">
+                            <div className="flex justify-between text-sm">
+                              <span className="mc-text-muted">Entry skim (3%)</span>
+                              <span className="mc-text-primary font-medium">
+                                -{formatICP(depositAmount * 0.03)} ICP
+                              </span>
                             </div>
-                            <span className="text-sm font-bold mc-text-cyan">{formatICP(dailyEarnings)} ICP/day</span>
+                            <div className="flex justify-between text-sm">
+                              <span className="mc-text-muted">Net deposit</span>
+                              <span className="mc-text-primary font-medium">
+                                {formatICP(netDeposit)} ICP
+                              </span>
+                            </div>
+                            <div className="flex items-center justify-between pt-1">
+                              <div className="flex items-center gap-1.5">
+                                <TrendingUp className="h-3.5 w-3.5 mc-text-cyan" />
+                                <span className="text-xs mc-text-dim">Daily earnings</span>
+                              </div>
+                              <span className="text-sm font-bold mc-text-cyan">{formatICP(dailyEarnings)} ICP/day</span>
+                            </div>
                           </div>
                         </div>
                       </div>

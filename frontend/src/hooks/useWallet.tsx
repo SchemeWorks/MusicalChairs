@@ -9,6 +9,8 @@ import { Principal } from '@dfinity/principal';
 
 export type WalletType = 'none' | 'internet-identity' | 'plug' | 'oisy';
 
+export type WalletPanel = 'deposit' | 'withdraw' | 'send';
+
 export interface WalletState {
   walletType: WalletType;
   identity: Identity | null;
@@ -25,6 +27,11 @@ export interface WalletContextType extends WalletState {
   getICPBalance: () => Promise<bigint>;
   transferICP: (to: string, amount: bigint) => Promise<{ height: bigint }>;
   approveICP: (spender: string, amount: bigint) => Promise<{ allowance: bigint }>;
+  // Wallet dropdown open/close state
+  isOpen: boolean;
+  openWallet: (panel?: WalletPanel) => void;
+  closeWallet: () => void;
+  initialPanel: WalletPanel;
 }
 
 // ============================================================================
@@ -105,6 +112,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
+  const [isOpen, setIsOpen] = useState(false);
+  const [initialPanel, setInitialPanel] = useState<WalletPanel>('deposit');
+  const openWallet = useCallback((panel: WalletPanel = 'deposit') => {
+    setInitialPanel(panel);
+    setIsOpen(true);
+  }, []);
+  const closeWallet = useCallback(() => setIsOpen(false), []);
 
   const isConnected = !!identity && walletType !== 'none';
 
@@ -401,6 +415,10 @@ export function WalletProvider({ children }: WalletProviderProps) {
     getICPBalance,
     transferICP,
     approveICP,
+    isOpen,
+    openWallet,
+    closeWallet,
+    initialPanel,
   };
 
   return (
