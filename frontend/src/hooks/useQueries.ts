@@ -289,6 +289,83 @@ export function useDepositICP() {
   });
 }
 
+// ============================================================================
+// Cover Charge — admin-only (Pay Management)
+// ============================================================================
+
+// Hardcoded — matches the COVER_CHARGE_RECIPIENT constant in backend/main.mo.
+// Only this principal can successfully call getCoverChargeBalance and
+// withdrawCoverCharges; the backend enforces this independently.
+export const COVER_CHARGE_RECIPIENT =
+  'gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe';
+
+export function isCoverChargeAdmin(principal: string | null | undefined): boolean {
+  return principal === COVER_CHARGE_RECIPIENT;
+}
+
+// Query the admin's cover-charge bucket balance.
+// Only enabled when the connected principal matches COVER_CHARGE_RECIPIENT —
+// the backend would trap otherwise.
+export function useGetCoverChargeBalance() {
+  const { actor, isFetching: actorFetching } = useActor();
+  const { principal, isConnected } = useWallet();
+
+  return useQuery({
+    queryKey: ['coverChargeBalance', principal],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      const balanceE8s = await actor.getCoverChargeBalance();
+      return {
+        e8s: balanceE8s,
+        icp: Number(balanceE8s) / 100_000_000,
+      };
+    },
+    enabled:
+      !!actor &&
+      !actorFetching &&
+      !!principal &&
+      isConnected &&
+      isCoverChargeAdmin(principal),
+    refetchInterval: 5000,
+  });
+}
+
+// Pay Management — withdraw accumulated cover charges to the admin's external
+// ICP wallet. Callers must pass an amount in e8s greater than the ledger
+// transfer fee (10_000 e8s).
+export function useWithdrawCoverCharges() {
+  const { actor } = useActor();
+  const { principal } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (amountE8s: bigint) => {
+      if (!actor) throw new Error('Actor not available');
+      if (!principal) throw new Error('Not authenticated');
+      if (!isCoverChargeAdmin(principal)) {
+        throw new Error('Unauthorized');
+      }
+
+      const result = await actor.withdrawCoverCharges(amountE8s);
+
+      if ('Err' in result) {
+        throw new Error(result.Err);
+      }
+
+      return {
+        success: true,
+        blockIndex: result.Ok,
+        amount: Number(amountE8s) / 100_000_000,
+        timestamp: new Date(),
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['coverChargeBalance'] });
+      queryClient.refetchQueries({ queryKey: ['coverChargeBalance'] });
+    },
+  });
+}
+
 // Withdraw ICP from Musical Chairs to external wallet (ICRC-1 transfer)
 export function useWithdrawICP() {
   const { actor } = useActor();

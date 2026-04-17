@@ -5,7 +5,7 @@ import {
   PLAN_DAYS_SIMPLE, PLAN_DAYS_COMPOUND_15, PLAN_DAYS_COMPOUND_30,
   MIN_DEPOSIT_ICP, SIMPLE_MAX_DEPOSIT_POT_FRACTION, SIMPLE_MAX_DEPOSIT_FLOOR_ICP,
   DEPOSIT_RATE_LIMIT,
-  ENTRY_SKIM_RATE,
+  COVER_CHARGE_RATE,
   EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE,
   EXIT_TOLL_EARLY_DAYS, EXIT_TOLL_MID_DAYS,
   JACKPOT_FEE_RATE,
@@ -123,7 +123,7 @@ const docSections: DocSection[] = [
           <p><strong className="text-white">Maximum deposit (Simple only):</strong> The greater of {pct(SIMPLE_MAX_DEPOSIT_POT_FRACTION)} of the current pot balance or {SIMPLE_MAX_DEPOSIT_FLOOR_ICP} ICP. This prevents a single player from draining the pot in one withdrawal.</p>
           <p><strong className="text-white">Maximum deposit (Compounding):</strong> No limit above the {MIN_DEPOSIT_ICP} ICP minimum.</p>
           <p><strong className="text-white">Rate limit:</strong> {DEPOSIT_RATE_LIMIT} positions per hour per user.</p>
-          <p><strong className="text-white">Entry skim:</strong> {pct(ENTRY_SKIM_RATE)} of every deposit is skimmed. {pct(FEE_POT_SHARE)} seeds the next round's pot, {pct(FEE_BACKER_SHARE)} repays the backers.</p>
+          <p><strong className="text-white">Cover charge:</strong> {pct(COVER_CHARGE_RATE)} of every deposit is skimmed and routed to Management. The other {pct(1 - COVER_CHARGE_RATE)} enters the pot.</p>
         </div>
         <div className="mc-card p-4 mt-4 mc-accent-gold">
           <p className="text-xs mc-text-muted">Deposits go through the ICRC-2 approve/transfer_from flow. You approve the backend canister to pull funds from your wallet, then the backend executes the transfer. This is a standard ICP token pattern.</p>
@@ -142,7 +142,7 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Fee', 'Rate', 'Applies To']}
           rows={[
-            ['Entry Skim', <span className="mc-text-gold font-bold">{pct(ENTRY_SKIM_RATE)}</span>, 'Every deposit'],
+            ['Cover Charge', <span className="mc-text-gold font-bold">{pct(COVER_CHARGE_RATE)}</span>, 'Every deposit (paid to Management)'],
           ]}
         />
 
@@ -164,8 +164,8 @@ const docSections: DocSection[] = [
           ]}
         />
 
-        <p className="mt-4 mc-text-muted">All tolls and fees flow back into the pot or to backers. They fund other players' returns. This is the engine — new money in, old money out.</p>
-        <p className="mc-text-muted">{pct(FEE_POT_SHARE)} of entry skims and exit tolls seed the next round's pot. The other {pct(FEE_BACKER_SHARE)} repays the backers.</p>
+        <p className="mt-4 mc-text-muted">Exit tolls flow back into the pot or to backers. They fund other players' returns. This is the engine — new money in, old money out.</p>
+        <p className="mc-text-muted">{pct(FEE_POT_SHARE)} of exit tolls seed the next round's pot. The other {pct(FEE_BACKER_SHARE)} repays the backers. The cover charge is separate — it goes to Management and never touches the pot.</p>
       </>
     ),
   },
@@ -182,7 +182,7 @@ const docSections: DocSection[] = [
         <div className="space-y-2">
           <p><strong className="text-white">Deposit:</strong> Minimum {MIN_DEPOSIT_ICP} ICP. Your deposit goes directly into the pot.</p>
           <p><strong className="text-white">Entitlement (Series A):</strong> You're owed {pct(1 + UPSTREAM_BACKER_BONUS)} of your deposit (original + {pct(UPSTREAM_BACKER_BONUS)} bonus).</p>
-          <p><strong className="text-white">Repayment:</strong> Comes from the backer share ({pct(FEE_BACKER_SHARE)}) of entry skims and exit tolls on every player transaction.</p>
+          <p><strong className="text-white">Repayment:</strong> Comes from the backer share ({pct(FEE_BACKER_SHARE)}) of exit tolls on every player withdrawal.</p>
           <p><strong className="text-white">PP earned:</strong> {fmt(PP_PER_ICP_SEED_ROUND)} Ponzi Points per ICP deposited.</p>
         </div>
 
@@ -351,10 +351,10 @@ const docSections: DocSection[] = [
           {[
             ['Pot', 'The shared pool of ICP that funds all player returns. Fed by deposits and fees. Drained by withdrawals and payouts.'],
             ['Position', 'An active game entry. Created when you deposit ICP into a plan. Has a start date, plan type, and accruing earnings.'],
-            ['Entry Skim', `The ${pct(ENTRY_SKIM_RATE)} fee taken from every deposit before it enters the pot.`],
+            ['Cover Charge', `The ${pct(COVER_CHARGE_RATE)} fee taken from every deposit before it enters the pot. Routed to Management — does not feed the pot or backers.`],
             ['Exit Toll', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
             ['Jackpot Fee', `The ${pct(JACKPOT_FEE_RATE)} fee charged on Compounding position payouts at maturity.`],
-            ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from entry skims and exit tolls.`],
+            ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from exit tolls.`],
             ['Series A Backer (Upstream)', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
             ['Series B Backer (Downstream)', `A backer created automatically during a Redistribution Event from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
             ['Entitlement', `The total amount a backer is owed: their original deposit plus their bonus (${pct(UPSTREAM_BACKER_BONUS)} for Series A, ${pct(DOWNSTREAM_BACKER_BONUS)} for Series B).`],

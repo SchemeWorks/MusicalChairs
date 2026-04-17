@@ -22,7 +22,7 @@ export const SIMPLE_MAX_DEPOSIT_FLOOR_ICP = 5;         // or 5 ICP, whichever is
 export const DEPOSIT_RATE_LIMIT = 3;                   // positions per hour
 
 // ── Entry Fees ───────────────────────────────────────────────────────
-export const ENTRY_SKIM_RATE = 0.03;            //  3 %
+export const COVER_CHARGE_RATE = 0.02;          //  2 %  (routes 100% to Management)
 
 // ── Exit Tolls — Simple ─────────────────────────────────────────────
 export const EXIT_TOLL_EARLY = 0.07;            //  7 % (day 0–3)

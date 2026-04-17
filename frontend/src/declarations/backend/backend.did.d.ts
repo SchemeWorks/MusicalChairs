@@ -25,6 +25,13 @@ export interface ConsentMessageSpec {
   'metadata' : ConsentMessageMetadata,
   'device_spec' : [] | [DeviceSpec],
 }
+export interface CoverChargeEntry {
+  'id' : bigint,
+  'player' : Principal,
+  'gameId' : bigint,
+  'timestamp' : bigint,
+  'amount' : bigint,
+}
 export interface DealerPosition {
   'startTime' : bigint,
   'firstDepositDate' : [] | [bigint],
@@ -126,6 +133,8 @@ export interface _SERVICE {
   'getCallerUserRole' : ActorMethod<[], UserRole>,
   'getCanisterICPBalance' : ActorMethod<[], bigint>,
   'getCanisterPrincipal' : ActorMethod<[], [] | [Principal]>,
+  'getCoverChargeBalance' : ActorMethod<[], bigint>,
+  'getCoverChargeTransactions' : ActorMethod<[], Array<CoverChargeEntry>>,
   'getDaysActive' : ActorMethod<[], bigint>,
   'getDealerPositions' : ActorMethod<[], Array<DealerPosition>>,
   'getDealerRepaymentBalance' : ActorMethod<[], number>,
@@ -202,6 +211,11 @@ export interface _SERVICE {
   'transferPonziPoints' : ActorMethod<
     [Principal, Principal, number],
     undefined
+  >,
+  'withdrawCoverCharges' : ActorMethod<
+    [bigint],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
   >,
   'withdrawEarnings' : ActorMethod<[bigint], number>,
   'withdrawICP' : ActorMethod<[bigint], { 'Ok' : bigint } | { 'Err' : string }>,

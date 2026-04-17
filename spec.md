@@ -568,8 +568,8 @@ The backend stores:
     - • Minimum Deposit: 0.1 ICP
     - • Simple mode: Maximum deposit applies (20% of pot or 5 ICP, whichever is higher)
     - • Compounding mode: No maximum deposit limit
-    - • 3% Entry Skim on every deposit
-    - • Half the skim and exit tolls seed the next round, half repay the House
+    - • 2% Cover Charge on every deposit (paid to Management)
+    - • Exit tolls still split 50/50 — half seed the next round, half repay the House. Cover charge does not touch the pot.
   - **Live ROI calculator positioned side by side with the deposit field** horizontally aligned with the deposit field (not with the "Select Amount / Available" line), with reduced top margin/padding by the equivalent of one text line to align the top of the bubble closer to the deposit field while maintaining the side-by-side positioning and keeping the bottom, left, and right limits unchanged
   - **Updated ROI calculator display for simple mode**: 
     - **"🚀 Expected ROI if plan matures before the round ends." styled as white text with subtle drop shadow**

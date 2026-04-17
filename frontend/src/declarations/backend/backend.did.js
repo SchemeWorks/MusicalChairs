@@ -22,6 +22,13 @@ export const idlFactory = ({ IDL }) => {
     'amount' : IDL.Float64,
   });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
+  const CoverChargeEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'player' : IDL.Principal,
+    'gameId' : IDL.Nat,
+    'timestamp' : IDL.Int,
+    'amount' : IDL.Nat,
+  });
   const DealerType = IDL.Variant({
     'downstream' : IDL.Null,
     'upstream' : IDL.Null,
@@ -154,6 +161,12 @@ export const idlFactory = ({ IDL }) => {
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
     'getCanisterICPBalance' : IDL.Func([], [IDL.Nat], []),
     'getCanisterPrincipal' : IDL.Func([], [IDL.Opt(IDL.Principal)], ['query']),
+    'getCoverChargeBalance' : IDL.Func([], [IDL.Nat], ['query']),
+    'getCoverChargeTransactions' : IDL.Func(
+        [],
+        [IDL.Vec(CoverChargeEntry)],
+        ['query'],
+      ),
     'getDaysActive' : IDL.Func([], [IDL.Nat], ['query']),
     'getDealerPositions' : IDL.Func([], [IDL.Vec(DealerPosition)], ['query']),
     'getDealerRepaymentBalance' : IDL.Func([], [IDL.Float64], ['query']),
@@ -269,6 +282,11 @@ export const idlFactory = ({ IDL }) => {
     'transferPonziPoints' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Float64],
         [],
+        [],
+      ),
+    'withdrawCoverCharges' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
     'withdrawEarnings' : IDL.Func([IDL.Nat], [IDL.Float64], []),

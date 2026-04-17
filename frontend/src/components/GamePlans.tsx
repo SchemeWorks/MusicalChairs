@@ -4,7 +4,7 @@ import { useCountUp } from '../hooks/useCountUp';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE } from '../lib/gameConstants';
+import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE, COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 import { useWallet } from '../hooks/useWallet';
 
@@ -97,7 +97,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
   useEffect(() => {
     if (depositAmount > 0 && selectedPlan && selectedMode) {
-      const net = depositAmount * 0.97;
+      const net = depositAmount * (1 - COVER_CHARGE_RATE);
       const days = getPlanDays(selectedPlan);
       const roi = selectedMode === 'simple'
         ? calculateSimpleROI(net, selectedPlan, days)
@@ -121,7 +121,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     roiData.roiPercent < 200 ? 'mc-text-purple mc-glow-purple' :
     'mc-text-gold mc-glow-gold';
 
-  const netDeposit = depositAmount * 0.97;
+  const netDeposit = depositAmount * (1 - COVER_CHARGE_RATE);
 
   const dailyEarnings = depositAmount > 0 && selectedPlan && selectedMode
     ? netDeposit * getDailyRate(selectedPlan)
@@ -456,10 +456,10 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
                     <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-500/10 mt-3 text-xs space-y-1">
                       <p>
-                        <span className="font-semibold text-amber-300">3% entry skim</span>
-                        <span className="mc-text-muted"> goes to the pot. You deposit N, the house books N×0.97.</span>
+                        <span className="font-semibold text-amber-300">{pct(COVER_CHARGE_RATE)} cover charge</span>
+                        <span className="mc-text-muted"> goes to Management. You deposit N, the pot books N×{(1 - COVER_CHARGE_RATE).toFixed(2)}.</span>
                       </p>
-                      <p className="mc-text-muted">Half of skim + tolls seed the next round, half repay our backers</p>
+                      <p className="mc-text-muted">Exit tolls still split 50/50 — half seed the next round, half repay our backers.</p>
                       {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
 
@@ -514,9 +514,9 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                           </div>
                           <div className="border-t border-white/10 pt-3 space-y-1.5">
                             <div className="flex justify-between text-sm">
-                              <span className="mc-text-muted">Entry skim (3%)</span>
+                              <span className="mc-text-muted">Cover charge ({pct(COVER_CHARGE_RATE)})</span>
                               <span className="mc-text-primary font-medium">
-                                -{formatICP(depositAmount * 0.03)} ICP
+                                -{formatICP(depositAmount * COVER_CHARGE_RATE)} ICP
                               </span>
                             </div>
                             <div className="flex justify-between text-sm">
