@@ -337,6 +337,7 @@ export default function App() {
   const isAuthenticated = !!identity;
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
+  const isOnLandingHero = !identity && !showDocsPage && !showProfileSetup && !showAdminPanel && !profileLoading;
 
   if (isInitializing) {
     return (
@@ -442,7 +443,7 @@ export default function App() {
                     <LogoutButton />
                   </>
                 ) : (
-                  <LoginButton compact />
+                  !isOnLandingHero && <LoginButton compact />
                 )}
               </div>
             </div>
