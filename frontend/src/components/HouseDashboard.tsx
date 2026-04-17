@@ -211,7 +211,7 @@ function HouseLedgerRecords() {
                     ) : (
                       <ArrowUpRight className="h-3.5 w-3.5 mc-text-danger flex-shrink-0" />
                     )}
-                    <span className="text-sm font-bold truncate mc-text-primary">{record.description || 'House Money Transaction'}</span>
+                    <span className="text-sm font-bold truncate mc-text-primary">{record.description || 'Seed Round Transaction'}</span>
                   </div>
                   <div className="flex justify-between mt-1 text-xs mc-text-muted">
                     <span>{fmtDate(record.timestamp)}</span>
@@ -319,7 +319,7 @@ function BackerPositions() {
                     </div>
                     <div>
                       <div className="font-bold mc-text-primary">
-                        {backer.owner.toString() === principal ? 'My Equity' : (backer.name && backer.name !== 'Unknown Dealer' ? backer.name : 'Anonymous Backer')}
+                        {backer.owner.toString() === principal ? 'My Equity' : (backer.name && backer.name !== 'Unknown Backer' ? backer.name : 'Anonymous Backer')}
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         isSeriesA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'

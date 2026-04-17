@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Actor, HttpAgent, ActorSubclass } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
 import { useWallet } from './useWallet';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
+import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 
 // Backend canister ID - mainnet deployment
 const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
@@ -17,7 +19,7 @@ interface UseActorResult {
 }
 
 export function useActor(): UseActorResult {
-  const { identity, isInitializing, walletType } = useWallet();
+  const { identity, isInitializing, walletType, principal } = useWallet();
   const [actor, setActor] = useState<ActorSubclass<_SERVICE> | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -46,7 +48,15 @@ export function useActor(): UseActorResult {
           return;
         }
 
-        // For II/OISY or anonymous, create standard HTTP agent
+        // For Oisy, create actor via SignerAgent
+        if (walletType === 'oisy' && principal) {
+          const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+          const newActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+          setActor(newActor);
+          return;
+        }
+
+        // For II or anonymous, create standard HTTP agent
         const agent = new HttpAgent({
           host: HOST,
           identity: identity || undefined,
@@ -77,7 +87,7 @@ export function useActor(): UseActorResult {
     };
 
     createActor();
-  }, [identity, isInitializing, walletType]);
+  }, [identity, isInitializing, walletType, principal]);
 
   return { actor, isFetching, error };
 }

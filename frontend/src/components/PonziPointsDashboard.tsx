@@ -49,8 +49,8 @@ export default function PonziPointsDashboard() {
         <h3 className="font-display text-base mc-text-primary mb-3">How to Earn</h3>
         <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
           <p><span className="mc-text-green font-bold">Deposits:</span> 1,000 PP per ICP (Simple), 2,000 PP (15-day), 3,000 PP (30-day)</p>
-          <p><span className="mc-text-cyan font-bold">Referrals:</span> Earn PP when your downline deposits</p>
-          <p><span className="mc-text-gold font-bold">House Money:</span> 4,000 PP per ICP deposited as house money</p>
+          <p><span className="mc-text-cyan font-bold">Referrals:</span> Earn PP when your downline earns PP</p>
+          <p><span className="mc-text-gold font-bold">Seed Round:</span> 4,000 PP per ICP deposited as a backer</p>
           <p><span className="mc-text-pink font-bold">Spend:</span> Burn PP on Shenanigans for chaos and glory</p>
         </div>
       </div>

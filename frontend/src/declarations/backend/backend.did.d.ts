@@ -2,6 +2,29 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface ConsentInfo {
+  'metadata' : ConsentMessageMetadata,
+  'consent_message' : ConsentMessage,
+}
+export type ConsentMessage = {
+    'LineDisplayMessage' : { 'pages' : Array<LineDisplayPage> }
+  } |
+  { 'GenericDisplayMessage' : string };
+export interface ConsentMessageMetadata {
+  'utc_offset_minutes' : [] | [number],
+  'language' : string,
+}
+export interface ConsentMessageRequest {
+  'arg' : Uint8Array | number[],
+  'method' : string,
+  'user_preferences' : ConsentMessageSpec,
+}
+export type ConsentMessageResponse = { 'Ok' : ConsentInfo } |
+  { 'Err' : Icrc21Error };
+export interface ConsentMessageSpec {
+  'metadata' : ConsentMessageMetadata,
+  'device_spec' : [] | [DeviceSpec],
+}
 export interface DealerPosition {
   'startTime' : bigint,
   'firstDepositDate' : [] | [bigint],
@@ -14,6 +37,13 @@ export interface DealerPosition {
 }
 export type DealerType = { 'downstream' : null } |
   { 'upstream' : null };
+export type DeviceSpec = { 'GenericDisplay' : null } |
+  {
+    'LineDisplay' : {
+      'characters_per_line' : number,
+      'lines_per_page' : number,
+    }
+  };
 export type GamePlan = { 'compounding15Day' : null } |
   { 'simple21Day' : null } |
   { 'compounding30Day' : null };
@@ -36,6 +66,12 @@ export interface HouseLedgerRecord {
   'timestamp' : bigint,
   'amount' : number,
 }
+export type Icrc21Error = {
+    'GenericError' : { 'description' : string, 'error_code' : bigint }
+  } |
+  { 'UnsupportedCanisterCall' : { 'description' : string } } |
+  { 'ConsentMessageUnavailable' : { 'description' : string } };
+export interface LineDisplayPage { 'lines' : Array<string> }
 export interface PlatformStats {
   'daysActive' : bigint,
   'potBalance' : number,
@@ -43,6 +79,8 @@ export interface PlatformStats {
   'activeGames' : bigint,
   'totalDeposits' : number,
 }
+export interface StandardRecord { 'url' : string, 'name' : string }
+export interface TrustedOriginsResponse { 'trusted_origins' : Array<string> }
 export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
@@ -66,10 +104,12 @@ export interface _SERVICE {
   'addHouseMoney' : ActorMethod<[number, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'burnPonziPoints' : ActorMethod<[Principal, number], undefined>,
+  'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedROI' : ActorMethod<[], number>,
   'calculateEarnings' : ActorMethod<[GameRecord], number>,
   'checkDepositRateLimit' : ActorMethod<[], boolean>,
+  'claimDealerRepayment' : ActorMethod<[], number>,
   'createGame' : ActorMethod<
     [GamePlan, number, boolean, [] | [Principal]],
     bigint
@@ -135,6 +175,12 @@ export interface _SERVICE {
   'getWalletBalance' : ActorMethod<[], bigint>,
   'getWalletBalanceICP' : ActorMethod<[], number>,
   'getWalletTransactions' : ActorMethod<[], Array<WalletTransaction>>,
+  'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
+  'icrc21_canister_call_consent_message' : ActorMethod<
+    [ConsentMessageRequest],
+    ConsentMessageResponse
+  >,
+  'icrc28_trusted_origins' : ActorMethod<[], TrustedOriginsResponse>,
   'initializeAccessControl' : ActorMethod<[], undefined>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isTestMode' : ActorMethod<[], boolean>,
@@ -143,9 +189,11 @@ export interface _SERVICE {
     [Principal, GamePlan, number, boolean, bigint],
     bigint
   >,
+  'seedReferral' : ActorMethod<[Principal, Principal], undefined>,
   'setCanisterPrincipal' : ActorMethod<[Principal], undefined>,
   'setShenanigansPrincipal' : ActorMethod<[Principal], undefined>,
   'setTestMode' : ActorMethod<[boolean], undefined>,
+  'settleCompoundingGame' : ActorMethod<[bigint], number>,
   'transferInternal' : ActorMethod<
     [Principal, bigint],
     { 'Ok' : null } |

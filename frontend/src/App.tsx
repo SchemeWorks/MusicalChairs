@@ -281,15 +281,25 @@ function LetterReveal({
 }
 
 export default function App() {
-  const { identity, principal, isInitializing } = useInternetIdentity();
+  const { identity, principal, isInitializing, isAuthenticated } = useInternetIdentity();
   const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
-  const [showDocsPage, setShowDocsPage] = useState(false);
+  const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
   const { data: publicStats } = useGetPublicStats();
+
+  // Sync docs visibility with hash — allows direct linking to #docs or #docs-fees
+  useEffect(() => {
+    const onHashChange = () => {
+      const isDocsHash = window.location.hash.startsWith('#docs');
+      setShowDocsPage(isDocsHash);
+    };
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -335,7 +345,8 @@ export default function App() {
     shenanigans: canCastShenanigan ? 'purple' : null,
   };
 
-  const isAuthenticated = !!identity;
+  // isAuthenticated comes from useInternetIdentity (wraps useWallet.isConnected)
+  // which handles Oisy (no identity, but walletType === 'oisy')
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
   const isOnLandingHero = !identity && !showDocsPage && !showProfileSetup && !showAdminPanel && !profileLoading;
@@ -407,7 +418,7 @@ export default function App() {
               <div className="flex items-center gap-2 sm:gap-3">
                 {/* Docs — always visible, visually distinct */}
                 <button
-                  onClick={() => setShowDocsPage(true)}
+                  onClick={() => { window.location.hash = '#docs'; setShowDocsPage(true); }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
                 >
                   <BookOpen className="h-4 w-4" />
@@ -461,16 +472,16 @@ export default function App() {
             <div className="text-center py-16 px-4">
               <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
               <h2 className="font-display text-xl text-white mb-3">The Table Flipped</h2>
-              <p className="mc-text-dim mb-6 text-sm">The house always wins, but the website doesn't always cooperate.</p>
+              <p className="mc-text-dim mb-6 text-sm">The fund imploded. But the website also broke, so at least it's consistent.</p>
               <button onClick={() => window.location.reload()} className="mc-btn-primary">
-                Spin Again
+                Try Again
               </button>
             </div>
           }>
             {showDocsPage ? (
               /* === DOCS PAGE === */
               <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
-                <DocsPage onBack={() => setShowDocsPage(false)} />
+                <DocsPage onBack={() => { history.replaceState(null, '', window.location.pathname); setShowDocsPage(false); }} />
               </div>
             ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
@@ -630,7 +641,7 @@ export default function App() {
                   Musical Chairs
                 </div>
                 <LoadingSpinner />
-                <p className="mc-text-muted text-xs tracking-wider uppercase">Counting your chips...</p>
+                <p className="mc-text-muted text-xs tracking-wider uppercase">Loading your portfolio...</p>
               </div>
             ) : showAdminPanel ? (
               <ErrorBoundary fallback={
@@ -639,7 +650,7 @@ export default function App() {
                   <h2 className="font-display text-xl text-white mb-3">Charles's Office Is on Fire</h2>
                   <p className="mc-text-dim text-sm mb-4">The back office crashed. The front office is fine. Probably.</p>
                   <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
-                    Spin Again
+                    Try Again
                   </button>
                 </div>
               }>
@@ -660,7 +671,7 @@ export default function App() {
                   <h2 className="font-display text-xl text-white mb-3">The Dashboard Took a Hit</h2>
                   <p className="mc-text-dim text-sm mb-4">Your money's still there. Probably. Refresh and find out.</p>
                   <button onClick={() => window.location.reload()} className="mc-btn-primary mt-4">
-                    Spin Again
+                    Try Again
                   </button>
                 </div>
               }>

@@ -6,7 +6,7 @@ import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Targ
 import HallOfFame from './HallOfFame';
 
 const successFlavor = [
-  "The house smiles upon you.",
+  "The fund smiles upon you.",
   "Clean hit. Charles would be proud.",
   "Flawless execution. You're a natural.",
   "They never saw it coming.",

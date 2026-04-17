@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { GameRecord } from '../backend';
-import { getDailyRate, getTimeRemaining, isCompoundingPlanUnlocked } from './useQueries';
+import { getDailyRate, getPlanDays, getTimeRemaining, isCompoundingPlanUnlocked } from './useQueries';
 
 // Convert GamePlan enum to the string format getDailyRate expects
 function getGamePlanString(plan: any): string {
@@ -14,20 +14,36 @@ function getGamePlanString(plan: any): string {
 /**
  * Pure deterministic earnings calculation from a GameRecord.
  * No backend calls — just math + Date.now().
+ * Mirrors backend logic: caps at plan duration, uses lastUpdateTime for simple mode.
  */
 export function computeLiveEarnings(game: GameRecord): number {
-  const startMs = Number(game.startTime) / 1_000_000;
-  const elapsedDays = (Date.now() - startMs) / 86_400_000;
-  if (elapsedDays <= 0) return 0;
-
   const dailyRate = getDailyRate(getGamePlanString(game.plan));
+  const planDays = getPlanDays(getGamePlanString(game.plan));
 
   if (game.isCompounding) {
-    // Compounding: principal × [(1 + rate)^days - 1]
+    // Compounding: use startTime, cap at plan duration
+    const startMs = Number(game.startTime) / 1_000_000;
+    const elapsedDays = Math.min(
+      (Date.now() - startMs) / 86_400_000,
+      planDays
+    );
+    if (elapsedDays <= 0) return 0;
     return game.amount * (Math.pow(1 + dailyRate, elapsedDays) - 1);
   } else {
-    // Simple: principal × rate × days
-    return game.amount * dailyRate * elapsedDays;
+    // Simple: use lastUpdateTime (resets on each claim), cap remaining allowed time
+    const startMs = Number(game.startTime) / 1_000_000;
+    const lastUpdateMs = Number(game.lastUpdateTime) / 1_000_000;
+
+    // How much time was already accounted for (previous claims)
+    const timeAlreadyAccountedDays = (lastUpdateMs - startMs) / 86_400_000;
+    const remainingAllowedDays = Math.max(0, planDays - timeAlreadyAccountedDays);
+
+    // Time since last claim, capped at remaining allowed time
+    const timeSinceLastUpdateDays = (Date.now() - lastUpdateMs) / 86_400_000;
+    const effectiveDays = Math.min(timeSinceLastUpdateDays, remainingAllowedDays);
+    if (effectiveDays <= 0) return 0;
+
+    return game.amount * dailyRate * effectiveDays;
   }
 }
 

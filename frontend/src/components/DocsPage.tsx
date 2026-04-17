@@ -1,5 +1,22 @@
-import React, { useState } from 'react';
-import { ChevronDown, ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, HelpCircle, BookOpen, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, BookOpen, ArrowLeft } from 'lucide-react';
+import {
+  DAILY_RATE_SIMPLE, DAILY_RATE_COMPOUND_15, DAILY_RATE_COMPOUND_30,
+  PLAN_DAYS_SIMPLE, PLAN_DAYS_COMPOUND_15, PLAN_DAYS_COMPOUND_30,
+  MIN_DEPOSIT_ICP, SIMPLE_MAX_DEPOSIT_POT_FRACTION, SIMPLE_MAX_DEPOSIT_FLOOR_ICP,
+  DEPOSIT_RATE_LIMIT,
+  ENTRY_SKIM_RATE,
+  EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE,
+  EXIT_TOLL_EARLY_DAYS, EXIT_TOLL_MID_DAYS,
+  JACKPOT_FEE_RATE,
+  FEE_POT_SHARE, FEE_BACKER_SHARE,
+  BACKER_OLDEST_UPSTREAM_SHARE, BACKER_OTHER_UPSTREAM_SHARE, BACKER_ALL_SHARE,
+  UPSTREAM_BACKER_BONUS, DOWNSTREAM_BACKER_BONUS,
+  PP_PER_ICP_SIMPLE, PP_PER_ICP_COMPOUND_15, PP_PER_ICP_COMPOUND_30, PP_PER_ICP_SEED_ROUND,
+  REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE,
+  SHENANIGAN_PROTECTION_FLOOR,
+  pct, fmt,
+} from '../lib/gameConstants';
 
 interface DocSection {
   id: string;
@@ -11,7 +28,7 @@ interface DocSection {
 
 function DocAccordion({ section, isOpen, onToggle }: { section: DocSection; isOpen: boolean; onToggle: () => void }) {
   return (
-    <div className="mc-card overflow-hidden transition-all">
+    <div id={`docs-${section.id}`} className="mc-card overflow-hidden transition-all scroll-mt-24">
       <button
         onClick={onToggle}
         className="w-full flex items-center gap-4 p-5 text-left hover:bg-white/[0.03] transition-colors group"
@@ -81,14 +98,14 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Plan', 'Daily Rate', 'Duration', 'Lockup', 'PP Earned']}
           rows={[
-            [<span className="mc-text-green font-bold">Simple 21-Day</span>, '11%', '21 days', 'None — withdraw anytime', '1,000 PP / ICP'],
-            [<span className="mc-text-purple font-bold">Compounding 15-Day</span>, '12%', '15 days', 'Full lockup', '2,000 PP / ICP'],
-            [<span className="mc-text-gold font-bold">Compounding 30-Day</span>, '9%', '30 days', 'Full lockup', '3,000 PP / ICP'],
+            [<span className="mc-text-green font-bold">Simple {PLAN_DAYS_SIMPLE}-Day</span>, pct(DAILY_RATE_SIMPLE), `${PLAN_DAYS_SIMPLE} days`, 'None — withdraw anytime', `${fmt(PP_PER_ICP_SIMPLE)} PP / ICP`],
+            [<span className="mc-text-purple font-bold">Compounding {PLAN_DAYS_COMPOUND_15}-Day</span>, pct(DAILY_RATE_COMPOUND_15), `${PLAN_DAYS_COMPOUND_15} days`, 'Full lockup', `${fmt(PP_PER_ICP_COMPOUND_15)} PP / ICP`],
+            [<span className="mc-text-gold font-bold">Compounding {PLAN_DAYS_COMPOUND_30}-Day</span>, pct(DAILY_RATE_COMPOUND_30), `${PLAN_DAYS_COMPOUND_30} days`, 'Full lockup', `${fmt(PP_PER_ICP_COMPOUND_30)} PP / ICP`],
           ]}
         />
         <div className="mt-4 space-y-2">
           <p><strong className="text-white">Simple mode:</strong> Interest accrues daily on your original deposit. You can withdraw accumulated earnings at any time, subject to exit tolls. Your principal stays in the game until the plan matures or you close the position.</p>
-          <p><strong className="text-white">Compounding mode:</strong> Interest compounds daily on your growing balance. Funds are fully locked until maturity. At maturity, you receive your compounded total minus the 13% Jackpot Fee. No early withdrawal.</p>
+          <p><strong className="text-white">Compounding mode:</strong> Interest compounds daily on your growing balance. Funds are fully locked until maturity. At maturity, you receive your compounded total minus the {pct(JACKPOT_FEE_RATE)} Jackpot Fee. No early withdrawal.</p>
           <p><strong className="text-white">The risk:</strong> If the pot empties before your plan matures, you lose everything — principal and accrued earnings. Longer plans = higher returns = higher risk of getting caught in a reset.</p>
         </div>
       </>
@@ -102,11 +119,11 @@ const docSections: DocSection[] = [
     content: (
       <>
         <div className="space-y-2">
-          <p><strong className="text-white">Minimum deposit:</strong> 0.1 ICP for all plan types.</p>
-          <p><strong className="text-white">Maximum deposit (Simple only):</strong> The greater of 20% of the current pot balance or 5 ICP. This prevents a single player from draining the pot in one withdrawal.</p>
-          <p><strong className="text-white">Maximum deposit (Compounding):</strong> No limit above the 0.1 ICP minimum.</p>
-          <p><strong className="text-white">Rate limit:</strong> 3 positions per hour per user.</p>
-          <p><strong className="text-white">Entry skim:</strong> 3% of every deposit is skimmed. Half seeds the next round's pot, half repays the House (dealers).</p>
+          <p><strong className="text-white">Minimum deposit:</strong> {MIN_DEPOSIT_ICP} ICP for all plan types.</p>
+          <p><strong className="text-white">Maximum deposit (Simple only):</strong> The greater of {pct(SIMPLE_MAX_DEPOSIT_POT_FRACTION)} of the current pot balance or {SIMPLE_MAX_DEPOSIT_FLOOR_ICP} ICP. This prevents a single player from draining the pot in one withdrawal.</p>
+          <p><strong className="text-white">Maximum deposit (Compounding):</strong> No limit above the {MIN_DEPOSIT_ICP} ICP minimum.</p>
+          <p><strong className="text-white">Rate limit:</strong> {DEPOSIT_RATE_LIMIT} positions per hour per user.</p>
+          <p><strong className="text-white">Entry skim:</strong> {pct(ENTRY_SKIM_RATE)} of every deposit is skimmed. {pct(FEE_POT_SHARE)} seeds the next round's pot, {pct(FEE_BACKER_SHARE)} repays the backers.</p>
         </div>
         <div className="mc-card p-4 mt-4 mc-accent-gold">
           <p className="text-xs mc-text-muted">Deposits go through the ICRC-2 approve/transfer_from flow. You approve the backend canister to pull funds from your wallet, then the backend executes the transfer. This is a standard ICP token pattern.</p>
@@ -125,8 +142,7 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Fee', 'Rate', 'Applies To']}
           rows={[
-            ['Entry Skim', <span className="mc-text-gold font-bold">3%</span>, 'Every deposit'],
-            ['Dealer Maintenance Fee', <span className="mc-text-gold font-bold">3%</span>, 'Every deposit (to dealers)'],
+            ['Entry Skim', <span className="mc-text-gold font-bold">{pct(ENTRY_SKIM_RATE)}</span>, 'Every deposit'],
           ]}
         />
 
@@ -134,9 +150,9 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Withdrawal Window', 'Toll']}
           rows={[
-            ['Day 0–3', <span className="mc-text-danger font-bold">7%</span>],
-            ['Day 3–10', <span className="mc-text-gold font-bold">5%</span>],
-            ['Day 10+', <span className="mc-text-green font-bold">3%</span>],
+            [`Day 0–${EXIT_TOLL_EARLY_DAYS}`, <span className="mc-text-danger font-bold">{pct(EXIT_TOLL_EARLY)}</span>],
+            [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pct(EXIT_TOLL_MID)}</span>],
+            [`Day ${EXIT_TOLL_MID_DAYS}+`, <span className="mc-text-green font-bold">{pct(EXIT_TOLL_LATE)}</span>],
           ]}
         />
 
@@ -144,46 +160,46 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Fee', 'Rate', 'When']}
           rows={[
-            ['Jackpot Fee', <span className="mc-text-gold font-bold">13%</span>, 'On maturity payout'],
+            ['Jackpot Fee', <span className="mc-text-gold font-bold">{pct(JACKPOT_FEE_RATE)}</span>, 'On maturity payout'],
           ]}
         />
 
-        <p className="mt-4 mc-text-muted">All tolls and fees flow back into the pot or to dealers. They fund other players' returns. This is the engine — new money in, old money out.</p>
-        <p className="mc-text-muted">Half of entry skims and exit tolls seed the next round's pot. The other half repays the House.</p>
+        <p className="mt-4 mc-text-muted">All tolls and fees flow back into the pot or to backers. They fund other players' returns. This is the engine — new money in, old money out.</p>
+        <p className="mc-text-muted">{pct(FEE_POT_SHARE)} of entry skims and exit tolls seed the next round's pot. The other {pct(FEE_BACKER_SHARE)} repays the backers.</p>
       </>
     ),
   },
   {
-    id: 'dealers',
-    title: 'The Seed Round (Dealers)',
-    subtitle: 'Back the house. Earn a cut. Take on house-level risk.',
+    id: 'seed-round',
+    title: 'The Seed Round (Backers)',
+    subtitle: 'Back the fund. Earn a cut. Take on fund-level risk.',
     icon: <Landmark className="h-5 w-5 mc-text-gold" />,
     content: (
       <>
-        <p>Dealers are the house. They deposit ICP into the Seed Round and earn a 12% entitlement on their stake, repaid over time through player deposits.</p>
+        <p>Backers are the venture capitalists of Musical Chairs. They deposit ICP into the Seed Round and earn an entitlement on their stake, repaid over time through player deposits.</p>
 
         <p className="font-bold text-white mt-4 mb-2">How It Works</p>
         <div className="space-y-2">
-          <p><strong className="text-white">Deposit:</strong> Minimum 0.1 ICP. Your deposit goes directly into the pot.</p>
-          <p><strong className="text-white">Entitlement:</strong> You're owed 112% of your deposit (original + 12% bonus).</p>
-          <p><strong className="text-white">Repayment:</strong> Comes from the 3% dealer maintenance fee on every player deposit.</p>
-          <p><strong className="text-white">PP earned:</strong> 4,000 Ponzi Points per ICP deposited.</p>
+          <p><strong className="text-white">Deposit:</strong> Minimum {MIN_DEPOSIT_ICP} ICP. Your deposit goes directly into the pot.</p>
+          <p><strong className="text-white">Entitlement (Series A):</strong> You're owed {pct(1 + UPSTREAM_BACKER_BONUS)} of your deposit (original + {pct(UPSTREAM_BACKER_BONUS)} bonus).</p>
+          <p><strong className="text-white">Repayment:</strong> Comes from the backer share ({pct(FEE_BACKER_SHARE)}) of entry skims and exit tolls on every player transaction.</p>
+          <p><strong className="text-white">PP earned:</strong> {fmt(PP_PER_ICP_SEED_ROUND)} Ponzi Points per ICP deposited.</p>
         </div>
 
         <p className="font-bold text-white mt-4 mb-2">Fee Distribution</p>
         <DocTable
           headers={['Share', 'Recipient']}
           rows={[
-            [<span className="mc-text-gold font-bold">35%</span>, 'Oldest upstream dealer'],
-            [<span className="mc-text-purple font-bold">25%</span>, 'Split among other upstream dealers'],
-            [<span className="mc-text-cyan font-bold">40%</span>, 'Split among all dealers'],
+            [<span className="mc-text-gold font-bold">{pct(BACKER_OLDEST_UPSTREAM_SHARE)}</span>, 'Oldest upstream backer'],
+            [<span className="mc-text-purple font-bold">{pct(BACKER_OTHER_UPSTREAM_SHARE)}</span>, 'Split among other upstream backers'],
+            [<span className="mc-text-cyan font-bold">{pct(BACKER_ALL_SHARE)}</span>, 'Split among all backers'],
           ]}
         />
 
-        <p className="font-bold text-white mt-4 mb-2">Dealer Types</p>
+        <p className="font-bold text-white mt-4 mb-2">Backer Types</p>
         <div className="space-y-2">
-          <p><strong className="mc-text-green">Upstream Dealers:</strong> Created by voluntarily depositing into the Seed Round.</p>
-          <p><strong className="mc-text-danger">Downstream Dealers:</strong> Created automatically during a Redistribution Event — a random unprofitable player gets converted into a dealer with an entitlement matching their losses plus the 12% bonus.</p>
+          <p><strong className="mc-text-green">Series A (Upstream):</strong> Created by voluntarily depositing into the Seed Round. {pct(UPSTREAM_BACKER_BONUS)} bonus on your stake.</p>
+          <p><strong className="mc-text-danger">Series B (Downstream):</strong> Created automatically during a Redistribution Event — a random unprofitable player gets converted into a backer with an entitlement matching their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
         </div>
       </>
     ),
@@ -195,16 +211,16 @@ const docSections: DocSection[] = [
     icon: <Users className="h-5 w-5 mc-text-cyan" />,
     content: (
       <>
-        <p>Share your referral link and earn ICP from your downline's deposits. Three levels deep.</p>
+        <p>Share your referral link and earn Ponzi Points from your downline's activity. Three levels deep, paid in PP — never ICP.</p>
         <DocTable
           headers={['Level', 'Relationship', 'Your Cut']}
           rows={[
-            [<span className="mc-text-green font-bold">L1</span>, 'Direct referrals', <span className="mc-text-green font-bold">10%</span>],
-            [<span className="mc-text-purple font-bold">L2</span>, 'Their referrals', <span className="mc-text-purple font-bold">5%</span>],
-            [<span className="mc-text-gold font-bold">L3</span>, 'Their referrals\' referrals', <span className="mc-text-gold font-bold">3%</span>],
+            [<span className="mc-text-green font-bold">L1</span>, 'Direct referrals', <span className="mc-text-green font-bold">{pct(REFERRAL_L1_RATE)}</span>],
+            [<span className="mc-text-purple font-bold">L2</span>, 'Their referrals', <span className="mc-text-purple font-bold">{pct(REFERRAL_L2_RATE)}</span>],
+            [<span className="mc-text-gold font-bold">L3</span>, "Their referrals' referrals", <span className="mc-text-gold font-bold">{pct(REFERRAL_L3_RATE)}</span>],
           ]}
         />
-        <p className="mt-4">Referral earnings are paid in ICP directly to your internal Musical Chairs wallet. They also contribute to your Ponzi Points balance.</p>
+        <p className="mt-4">When someone in your downline earns PP (from deposits, gameplay, etc.), you automatically receive a percentage of those PP earnings at each level of the chain.</p>
         <p className="mc-text-muted">Yes, it's a pyramid. We're not pretending otherwise.</p>
       </>
     ),
@@ -220,7 +236,7 @@ const docSections: DocSection[] = [
         <div className="space-y-2 mt-3">
           <p><strong className="mc-text-danger">All active positions are liquidated.</strong> Total loss for anyone still holding.</p>
           <p><strong className="mc-text-danger">All pending payouts are voided.</strong> Accrued but unwithdrawn earnings disappear.</p>
-          <p><strong className="mc-text-gold">A random unprofitable player becomes a Downstream Dealer.</strong> Their entitlement equals their losses plus a 12% dealer bonus.</p>
+          <p><strong className="mc-text-gold">A random unprofitable player becomes a Series B Backer.</strong> Their entitlement equals their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
           <p><strong className="mc-text-green">A new round begins.</strong> Fresh pot, clean slate, same rules.</p>
         </div>
         <div className="mc-card p-4 mt-4 mc-accent-danger">
@@ -236,20 +252,20 @@ const docSections: DocSection[] = [
     icon: <Zap className="h-5 w-5 mc-text-purple" />,
     content: (
       <>
-        <p>Ponzi Points are earned automatically through gameplay. They cannot be bought, sold, or transferred. Their only use is casting Shenanigans.</p>
+        <p>Ponzi Points are earned automatically through gameplay. They cannot be bought or sold. Their primary use is casting Shenanigans.</p>
 
         <p className="font-bold text-white mt-4 mb-2">Earning Rates</p>
         <DocTable
           headers={['Activity', 'PP Earned']}
           rows={[
-            ['Simple 21-Day deposit', '1,000 PP per ICP'],
-            ['Compounding 15-Day deposit', '2,000 PP per ICP'],
-            ['Compounding 30-Day deposit', '3,000 PP per ICP'],
-            ['Seed Round deposit', '4,000 PP per ICP'],
-            ['Referral activity', 'Based on referral earnings'],
+            [`Simple ${PLAN_DAYS_SIMPLE}-Day deposit`, `${fmt(PP_PER_ICP_SIMPLE)} PP per ICP`],
+            [`Compounding ${PLAN_DAYS_COMPOUND_15}-Day deposit`, `${fmt(PP_PER_ICP_COMPOUND_15)} PP per ICP`],
+            [`Compounding ${PLAN_DAYS_COMPOUND_30}-Day deposit`, `${fmt(PP_PER_ICP_COMPOUND_30)} PP per ICP`],
+            ['Seed Round deposit', `${fmt(PP_PER_ICP_SEED_ROUND)} PP per ICP`],
+            ['Referral activity', 'Based on downline PP earnings'],
           ]}
         />
-        <p className="mt-4 mc-text-muted">PP do not affect ICP payouts, pot mechanics, or game math in any way. They're purely cosmetic currency for Shenanigans.</p>
+        <p className="mt-4 mc-text-muted">PP do not affect ICP payouts, pot mechanics, or game math in any way. They're purely for Shenanigans and bragging rights.</p>
       </>
     ),
   },
@@ -260,17 +276,17 @@ const docSections: DocSection[] = [
     icon: <Dice5 className="h-5 w-5 mc-text-green" />,
     content: (
       <>
-        <p>11 shenanigans across three categories. All cost PP. All can backfire. Players under 200 PP are protected from negative effects.</p>
+        <p>11 shenanigans across three categories. All cost PP. All can backfire. Players under {fmt(SHENANIGAN_PROTECTION_FLOOR)} PP are protected from negative effects.</p>
 
         <p className="font-bold mc-text-danger mt-4 mb-2">Offense</p>
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Money Trickster', '120 PP', 'Steal 2–8% of target\'s PP (max 250)', '60%'],
-            ['AOE Skim', '600 PP', 'Siphon 1–3% from every player (max 60/ea)', '40%'],
-            ['Mint Tax Siphon', '1,200 PP', 'Skim 5% of target\'s new PP for 7 days (max 1,000)', '70%'],
-            ['Downline Heist', '500 PP', 'Steal a referral from someone\'s downline', '30%'],
-            ['Purse Cutter', '900 PP', 'Target loses 25–50% PP (max 800)', '20%'],
+            ['Money Trickster', '120 PP', "Steal 2\u20138% of target's PP (max 250)", '60%'],
+            ['AOE Skim', '600 PP', 'Siphon 1\u20133% from every player (max 60/ea)', '40%'],
+            ['Mint Tax Siphon', '1,200 PP', "Skim 5% of target's new PP for 7 days (max 1,000)", '70%'],
+            ['Downline Heist', '500 PP', "Steal a referral from someone's downline", '30%'],
+            ['Purse Cutter', '900 PP', 'Target loses 25\u201350% PP (max 800)', '20%'],
             ['Whale Rebalance', '800 PP', 'Take 20% from top 3 PP holders (max 300/whale)', '50%'],
           ]}
         />
@@ -280,7 +296,7 @@ const docSections: DocSection[] = [
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
             ['Magic Mirror', '200 PP', 'Shield: blocks one hostile shenanigan', '100%'],
-            ['PP Booster Aura', '300 PP', '+5–15% additional PP for rest of round', '100%'],
+            ['PP Booster Aura', '300 PP', '+5\u201315% additional PP for rest of round', '100%'],
             ['Downline Boost', '400 PP', 'Referrals kick up 1.3x PP for rest of round', '100%'],
           ]}
         />
@@ -289,7 +305,7 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Rename Spell', '200 PP', 'Change someone\'s display name for 7 days', '90%'],
+            ['Rename Spell', '200 PP', "Change someone's display name for 7 days", '90%'],
             ['Golden Name', '100 PP', 'Gold name on leaderboard for 24 hours', '100%'],
           ]}
         />
@@ -335,17 +351,17 @@ const docSections: DocSection[] = [
           {[
             ['Pot', 'The shared pool of ICP that funds all player returns. Fed by deposits and fees. Drained by withdrawals and payouts.'],
             ['Position', 'An active game entry. Created when you deposit ICP into a plan. Has a start date, plan type, and accruing earnings.'],
-            ['Entry Skim', 'The 3% fee taken from every deposit before it enters the pot.'],
-            ['Exit Toll', 'The fee charged when withdrawing from a Simple position. Ranges from 3% to 7% depending on how long you\'ve been in.'],
-            ['Jackpot Fee', 'The 13% fee charged on Compounding position payouts at maturity.'],
-            ['Dealer', 'A player who has deposited into the Seed Round. Earns a share of the 3% dealer maintenance fee from all deposits.'],
-            ['Upstream Dealer', 'A dealer who voluntarily deposited into the Seed Round.'],
-            ['Downstream Dealer', 'A dealer created automatically during a Redistribution Event from a random unprofitable player.'],
-            ['Entitlement', 'The total amount a dealer is owed: their original deposit plus the 12% dealer bonus.'],
-            ['The Redistribution Event', 'When the pot can\'t cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Downstream Dealer.'],
-            ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and dealer stakes. Can only be spent on Shenanigans. Cannot be traded or transferred.'],
-            ['Shenanigans', 'Cosmetic game actions cast using PP. Range from stealing other players\' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP.'],
-            ['Downline', 'Players referred by you (L1), or referred by your referrals (L2, L3). You earn ICP from their deposits.'],
+            ['Entry Skim', `The ${pct(ENTRY_SKIM_RATE)} fee taken from every deposit before it enters the pot.`],
+            ['Exit Toll', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
+            ['Jackpot Fee', `The ${pct(JACKPOT_FEE_RATE)} fee charged on Compounding position payouts at maturity.`],
+            ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from entry skims and exit tolls.`],
+            ['Series A Backer (Upstream)', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
+            ['Series B Backer (Downstream)', `A backer created automatically during a Redistribution Event from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
+            ['Entitlement', `The total amount a backer is owed: their original deposit plus their bonus (${pct(UPSTREAM_BACKER_BONUS)} for Series A, ${pct(DOWNSTREAM_BACKER_BONUS)} for Series B).`],
+            ['The Redistribution Event', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
+            ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and backer stakes. Can only be spent on Shenanigans.'],
+            ['Shenanigans', "Cosmetic game actions cast using PP. Range from stealing other players' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP."],
+            ['Downline', `Players referred by you (L1), or referred by your referrals (L2, L3). You earn PP from their activity (${pct(REFERRAL_L1_RATE)}/${pct(REFERRAL_L2_RATE)}/${pct(REFERRAL_L3_RATE)} of their PP earnings).`],
             ['Round', 'A full game cycle, from pot creation to redistribution. When the pot empties, the round ends and a new one begins.'],
             ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug/OISY).'],
           ].map(([term, def]) => (
@@ -368,13 +384,41 @@ interface DocsPageProps {
 export default function DocsPage({ onBack }: DocsPageProps) {
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
 
+  // Open + scroll to a section when the hash matches #docs-<sectionId>
+  useEffect(() => {
+    const openFromHash = () => {
+      const hash = window.location.hash;
+      if (hash.startsWith('#docs-')) {
+        const sectionId = hash.replace('#docs-', '');
+        const matchingSection = docSections.find(s => s.id === sectionId);
+        if (matchingSection) {
+          setOpenSections(prev => new Set(prev).add(sectionId));
+          requestAnimationFrame(() => {
+            const el = document.getElementById(hash.slice(1));
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          });
+        }
+      }
+    };
+
+    openFromHash(); // run on mount
+    window.addEventListener('hashchange', openFromHash);
+    return () => window.removeEventListener('hashchange', openFromHash);
+  }, []);
+
   const toggleSection = (id: string) => {
     setOpenSections(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
         next.delete(id);
+        // Clear hash when closing
+        if (window.location.hash === `#docs-${id}`) {
+          history.replaceState(null, '', '#docs');
+        }
       } else {
         next.add(id);
+        // Update hash for deep linking
+        history.replaceState(null, '', `#docs-${id}`);
       }
       return next;
     });

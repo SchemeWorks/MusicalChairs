@@ -2,7 +2,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
-import { useLedger, BACKEND_CANISTER_ID } from './useLedger';
+import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
+import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
 export type { BackerPosition };
@@ -16,16 +17,17 @@ const HOST = 'https://icp0.io';
 // User Profile Queries
 export function useGetCallerUserProfile() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
 
   const query = useQuery<UserProfile | null>({
-    queryKey: ['currentUserProfile'],
+    queryKey: ['currentUserProfile', principal],
     queryFn: async (): Promise<UserProfile | null> => {
       if (!actor) throw new Error('Actor not available');
       const result = await actor.getCallerUserProfile();
       // Convert Candid optional ([] | [UserProfile]) to UserProfile | null
-      return result.length > 0 ? result[0] ?? null : null;
+      return result[0] ?? null;
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!actor && !actorFetching && !!principal,
     retry: false,
   });
 
@@ -99,9 +101,10 @@ export function useGetMaxDepositLimit() {
 
 export function useCheckDepositRateLimit() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
 
   return useQuery<boolean>({
-    queryKey: ['depositRateLimit'],
+    queryKey: ['depositRateLimit', principal],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       return actor.checkDepositRateLimit();
@@ -114,9 +117,10 @@ export function useCheckDepositRateLimit() {
 // Backer Repayment Balance Query
 export function useGetBackerRepaymentBalance() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
 
   return useQuery<number>({
-    queryKey: ['backerRepaymentBalance'],
+    queryKey: ['backerRepaymentBalance', principal],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       return actor.getDealerRepaymentBalance(); // Backend Candid name unchanged
@@ -496,9 +500,10 @@ const gameEarningsStore = new Map<string, { lastUpdateTime: number; accumulatedE
 // Game Queries with manual refresh functionality
 export function useGetUserGames() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
 
   return useQuery<GameRecord[]>({
-    queryKey: ['userGames'],
+    queryKey: ['userGames', principal],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       const games = await actor.getUserGames();
@@ -536,7 +541,7 @@ export function useGetUserGames() {
 
 export function useCreateGame() {
   const { actor } = useActor();
-  const { principal } = useWallet();
+  const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
   const ledger = useLedger();
 
@@ -545,13 +550,6 @@ export function useCreateGame() {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
 
-      // Step 1: Approve the canister to transfer ICP on user's behalf (ICRC-2)
-      const amountE8s = BigInt(Math.round(amount * 100_000_000));
-      // Approve slightly more to cover the ledger fee
-      const approveAmount = amountE8s + 20_000n; // extra for fees
-      await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-
-      // Step 2: Call createGame — backend does the ICRC-2 transfer_from
       let plan: GamePlan;
       switch (planId) {
         case '21-day-simple':
@@ -567,21 +565,58 @@ export function useCreateGame() {
           throw new Error('Invalid plan ID');
       }
 
+      const amountE8s = BigInt(Math.round(amount * 100_000_000));
+      const approveAmount = amountE8s + 20_000n; // extra for fees
       const isCompounding = mode === 'compounding';
-      const gameId = await actor.createGame(plan, amount, isCompounding, []);
-      
+
+      let gameId: bigint;
+
+      // Oisy path: ICRC-112 batching (approve + createGame in one popup)
+      // CRITICAL: No await between user click and signerAgent.execute()
+      if (walletType === 'oisy') {
+        const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+        const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
+        const backendActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+
+        // Sequence 0: approve
+        signerAgent.batch();
+        const approvePromise = ledgerActor.icrc2_approve({
+          amount: approveAmount,
+          spender: { owner: Principal.fromText(BACKEND_CANISTER_ID), subaccount: [] },
+          expires_at: [],
+          expected_allowance: [],
+          memo: [],
+          fee: [],
+          from_subaccount: [],
+          created_at_time: [],
+        });
+
+        // Sequence 1: createGame
+        signerAgent.batch();
+        const gamePromise = backendActor.createGame(plan, amount, isCompounding, []);
+
+        // Fire single ICRC-112 request — ONE signer popup
+        await signerAgent.execute();
+        const [, gId] = await Promise.all([approvePromise, gamePromise]);
+        gameId = gId;
+      } else {
+        // Standard path: separate approve + createGame
+        await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
+        gameId = await actor.createGame(plan, amount, isCompounding, []);
+      }
+
       // Initialize earnings tracking for the new game
       gameEarningsStore.set(gameId.toString(), {
         lastUpdateTime: Date.now(),
         accumulatedEarnings: 0
       });
-      
+
       // Calculate House Maintenance fee (3%)
       const houseFee = amount * 0.03;
       const netAmount = amount - houseFee;
-      
-      return { 
-        success: true, 
+
+      return {
+        success: true,
         gameId,
         planId,
         amount,
@@ -634,6 +669,46 @@ export function useWithdrawGameEarnings() {
   });
 }
 
+export function useSettleCompoundingGame() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (gameId: bigint) => {
+      if (!actor) throw new Error('Actor not available');
+      const earnings = await actor.settleCompoundingGame(gameId);
+      gameEarningsStore.delete(gameId.toString());
+      return { earnings, gameId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userGames'] });
+      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
+      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['gameStats'] });
+    },
+  });
+}
+
+export function useClaimDealerRepayment() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.claimDealerRepayment();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
+      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['backerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['seedRoundDashboard'] });
+    },
+  });
+}
+
 export function useCalculateGameEarnings() {
   const { actor } = useActor();
 
@@ -648,9 +723,10 @@ export function useCalculateGameEarnings() {
 // Shenanigans Queries — routed to standalone shenanigans canister
 export function useGetShenaniganStats() {
   const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const { principal } = useWallet();
 
   return useQuery<ShenaniganStats>({
-    queryKey: ['shenaniganStats'],
+    queryKey: ['shenaniganStats', principal],
     queryFn: async () => {
       if (!actor) throw new Error('Shenanigans actor not available');
       return actor.getShenaniganStats();
@@ -810,25 +886,32 @@ export function getPlanDays(plan: string): number {
   }
 }
 
-// Helper function to calculate incremental earnings for a time period
+// Helper function to calculate incremental earnings for a time period (with plan duration cap)
 function calculateIncrementalEarnings(game: GameRecord, elapsedSeconds: number): number {
   const dailyRate = getDailyRate(getGamePlanString(game.plan));
-  
+  const planDays = getPlanDays(getGamePlanString(game.plan));
+  const maxDurationSeconds = planDays * 86400;
+
   if (game.isCompounding) {
-    // For compounding, use the updated formula: earnings = principal × [(1 + daily_rate) ^ (elapsed_seconds / 86400) - 1]
-    // This calculates only the compounded interest, not including the principal
-    const elapsedDays = elapsedSeconds / 86400;
+    // Cap elapsed time at plan duration
+    const cappedSeconds = Math.min(elapsedSeconds, maxDurationSeconds);
+    const elapsedDays = cappedSeconds / 86400;
     const compoundedInterest = game.amount * (Math.pow(1 + dailyRate, elapsedDays) - 1);
-    
+
     // Return incremental earnings since last update
     const stored = gameEarningsStore.get(game.id.toString());
     const previousEarnings = stored ? stored.accumulatedEarnings : game.accumulatedEarnings;
-    
+
     return Math.max(0, compoundedInterest - previousEarnings);
   } else {
-    // Simple formula: earnings = principal × rate × (elapsed_seconds / 86400)
-    // Updated to use the new 11% daily rate for simple mode
-    return game.amount * dailyRate * (elapsedSeconds / 86400);
+    // Simple: cap at remaining allowed time (accounts for previous claims)
+    const startNs = Number(game.startTime);
+    const lastUpdateNs = Number(game.lastUpdateTime);
+    const timeAlreadyAccounted = (lastUpdateNs - startNs) / 1_000_000_000;
+    const remainingAllowed = Math.max(0, maxDurationSeconds - timeAlreadyAccounted);
+    const cappedSeconds = Math.min(elapsedSeconds, remainingAllowed);
+
+    return game.amount * dailyRate * (cappedSeconds / 86400);
   }
 }
 
@@ -937,9 +1020,10 @@ export function useGetReferralStats() {
 // Ponzi Points Queries - Updated to use real backend data
 export function useGetPonziPoints() {
   const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
 
   return useQuery({
-    queryKey: ['ponziPointsBalance'],
+    queryKey: ['ponziPointsBalance', principal],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       

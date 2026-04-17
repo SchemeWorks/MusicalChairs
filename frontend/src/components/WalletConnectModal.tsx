@@ -25,7 +25,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const isPlugInstalled = typeof window !== 'undefined' && !!window.ic?.plug;
 
   const walletOptions: WalletOption[] = [
-    { type: 'internet-identity', name: 'Internet Identity', description: 'The house standard. Clean, native, no questions asked.', icon: '/ii-logo.svg', installed: true },
+    { type: 'internet-identity', name: 'Internet Identity', description: 'The institutional choice. Clean, native, no questions asked.', icon: '/ii-logo.svg', installed: true },
     { type: 'plug', name: 'Plug Wallet', description: 'For those who like to keep their keys close.', icon: '/plug-logo.svg', installed: isPlugInstalled, installUrl: 'https://plugwallet.ooo/' },
     { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', installed: true },
   ];

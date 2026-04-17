@@ -21,6 +21,12 @@ type UserRole =
    user;
  };
 type UserProfile = record {name: text;};
+type TrustedOriginsResponse = record {trusted_origins: vec text;};
+type StandardRecord = 
+ record {
+   name: text;
+   url: text;
+ };
 type PlatformStats = 
  record {
    activeGames: nat;
@@ -28,6 +34,16 @@ type PlatformStats =
    potBalance: float64;
    totalDeposits: float64;
    totalWithdrawals: float64;
+ };
+type LineDisplayPage = record {lines: vec text;};
+type Icrc21Error = 
+ variant {
+   ConsentMessageUnavailable: record {description: text;};
+   GenericError: record {
+                   description: text;
+                   error_code: nat;
+                 };
+   UnsupportedCanisterCall: record {description: text;};
  };
 type HouseLedgerRecord = 
  record {
@@ -60,6 +76,14 @@ type GamePlan =
    compounding30Day;
    simple21Day;
  };
+type DeviceSpec = 
+ variant {
+   GenericDisplay;
+   LineDisplay: record {
+                  characters_per_line: nat16;
+                  lines_per_page: nat16;
+                };
+ };
 type DealerType = 
  variant {
    downstream;
@@ -76,16 +100,49 @@ type DealerPosition =
    owner: principal;
    startTime: int;
  };
+type ConsentMessageSpec = 
+ record {
+   device_spec: opt DeviceSpec;
+   metadata: ConsentMessageMetadata;
+ };
+type ConsentMessageResponse = 
+ variant {
+   Err: Icrc21Error;
+   Ok: ConsentInfo;
+ };
+type ConsentMessageRequest = 
+ record {
+   arg: blob;
+   method: text;
+   user_preferences: ConsentMessageSpec;
+ };
+type ConsentMessageMetadata = 
+ record {
+   language: text;
+   utc_offset_minutes: opt int16;
+ };
+type ConsentMessage = 
+ variant {
+   GenericDisplayMessage: text;
+   LineDisplayMessage: record {pages: vec LineDisplayPage;};
+ };
+type ConsentInfo = 
+ record {
+   consent_message: ConsentMessage;
+   metadata: ConsentMessageMetadata;
+ };
 service : {
   addDealerMoney: (amount: float64) -> ();
   addDownstreamDealer: (amount: float64, underwaterAmount: float64) -> ();
   addHouseMoney: (amount: float64, description: text) -> ();
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   burnPonziPoints: (user: principal, amount: float64) -> ();
+  calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
   calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
   calculateCompoundedROI: () -> (float64) query;
   calculateEarnings: (game: GameRecord) -> (float64) query;
   checkDepositRateLimit: () -> (bool) query;
+  claimDealerRepayment: () -> (float64);
   createGame: (plan: GamePlan, amount: float64, isCompounding: bool,
    referrer: opt principal) -> (nat);
   deductPonziPoints: (user: principal, amount: float64) -> ();
@@ -152,15 +209,21 @@ service : {
   getWalletBalance: () -> (nat) query;
   getWalletBalanceICP: () -> (float64) query;
   getWalletTransactions: () -> (vec WalletTransaction) query;
+  icrc10_supported_standards: () -> (vec StandardRecord) query;
+  icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
+   (ConsentMessageResponse);
+  icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
   initializeAccessControl: () -> ();
   isCallerAdmin: () -> (bool) query;
   isTestMode: () -> (bool) query;
   saveCallerUserProfile: (profile: UserProfile) -> ();
   seedGame: (player: principal, plan: GamePlan, amount: float64,
    isCompounding: bool, startTimeNanos: int) -> (nat);
+  seedReferral: (user: principal, referrer: principal) -> ();
   setCanisterPrincipal: (p: principal) -> ();
   setShenanigansPrincipal: (p: principal) -> ();
   setTestMode: (enabled: bool) -> ();
+  settleCompoundingGame: (gameId: nat) -> (float64);
   transferInternal: (to: principal, amount: nat) -> (variant {
                                                        Err: text;
                                                        Ok;

@@ -12,7 +12,7 @@ interface State {
 }
 
 const errorQuips = [
-  "The house always wins. Except right now.",
+  "The fund just experienced a liquidity event. Unplanned.",
   "Even Ponzis have bad days.",
   "Charles is looking into it. He's not, but it sounds reassuring.",
   "Something broke. Probably not the math. Probably.",
@@ -42,7 +42,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             onClick={() => this.setState({ hasError: false, error: null })}
             className="mc-btn-secondary px-4 py-2 text-xs rounded-lg"
           >
-            Spin Again
+            Try Again
           </button>
         </div>
       );
