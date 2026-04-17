@@ -383,6 +383,7 @@ export default function App() {
                     return (
                       <button
                         key={item.id}
+                        data-tour-id={`tab-${item.id}`}
                         onClick={() => setActiveTab(item.id)}
                         className={`mc-header-tab ${isActive ? (item.id === 'shenanigans' ? 'active-green' : 'active') : ''}`}
                       >
