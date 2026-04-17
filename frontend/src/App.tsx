@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
+import { useWallet } from './hooks/useWallet';
 import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
@@ -281,9 +282,9 @@ function LetterReveal({
 
 export default function App() {
   const { identity, principal, isInitializing } = useInternetIdentity();
+  const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const { data: balanceData } = useGetInternalWalletBalance();
-  const [isWalletDropdownOpen, setIsWalletDropdownOpen] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
@@ -434,7 +435,7 @@ export default function App() {
                     {/* Wallet */}
                     <button
                       ref={walletButtonRef}
-                      onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)}
+                      onClick={() => isWalletDropdownOpen ? closeWallet() : openWallet()}
                       className="mc-btn-pill flex items-center gap-2"
                     >
                       <Wallet className="h-4 w-4" />
@@ -674,7 +675,7 @@ export default function App() {
         <ErrorBoundary fallback={null}>
           <WalletDropdown
             isOpen={isWalletDropdownOpen}
-            onClose={() => setIsWalletDropdownOpen(false)}
+            onClose={closeWallet}
             buttonRef={walletButtonRef}
           />
         </ErrorBoundary>
