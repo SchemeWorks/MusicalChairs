@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, BookOpen, ArrowLeft } from 'lucide-react';
+import { ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, BookOpen, ArrowLeft, X } from 'lucide-react';
 import {
   DAILY_RATE_SIMPLE, DAILY_RATE_COMPOUND_15, DAILY_RATE_COMPOUND_30,
   PLAN_DAYS_SIMPLE, PLAN_DAYS_COMPOUND_15, PLAN_DAYS_COMPOUND_30,
@@ -406,6 +406,13 @@ export default function DocsPage({ onBack }: DocsPageProps) {
     return () => window.removeEventListener('hashchange', openFromHash);
   }, []);
 
+  // ESC key closes docs
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onBack(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onBack]);
+
   const toggleSection = (id: string) => {
     setOpenSections(prev => {
       const next = new Set(prev);
@@ -429,6 +436,14 @@ export default function DocsPage({ onBack }: DocsPageProps) {
 
   return (
     <div className="max-w-2xl mx-auto w-full px-4 py-8 md:py-12">
+      {/* Floating close — always visible while scrolling */}
+      <button
+        onClick={onBack}
+        aria-label="Close docs"
+        className="fixed top-20 right-4 z-50 mc-bg-elev-2 hover:mc-bg-elev-3 mc-border-subtle border rounded-full p-2 shadow-lg transition-colors"
+      >
+        <X className="h-4 w-4 mc-text-primary" />
+      </button>
       {/* Back button */}
       <button
         onClick={onBack}

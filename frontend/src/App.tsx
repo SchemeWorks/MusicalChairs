@@ -349,7 +349,6 @@ export default function App() {
   // which handles Oisy (no identity, but walletType === 'oisy')
   const showProfileSetup = isAuthenticated && !profileLoading && isFetched && userProfile === null;
   const showDashboard = isAuthenticated && !showProfileSetup && !profileLoading;
-  const isOnLandingHero = !identity && !showDocsPage && !showProfileSetup && !showAdminPanel && !profileLoading;
 
   if (isInitializing) {
     return (
@@ -456,7 +455,7 @@ export default function App() {
                     <LogoutButton />
                   </>
                 ) : (
-                  !isOnLandingHero && <LoginButton compact />
+                  <LoginButton compact />
                 )}
               </div>
             </div>
