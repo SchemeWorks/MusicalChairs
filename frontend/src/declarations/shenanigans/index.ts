@@ -6,9 +6,9 @@ import type {
 export { idlFactory, init } from './shenanigans.did.js';
 
 export type {
+  ShenaniganConfig,
   ShenaniganRecord,
   ShenaniganStats,
-  ShenaniganConfig,
   _SERVICE,
 } from './shenanigans.did';
 

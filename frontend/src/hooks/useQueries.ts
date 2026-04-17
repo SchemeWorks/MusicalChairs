@@ -25,7 +25,7 @@ export function useGetCallerUserProfile() {
       if (!actor) throw new Error('Actor not available');
       const result = await actor.getCallerUserProfile();
       // Convert Candid optional ([] | [UserProfile]) to UserProfile | null
-      return result.length > 0 ? result[0] ?? null : null;
+      return result[0] ?? null;
     },
     enabled: !!actor && !actorFetching && !!principal,
     retry: false,
@@ -669,6 +669,46 @@ export function useWithdrawGameEarnings() {
   });
 }
 
+export function useSettleCompoundingGame() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (gameId: bigint) => {
+      if (!actor) throw new Error('Actor not available');
+      const earnings = await actor.settleCompoundingGame(gameId);
+      gameEarningsStore.delete(gameId.toString());
+      return { earnings, gameId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userGames'] });
+      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
+      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['gameStats'] });
+    },
+  });
+}
+
+export function useClaimDealerRepayment() {
+  const { actor } = useActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.claimDealerRepayment();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
+      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
+      queryClient.invalidateQueries({ queryKey: ['backerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['seedRoundDashboard'] });
+    },
+  });
+}
+
 export function useCalculateGameEarnings() {
   const { actor } = useActor();
 
@@ -846,25 +886,32 @@ export function getPlanDays(plan: string): number {
   }
 }
 
-// Helper function to calculate incremental earnings for a time period
+// Helper function to calculate incremental earnings for a time period (with plan duration cap)
 function calculateIncrementalEarnings(game: GameRecord, elapsedSeconds: number): number {
   const dailyRate = getDailyRate(getGamePlanString(game.plan));
-  
+  const planDays = getPlanDays(getGamePlanString(game.plan));
+  const maxDurationSeconds = planDays * 86400;
+
   if (game.isCompounding) {
-    // For compounding, use the updated formula: earnings = principal × [(1 + daily_rate) ^ (elapsed_seconds / 86400) - 1]
-    // This calculates only the compounded interest, not including the principal
-    const elapsedDays = elapsedSeconds / 86400;
+    // Cap elapsed time at plan duration
+    const cappedSeconds = Math.min(elapsedSeconds, maxDurationSeconds);
+    const elapsedDays = cappedSeconds / 86400;
     const compoundedInterest = game.amount * (Math.pow(1 + dailyRate, elapsedDays) - 1);
-    
+
     // Return incremental earnings since last update
     const stored = gameEarningsStore.get(game.id.toString());
     const previousEarnings = stored ? stored.accumulatedEarnings : game.accumulatedEarnings;
-    
+
     return Math.max(0, compoundedInterest - previousEarnings);
   } else {
-    // Simple formula: earnings = principal × rate × (elapsed_seconds / 86400)
-    // Updated to use the new 11% daily rate for simple mode
-    return game.amount * dailyRate * (elapsedSeconds / 86400);
+    // Simple: cap at remaining allowed time (accounts for previous claims)
+    const startNs = Number(game.startTime);
+    const lastUpdateNs = Number(game.lastUpdateTime);
+    const timeAlreadyAccounted = (lastUpdateNs - startNs) / 1_000_000_000;
+    const remainingAllowed = Math.max(0, maxDurationSeconds - timeAlreadyAccounted);
+    const cappedSeconds = Math.min(elapsedSeconds, remainingAllowed);
+
+    return game.amount * dailyRate * (cappedSeconds / 86400);
   }
 }
 

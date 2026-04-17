@@ -220,7 +220,7 @@ export default function ShenanigansAdminPanel() {
           <CharlesIcon className="inline h-5 w-5 mr-2 mc-text-gold" />
           Charles's Office
         </h2>
-        <p className="mc-text-muted text-sm mt-1 font-accent italic">Pull the strings. Tweak the odds. The house edge is whatever you say it is.</p>
+        <p className="mc-text-muted text-sm mt-1 font-accent italic">Pull the strings. Tweak the odds. The alpha is whatever you say it is.</p>
       </div>
 
       {/* Instructions callout */}

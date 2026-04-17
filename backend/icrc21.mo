@@ -62,10 +62,11 @@ module {
 
     // ICRC-21: Generate human-readable consent messages
     public func consentMessage(request : ConsentMessageRequest) : ConsentMessageResponse {
-        let label = switch (request.method) {
+        let methodLabel = switch (request.method) {
             case "saveCallerUserProfile" { ?"Set Display Name" };
             case "createGame" { ?"Open Investment Position" };
             case "withdrawEarnings" { ?"Withdraw Earnings" };
+            case "settleCompoundingGame" { ?"Settle Compounding Game" };
             case "addDealerMoney" { ?"Fund as Backer" };
             case "addDownstreamDealer" { ?"Fund as Series B Backer" };
             case "initializeAccessControl" { ?"Initialize Account" };
@@ -74,7 +75,7 @@ module {
             case _ { null };
         };
 
-        switch (label) {
+        switch (methodLabel) {
             case null {
                 #Err(
                     #UnsupportedCanisterCall {

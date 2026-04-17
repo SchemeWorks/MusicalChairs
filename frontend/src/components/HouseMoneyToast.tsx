@@ -8,7 +8,7 @@ interface HouseMoneyToastProps {
 }
 
 const charlesQuips = [
-  "The house always appreciates a generous patron.",
+  "The fund always appreciates a generous LP.",
   "Smart money. Or at least, money.",
   "Every dollar helps. Mostly me.",
   "You just made the pot a little heavier. Charles approves.",
@@ -40,7 +40,7 @@ export default function HouseMoneyToast({ amount, ponziPoints, onClose }: HouseM
       <div className="mc-toast text-center">
         <div className="font-display text-xl mc-text-primary mb-2">You're In</div>
         <p className="text-sm mc-text-dim">
-          <span className="mc-toast-accent">{formatICP(amount)} ICP</span> added to the house
+          <span className="mc-toast-accent">{formatICP(amount)} ICP</span> added to the fund
           {ponziPoints > 0 && <> &middot; <span className="mc-toast-accent">{ponziPoints.toLocaleString()} PP</span> earned</>}
         </p>
         <p className="text-xs mc-text-muted mt-2 font-accent italic">{quip}</p>

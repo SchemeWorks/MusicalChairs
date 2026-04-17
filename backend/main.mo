@@ -21,8 +21,37 @@ persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
 
-    // Initialize Access Control
+    // ========================================================================
+    // Security Guards (functions — collections declared after map initializers)
+    // ========================================================================
+
+    // Reject anonymous principals on authenticated endpoints
+    func requireAuthenticated(caller : Principal) {
+        if (Principal.isAnonymous(caller)) {
+            Debug.trap("Anonymous principal not allowed");
+        };
+    };
+
+    // Input validation for Float amounts (reject NaN, Infinity, negative)
+    func validateAmount(amount : Float) {
+        if (Float.isNaN(amount)) { Debug.trap("Amount cannot be NaN") };
+        // Check for Infinity: NaN != NaN is true, but Inf == Inf is true and Inf - Inf is NaN
+        if (Float.isNaN(amount - amount) and not Float.isNaN(amount)) {
+            Debug.trap("Amount must be finite");
+        };
+        if (amount < 0.0) { Debug.trap("Amount cannot be negative") };
+    };
+
+    // Text length limit
+    func validateTextLength(text : Text, maxLen : Nat, fieldName : Text) {
+        if (Text.size(text) > maxLen) {
+            Debug.trap(fieldName # " exceeds maximum length of " # Nat.toText(maxLen) # " characters");
+        };
+    };
+
+    // Initialize Access Control (first caller becomes admin; cannot be re-initialized)
     public shared ({ caller }) func initializeAccessControl() : async () {
+        requireAuthenticated(caller);
         AccessControl.initialize(accessControlState, caller);
     };
 
@@ -58,6 +87,8 @@ persistent actor {
     };
 
     public shared ({ caller }) func saveCallerUserProfile(profile : UserProfile) : async () {
+        requireAuthenticated(caller);
+        validateTextLength(profile.name, 64, "Display name");
         userProfiles := principalMap.put(userProfiles, caller, profile);
     };
 
@@ -82,12 +113,11 @@ persistent actor {
         totalWithdrawn : Float;
     };
 
-    // Referral Record
-    public type ReferralRecord = {
-        referrer : Principal;
-        level : Nat;
-        earnings : Float;
-        depositCount : Nat;
+    // Referral Earnings (PP earned through referrals, tracked per level for display)
+    public type ReferralEarnings = {
+        level1Points : Float;
+        level2Points : Float;
+        level3Points : Float;
     };
 
     // Platform Stats
@@ -129,7 +159,17 @@ persistent actor {
     transient let intMap = OrderedMap.Make<Int>(Int.compare);
 
     var gameRecords = natMap.empty<GameRecord>();
-    var referralRecords = principalMapNat.empty<ReferralRecord>();
+    // DEPRECATED: kept for stable variable compatibility (old ICP-based referral system, now PP-only)
+    var referralRecords = principalMapNat.empty<{
+        referrer : Principal;
+        level : Nat;
+        earnings : Float;
+        depositCount : Nat;
+    }>();
+    // Maps user → who referred them (one-time, immutable chain)
+    var referralChain = principalMapNat.empty<Principal>();
+    // Tracks PP earned through referrals, per referrer principal
+    var referralEarnings = principalMapNat.empty<ReferralEarnings>();
     var platformStats : PlatformStats = {
         totalDeposits = 0.0;
         totalWithdrawals = 0.0;
@@ -154,6 +194,22 @@ persistent actor {
 
     // Ponzi Points Burned Tracking
     var ponziPointsBurned = principalMapNat.empty<Float>();
+
+    // Per-caller reentrancy lock to prevent TOCTOU exploits (transient — resets on upgrade, which is safe)
+    transient var callerLocks = principalMapNat.empty<Bool>();
+
+    func acquireCallerLock(caller : Principal) {
+        switch (principalMapNat.get(callerLocks, caller)) {
+            case (?true) { Debug.trap("Another operation is already in progress for this caller") };
+            case _ {
+                callerLocks := principalMapNat.put(callerLocks, caller, true);
+            };
+        };
+    };
+
+    func releaseCallerLock(caller : Principal) {
+        callerLocks := principalMapNat.delete(callerLocks, caller);
+    };
 
     // ========================================================================
     // Musical Chairs Wallet System (Real ICP Integration)
@@ -188,6 +244,7 @@ persistent actor {
     
     // Set this canister's principal (called once by admin after deployment)
     public shared ({ caller }) func setCanisterPrincipal(p : Principal) : async () {
+        requireAuthenticated(caller);
         // Only allow setting if not already set, or by admin
         switch (canisterPrincipal) {
             case (null) { canisterPrincipal := ?p };
@@ -295,13 +352,19 @@ persistent actor {
     // Deposit ICP from user's wallet to Musical Chairs
     // User must first call icrc2_approve on the ICP ledger to authorize this canister
     public shared ({ caller }) func depositICP(amount : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
         if (amount < 10_000_000) {  // Minimum 0.1 ICP
             return #Err("Minimum deposit is 0.1 ICP (10_000_000 e8s)");
         };
 
+        acquireCallerLock(caller);
+
         // Get this canister's principal
         let selfPrincipal = switch (canisterPrincipal) {
-            case (null) { return #Err("Canister principal not set. Please contact admin.") };
+            case (null) {
+                releaseCallerLock(caller);
+                return #Err("Canister principal not set. Please contact admin.");
+            };
             case (?p) { p };
         };
         
@@ -316,8 +379,8 @@ persistent actor {
                 memo = null;
                 created_at_time = null;
             });
-            
-            switch (transferResult) {
+
+            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
                 case (#Ok(blockIndex)) {
                     // Credit the user's internal wallet
                     initializeWalletIfNeeded(caller);
@@ -326,10 +389,10 @@ persistent actor {
                         case (?b) { b };
                     };
                     walletBalances := principalMapNat.put(walletBalances, caller, currentBalance + amount);
-                    
+
                     // Record transaction
                     recordWalletTransaction(caller, #deposit, amount, ?blockIndex, "ICP deposit via ICRC-2");
-                    
+
                     #Ok(blockIndex);
                 };
                 case (#Err(err)) {
@@ -347,7 +410,10 @@ persistent actor {
                     #Err(errMsg);
                 };
             };
+            releaseCallerLock(caller);
+            result;
         } catch (e) {
+            releaseCallerLock(caller);
             #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
     };
@@ -358,9 +424,12 @@ persistent actor {
     
     // Withdraw ICP from Musical Chairs to user's wallet
     public shared ({ caller }) func withdrawICP(amount : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
         if (amount < 10_000_000) {  // Minimum 0.1 ICP
             return #Err("Minimum withdrawal is 0.1 ICP (10_000_000 e8s)");
         };
+
+        acquireCallerLock(caller);
 
         // Check internal balance
         initializeWalletIfNeeded(caller);
@@ -372,8 +441,12 @@ persistent actor {
         // Include transfer fee in the check
         let totalNeeded = amount + Ledger.ICP_TRANSFER_FEE;
         if (currentBalance < totalNeeded) {
+            releaseCallerLock(caller);
             return #Err("Insufficient balance. You have " # Nat.toText(currentBalance) # " e8s but need " # Nat.toText(totalNeeded) # " e8s (including fee)");
         };
+
+        // Deduct from internal wallet BEFORE the transfer (saga pattern: deduct first, compensate on failure)
+        walletBalances := principalMapNat.put(walletBalances, caller, currentBalance - totalNeeded);
 
         try {
             // Transfer ICP from canister to user
@@ -385,18 +458,16 @@ persistent actor {
                 memo = null;
                 created_at_time = null;
             });
-            
-            switch (transferResult) {
+
+            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
                 case (#Ok(blockIndex)) {
-                    // Deduct from internal wallet (amount + fee)
-                    walletBalances := principalMapNat.put(walletBalances, caller, currentBalance - totalNeeded);
-                    
-                    // Record transaction
+                    // Record transaction (deduction already done above)
                     recordWalletTransaction(caller, #withdrawal, amount, ?blockIndex, "ICP withdrawal");
-                    
                     #Ok(blockIndex);
                 };
                 case (#Err(err)) {
+                    // Compensate: refund the internal wallet since transfer failed
+                    walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
                     let errMsg = switch (err) {
                         case (#BadFee(_)) { "Bad fee" };
                         case (#BadBurn(_)) { "Bad burn" };
@@ -410,7 +481,14 @@ persistent actor {
                     #Err(errMsg);
                 };
             };
+            releaseCallerLock(caller);
+            result;
         } catch (e) {
+            // Compensate: refund on catch (network failure — transfer status unknown)
+            // Note: This is the conservative approach; the transfer may have succeeded.
+            // In production, consider logging for manual reconciliation.
+            walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
+            releaseCallerLock(caller);
             #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
     };
@@ -450,6 +528,10 @@ persistent actor {
 
     // Transfer between internal wallets
     public shared ({ caller }) func transferInternal(to : Principal, amount : Nat) : async { #Ok; #Err : Text } {
+        requireAuthenticated(caller);
+        if (Principal.isAnonymous(to)) {
+            return #Err("Cannot transfer to anonymous principal");
+        };
         if (amount < 1_000_000) {  // Minimum 0.01 ICP
             return #Err("Minimum transfer is 0.01 ICP");
         };
@@ -517,6 +599,7 @@ persistent actor {
     };
 
     // Admin: Seed a game record with a custom start time (for recovery/testing)
+    // Also registers referral chain and awards PP (matching createGame behavior)
     public shared ({ caller }) func seedGame(player : Principal, plan : GamePlan, amount : Float, isCompounding : Bool, startTimeNanos : Int) : async Nat {
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
             Debug.trap("Unauthorized: Only admins can seed games");
@@ -546,7 +629,23 @@ persistent actor {
             potBalance = platformStats.potBalance + amount;
         };
 
+        // Award Ponzi Points (same as createGame)
+        let points = switch (plan) {
+            case (#simple21Day) { amount * 1000.0 };
+            case (#compounding15Day) { amount * 2000.0 };
+            case (#compounding30Day) { amount * 3000.0 };
+        };
+        awardPonziPoints(player, points);
+
         gameId;
+    };
+
+    // Admin: Register a referral relationship (for testing/recovery)
+    public shared ({ caller }) func seedReferral(user : Principal, referrer : Principal) : async () {
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            Debug.trap("Unauthorized: Only admins can seed referrals");
+        };
+        registerReferral(user, referrer);
     };
 
     // Add House Money
@@ -645,6 +744,8 @@ persistent actor {
 
     // Create New Game
     public shared ({ caller }) func createGame(plan : GamePlan, amount : Float, isCompounding : Bool, referrer : ?Principal) : async Nat {
+        requireAuthenticated(caller);
+        validateAmount(amount);
         if (amount < 0.1) {
             Debug.trap("Minimum deposit is 0.1 ICP");
         };
@@ -654,10 +755,41 @@ persistent actor {
             Debug.trap("Amount cannot have more than 8 decimal places");
         };
 
+        acquireCallerLock(caller);
+
+        // Check deposit rate limit BEFORE the transfer (prevents TOCTOU on rate limit)
+        let currentTime = Time.now();
+        let currentHour = currentTime / 3600000000000;
+        switch (principalMapNat.get(depositTimestamps, caller)) {
+            case (null) {};
+            case (?timestamps) {
+                let filteredTimestamps = List.filter<Int>(
+                    timestamps,
+                    func(timestamp) { currentHour - timestamp < 1 },
+                );
+                if (List.size(filteredTimestamps) >= 3) {
+                    releaseCallerLock(caller);
+                    Debug.trap("You can only open 3 positions per hour");
+                };
+            };
+        };
+
+        // Check maximum deposit limit BEFORE the transfer
+        if (not isCompounding) {
+            let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
+            if (amount > maxDeposit) {
+                releaseCallerLock(caller);
+                Debug.trap("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
+            };
+        };
+
         // Transfer ICP from user to canister via ICRC-2 transfer_from
         // User must have called icrc2_approve on the ICP ledger first
         let selfPrincipal = switch (canisterPrincipal) {
-            case (null) { Debug.trap("Canister principal not set") };
+            case (null) {
+                releaseCallerLock(caller);
+                Debug.trap("Canister principal not set");
+            };
             case (?p) { p };
         };
 
@@ -675,6 +807,7 @@ persistent actor {
 
         switch (transferResult) {
             case (#Err(err)) {
+                releaseCallerLock(caller);
                 let errMsg = switch (err) {
                     case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
                     case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
@@ -691,10 +824,7 @@ persistent actor {
             case (#Ok(_blockIndex)) {};
         };
 
-        // Check deposit rate limit
-        let currentTime = Time.now();
-        let currentHour = currentTime / 3600000000000; // Convert to hours
-
+        // Record the rate limit timestamp (check was done before transfer)
         switch (principalMapNat.get(depositTimestamps, caller)) {
             case (null) {
                 depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
@@ -702,47 +832,28 @@ persistent actor {
             case (?timestamps) {
                 let filteredTimestamps = List.filter<Int>(
                     timestamps,
-                    func(timestamp) {
-                        currentHour - timestamp < 1;
-                    },
+                    func(timestamp) { currentHour - timestamp < 1 },
                 );
-
-                if (List.size(filteredTimestamps) >= 3) {
-                    Debug.trap("You can only open 3 positions per hour");
-                };
-
                 depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filteredTimestamps));
             };
         };
 
-        // Check maximum deposit limit for simple mode only
-        if (not isCompounding) {
-            let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
-            if (amount > maxDeposit) {
-                Debug.trap("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
-            };
-        };
-
-        // Calculate dealer maintenance fee (3%)
-        let dealerFee = amount * 0.03;
-
-        // Check if caller is the only dealer
-        let isOnlyDealer = isCallerOnlyDealer(caller);
-
-        // If caller is the only dealer, credit half of the dealer fee back to their wallet
-        if (isOnlyDealer) {
-            let repaymentAmount = dealerFee * 0.5;
-            creditDealerRepayment(caller, repaymentAmount);
-        };
+        // House Maintenance Fee: 3% skimmed from every deposit
+        // Split 50/50: half seeds the pot, half goes to dealer repayment (35/25/40 formula)
+        let houseFee = amount * 0.03;
+        let potSeedFromFee = distributeFeeToHouses(houseFee);
+        // Pot gets: deposit minus fee, plus the portion of fee that seeds the pot
+        let netAmount = amount - houseFee + potSeedFromFee;
 
         let gameId = nextGameId;
         nextGameId += 1;
 
+        // Game record tracks the full deposit amount (for earnings calculation)
         let newGame : GameRecord = {
             id = gameId;
             player = caller;
             plan;
-            amount;
+            amount; // Earnings calculated on full deposit
             startTime = Time.now();
             isCompounding;
             isActive = true;
@@ -756,14 +867,14 @@ persistent actor {
             platformStats with
             totalDeposits = platformStats.totalDeposits + amount;
             activeGames = platformStats.activeGames + 1;
-            potBalance = platformStats.potBalance + amount;
+            potBalance = platformStats.potBalance + netAmount;
         };
 
-        // Handle referrals
+        // Register referral relationship (one-time, first referrer wins)
         switch (referrer) {
             case (null) {};
             case (?ref) {
-                processReferral(caller, ref, amount);
+                registerReferral(caller, ref);
             };
         };
 
@@ -775,14 +886,19 @@ persistent actor {
         };
         awardPonziPoints(caller, points);
 
+        releaseCallerLock(caller);
         gameId;
     };
 
     // Add Dealer Money (Seed Round — transfers ICP directly from user's wallet)
     public shared ({ caller }) func addDealerMoney(amount : Float) : async () {
+        requireAuthenticated(caller);
+        validateAmount(amount);
         if (amount < 0.1) {
             Debug.trap("Minimum deposit is 0.1 ICP");
         };
+
+        acquireCallerLock(caller);
 
         // Validate 8 decimal places
         if (not validateEightDecimals(amount)) {
@@ -809,6 +925,7 @@ persistent actor {
 
         switch (transferResult) {
             case (#Err(err)) {
+                releaseCallerLock(caller);
                 let errMsg = switch (err) {
                     case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
                     case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
@@ -866,88 +983,193 @@ persistent actor {
             platformStats with
             potBalance = platformStats.potBalance + amount;
         };
+
+        releaseCallerLock(caller);
     };
 
-    // Award Ponzi Points
+    // ========================================================================
+    // Ponzi Points & Referral System (PP-only, never ICP)
+    // Referral rates: Level 1 = 8%, Level 2 = 5%, Level 3 = 2% of PP earned
+    // ========================================================================
+
+    // Award Ponzi Points to a user AND cascade referral PP up the chain
     func awardPonziPoints(user : Principal, points : Float) {
-        switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) {
-                ponziPoints := principalMapNat.put(ponziPoints, user, points);
-            };
-            case (?existingPoints) {
-                ponziPoints := principalMapNat.put(ponziPoints, user, existingPoints + points);
-            };
-        };
+        creditPonziPointsDirect(user, points);
+        awardReferralPP(user, points);
     };
 
-    // Check if caller is the only dealer
-    func isCallerOnlyDealer(caller : Principal) : Bool {
-        var dealerCount = 0;
-        for ((principal, _) in principalMapNat.entries(dealerPositions)) {
-            if (principal == caller) {
-                dealerCount += 1;
-            } else {
-                dealerCount += 1;
-            };
+    // Credit PP directly without triggering referral cascade (prevents infinite recursion)
+    func creditPonziPointsDirect(user : Principal, points : Float) {
+        let current = switch (principalMapNat.get(ponziPoints, user)) {
+            case (null) { 0.0 };
+            case (?existing) { existing };
         };
-        dealerCount == 1;
+        ponziPoints := principalMapNat.put(ponziPoints, user, current + points);
     };
 
-    // Credit dealer repayment to caller's wallet
-    func creditDealerRepayment(caller : Principal, amount : Float) {
-        switch (principalMapNat.get(dealerRepayments, caller)) {
-            case (null) {
-                dealerRepayments := principalMapNat.put(dealerRepayments, caller, amount);
-            };
-            case (?existingAmount) {
-                dealerRepayments := principalMapNat.put(dealerRepayments, caller, existingAmount + amount);
-            };
-        };
-    };
+    // Walk the referral chain and award PP at each level (8% / 5% / 2%)
+    func awardReferralPP(user : Principal, pointsEarned : Float) {
+        // Level 1: direct referrer gets 8%
+        switch (principalMapNat.get(referralChain, user)) {
+            case (null) {}; // no referrer
+            case (?level1Referrer) {
+                let l1Points = pointsEarned * 0.08;
+                creditPonziPointsDirect(level1Referrer, l1Points);
+                creditReferralEarnings(level1Referrer, l1Points, 1);
 
-    // Process Referral
-    func processReferral(newUser : Principal, referrer : Principal, amount : Float) {
-        // Level 1 referral
-        updateReferralRecord(referrer, 1, amount, 0.10);
-
-        // Level 2 referral
-        switch (principalMapNat.get(referralRecords, referrer)) {
-            case (null) {};
-            case (?level1Record) {
-                updateReferralRecord(level1Record.referrer, 2, amount, 0.05);
-
-                // Level 3 referral
-                switch (principalMapNat.get(referralRecords, level1Record.referrer)) {
+                // Level 2: referrer's referrer gets 5%
+                switch (principalMapNat.get(referralChain, level1Referrer)) {
                     case (null) {};
-                    case (?level2Record) {
-                        updateReferralRecord(level2Record.referrer, 3, amount, 0.03);
+                    case (?level2Referrer) {
+                        let l2Points = pointsEarned * 0.05;
+                        creditPonziPointsDirect(level2Referrer, l2Points);
+                        creditReferralEarnings(level2Referrer, l2Points, 2);
+
+                        // Level 3: one more hop up the chain gets 2%
+                        switch (principalMapNat.get(referralChain, level2Referrer)) {
+                            case (null) {};
+                            case (?level3Referrer) {
+                                let l3Points = pointsEarned * 0.02;
+                                creditPonziPointsDirect(level3Referrer, l3Points);
+                                creditReferralEarnings(level3Referrer, l3Points, 3);
+                            };
+                        };
                     };
                 };
             };
         };
     };
 
-    // Update Referral Record
-    func updateReferralRecord(referrer : Principal, level : Nat, amount : Float, percentage : Float) {
-        switch (principalMapNat.get(referralRecords, referrer)) {
+    // Track referral earnings by level (for display in the MLM dashboard)
+    func creditReferralEarnings(referrer : Principal, points : Float, level : Nat) {
+        let current = switch (principalMapNat.get(referralEarnings, referrer)) {
+            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
+            case (?existing) { existing };
+        };
+        let updated : ReferralEarnings = switch (level) {
+            case (1) { { current with level1Points = current.level1Points + points } };
+            case (2) { { current with level2Points = current.level2Points + points } };
+            case (3) { { current with level3Points = current.level3Points + points } };
+            case (_) { current };
+        };
+        referralEarnings := principalMapNat.put(referralEarnings, referrer, updated);
+    };
+
+    // Register a referral relationship (one-time, first referrer wins)
+    func registerReferral(user : Principal, referrer : Principal) {
+        // Can't refer yourself
+        if (user == referrer) { return };
+        // Only register if user doesn't already have a referrer
+        switch (principalMapNat.get(referralChain, user)) {
+            case (?_) {}; // already has a referrer
             case (null) {
-                let newRecord : ReferralRecord = {
-                    referrer;
-                    level;
-                    earnings = amount * percentage;
-                    depositCount = 1;
-                };
-                referralRecords := principalMapNat.put(referralRecords, referrer, newRecord);
+                referralChain := principalMapNat.put(referralChain, user, referrer);
             };
-            case (?record) {
-                if (record.depositCount < 2) {
-                    let updatedRecord : ReferralRecord = {
-                        record with
-                        earnings = record.earnings + (amount * percentage);
-                        depositCount = record.depositCount + 1;
+        };
+    };
+
+    // ========================================================================
+    // Fee Distribution System
+    // ========================================================================
+
+    // Credit dealer repayment balance (internal bookkeeping, not yet in wallet)
+    func creditDealerRepayment(dealer : Principal, amount : Float) {
+        let current = switch (principalMapNat.get(dealerRepayments, dealer)) {
+            case (null) { 0.0 };
+            case (?existing) { existing };
+        };
+        dealerRepayments := principalMapNat.put(dealerRepayments, dealer, current + amount);
+    };
+
+    // Distribute fees using the 35/25/40 formula to dealer repayment balances.
+    // `feeAmount` is the FULL fee — this function handles the 50/50 pot/dealer split.
+    // Returns the amount that stays in the pot (for caller to account for).
+    func distributeFeeToHouses(feeAmount : Float) : Float {
+        let potSeedAmount = feeAmount * 0.5;      // 50% seeds the next round (stays in pot)
+        let dealerRepaymentAmount = feeAmount * 0.5; // 50% to dealer repayment
+
+        // Get all dealers
+        let allDealers = Iter.toArray(principalMapNat.vals(dealerPositions));
+        if (allDealers.size() == 0) {
+            // No dealers — everything stays in pot
+            return feeAmount;
+        };
+
+        let upstreamDealers = List.toArray(
+            List.filter(
+                List.fromArray(allDealers),
+                func(dealer : DealerPosition) : Bool {
+                    dealer.dealerType == #upstream;
+                },
+            )
+        );
+
+        // Find oldest upstream dealer
+        var oldestDealer : ?DealerPosition = null;
+        var oldestTime : Int = 0;
+        for (dealer in upstreamDealers.vals()) {
+            switch (dealer.firstDepositDate) {
+                case (null) {};
+                case (?date) {
+                    if (oldestDealer == null or date < oldestTime) {
+                        oldestDealer := ?dealer;
+                        oldestTime := date;
                     };
-                    referralRecords := principalMapNat.put(referralRecords, referrer, updatedRecord);
                 };
+            };
+        };
+
+        // 35% to oldest upstream dealer
+        switch (oldestDealer) {
+            case (null) {};
+            case (?dealer) {
+                creditDealerRepayment(dealer.owner, dealerRepaymentAmount * 0.35);
+            };
+        };
+
+        // 25% split among other upstream dealers
+        let otherUpstreamDealers = List.toArray(
+            List.filter(
+                List.fromArray(upstreamDealers),
+                func(dealer : DealerPosition) : Bool {
+                    switch (oldestDealer) {
+                        case (null) { true };
+                        case (?oldest) { dealer.owner != oldest.owner };
+                    };
+                },
+            )
+        );
+        if (otherUpstreamDealers.size() > 0) {
+            let perDealer = dealerRepaymentAmount * 0.25 / Float.fromInt(otherUpstreamDealers.size());
+            for (dealer in otherUpstreamDealers.vals()) {
+                creditDealerRepayment(dealer.owner, perDealer);
+            };
+        };
+
+        // 40% split among all dealers
+        let perDealer = dealerRepaymentAmount * 0.4 / Float.fromInt(allDealers.size());
+        for (dealer in allDealers.vals()) {
+            creditDealerRepayment(dealer.owner, perDealer);
+        };
+
+        potSeedAmount; // Return the portion that stays in pot
+    };
+
+    // Calculate exit toll fee based on game type and elapsed time
+    // Simple: 7% (< 3 days), 5% (3-10 days), 3% (> 10 days)
+    // Compounding: flat 13%
+    func calculateExitToll(game : GameRecord, earnings : Float) : Float {
+        if (game.isCompounding) {
+            earnings * 0.13
+        } else {
+            let elapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+            let elapsedDays = elapsedSeconds / 86400.0;
+            if (elapsedDays < 3.0) {
+                earnings * 0.07
+            } else if (elapsedDays < 10.0) {
+                earnings * 0.05
+            } else {
+                earnings * 0.03
             };
         };
     };
@@ -965,18 +1187,36 @@ persistent actor {
 
     // Withdraw Earnings
     public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async Float {
+        requireAuthenticated(caller);
+        acquireCallerLock(caller);
         switch (natMap.get(gameRecords, gameId)) {
-            case (null) { Debug.trap("Game not found") };
+            case (null) {
+                releaseCallerLock(caller);
+                Debug.trap("Game not found");
+            };
             case (?game) {
                 if (game.player != caller) {
+                    releaseCallerLock(caller);
                     Debug.trap("Unauthorized: Only the game owner can withdraw earnings");
                 };
                 if (game.isCompounding) {
+                    releaseCallerLock(caller);
                     Debug.trap("Cannot withdraw from compounding games");
                 };
 
                 let earnings = await calculateEarnings(game);
-                if (earnings > platformStats.potBalance) {
+
+                // Apply exit toll (simple: 7%/5%/3% tiered by time)
+                let exitToll = calculateExitToll(game, earnings);
+                let netEarnings = roundToEightDecimals(earnings - exitToll);
+
+                // Distribute exit toll: 50% stays in pot, 50% to dealers
+                let potSeedFromToll = distributeFeeToHouses(exitToll);
+
+                // Check solvency against what actually leaves the pot
+                // Pot loses: netEarnings (to player) + dealer portion of toll
+                let potDeduction = netEarnings + (exitToll - potSeedFromToll);
+                if (potDeduction > platformStats.potBalance) {
                     triggerGameReset("Insufficient funds for payout");
                     Debug.trap("Game reset due to insufficient funds");
                 };
@@ -986,47 +1226,167 @@ persistent actor {
                     game with
                     accumulatedEarnings = 0.0;
                     lastUpdateTime = Time.now();
-                    totalWithdrawn = game.totalWithdrawn + earnings;
+                    totalWithdrawn = game.totalWithdrawn + netEarnings;
                 };
                 gameRecords := natMap.put(gameRecords, gameId, updatedGame);
 
                 platformStats := {
                     platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + earnings;
-                    potBalance = platformStats.potBalance - earnings;
+                    totalWithdrawals = platformStats.totalWithdrawals + netEarnings;
+                    potBalance = platformStats.potBalance - potDeduction;
                 };
 
-                earnings;
+                // Credit net earnings (after exit toll) to the player's wallet
+                let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
+                creditToWallet(caller, netEarningsE8s);
+
+                releaseCallerLock(caller);
+                netEarnings;
             };
         };
     };
 
-    // Calculate Earnings
+    // Settle a compounding game at maturity (credits principal + earnings to wallet)
+    public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async Float {
+        requireAuthenticated(caller);
+        acquireCallerLock(caller);
+        switch (natMap.get(gameRecords, gameId)) {
+            case (null) {
+                releaseCallerLock(caller);
+                Debug.trap("Game not found");
+            };
+            case (?game) {
+                if (game.player != caller) {
+                    releaseCallerLock(caller);
+                    Debug.trap("Unauthorized: Only the game owner can settle this game");
+                };
+                if (not game.isCompounding) {
+                    releaseCallerLock(caller);
+                    Debug.trap("This function is only for compounding games. Use withdrawEarnings instead.");
+                };
+                if (not game.isActive) {
+                    releaseCallerLock(caller);
+                    Debug.trap("Game is already settled");
+                };
+
+                // Check that the plan has matured
+                let timeElapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+                let daysElapsed = timeElapsedSeconds / 86400.0;
+                let maturityDays = switch (game.plan) {
+                    case (#compounding15Day) { 15.0 };
+                    case (#compounding30Day) { 30.0 };
+                    case (#simple21Day) {
+                        releaseCallerLock(caller);
+                        Debug.trap("Simple games cannot be settled this way");
+                    };
+                };
+                if (daysElapsed < maturityDays) {
+                    releaseCallerLock(caller);
+                    Debug.trap("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
+                };
+
+                // Calculate final compounded earnings (capped at maturity)
+                let dailyRate = switch (game.plan) {
+                    case (#compounding15Day) { 0.12 };
+                    case (#compounding30Day) { 0.09 };
+                    case (#simple21Day) { 0.0 }; // unreachable
+                };
+                let earnings = game.amount * (Float.pow(1.0 + dailyRate, maturityDays) - 1.0);
+
+                // Apply exit toll: flat 13% on earnings for compounding games
+                let exitToll = calculateExitToll(game, earnings);
+                let netEarnings = roundToEightDecimals(earnings - exitToll);
+                let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings
+
+                // Distribute exit toll: 50% stays in pot, 50% to dealers
+                let potSeedFromToll = distributeFeeToHouses(exitToll);
+
+                // Pot loses: totalPayout (to player) + dealer portion of toll
+                let potDeduction = totalPayout + (exitToll - potSeedFromToll);
+                if (potDeduction > platformStats.potBalance) {
+                    triggerGameReset("Insufficient funds for compounding game settlement");
+                    Debug.trap("Game reset due to insufficient funds");
+                };
+
+                // Mark game as settled
+                let settledGame : GameRecord = {
+                    game with
+                    isActive = false;
+                    accumulatedEarnings = netEarnings;
+                    totalWithdrawn = totalPayout;
+                    lastUpdateTime = Time.now();
+                };
+                gameRecords := natMap.put(gameRecords, gameId, settledGame);
+
+                platformStats := {
+                    platformStats with
+                    totalWithdrawals = platformStats.totalWithdrawals + totalPayout;
+                    potBalance = platformStats.potBalance - potDeduction;
+                    activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
+                };
+
+                // Credit payout (principal + net earnings after toll) to wallet
+                let payoutE8s = Int.abs(Float.toInt(totalPayout * 100_000_000.0));
+                creditToWallet(caller, payoutE8s);
+
+                releaseCallerLock(caller);
+                totalPayout;
+            };
+        };
+    };
+
+    // Calculate Earnings (with time cap at plan duration)
     public query func calculateEarnings(game : GameRecord) : async Float {
-        let timeElapsed = Float.fromInt((Time.now() - game.lastUpdateTime) / 1000000000); // Convert to seconds
         let dailyRate = switch (game.plan) {
-            case (#simple21Day) { 0.11 }; // Updated to 11% daily rate for simple mode
+            case (#simple21Day) { 0.11 }; // 11% daily rate for simple mode
             case (#compounding15Day) { 0.12 };
             case (#compounding30Day) { 0.09 };
         };
-        let earnings = game.amount * dailyRate * (timeElapsed / 86400.0); // Convert seconds to days
+
+        // Plan duration cap in seconds
+        let maxDurationSeconds = switch (game.plan) {
+            case (#simple21Day) { 21.0 * 86400.0 };
+            case (#compounding15Day) { 15.0 * 86400.0 };
+            case (#compounding30Day) { 30.0 * 86400.0 };
+        };
+
+        // Calculate how much time was already accounted for (previous claims)
+        let timeAlreadyAccounted = Float.fromInt((game.lastUpdateTime - game.startTime) / 1_000_000_000);
+        let remainingAllowedTime = Float.max(0.0, maxDurationSeconds - timeAlreadyAccounted);
+
+        // Time since last claim, capped at remaining allowed time
+        let timeSinceLastUpdate = Float.fromInt((Time.now() - game.lastUpdateTime) / 1_000_000_000);
+        let timeElapsed = Float.min(timeSinceLastUpdate, remainingAllowedTime);
+
+        let earnings = game.amount * dailyRate * (timeElapsed / 86400.0);
         roundToEightDecimals(game.accumulatedEarnings + earnings);
     };
 
-    // Calculate Compounded Earnings for 15-Day Plan
+    // Calculate Compounded Earnings for 15-Day Plan (caps at 15 days)
     public query func calculateCompoundedEarnings(game : GameRecord) : async Float {
         if (game.plan != #compounding15Day) {
             Debug.trap("This calculation is only for the 15-day compounding plan");
         };
 
-        let timeElapsed = Float.fromInt((Time.now() - game.startTime) / 1000000000); // Convert to seconds
-        let daysElapsed = timeElapsed / 86400.0; // Convert seconds to days
-
-        if (daysElapsed > 15.0) {
-            Debug.trap("The 15-day compounding period has ended");
-        };
+        let timeElapsed = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+        let daysElapsed = Float.min(timeElapsed / 86400.0, 15.0); // Cap at 15 days
 
         let dailyRate = 0.12; // 12% daily rate for 15-day compounding
+        let compoundedEarnings = game.amount * (Float.pow(1.0 + dailyRate, daysElapsed) - 1.0);
+
+        roundToEightDecimals(compoundedEarnings);
+    };
+
+    // Calculate Compounded Earnings for 30-Day Plan (caps at 30 days)
+    public query func calculateCompounded30DayEarnings(game : GameRecord) : async Float {
+        if (game.plan != #compounding30Day) {
+            Debug.trap("This calculation is only for the 30-day compounding plan");
+        };
+
+        let timeElapsed = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+        let daysElapsed = Float.min(timeElapsed / 86400.0, 30.0); // Cap at 30 days
+
+        let dailyRate = 0.09; // 9% daily rate for 30-day compounding
         let compoundedEarnings = game.amount * (Float.pow(1.0 + dailyRate, daysElapsed) - 1.0);
 
         roundToEightDecimals(compoundedEarnings);
@@ -1093,11 +1453,11 @@ persistent actor {
         natMap.get(gameRecords, gameId);
     };
 
-    // Get Referral Earnings
+    // Get Referral Earnings (total PP earned through referrals)
     public query func getReferralEarnings(user : Principal) : async Float {
-        switch (principalMapNat.get(referralRecords, user)) {
+        switch (principalMapNat.get(referralEarnings, user)) {
             case (null) { 0.0 };
-            case (?record) { record.earnings };
+            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
         };
     };
 
@@ -1127,9 +1487,9 @@ persistent actor {
         platformStats.totalWithdrawals;
     };
 
-    // Get Days Active
+    // Get Days Active (since first mainnet deployment: March 16 2026 00:00 PST)
     public query func getDaysActive() : async Nat {
-        Int.abs((Time.now() - 0) / 86400000000000);
+        Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
     };
 
     // Get Maximum Deposit Limit
@@ -1162,6 +1522,27 @@ persistent actor {
             case (null) { 0.0 };
             case (?balance) { balance };
         };
+    };
+
+    // Claim Dealer Repayment — moves repayment balance to internal wallet
+    public shared ({ caller }) func claimDealerRepayment() : async Float {
+        requireAuthenticated(caller);
+        let balance = switch (principalMapNat.get(dealerRepayments, caller)) {
+            case (null) { Debug.trap("No repayment balance to claim") };
+            case (?b) {
+                if (b <= 0.0) { Debug.trap("No repayment balance to claim") };
+                b;
+            };
+        };
+
+        // Zero out the repayment balance
+        dealerRepayments := principalMapNat.put(dealerRepayments, caller, 0.0);
+
+        // Credit to internal wallet (convert Float ICP to Nat e8s)
+        let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
+        creditToWallet(caller, balanceE8s);
+
+        balance;
     };
 
     // Get Dealer Positions
@@ -1206,10 +1587,10 @@ persistent actor {
             };
         };
 
-        // Calculate referral points (from referral earnings)
-        let referralPoints = switch (principalMapNat.get(referralRecords, caller)) {
+        // Calculate referral points (PP earned through the referral chain)
+        let referralPoints = switch (principalMapNat.get(referralEarnings, caller)) {
             case (null) { 0.0 };
-            case (?record) { record.earnings };
+            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
         };
 
         {
@@ -1226,29 +1607,16 @@ persistent actor {
         level3Points : Float;
         totalPoints : Float;
     } {
-        var level1Points = 0.0;
-        var level2Points = 0.0;
-        var level3Points = 0.0;
-
-        // Calculate points for each referral level
-        for (record in principalMapNat.vals(referralRecords)) {
-            if (record.referrer == caller) {
-                switch (record.level) {
-                    case (1) { level1Points += record.earnings };
-                    case (2) { level2Points += record.earnings };
-                    case (3) { level3Points += record.earnings };
-                    case (_) {};
-                };
-            };
+        let earnings = switch (principalMapNat.get(referralEarnings, caller)) {
+            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
+            case (?e) { e };
         };
 
-        let totalPoints = level1Points + level2Points + level3Points;
-
         {
-            level1Points;
-            level2Points;
-            level3Points;
-            totalPoints;
+            level1Points = earnings.level1Points;
+            level2Points = earnings.level2Points;
+            level3Points = earnings.level3Points;
+            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
         };
     };
 
@@ -1347,7 +1715,9 @@ persistent actor {
         updateDealerCut(amount);
     };
 
-    public shared func getPonziPointsBalanceFor(user : Principal) : async Float {
+    // Restricted to shenanigans canister (used for balance checks before casting)
+    public shared ({ caller }) func getPonziPointsBalanceFor(user : Principal) : async Float {
+        requireShenanigansCanister(caller);
         switch (principalMapNat.get(ponziPoints, user)) {
             case (null) { 0.0 };
             case (?points) { points };
@@ -1413,6 +1783,9 @@ persistent actor {
 
     // Add Downstream Dealer (The Redistribution Event)
     public shared ({ caller }) func addDownstreamDealer(amount : Float, underwaterAmount : Float) : async () {
+        requireAuthenticated(caller);
+        validateAmount(amount);
+        validateAmount(underwaterAmount);
         if (amount < 0.1) {
             Debug.trap("Minimum deposit is 0.1 ICP");
         };
@@ -1473,71 +1846,15 @@ persistent actor {
         oldestDealer;
     };
 
-    // Distribute Fees to Dealers
-    public shared func distributeFees(totalFees : Float) : async () {
-        let dealerRepaymentAmount = totalFees * 0.5; // 50% of fees earmarked for dealer repayment
-
-        // Get all dealers
-        let allDealers = Iter.toArray(principalMapNat.vals(dealerPositions));
-        let upstreamDealers = List.toArray(
-            List.filter(
-                List.fromArray(allDealers),
-                func(dealer : DealerPosition) : Bool {
-                    dealer.dealerType == #upstream;
-                },
-            )
-        );
-
-        // Find oldest upstream dealer
-        var oldestDealer : ?DealerPosition = null;
-        var oldestTime : Int = 0;
-        for (dealer in upstreamDealers.vals()) {
-            switch (dealer.firstDepositDate) {
-                case (null) {};
-                case (?date) {
-                    if (oldestDealer == null or date < oldestTime) {
-                        oldestDealer := ?dealer;
-                        oldestTime := date;
-                    };
-                };
-            };
+    // Distribute Fees to Dealers (admin only — for manual fee distribution)
+    // Uses the same distributeFeeToHouses formula as automatic fee distribution
+    public shared ({ caller }) func distributeFees(totalFees : Float) : async () {
+        requireAuthenticated(caller);
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            Debug.trap("Unauthorized: Only admins can distribute fees");
         };
-
-        // 35% to oldest upstream dealer
-        switch (oldestDealer) {
-            case (null) {};
-            case (?dealer) {
-                let amount = dealerRepaymentAmount * 0.35;
-                creditDealerRepayment(dealer.owner, amount);
-            };
-        };
-
-        // 25% split among other upstream dealers
-        let otherUpstreamDealers = List.toArray(
-            List.filter(
-                List.fromArray(upstreamDealers),
-                func(dealer : DealerPosition) : Bool {
-                    switch (oldestDealer) {
-                        case (null) { true };
-                        case (?oldest) { dealer.owner != oldest.owner };
-                    };
-                },
-            )
-        );
-        if (otherUpstreamDealers.size() > 0) {
-            let amount = dealerRepaymentAmount * 0.25 / Float.fromInt(otherUpstreamDealers.size());
-            for (dealer in otherUpstreamDealers.vals()) {
-                creditDealerRepayment(dealer.owner, amount);
-            };
-        };
-
-        // 40% split among all dealers
-        if (allDealers.size() > 0) {
-            let amount = dealerRepaymentAmount * 0.4 / Float.fromInt(allDealers.size());
-            for (dealer in allDealers.vals()) {
-                creditDealerRepayment(dealer.owner, amount);
-            };
-        };
+        validateAmount(totalFees);
+        ignore distributeFeeToHouses(totalFees);
     };
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,
