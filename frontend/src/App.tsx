@@ -13,7 +13,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
-import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign } from 'lucide-react';
+import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
 import DocsPage from './components/DocsPage';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
@@ -486,6 +486,11 @@ export default function App() {
                     <LetterReveal text="It's a Ponzi!" enabled={splashVisible} />
                   </div>
                   <div className="mb-10" />
+                </div>
+
+                {/* Scroll hint */}
+                <div className="mt-4 flex justify-center animate-bounce">
+                  <ChevronDown className="w-6 h-6 mc-text-muted opacity-60" aria-hidden />
                 </div>
 
                 {/* Three info cards — icon discs float above the top rail */}
