@@ -5,7 +5,7 @@ import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
-import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown, Dice5 } from 'lucide-react';
+import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown, Dice5, ChevronDown } from 'lucide-react';
 import type { TabType } from '../App';
 import MobileSheet from './MobileSheet';
 import { Button } from '@/components/ui/button';
@@ -239,6 +239,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const withdrawMutation = useWithdrawGameEarnings();
   const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
 
+  // Collapse state — both sections start closed
+  const [feesExpanded, setFeesExpanded] = useState(false);
+  const [ppExpanded, setPpExpanded] = useState(false);
+
   // Live values — no countUp animation since portfolio updates every second
   // and countUp fights with the live tick, causing erratic jumps
   const [withdrawDialogOpen, setWithdrawDialogOpen] = useState(false);
@@ -296,7 +300,16 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
       <div className="space-y-6">
         {/* Running Tally — hero P/L card */}
         <div className="mc-card-elevated text-center">
-          <h2 className="font-display text-lg mc-text-primary mb-3">Your Running Tally</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display text-lg mc-text-primary">Your Running Tally</h2>
+            <span className="inline-flex items-center gap-1.5 text-xs mc-text-muted">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+              </span>
+              LIVE
+            </span>
+          </div>
           {/* Hero P/L number — animated countUp */}
           <div className="mb-4">
             <div className="mc-label mb-1">Net P/L</div>
@@ -348,97 +361,120 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
 
         {/* Fee disclosure */}
         <div className="mc-house-card">
-          <h3 className="font-display text-base mc-text-gold mb-3">Powering the Ecosystem</h3>
-          <p className="font-accent text-sm mc-text-muted italic mb-3">A small reinvestment keeps the engine running — and your returns flowing.</p>
-          <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
-            <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
-            <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>
-            <p>Compounding plans pay out compounded interest at maturity.</p>
-          </div>
+          <button
+            type="button"
+            onClick={() => setFeesExpanded(v => !v)}
+            className="w-full flex items-center justify-between text-left"
+            aria-expanded={feesExpanded}
+          >
+            <span className="font-semibold mc-text-primary">Fee Disclosure</span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${feesExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {feesExpanded && (
+            <div className="mt-3 text-sm mc-text-muted space-y-2">
+              <p className="font-accent italic">A small reinvestment keeps the engine running — and your returns flowing.</p>
+              <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
+              <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>
+              <p>Compounding plans pay out compounded interest at maturity.</p>
+            </div>
+          )}
         </div>
 
         {/* Ponzi Points section */}
         <div className="mc-card-elevated">
-          <h2 className="font-display text-lg mc-text-primary mb-4">Ponzi Points</h2>
-
-          {/* PP balance */}
-          <div className="text-center mb-4">
-            <div className="mc-label mb-1">Your Balance</div>
-            <div className="text-2xl font-bold mc-text-purple mc-glow-purple">
-              {(ponziData?.totalPoints || 0).toLocaleString()} PP
-            </div>
-          </div>
-
-          {/* Earn rates comparison table */}
-          <div className="mb-4">
-            <div className="mc-label mb-2">Earn Rates</div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
-              <div className="mc-card p-3">
-                <div className="mc-text-green font-bold text-sm">1,000</div>
-                <div className="mc-text-muted">PP per ICP</div>
-                <div className="mc-text-dim mt-1">Simple 21-day</div>
-              </div>
-              <div className="mc-card p-3">
-                <div className="mc-text-purple font-bold text-sm">2,000</div>
-                <div className="mc-text-muted">PP per ICP</div>
-                <div className="mc-text-dim mt-1">Compound 15-day</div>
-              </div>
-              <div className="mc-card p-3">
-                <div className="mc-text-gold font-bold text-sm">3,000</div>
-                <div className="mc-text-muted">PP per ICP</div>
-                <div className="mc-text-dim mt-1">Compound 30-day</div>
-              </div>
-            </div>
-          </div>
-
-          {/* PP source breakdown */}
-          {ponziData && (
-            <div className="mb-4">
-              <div className="mc-label mb-2">Sources</div>
-              <div className="text-xs space-y-1.5">
-                <div className="flex justify-between">
-                  <span className="mc-text-muted">From deposits</span>
-                  <span className="mc-text-green font-bold">+{(ponziData.depositPoints || 0).toLocaleString()} PP</span>
+          <button
+            type="button"
+            onClick={() => setPpExpanded(v => !v)}
+            className="w-full flex items-center justify-between text-left"
+            aria-expanded={ppExpanded}
+          >
+            <span className="font-semibold mc-text-primary">
+              Ponzi Points ({(ponziData?.totalPoints ?? 0).toLocaleString()})
+            </span>
+            <ChevronDown className={`w-4 h-4 transition-transform ${ppExpanded ? 'rotate-180' : ''}`} />
+          </button>
+          {ppExpanded && (
+            <div className="mt-3">
+              {/* PP balance */}
+              <div className="text-center mb-4">
+                <div className="mc-label mb-1">Your Balance</div>
+                <div className="text-2xl font-bold mc-text-purple mc-glow-purple">
+                  {(ponziData?.totalPoints || 0).toLocaleString()} PP
                 </div>
-                <div className="flex justify-between">
-                  <span className="mc-text-muted">From referrals</span>
-                  <span className="mc-text-cyan font-bold">+{(ponziData.referralPoints || 0).toLocaleString()} PP</span>
+              </div>
+
+              {/* Earn rates comparison table */}
+              <div className="mb-4">
+                <div className="mc-label mb-2">Earn Rates</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
+                  <div className="mc-card p-3">
+                    <div className="mc-text-green font-bold text-sm">1,000</div>
+                    <div className="mc-text-muted">PP per ICP</div>
+                    <div className="mc-text-dim mt-1">Simple 21-day</div>
+                  </div>
+                  <div className="mc-card p-3">
+                    <div className="mc-text-purple font-bold text-sm">2,000</div>
+                    <div className="mc-text-muted">PP per ICP</div>
+                    <div className="mc-text-dim mt-1">Compound 15-day</div>
+                  </div>
+                  <div className="mc-card p-3">
+                    <div className="mc-text-gold font-bold text-sm">3,000</div>
+                    <div className="mc-text-muted">PP per ICP</div>
+                    <div className="mc-text-dim mt-1">Compound 30-day</div>
+                  </div>
                 </div>
-                {(() => {
-                  const spent = Math.max(0, (ponziData.depositPoints || 0) + (ponziData.referralPoints || 0) - (ponziData.totalPoints || 0));
-                  return spent > 0 ? (
+              </div>
+
+              {/* PP source breakdown */}
+              {ponziData && (
+                <div className="mb-4">
+                  <div className="mc-label mb-2">Sources</div>
+                  <div className="text-xs space-y-1.5">
                     <div className="flex justify-between">
-                      <span className="mc-text-muted">Spent on shenanigans</span>
-                      <span className="mc-text-danger font-bold">−{spent.toLocaleString()} PP</span>
+                      <span className="mc-text-muted">From deposits</span>
+                      <span className="mc-text-green font-bold">+{(ponziData.depositPoints || 0).toLocaleString()} PP</span>
                     </div>
-                  ) : null;
-                })()}
-              </div>
+                    <div className="flex justify-between">
+                      <span className="mc-text-muted">From referrals</span>
+                      <span className="mc-text-cyan font-bold">+{(ponziData.referralPoints || 0).toLocaleString()} PP</span>
+                    </div>
+                    {(() => {
+                      const spent = Math.max(0, (ponziData.depositPoints || 0) + (ponziData.referralPoints || 0) - (ponziData.totalPoints || 0));
+                      return spent > 0 ? (
+                        <div className="flex justify-between">
+                          <span className="mc-text-muted">Spent on shenanigans</span>
+                          <span className="mc-text-danger font-bold">−{spent.toLocaleString()} PP</span>
+                        </div>
+                      ) : null;
+                    })()}
+                  </div>
+                </div>
+              )}
+
+              {/* Spending suggestions */}
+              {(() => {
+                const pp = ponziData?.totalPoints || 0;
+                if (pp < 100 || !shenaniganConfigs) return null;
+                const affordable = shenaniganConfigs
+                  .filter(c => Number(c.cost) <= pp)
+                  .sort((a, b) => Number(a.cost) - Number(b.cost))
+                  .slice(0, 3);
+                if (affordable.length === 0) return null;
+                return (
+                  <div>
+                    <div className="mc-label mb-2">You can afford</div>
+                    <div className="flex flex-wrap gap-2">
+                      {affordable.map(s => (
+                        <span key={s.name} className="text-xs mc-card px-2 py-1">
+                          {s.name} <span className="mc-text-purple">({Number(s.cost).toLocaleString()} PP)</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           )}
-
-          {/* Spending suggestions */}
-          {(() => {
-            const pp = ponziData?.totalPoints || 0;
-            if (pp < 100 || !shenaniganConfigs) return null;
-            const affordable = shenaniganConfigs
-              .filter(c => Number(c.cost) <= pp)
-              .sort((a, b) => Number(a.cost) - Number(b.cost))
-              .slice(0, 3);
-            if (affordable.length === 0) return null;
-            return (
-              <div>
-                <div className="mc-label mb-2">You can afford</div>
-                <div className="flex flex-wrap gap-2">
-                  {affordable.map(s => (
-                    <span key={s.name} className="text-xs mc-card px-2 py-1">
-                      {s.name} <span className="mc-text-purple">({Number(s.cost).toLocaleString()} PP)</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            );
-          })()}
         </div>
 
         {/* Spend PP bridge CTA */}
