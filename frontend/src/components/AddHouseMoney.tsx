@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAddBackerMoney, useGetInternalWalletBalance } from '../hooks/useQueries';
+import { useAddBackerMoney, useICPBalance } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import HouseMoneyToast from './HouseMoneyToast';
@@ -10,10 +10,10 @@ export default function AddHouseMoney() {
   const [inputError, setInputError] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastData, setToastData] = useState<{ amount: number; ponziPoints: number } | null>(null);
-  const { data: balanceData } = useGetInternalWalletBalance();
+  const { data: icpBalance } = useICPBalance();
   const addBackerMoneyMutation = useAddBackerMoney();
 
-  const walletBalance = balanceData?.internalBalance || 0;
+  const walletBalance = icpBalance ?? 0;
   const minDeposit = 0.1;
   const depositAmount = parseFloat(amount) || 0;
 
