@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
-import { useGetCallerUserProfile, useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
@@ -284,7 +284,6 @@ export default function App() {
   const { identity, principal, isInitializing, isAuthenticated } = useInternetIdentity();
   const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
-  const { data: balanceData } = useGetInternalWalletBalance();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);

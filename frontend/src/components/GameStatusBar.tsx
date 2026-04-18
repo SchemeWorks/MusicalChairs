@@ -1,4 +1,4 @@
-import { useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetGameStats } from '../hooks/useQueries';
+import { useICPBalance, useGetUserGames, useGetPonziPoints, useGetGameStats } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { formatICP } from '../lib/formatICP';
 import { TrendingUp, TrendingDown } from 'lucide-react';
@@ -10,13 +10,13 @@ interface GameStatusBarProps {
 }
 
 export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
-  const { data: balanceData } = useGetInternalWalletBalance();
+  const { data: icpBalance } = useICPBalance();
   const { data: games } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
   const { data: gameStats } = useGetGameStats();
   const portfolio = useLivePortfolio(games);
 
-  const walletBalance = balanceData?.internalBalance || 0;
+  const walletBalance = icpBalance ?? 0;
   const activeGames = games?.length || 0;
   const ponziPoints = ponziData?.totalPoints || 0;
   const potBalance = gameStats?.potBalance || 0;

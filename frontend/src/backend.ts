@@ -7,7 +7,6 @@ export type {
   GameResetRecord,
   DealerPosition,
   HouseLedgerRecord,
-  WalletTransaction,
   _SERVICE,
 } from './declarations/backend';
 
