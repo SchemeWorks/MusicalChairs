@@ -198,37 +198,6 @@ export function useGetHouseLedgerStats() {
   });
 }
 
-// Musical Chairs Wallet Queries - Now using real backend
-export function useGetInternalWalletBalance() {
-  const { actor, isFetching: actorFetching } = useActor();
-  const { principal, isConnected, walletType } = useWallet();
-  const { data: houseRepaymentBalance } = useGetBackerRepaymentBalance();
-
-  return useQuery({
-    queryKey: ['internalWalletBalance', principal, houseRepaymentBalance],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      if (!principal) throw new Error('Not authenticated');
-      
-      // Get wallet balance from backend (in ICP, not e8s)
-      const balanceICP = await actor.getWalletBalanceICP();
-      const houseRepayments = houseRepaymentBalance || 0;
-      
-      // Check if test mode is enabled
-      const isTestMode = await actor.isTestMode();
-      
-      return {
-        internalBalance: balanceICP + houseRepayments,
-        houseRepaymentBalance: houseRepayments,
-        walletType,
-        isTestMode,
-      };
-    },
-    enabled: !!actor && !actorFetching && !!principal && isConnected,
-    refetchInterval: 5000, // Refetch every 5 seconds for live balance updates
-  });
-}
-
 // Real ICP balance from the NNS ledger (what the user actually has in their wallet)
 export function useICPBalance() {
   const { principal, isConnected } = useWallet();
@@ -243,49 +212,6 @@ export function useICPBalance() {
     },
     enabled: !!principal && isConnected && ledger.isConnected,
     refetchInterval: 5000,
-  });
-}
-
-// ============================================================================
-// Real ICP Deposit/Withdraw Mutations
-// ============================================================================
-
-// Deposit ICP from external wallet to Musical Chairs (ICRC-2 transfer_from)
-// User must first call icrc2_approve on the ICP ledger to authorize the backend
-export function useDepositICP() {
-  const { actor } = useActor();
-  const { principal } = useWallet();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (amountE8s: bigint) => {
-      if (!actor) throw new Error('Actor not available');
-      if (!principal) throw new Error('Not authenticated');
-      
-      if (amountE8s < 10_000_000n) {
-        throw new Error('Minimum deposit is 0.1 ICP');
-      }
-      
-      // Call backend to pull funds via ICRC-2 transfer_from
-      const result = await actor.depositICP(amountE8s);
-      
-      if ('Err' in result) {
-        throw new Error(result.Err);
-      }
-      
-      return { 
-        success: true, 
-        blockIndex: result.Ok,
-        amount: Number(amountE8s) / 100_000_000,
-        timestamp: new Date()
-      };
-    },
-    onSuccess: () => {
-      // Immediately invalidate and refetch balance queries
-      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['gameStats'] });
-      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
-    },
   });
 }
 
@@ -366,110 +292,52 @@ export function useWithdrawCoverCharges() {
   });
 }
 
-// Withdraw ICP from Musical Chairs to external wallet (ICRC-1 transfer)
-export function useWithdrawICP() {
-  const { actor } = useActor();
-  const { principal } = useWallet();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (amountE8s: bigint) => {
-      if (!actor) throw new Error('Actor not available');
-      if (!principal) throw new Error('Not authenticated');
-      
-      if (amountE8s < 10_000_000n) {
-        throw new Error('Minimum withdrawal is 0.1 ICP');
-      }
-      
-      // Call backend to send ICP to user's wallet
-      const result = await actor.withdrawICP(amountE8s);
-      
-      if ('Err' in result) {
-        throw new Error(result.Err);
-      }
-      
-      return { 
-        success: true, 
-        blockIndex: result.Ok,
-        amount: Number(amountE8s) / 100_000_000,
-        timestamp: new Date()
-      };
-    },
-    onSuccess: () => {
-      // Immediately invalidate and refetch balance queries
-      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['gameStats'] });
-      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
-    },
-  });
-}
-
-export function useSendFromInternalWallet() {
-  const { actor } = useActor();
-  const { principal } = useWallet();
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ amount, recipientPrincipal }: { amount: number; recipientPrincipal: string }) => {
-      if (!actor) throw new Error('Actor not available');
-      if (!principal) throw new Error('Not authenticated');
-      
-      // Validate send amount
-      if (amount <= 0) {
-        throw new Error('Send amount must be greater than 0');
-      }
-      
-      // Convert ICP to e8s for the backend
-      const amountE8s = BigInt(Math.round(amount * 100_000_000));
-      
-      // Call backend to transfer
-      const result = await actor.transferInternal(
-        Principal.fromText(recipientPrincipal),
-        amountE8s
-      );
-      
-      if ('Err' in result) {
-        throw new Error(result.Err);
-      }
-      
-      return { 
-        success: true, 
-        transactionId: `send_${Date.now()}`,
-        amount,
-        recipient: recipientPrincipal,
-        timestamp: new Date()
-      };
-    },
-    onSuccess: () => {
-      // Immediately invalidate and refetch balance queries for instant UI updates
-      queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
-      queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
-      queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
-    },
-  });
-}
-
 // Add Backer Money Mutation — regular users become Series A backers
 export function useAddBackerMoney() {
   const { actor } = useActor();
-  const { principal } = useWallet();
+  const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
+  const ledger = useLedger();
 
   return useMutation({
     mutationFn: async (amount: number) => {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
-      
-      // Get current wallet balance from backend
-      const currentBalance = await actor.getWalletBalanceICP();
-      
-      if (amount > currentBalance) {
-        throw new Error('Insufficient balance in Musical Chairs Wallet. Please fund your wallet first.');
-      }
-      
+
+      if (amount <= 0) throw new Error('Please enter a valid amount greater than 0.');
+
+      const amountE8s = BigInt(Math.round(amount * 100_000_000));
+      const approveAmount = amountE8s + 20_000n; // extra for fees
+
       try {
-        // Call backend to add backer money (this will deduct from internal wallet)
-        await actor.addDealerMoney(amount); // Backend Candid name unchanged
+        if (walletType === 'oisy') {
+          // Oisy path: ICRC-112 batching (approve + addDealerMoney in one popup)
+          const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+          const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
+          const backendActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+
+          signerAgent.batch();
+          const approvePromise = ledgerActor.icrc2_approve({
+            amount: approveAmount,
+            spender: { owner: Principal.fromText(BACKEND_CANISTER_ID), subaccount: [] },
+            expires_at: [],
+            expected_allowance: [],
+            memo: [],
+            fee: [],
+            from_subaccount: [],
+            created_at_time: [],
+          });
+
+          signerAgent.batch();
+          const addPromise = backendActor.addDealerMoney(amount);
+
+          await signerAgent.execute();
+          await Promise.all([approvePromise, addPromise]);
+        } else {
+          // Standard path: approve then addDealerMoney
+          await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
+          await actor.addDealerMoney(amount);
+        }
 
         return {
           success: true,
@@ -515,27 +383,53 @@ export const useAddDealerMoney = useAddBackerMoney;
 // Add House Money Mutation with enhanced error handling (for admin use)
 export function useAddHouseMoney() {
   const { actor } = useActor();
-  const { principal } = useWallet();
+  const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
+  const ledger = useLedger();
 
   return useMutation({
     mutationFn: async (amount: number) => {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
-      
-      // Get current wallet balance from backend
-      const currentBalance = await actor.getWalletBalanceICP();
-      
-      if (amount > currentBalance) {
-        throw new Error('Insufficient balance in Musical Chairs Wallet. Please fund your wallet first.');
-      }
-      
+
+      if (amount <= 0) throw new Error('Please enter a valid amount greater than 0.');
+
+      const amountE8s = BigInt(Math.round(amount * 100_000_000));
+      const approveAmount = amountE8s + 20_000n; // extra for fees
+      const description = `House money deposit of ${amount} ICP`;
+
       try {
-        // Call backend to add house money with description
-        await actor.addHouseMoney(amount, `House money deposit of ${amount} ICP`);
-        
-        return { 
-          success: true, 
+        if (walletType === 'oisy') {
+          // Oisy path: ICRC-112 batching (approve + addHouseMoney in one popup)
+          const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+          const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
+          const backendActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+
+          signerAgent.batch();
+          const approvePromise = ledgerActor.icrc2_approve({
+            amount: approveAmount,
+            spender: { owner: Principal.fromText(BACKEND_CANISTER_ID), subaccount: [] },
+            expires_at: [],
+            expected_allowance: [],
+            memo: [],
+            fee: [],
+            from_subaccount: [],
+            created_at_time: [],
+          });
+
+          signerAgent.batch();
+          const addPromise = backendActor.addHouseMoney(amount, description);
+
+          await signerAgent.execute();
+          await Promise.all([approvePromise, addPromise]);
+        } else {
+          // Standard path: approve then addHouseMoney
+          await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
+          await actor.addHouseMoney(amount, description);
+        }
+
+        return {
+          success: true,
           amount,
           expectedReturn: amount * 1.12,
           ponziPoints: amount * 4000, // Updated to 4000 points per ICP for house money
