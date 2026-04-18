@@ -1371,18 +1371,24 @@ persistent actor {
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
 
+                // Capture state snapshots for compensation-on-failure
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalDealers = dealerPositions;
+
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Check solvency against what actually leaves the pot
-                // Pot loses: netEarnings (to player) + dealer portion of toll
                 let potDeduction = netEarnings + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
+                    // Revert dealer distribution before trapping
+                    dealerPositions := originalDealers;
                     triggerGameReset("Insufficient funds for payout");
                     Debug.trap("Game reset due to insufficient funds");
                 };
 
-                // Reset the game record: zero out accumulated earnings & reset lastUpdateTime
+                // Reset the game record and update platform stats
                 let updatedGame : GameRecord = {
                     game with
                     accumulatedEarnings = 0.0;
@@ -1397,9 +1403,46 @@ persistent actor {
                     potBalance = platformStats.potBalance - potDeduction;
                 };
 
-                // Credit net earnings (after exit toll) to the player's wallet
+                // Pay out to user's ledger account (saga: revert on failure)
                 let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
-                creditToWallet(caller, netEarningsE8s);
+                let transferResult = try {
+                    await icpLedger.icrc1_transfer({
+                        from_subaccount = null;
+                        to = { owner = caller; subaccount = null };
+                        amount = netEarningsE8s;
+                        fee = null;
+                        memo = null;
+                        created_at_time = null;
+                    });
+                } catch (e) {
+                    // Revert all mutations
+                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                    platformStats := originalStats;
+                    dealerPositions := originalDealers;
+                    releaseCallerLock(caller);
+                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                };
+
+                switch (transferResult) {
+                    case (#Err(err)) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        dealerPositions := originalDealers;
+                        releaseCallerLock(caller);
+                        let errMsg = switch (err) {
+                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                            case (#BadFee(_)) { "Bad fee" };
+                            case (#BadBurn(_)) { "Bad burn" };
+                            case (#TooOld) { "Transaction too old" };
+                            case (#CreatedInFuture(_)) { "Transaction created in future" };
+                            case (#Duplicate(_)) { "Duplicate transaction" };
+                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                            case (#GenericError(e)) { "Error: " # e.message };
+                        };
+                        Debug.trap(errMsg);
+                    };
+                    case (#Ok(_)) {};
+                };
 
                 releaseCallerLock(caller);
                 netEarnings;
