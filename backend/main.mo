@@ -308,18 +308,6 @@ persistent actor {
     // Musical Chairs Wallet API
     // ========================================================================
 
-    // Initialize wallet for a user (internal helper)
-    func initializeWalletIfNeeded(user : Principal) {
-        switch (principalMapNat.get(walletBalances, user)) {
-            case (null) {
-                // In test mode, give 500 ICP
-                let initialBalance = if (testMode) { 50_000_000_000 } else { 0 };
-                walletBalances := principalMapNat.put(walletBalances, user, initialBalance);
-            };
-            case (?_) { /* Already initialized */ };
-        };
-    };
-
     // Record a wallet transaction
     func recordWalletTransaction(
         user : Principal,
@@ -450,77 +438,6 @@ persistent actor {
             releaseCallerLock(caller);
             #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-    };
-
-    // ========================================================================
-    // Internal Wallet Operations (for game mechanics)
-    // ========================================================================
-    
-    // Deduct from internal wallet (for game deposits)
-    func deductFromWallet(user : Principal, amount : Nat) : Bool {
-        initializeWalletIfNeeded(user);
-        let currentBalance = switch (principalMapNat.get(walletBalances, user)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        if (currentBalance < amount) {
-            return false;
-        };
-        
-        walletBalances := principalMapNat.put(walletBalances, user, currentBalance - amount);
-        recordWalletTransaction(user, #gameDeposit, amount, null, "Game deposit");
-        true;
-    };
-
-    // Credit to internal wallet (for game withdrawals/earnings)
-    func creditToWallet(user : Principal, amount : Nat) {
-        initializeWalletIfNeeded(user);
-        let currentBalance = switch (principalMapNat.get(walletBalances, user)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        walletBalances := principalMapNat.put(walletBalances, user, currentBalance + amount);
-        recordWalletTransaction(user, #gameWithdrawal, amount, null, "Game withdrawal");
-    };
-
-    // Transfer between internal wallets
-    public shared ({ caller }) func transferInternal(to : Principal, amount : Nat) : async { #Ok; #Err : Text } {
-        requireAuthenticated(caller);
-        if (Principal.isAnonymous(to)) {
-            return #Err("Cannot transfer to anonymous principal");
-        };
-        if (amount < 1_000_000) {  // Minimum 0.01 ICP
-            return #Err("Minimum transfer is 0.01 ICP");
-        };
-
-        initializeWalletIfNeeded(caller);
-        let senderBalance = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        if (senderBalance < amount) {
-            return #Err("Insufficient balance");
-        };
-
-        // Deduct from sender
-        walletBalances := principalMapNat.put(walletBalances, caller, senderBalance - amount);
-        
-        // Credit to recipient
-        initializeWalletIfNeeded(to);
-        let recipientBalance = switch (principalMapNat.get(walletBalances, to)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        walletBalances := principalMapNat.put(walletBalances, to, recipientBalance + amount);
-        
-        // Record transactions
-        recordWalletTransaction(caller, #transfer, amount, null, "Transfer to " # Principal.toText(to));
-        recordWalletTransaction(to, #transfer, amount, null, "Transfer from " # Principal.toText(caller));
-        
-        #Ok;
     };
 
     // ========================================================================
