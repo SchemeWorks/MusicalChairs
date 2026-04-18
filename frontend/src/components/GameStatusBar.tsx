@@ -16,7 +16,6 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
   const { data: gameStats } = useGetGameStats();
   const portfolio = useLivePortfolio(games);
 
-  const walletBalance = icpBalance ?? 0;
   const activeGames = games?.length || 0;
   const ponziPoints = ponziData?.totalPoints || 0;
   const potBalance = gameStats?.potBalance || 0;
@@ -28,7 +27,7 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
       {/* Balance */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">Balance</span>
-        <span className="mc-status-bar-value mc-text-primary">{formatICP(walletBalance)}</span>
+        <span className="mc-status-bar-value mc-text-primary">{formatICP(icpBalance ?? 0)}</span>
       </div>
 
       {/* Net P/L — hero stat */}
