@@ -17,6 +17,23 @@ import AccessControl "authorization/access-control";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 
+// Migration: discard stable vars from the retired internal-wallet model.
+// See docs/superpowers/specs/2026-04-17-kill-internal-wallet-balance-design.md.
+(with migration = func(
+    _old : {
+        var walletBalances : OrderedMap.Map<Principal, Nat>;
+        var walletTransactions : OrderedMap.Map<Nat, {
+            id : Nat;
+            user : Principal;
+            txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer };
+            amount : Nat;
+            timestamp : Int;
+            ledgerBlockIndex : ?Nat;
+            description : Text;
+        }>;
+        var nextWalletTxId : Nat;
+    }
+) : {} = {})
 persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
