@@ -124,7 +124,10 @@ type ConsentInfo =
    metadata: ConsentMessageMetadata;
  };
 service : {
-  addDealerMoney: (amount: float64) -> ();
+  addDealerMoney: (amount: float64) -> (variant {
+                                          Err: text;
+                                          Ok: nat;
+                                        });
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   burnPonziPoints: (user: principal, amount: float64) -> ();
   calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
@@ -132,9 +135,15 @@ service : {
   calculateCompoundedROI: () -> (float64) query;
   calculateEarnings: (game: GameRecord) -> (float64) query;
   checkDepositRateLimit: () -> (bool) query;
-  claimDealerRepayment: () -> (float64);
+  claimDealerRepayment: () -> (variant {
+                                 Err: text;
+                                 Ok: float64;
+                               });
   createGame: (plan: GamePlan, amount: float64, isCompounding: bool,
-   referrer: opt principal) -> (nat);
+   referrer: opt principal) -> (variant {
+                                  Err: text;
+                                  Ok: nat;
+                                });
   deductPonziPoints: (user: principal, amount: float64) -> ();
   distributeDealerCutFromShenanigans: (amount: float64) -> ();
   distributeFees: (totalFees: float64) -> ();
@@ -208,12 +217,18 @@ service : {
   setCanisterPrincipal: (p: principal) -> ();
   setShenanigansPrincipal: (p: principal) -> ();
   setTestMode: (enabled: bool) -> ();
-  settleCompoundingGame: (gameId: nat) -> (float64);
+  settleCompoundingGame: (gameId: nat) -> (variant {
+                                             Err: text;
+                                             Ok: float64;
+                                           });
   transferPonziPoints: (from: principal, to: principal, amount: float64) ->
    ();
   withdrawCoverCharges: (amount: nat) -> (variant {
                                             Err: text;
                                             Ok: nat;
                                           });
-  withdrawEarnings: (gameId: nat) -> (float64);
+  withdrawEarnings: (gameId: nat) -> (variant {
+                                        Err: text;
+                                        Ok: float64;
+                                      });
 }

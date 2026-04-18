@@ -93,7 +93,11 @@ export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
-  'addDealerMoney' : ActorMethod<[number], undefined>,
+  'addDealerMoney' : ActorMethod<
+    [number],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'burnPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
@@ -101,10 +105,15 @@ export interface _SERVICE {
   'calculateCompoundedROI' : ActorMethod<[], number>,
   'calculateEarnings' : ActorMethod<[GameRecord], number>,
   'checkDepositRateLimit' : ActorMethod<[], boolean>,
-  'claimDealerRepayment' : ActorMethod<[], number>,
+  'claimDealerRepayment' : ActorMethod<
+    [],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
   'createGame' : ActorMethod<
     [GamePlan, number, boolean, [] | [Principal]],
-    bigint
+    { 'Ok' : bigint } |
+      { 'Err' : string }
   >,
   'deductPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'distributeDealerCutFromShenanigans' : ActorMethod<[number], undefined>,
@@ -183,7 +192,11 @@ export interface _SERVICE {
   'setCanisterPrincipal' : ActorMethod<[Principal], undefined>,
   'setShenanigansPrincipal' : ActorMethod<[Principal], undefined>,
   'setTestMode' : ActorMethod<[boolean], undefined>,
-  'settleCompoundingGame' : ActorMethod<[bigint], number>,
+  'settleCompoundingGame' : ActorMethod<
+    [bigint],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
   'transferPonziPoints' : ActorMethod<
     [Principal, Principal, number],
     undefined
@@ -193,7 +206,11 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
-  'withdrawEarnings' : ActorMethod<[bigint], number>,
+  'withdrawEarnings' : ActorMethod<
+    [bigint],
+    { 'Ok' : number } |
+      { 'Err' : string }
+  >,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
