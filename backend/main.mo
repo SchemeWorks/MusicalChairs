@@ -308,28 +308,6 @@ persistent actor {
     // Musical Chairs Wallet API
     // ========================================================================
 
-    // Get wallet balance for caller (in e8s)
-    public query ({ caller }) func getWalletBalance() : async Nat {
-        switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) {
-                // In test mode, give new users 500 ICP (50_000_000_000 e8s)
-                if (testMode) { 50_000_000_000 } else { 0 };
-            };
-            case (?balance) { balance };
-        };
-    };
-
-    // Get wallet balance as ICP (Float) for display
-    public query ({ caller }) func getWalletBalanceICP() : async Float {
-        let e8s = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) {
-                if (testMode) { 50_000_000_000 } else { 0 };
-            };
-            case (?balance) { balance };
-        };
-        Float.fromInt(e8s) / 100_000_000.0;
-    };
-
     // Initialize wallet for a user (internal helper)
     func initializeWalletIfNeeded(user : Principal) {
         switch (principalMapNat.get(walletBalances, user)) {
