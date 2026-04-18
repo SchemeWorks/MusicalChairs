@@ -92,19 +92,6 @@ export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
-export interface WalletTransaction {
-  'id' : bigint,
-  'user' : Principal,
-  'description' : string,
-  'timestamp' : bigint,
-  'txType' : { 'gameWithdrawal' : null } |
-    { 'gameDeposit' : null } |
-    { 'deposit' : null } |
-    { 'withdrawal' : null } |
-    { 'transfer' : null },
-  'ledgerBlockIndex' : [] | [bigint],
-  'amount' : bigint,
-}
 export interface _SERVICE {
   'addDealerMoney' : ActorMethod<[number], undefined>,
   'addDownstreamDealer' : ActorMethod<[number, number], undefined>,
@@ -122,7 +109,6 @@ export interface _SERVICE {
     bigint
   >,
   'deductPonziPoints' : ActorMethod<[Principal, number], undefined>,
-  'depositICP' : ActorMethod<[bigint], { 'Ok' : bigint } | { 'Err' : string }>,
   'distributeDealerCutFromShenanigans' : ActorMethod<[number], undefined>,
   'distributeFees' : ActorMethod<[number], undefined>,
   'getActiveGameCount' : ActorMethod<[], bigint>,
@@ -181,9 +167,6 @@ export interface _SERVICE {
   'getTotalWithdrawals' : ActorMethod<[], number>,
   'getUserGames' : ActorMethod<[], Array<GameRecord>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
-  'getWalletBalance' : ActorMethod<[], bigint>,
-  'getWalletBalanceICP' : ActorMethod<[], number>,
-  'getWalletTransactions' : ActorMethod<[], Array<WalletTransaction>>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
@@ -203,11 +186,6 @@ export interface _SERVICE {
   'setShenanigansPrincipal' : ActorMethod<[Principal], undefined>,
   'setTestMode' : ActorMethod<[boolean], undefined>,
   'settleCompoundingGame' : ActorMethod<[bigint], number>,
-  'transferInternal' : ActorMethod<
-    [Principal, bigint],
-    { 'Ok' : null } |
-      { 'Err' : string }
-  >,
   'transferPonziPoints' : ActorMethod<
     [Principal, Principal, number],
     undefined
@@ -218,7 +196,6 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'withdrawEarnings' : ActorMethod<[bigint], number>,
-  'withdrawICP' : ActorMethod<[bigint], { 'Ok' : bigint } | { 'Err' : string }>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];

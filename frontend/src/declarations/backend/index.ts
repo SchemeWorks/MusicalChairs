@@ -13,7 +13,6 @@ export type {
   GameResetRecord,
   DealerPosition,
   HouseLedgerRecord,
-  WalletTransaction,
   CoverChargeEntry,
   ConsentInfo,
   ConsentMessage,
