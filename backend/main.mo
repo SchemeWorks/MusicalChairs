@@ -1374,7 +1374,7 @@ persistent actor {
                 // Capture state snapshots for compensation-on-failure
                 let originalGame = game;
                 let originalStats = platformStats;
-                let originalDealers = dealerPositions;
+                let originalRepayments = dealerRepayments;
 
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
@@ -1383,7 +1383,8 @@ persistent actor {
                 let potDeduction = netEarnings + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
                     // Revert dealer distribution before trapping
-                    dealerPositions := originalDealers;
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for payout");
                     Debug.trap("Game reset due to insufficient funds");
                 };
@@ -1415,10 +1416,12 @@ persistent actor {
                         created_at_time = null;
                     });
                 } catch (e) {
-                    // Revert all mutations
+                    // Compensate: refund on catch (network failure — transfer status unknown)
+                    // Note: This is the conservative approach; the transfer may have succeeded.
+                    // In production, consider logging for manual reconciliation.
                     gameRecords := natMap.put(gameRecords, gameId, originalGame);
                     platformStats := originalStats;
-                    dealerPositions := originalDealers;
+                    dealerRepayments := originalRepayments;
                     releaseCallerLock(caller);
                     Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
                 };
@@ -1427,7 +1430,7 @@ persistent actor {
                     case (#Err(err)) {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
-                        dealerPositions := originalDealers;
+                        dealerRepayments := originalRepayments;
                         releaseCallerLock(caller);
                         let errMsg = switch (err) {
                             case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
