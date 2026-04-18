@@ -106,7 +106,11 @@ export const idlFactory = ({ IDL }) => {
     'trusted_origins' : IDL.Vec(IDL.Text),
   });
   return IDL.Service({
-    'addDealerMoney' : IDL.Func([IDL.Float64], [], []),
+    'addDealerMoney' : IDL.Func(
+        [IDL.Float64],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'burnPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'calculateCompounded30DayEarnings' : IDL.Func(
@@ -122,10 +126,14 @@ export const idlFactory = ({ IDL }) => {
     'calculateCompoundedROI' : IDL.Func([], [IDL.Float64], ['query']),
     'calculateEarnings' : IDL.Func([GameRecord], [IDL.Float64], ['query']),
     'checkDepositRateLimit' : IDL.Func([], [IDL.Bool], ['query']),
-    'claimDealerRepayment' : IDL.Func([], [IDL.Float64], []),
+    'claimDealerRepayment' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
+        [],
+      ),
     'createGame' : IDL.Func(
         [GamePlan, IDL.Float64, IDL.Bool, IDL.Opt(IDL.Principal)],
-        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
     'deductPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
@@ -244,7 +252,11 @@ export const idlFactory = ({ IDL }) => {
     'setCanisterPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setShenanigansPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setTestMode' : IDL.Func([IDL.Bool], [], []),
-    'settleCompoundingGame' : IDL.Func([IDL.Nat], [IDL.Float64], []),
+    'settleCompoundingGame' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
+        [],
+      ),
     'transferPonziPoints' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Float64],
         [],
@@ -255,7 +267,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
-    'withdrawEarnings' : IDL.Func([IDL.Nat], [IDL.Float64], []),
+    'withdrawEarnings' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
+        [],
+      ),
   });
 };
 export const init = ({ IDL }) => { return []; };

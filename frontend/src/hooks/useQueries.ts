@@ -332,11 +332,13 @@ export function useAddBackerMoney() {
           const addPromise = backendActor.addDealerMoney(amount);
 
           await signerAgent.execute();
-          await Promise.all([approvePromise, addPromise]);
+          const [, addResult] = await Promise.all([approvePromise, addPromise]);
+          if ('Err' in addResult) throw new Error(addResult.Err);
         } else {
           // Standard path: approve then addDealerMoney
           await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-          await actor.addDealerMoney(amount);
+          const addResult = await actor.addDealerMoney(amount);
+          if ('Err' in addResult) throw new Error(addResult.Err);
         }
 
         return {
@@ -483,12 +485,15 @@ export function useCreateGame() {
 
         // Fire single ICRC-112 request — ONE signer popup
         await signerAgent.execute();
-        const [, gId] = await Promise.all([approvePromise, gamePromise]);
-        gameId = gId;
+        const [, gameResult] = await Promise.all([approvePromise, gamePromise]);
+        if ('Err' in gameResult) throw new Error(gameResult.Err);
+        gameId = gameResult.Ok;
       } else {
         // Standard path: separate approve + createGame
         await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-        gameId = await actor.createGame(plan, amount, isCompounding, []);
+        const gameResult = await actor.createGame(plan, amount, isCompounding, []);
+        if ('Err' in gameResult) throw new Error(gameResult.Err);
+        gameId = gameResult.Ok;
       }
 
       // Initialize earnings tracking for the new game
@@ -536,12 +541,13 @@ export function useWithdrawGameEarnings() {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
       
-      const earnings = await actor.withdrawEarnings(gameId);
+      const result = await actor.withdrawEarnings(gameId);
+      if ('Err' in result) throw new Error(result.Err);
 
       // Reset accumulated earnings for this game after withdrawal
       gameEarningsStore.delete(gameId.toString());
 
-      return { earnings, gameId };
+      return { earnings: result.Ok, gameId };
     },
     onSuccess: () => {
       // Immediately invalidate and refetch all related queries for instant UI updates
@@ -562,9 +568,10 @@ export function useSettleCompoundingGame() {
   return useMutation({
     mutationFn: async (gameId: bigint) => {
       if (!actor) throw new Error('Actor not available');
-      const earnings = await actor.settleCompoundingGame(gameId);
+      const result = await actor.settleCompoundingGame(gameId);
+      if ('Err' in result) throw new Error(result.Err);
       gameEarningsStore.delete(gameId.toString());
-      return { earnings, gameId };
+      return { earnings: result.Ok, gameId };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['userGames'] });
@@ -583,7 +590,9 @@ export function useClaimDealerRepayment() {
   return useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      return actor.claimDealerRepayment();
+      const result = await actor.claimDealerRepayment();
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });

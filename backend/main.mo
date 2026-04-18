@@ -211,6 +211,33 @@ persistent actor {
         callerLocks := principalMapNat.delete(callerLocks, caller);
     };
 
+    func transferFromErrorMessage(err : Ledger.TransferFromError) : Text {
+        switch (err) {
+            case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
+            case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
+            case (#BadFee(_)) { "Bad fee" };
+            case (#BadBurn(_)) { "Bad burn" };
+            case (#TooOld) { "Transaction too old" };
+            case (#CreatedInFuture(_)) { "Transaction created in future" };
+            case (#Duplicate(_)) { "Duplicate transaction" };
+            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+            case (#GenericError(e)) { "Error: " # e.message };
+        };
+    };
+
+    func transferErrorMessage(err : Ledger.TransferError) : Text {
+        switch (err) {
+            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+            case (#BadFee(_)) { "Bad fee" };
+            case (#BadBurn(_)) { "Bad burn" };
+            case (#TooOld) { "Transaction too old" };
+            case (#CreatedInFuture(_)) { "Transaction created in future" };
+            case (#Duplicate(_)) { "Duplicate transaction" };
+            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+            case (#GenericError(e)) { "Error: " # e.message };
+        };
+    };
+
     // ========================================================================
     // Cover Charge — 2% skimmed from every deposit, routed to a dedicated
     // admin bucket ("Pay Management") with its own audit log so it never
@@ -502,16 +529,17 @@ persistent actor {
     };
 
     // Create New Game
-    public shared ({ caller }) func createGame(plan : GamePlan, amount : Float, isCompounding : Bool, referrer : ?Principal) : async Nat {
+    // Returns #Ok(gameId) or #Err(message). We return rather than trap on
+    // post-await errors: Motoko commits state at every await, so a trap after
+    // the ledger call rolls back only the current turn — any lock release or
+    // compensation we wrote in that turn is lost, stranding the caller. See
+    // withdrawCoverCharges for the same pattern.
+    public shared ({ caller }) func createGame(plan : GamePlan, amount : Float, isCompounding : Bool, referrer : ?Principal) : async { #Ok : Nat; #Err : Text } {
         requireAuthenticated(caller);
         validateAmount(amount);
-        if (amount < 0.1) {
-            Debug.trap("Minimum deposit is 0.1 ICP");
-        };
-
-        // Validate 8 decimal places
+        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
         if (not validateEightDecimals(amount)) {
-            Debug.trap("Amount cannot have more than 8 decimal places");
+            return #Err("Amount cannot have more than 8 decimal places");
         };
 
         acquireCallerLock(caller);
@@ -528,7 +556,7 @@ persistent actor {
                 );
                 if (List.size(filteredTimestamps) >= 3) {
                     releaseCallerLock(caller);
-                    Debug.trap("You can only open 3 positions per hour");
+                    return #Err("You can only open 3 positions per hour");
                 };
             };
         };
@@ -538,27 +566,20 @@ persistent actor {
             let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
             if (amount > maxDeposit) {
                 releaseCallerLock(caller);
-                Debug.trap("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
+                return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
             };
         };
 
-        // Transfer ICP from user to canister via ICRC-2 transfer_from
-        // User must have called icrc2_approve on the ICP ledger first
         let selfPrincipal = switch (canisterPrincipal) {
             case (null) {
                 releaseCallerLock(caller);
-                Debug.trap("Canister principal not set");
+                return #Err("Canister principal not set");
             };
             case (?p) { p };
         };
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        // Wrap the ledger await in try/catch: if the inter-canister call
-        // throws (destination trap, transport failure, etc.) instead of
-        // returning #Err, the lock acquired above is already committed at the
-        // await and would otherwise stay held forever. Release it before
-        // re-trapping so the caller isn't permanently stuck.
         let transferResult = try {
             await icpLedger.icrc2_transfer_from({
                 spender_subaccount = null;
@@ -571,24 +592,13 @@ persistent actor {
             });
         } catch (e) {
             releaseCallerLock(caller);
-            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         switch (transferResult) {
             case (#Err(err)) {
                 releaseCallerLock(caller);
-                let errMsg = switch (err) {
-                    case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
-                    case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
-                    case (#BadFee(_)) { "Bad fee" };
-                    case (#BadBurn(_)) { "Bad burn" };
-                    case (#TooOld) { "Transaction too old" };
-                    case (#CreatedInFuture(_)) { "Transaction created in future" };
-                    case (#Duplicate(_)) { "Duplicate transaction" };
-                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                    case (#GenericError(e)) { "Error: " # e.message };
-                };
-                Debug.trap(errMsg);
+                return #Err(transferFromErrorMessage(err));
             };
             case (#Ok(_blockIndex)) {};
         };
@@ -664,34 +674,32 @@ persistent actor {
         awardPonziPoints(caller, points);
 
         releaseCallerLock(caller);
-        gameId;
+        #Ok(gameId);
     };
 
     // Add Dealer Money (Seed Round — transfers ICP directly from user's wallet)
-    public shared ({ caller }) func addDealerMoney(amount : Float) : async () {
+    // Returns #Ok(blockIndex) or #Err(message). See createGame for why post-await
+    // errors return instead of trapping.
+    public shared ({ caller }) func addDealerMoney(amount : Float) : async { #Ok : Nat; #Err : Text } {
         requireAuthenticated(caller);
         validateAmount(amount);
-        if (amount < 0.1) {
-            Debug.trap("Minimum deposit is 0.1 ICP");
+        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
+        if (not validateEightDecimals(amount)) {
+            return #Err("Amount cannot have more than 8 decimal places");
         };
 
         acquireCallerLock(caller);
 
-        // Validate 8 decimal places
-        if (not validateEightDecimals(amount)) {
-            Debug.trap("Amount cannot have more than 8 decimal places");
-        };
-
-        // Transfer ICP from user to canister via ICRC-2 transfer_from
         let selfPrincipal = switch (canisterPrincipal) {
-            case (null) { Debug.trap("Canister principal not set") };
+            case (null) {
+                releaseCallerLock(caller);
+                return #Err("Canister principal not set");
+            };
             case (?p) { p };
         };
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        // See createGame for the rationale — wrap the ledger await so that an
-        // inter-canister exception doesn't strand the caller lock.
         let transferResult = try {
             await icpLedger.icrc2_transfer_from({
                 spender_subaccount = null;
@@ -704,26 +712,15 @@ persistent actor {
             });
         } catch (e) {
             releaseCallerLock(caller);
-            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
-        switch (transferResult) {
+        let blockIndex = switch (transferResult) {
             case (#Err(err)) {
                 releaseCallerLock(caller);
-                let errMsg = switch (err) {
-                    case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
-                    case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
-                    case (#BadFee(_)) { "Bad fee" };
-                    case (#BadBurn(_)) { "Bad burn" };
-                    case (#TooOld) { "Transaction too old" };
-                    case (#CreatedInFuture(_)) { "Transaction created in future" };
-                    case (#Duplicate(_)) { "Duplicate transaction" };
-                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                    case (#GenericError(e)) { "Error: " # e.message };
-                };
-                Debug.trap(errMsg);
+                return #Err(transferFromErrorMessage(err));
             };
-            case (#Ok(_blockIndex)) {};
+            case (#Ok(idx)) { idx };
         };
 
         let entitlement = amount * 1.24; // Series A: 24% bonus
@@ -769,6 +766,7 @@ persistent actor {
         };
 
         releaseCallerLock(caller);
+        #Ok(blockIndex);
     };
 
     // ========================================================================
@@ -977,22 +975,23 @@ persistent actor {
     };
 
     // Withdraw Earnings
-    public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async Float {
+    // Returns #Ok(netEarnings) or #Err(message). See createGame for rationale.
+    public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
                 releaseCallerLock(caller);
-                Debug.trap("Game not found");
+                #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
                     releaseCallerLock(caller);
-                    Debug.trap("Unauthorized: Only the game owner can withdraw earnings");
+                    return #Err("Unauthorized: Only the game owner can withdraw earnings");
                 };
                 if (game.isCompounding) {
                     releaseCallerLock(caller);
-                    Debug.trap("Cannot withdraw from compounding games");
+                    return #Err("Cannot withdraw from compounding games");
                 };
 
                 let earnings = await calculateEarnings(game);
@@ -1012,11 +1011,11 @@ persistent actor {
                 // Check solvency against what actually leaves the pot
                 let potDeduction = netEarnings + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
-                    // Revert dealer distribution before trapping
+                    // Revert dealer distribution before returning
                     dealerRepayments := originalRepayments;
-                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for payout");
-                    Debug.trap("Game reset due to insufficient funds");
+                    releaseCallerLock(caller);
+                    return #Err("Game reset due to insufficient funds");
                 };
 
                 // Reset the game record and update platform stats
@@ -1046,14 +1045,13 @@ persistent actor {
                         created_at_time = null;
                     });
                 } catch (e) {
-                    // Compensate: refund on catch (network failure — transfer status unknown)
-                    // Note: This is the conservative approach; the transfer may have succeeded.
-                    // In production, consider logging for manual reconciliation.
+                    // Compensate: refund on catch (network failure — transfer status unknown;
+                    // conservative refund — transfer may have succeeded).
                     gameRecords := natMap.put(gameRecords, gameId, originalGame);
                     platformStats := originalStats;
                     dealerRepayments := originalRepayments;
                     releaseCallerLock(caller);
-                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                    return #Err("Failed to contact ICP ledger: " # Error.message(e));
                 };
 
                 switch (transferResult) {
@@ -1062,64 +1060,59 @@ persistent actor {
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
                         releaseCallerLock(caller);
-                        let errMsg = switch (err) {
-                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
-                            case (#BadFee(_)) { "Bad fee" };
-                            case (#BadBurn(_)) { "Bad burn" };
-                            case (#TooOld) { "Transaction too old" };
-                            case (#CreatedInFuture(_)) { "Transaction created in future" };
-                            case (#Duplicate(_)) { "Duplicate transaction" };
-                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                            case (#GenericError(e)) { "Error: " # e.message };
-                        };
-                        Debug.trap(errMsg);
+                        return #Err(transferErrorMessage(err));
                     };
                     case (#Ok(_)) {};
                 };
 
                 releaseCallerLock(caller);
-                netEarnings;
+                #Ok(netEarnings);
             };
         };
     };
 
     // Settle a compounding game at maturity (credits principal + earnings to wallet)
-    public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async Float {
+    // Returns #Ok(totalPayout) or #Err(message). See createGame for rationale.
+    public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
                 releaseCallerLock(caller);
-                Debug.trap("Game not found");
+                #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
                     releaseCallerLock(caller);
-                    Debug.trap("Unauthorized: Only the game owner can settle this game");
+                    return #Err("Unauthorized: Only the game owner can settle this game");
                 };
                 if (not game.isCompounding) {
                     releaseCallerLock(caller);
-                    Debug.trap("This function is only for compounding games. Use withdrawEarnings instead.");
+                    return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
                 };
                 if (not game.isActive) {
                     releaseCallerLock(caller);
-                    Debug.trap("Game is already settled");
+                    return #Err("Game is already settled");
                 };
 
                 // Check that the plan has matured
                 let timeElapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
                 let daysElapsed = timeElapsedSeconds / 86400.0;
-                let maturityDays = switch (game.plan) {
-                    case (#compounding15Day) { 15.0 };
-                    case (#compounding30Day) { 30.0 };
-                    case (#simple21Day) {
+                let maturityDaysOpt : ?Float = switch (game.plan) {
+                    case (#compounding15Day) { ?15.0 };
+                    case (#compounding30Day) { ?30.0 };
+                    case (#simple21Day) { null };
+                };
+                let maturityDays = switch (maturityDaysOpt) {
+                    case (null) {
                         releaseCallerLock(caller);
-                        Debug.trap("Simple games cannot be settled this way");
+                        return #Err("Simple games cannot be settled this way");
                     };
+                    case (?d) { d };
                 };
                 if (daysElapsed < maturityDays) {
                     releaseCallerLock(caller);
-                    Debug.trap("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
+                    return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
                 };
 
                 // Calculate final compounded earnings (capped at maturity)
@@ -1151,9 +1144,9 @@ persistent actor {
                 let potDeduction = totalPayout + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
                     dealerRepayments := originalRepayments;
-                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for compounding game settlement");
-                    Debug.trap("Game reset due to insufficient funds");
+                    releaseCallerLock(caller);
+                    return #Err("Game reset due to insufficient funds");
                 };
 
                 // Mark game as settled
@@ -1192,7 +1185,7 @@ persistent actor {
                     platformStats := originalStats;
                     dealerRepayments := originalRepayments;
                     releaseCallerLock(caller);
-                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                    return #Err("Failed to contact ICP ledger: " # Error.message(e));
                 };
 
                 switch (transferResult) {
@@ -1201,23 +1194,13 @@ persistent actor {
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
                         releaseCallerLock(caller);
-                        let errMsg = switch (err) {
-                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
-                            case (#BadFee(_)) { "Bad fee" };
-                            case (#BadBurn(_)) { "Bad burn" };
-                            case (#TooOld) { "Transaction too old" };
-                            case (#CreatedInFuture(_)) { "Transaction created in future" };
-                            case (#Duplicate(_)) { "Duplicate transaction" };
-                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                            case (#GenericError(e)) { "Error: " # e.message };
-                        };
-                        Debug.trap(errMsg);
+                        return #Err(transferErrorMessage(err));
                     };
                     case (#Ok(_)) {};
                 };
 
                 releaseCallerLock(caller);
-                totalPayout;
+                #Ok(totalPayout);
             };
         };
     };
@@ -1412,21 +1395,19 @@ persistent actor {
     };
 
     // Claim Dealer Repayment — transfers repayment balance to user's ledger account
-    public shared ({ caller }) func claimDealerRepayment() : async Float {
+    public shared ({ caller }) func claimDealerRepayment() : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
-        let balance = switch (principalMapNat.get(dealerRepayments, caller)) {
+        let balanceOpt : ?Float = switch (principalMapNat.get(dealerRepayments, caller)) {
+            case (null) { null };
+            case (?b) { if (b <= 0.0) { null } else { ?b } };
+        };
+        let balance = switch (balanceOpt) {
             case (null) {
                 releaseCallerLock(caller);
-                Debug.trap("No repayment balance to claim");
+                return #Err("No repayment balance to claim");
             };
-            case (?b) {
-                if (b <= 0.0) {
-                    releaseCallerLock(caller);
-                    Debug.trap("No repayment balance to claim");
-                };
-                b;
-            };
+            case (?b) { b };
         };
 
         // Zero out the repayment balance (compensate on failure)
@@ -1448,30 +1429,20 @@ persistent actor {
             // In production, consider logging for manual reconciliation.
             dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
             releaseCallerLock(caller);
-            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         switch (transferResult) {
             case (#Err(err)) {
                 dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
                 releaseCallerLock(caller);
-                let errMsg = switch (err) {
-                    case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
-                    case (#BadFee(_)) { "Bad fee" };
-                    case (#BadBurn(_)) { "Bad burn" };
-                    case (#TooOld) { "Transaction too old" };
-                    case (#CreatedInFuture(_)) { "Transaction created in future" };
-                    case (#Duplicate(_)) { "Duplicate transaction" };
-                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                    case (#GenericError(e)) { "Error: " # e.message };
-                };
-                Debug.trap(errMsg);
+                return #Err(transferErrorMessage(err));
             };
             case (#Ok(_)) {};
         };
 
         releaseCallerLock(caller);
-        balance;
+        #Ok(balance);
     };
 
     // Get Dealer Positions
