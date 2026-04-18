@@ -125,8 +125,6 @@ type ConsentInfo =
  };
 service : {
   addDealerMoney: (amount: float64) -> ();
-  addDownstreamDealer: (amount: float64, underwaterAmount: float64) -> ();
-  addHouseMoney: (amount: float64, description: text) -> ();
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
   burnPonziPoints: (user: principal, amount: float64) -> ();
   calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;

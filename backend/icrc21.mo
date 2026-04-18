@@ -68,12 +68,8 @@ module {
             case "withdrawEarnings" { ?"Withdraw Earnings" };
             case "settleCompoundingGame" { ?"Settle Compounding Game" };
             case "addDealerMoney" { ?"Fund as Backer" };
-            case "addDownstreamDealer" { ?"Fund as Series B Backer" };
             case "claimDealerRepayment" { ?"Claim Backer Repayment" };
-            case "transferInternal" { ?"Transfer Internal Balance" };
             case "initializeAccessControl" { ?"Initialize Account" };
-            case "depositICP" { ?"Deposit ICP" };
-            case "withdrawICP" { ?"Withdraw ICP" };
             case _ { null };
         };
 

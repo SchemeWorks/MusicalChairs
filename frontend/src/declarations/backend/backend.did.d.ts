@@ -94,8 +94,6 @@ export type UserRole = { 'admin' : null } |
   { 'guest' : null };
 export interface _SERVICE {
   'addDealerMoney' : ActorMethod<[number], undefined>,
-  'addDownstreamDealer' : ActorMethod<[number, number], undefined>,
-  'addHouseMoney' : ActorMethod<[number, string], undefined>,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
   'burnPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
