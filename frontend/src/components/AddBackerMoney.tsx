@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
-import { useAddBackerMoney, useGetInternalWalletBalance } from '../hooks/useQueries';
+import { useAddBackerMoney, useICPBalance } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import HouseMoneyToast from './HouseMoneyToast';
+import BackerMoneyToast from './BackerMoneyToast';
 import { AlertTriangle } from 'lucide-react';
 
-export default function AddHouseMoney() {
+export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
   const [inputError, setInputError] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastData, setToastData] = useState<{ amount: number; ponziPoints: number } | null>(null);
-  const { data: balanceData } = useGetInternalWalletBalance();
+  const { data: icpBalance } = useICPBalance();
   const addBackerMoneyMutation = useAddBackerMoney();
 
-  const walletBalance = balanceData?.internalBalance || 0;
+  const walletBalance = icpBalance ?? 0;
   const minDeposit = 0.1;
   const depositAmount = parseFloat(amount) || 0;
 
@@ -45,7 +45,7 @@ export default function AddHouseMoney() {
   return (
     <div>
       {showToast && toastData && (
-        <HouseMoneyToast amount={toastData.amount} ponziPoints={toastData.ponziPoints} onClose={() => { setShowToast(false); setToastData(null); }} />
+        <BackerMoneyToast amount={toastData.amount} ponziPoints={toastData.ponziPoints} onClose={() => { setShowToast(false); setToastData(null); }} />
       )}
 
       <div className="space-y-3 max-w-sm">

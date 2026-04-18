@@ -1,4 +1,4 @@
-import { useGetInternalWalletBalance, useGetUserGames, useGetPonziPoints, useGetGameStats } from '../hooks/useQueries';
+import { useICPBalance, useGetUserGames, useGetPonziPoints, useGetGameStats } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { formatICP } from '../lib/formatICP';
 import { TrendingUp, TrendingDown } from 'lucide-react';
@@ -10,13 +10,12 @@ interface GameStatusBarProps {
 }
 
 export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
-  const { data: balanceData } = useGetInternalWalletBalance();
+  const { data: icpBalance } = useICPBalance();
   const { data: games } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
   const { data: gameStats } = useGetGameStats();
   const portfolio = useLivePortfolio(games);
 
-  const walletBalance = balanceData?.internalBalance || 0;
   const activeGames = games?.length || 0;
   const ponziPoints = ponziData?.totalPoints || 0;
   const potBalance = gameStats?.potBalance || 0;
@@ -28,7 +27,7 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
       {/* Balance */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">Balance</span>
-        <span className="mc-status-bar-value mc-text-primary">{formatICP(walletBalance)}</span>
+        <span className="mc-status-bar-value mc-text-primary">{formatICP(icpBalance ?? 0)}</span>
       </div>
 
       {/* Net P/L — hero stat */}

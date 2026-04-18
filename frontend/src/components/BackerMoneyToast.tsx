@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { formatICP } from '../lib/formatICP';
 
-interface HouseMoneyToastProps {
+interface BackerMoneyToastProps {
   amount: number;
   ponziPoints: number;
   onClose: () => void;
@@ -15,7 +15,7 @@ const charlesQuips = [
   "That's the spirit. Keep it coming.",
 ];
 
-export default function HouseMoneyToast({ amount, ponziPoints, onClose }: HouseMoneyToastProps) {
+export default function BackerMoneyToast({ amount, ponziPoints, onClose }: BackerMoneyToastProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
   const [quip] = useState(() => charlesQuips[Math.floor(Math.random() * charlesQuips.length)]);

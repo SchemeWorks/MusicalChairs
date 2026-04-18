@@ -60,21 +60,6 @@ export const idlFactory = ({ IDL }) => {
     'activeGames' : IDL.Nat,
     'totalDeposits' : IDL.Float64,
   });
-  const WalletTransaction = IDL.Record({
-    'id' : IDL.Nat,
-    'user' : IDL.Principal,
-    'description' : IDL.Text,
-    'timestamp' : IDL.Int,
-    'txType' : IDL.Variant({
-      'gameWithdrawal' : IDL.Null,
-      'gameDeposit' : IDL.Null,
-      'deposit' : IDL.Null,
-      'withdrawal' : IDL.Null,
-      'transfer' : IDL.Null,
-    }),
-    'ledgerBlockIndex' : IDL.Opt(IDL.Nat),
-    'amount' : IDL.Nat,
-  });
   const StandardRecord = IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text });
   const ConsentMessageMetadata = IDL.Record({
     'utc_offset_minutes' : IDL.Opt(IDL.Int16),
@@ -122,8 +107,6 @@ export const idlFactory = ({ IDL }) => {
   });
   return IDL.Service({
     'addDealerMoney' : IDL.Func([IDL.Float64], [], []),
-    'addDownstreamDealer' : IDL.Func([IDL.Float64, IDL.Float64], [], []),
-    'addHouseMoney' : IDL.Func([IDL.Float64, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'burnPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'calculateCompounded30DayEarnings' : IDL.Func(
@@ -146,11 +129,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'deductPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
-    'depositICP' : IDL.Func(
-        [IDL.Nat],
-        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
-        [],
-      ),
     'distributeDealerCutFromShenanigans' : IDL.Func([IDL.Float64], [], []),
     'distributeFees' : IDL.Func([IDL.Float64], [], []),
     'getActiveGameCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -238,13 +216,6 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
-    'getWalletBalance' : IDL.Func([], [IDL.Nat], ['query']),
-    'getWalletBalanceICP' : IDL.Func([], [IDL.Float64], ['query']),
-    'getWalletTransactions' : IDL.Func(
-        [],
-        [IDL.Vec(WalletTransaction)],
-        ['query'],
-      ),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(StandardRecord)],
@@ -274,11 +245,6 @@ export const idlFactory = ({ IDL }) => {
     'setShenanigansPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setTestMode' : IDL.Func([IDL.Bool], [], []),
     'settleCompoundingGame' : IDL.Func([IDL.Nat], [IDL.Float64], []),
-    'transferInternal' : IDL.Func(
-        [IDL.Principal, IDL.Nat],
-        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
-        [],
-      ),
     'transferPonziPoints' : IDL.Func(
         [IDL.Principal, IDL.Principal, IDL.Float64],
         [],
@@ -290,11 +256,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'withdrawEarnings' : IDL.Func([IDL.Nat], [IDL.Float64], []),
-    'withdrawICP' : IDL.Func(
-        [IDL.Nat],
-        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
-        [],
-      ),
   });
 };
 export const init = ({ IDL }) => { return []; };

@@ -212,29 +212,9 @@ persistent actor {
     };
 
     // ========================================================================
-    // Musical Chairs Wallet System (Real ICP Integration)
-    // ========================================================================
-    
-    // User wallet balances (in e8s - 1 ICP = 100_000_000 e8s)
-    var walletBalances = principalMapNat.empty<Nat>();
-    
-    // Wallet transaction history
-    public type WalletTransaction = {
-        id : Nat;
-        user : Principal;
-        txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer };
-        amount : Nat;  // in e8s
-        timestamp : Int;
-        ledgerBlockIndex : ?Nat;  // Block index on ICP ledger (if applicable)
-        description : Text;
-    };
-    var walletTransactions = natMap.empty<WalletTransaction>();
-    var nextWalletTxId = 0;
-
-    // ========================================================================
     // Cover Charge — 2% skimmed from every deposit, routed to a dedicated
-    // admin bucket ("Pay Management"). Separate from walletBalances and
-    // walletTransactions so it doesn't meddle with player-visible accounting.
+    // admin bucket ("Pay Management") with its own audit log so it never
+    // mingles with game-pot accounting.
     // Exit tolls continue to use the 50/50 pot/backer split in
     // distributeExitTollToBackers — this change only touches the entry fee.
     // ========================================================================
@@ -245,10 +225,9 @@ persistent actor {
         Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe");
     transient let COVER_CHARGE_RATE : Float = 0.02;
 
-    // Dedicated bucket — never mingled with walletBalances.
     var coverChargeBalance : Nat = 0;
 
-    // Separate audit log — never mingled with walletTransactions.
+    // Dedicated audit log for cover-charge entries.
     public type CoverChargeEntry = {
         id : Nat;
         gameId : Nat;
@@ -304,76 +283,7 @@ persistent actor {
     // Authorized shenanigans canister principal
     var shenanigansPrincipal : ?Principal = null;
 
-    // ========================================================================
-    // Musical Chairs Wallet API
-    // ========================================================================
-
-    // Get wallet balance for caller (in e8s)
-    public query ({ caller }) func getWalletBalance() : async Nat {
-        switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) {
-                // In test mode, give new users 500 ICP (50_000_000_000 e8s)
-                if (testMode) { 50_000_000_000 } else { 0 };
-            };
-            case (?balance) { balance };
-        };
-    };
-
-    // Get wallet balance as ICP (Float) for display
-    public query ({ caller }) func getWalletBalanceICP() : async Float {
-        let e8s = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) {
-                if (testMode) { 50_000_000_000 } else { 0 };
-            };
-            case (?balance) { balance };
-        };
-        Float.fromInt(e8s) / 100_000_000.0;
-    };
-
-    // Initialize wallet for a user (internal helper)
-    func initializeWalletIfNeeded(user : Principal) {
-        switch (principalMapNat.get(walletBalances, user)) {
-            case (null) {
-                // In test mode, give 500 ICP
-                let initialBalance = if (testMode) { 50_000_000_000 } else { 0 };
-                walletBalances := principalMapNat.put(walletBalances, user, initialBalance);
-            };
-            case (?_) { /* Already initialized */ };
-        };
-    };
-
-    // Record a wallet transaction
-    func recordWalletTransaction(
-        user : Principal,
-        txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer },
-        amount : Nat,
-        ledgerBlockIndex : ?Nat,
-        description : Text
-    ) {
-        let tx : WalletTransaction = {
-            id = nextWalletTxId;
-            user;
-            txType;
-            amount;
-            timestamp = Time.now();
-            ledgerBlockIndex;
-            description;
-        };
-        walletTransactions := natMap.put(walletTransactions, nextWalletTxId, tx);
-        nextWalletTxId += 1;
-    };
-
-    // Get wallet transaction history for caller
-    public query ({ caller }) func getWalletTransactions() : async [WalletTransaction] {
-        let allTxs = Iter.toArray(natMap.vals(walletTransactions));
-        let userTxs = List.filter(
-            List.fromArray(allTxs),
-            func(tx : WalletTransaction) : Bool { tx.user == caller }
-        );
-        List.toArray(userTxs);
-    };
-
-    // Record a cover charge entry (separate audit log — see the Cover Charge
+    // Record a cover charge entry (see the Cover Charge
     // state block above).
     func recordCoverChargeTransaction(gameId : Nat, player : Principal, amount : Nat) {
         let entry : CoverChargeEntry = {
@@ -408,8 +318,8 @@ persistent actor {
     };
 
     // Pay Management — withdraw accumulated cover charges to the admin's
-    // external ICP wallet. Admin only. Follows the saga pattern used by
-    // withdrawICP: deduct first, refund on ledger failure. No minimum.
+    // external ICP wallet. Admin only. Follows the saga pattern:
+    // deduct first, refund on ledger failure. No minimum.
     //
     // `amount` is the number of e8s to deduct from the cover-charge bucket.
     // The admin receives (amount - ICP_TRANSFER_FEE) e8s in their wallet;
@@ -466,231 +376,12 @@ persistent actor {
             releaseCallerLock(caller);
             result;
         } catch (e) {
-            // Compensate on catch (network failure — transfer status unknown,
-            // conservative refund matches withdrawICP's behaviour).
+            // Compensate on catch (network failure — transfer status unknown;
+            // conservative refund — the transfer may have actually succeeded).
             coverChargeBalance += amount;
             releaseCallerLock(caller);
             #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-    };
-
-    // ========================================================================
-    // Real ICP Deposit (ICRC-2 transfer_from)
-    // ========================================================================
-    
-    // Deposit ICP from user's wallet to Musical Chairs
-    // User must first call icrc2_approve on the ICP ledger to authorize this canister
-    public shared ({ caller }) func depositICP(amount : Nat) : async { #Ok : Nat; #Err : Text } {
-        requireAuthenticated(caller);
-        if (amount < 10_000_000) {  // Minimum 0.1 ICP
-            return #Err("Minimum deposit is 0.1 ICP (10_000_000 e8s)");
-        };
-
-        acquireCallerLock(caller);
-
-        // Get this canister's principal
-        let selfPrincipal = switch (canisterPrincipal) {
-            case (null) {
-                releaseCallerLock(caller);
-                return #Err("Canister principal not set. Please contact admin.");
-            };
-            case (?p) { p };
-        };
-        
-        try {
-            // Use ICRC-2 transfer_from to pull funds from user
-            let transferResult = await icpLedger.icrc2_transfer_from({
-                spender_subaccount = null;
-                from = { owner = caller; subaccount = null };
-                to = { owner = selfPrincipal; subaccount = null };
-                amount = amount;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-
-            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
-                case (#Ok(blockIndex)) {
-                    // Credit the user's internal wallet
-                    initializeWalletIfNeeded(caller);
-                    let currentBalance = switch (principalMapNat.get(walletBalances, caller)) {
-                        case (null) { 0 };
-                        case (?b) { b };
-                    };
-                    walletBalances := principalMapNat.put(walletBalances, caller, currentBalance + amount);
-
-                    // Record transaction
-                    recordWalletTransaction(caller, #deposit, amount, ?blockIndex, "ICP deposit via ICRC-2");
-
-                    #Ok(blockIndex);
-                };
-                case (#Err(err)) {
-                    let errMsg = switch (err) {
-                        case (#BadFee(_)) { "Bad fee" };
-                        case (#BadBurn(_)) { "Bad burn" };
-                        case (#InsufficientFunds(_)) { "Insufficient funds in your wallet" };
-                        case (#InsufficientAllowance(_)) { "Insufficient allowance. Please approve the deposit first." };
-                        case (#TooOld) { "Transaction too old" };
-                        case (#CreatedInFuture(_)) { "Transaction created in future" };
-                        case (#Duplicate(_)) { "Duplicate transaction" };
-                        case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                        case (#GenericError(e)) { "Error: " # e.message };
-                    };
-                    #Err(errMsg);
-                };
-            };
-            releaseCallerLock(caller);
-            result;
-        } catch (e) {
-            releaseCallerLock(caller);
-            #Err("Failed to contact ICP ledger: " # Error.message(e));
-        };
-    };
-
-    // ========================================================================
-    // Real ICP Withdrawal (ICRC-1 transfer)
-    // ========================================================================
-    
-    // Withdraw ICP from Musical Chairs to user's wallet
-    public shared ({ caller }) func withdrawICP(amount : Nat) : async { #Ok : Nat; #Err : Text } {
-        requireAuthenticated(caller);
-        if (amount < 10_000_000) {  // Minimum 0.1 ICP
-            return #Err("Minimum withdrawal is 0.1 ICP (10_000_000 e8s)");
-        };
-
-        acquireCallerLock(caller);
-
-        // Check internal balance
-        initializeWalletIfNeeded(caller);
-        let currentBalance = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        // Include transfer fee in the check
-        let totalNeeded = amount + Ledger.ICP_TRANSFER_FEE;
-        if (currentBalance < totalNeeded) {
-            releaseCallerLock(caller);
-            return #Err("Insufficient balance. You have " # Nat.toText(currentBalance) # " e8s but need " # Nat.toText(totalNeeded) # " e8s (including fee)");
-        };
-
-        // Deduct from internal wallet BEFORE the transfer (saga pattern: deduct first, compensate on failure)
-        walletBalances := principalMapNat.put(walletBalances, caller, currentBalance - totalNeeded);
-
-        try {
-            // Transfer ICP from canister to user
-            let transferResult = await icpLedger.icrc1_transfer({
-                from_subaccount = null;
-                to = { owner = caller; subaccount = null };
-                amount = amount;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-
-            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
-                case (#Ok(blockIndex)) {
-                    // Record transaction (deduction already done above)
-                    recordWalletTransaction(caller, #withdrawal, amount, ?blockIndex, "ICP withdrawal");
-                    #Ok(blockIndex);
-                };
-                case (#Err(err)) {
-                    // Compensate: refund the internal wallet since transfer failed
-                    walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
-                    let errMsg = switch (err) {
-                        case (#BadFee(_)) { "Bad fee" };
-                        case (#BadBurn(_)) { "Bad burn" };
-                        case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
-                        case (#TooOld) { "Transaction too old" };
-                        case (#CreatedInFuture(_)) { "Transaction created in future" };
-                        case (#Duplicate(_)) { "Duplicate transaction" };
-                        case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                        case (#GenericError(e)) { "Error: " # e.message };
-                    };
-                    #Err(errMsg);
-                };
-            };
-            releaseCallerLock(caller);
-            result;
-        } catch (e) {
-            // Compensate: refund on catch (network failure — transfer status unknown)
-            // Note: This is the conservative approach; the transfer may have succeeded.
-            // In production, consider logging for manual reconciliation.
-            walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
-            releaseCallerLock(caller);
-            #Err("Failed to contact ICP ledger: " # Error.message(e));
-        };
-    };
-
-    // ========================================================================
-    // Internal Wallet Operations (for game mechanics)
-    // ========================================================================
-    
-    // Deduct from internal wallet (for game deposits)
-    func deductFromWallet(user : Principal, amount : Nat) : Bool {
-        initializeWalletIfNeeded(user);
-        let currentBalance = switch (principalMapNat.get(walletBalances, user)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        if (currentBalance < amount) {
-            return false;
-        };
-        
-        walletBalances := principalMapNat.put(walletBalances, user, currentBalance - amount);
-        recordWalletTransaction(user, #gameDeposit, amount, null, "Game deposit");
-        true;
-    };
-
-    // Credit to internal wallet (for game withdrawals/earnings)
-    func creditToWallet(user : Principal, amount : Nat) {
-        initializeWalletIfNeeded(user);
-        let currentBalance = switch (principalMapNat.get(walletBalances, user)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        walletBalances := principalMapNat.put(walletBalances, user, currentBalance + amount);
-        recordWalletTransaction(user, #gameWithdrawal, amount, null, "Game withdrawal");
-    };
-
-    // Transfer between internal wallets
-    public shared ({ caller }) func transferInternal(to : Principal, amount : Nat) : async { #Ok; #Err : Text } {
-        requireAuthenticated(caller);
-        if (Principal.isAnonymous(to)) {
-            return #Err("Cannot transfer to anonymous principal");
-        };
-        if (amount < 1_000_000) {  // Minimum 0.01 ICP
-            return #Err("Minimum transfer is 0.01 ICP");
-        };
-
-        initializeWalletIfNeeded(caller);
-        let senderBalance = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        if (senderBalance < amount) {
-            return #Err("Insufficient balance");
-        };
-
-        // Deduct from sender
-        walletBalances := principalMapNat.put(walletBalances, caller, senderBalance - amount);
-        
-        // Credit to recipient
-        initializeWalletIfNeeded(to);
-        let recipientBalance = switch (principalMapNat.get(walletBalances, to)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        walletBalances := principalMapNat.put(walletBalances, to, recipientBalance + amount);
-        
-        // Record transactions
-        recordWalletTransaction(caller, #transfer, amount, null, "Transfer to " # Principal.toText(to));
-        recordWalletTransaction(to, #transfer, amount, null, "Transfer from " # Principal.toText(caller));
-        
-        #Ok;
     };
 
     // ========================================================================
@@ -775,67 +466,6 @@ persistent actor {
             Debug.trap("Unauthorized: Only admins can seed referrals");
         };
         registerReferral(user, referrer);
-    };
-
-    // Add House Money
-    public shared ({ caller }) func addHouseMoney(amount : Float, description : Text) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can add house money");
-        };
-
-        if (amount <= 0.0) {
-            Debug.trap("Amount must be greater than 0");
-        };
-
-        let record : HouseLedgerRecord = {
-            id = nextHouseLedgerId;
-            amount;
-            timestamp = Time.now();
-            description;
-        };
-
-        houseLedger := natMap.put(houseLedger, nextHouseLedgerId, record);
-        nextHouseLedgerId += 1;
-
-        // Update platform stats
-        platformStats := {
-            platformStats with
-            potBalance = platformStats.potBalance + amount;
-        };
-
-        // Update dealer entitlement for the admin (Series A: 24% bonus)
-        let entitlement = amount * 1.24;
-
-        // Get the admin's name from their profile
-        let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Anonymous Backer" };
-            case (?profile) { profile.name };
-        };
-
-        switch (principalMapNat.get(dealerPositions, caller)) {
-            case (null) {
-                let newDealer : DealerPosition = {
-                    owner = caller;
-                    amount;
-                    entitlement;
-                    startTime = Time.now();
-                    isActive = true;
-                    name;
-                    dealerType = #upstream;
-                    firstDepositDate = ?Time.now();
-                };
-                dealerPositions := principalMapNat.put(dealerPositions, caller, newDealer);
-            };
-            case (?existingDealer) {
-                let updatedDealer : DealerPosition = {
-                    existingDealer with
-                    amount = existingDealer.amount + amount;
-                    entitlement = existingDealer.entitlement + entitlement;
-                    name;
-                };
-                dealerPositions := principalMapNat.put(dealerPositions, caller, updatedDealer);
-            };
-        };
     };
 
     // Get House Ledger
@@ -924,15 +554,25 @@ persistent actor {
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let transferResult = await icpLedger.icrc2_transfer_from({
-            spender_subaccount = null;
-            from = { owner = caller; subaccount = null };
-            to = { owner = selfPrincipal; subaccount = null };
-            amount = amountE8s;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        });
+        // Wrap the ledger await in try/catch: if the inter-canister call
+        // throws (destination trap, transport failure, etc.) instead of
+        // returning #Err, the lock acquired above is already committed at the
+        // await and would otherwise stay held forever. Release it before
+        // re-trapping so the caller isn't permanently stuck.
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
         switch (transferResult) {
             case (#Err(err)) {
@@ -979,7 +619,7 @@ persistent actor {
         let gameId = nextGameId;
         nextGameId += 1;
 
-        // Log the cover charge (separate audit trail from walletTransactions).
+        // Log the cover charge entry.
         // Skip zero-amount entries — only possible with sub-satoshi deposits.
         if (coverChargeE8s > 0) {
             recordCoverChargeTransaction(gameId, caller, coverChargeE8s);
@@ -1050,15 +690,22 @@ persistent actor {
 
         let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let transferResult = await icpLedger.icrc2_transfer_from({
-            spender_subaccount = null;
-            from = { owner = caller; subaccount = null };
-            to = { owner = selfPrincipal; subaccount = null };
-            amount = amountE8s;
-            fee = null;
-            memo = null;
-            created_at_time = null;
-        });
+        // See createGame for the rationale — wrap the ledger await so that an
+        // inter-canister exception doesn't strand the caller lock.
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
         switch (transferResult) {
             case (#Err(err)) {
@@ -1354,18 +1001,25 @@ persistent actor {
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
 
+                // Capture state snapshots for compensation-on-failure
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalRepayments = dealerRepayments;
+
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Check solvency against what actually leaves the pot
-                // Pot loses: netEarnings (to player) + dealer portion of toll
                 let potDeduction = netEarnings + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
+                    // Revert dealer distribution before trapping
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for payout");
                     Debug.trap("Game reset due to insufficient funds");
                 };
 
-                // Reset the game record: zero out accumulated earnings & reset lastUpdateTime
+                // Reset the game record and update platform stats
                 let updatedGame : GameRecord = {
                     game with
                     accumulatedEarnings = 0.0;
@@ -1380,9 +1034,48 @@ persistent actor {
                     potBalance = platformStats.potBalance - potDeduction;
                 };
 
-                // Credit net earnings (after exit toll) to the player's wallet
+                // Pay out to user's ledger account (saga: revert on failure)
                 let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
-                creditToWallet(caller, netEarningsE8s);
+                let transferResult = try {
+                    await icpLedger.icrc1_transfer({
+                        from_subaccount = null;
+                        to = { owner = caller; subaccount = null };
+                        amount = netEarningsE8s;
+                        fee = null;
+                        memo = null;
+                        created_at_time = null;
+                    });
+                } catch (e) {
+                    // Compensate: refund on catch (network failure — transfer status unknown)
+                    // Note: This is the conservative approach; the transfer may have succeeded.
+                    // In production, consider logging for manual reconciliation.
+                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                    platformStats := originalStats;
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
+                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                };
+
+                switch (transferResult) {
+                    case (#Err(err)) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        dealerRepayments := originalRepayments;
+                        releaseCallerLock(caller);
+                        let errMsg = switch (err) {
+                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                            case (#BadFee(_)) { "Bad fee" };
+                            case (#BadBurn(_)) { "Bad burn" };
+                            case (#TooOld) { "Transaction too old" };
+                            case (#CreatedInFuture(_)) { "Transaction created in future" };
+                            case (#Duplicate(_)) { "Duplicate transaction" };
+                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                            case (#GenericError(e)) { "Error: " # e.message };
+                        };
+                        Debug.trap(errMsg);
+                    };
+                    case (#Ok(_)) {};
+                };
 
                 releaseCallerLock(caller);
                 netEarnings;
@@ -1442,12 +1135,23 @@ persistent actor {
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
                 let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings
 
+                // Capture state snapshots for compensation-on-failure.
+                // NOTE: distributeExitTollToBackers writes to dealerRepayments
+                // (via creditBackerRepayment) and only reads dealerPositions.
+                // Snapshot and revert dealerRepayments — reverting dealerPositions
+                // is a no-op that leaks repayments on retry. See commit 588cedb.
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalRepayments = dealerRepayments;
+
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Pot loses: totalPayout (to player) + dealer portion of toll
                 let potDeduction = totalPayout + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for compounding game settlement");
                     Debug.trap("Game reset due to insufficient funds");
                 };
@@ -1469,9 +1173,48 @@ persistent actor {
                     activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
                 };
 
-                // Credit payout (principal + net earnings after toll) to wallet
+                // Pay out to user's ledger account (saga: revert on failure)
                 let payoutE8s = Int.abs(Float.toInt(totalPayout * 100_000_000.0));
-                creditToWallet(caller, payoutE8s);
+                let transferResult = try {
+                    await icpLedger.icrc1_transfer({
+                        from_subaccount = null;
+                        to = { owner = caller; subaccount = null };
+                        amount = payoutE8s;
+                        fee = null;
+                        memo = null;
+                        created_at_time = null;
+                    });
+                } catch (e) {
+                    // Compensate: refund on catch (network failure — transfer status unknown)
+                    // Note: This is the conservative approach; the transfer may have succeeded.
+                    // In production, consider logging for manual reconciliation.
+                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                    platformStats := originalStats;
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
+                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                };
+
+                switch (transferResult) {
+                    case (#Err(err)) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        dealerRepayments := originalRepayments;
+                        releaseCallerLock(caller);
+                        let errMsg = switch (err) {
+                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                            case (#BadFee(_)) { "Bad fee" };
+                            case (#BadBurn(_)) { "Bad burn" };
+                            case (#TooOld) { "Transaction too old" };
+                            case (#CreatedInFuture(_)) { "Transaction created in future" };
+                            case (#Duplicate(_)) { "Duplicate transaction" };
+                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                            case (#GenericError(e)) { "Error: " # e.message };
+                        };
+                        Debug.trap(errMsg);
+                    };
+                    case (#Ok(_)) {};
+                };
 
                 releaseCallerLock(caller);
                 totalPayout;
@@ -1668,24 +1411,66 @@ persistent actor {
         };
     };
 
-    // Claim Dealer Repayment — moves repayment balance to internal wallet
+    // Claim Dealer Repayment — transfers repayment balance to user's ledger account
     public shared ({ caller }) func claimDealerRepayment() : async Float {
         requireAuthenticated(caller);
+        acquireCallerLock(caller);
         let balance = switch (principalMapNat.get(dealerRepayments, caller)) {
-            case (null) { Debug.trap("No repayment balance to claim") };
+            case (null) {
+                releaseCallerLock(caller);
+                Debug.trap("No repayment balance to claim");
+            };
             case (?b) {
-                if (b <= 0.0) { Debug.trap("No repayment balance to claim") };
+                if (b <= 0.0) {
+                    releaseCallerLock(caller);
+                    Debug.trap("No repayment balance to claim");
+                };
                 b;
             };
         };
 
-        // Zero out the repayment balance
+        // Zero out the repayment balance (compensate on failure)
         dealerRepayments := principalMapNat.put(dealerRepayments, caller, 0.0);
 
-        // Credit to internal wallet (convert Float ICP to Nat e8s)
         let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
-        creditToWallet(caller, balanceE8s);
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = caller; subaccount = null };
+                amount = balanceE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            // Compensate: refund on catch (network failure — transfer status unknown)
+            // Note: This is the conservative approach; the transfer may have succeeded.
+            // In production, consider logging for manual reconciliation.
+            dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
+        switch (transferResult) {
+            case (#Err(err)) {
+                dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+                releaseCallerLock(caller);
+                let errMsg = switch (err) {
+                    case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                    case (#BadFee(_)) { "Bad fee" };
+                    case (#BadBurn(_)) { "Bad burn" };
+                    case (#TooOld) { "Transaction too old" };
+                    case (#CreatedInFuture(_)) { "Transaction created in future" };
+                    case (#Duplicate(_)) { "Duplicate transaction" };
+                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                    case (#GenericError(e)) { "Error: " # e.message };
+                };
+                Debug.trap(errMsg);
+            };
+            case (#Ok(_)) {};
+        };
+
+        releaseCallerLock(caller);
         balance;
     };
 
@@ -1923,50 +1708,6 @@ persistent actor {
             };
         };
         totalHouseMoney;
-    };
-
-    // Add Downstream Dealer (The Redistribution Event)
-    public shared ({ caller }) func addDownstreamDealer(amount : Float, underwaterAmount : Float) : async () {
-        requireAuthenticated(caller);
-        validateAmount(amount);
-        validateAmount(underwaterAmount);
-        if (amount < 0.1) {
-            Debug.trap("Minimum deposit is 0.1 ICP");
-        };
-
-        // Validate 8 decimal places
-        if (not validateEightDecimals(amount)) {
-            Debug.trap("Amount cannot have more than 8 decimal places");
-        };
-
-        let entitlement = underwaterAmount * 1.16; // Series B: 16% bonus on underwater amount
-
-        // Get the user's name from their profile
-        let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Anonymous Backer" };
-            case (?profile) { profile.name };
-        };
-
-        let newDealer : DealerPosition = {
-            owner = caller;
-            amount;
-            entitlement;
-            startTime = Time.now();
-            isActive = true;
-            name;
-            dealerType = #downstream;
-            firstDepositDate = null;
-        };
-        dealerPositions := principalMapNat.put(dealerPositions, caller, newDealer);
-
-        // Award 4,000 Ponzi Points per ICP deposited
-        awardPonziPoints(caller, amount * 4000.0);
-
-        // Add the deposited amount directly to the pot
-        platformStats := {
-            platformStats with
-            potBalance = platformStats.potBalance + amount;
-        };
     };
 
     // Get Oldest Upstream Dealer
