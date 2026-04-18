@@ -8,6 +8,18 @@ ICP dApp (Motoko backend + React/TypeScript frontend with Tailwind CSS)
 
 ---
 
+## ⚠️ April 2026 — Internal Wallet Killed
+
+The internal-wallet model described below is **historical**. The backend no longer holds ICP between actions. Flow is now:
+
+1. User approves an ICRC-2 allowance.
+2. Backend pulls exactly the amount needed (`icrc2_transfer_from`) at the moment of action (open position, fund backer, etc.) inside a saga (snapshot → mutate → await ledger → compensate on failure).
+3. Payouts go straight to the user's wallet via ICRC-1 `transfer`.
+
+Methods removed: `depositICP`, `withdrawICP`, `transferInternal`, `getWalletBalance`, `getWalletBalanceICP`, `addDownstreamDealer`, `addHouseMoney`. `WalletDropdown` no longer has Deposit/Withdraw/Send tabs. See `docs/superpowers/specs/2026-04-17-kill-internal-wallet-balance-design.md` and plan.
+
+---
+
 ## ✅ COMPLETED
 
 ### 1. Infrastructure Files

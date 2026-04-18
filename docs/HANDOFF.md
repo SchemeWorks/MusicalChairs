@@ -1,7 +1,22 @@
 # Musical Chairs - Project Handoff Document
 
-**Last Updated**: February 17, 2026
+**Last Updated**: April 18, 2026
 **Project Location**: `/Users/robertripley/coding/musicalchairs`
+
+---
+
+## ⚠️ Architectural Note (April 2026) — Internal Wallet Killed
+
+The in-canister "internal wallet" has been removed. ICP no longer sits in a backend-managed balance between actions. Instead:
+
+- Users approve an ICRC-2 allowance on their wallet.
+- The backend pulls exactly the amount needed (`icrc2_transfer_from`) when the user opens a position, funds a backer slot, etc.
+- Payouts are pushed directly back to the user's wallet via ICRC-1 `transfer`.
+- The backend methods `depositICP`, `withdrawICP`, `transferInternal`, `getWalletBalance`, `getWalletBalanceICP`, `addDownstreamDealer`, and `addHouseMoney` are **deleted**.
+- `AddHouseMoney.tsx` / `HouseMoneyToast.tsx` were renamed to `AddBackerMoney.tsx` / `BackerMoneyToast.tsx` to match the backer/VC terminology.
+- New saga pattern: snapshot → mutate → `await` ledger → compensate-on-failure. See the three reference sagas `withdrawEarnings`, `settleCompoundingGame`, `claimDealerRepayment` in `backend/main.mo`.
+
+Any section below that references internal-wallet methods, deposit/withdraw/send tabs, or "held by the backend canister" reflects the pre-April-2026 architecture and should be read historically.
 
 ---
 

@@ -324,7 +324,7 @@ const docSections: DocSection[] = [
         <div className="space-y-3 mt-3">
           <div className="mc-card p-4">
             <p className="font-display text-sm text-white mb-1">Internet Identity</p>
-            <p>ICP's native browser-based authentication. No extension needed. Funds are held in an internal wallet managed by the backend canister. Deposit and withdraw through the in-app wallet interface.</p>
+            <p>ICP's native browser-based authentication. No extension needed. Funds stay in your wallet; the backend pulls ICP via ICRC-2 approvals only when you open a position or fund a backer slot.</p>
           </div>
           <div className="mc-card p-4">
             <p className="font-display text-sm text-white mb-1">Plug Wallet</p>
@@ -336,7 +336,7 @@ const docSections: DocSection[] = [
           </div>
         </div>
 
-        <p className="mt-4 mc-text-muted">Regardless of wallet type, all ICP deposited into the game is held by the backend canister. When you withdraw, the canister sends ICP back to your connected wallet via ICRC-1 transfer.</p>
+        <p className="mt-4 mc-text-muted">All three wallets use the same flow: you approve an ICRC-2 allowance, the backend pulls the exact amount needed for the action, and payouts are sent back to your wallet via ICRC-1 transfer.</p>
       </>
     ),
   },
