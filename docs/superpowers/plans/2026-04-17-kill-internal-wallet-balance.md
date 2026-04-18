@@ -186,10 +186,14 @@ Part of killing the internal walletBalances holding account."
 In `settleCompoundingGame`, replace the block from line 1462 (`let potSeedFromToll = ...`) through line 1491 (`creditToWallet(caller, payoutE8s);`) with:
 
 ```motoko
-                // Capture state snapshots for compensation-on-failure
+                // Capture state snapshots for compensation-on-failure.
+                // NOTE: distributeExitTollToBackers writes to dealerRepayments
+                // (via creditBackerRepayment) and only reads dealerPositions.
+                // Snapshot and revert dealerRepayments — reverting dealerPositions
+                // is a no-op that leaks repayments on retry. See commit 588cedb.
                 let originalGame = game;
                 let originalStats = platformStats;
-                let originalDealers = dealerPositions;
+                let originalRepayments = dealerRepayments;
 
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
@@ -197,7 +201,8 @@ In `settleCompoundingGame`, replace the block from line 1462 (`let potSeedFromTo
                 // Pot loses: totalPayout (to player) + dealer portion of toll
                 let potDeduction = totalPayout + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
-                    dealerPositions := originalDealers;
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for compounding game settlement");
                     Debug.trap("Game reset due to insufficient funds");
                 };
@@ -231,9 +236,12 @@ In `settleCompoundingGame`, replace the block from line 1462 (`let potSeedFromTo
                         created_at_time = null;
                     });
                 } catch (e) {
+                    // Compensate: refund on catch (network failure — transfer status unknown)
+                    // Note: This is the conservative approach; the transfer may have succeeded.
+                    // In production, consider logging for manual reconciliation.
                     gameRecords := natMap.put(gameRecords, gameId, originalGame);
                     platformStats := originalStats;
-                    dealerPositions := originalDealers;
+                    dealerRepayments := originalRepayments;
                     releaseCallerLock(caller);
                     Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
                 };
@@ -242,7 +250,7 @@ In `settleCompoundingGame`, replace the block from line 1462 (`let potSeedFromTo
                     case (#Err(err)) {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
-                        dealerPositions := originalDealers;
+                        dealerRepayments := originalRepayments;
                         releaseCallerLock(caller);
                         let errMsg = switch (err) {
                             case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
