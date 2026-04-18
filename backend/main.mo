@@ -1781,24 +1781,66 @@ persistent actor {
         };
     };
 
-    // Claim Dealer Repayment — moves repayment balance to internal wallet
+    // Claim Dealer Repayment — transfers repayment balance to user's ledger account
     public shared ({ caller }) func claimDealerRepayment() : async Float {
         requireAuthenticated(caller);
+        acquireCallerLock(caller);
         let balance = switch (principalMapNat.get(dealerRepayments, caller)) {
-            case (null) { Debug.trap("No repayment balance to claim") };
+            case (null) {
+                releaseCallerLock(caller);
+                Debug.trap("No repayment balance to claim");
+            };
             case (?b) {
-                if (b <= 0.0) { Debug.trap("No repayment balance to claim") };
+                if (b <= 0.0) {
+                    releaseCallerLock(caller);
+                    Debug.trap("No repayment balance to claim");
+                };
                 b;
             };
         };
 
-        // Zero out the repayment balance
+        // Zero out the repayment balance (compensate on failure)
         dealerRepayments := principalMapNat.put(dealerRepayments, caller, 0.0);
 
-        // Credit to internal wallet (convert Float ICP to Nat e8s)
         let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
-        creditToWallet(caller, balanceE8s);
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = caller; subaccount = null };
+                amount = balanceE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            // Compensate: refund on catch (network failure — transfer status unknown)
+            // Note: This is the conservative approach; the transfer may have succeeded.
+            // In production, consider logging for manual reconciliation.
+            dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+            releaseCallerLock(caller);
+            Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+        };
 
+        switch (transferResult) {
+            case (#Err(err)) {
+                dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+                releaseCallerLock(caller);
+                let errMsg = switch (err) {
+                    case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                    case (#BadFee(_)) { "Bad fee" };
+                    case (#BadBurn(_)) { "Bad burn" };
+                    case (#TooOld) { "Transaction too old" };
+                    case (#CreatedInFuture(_)) { "Transaction created in future" };
+                    case (#Duplicate(_)) { "Duplicate transaction" };
+                    case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                    case (#GenericError(e)) { "Error: " # e.message };
+                };
+                Debug.trap(errMsg);
+            };
+            case (#Ok(_)) {};
+        };
+
+        releaseCallerLock(caller);
         balance;
     };
 
