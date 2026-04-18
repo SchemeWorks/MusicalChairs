@@ -1505,12 +1505,23 @@ persistent actor {
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
                 let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings
 
+                // Capture state snapshots for compensation-on-failure.
+                // NOTE: distributeExitTollToBackers writes to dealerRepayments
+                // (via creditBackerRepayment) and only reads dealerPositions.
+                // Snapshot and revert dealerRepayments — reverting dealerPositions
+                // is a no-op that leaks repayments on retry. See commit 588cedb.
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalRepayments = dealerRepayments;
+
                 // Distribute exit toll: 50% stays in pot, 50% to dealers
                 let potSeedFromToll = distributeExitTollToBackers(exitToll);
 
                 // Pot loses: totalPayout (to player) + dealer portion of toll
                 let potDeduction = totalPayout + (exitToll - potSeedFromToll);
                 if (potDeduction > platformStats.potBalance) {
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
                     triggerGameReset("Insufficient funds for compounding game settlement");
                     Debug.trap("Game reset due to insufficient funds");
                 };
@@ -1532,9 +1543,48 @@ persistent actor {
                     activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
                 };
 
-                // Credit payout (principal + net earnings after toll) to wallet
+                // Pay out to user's ledger account (saga: revert on failure)
                 let payoutE8s = Int.abs(Float.toInt(totalPayout * 100_000_000.0));
-                creditToWallet(caller, payoutE8s);
+                let transferResult = try {
+                    await icpLedger.icrc1_transfer({
+                        from_subaccount = null;
+                        to = { owner = caller; subaccount = null };
+                        amount = payoutE8s;
+                        fee = null;
+                        memo = null;
+                        created_at_time = null;
+                    });
+                } catch (e) {
+                    // Compensate: refund on catch (network failure — transfer status unknown)
+                    // Note: This is the conservative approach; the transfer may have succeeded.
+                    // In production, consider logging for manual reconciliation.
+                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                    platformStats := originalStats;
+                    dealerRepayments := originalRepayments;
+                    releaseCallerLock(caller);
+                    Debug.trap("Failed to contact ICP ledger: " # Error.message(e));
+                };
+
+                switch (transferResult) {
+                    case (#Err(err)) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        dealerRepayments := originalRepayments;
+                        releaseCallerLock(caller);
+                        let errMsg = switch (err) {
+                            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+                            case (#BadFee(_)) { "Bad fee" };
+                            case (#BadBurn(_)) { "Bad burn" };
+                            case (#TooOld) { "Transaction too old" };
+                            case (#CreatedInFuture(_)) { "Transaction created in future" };
+                            case (#Duplicate(_)) { "Duplicate transaction" };
+                            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+                            case (#GenericError(e)) { "Error: " # e.message };
+                        };
+                        Debug.trap(errMsg);
+                    };
+                    case (#Ok(_)) {};
+                };
 
                 releaseCallerLock(caller);
                 totalPayout;
