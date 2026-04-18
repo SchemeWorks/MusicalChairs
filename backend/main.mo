@@ -408,8 +408,8 @@ persistent actor {
     };
 
     // Pay Management — withdraw accumulated cover charges to the admin's
-    // external ICP wallet. Admin only. Follows the saga pattern used by
-    // withdrawICP: deduct first, refund on ledger failure. No minimum.
+    // external ICP wallet. Admin only. Follows the saga pattern:
+    // deduct first, refund on ledger failure. No minimum.
     //
     // `amount` is the number of e8s to deduct from the cover-charge bucket.
     // The admin receives (amount - ICP_TRANSFER_FEE) e8s in their wallet;
@@ -466,84 +466,9 @@ persistent actor {
             releaseCallerLock(caller);
             result;
         } catch (e) {
-            // Compensate on catch (network failure — transfer status unknown,
-            // conservative refund matches withdrawICP's behaviour).
+            // Compensate on catch (network failure — transfer status unknown;
+            // conservative refund — the transfer may have actually succeeded).
             coverChargeBalance += amount;
-            releaseCallerLock(caller);
-            #Err("Failed to contact ICP ledger: " # Error.message(e));
-        };
-    };
-
-    // ========================================================================
-    // Real ICP Withdrawal (ICRC-1 transfer)
-    // ========================================================================
-    
-    // Withdraw ICP from Musical Chairs to user's wallet
-    public shared ({ caller }) func withdrawICP(amount : Nat) : async { #Ok : Nat; #Err : Text } {
-        requireAuthenticated(caller);
-        if (amount < 10_000_000) {  // Minimum 0.1 ICP
-            return #Err("Minimum withdrawal is 0.1 ICP (10_000_000 e8s)");
-        };
-
-        acquireCallerLock(caller);
-
-        // Check internal balance
-        initializeWalletIfNeeded(caller);
-        let currentBalance = switch (principalMapNat.get(walletBalances, caller)) {
-            case (null) { 0 };
-            case (?b) { b };
-        };
-        
-        // Include transfer fee in the check
-        let totalNeeded = amount + Ledger.ICP_TRANSFER_FEE;
-        if (currentBalance < totalNeeded) {
-            releaseCallerLock(caller);
-            return #Err("Insufficient balance. You have " # Nat.toText(currentBalance) # " e8s but need " # Nat.toText(totalNeeded) # " e8s (including fee)");
-        };
-
-        // Deduct from internal wallet BEFORE the transfer (saga pattern: deduct first, compensate on failure)
-        walletBalances := principalMapNat.put(walletBalances, caller, currentBalance - totalNeeded);
-
-        try {
-            // Transfer ICP from canister to user
-            let transferResult = await icpLedger.icrc1_transfer({
-                from_subaccount = null;
-                to = { owner = caller; subaccount = null };
-                amount = amount;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-
-            let result : { #Ok : Nat; #Err : Text } = switch (transferResult) {
-                case (#Ok(blockIndex)) {
-                    // Record transaction (deduction already done above)
-                    recordWalletTransaction(caller, #withdrawal, amount, ?blockIndex, "ICP withdrawal");
-                    #Ok(blockIndex);
-                };
-                case (#Err(err)) {
-                    // Compensate: refund the internal wallet since transfer failed
-                    walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
-                    let errMsg = switch (err) {
-                        case (#BadFee(_)) { "Bad fee" };
-                        case (#BadBurn(_)) { "Bad burn" };
-                        case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
-                        case (#TooOld) { "Transaction too old" };
-                        case (#CreatedInFuture(_)) { "Transaction created in future" };
-                        case (#Duplicate(_)) { "Duplicate transaction" };
-                        case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
-                        case (#GenericError(e)) { "Error: " # e.message };
-                    };
-                    #Err(errMsg);
-                };
-            };
-            releaseCallerLock(caller);
-            result;
-        } catch (e) {
-            // Compensate: refund on catch (network failure — transfer status unknown)
-            // Note: This is the conservative approach; the transfer may have succeeded.
-            // In production, consider logging for manual reconciliation.
-            walletBalances := principalMapNat.put(walletBalances, caller, currentBalance);
             releaseCallerLock(caller);
             #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
