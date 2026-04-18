@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Principal } from '@dfinity/principal';
+import { useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '../hooks/useWallet';
-import { ICP_TRANSFER_FEE } from '../hooks/useLedger';
+import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
 import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin, useICPBalance } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
-import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase } from 'lucide-react';
+import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
 interface WalletDropdownProps {
   isOpen: boolean;
@@ -58,6 +60,58 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   }, []);
 
   const { data: icpBalance, isLoading: icpBalanceLoading } = useICPBalance();
+  const ledger = useLedger();
+  const queryClient = useQueryClient();
+  const [sendOpen, setSendOpen] = useState(false);
+  const [sendTo, setSendTo] = useState('');
+  const [sendAmount, setSendAmount] = useState('');
+  const [sendError, setSendError] = useState('');
+  const [sendSuccess, setSendSuccess] = useState(false);
+  const [sendBusy, setSendBusy] = useState(false);
+
+  const handleSend = async () => {
+    setSendError('');
+    setSendSuccess(false);
+    const toTrim = sendTo.trim();
+    if (!toTrim) { setSendError('Enter a destination principal'); return; }
+    let toPrincipal: Principal;
+    try { toPrincipal = Principal.fromText(toTrim); }
+    catch { setSendError('Invalid principal'); return; }
+    if (principal && toPrincipal.toText() === principal) {
+      setSendError('Cannot send to yourself');
+      return;
+    }
+    const amt = Number(sendAmount);
+    if (!Number.isFinite(amt) || amt <= 0) { setSendError('Enter a valid amount'); return; }
+    const amountE8s = BigInt(Math.round(amt * Number(E8S_PER_ICP)));
+    if (amountE8s <= 0n) { setSendError('Amount too small'); return; }
+    const balE8s = icpBalance !== undefined ? BigInt(Math.round(icpBalance * Number(E8S_PER_ICP))) : 0n;
+    if (amountE8s + ICP_TRANSFER_FEE > balE8s) {
+      setSendError('Insufficient balance (includes 0.0001 ICP fee)');
+      return;
+    }
+    setSendBusy(true);
+    try {
+      const result = await ledger.transfer(toPrincipal.toText(), amountE8s);
+      if ('Err' in result) {
+        const err: any = result.Err;
+        const msg = err.InsufficientFunds ? 'Insufficient funds'
+          : err.BadFee ? 'Bad fee'
+          : err.GenericError?.message || 'Transfer failed';
+        setSendError(msg);
+      } else {
+        setSendSuccess(true);
+        setSendAmount('');
+        setSendTo('');
+        queryClient.invalidateQueries({ queryKey: ['icpLedgerBalance'] });
+      }
+    } catch (e: any) {
+      setSendError(e?.message || 'Transfer failed');
+    } finally {
+      setSendBusy(false);
+    }
+  };
+
   const { data: userProfile } = useGetCallerUserProfile();
   const { data: ponziPointsData, isLoading: ponziLoading } = useGetPonziPoints();
   const saveProfileMutation = useSaveUserProfile();
@@ -159,7 +213,44 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                 {icpBalanceLoading ? '...' : icpBalance !== undefined ? formatICP(icpBalance) : '—'} ICP
               </div>
             </div>
+            <button
+              onClick={() => { setSendOpen(v => !v); setSendError(''); setSendSuccess(false); }}
+              className="mc-btn-secondary px-3 py-1.5 text-xs flex items-center gap-1"
+            >
+              <Send className="h-3 w-3" /> Send
+            </button>
           </div>
+          {sendOpen && (
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+              <input
+                value={sendTo}
+                onChange={e => setSendTo(e.target.value)}
+                placeholder="Destination principal"
+                className="mc-input w-full h-8 text-xs px-2 font-mono"
+              />
+              <div className="flex gap-2">
+                <input
+                  value={sendAmount}
+                  onChange={e => setSendAmount(e.target.value)}
+                  placeholder="Amount (ICP)"
+                  inputMode="decimal"
+                  className="mc-input flex-1 h-8 text-xs px-2"
+                />
+                <button
+                  onClick={handleSend}
+                  disabled={sendBusy}
+                  className="mc-btn-primary px-3 py-1 text-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  {sendBusy ? <><Loader2 className="h-3 w-3 animate-spin" /> Sending…</> : 'Send'}
+                </button>
+              </div>
+              <div className="text-[10px] mc-text-muted">
+                Fee: 0.0001 ICP. Transfers go directly from your wallet.
+              </div>
+              {sendError && <div className="mc-status-red p-2 text-xs text-center">{sendError}</div>}
+              {sendSuccess && <div className="mc-status-green p-2 text-xs text-center">Transfer sent.</div>}
+            </div>
+          )}
         </div>
 
         {/* Cover Charges — admin only. Displayed as a separate sub-account
