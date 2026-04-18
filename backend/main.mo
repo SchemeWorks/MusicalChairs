@@ -212,29 +212,9 @@ persistent actor {
     };
 
     // ========================================================================
-    // Musical Chairs Wallet System (Real ICP Integration)
-    // ========================================================================
-    
-    // User wallet balances (in e8s - 1 ICP = 100_000_000 e8s)
-    var walletBalances = principalMapNat.empty<Nat>();
-    
-    // Wallet transaction history
-    public type WalletTransaction = {
-        id : Nat;
-        user : Principal;
-        txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer };
-        amount : Nat;  // in e8s
-        timestamp : Int;
-        ledgerBlockIndex : ?Nat;  // Block index on ICP ledger (if applicable)
-        description : Text;
-    };
-    var walletTransactions = natMap.empty<WalletTransaction>();
-    var nextWalletTxId = 0;
-
-    // ========================================================================
     // Cover Charge — 2% skimmed from every deposit, routed to a dedicated
-    // admin bucket ("Pay Management"). Separate from walletBalances and
-    // walletTransactions so it doesn't meddle with player-visible accounting.
+    // admin bucket ("Pay Management") with its own audit log so it never
+    // mingles with game-pot accounting.
     // Exit tolls continue to use the 50/50 pot/backer split in
     // distributeExitTollToBackers — this change only touches the entry fee.
     // ========================================================================
@@ -245,10 +225,9 @@ persistent actor {
         Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe");
     transient let COVER_CHARGE_RATE : Float = 0.02;
 
-    // Dedicated bucket — never mingled with walletBalances.
     var coverChargeBalance : Nat = 0;
 
-    // Separate audit log — never mingled with walletTransactions.
+    // Dedicated audit log for cover-charge entries.
     public type CoverChargeEntry = {
         id : Nat;
         gameId : Nat;
@@ -304,42 +283,7 @@ persistent actor {
     // Authorized shenanigans canister principal
     var shenanigansPrincipal : ?Principal = null;
 
-    // ========================================================================
-    // Musical Chairs Wallet API
-    // ========================================================================
-
-    // Record a wallet transaction
-    func recordWalletTransaction(
-        user : Principal,
-        txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer },
-        amount : Nat,
-        ledgerBlockIndex : ?Nat,
-        description : Text
-    ) {
-        let tx : WalletTransaction = {
-            id = nextWalletTxId;
-            user;
-            txType;
-            amount;
-            timestamp = Time.now();
-            ledgerBlockIndex;
-            description;
-        };
-        walletTransactions := natMap.put(walletTransactions, nextWalletTxId, tx);
-        nextWalletTxId += 1;
-    };
-
-    // Get wallet transaction history for caller
-    public query ({ caller }) func getWalletTransactions() : async [WalletTransaction] {
-        let allTxs = Iter.toArray(natMap.vals(walletTransactions));
-        let userTxs = List.filter(
-            List.fromArray(allTxs),
-            func(tx : WalletTransaction) : Bool { tx.user == caller }
-        );
-        List.toArray(userTxs);
-    };
-
-    // Record a cover charge entry (separate audit log — see the Cover Charge
+    // Record a cover charge entry (see the Cover Charge
     // state block above).
     func recordCoverChargeTransaction(gameId : Nat, player : Principal, amount : Nat) {
         let entry : CoverChargeEntry = {
@@ -736,7 +680,7 @@ persistent actor {
         let gameId = nextGameId;
         nextGameId += 1;
 
-        // Log the cover charge (separate audit trail from walletTransactions).
+        // Log the cover charge entry.
         // Skip zero-amount entries — only possible with sub-satoshi deposits.
         if (coverChargeE8s > 0) {
             recordCoverChargeTransaction(gameId, caller, coverChargeE8s);
