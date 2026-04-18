@@ -107,8 +107,6 @@ export const idlFactory = ({ IDL }) => {
   });
   return IDL.Service({
     'addDealerMoney' : IDL.Func([IDL.Float64], [], []),
-    'addDownstreamDealer' : IDL.Func([IDL.Float64, IDL.Float64], [], []),
-    'addHouseMoney' : IDL.Func([IDL.Float64, IDL.Text], [], []),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
     'burnPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'calculateCompounded30DayEarnings' : IDL.Func(

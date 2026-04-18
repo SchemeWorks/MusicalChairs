@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { useAddBackerMoney, useICPBalance } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import HouseMoneyToast from './HouseMoneyToast';
+import BackerMoneyToast from './BackerMoneyToast';
 import { AlertTriangle } from 'lucide-react';
 
-export default function AddHouseMoney() {
+export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
   const [inputError, setInputError] = useState('');
   const [showToast, setShowToast] = useState(false);
@@ -45,7 +45,7 @@ export default function AddHouseMoney() {
   return (
     <div>
       {showToast && toastData && (
-        <HouseMoneyToast amount={toastData.amount} ponziPoints={toastData.ponziPoints} onClose={() => { setShowToast(false); setToastData(null); }} />
+        <BackerMoneyToast amount={toastData.amount} ponziPoints={toastData.ponziPoints} onClose={() => { setShowToast(false); setToastData(null); }} />
       )}
 
       <div className="space-y-3 max-w-sm">

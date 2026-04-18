@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
 import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
-import AddHouseMoney from './AddHouseMoney';
+import AddBackerMoney from './AddBackerMoney';
 import { formatICP } from '../lib/formatICP';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, AlertTriangle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
@@ -268,7 +268,7 @@ function BackerPositions() {
               <p className="text-sm mc-text-dim mb-4">
                 Back the next generation of yield innovation. Earn your entitlement — guaranteed* by the same people who built this.
               </p>
-              <AddHouseMoney />
+              <AddBackerMoney />
             </div>
             <div className="mc-status-red p-4 flex items-center justify-center text-center text-xs font-bold sm:w-48 rounded-lg">
               <div>

@@ -468,67 +468,6 @@ persistent actor {
         registerReferral(user, referrer);
     };
 
-    // Add House Money
-    public shared ({ caller }) func addHouseMoney(amount : Float, description : Text) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can add house money");
-        };
-
-        if (amount <= 0.0) {
-            Debug.trap("Amount must be greater than 0");
-        };
-
-        let record : HouseLedgerRecord = {
-            id = nextHouseLedgerId;
-            amount;
-            timestamp = Time.now();
-            description;
-        };
-
-        houseLedger := natMap.put(houseLedger, nextHouseLedgerId, record);
-        nextHouseLedgerId += 1;
-
-        // Update platform stats
-        platformStats := {
-            platformStats with
-            potBalance = platformStats.potBalance + amount;
-        };
-
-        // Update dealer entitlement for the admin (Series A: 24% bonus)
-        let entitlement = amount * 1.24;
-
-        // Get the admin's name from their profile
-        let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Anonymous Backer" };
-            case (?profile) { profile.name };
-        };
-
-        switch (principalMapNat.get(dealerPositions, caller)) {
-            case (null) {
-                let newDealer : DealerPosition = {
-                    owner = caller;
-                    amount;
-                    entitlement;
-                    startTime = Time.now();
-                    isActive = true;
-                    name;
-                    dealerType = #upstream;
-                    firstDepositDate = ?Time.now();
-                };
-                dealerPositions := principalMapNat.put(dealerPositions, caller, newDealer);
-            };
-            case (?existingDealer) {
-                let updatedDealer : DealerPosition = {
-                    existingDealer with
-                    amount = existingDealer.amount + amount;
-                    entitlement = existingDealer.entitlement + entitlement;
-                    name;
-                };
-                dealerPositions := principalMapNat.put(dealerPositions, caller, updatedDealer);
-            };
-        };
-    };
-
     // Get House Ledger
     public query func getHouseLedger() : async [HouseLedgerRecord] {
         Iter.toArray(natMap.vals(houseLedger));
@@ -1769,50 +1708,6 @@ persistent actor {
             };
         };
         totalHouseMoney;
-    };
-
-    // Add Downstream Dealer (The Redistribution Event)
-    public shared ({ caller }) func addDownstreamDealer(amount : Float, underwaterAmount : Float) : async () {
-        requireAuthenticated(caller);
-        validateAmount(amount);
-        validateAmount(underwaterAmount);
-        if (amount < 0.1) {
-            Debug.trap("Minimum deposit is 0.1 ICP");
-        };
-
-        // Validate 8 decimal places
-        if (not validateEightDecimals(amount)) {
-            Debug.trap("Amount cannot have more than 8 decimal places");
-        };
-
-        let entitlement = underwaterAmount * 1.16; // Series B: 16% bonus on underwater amount
-
-        // Get the user's name from their profile
-        let name = switch (principalMap.get(userProfiles, caller)) {
-            case (null) { "Anonymous Backer" };
-            case (?profile) { profile.name };
-        };
-
-        let newDealer : DealerPosition = {
-            owner = caller;
-            amount;
-            entitlement;
-            startTime = Time.now();
-            isActive = true;
-            name;
-            dealerType = #downstream;
-            firstDepositDate = null;
-        };
-        dealerPositions := principalMapNat.put(dealerPositions, caller, newDealer);
-
-        // Award 4,000 Ponzi Points per ICP deposited
-        awardPonziPoints(caller, amount * 4000.0);
-
-        // Add the deposited amount directly to the pot
-        platformStats := {
-            platformStats with
-            potBalance = platformStats.potBalance + amount;
-        };
     };
 
     // Get Oldest Upstream Dealer
