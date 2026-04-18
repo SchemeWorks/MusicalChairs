@@ -6,7 +6,6 @@ import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE, COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
-import { useWallet } from '../hooks/useWallet';
 
 /* ================================================================
    Post-deposit Charles quotes
@@ -68,7 +67,6 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   // Hooks
-  const { openWallet } = useWallet();
   const { data: icpBalance, isLoading: balanceLoading } = useICPBalance();
   const { data: maxDepositLimit, isLoading: maxDepositLoading } = useGetMaxDepositLimit();
   const { data: canDeposit, isLoading: rateLimitLoading } = useCheckDepositRateLimit();
@@ -395,13 +393,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <Wallet className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
                 <p className="font-display text-base mc-text-primary mb-2">Fund Your Wallet First</p>
                 <p className="text-sm mc-text-dim mb-1">You need at least {minDeposit} ICP to open a position.</p>
-                <p className="text-xs mc-text-muted mb-4">Deposit ICP from your external wallet (Plug, Oisy, etc.) before picking a plan.</p>
-                <button
-                  onClick={() => openWallet('deposit')}
-                  className="mc-btn-primary px-4 py-2 text-sm"
-                >
-                  Open deposit panel →
-                </button>
+                <p className="text-xs mc-text-muted">Add ICP to your connected wallet (Plug, Oisy, or Internet Identity) and come back.</p>
               </div>
             )}
 
