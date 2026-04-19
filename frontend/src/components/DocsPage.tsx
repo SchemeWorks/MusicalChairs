@@ -199,7 +199,7 @@ const docSections: DocSection[] = [
         <p className="font-bold text-white mt-4 mb-2">Backer Types</p>
         <div className="space-y-2">
           <p><strong className="mc-text-green">Series A (Upstream):</strong> Created by voluntarily depositing into the Seed Round. {pct(UPSTREAM_BACKER_BONUS)} bonus on your stake.</p>
-          <p><strong className="mc-text-danger">Series B (Downstream):</strong> Created automatically during a Redistribution Event — a random unprofitable player gets converted into a backer with an entitlement matching their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
+          <p><strong className="mc-text-danger">Series B (Downstream):</strong> Created automatically during an Emergency Equity Conversion — a random unprofitable player gets converted into a backer with an entitlement matching their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
         </div>
       </>
     ),
@@ -227,7 +227,7 @@ const docSections: DocSection[] = [
   },
   {
     id: 'redistribution',
-    title: 'The Redistribution Event',
+    title: 'Emergency Equity Conversion',
     subtitle: 'What happens when the music stops.',
     icon: <Flame className="h-5 w-5 mc-text-danger" />,
     content: (
@@ -356,13 +356,13 @@ const docSections: DocSection[] = [
             ['Jackpot Fee', `The ${pct(JACKPOT_FEE_RATE)} fee charged on Compounding position payouts at maturity.`],
             ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from exit tolls.`],
             ['Series A Backer (Upstream)', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
-            ['Series B Backer (Downstream)', `A backer created automatically during a Redistribution Event from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
+            ['Series B Backer (Downstream)', `A backer created automatically during an Emergency Equity Conversion from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
             ['Entitlement', `The total amount a backer is owed: their original deposit plus their bonus (${pct(UPSTREAM_BACKER_BONUS)} for Series A, ${pct(DOWNSTREAM_BACKER_BONUS)} for Series B).`],
-            ['The Redistribution Event', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
+            ['Emergency Equity Conversion', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
             ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and backer stakes. Can only be spent on Shenanigans.'],
             ['Shenanigans', "Cosmetic game actions cast using PP. Range from stealing other players' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP."],
             ['Downline', `Players referred by you (L1), or referred by your referrals (L2, L3). You earn PP from their activity (${pct(REFERRAL_L1_RATE)}/${pct(REFERRAL_L2_RATE)}/${pct(REFERRAL_L3_RATE)} of their PP earnings).`],
-            ['Round', 'A full game cycle, from pot creation to redistribution. When the pot empties, the round ends and a new one begins.'],
+            ['Round', 'A full game cycle, from pot creation to reset. When the pot empties, the round ends and a new one begins.'],
             ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug/OISY).'],
           ].map(([term, def]) => (
             <div key={term as string}>
@@ -436,14 +436,18 @@ export default function DocsPage({ onBack }: DocsPageProps) {
 
   return (
     <div className="max-w-2xl mx-auto w-full px-4 py-8 md:py-12">
-      {/* Floating close — always visible while scrolling, below header + status bar */}
-      <button
-        onClick={onBack}
-        aria-label="Close docs"
-        className="fixed top-32 right-4 z-50 mc-bg-elev-2 hover:mc-bg-elev-3 mc-border-subtle border rounded-full p-2 shadow-lg transition-colors"
-      >
-        <X className="h-4 w-4 mc-text-primary" />
-      </button>
+      {/* Floating close — aligned to the docs column's right edge so it sits near the content. */}
+      <div className="fixed inset-x-0 top-32 z-50 pointer-events-none">
+        <div className="max-w-2xl mx-auto px-4 relative h-0">
+          <button
+            onClick={onBack}
+            aria-label="Close docs"
+            className="absolute right-4 top-0 pointer-events-auto mc-bg-elev-2 hover:mc-bg-elev-3 mc-border-subtle border rounded-full p-2 shadow-lg transition-colors"
+          >
+            <X className="h-4 w-4 mc-text-primary" />
+          </button>
+        </div>
+      </div>
       {/* Back button */}
       <button
         onClick={onBack}

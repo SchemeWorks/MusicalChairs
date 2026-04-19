@@ -13,6 +13,11 @@ const oisySigner = new Signer({
 
 let cachedAgent: any = null;
 let cachedPrincipalText: string | null = null;
+// Dedupe concurrent create() calls: slide-computer's SignerAgent has a
+// class-level #isInternalConstructing flag that races when multiple
+// useActor() hooks fire simultaneously — the second create throws
+// "SignerAgent is not constructable".
+let inFlightCreate: Promise<any> | null = null;
 
 export async function getOisySignerAgent(principal: Principal): Promise<any> {
   const principalText = principal.toText();
@@ -21,16 +26,28 @@ export async function getOisySignerAgent(principal: Principal): Promise<any> {
     return cachedAgent;
   }
 
+  if (inFlightCreate) {
+    return inFlightCreate;
+  }
+
   // Let SignerAgent create its own internal HttpAgent.
   // Passing @dfinity/agent's HttpAgent causes rootKey type mismatch
   // (ArrayBuffer vs Uint8Array) which breaks certificate validation.
-  cachedAgent = await SignerAgent.create({
-    signer: oisySigner as any,
-    account: principal as any,
-  });
+  inFlightCreate = (async () => {
+    const agent = await SignerAgent.create({
+      signer: oisySigner as any,
+      account: principal as any,
+    });
+    cachedAgent = agent;
+    cachedPrincipalText = principalText;
+    return agent;
+  })();
 
-  cachedPrincipalText = principalText;
-  return cachedAgent;
+  try {
+    return await inFlightCreate;
+  } finally {
+    inFlightCreate = null;
+  }
 }
 
 export function createOisyActor(
@@ -47,6 +64,20 @@ export function createOisyActor(
 export function clearOisySigner(): void {
   cachedAgent = null;
   cachedPrincipalText = null;
+}
+
+// Rehydrate an existing Oisy session without triggering the approval popup.
+// Returns the account principal text if the signer's session is still valid, null otherwise.
+// @slide-computer/signer throws "outside of click handler" if no active session
+// exists — we catch that and return null cleanly.
+export async function restoreOisySession(): Promise<string | null> {
+  try {
+    const accounts = await oisySigner.accounts();
+    if (!accounts || accounts.length === 0) return null;
+    return accounts[0].owner.toText();
+  } catch {
+    return null;
+  }
 }
 
 export { oisySigner };

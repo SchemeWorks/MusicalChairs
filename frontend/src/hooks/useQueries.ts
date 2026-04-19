@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
+import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
@@ -12,29 +13,41 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
 
-const HOST = 'https://icp0.io';
+// Anonymous ledger actor for balance queries. icrc1_balance_of is a public
+// query — no identity needed. Cached at module scope so all callers share
+// one actor regardless of wallet type.
+let anonLedgerActor: any = null;
+function getAnonLedgerActor() {
+  if (anonLedgerActor) return anonLedgerActor;
+  const agent = new HttpAgent({ host: 'https://icp0.io' });
+  anonLedgerActor = Actor.createActor(icrcLedgerIDL, {
+    agent,
+    canisterId: ICP_LEDGER_CANISTER_ID,
+  });
+  return anonLedgerActor;
+}
 
 // User Profile Queries
 export function useGetCallerUserProfile() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
   const { principal } = useWallet();
 
   const query = useQuery<UserProfile | null>({
     queryKey: ['currentUserProfile', principal],
     queryFn: async (): Promise<UserProfile | null> => {
-      if (!actor) throw new Error('Actor not available');
-      const result = await actor.getCallerUserProfile();
+      if (!principal) throw new Error('No principal');
+      const result = await actor.getUserProfile(Principal.fromText(principal));
       // Convert Candid optional ([] | [UserProfile]) to UserProfile | null
       return result[0] ?? null;
     },
-    enabled: !!actor && !actorFetching && !!principal,
+    enabled: !!principal,
     retry: false,
   });
 
   return {
     ...query,
-    isLoading: actorFetching || query.isLoading,
-    isFetched: !!actor && query.isFetched,
+    isLoading: query.isLoading,
+    isFetched: query.isFetched,
   };
 }
 
@@ -54,31 +67,21 @@ export function useSaveUserProfile() {
 
 // Game Statistics Queries
 export function useGetGameStats() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery<PlatformStats>({
     queryKey: ['gameStats'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getPlatformStats();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getPlatformStats(),
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
-// Public stats — no auth required, uses anonymous actor for splash page
+// Public stats — no auth required, uses read actor for splash page
 export function useGetPublicStats() {
+  const actor = useReadActor();
   return useQuery<PlatformStats>({
     queryKey: ['publicStats'],
-    queryFn: async () => {
-      const agent = new HttpAgent({ host: HOST });
-      const anonActor = Actor.createActor<_SERVICE>(idlFactory, {
-        agent,
-        canisterId: BACKEND_CANISTER_ID,
-      });
-      return anonActor.getPlatformStats();
-    },
+    queryFn: async () => actor.getPlatformStats(),
     refetchInterval: 30000,
     staleTime: 15000,
   });
@@ -86,60 +89,66 @@ export function useGetPublicStats() {
 
 // Deposit Limits and Rate Limiting Queries
 export function useGetMaxDepositLimit() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery<number>({
     queryKey: ['maxDepositLimit'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getMaxDepositLimit();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getMaxDepositLimit(),
     refetchInterval: 5000, // Refetch every 5 seconds as pot balance changes
   });
 }
 
 export function useCheckDepositRateLimit() {
   const { actor, isFetching: actorFetching } = useActor();
-  const { principal } = useWallet();
+  const { walletType } = useWallet();
 
   return useQuery<boolean>({
-    queryKey: ['depositRateLimit', principal],
+    queryKey: ['checkDepositRateLimit', walletType],
     queryFn: async () => {
       if (!actor) throw new Error('Actor not available');
       return actor.checkDepositRateLimit();
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!actor && !actorFetching && walletType !== 'oisy',
     refetchInterval: 60000, // Refetch every minute to update rate limit status
   });
 }
 
 // Backer Repayment Balance Query
 export function useGetBackerRepaymentBalance() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
   const { principal } = useWallet();
 
   return useQuery<number>({
     queryKey: ['backerRepaymentBalance', principal],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.getDealerRepaymentBalance(); // Backend Candid name unchanged
+      if (!principal) throw new Error('No principal');
+      return actor.getDealerRepaymentBalanceFor(Principal.fromText(principal));
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!principal,
     refetchInterval: 5000,
   });
 }
 // Legacy alias
 export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 
+// All Backer Repayment Balances (public — matches backer roster visibility)
+export function useGetAllBackerRepayments() {
+  const actor = useReadActor();
+
+  return useQuery<Array<[Principal, number]>>({
+    queryKey: ['allBackerRepayments'],
+    queryFn: async () => actor.getAllDealerRepayments(),
+    refetchInterval: 5000,
+  });
+}
+
 // House Ledger Queries with enhanced error handling
 export function useGetHouseLedger() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery<HouseLedgerRecord[]>({
     queryKey: ['houseLedger'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       try {
         const records = await actor.getHouseLedger();
         return records || [];
@@ -149,7 +158,6 @@ export function useGetHouseLedger() {
         return [];
       }
     },
-    enabled: !!actor && !actorFetching,
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
     retry: 2,
     retryDelay: 1000,
@@ -159,12 +167,11 @@ export function useGetHouseLedger() {
 }
 
 export function useGetHouseLedgerStats() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery({
     queryKey: ['houseLedgerStats'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       try {
         const stats = await actor.getHouseLedgerStats();
         return stats || {
@@ -184,7 +191,6 @@ export function useGetHouseLedgerStats() {
         };
       }
     },
-    enabled: !!actor && !actorFetching,
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
     retry: 2,
     retryDelay: 1000,
@@ -198,19 +204,24 @@ export function useGetHouseLedgerStats() {
   });
 }
 
-// Real ICP balance from the NNS ledger (what the user actually has in their wallet)
+// Real ICP balance from the NNS ledger (what the user actually has in their wallet).
+// Uses an anonymous ledger actor — icrc1_balance_of is a public query and works
+// for every wallet type (Plug, II, Oisy) without needing a signing identity.
 export function useICPBalance() {
-  const { principal, isConnected } = useWallet();
-  const ledger = useLedger();
+  const { principal } = useWallet();
 
   return useQuery({
     queryKey: ['icpLedgerBalance', principal],
     queryFn: async () => {
-      if (!principal || !isConnected) throw new Error('Not connected');
-      const balanceE8s = await ledger.getBalance();
+      if (!principal) throw new Error('No principal');
+      const actor = getAnonLedgerActor();
+      const balanceE8s = await actor.icrc1_balance_of({
+        owner: Principal.fromText(principal),
+        subaccount: [],
+      });
       return Number(balanceE8s) / 100_000_000;
     },
-    enabled: !!principal && isConnected && ledger.isConnected,
+    enabled: !!principal,
     refetchInterval: 5000,
   });
 }
@@ -370,7 +381,6 @@ export function useAddBackerMoney() {
       queryClient.invalidateQueries({ queryKey: ['houseLedger'] });
       queryClient.invalidateQueries({ queryKey: ['houseLedgerStats'] });
       queryClient.invalidateQueries({ queryKey: ['gameStats'] });
-      queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
       queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.refetchQueries({ queryKey: ['backerPositions'] });
@@ -387,14 +397,14 @@ const gameEarningsStore = new Map<string, { lastUpdateTime: number; accumulatedE
 
 // Game Queries with manual refresh functionality
 export function useGetUserGames() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
   const { principal } = useWallet();
 
   return useQuery<GameRecord[]>({
     queryKey: ['userGames', principal],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      const games = await actor.getUserGames();
+      if (!principal) throw new Error('No principal');
+      const games = await actor.getUserGamesFor(Principal.fromText(principal));
       
       // Update accumulated earnings for each game when manually refreshed
       const currentTime = Date.now();
@@ -422,7 +432,7 @@ export function useGetUserGames() {
       
       return games;
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!principal,
     // Remove automatic refetch interval - now manual only
   });
 }
@@ -525,7 +535,6 @@ export function useCreateGame() {
       queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.invalidateQueries({ queryKey: ['gameStats'] });
       queryClient.invalidateQueries({ queryKey: ['maxDepositLimit'] });
-      queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
     },
   });
@@ -657,7 +666,6 @@ export function useCastShenanigan() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenaniganStats'] });
       queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
-      queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
       queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
     },
@@ -886,16 +894,17 @@ function getGamePlanString(plan: GamePlan): string {
 
 // MLM Queries - Updated to use real backend data
 export function useGetReferralStats() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
+  const { principal } = useWallet();
 
   return useQuery({
-    queryKey: ['mlmStats'],
+    queryKey: ['mlmStats', principal],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      
+      if (!principal) throw new Error('No principal');
+
       // Get real referral tier points from backend
-      const tierPoints = await actor.getReferralTierPoints();
-      
+      const tierPoints = await actor.getReferralTierPointsFor(Principal.fromText(principal));
+
       return {
         level1Count: 0, // Backend doesn't track count, only points
         level2Count: 0,
@@ -907,43 +916,42 @@ export function useGetReferralStats() {
         referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`
       };
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!principal,
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
 // Ponzi Points Queries - Updated to use real backend data
 export function useGetPonziPoints() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
   const { principal } = useWallet();
 
   return useQuery({
     queryKey: ['ponziPointsBalance', principal],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      
+      if (!principal) throw new Error('No principal');
+
       // Get real Ponzi Points balance from backend
-      const balance = await actor.getPonziPointsBalance();
-      
+      const balance = await actor.getPonziPointsBreakdownFor(Principal.fromText(principal));
+
       return {
         totalPoints: balance.totalPoints,
         depositPoints: balance.depositPoints,
         referralPoints: balance.referralPoints,
       };
     },
-    enabled: !!actor && !actorFetching,
+    enabled: !!principal,
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
 // Backer Positions Query
 export function useGetBackerPositions() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery<BackerPosition[]>({
     queryKey: ['backerPositions'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       try {
         const positions = await actor.getDealerPositions(); // Backend Candid name unchanged
         return positions || [];
@@ -952,7 +960,6 @@ export function useGetBackerPositions() {
         return [];
       }
     },
-    enabled: !!actor && !actorFetching,
     refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
@@ -965,13 +972,10 @@ export const useGetDealerPositions = useGetBackerPositions;
 // Seed Round Dashboard Query
 export function useGetSeedRoundDashboard() {
   const { data: backerPositions, isLoading: backersLoading } = useGetBackerPositions();
-  const { actor } = useActor();
 
   return useQuery({
     queryKey: ['seedRoundDashboard', backerPositions],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-
       try {
         const positions = backerPositions || [];
 
@@ -1004,7 +1008,7 @@ export function useGetSeedRoundDashboard() {
         };
       }
     },
-    enabled: !!actor && !backersLoading,
+    enabled: !backersLoading,
     refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
@@ -1021,14 +1025,13 @@ export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
 // Hall of Fame Queries - Updated to use separate backend calls
 export function useGetTopPonziPointsHolders() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery({
     queryKey: ['topPonziPointsHolders'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       const holders = await actor.getTopPonziPointsHolders();
-      
+
       // Transform backend data to include user names
       return holders.map(([principal, points], index) => ({
         rank: index + 1,
@@ -1037,20 +1040,18 @@ export function useGetTopPonziPointsHolders() {
         principal: principal.toString()
       }));
     },
-    enabled: !!actor && !actorFetching,
     refetchInterval: 30000, // Refetch every 30 seconds for live updates
   });
 }
 
 export function useGetTopPonziPointsBurners() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const actor = useReadActor();
 
   return useQuery({
     queryKey: ['topPonziPointsBurners'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       const burners = await actor.getTopPonziPointsBurners();
-      
+
       // Transform backend data to include user names
       return burners.map(([principal, pointsBurned], index) => ({
         rank: index + 1,
@@ -1059,7 +1060,6 @@ export function useGetTopPonziPointsBurners() {
         principal: principal.toString()
       }));
     },
-    enabled: !!actor && !actorFetching,
     refetchInterval: 30000, // Refetch every 30 seconds for live updates
   });
 }
@@ -1099,15 +1099,10 @@ export function calculatePonziPoints(amount: number, plan: string, mode: 'simple
 
 // Transaction History Query (Mock data until backend is implemented)
 export function useGetTransactionHistory() {
-  const { actor, isFetching: actorFetching } = useActor();
-
   return useQuery({
     queryKey: ['transactionHistory'],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
-      
-      // TODO: Replace with actual backend call when implemented
-      // return actor.getTransactionHistory();
+      // TODO: wire to useReadActor + actor.getTransactionHistory() when backend method exists.
       
       // Mock data for now - simulating live transaction history
       const baseTransactions = [
@@ -1187,6 +1182,5 @@ export function useGetTransactionHistory() {
 
       return baseTransactions;
     },
-    enabled: !!actor && !actorFetching,
   });
 }

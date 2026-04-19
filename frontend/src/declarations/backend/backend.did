@@ -158,8 +158,10 @@ service : {
   getCoverChargeBalance: () -> (nat) query;
   getCoverChargeTransactions: () -> (vec CoverChargeEntry) query;
   getDaysActive: () -> (nat) query;
+  getAllDealerRepayments: () -> (vec record { principal; float64 }) query;
   getDealerPositions: () -> (vec DealerPosition) query;
   getDealerRepaymentBalance: () -> (float64) query;
+  getDealerRepaymentBalanceFor: (user: principal) -> (float64) query;
   getGameById: (gameId: nat) -> (opt GameRecord) query;
   getGameResetHistory: () -> (vec GameResetRecord) query;
   getHouseLedger: () -> (vec HouseLedgerRecord) query;
@@ -174,6 +176,12 @@ service : {
   getOldestUpstreamDealer: () -> (opt DealerPosition) query;
   getPlatformStats: () -> (PlatformStats) query;
   getPonziPoints: () -> (float64) query;
+  getPonziPointsBreakdownFor: (user: principal) ->
+   (record {
+      depositPoints: float64;
+      referralPoints: float64;
+      totalPoints: float64;
+    }) query;
   getPonziPointsBalance: () ->
    (record {
       depositPoints: float64;
@@ -181,8 +189,16 @@ service : {
       totalPoints: float64;
     }) query;
   getPonziPointsBalanceFor: (user: principal) -> (float64);
+  getPonziPointsFor: (user: principal) -> (float64) query;
   getReferralEarnings: (user: principal) -> (float64) query;
   getReferralTierPoints: () ->
+   (record {
+      level1Points: float64;
+      level2Points: float64;
+      level3Points: float64;
+      totalPoints: float64;
+    }) query;
+  getReferralTierPointsFor: (user: principal) ->
    (record {
       level1Points: float64;
       level2Points: float64;
@@ -202,7 +218,10 @@ service : {
   getTotalHouseMoneyAdded: () -> (float64) query;
   getTotalWithdrawals: () -> (float64) query;
   getUserGames: () -> (vec GameRecord) query;
+  getUserGamesFor: (user: principal) -> (vec GameRecord) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
+  getUserRole: (user: principal) -> (UserRole) query;
+  isAdmin: (user: principal) -> (bool) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
    (ConsentMessageResponse);

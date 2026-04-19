@@ -214,8 +214,8 @@ function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
           {charlesQuotes[quoteIndex]}
         </p>
       </div>
-      <button onClick={onNavigate} className="mc-btn-primary text-sm">
-        <Rocket className="h-4 w-4 inline mr-1" /> Pick Your Plan
+      <button onClick={onNavigate} className="mc-btn-primary px-5 py-2 rounded-full text-sm inline-flex items-center gap-2">
+        <Rocket className="h-4 w-4" /> Pick Your Plan
       </button>
     </div>
   );

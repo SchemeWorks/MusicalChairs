@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCreateGame, useICPBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
 import { useCountUp } from '../hooks/useCountUp';
+import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
-import LoadingSpinner from './LoadingSpinner';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE, COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
@@ -67,9 +67,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   // Hooks
-  const { data: icpBalance, isLoading: balanceLoading } = useICPBalance();
-  const { data: maxDepositLimit, isLoading: maxDepositLoading } = useGetMaxDepositLimit();
-  const { data: canDeposit, isLoading: rateLimitLoading } = useCheckDepositRateLimit();
+  const { walletType } = useWallet();
+  const { data: icpBalance } = useICPBalance();
+  const { data: maxDepositLimit } = useGetMaxDepositLimit();
+  const { data: canDeposit } = useCheckDepositRateLimit();
+  // For Oisy users the rate-limit query is disabled; treat undefined as "allowed"
+  // (the backend will enforce rate limits on deposit if exceeded).
+  const isRateLimited = walletType === 'oisy' ? false : canDeposit === false;
   const createGameMutation = useCreateGame();
 
   const walletBalance = icpBalance || 0;
@@ -188,7 +192,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     if (dep < minDeposit) { triggerClickError(`Amount below minimum (${minDeposit} ICP)`); triggerShake(); return; }
     if (dep > walletBalance) { triggerClickError('Insufficient balance'); triggerShake(); return; }
     if (selectedMode === 'simple' && dep > maxDeposit) { triggerClickError(`Max for simple mode: ${formatICP(maxDeposit)} ICP`); triggerShake(); return; }
-    if (!canDeposit) { triggerClickError('Rate limited — wait before opening another position'); return; }
+    if (isRateLimited) { triggerClickError('Rate limited — wait before opening another position'); return; }
     const v = validateICPInput(amount);
     if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
     if (inputError) { triggerClickError('Fix input error first'); triggerShake(); return; }
@@ -203,42 +207,6 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
       console.error('Game creation failed:', error);
     }
   };
-
-  if (balanceLoading || maxDepositLoading || rateLimitLoading) {
-    return (
-      <>
-        <LoadingSpinner />
-        {/* Keep toast visible during loading so it doesn't flicker */}
-        {successToast && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            <div className="mc-toast text-center">
-              <div className="font-display text-xl mc-text-primary mb-2">You're In.</div>
-              <p className="font-accent text-sm mc-text-dim italic mb-3">
-                {successToast.quote}
-              </p>
-              <p className="text-sm mc-text-dim mt-2 mb-4">
-                <span className="mc-toast-accent">{formatICP(successToast.amount)} ICP</span> is now earning.
-              </p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => setSuccessToast(null)}
-                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
-                >
-                  Stay Here
-                </button>
-                <button
-                  onClick={() => { setSuccessToast(null); onNavigateToProfitCenter?.(); }}
-                  className="mc-btn-primary px-5 py-2 rounded-full text-sm inline-flex items-center gap-2"
-                >
-                  <TrendingUp className="h-4 w-4" /> Watch It Climb
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
-    );
-  }
 
   const isAmountValid = selectedMode === 'simple'
     ? depositAmount >= minDeposit && depositAmount <= walletBalance && depositAmount <= maxDeposit && !inputError
@@ -442,7 +410,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                         {!inputError && depositAmount < minDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Minimum deposit is {minDeposit} ICP</div>}
                         {!inputError && depositAmount > walletBalance && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance</div>}
                         {!inputError && selectedMode === 'simple' && depositAmount > maxDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Max for simple mode: {formatICP(maxDeposit)} ICP</div>}
-                        {!canDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Rate limit: 3 positions per hour max</div>}
+                        {isRateLimited && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Rate limit: 3 positions per hour max</div>}
                       </div>
                     )}
 
@@ -451,7 +419,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                         <span className="font-semibold text-amber-300">{pct(COVER_CHARGE_RATE)} cover charge</span>
                         <span className="mc-text-muted"> goes to Management. You deposit N, the pot books N×{(1 - COVER_CHARGE_RATE).toFixed(2)}.</span>
                       </p>
-                      <p className="mc-text-muted">Exit tolls still split 50/50 — half seed the next round, half repay our backers.</p>
+                      <p className="mc-text-muted">Exit tolls split 50/50 — half seed the next round, half repay our backers.</p>
                       {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
 

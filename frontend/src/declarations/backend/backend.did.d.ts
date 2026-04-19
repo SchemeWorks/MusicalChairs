@@ -129,8 +129,10 @@ export interface _SERVICE {
   'getCoverChargeBalance' : ActorMethod<[], bigint>,
   'getCoverChargeTransactions' : ActorMethod<[], Array<CoverChargeEntry>>,
   'getDaysActive' : ActorMethod<[], bigint>,
+  'getAllDealerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
   'getDealerPositions' : ActorMethod<[], Array<DealerPosition>>,
   'getDealerRepaymentBalance' : ActorMethod<[], number>,
+  'getDealerRepaymentBalanceFor' : ActorMethod<[Principal], number>,
   'getGameById' : ActorMethod<[bigint], [] | [GameRecord]>,
   'getGameResetHistory' : ActorMethod<[], Array<GameResetRecord>>,
   'getHouseLedger' : ActorMethod<[], Array<HouseLedgerRecord>>,
@@ -147,6 +149,14 @@ export interface _SERVICE {
   'getOldestUpstreamDealer' : ActorMethod<[], [] | [DealerPosition]>,
   'getPlatformStats' : ActorMethod<[], PlatformStats>,
   'getPonziPoints' : ActorMethod<[], number>,
+  'getPonziPointsBreakdownFor' : ActorMethod<
+    [Principal],
+    {
+      'depositPoints' : number,
+      'referralPoints' : number,
+      'totalPoints' : number,
+    }
+  >,
   'getPonziPointsBalance' : ActorMethod<
     [],
     {
@@ -156,9 +166,19 @@ export interface _SERVICE {
     }
   >,
   'getPonziPointsBalanceFor' : ActorMethod<[Principal], number>,
+  'getPonziPointsFor' : ActorMethod<[Principal], number>,
   'getReferralEarnings' : ActorMethod<[Principal], number>,
   'getReferralTierPoints' : ActorMethod<
     [],
+    {
+      'level3Points' : number,
+      'level1Points' : number,
+      'totalPoints' : number,
+      'level2Points' : number,
+    }
+  >,
+  'getReferralTierPointsFor' : ActorMethod<
+    [Principal],
     {
       'level3Points' : number,
       'level1Points' : number,
@@ -173,7 +193,10 @@ export interface _SERVICE {
   'getTotalHouseMoneyAdded' : ActorMethod<[], number>,
   'getTotalWithdrawals' : ActorMethod<[], number>,
   'getUserGames' : ActorMethod<[], Array<GameRecord>>,
+  'getUserGamesFor' : ActorMethod<[Principal], Array<GameRecord>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'getUserRole' : ActorMethod<[Principal], UserRole>,
+  'isAdmin' : ActorMethod<[Principal], boolean>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
