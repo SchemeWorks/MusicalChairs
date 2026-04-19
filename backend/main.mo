@@ -102,12 +102,6 @@ persistent actor {
         userProfiles := principalMap.put(userProfiles, caller, profile);
     };
 
-    // One-shot admin cleanup for the stale anonymous profile bug. Remove after use.
-    public shared ({ caller }) func adminDeleteProfile(user : Principal) : async () {
-        assert AccessControl.isAdmin(accessControlState, caller);
-        userProfiles := principalMap.delete(userProfiles, user);
-    };
-
     // Game Plan Types
     public type GamePlan = {
         #simple21Day;
