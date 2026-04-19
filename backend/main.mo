@@ -60,6 +60,11 @@ persistent actor {
         AccessControl.getUserRole(accessControlState, caller);
     };
 
+    // Get User Role for a given principal (anonymous-callable sibling)
+    public query func getUserRole(user : Principal) : async AccessControl.UserRole {
+        AccessControl.getUserRole(accessControlState, user);
+    };
+
     // Assign Caller User Role
     public shared ({ caller }) func assignCallerUserRole(user : Principal, role : AccessControl.UserRole) : async () {
         AccessControl.assignRole(accessControlState, caller, user, role);
@@ -68,6 +73,11 @@ persistent actor {
     // Check if Caller is Admin
     public query ({ caller }) func isCallerAdmin() : async Bool {
         AccessControl.isAdmin(accessControlState, caller);
+    };
+
+    // Check if a given principal is admin (anonymous-callable sibling)
+    public query func isAdmin(user : Principal) : async Bool {
+        AccessControl.isAdmin(accessControlState, user);
     };
 
     // User Profile
@@ -80,12 +90,6 @@ persistent actor {
 
     public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
         principalMap.get(userProfiles, caller);
-    };
-
-    // Diagnostic: returns the caller's principal as seen by the canister.
-    // Use to debug display-principal vs signing-principal mismatches.
-    public query ({ caller }) func whoAmI() : async Principal {
-        caller;
     };
 
     public query func getUserProfile(user : Principal) : async ?UserProfile {
@@ -1319,6 +1323,17 @@ persistent actor {
         List.toArray(userGames);
     };
 
+    // Get games for a given principal (anonymous-callable sibling)
+    public query func getUserGamesFor(user : Principal) : async [GameRecord] {
+        var userGames = List.nil<GameRecord>();
+        for (game in natMap.vals(gameRecords)) {
+            if (game.player == user) {
+                userGames := List.push(game, userGames);
+            };
+        };
+        List.toArray(userGames);
+    };
+
     // Get Available Balance
     public query func getAvailableBalance() : async Float {
         platformStats.potBalance;
@@ -1400,6 +1415,14 @@ persistent actor {
         };
     };
 
+    // Get dealer repayment balance for a given principal (anonymous-callable sibling)
+    public query func getDealerRepaymentBalanceFor(user : Principal) : async Float {
+        switch (principalMapNat.get(dealerRepayments, user)) {
+            case (null) { 0.0 };
+            case (?balance) { balance };
+        };
+    };
+
     // Get all dealer repayment balances (public — backer roster is public anyway).
     public query func getAllDealerRepayments() : async [(Principal, Float)] {
         Iter.toArray(principalMapNat.entries(dealerRepayments));
@@ -1469,6 +1492,14 @@ persistent actor {
         };
     };
 
+    // Get ponzi points for a given principal (anonymous-callable sibling)
+    public query func getPonziPointsFor(user : Principal) : async Float {
+        switch (principalMapNat.get(ponziPoints, user)) {
+            case (null) { 0.0 };
+            case (?points) { points };
+        };
+    };
+
     // Get Ponzi Points Balance (for Rewards page)
     public query ({ caller }) func getPonziPointsBalance() : async {
         totalPoints : Float;
@@ -1511,6 +1542,48 @@ persistent actor {
         };
     };
 
+    // Get Ponzi Points Breakdown for a specific user (principal-parameterized query variant)
+    public query func getPonziPointsBreakdownFor(user : Principal) : async {
+        totalPoints : Float;
+        depositPoints : Float;
+        referralPoints : Float;
+    } {
+        let totalPoints = switch (principalMapNat.get(ponziPoints, user)) {
+            case (null) { 0.0 };
+            case (?points) { points };
+        };
+
+        // Calculate deposit points (from games and dealer positions)
+        var depositPoints = 0.0;
+        for (game in natMap.vals(gameRecords)) {
+            if (game.player == user) {
+                depositPoints += switch (game.plan) {
+                    case (#simple21Day) { game.amount * 1000.0 };
+                    case (#compounding15Day) { game.amount * 2000.0 };
+                    case (#compounding30Day) { game.amount * 3000.0 };
+                };
+            };
+        };
+        switch (principalMapNat.get(dealerPositions, user)) {
+            case (null) {};
+            case (?dealer) {
+                depositPoints += dealer.amount * 4000.0;
+            };
+        };
+
+        // Calculate referral points (PP earned through the referral chain)
+        let referralPoints = switch (principalMapNat.get(referralEarnings, user)) {
+            case (null) { 0.0 };
+            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
+        };
+
+        {
+            totalPoints;
+            depositPoints;
+            referralPoints;
+        };
+    };
+
     // Get Referral Tier Points (for Multi-Level Marketing page)
     public query ({ caller }) func getReferralTierPoints() : async {
         level1Points : Float;
@@ -1519,6 +1592,26 @@ persistent actor {
         totalPoints : Float;
     } {
         let earnings = switch (principalMapNat.get(referralEarnings, caller)) {
+            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
+            case (?e) { e };
+        };
+
+        {
+            level1Points = earnings.level1Points;
+            level2Points = earnings.level2Points;
+            level3Points = earnings.level3Points;
+            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
+        };
+    };
+
+    // Get referral tier points for a given principal (anonymous-callable sibling)
+    public query func getReferralTierPointsFor(user : Principal) : async {
+        level1Points : Float;
+        level2Points : Float;
+        level3Points : Float;
+        totalPoints : Float;
+    } {
+        let earnings = switch (principalMapNat.get(referralEarnings, user)) {
             case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
             case (?e) { e };
         };
