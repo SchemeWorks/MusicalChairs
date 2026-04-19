@@ -151,6 +151,16 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setPrincipal(ident.getPrincipal().toString());
           setWalletType(savedWalletType);
         }
+      } else if (savedWalletType === 'oisy') {
+        const { restoreOisySession } = await import('../lib/oisySigner');
+        const principalText = await restoreOisySession();
+        if (principalText) {
+          setPrincipal(principalText);
+          setWalletType('oisy');
+        } else {
+          // Session expired or signer has no active session — downgrade cleanly.
+          localStorage.removeItem('musical-chairs-wallet-type');
+        }
       }
     } catch (error) {
       console.error('Failed to restore wallet connection:', error);

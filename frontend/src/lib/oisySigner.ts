@@ -49,4 +49,18 @@ export function clearOisySigner(): void {
   cachedPrincipalText = null;
 }
 
+// Rehydrate an existing Oisy session without triggering the approval popup.
+// Returns the account principal text if the signer's session is still valid, null otherwise.
+// @slide-computer/signer throws "outside of click handler" if no active session
+// exists — we catch that and return null cleanly.
+export async function restoreOisySession(): Promise<string | null> {
+  try {
+    const accounts = await oisySigner.accounts();
+    if (!accounts || accounts.length === 0) return null;
+    return accounts[0].owner.toText();
+  } catch {
+    return null;
+  }
+}
+
 export { oisySigner };
