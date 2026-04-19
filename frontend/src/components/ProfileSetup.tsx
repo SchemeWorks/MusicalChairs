@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useSaveUserProfile } from '../hooks/useQueries';
+import { useWallet } from '../hooks/useWallet';
+import { oisySigner } from '../lib/oisySigner';
 import { triggerConfetti } from './ConfettiCanvas';
 import { Dices, AlertTriangle, PartyPopper } from 'lucide-react';
 
@@ -62,6 +64,7 @@ export default function ProfileSetup() {
   const [shakeInput, setShakeInput] = useState(false);
   const queryClient = useQueryClient();
   const saveProfile = useSaveUserProfile();
+  const { walletType } = useWallet();
 
   const trimmedName = name.trim();
   const isNameValid = trimmedName.length > 0 && trimmedName.length <= MAX_NAME_LENGTH;
@@ -183,6 +186,14 @@ export default function ProfileSetup() {
 
             <button
               type="submit"
+              onClick={() => {
+                // Oisy: warm up the signer channel synchronously inside the click
+                // gesture so React Query's microtask-scheduled mutation can reuse
+                // the open channel instead of tripping the gesture check.
+                if (walletType === 'oisy' && isNameValid) {
+                  oisySigner.openChannel();
+                }
+              }}
               disabled={!isNameValid || saveProfile.isPending}
               className={`w-full py-4 text-lg font-bold rounded-xl transition-all ${
                 isNameValid
