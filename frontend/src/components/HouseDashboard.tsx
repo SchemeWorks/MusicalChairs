@@ -73,7 +73,7 @@ function BackerInfoCard() {
     },
     {
       icon: <TrendingUp className="h-5 w-5 mc-text-green" />,
-      title: 'Guaranteed Returns*',
+      title: 'Guaranteed* Returns',
       accent: 'mc-accent-green',
       content: (
         <p className="text-xs mc-text-dim">
@@ -276,7 +276,7 @@ function BackerPositions() {
           <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-start">
             <div>
               <p className="text-sm mc-text-dim mb-4">
-                Back the next generation of yield innovation. Earn your entitlement — guaranteed* by the same people who built this.
+                Back the next generation of yield innovation. Earn your entitlement — you've earned it.
               </p>
               <AddBackerMoney />
             </div>

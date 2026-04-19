@@ -164,7 +164,7 @@ Reuse the existing `mc-bottom-sheet` and `mc-sheet-backdrop` CSS from WalletDrop
 **Fix:** Add Charles personality to these specific locations:
 - **HouseDashboard info cards:** "Charles takes a 3% maintenance fee on every deposit" (in the fee explanation section)
 - **HouseDashboard redistribution callout:** "When the pot runs dry, Charles resets the table. No exceptions." (replace or augment existing copy)
-- **GameTracking exit toll info:** "Charles collects a 7% exit toll if you leave within 3 days. His table, his rules." (in the info card)
+- **GameTracking carried interest info:** "Charles collects a 7% carried interest if you leave within 3 days. His table, his rules." (in the info card)
 - **Error states (global):** When an API call fails, show "Even Charles couldn't fix this one. Try again?" alongside the retry button
 - **Loading states:** Where relevant, "Charles is counting the money..." or "Charles is shuffling the deck..." instead of generic spinners
 

@@ -38,7 +38,7 @@
 2. **9 sections** covering all game mechanics:
    - **How It Works** — deposit → earn → withdraw → reset cycle overview
    - **Game Plans** — Simple 21-Day (11%/day), Compounding 15-Day (12%/day), Compounding 30-Day (9%/day) with styled cards per plan
-   - **Exit Tolls** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%, Compounding: 13% Jackpot Fee (presented as a table)
+   - **Exit Tolls** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%, Compounding Jackpot Fee: 9% (15-day) / 13% (30-day) (presented as a table)
    - **Dealers & Seed Round** — 12% entitlement, 3% maintenance fee, pro-rata distribution
    - **Shenanigans** — All 11 types organized by category (Offense/Defense/Chaos) with PP costs and success rates
    - **Ponzi Points** — Earn rates per plan, spending, referral earning

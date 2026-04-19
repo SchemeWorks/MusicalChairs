@@ -38,14 +38,14 @@ Use `position: absolute` positioned relative to each tab button. No external lib
 
 **File:** New `frontend/src/components/GameDocs.tsx`, `frontend/src/App.tsx`
 
-**Problem:** No documentation exists in the app. Users must understand Ponzi mechanics, lock-up periods, exit tolls, shenanigan odds, and PP earn rates with no explanation.
+**Problem:** No documentation exists in the app. Users must understand Ponzi mechanics, lock-up periods, carried interest, shenanigan odds, and PP earn rates with no explanation.
 
 **Fix:** Create a comprehensive docs component accessible from a "?" icon in the header:
 
 **Sections (collapsible accordion):**
 1. **How It Works** — overview of deposit -> earn -> withdraw cycle
 2. **Game Plans** — Simple 21-day (11%/day), Compounding 15-day (12%/day), Compounding 30-day (9%/day)
-3. **Exit Tolls** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%. Compounding: 13% Jackpot Fee
+3. **Carried Interest** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%. Compounding Jackpot Fee: 9% (15-day) / 13% (30-day)
 4. **Dealers & Seed Round** — 12% entitlement, 3% maintenance fee, fee distribution
 5. **Shenanigans** — all 11 types with costs and odds (reference the table from v1 task list)
 6. **Ponzi Points** — earn rates per plan, what you can spend them on

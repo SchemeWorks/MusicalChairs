@@ -28,7 +28,7 @@ Live pot stats, countdowns to toll reductions, maturity progress bars, "X player
 ### Color Hierarchy
 - **Neon Green (#39FF14):** Primary CTA, success, money-in actions, positive P/L
 - **Purple (#A855F7):** Interactive elements, PP-related, secondary actions, hover states
-- **Gold (#FFD700):** Premium status, rankings, exit tolls, warnings-that-are-also-features
+- **Gold (#FFD700):** Premium status, rankings, carried interest, warnings-that-are-also-features
 - **Pink (#FF2D78):** Brand accent, logo gradient, danger-that's-exciting
 - **Cyan (#00F0FF):** Info, secondary data, level indicators
 - **Red (#FF4444):** True danger, errors, gambling warnings (distinct from pink — red means STOP, pink means THRILL)
