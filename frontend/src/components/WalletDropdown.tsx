@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '../hooks/useWallet';
+import { useActor } from '../hooks/useActor';
 import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
 import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin, useICPBalance } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
@@ -115,6 +116,27 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const { data: userProfile } = useGetCallerUserProfile();
   const { data: ponziPointsData, isLoading: ponziLoading } = useGetPonziPoints();
   const saveProfileMutation = useSaveUserProfile();
+
+  // DIAGNOSTIC: expose whoAmI + displayed principal to devtools.
+  // Remove once principal-mismatch investigation concludes.
+  const { actor: __diagActor } = useActor();
+  useEffect(() => {
+    if (!__diagActor) return;
+    (async () => {
+      try {
+        const who = await __diagActor.whoAmI();
+        (window as any).__whoAmI = {
+          signing: who.toString(),
+          display: principal,
+          walletType,
+          match: who.toString() === principal,
+        };
+        console.log('[whoAmI]', (window as any).__whoAmI);
+      } catch (e) {
+        console.error('[whoAmI] failed', e);
+      }
+    })();
+  }, [__diagActor, principal, walletType]);
 
   // Cover Charge — admin only. Hooks below are no-ops unless the connected
   // principal matches COVER_CHARGE_RECIPIENT (backend enforces independently).

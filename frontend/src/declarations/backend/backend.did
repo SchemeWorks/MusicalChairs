@@ -158,6 +158,7 @@ service : {
   getCoverChargeBalance: () -> (nat) query;
   getCoverChargeTransactions: () -> (vec CoverChargeEntry) query;
   getDaysActive: () -> (nat) query;
+  getAllDealerRepayments: () -> (vec record { principal; float64 }) query;
   getDealerPositions: () -> (vec DealerPosition) query;
   getDealerRepaymentBalance: () -> (float64) query;
   getGameById: (gameId: nat) -> (opt GameRecord) query;
@@ -203,6 +204,7 @@ service : {
   getTotalWithdrawals: () -> (float64) query;
   getUserGames: () -> (vec GameRecord) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
+  whoAmI: () -> (principal) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
    (ConsentMessageResponse);

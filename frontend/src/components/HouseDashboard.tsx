@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useWallet } from '../hooks/useWallet';
-import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats } from '../hooks/useQueries';
+import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
 import { formatICP } from '../lib/formatICP';
@@ -234,6 +234,11 @@ function HouseLedgerRecords() {
 function BackerPositions() {
   const { principal } = useWallet();
   const { data: backerPositions = [], isLoading, error, refetch } = useGetBackerPositions();
+  const { data: repaymentEntries = [] } = useGetAllBackerRepayments();
+
+  const repaidByOwner = new Map<string, number>(
+    repaymentEntries.map(([p, v]) => [p.toString(), v])
+  );
 
   if (error) {
     return (
@@ -255,7 +260,12 @@ function BackerPositions() {
   };
 
   const totalHouseMoney = backers.reduce((s, d) => s + (d.amount || 0), 0);
-  const totalDebt = backers.reduce((s, d) => s + (d.entitlement || 0), 0);
+  const totalEntitlement = backers.reduce((s, d) => s + (d.entitlement || 0), 0);
+  const totalRepaid = backers.reduce(
+    (s, d) => s + (repaidByOwner.get(d.owner.toString()) || 0),
+    0,
+  );
+  const outstandingDebt = Math.max(0, totalEntitlement - totalRepaid);
 
   return (
     <div className="space-y-6">
@@ -283,7 +293,7 @@ function BackerPositions() {
         <div className="flex flex-col gap-3 lg:w-56">
           <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
             <div className="mc-label mb-1">Outstanding Backer Debt</div>
-            <div className="text-xl font-bold mc-text-danger">{formatICP(totalDebt)} ICP</div>
+            <div className="text-xl font-bold mc-text-danger">{formatICP(outstandingDebt)} ICP</div>
           </div>
           <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
             <div className="mc-label mb-1">Total Funds Raised</div>
@@ -301,7 +311,11 @@ function BackerPositions() {
         <div className="space-y-3">
           <h3 className="font-display text-base mc-text-primary text-center">Current Backers</h3>
           {backers.map(backer => {
-            const repayPct = backer.entitlement > 0 ? ((backer.entitlement - backer.amount) / backer.entitlement) * 100 : 0;
+            const repaid = repaidByOwner.get(backer.owner.toString()) || 0;
+            const repayPct = backer.entitlement > 0
+              ? (repaid / backer.entitlement) * 100
+              : 0;
+            const remaining = Math.max(0, backer.entitlement - repaid);
             const isSeriesA = 'upstream' in backer.dealerType;
 
             return (
@@ -344,12 +358,12 @@ function BackerPositions() {
                   <div>
                     <div className="mc-label mb-1">Repayment</div>
                     <div className="text-sm font-bold mc-text-primary mb-1">
-                      {formatICP(backer.entitlement - backer.amount)} / {formatICP(backer.entitlement)} ICP
+                      {formatICP(repaid)} / {formatICP(backer.entitlement)} ICP
                     </div>
                     <Progress value={Math.max(0, Math.min(100, repayPct))} className="mb-1 h-2" />
                     <div className="flex justify-between text-xs mc-text-muted">
                       <span>{Math.max(0, repayPct).toFixed(1)}% repaid</span>
-                      <span className="mc-text-danger">Remaining: {formatICP(backer.amount)} ICP</span>
+                      <span className="mc-text-danger">Remaining: {formatICP(remaining)} ICP</span>
                     </div>
                   </div>
                 </div>

@@ -17,23 +17,6 @@ import AccessControl "authorization/access-control";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 
-// Migration: discard stable vars from the retired internal-wallet model.
-// See docs/superpowers/specs/2026-04-17-kill-internal-wallet-balance-design.md.
-(with migration = func(
-    _old : {
-        var walletBalances : OrderedMap.Map<Principal, Nat>;
-        var walletTransactions : OrderedMap.Map<Nat, {
-            id : Nat;
-            user : Principal;
-            txType : { #deposit; #withdrawal; #gameDeposit; #gameWithdrawal; #transfer };
-            amount : Nat;
-            timestamp : Int;
-            ledgerBlockIndex : ?Nat;
-            description : Text;
-        }>;
-        var nextWalletTxId : Nat;
-    }
-) : {} = {})
 persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
@@ -97,6 +80,12 @@ persistent actor {
 
     public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
         principalMap.get(userProfiles, caller);
+    };
+
+    // Diagnostic: returns the caller's principal as seen by the canister.
+    // Use to debug display-principal vs signing-principal mismatches.
+    public query ({ caller }) func whoAmI() : async Principal {
+        caller;
     };
 
     public query func getUserProfile(user : Principal) : async ?UserProfile {
@@ -1409,6 +1398,11 @@ persistent actor {
             case (null) { 0.0 };
             case (?balance) { balance };
         };
+    };
+
+    // Get all dealer repayment balances (public — backer roster is public anyway).
+    public query func getAllDealerRepayments() : async [(Principal, Float)] {
+        Iter.toArray(principalMapNat.entries(dealerRepayments));
     };
 
     // Claim Dealer Repayment — transfers repayment balance to user's ledger account

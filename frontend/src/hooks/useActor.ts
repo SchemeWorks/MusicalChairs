@@ -50,11 +50,15 @@ export function useActor(): UseActorResult {
 
         // For Oisy, create actor via SignerAgent
         if (walletType === 'oisy' && principal) {
+          console.log('[useActor] Creating Oisy SignerAgent for', principal);
           const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+          console.log('[useActor] SignerAgent created, getPrincipal:', (await signerAgent.getPrincipal())?.toString?.());
           const newActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+          (window as any).__oisyActor = newActor;
           setActor(newActor);
           return;
         }
+        console.log('[useActor] Falling through to HttpAgent path. walletType=', walletType, 'principal=', principal, 'identity=', !!identity);
 
         // For II or anonymous, create standard HTTP agent
         const agent = new HttpAgent({

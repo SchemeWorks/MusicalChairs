@@ -154,6 +154,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getDaysActive' : IDL.Func([], [IDL.Nat], ['query']),
+    'getAllDealerRepayments' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
+        ['query'],
+      ),
     'getDealerPositions' : IDL.Func([], [IDL.Vec(DealerPosition)], ['query']),
     'getDealerRepaymentBalance' : IDL.Func([], [IDL.Float64], ['query']),
     'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
@@ -224,6 +229,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
+    'whoAmI' : IDL.Func([], [IDL.Principal], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(StandardRecord)],

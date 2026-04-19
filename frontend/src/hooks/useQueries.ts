@@ -132,6 +132,21 @@ export function useGetBackerRepaymentBalance() {
 // Legacy alias
 export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 
+// All Backer Repayment Balances (public — matches backer roster visibility)
+export function useGetAllBackerRepayments() {
+  const { actor, isFetching: actorFetching } = useActor();
+
+  return useQuery<Array<[Principal, number]>>({
+    queryKey: ['allBackerRepayments'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getAllDealerRepayments();
+    },
+    enabled: !!actor && !actorFetching,
+    refetchInterval: 5000,
+  });
+}
+
 // House Ledger Queries with enhanced error handling
 export function useGetHouseLedger() {
   const { actor, isFetching: actorFetching } = useActor();

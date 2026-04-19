@@ -129,6 +129,7 @@ export interface _SERVICE {
   'getCoverChargeBalance' : ActorMethod<[], bigint>,
   'getCoverChargeTransactions' : ActorMethod<[], Array<CoverChargeEntry>>,
   'getDaysActive' : ActorMethod<[], bigint>,
+  'getAllDealerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
   'getDealerPositions' : ActorMethod<[], Array<DealerPosition>>,
   'getDealerRepaymentBalance' : ActorMethod<[], number>,
   'getGameById' : ActorMethod<[bigint], [] | [GameRecord]>,
@@ -174,6 +175,7 @@ export interface _SERVICE {
   'getTotalWithdrawals' : ActorMethod<[], number>,
   'getUserGames' : ActorMethod<[], Array<GameRecord>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
+  'whoAmI' : ActorMethod<[], Principal>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],

@@ -212,9 +212,15 @@ export function useLedger() {
       throw new Error('Wallet not connected');
     }
 
-    // For Plug wallet, use Plug's built-in methods instead
+    // For Plug wallet, use Plug's own agent
     if (walletType === 'plug') {
-      return null; // Will use Plug's native methods
+      if (!window.ic?.plug?.agent) {
+        throw new Error('Plug agent not initialized');
+      }
+      return Actor.createActor(icrcLedgerIDL, {
+        agent: window.ic.plug.agent as any,
+        canisterId: ICP_LEDGER_CANISTER_ID,
+      });
     }
 
     const agent = await HttpAgent.create({
@@ -241,15 +247,6 @@ export function useLedger() {
       throw new Error('Wallet not connected');
     }
 
-    // Use Plug's native method if connected with Plug
-    if (walletType === 'plug' && window.ic?.plug) {
-      const balances = await window.ic.plug.requestBalance();
-      const icpBalance = balances.find((b: any) => b.symbol === 'ICP');
-      // Plug returns balance as a number (not e8s), convert to e8s
-      return BigInt(Math.round((icpBalance?.amount || 0) * 100_000_000));
-    }
-
-    // For II/OISY, query the ledger directly
     const actor = await createLedgerActor();
     if (!actor) throw new Error('Failed to create ledger actor');
 
