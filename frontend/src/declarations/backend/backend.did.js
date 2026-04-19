@@ -161,6 +161,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getDealerPositions' : IDL.Func([], [IDL.Vec(DealerPosition)], ['query']),
     'getDealerRepaymentBalance' : IDL.Func([], [IDL.Float64], ['query']),
+    'getDealerRepaymentBalanceFor' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
     'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
     'getGameResetHistory' : IDL.Func([], [IDL.Vec(GameResetRecord)], ['query']),
     'getHouseLedger' : IDL.Func([], [IDL.Vec(HouseLedgerRecord)], ['query']),
@@ -184,6 +185,17 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getPlatformStats' : IDL.Func([], [PlatformStats], ['query']),
     'getPonziPoints' : IDL.Func([], [IDL.Float64], ['query']),
+    'getPonziPointsBreakdownFor' : IDL.Func(
+        [IDL.Principal],
+        [
+          IDL.Record({
+            'depositPoints' : IDL.Float64,
+            'referralPoints' : IDL.Float64,
+            'totalPoints' : IDL.Float64,
+          }),
+        ],
+        ['query'],
+      ),
     'getPonziPointsBalance' : IDL.Func(
         [],
         [
@@ -196,9 +208,22 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getPonziPointsBalanceFor' : IDL.Func([IDL.Principal], [IDL.Float64], []),
+    'getPonziPointsFor' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
     'getReferralEarnings' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
     'getReferralTierPoints' : IDL.Func(
         [],
+        [
+          IDL.Record({
+            'level3Points' : IDL.Float64,
+            'level1Points' : IDL.Float64,
+            'totalPoints' : IDL.Float64,
+            'level2Points' : IDL.Float64,
+          }),
+        ],
+        ['query'],
+      ),
+    'getReferralTierPointsFor' : IDL.Func(
+        [IDL.Principal],
         [
           IDL.Record({
             'level3Points' : IDL.Float64,
@@ -224,12 +249,14 @@ export const idlFactory = ({ IDL }) => {
     'getTotalHouseMoneyAdded' : IDL.Func([], [IDL.Float64], ['query']),
     'getTotalWithdrawals' : IDL.Func([], [IDL.Float64], ['query']),
     'getUserGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
+    'getUserGamesFor' : IDL.Func([IDL.Principal], [IDL.Vec(GameRecord)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
-    'whoAmI' : IDL.Func([], [IDL.Principal], ['query']),
+    'getUserRole' : IDL.Func([IDL.Principal], [UserRole], ['query']),
+    'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(StandardRecord)],
