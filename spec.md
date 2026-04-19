@@ -56,9 +56,9 @@ Users can make multiple deposits and choose different plans for each deposit. Fo
 
 ### Fee System
 - **House Maintenance Fee**: 3% skimmed from every deposit, sent directly to houses' Musical Chairs Wallets as soon as fees are collected
-- **Exit Toll (Withdrawal Fees)**:
+- **Carried Interest (Withdrawal Fees)**:
   - Simple plans: 7% if withdrawn within 3 days, 5% if within 10 days, 3% after 10 days
-  - Compounding plans: Flat 13% fee
+  - Compounding plans: 9% Jackpot Fee on the 15-day plan, 13% Jackpot Fee on the 30-day plan
   - All withdrawal fees sent directly to houses' Musical Chairs Wallets as soon as fees are collected
 - **Updated House Repayment Distribution**: Of the 50% of fees earmarked for house repayment:
   - **35%** goes to the oldest Upstream Dealer (determined by first house money deposit date)
@@ -89,9 +89,9 @@ Users can make multiple deposits and choose different plans for each deposit. Fo
 - Users can withdraw their accumulated earnings at any time in simple mode
 - Clear withdraw button available for simple mode entries on the dashboard
 - **Withdrawal confirmation dialog**: When users click withdraw, a dialog appears with a solid, readable background showing:
-  - For positions not yet at 3% tier: "You will pay a X% exit toll on this withdrawal. If you wait [amount of time] the exit toll will reduce to Y%."
-  - For positions already at 3% tier: "You will pay a X% exit toll on this withdrawal."
-  - **Dynamic countdown display**: Exit toll countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
+  - For positions not yet at 3% tier: "You will pay a X% carried interest on this withdrawal. If you wait [amount of time] the carried interest will reduce to Y%."
+  - For positions already at 3% tier: "You will pay a X% carried interest on this withdrawal."
+  - **Dynamic countdown display**: Carried interest countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
 - **Earnings are credited to Musical Chairs Wallet**: When users withdraw earnings, the amount is added to their Musical Chairs Wallet balance
 - **Earnings reset after withdrawal**: After successful withdrawal, the position's accumulated earnings are reset to 0
 - **Post-withdrawal celebration dialog**: After successful withdrawal, show a dialog with:
@@ -332,10 +332,10 @@ The backend stores:
 - **Ponzi Points token operations**: Backend functions for minting, burning, and transferring Ponzi Points through the token canister
 - **Real-time Ponzi Points balance synchronization**: Real-time synchronization and tracking of user Ponzi Points balances with the token canister, ensuring all displays show actual earned points from all sources
 - **Ponzi Points referral tracking**: Multi-level perpetual Ponzi Points referral rewards and relationships with detailed tier counts and earnings per tier, all managed through the token canister
-- **Withdrawal fee calculations**: Time-based fee calculations for Exit Tolls
+- **Withdrawal fee calculations**: Time-based fee calculations for Carried Interest
 - **Unprofitable depositor tracking**: Data for The Redistribution Event lottery eligibility
 - **Instant house repayment processing**: System for crediting house repayments instantly and accurately to Musical Chairs Wallet balances according to the new distribution logic
-- **Withdrawal confirmation data**: Exit toll calculations and time remaining until next tier for withdrawal dialogs
+- **Withdrawal confirmation data**: Carried interest calculations and time remaining until next tier for withdrawal dialogs
 - **Add House Money tracking**: Records of direct house money deposits with no maximum limit (minimum 0.1 ICP), entitlement increases, associated Ponzi Points awards at 4,000 Ponzi Points per ICP deposited through the token canister, automatic addition of deposited amounts to the platform pot, and first deposit date tracking for Upstream Dealers
 - **Total House Money Added tracking**: Cumulative tracking of all house money deposits made throughout the application's lifetime for statistical display
 - **Outstanding Dealer Debt tracking**: Real-time calculation and tracking of total outstanding debt owed to all dealers for statistical display
@@ -520,9 +520,9 @@ The backend stores:
   - **Redesigned Refresh Earnings button styling**: Refresh button styled as pill-shaped with rounded-full class, bright blue color (#00cfff), frosted glass effect, glowing blue border, no shimmer effect, and on hover, the button glows brighter and scales up slightly for a lively, interactive feel, matching the "Start Game" button style but in blue, with no emoji
   - **Accumulated earnings display**: Shows total accumulated earnings with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present, limited to maximum of 8 decimal places) that update when refresh button is clicked, showing the sum of all earnings calculated since position opening
   - **Withdraw button for all eligible positions**: For simple mode positions, active withdraw button that credits earnings to Musical Chairs Wallet and resets accumulated earnings to 0, styled consistently with the current UI and appearing only when the plan is active and withdrawal is permitted
-  - For compounding mode positions: grayed-out withdraw button with countdown timer showing days/hours/minutes until withdrawal becomes available, and 13% Jackpot Fee notice
+  - For compounding mode positions: grayed-out withdraw button with countdown timer showing days/hours/minutes until withdrawal becomes available, and Jackpot Fee notice (9% on 15-day plan, 13% on 30-day plan)
   - On-demand updates as earnings are recalculated when users click refresh
-- **The House Always Wins section positioned at the very bottom**: Exit Tolls section at the bottom of the unified container, featuring:
+- **The House Always Wins section positioned at the very bottom**: Carried Interest section at the bottom of the unified container, featuring:
   - **Enhanced solid-color bubble styling with hover effects**: Styled as a solid-color bubble with:
     - **Soft box-shadow**: Subtle shadow for depth and visual separation
     - **Rounded corners (16px)**: Smooth, rounded edges for modern appearance
@@ -531,7 +531,7 @@ The backend stores:
   - **Bold subheader**: "🎰 The House Always Wins 🎰" displayed above the details
   - **Styled bullet list without emoji icons**: Each line in the bullet list without the previous subtle icons for visual enhancement
   - Fun sub-tagline under the title: "The House Always Wins — but here's how much."
-  - **Updated exit toll rubric**: Small informational section explaining the 3 exit toll tiers for simple positions ("Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days"), plus the lines: "Successful compounding plans will be charged a 13% Jackpot Fee on their withdrawal. Compounding plans pay out the compounded interest at maturity."
+  - **Updated carried interest rubric**: Small informational section explaining the 3 carried interest tiers for simple positions ("Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days"), plus the lines: "Successful compounding plans will be charged a Jackpot Fee on their withdrawal — 9% on the 15-day plan, 13% on the 30-day plan. Compounding plans pay out the compounded interest at maturity."
 - **Vertical stacking with clear spacing**: All three sections stacked vertically within the container with clear vertical spacing so each section is visually distinct but clearly part of the same bubble
 - **Centered content**: All content within the unified container is centered for visual balance
 - **Mobile responsive spacing**: Adjusted mobile and responsive layouts to maintain comfortable spacing and avoid sections stacking too tightly
@@ -568,8 +568,8 @@ The backend stores:
     - • Minimum Deposit: 0.1 ICP
     - • Simple mode: Maximum deposit applies (20% of pot or 5 ICP, whichever is higher)
     - • Compounding mode: No maximum deposit limit
-    - • 2% Cover Charge on every deposit (paid to Management)
-    - • Exit tolls still split 50/50 — half seed the next round, half repay the House. Cover charge does not touch the pot.
+    - • 2% Front-End Load on every deposit (paid to Management)
+    - • Carried interest still split 50/50 — half seed the next round, half repay the House. Front-End Load does not touch the pot.
   - **Live ROI calculator positioned side by side with the deposit field** horizontally aligned with the deposit field (not with the "Select Amount / Available" line), with reduced top margin/padding by the equivalent of one text line to align the top of the bubble closer to the deposit field while maintaining the side-by-side positioning and keeping the bottom, left, and right limits unchanged
   - **Updated ROI calculator display for simple mode**: 
     - **"🚀 Expected ROI if plan matures before the round ends." styled as white text with subtle drop shadow**
@@ -671,7 +671,7 @@ The backend stores:
     - **The Redistribution Event highlight**: Brief explanation styled as a visually distinct callout or highlight within the card
     - **Updated dealer entitlement explanation**: "New Downstream Dealers are entitled to recoup however much they were underwater during the round, plus a 12% dealer bonus."
     - **Updated fee distribution explanation**: "Fees earmarked for dealer repayment are automatically deposited to dealers' principals according to the new distribution logic as they are collected."
-    - **Simplified fee breakdown**: "Half of House Maintenance fees and Exit Tolls go to repaying the dealers according to the updated distribution system."
+    - **Simplified fee breakdown**: "Half of House Maintenance fees and Carried Interest go to repaying the dealers according to the updated distribution system."
 - **Ledger Records tab content**: Contains dealer repayment status and history with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present), plus comprehensive Shenanigans event logging with human-readable entries showing timestamp, round_id, item_id, caster_id, target_ids, outcome, pp_deltas, and notes for admin analytics
 - **Real-time dealer repayment display**: Shows instant updates when dealer repayments are credited to Musical Chairs Wallets according to the new distribution logic
 - **Custom house money deposit toast notification**: When users successfully deposit house money, a custom in-theme toast notification appears instead of a browser alert, featuring:
@@ -959,8 +959,8 @@ The backend stores:
   - All shenanigan-specific parameters
 
 ### General Interface Features
-- **Withdrawal confirmation dialog**: Modal dialog with a solid, readable background that appears when users click withdraw, showing exit toll percentage and time remaining until next tier (if applicable) with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
-- **Dynamic countdown display**: Exit toll countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
+- **Withdrawal confirmation dialog**: Modal dialog with a solid, readable background that appears when users click withdraw, showing carried interest percentage and time remaining until next tier (if applicable) with properly formatted ICP values (trailing zeros removed while preserving up to 8 decimal places if present)
+- **Dynamic countdown display**: Carried interest countdown displayed in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that dynamically updates as time passes
 - **Post-withdrawal celebration dialog**: After successful withdrawal, show a dialog with:
   - Header: "🎉 Congratulations!"
   - Message: "This scheme has earned you [X ICP]! Want to grow it even more? Reinvest in a new plan now!"
@@ -1031,7 +1031,7 @@ The backend stores:
   - **35%** to the oldest Upstream Dealer (determined by first house money deposit date)
   - **25%** split evenly among other Upstream Dealers (excluding the oldest)
   - **40%** split evenly among all dealers (both Upstream and Downstream)
-- **Direct fee distribution system**: Automated immediate distribution of House Maintenance fees and Exit Tolls directly to houses' Musical Chairs Wallets according to the new distribution percentages
+- **Direct fee distribution system**: Automated immediate distribution of House Maintenance fees and Carried Interest directly to houses' Musical Chairs Wallets according to the new distribution percentages
 - **Self-deposit house repayment system**: Special logic for when the only house makes subsequent deposits, automatically crediting half of the house maintenance fee back to their Musical Chairs Wallet
 - **The Redistribution Event system**: Random selection of unprofitable depositors for new Downstream Dealer appointments
 - **ICRC-2 Token Canister Integration**: Complete integration with the Ponzi Points token canister (ID: `awsqm-4qaaa-aaaau-aclja-cai`) including:
@@ -1044,8 +1044,8 @@ The backend stores:
   - **Transaction logging**: Comprehensive logging of all token operations for audit purposes
 - **Ponzi Points calculation engine**: Real-time calculation of Ponzi Points with updated plan and mode multipliers (base rate 1000 per ICP, simple plan multiplier 1x, compounding plan multipliers 2x and 3x), all minted through the token canister
 - **Real-time Ponzi Points referral system**: Multi-level perpetual Ponzi Points distribution system with detailed tier count and earnings tracking per tier, displaying actual earned points from each tier using live in-game data, all managed through the token canister
-- **Time-based withdrawal fee calculation**: Dynamic Exit Toll calculation based on deposit timing
-- **Withdrawal confirmation system**: Dialog system with solid, readable background showing exit toll percentages and time remaining until next tier
+- **Time-based withdrawal fee calculation**: Dynamic Carried Interest calculation based on deposit timing
+- **Withdrawal confirmation system**: Dialog system with solid, readable background showing carried interest percentages and time remaining until next tier
 - **Dynamic countdown system**: Real-time countdown display in readable format like "2 days, 23 hours, 30 minutes, 44 seconds" that updates as time passes
 - **Post-withdrawal celebration dialog system**: Modal dialog system with **proper confetti animation** featuring colorful paper pieces, streamers, and geometric shapes in casino colors creating a celebratory and casino-like effect, styled to match other dialogs with rounded corners, drop shadow, and bold ICP numbers
 - **Navigation system**: Floating dock navigation functionality that navigates directly to the Pick Your Plan section when "YOLO Again 🚀" button is clicked

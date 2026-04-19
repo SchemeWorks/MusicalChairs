@@ -4,7 +4,7 @@ import { useCountUp } from '../hooks/useCountUp';
 import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE, COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
+import { COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 
 /* ================================================================
@@ -128,17 +128,6 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   const dailyEarnings = depositAmount > 0 && selectedPlan && selectedMode
     ? netDeposit * getDailyRate(selectedPlan)
     : 0;
-
-  // Toll tier schedule per plan — derived from gameConstants to avoid drift
-  const tollTiers: Record<string, Array<{ daysFrom: number; daysTo: number | null; tollPct: number }>> = {
-    '21-day-simple': [
-      { daysFrom: 0, daysTo: 3, tollPct: Math.round(EXIT_TOLL_EARLY * 100) },
-      { daysFrom: 3, daysTo: 10, tollPct: Math.round(EXIT_TOLL_MID * 100) },
-      { daysFrom: 10, daysTo: null, tollPct: Math.round(EXIT_TOLL_LATE * 100) },
-    ],
-    '15-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
-    '30-day-compounding': [{ daysFrom: 0, daysTo: null, tollPct: Math.round(JACKPOT_FEE_RATE * 100) }],
-  };
 
   // Phase transitions
   const advancePhase = (nextPhase: Phase) => {
@@ -276,7 +265,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 21 days of 11% daily returns</li>
                 <li>• Withdraw your earnings anytime</li>
-                <li>• Exit Toll: 7% / 5% / 3% based on timing</li>
+                <li>• Carried Interest: 7% / 5% / 3% based on timing</li>
                 <li>• Ponzi Points: 1x multiplier</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-green opacity-0 group-hover:opacity-100 transition-opacity">
@@ -297,7 +286,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• Enhanced returns through compounding</li>
                 <li>• Choose 15 or 30-day lockup</li>
-                <li>• Exit Toll: Flat 13% fee</li>
+                <li>• Carried Interest: 9% (15-day) or 13% (30-day)</li>
                 <li>• Ponzi Points: 2x–3x multipliers</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-purple opacity-0 group-hover:opacity-100 transition-opacity">
@@ -324,6 +313,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 12% compounding daily for 15 days</li>
                 <li>• 2x Ponzi Points multiplier</li>
                 <li>• Funds locked until maturity</li>
+                <li>• Jackpot Fee: 9% at maturity</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-gold opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -344,6 +334,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 9% compounding daily for 30 days</li>
                 <li>• 3x Ponzi Points multiplier</li>
                 <li>• Funds locked until maturity</li>
+                <li>• Jackpot Fee: 13% at maturity</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-gold opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -416,34 +407,12 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
 
                     <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-500/10 mt-3 text-xs space-y-1">
                       <p>
-                        <span className="font-semibold text-amber-300">{pct(COVER_CHARGE_RATE)} cover charge</span>
+                        <span className="font-semibold text-amber-300">{pct(COVER_CHARGE_RATE)} Front-End Load</span>
                         <span className="mc-text-muted"> goes to Management. You deposit N, the pot books N×{(1 - COVER_CHARGE_RATE).toFixed(2)}.</span>
                       </p>
-                      <p className="mc-text-muted">Exit tolls split 50/50 — half seed the next round, half repay our backers.</p>
                       {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
                     </div>
 
-                    {selectedPlan && tollTiers[selectedPlan] && (
-                      <details className="mt-3 text-xs mc-text-muted">
-                        <summary className="cursor-pointer hover:mc-text-primary">
-                          Exit toll schedule →
-                        </summary>
-                        <div className="mt-2 space-y-1 pl-3">
-                          {tollTiers[selectedPlan].map((tier) => (
-                            <div key={tier.daysFrom} className="flex justify-between">
-                              <span>
-                                {tier.daysTo === null
-                                  ? `Day ${tier.daysFrom}+`
-                                  : `Day ${tier.daysFrom}–${tier.daysTo}`}
-                              </span>
-                              <span className={tier.tollPct > 10 ? 'text-red-400' : tier.tollPct > 4 ? 'text-amber-400' : 'text-green-400'}>
-                                {tier.tollPct}% toll
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
                   </div>
 
                   {/* ROI Calculator */}
@@ -474,7 +443,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                           </div>
                           <div className="border-t border-white/10 pt-3 space-y-1.5">
                             <div className="flex justify-between text-sm">
-                              <span className="mc-text-muted">Cover charge ({pct(COVER_CHARGE_RATE)})</span>
+                              <span className="mc-text-muted">Front-End Load ({pct(COVER_CHARGE_RATE)})</span>
                               <span className="mc-text-primary font-medium">
                                 -{formatICP(depositAmount * COVER_CHARGE_RATE)} ICP
                               </span>

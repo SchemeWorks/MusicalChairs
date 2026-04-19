@@ -61,7 +61,10 @@ function getExitTollInfo(game: GameRecord) {
   const startTime = Number(game.startTime) / 1_000_000;
   const elapsed = Date.now() - startTime;
   const days = elapsed / 86_400_000;
-  if (game.isCompounding) return { currentFee: 13, nextFee: null, timeToNext: null };
+  if (game.isCompounding) {
+    const fee = 'compounding15Day' in game.plan ? 9 : 13;
+    return { currentFee: fee, nextFee: null, timeToNext: null };
+  }
   if (days < 3) return { currentFee: 7, nextFee: 5, timeToNext: (3 * 86_400_000) - elapsed };
   if (days < 10) return { currentFee: 5, nextFee: 3, timeToNext: (10 * 86_400_000) - elapsed };
   return { currentFee: 3, nextFee: null, timeToNext: null };
@@ -85,7 +88,7 @@ function getTollBadgeClasses(fee: number): string {
   if (fee <= 3) return 'bg-[var(--mc-neon-green)]/20 mc-text-green';
   if (fee <= 5) return 'bg-[var(--mc-gold)]/20 mc-text-gold';
   if (fee <= 7) return 'bg-[var(--mc-danger)]/20 mc-text-danger';
-  return 'bg-[var(--mc-purple)]/20 mc-text-purple'; // compounding 13%
+  return 'bg-[var(--mc-purple)]/20 mc-text-purple'; // compounding (9% or 13%)
 }
 
 function getPositionUrgency(game: GameRecord): number {
@@ -136,7 +139,7 @@ function PositionCard({
         <span className="text-xs mc-text-muted">{daysActive(game.startTime)}d active</span>
       </div>
 
-      {/* Numbers row: deposit | live earnings | exit toll */}
+      {/* Numbers row: deposit | live earnings | carried interest */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
           <div className="mc-label">Deposit</div>
@@ -149,7 +152,7 @@ function PositionCard({
           <div className="text-xs mc-text-muted">live</div>
         </div>
         <div className="text-right">
-          <div className="mc-label">Exit Toll</div>
+          <div className="mc-label">Carried Interest</div>
           <div className={`inline-block text-sm font-bold px-2 py-0.5 rounded-full ${getTollBadgeClasses(tollInfo.currentFee)}`}>
             {tollInfo.currentFee}%
           </div>
@@ -373,8 +376,8 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           {feesExpanded && (
             <div className="mt-3 text-sm mc-text-muted space-y-2">
               <p className="font-accent italic">A small reinvestment keeps the engine running — and your returns flowing.</p>
-              <p>Simple positions: 7% exit toll within 3 days, 5% within 10 days, 3% after.</p>
-              <p>Compounding plans: flat 13% Jackpot Fee at withdrawal.</p>
+              <p>Simple positions: 7% carried interest within 3 days, 5% within 10 days, 3% after.</p>
+              <p>Compounding plans: 9% Jackpot Fee (15-day) or 13% Jackpot Fee (30-day) at maturity.</p>
               <p>Compounding plans pay out compounded interest at maturity.</p>
             </div>
           )}
@@ -501,12 +504,12 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               if (info.nextFee && info.timeToNext) {
                 return (
                   <span>
-                    You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.
+                    You'll pay <strong className="mc-text-gold">{info.currentFee}%</strong> carried interest.
                     Wait <strong className="mc-text-cyan">{countdown}</strong> to reduce it to <strong className="mc-text-green">{info.nextFee}%</strong>.
                   </span>
                 );
               }
-              return <span>You'll pay a <strong className="mc-text-gold">{info.currentFee}%</strong> exit toll.</span>;
+              return <span>You'll pay <strong className="mc-text-gold">{info.currentFee}%</strong> carried interest.</span>;
             })()}
           </p>
           <div className="flex gap-2 justify-end">

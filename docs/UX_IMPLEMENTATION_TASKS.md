@@ -131,7 +131,7 @@
 **File:** `App.tsx`
 **Tasks:**
 - Below the info cards, add a "How It Works" expandable section or scrollable cards
-- Content: brief summaries of game plans, exit tolls, shenanigans, PP system
+- Content: brief summaries of game plans, carried interest, shenanigans, PP system
 - "Read the full docs" link that scrolls to the docs section (or opens in-app docs after login)
 - Keep it concise — 3-4 cards max, matching the existing mc-card style
 **Effort:** 2-3 hours
@@ -173,7 +173,7 @@
 - Compounding 15-day: show `daysActive / 15`
 - Compounding 30-day: show `daysActive / 30`
 - Use mc-accent-green for simple, mc-accent-purple for compounding
-- Show current exit toll tier as a small badge: "7% toll", "5% toll", "3% toll"
+- Show current carried interest tier as a small badge: "7% toll", "5% toll", "3% toll"
 **Effort:** 2-3 hours
 
 ### 5.4 Position Sorting
@@ -333,7 +333,7 @@
 - Sections:
   - **How It Works** (overview)
   - **Game Plans** (simple 21-day, compounding 15-day, compounding 30-day)
-  - **The Math** (daily rates, compounding formulas, exit toll schedule)
+  - **The Math** (daily rates, compounding formulas, carried interest schedule)
   - **Dealers & House Money** (12% entitlement, fee distribution, redistribution events)
   - **Shenanigans** (all 11, costs, odds, effects, backfire mechanics)
   - **Ponzi Points** (earn rates per plan, burn mechanics, referral PP)
@@ -359,11 +359,11 @@
 - Simple: `earnings = amount * dailyRate * (elapsedSeconds / 86400)`
 - Compounding: `earnings = amount * ((1 + dailyRate)^daysElapsed - 1)`
 
-**Exit Tolls (Simple mode only):**
+**Carried Interest (Simple mode only):**
 - Days 0-3: 7%
 - Days 3-10: 5%
 - Days 10+: 3%
-- Compounding plans: flat 13% Jackpot Fee at withdrawal
+- Compounding plans: 9% Jackpot Fee on the 15-day plan, 13% Jackpot Fee on the 30-day plan, charged at maturity
 
 **Deposit Limits:**
 - Minimum: 0.1 ICP
@@ -507,7 +507,7 @@
 **Tasks:**
 - Find places to sneak in Charles references:
   - House Ledger info: "Charles takes a 3% maintenance fee on every deposit"
-  - Exit toll info: "Charles collects a 7% exit toll if you leave within 3 days"
+  - Carried interest info: "Charles collects a 7% carried interest if you leave within 3 days"
   - Redistribution Event: "When the pot runs dry, Charles resets the table"
   - Error states: "Even Charles couldn't fix this one"
   - Loading states: "Charles is counting the money..."

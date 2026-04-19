@@ -261,7 +261,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               <div>
                 <div className="mc-label flex items-center gap-1.5">
                   <Briefcase className="h-3 w-3 mc-text-gold" />
-                  Cover Charges
+                  Front-End Load
                 </div>
                 <div className="text-lg font-bold mc-text-gold">
                   {coverChargeLoading ? '...' : coverChargeData ? formatICP(coverChargeData.icp) : '—'} ICP

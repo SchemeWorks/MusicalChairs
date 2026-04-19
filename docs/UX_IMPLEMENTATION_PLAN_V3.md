@@ -1112,14 +1112,14 @@ Use `position: absolute` positioned relative to each tab button. No external lib
 
 **File:** New `frontend/src/components/GameDocs.tsx`, `frontend/src/App.tsx`
 
-**Problem:** No documentation exists in the app. Users must understand Ponzi mechanics, lock-up periods, exit tolls, shenanigan odds, and PP earn rates with no explanation.
+**Problem:** No documentation exists in the app. Users must understand Ponzi mechanics, lock-up periods, carried interest, shenanigan odds, and PP earn rates with no explanation.
 
 **Fix:** Create a comprehensive docs component accessible from a "?" icon in the header:
 
 **Sections (collapsible accordion):**
 1. **How It Works** — overview of deposit → earn → withdraw cycle
 2. **Game Plans** — Simple 21-day (11%/day), Compounding 15-day (12%/day), Compounding 30-day (9%/day)
-3. **Exit Tolls** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%. Compounding: 13% Jackpot Fee
+3. **Carried Interest** — Day 0-3: 7%, Day 3-10: 5%, Day 10+: 3%. Compounding Jackpot Fee: 9% (15-day) / 13% (30-day)
 4. **Dealers & Seed Round** — 12% entitlement, 3% maintenance fee, fee distribution
 5. **Shenanigans** — all 11 types with costs and odds (reference the table from v1 task list)
 6. **Ponzi Points** — earn rates per plan, what you can spend them on
@@ -1351,7 +1351,7 @@ Reuse the existing `mc-bottom-sheet` and `mc-sheet-backdrop` CSS from WalletDrop
 **Fix:** Add Charles personality to these specific locations:
 - **HouseDashboard info cards:** "Charles takes a 3% maintenance fee on every deposit" (in the fee explanation section)
 - **HouseDashboard redistribution callout:** "When the pot runs dry, Charles resets the table. No exceptions." (replace or augment existing copy)
-- **GameTracking exit toll info:** "Charles collects a 7% exit toll if you leave within 3 days. His table, his rules." (in the info card)
+- **GameTracking carried interest info:** "Charles collects a 7% carried interest if you leave within 3 days. His table, his rules." (in the info card)
 - **Error states (global):** When an API call fails, show "Even Charles couldn't fix this one. Try again?" alongside the retry button
 - **Loading states:** Where relevant, "Charles is counting the money..." or "Charles is shuffling the deck..." instead of generic spinners
 
