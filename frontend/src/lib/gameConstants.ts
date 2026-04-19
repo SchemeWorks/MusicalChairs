@@ -32,7 +32,8 @@ export const EXIT_TOLL_EARLY_DAYS = 3;
 export const EXIT_TOLL_MID_DAYS = 10;
 
 // ── Exit Tolls — Compounding ────────────────────────────────────────
-export const JACKPOT_FEE_RATE = 0.13;           // 13 %
+export const JACKPOT_FEE_RATE_15D = 0.09;       //  9 % (15-day plan)
+export const JACKPOT_FEE_RATE_30D = 0.13;       // 13 % (30-day plan)
 
 // ── Fee Distribution ────────────────────────────────────────────────
 export const FEE_POT_SHARE = 0.5;               // 50 % to pot

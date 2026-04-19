@@ -865,7 +865,8 @@ export function calculateExitTollFee(game: GameRecord, earnings: number): number
   const elapsedDays = elapsedTime / (1000 * 60 * 60 * 24);
   
   if (game.isCompounding) {
-    return earnings * 0.13; // Flat 13% for compounding
+    if ('compounding15Day' in game.plan) return earnings * 0.09;
+    return earnings * 0.13;
   } else {
     // Tiered fees for simple mode
     if (elapsedDays < 3) {

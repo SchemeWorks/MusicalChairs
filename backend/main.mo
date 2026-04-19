@@ -956,10 +956,14 @@ persistent actor {
 
     // Calculate exit toll fee based on game type and elapsed time
     // Simple: 7% (< 3 days), 5% (3-10 days), 3% (> 10 days)
-    // Compounding: flat 13%
+    // Compounding: 9% (15-day plan), 13% (30-day plan)
     func calculateExitToll(game : GameRecord, earnings : Float) : Float {
         if (game.isCompounding) {
-            earnings * 0.13
+            switch (game.plan) {
+                case (#compounding15Day) { earnings * 0.09 };
+                case (#compounding30Day) { earnings * 0.13 };
+                case (#simple21Day) { 0.0 }; // unreachable
+            };
         } else {
             let elapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
             let elapsedDays = elapsedSeconds / 86400.0;
@@ -1133,7 +1137,7 @@ persistent actor {
                 };
                 let earnings = game.amount * (Float.pow(1.0 + dailyRate, maturityDays) - 1.0);
 
-                // Apply exit toll: flat 13% on earnings for compounding games
+                // Apply exit toll on earnings (15-day: 9%, 30-day: 13%)
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
                 let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings

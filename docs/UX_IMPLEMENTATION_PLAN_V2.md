@@ -198,7 +198,7 @@ The exit toll percentage is already shown (line 119-124), but it's just a number
 - `7%` → red-ish badge (`bg-red-500/20 text-red-400`)
 - `5%` → gold badge (`bg-yellow-500/20 text-yellow-400`)
 - `3%` → green badge (`bg-green-500/20 text-green-400`)
-- `13%` (compounding) → purple badge (`bg-purple-500/20 text-purple-400`)
+- `9%` / `13%` (compounding 15-day / 30-day) → purple badge (`bg-purple-500/20 text-purple-400`)
 
 This makes the toll tier instantly scannable without reading.
 
