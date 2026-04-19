@@ -474,7 +474,8 @@ export default function App() {
         {showDashboard && <GameStatusBar onNavigate={goToTab} />}
 
         {/* Main Content */}
-        <main className={`${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
+        <main className={`flex-1 flex flex-col ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
+          <div className="flex-1">
           <ErrorBoundary fallback={
             <div className="text-center py-16 px-4">
               <Dices className="h-12 w-12 mc-text-purple mb-4 mx-auto" />
@@ -686,6 +687,7 @@ export default function App() {
               </ErrorBoundary>
             )}
           </ErrorBoundary>
+          </div>
           <Footer />
         </main>
 
