@@ -5,6 +5,7 @@ import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
+import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 
 /* ================================================================
@@ -77,9 +78,17 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   const createGameMutation = useCreateGame();
 
   const walletBalance = icpBalance || 0;
+  // Spendable = balance minus TWO ICP ledger fees. The deposit flow does
+  // icrc2_approve (fee 1) + icrc2_transfer_from (fee 2) — both deducted from the
+  // user. All comparisons and the MAX button stay in e8s bigints to avoid drift.
+  const DEPOSIT_FEE_RESERVE = ICP_TRANSFER_FEE * 2n;
+  const walletBalanceE8s = BigInt(Math.round(walletBalance * Number(E8S_PER_ICP)));
+  const walletSpendableE8s = walletBalanceE8s > DEPOSIT_FEE_RESERVE ? walletBalanceE8s - DEPOSIT_FEE_RESERVE : 0n;
   const maxDeposit = maxDepositLimit || 0;
+  const maxDepositE8s = BigInt(Math.round(maxDeposit * Number(E8S_PER_ICP)));
   const minDeposit = 0.1;
   const depositAmount = parseFloat(amount) || 0;
+  const depositAmountE8s = amount ? BigInt(Math.round(depositAmount * Number(E8S_PER_ICP))) : 0n;
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const restricted = restrictToEightDecimals(e.target.value);
@@ -178,9 +187,10 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     if (!selectedPlan) { triggerClickError('Select a plan first'); return; }
     if (!amount) { triggerClickError('Enter an amount'); return; }
     const dep = parseFloat(amount);
+    const depE8s = BigInt(Math.round(dep * Number(E8S_PER_ICP)));
     if (dep < minDeposit) { triggerClickError(`Amount below minimum (${minDeposit} ICP)`); triggerShake(); return; }
-    if (dep > walletBalance) { triggerClickError('Insufficient balance'); triggerShake(); return; }
-    if (selectedMode === 'simple' && dep > maxDeposit) { triggerClickError(`Max for simple mode: ${formatICP(maxDeposit)} ICP`); triggerShake(); return; }
+    if (depE8s > walletSpendableE8s) { triggerClickError('Insufficient balance (0.0002 ICP in ledger fees applies)'); triggerShake(); return; }
+    if (selectedMode === 'simple' && depE8s > maxDepositE8s) { triggerClickError(`Max for simple mode: ${formatICP(maxDeposit)} ICP`); triggerShake(); return; }
     if (isRateLimited) { triggerClickError('Rate limited — wait before opening another position'); return; }
     const v = validateICPInput(amount);
     if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
@@ -198,8 +208,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   const isAmountValid = selectedMode === 'simple'
-    ? depositAmount >= minDeposit && depositAmount <= walletBalance && depositAmount <= maxDeposit && !inputError
-    : depositAmount >= minDeposit && depositAmount <= walletBalance && !inputError;
+    ? depositAmount >= minDeposit && depositAmountE8s <= walletSpendableE8s && depositAmountE8s <= maxDepositE8s && !inputError
+    : depositAmount >= minDeposit && depositAmountE8s <= walletSpendableE8s && !inputError;
   const hasValidAmount = amount && isAmountValid;
 
   return (
@@ -313,7 +323,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 12% compounding daily for 15 days</li>
                 <li>• 2x Ponzi Points multiplier</li>
                 <li>• Funds locked until maturity</li>
-                <li>• Jackpot Fee: 9% at maturity</li>
+                <li>• Carried Interest: 9% at maturity</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-gold opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -334,7 +344,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 9% compounding daily for 30 days</li>
                 <li>• 3x Ponzi Points multiplier</li>
                 <li>• Funds locked until maturity</li>
-                <li>• Jackpot Fee: 13% at maturity</li>
+                <li>• Carried Interest: 13% at maturity</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-gold opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -384,9 +394,12 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                       />
                       <button
                         onClick={() => {
-                          const max = selectedMode === 'simple' ? Math.min(walletBalance, maxDeposit) : walletBalance;
-                          const truncated = Math.floor(max * 100000000) / 100000000;
-                          setAmount(truncated.toFixed(8).replace(/\.?0+$/, ''));
+                          const maxE8s = selectedMode === 'simple' && maxDepositE8s < walletSpendableE8s
+                            ? maxDepositE8s
+                            : walletSpendableE8s;
+                          const wholePart = (maxE8s / 100_000_000n).toString();
+                          const fracPart = (maxE8s % 100_000_000n).toString().padStart(8, '0').replace(/0+$/, '');
+                          setAmount(fracPart ? `${wholePart}.${fracPart}` : wholePart);
                         }}
                         disabled={!walletBalance || walletBalance < minDeposit}
                         className={`mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap ${
@@ -395,23 +408,37 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                       >MAX</button>
                     </div>
 
-                    {depositAmount > 0 && (
+                    {depositAmount > 0 && !createGameMutation.isPending && (
                       <div className="mt-2 space-y-1 text-xs">
                         {inputError && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />{inputError}</div>}
                         {!inputError && depositAmount < minDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Minimum deposit is {minDeposit} ICP</div>}
-                        {!inputError && depositAmount > walletBalance && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance</div>}
-                        {!inputError && selectedMode === 'simple' && depositAmount > maxDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Max for simple mode: {formatICP(maxDeposit)} ICP</div>}
+                        {!inputError && depositAmountE8s > walletSpendableE8s && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance (0.0002 ICP in ledger fees applies)</div>}
+                        {!inputError && selectedMode === 'simple' && depositAmountE8s > maxDepositE8s && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Max for simple mode: {formatICP(maxDeposit)} ICP</div>}
                         {isRateLimited && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Rate limit: 3 positions per hour max</div>}
                       </div>
                     )}
 
-                    <div className="border border-amber-500/40 rounded-lg p-3 bg-amber-500/10 mt-3 text-xs space-y-1">
-                      <p>
-                        <span className="font-semibold text-amber-300">{pct(COVER_CHARGE_RATE)} Front-End Load</span>
-                        <span className="mc-text-muted"> goes to Management. You deposit N, the pot books N×{(1 - COVER_CHARGE_RATE).toFixed(2)}.</span>
-                      </p>
-                      {selectedMode === 'simple' && <p className="mc-text-muted">Simple max: 20% of pot or 5 ICP (whichever is higher)</p>}
+                    <div className="mc-status-red p-3 text-center text-sm font-bold mt-3">
+                      <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
+                      <span className="font-normal text-xs opacity-80">Only play with money you can afford to lose</span>
                     </div>
+
+                    <button
+                      onClick={handleCreateGame}
+                      disabled={createGameMutation.isPending}
+                      className={`w-full py-3 mt-3 text-sm font-bold rounded-xl transition-all mc-btn-primary inline-flex items-center justify-center gap-2 ${
+                        hasValidAmount ? 'pulse' : ''
+                      }`}
+                    >
+                      {createGameMutation.isPending
+                        ? 'Starting Game...'
+                        : <><Dices className="h-5 w-5" /> START GAME</>}
+                    </button>
+                    {clickError && (
+                      <p className={`text-xs mc-text-danger mt-2 text-center ${shakeError ? 'mc-shake' : ''}`}>
+                        {clickError}
+                      </p>
+                    )}
 
                   </div>
 
@@ -475,29 +502,6 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                   </div>
                 </div>
 
-                {/* Warning + CTA */}
-                <div className="space-y-3 max-w-sm mx-auto">
-                  <div className="mc-status-red p-3 text-center text-sm font-bold">
-                    <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
-                    <span className="font-normal text-xs opacity-80">Only play with money you can afford to lose</span>
-                  </div>
-                  <button
-                    onClick={handleCreateGame}
-                    disabled={createGameMutation.isPending}
-                    className={`w-full py-3 text-sm font-bold rounded-xl transition-all mc-btn-primary inline-flex items-center justify-center gap-2 ${
-                      hasValidAmount ? 'pulse' : ''
-                    }`}
-                  >
-                    {createGameMutation.isPending
-                      ? 'Starting Game...'
-                      : <><Dices className="h-5 w-5" /> START GAME</>}
-                  </button>
-                  {clickError && (
-                    <p className={`text-xs mc-text-danger mt-2 text-center ${shakeError ? 'mc-shake' : ''}`}>
-                      {clickError}
-                    </p>
-                  )}
-                </div>
               </>
             )}
 

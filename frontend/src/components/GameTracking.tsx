@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
@@ -121,6 +121,9 @@ function PositionCard({
   const unlocked = isCompoundingPlanUnlocked(game);
   const canWithdraw = !game.isCompounding || unlocked;
   const hasEarnings = earnings > 0;
+  // A matured Simple position with 0 earnings can still be closed (backend marks inactive)
+  const isMaturedSimpleClose = !game.isCompounding && daysActive(game.startTime) >= getPlanDuration(game) && !hasEarnings;
+  const buttonEnabled = canWithdraw && (hasEarnings || isMaturedSimpleClose);
   const timeRem = getTimeRemaining(game);
   const tollInfo = getExitTollInfo(game);
 
@@ -148,8 +151,10 @@ function PositionCard({
         </div>
         <div className="text-center">
           <div className="mc-label">Earnings</div>
-          <div className="text-lg sm:text-xl font-bold mc-text-green mc-glow-green">{formatICP(earnings)} ICP</div>
-          <div className="text-xs mc-text-muted">live</div>
+          <div className="text-lg sm:text-xl font-bold mc-text-green mc-glow-green">
+            {formatICP(earnings)} ICP
+          </div>
+          <div className="text-xs mc-text-muted">{game.isCompounding ? 'before carry' : 'live'}</div>
         </div>
         <div className="text-right">
           <div className="mc-label">Carried Interest</div>
@@ -184,16 +189,18 @@ function PositionCard({
         {/* Withdraw button — right-aligned, compact */}
         <button
           onClick={() => onWithdraw(game)}
-          disabled={withdrawPending || !canWithdraw || !hasEarnings}
+          disabled={withdrawPending || !buttonEnabled}
           className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap ${
-            canWithdraw && hasEarnings
+            buttonEnabled
               ? 'mc-btn-primary'
               : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
           }`}
-          title={!canWithdraw ? 'Locked until maturity' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
+          title={!canWithdraw ? 'Locked until maturity' : isMaturedSimpleClose ? 'Close matured position' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
         >
           {!canWithdraw ? (
             <span className="flex items-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
+          ) : isMaturedSimpleClose ? (
+            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Close</span>
           ) : (
             <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
           )}
@@ -240,6 +247,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const { data: shenaniganConfigs } = useGetShenaniganConfigs();
   const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
+  const settleMutation = useSettleCompoundingGame();
   const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
 
   // Collapse state — both sections start closed
@@ -262,8 +270,13 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const handleWithdrawConfirm = async () => {
     if (!selectedGame) return;
     try {
-      const result = await withdrawMutation.mutateAsync(selectedGame.id);
-      setWithdrawnAmount(result.earnings);
+      if (selectedGame.isCompounding) {
+        const result = await settleMutation.mutateAsync(selectedGame.id);
+        setWithdrawnAmount(result.earnings);
+      } else {
+        const result = await withdrawMutation.mutateAsync(selectedGame.id);
+        setWithdrawnAmount(result.earnings);
+      }
       setWithdrawDialogOpen(false);
       setSelectedGame(null);
       triggerConfetti();
@@ -349,15 +362,15 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                   game={game}
                   earnings={earnings}
                   onWithdraw={handleWithdrawClick}
-                  withdrawPending={withdrawMutation.isPending}
+                  withdrawPending={withdrawMutation.isPending || settleMutation.isPending}
                 />
               ))}
             </div>
           )}
 
-          {withdrawMutation.isError && (
+          {(withdrawMutation.isError || settleMutation.isError) && (
             <div className="mc-status-red p-3 mt-3 text-center text-sm">
-              {withdrawMutation.error?.message || 'Withdrawal failed'}
+              {withdrawMutation.error?.message || settleMutation.error?.message || 'Withdrawal failed'}
             </div>
           )}
         </div>
@@ -377,8 +390,8 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
             <div className="mt-3 text-sm mc-text-muted space-y-2">
               <p className="font-accent italic">A small reinvestment keeps the engine running — and your returns flowing.</p>
               <p>Simple positions: 7% carried interest within 3 days, 5% within 10 days, 3% after.</p>
-              <p>Compounding plans: 9% Jackpot Fee (15-day) or 13% Jackpot Fee (30-day) at maturity.</p>
-              <p>Compounding plans pay out compounded interest at maturity.</p>
+              <p>Compounding plans: 9% carry (15-day) or 13% carry (30-day) at maturity.</p>
+              <p>Your deposit is deployed into the pot to fund interest obligations. Your position is an entitlement to future interest from that pot.</p>
             </div>
           )}
         </div>
@@ -516,8 +529,8 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
             <Button variant="outline" onClick={() => setWithdrawDialogOpen(false)} className="mc-btn-secondary">
               Cancel
             </Button>
-            <Button onClick={handleWithdrawConfirm} disabled={withdrawMutation.isPending} className="mc-btn-primary">
-              {withdrawMutation.isPending ? 'Processing...' : 'Confirm'}
+            <Button onClick={handleWithdrawConfirm} disabled={withdrawMutation.isPending || settleMutation.isPending} className="mc-btn-primary">
+              {(withdrawMutation.isPending || settleMutation.isPending) ? 'Processing...' : 'Confirm'}
             </Button>
           </div>
         </div>

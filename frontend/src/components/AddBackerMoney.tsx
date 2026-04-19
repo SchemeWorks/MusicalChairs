@@ -4,6 +4,7 @@ import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import BackerMoneyToast from './BackerMoneyToast';
 import { AlertTriangle } from 'lucide-react';
+import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 
 export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
@@ -14,8 +15,13 @@ export default function AddBackerMoney() {
   const addBackerMoneyMutation = useAddBackerMoney();
 
   const walletBalance = icpBalance ?? 0;
+  // Spendable = balance minus TWO ledger fees (icrc2_approve + icrc2_transfer_from).
+  const DEPOSIT_FEE_RESERVE = ICP_TRANSFER_FEE * 2n;
+  const walletBalanceE8s = BigInt(Math.round(walletBalance * Number(E8S_PER_ICP)));
+  const walletSpendableE8s = walletBalanceE8s > DEPOSIT_FEE_RESERVE ? walletBalanceE8s - DEPOSIT_FEE_RESERVE : 0n;
   const minDeposit = 0.1;
   const depositAmount = parseFloat(amount) || 0;
+  const depositAmountE8s = amount ? BigInt(Math.round(depositAmount * Number(E8S_PER_ICP))) : 0n;
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const restricted = restrictToEightDecimals(e.target.value);
@@ -25,7 +31,7 @@ export default function AddBackerMoney() {
   };
 
   const handleDeposit = async () => {
-    if (!amount || depositAmount < minDeposit || depositAmount > walletBalance) return;
+    if (!amount || depositAmount < minDeposit || depositAmountE8s > walletSpendableE8s) return;
     const v = validateICPInput(amount);
     if (!v.isValid) { setInputError(v.error || ''); return; }
     try {
@@ -40,7 +46,7 @@ export default function AddBackerMoney() {
     }
   };
 
-  const isAmountValid = depositAmount >= minDeposit && depositAmount <= walletBalance && !inputError;
+  const isAmountValid = depositAmount >= minDeposit && depositAmountE8s <= walletSpendableE8s && !inputError;
 
   return (
     <div>
@@ -73,11 +79,11 @@ export default function AddBackerMoney() {
           </button>
         </div>
 
-        {depositAmount > 0 && (
+        {depositAmount > 0 && !addBackerMoneyMutation.isPending && (
           <div className="space-y-1 text-xs">
             {inputError && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />{inputError}</div>}
             {!inputError && depositAmount < minDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Minimum is {minDeposit} ICP</div>}
-            {!inputError && depositAmount > walletBalance && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance</div>}
+            {!inputError && depositAmountE8s > walletSpendableE8s && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance (0.0002 ICP in ledger fees applies)</div>}
           </div>
         )}
 

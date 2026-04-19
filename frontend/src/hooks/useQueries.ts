@@ -404,8 +404,10 @@ export function useGetUserGames() {
     queryKey: ['userGames', principal],
     queryFn: async () => {
       if (!principal) throw new Error('No principal');
-      const games = await actor.getUserGamesFor(Principal.fromText(principal));
-      
+      const allGames = await actor.getUserGamesFor(Principal.fromText(principal));
+      // Hide closed positions (fully withdrawn compounding, matured simple)
+      const games = allGames.filter(g => g.isActive);
+
       // Update accumulated earnings for each game when manually refreshed
       const currentTime = Date.now();
       games.forEach(game => {

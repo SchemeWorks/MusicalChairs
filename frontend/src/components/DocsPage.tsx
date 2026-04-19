@@ -104,9 +104,9 @@ const docSections: DocSection[] = [
           ]}
         />
         <div className="mt-4 space-y-2">
-          <p><strong className="text-white">Simple mode:</strong> Interest accrues daily on your original deposit. You can withdraw accumulated earnings at any time, subject to carried interest. Your principal stays in the game until the plan matures or you close the position.</p>
-          <p><strong className="text-white">Compounding mode:</strong> Interest compounds daily on your growing balance. Funds are fully locked until maturity. At maturity, you receive your compounded total minus the Jackpot Fee — {pct(JACKPOT_FEE_RATE_15D)} on the {PLAN_DAYS_COMPOUND_15}-day plan, {pct(JACKPOT_FEE_RATE_30D)} on the {PLAN_DAYS_COMPOUND_30}-day plan. No early withdrawal.</p>
-          <p><strong className="text-white">The risk:</strong> If the pot empties before your plan matures, you lose everything — principal and accrued earnings. Longer plans = higher returns = higher risk of getting caught in a reset.</p>
+          <p><strong className="text-white">Simple mode:</strong> Your funds are deployed into the pot; in return you hold a position that accrues interest daily at the Simple rate. Withdraw accrued interest at any time, subject to carried interest. The position closes at the end of its {PLAN_DAYS_SIMPLE}-day term.</p>
+          <p><strong className="text-white">Compounding mode:</strong> Your funds are deployed into the pot; in return you hold a position that compounds daily until maturity. At maturity the accumulated interest is paid out, minus carried interest — {pct(JACKPOT_FEE_RATE_15D)} on the {PLAN_DAYS_COMPOUND_15}-day plan, {pct(JACKPOT_FEE_RATE_30D)} on the {PLAN_DAYS_COMPOUND_30}-day plan. No early withdrawal.</p>
+          <p><strong className="text-white">The risk:</strong> If the pot empties before your position is paid out, your entitlement is worthless. Longer plans = higher returns = higher risk of getting caught in a reset.</p>
         </div>
       </>
     ),
@@ -158,7 +158,7 @@ const docSections: DocSection[] = [
 
         <p className="font-bold text-white mb-2 mt-6">Exit — Compounding Positions</p>
         <DocTable
-          headers={['Plan', 'Jackpot Fee', 'When']}
+          headers={['Plan', 'Carried Interest', 'When']}
           rows={[
             [`${PLAN_DAYS_COMPOUND_15}-day Compounding`, <span className="mc-text-gold font-bold">{pct(JACKPOT_FEE_RATE_15D)}</span>, 'On maturity payout'],
             [`${PLAN_DAYS_COMPOUND_30}-day Compounding`, <span className="mc-text-gold font-bold">{pct(JACKPOT_FEE_RATE_30D)}</span>, 'On maturity payout'],
@@ -351,10 +351,10 @@ const docSections: DocSection[] = [
         <div className="space-y-3">
           {[
             ['Pot', 'The shared pool of ICP that funds all player returns. Fed by deposits and fees. Drained by withdrawals and payouts.'],
-            ['Position', 'An active game entry. Created when you deposit ICP into a plan. Has a start date, plan type, and accruing earnings.'],
+            ['Position', 'An entitlement to future interest payments from the pot. Your principal is part of the pot.'],
             ['Front-End Load', `The ${pct(COVER_CHARGE_RATE)} fee taken from every deposit before it enters the pot. Routed to Management — does not feed the pot or backers.`],
-            ['Carried Interest', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
-            ['Jackpot Fee', `The fee charged on Compounding position payouts at maturity — ${pct(JACKPOT_FEE_RATE_15D)} on the ${PLAN_DAYS_COMPOUND_15}-day plan, ${pct(JACKPOT_FEE_RATE_30D)} on the ${PLAN_DAYS_COMPOUND_30}-day plan.`],
+            ['Carried Interest (Simple)', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
+            ['Carried Interest (Compounding)', `The fee charged on Compounding position payouts at maturity — ${pct(JACKPOT_FEE_RATE_15D)} on the ${PLAN_DAYS_COMPOUND_15}-day plan, ${pct(JACKPOT_FEE_RATE_30D)} on the ${PLAN_DAYS_COMPOUND_30}-day plan.`],
             ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from carried interest.`],
             ['Series A Backer (Upstream)', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
             ['Series B Backer (Downstream)', `A backer created automatically during an Emergency Equity Conversion from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],

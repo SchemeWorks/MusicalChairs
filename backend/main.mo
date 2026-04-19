@@ -249,7 +249,7 @@ persistent actor {
     };
 
     // ========================================================================
-    // Cover Charge — 2% skimmed from every deposit, routed to a dedicated
+    // Cover Charge — 4% skimmed from every deposit, routed to a dedicated
     // admin bucket ("Pay Management") with its own audit log so it never
     // mingles with game-pot accounting.
     // Exit tolls continue to use the 50/50 pot/backer split in
@@ -260,7 +260,7 @@ persistent actor {
     // withdraw from coverChargeBalance.
     transient let COVER_CHARGE_RECIPIENT : Principal =
         Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe");
-    transient let COVER_CHARGE_RATE : Float = 0.02;
+    transient let COVER_CHARGE_RATE : Float = 0.04;
 
     var coverChargeBalance : Nat = 0;
 
@@ -627,10 +627,10 @@ persistent actor {
             };
         };
 
-        // Cover Charge: 2% skimmed from every deposit, routed 100% to the
+        // Cover Charge: 4% skimmed from every deposit, routed 100% to the
         // admin bucket (see coverChargeBalance). Exit tolls still use the
         // 50/50 pot/backer split via distributeExitTollToBackers — only the entry
-        // fee changed. Pot receives 98% of the gross deposit.
+        // fee changed. Pot receives 96% of the gross deposit.
         let coverCharge = amount * COVER_CHARGE_RATE;
         let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
         coverChargeBalance += coverChargeE8s;
@@ -1014,6 +1014,11 @@ persistent actor {
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
 
+                // Close the position if past its 21-day term — no further interest accrues,
+                // principal stays in the pot (entitlement fully paid out).
+                let elapsedDays = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000) / 86400.0;
+                let closePosition = elapsedDays >= 21.0;
+
                 // Capture state snapshots for compensation-on-failure
                 let originalGame = game;
                 let originalStats = platformStats;
@@ -1038,6 +1043,7 @@ persistent actor {
                     accumulatedEarnings = 0.0;
                     lastUpdateTime = Time.now();
                     totalWithdrawn = game.totalWithdrawn + netEarnings;
+                    isActive = if (closePosition) false else game.isActive;
                 };
                 gameRecords := natMap.put(gameRecords, gameId, updatedGame);
 
@@ -1045,38 +1051,48 @@ persistent actor {
                     platformStats with
                     totalWithdrawals = platformStats.totalWithdrawals + netEarnings;
                     potBalance = platformStats.potBalance - potDeduction;
+                    activeGames =
+                        if (closePosition and platformStats.activeGames > 0) {
+                            platformStats.activeGames - 1
+                        } else {
+                            platformStats.activeGames
+                        };
                 };
 
-                // Pay out to user's ledger account (saga: revert on failure)
+                // Pay out to user's ledger account (saga: revert on failure).
+                // Skip transfer entirely when netEarnings == 0 (matured position with no
+                // fresh earnings since last withdraw — this call is a pure close).
                 let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
-                let transferResult = try {
-                    await icpLedger.icrc1_transfer({
-                        from_subaccount = null;
-                        to = { owner = caller; subaccount = null };
-                        amount = netEarningsE8s;
-                        fee = null;
-                        memo = null;
-                        created_at_time = null;
-                    });
-                } catch (e) {
-                    // Compensate: refund on catch (network failure — transfer status unknown;
-                    // conservative refund — transfer may have succeeded).
-                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
-                    platformStats := originalStats;
-                    dealerRepayments := originalRepayments;
-                    releaseCallerLock(caller);
-                    return #Err("Failed to contact ICP ledger: " # Error.message(e));
-                };
-
-                switch (transferResult) {
-                    case (#Err(err)) {
+                if (netEarningsE8s > 0) {
+                    let transferResult = try {
+                        await icpLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = { owner = caller; subaccount = null };
+                            amount = netEarningsE8s;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        });
+                    } catch (e) {
+                        // Compensate: refund on catch (network failure — transfer status unknown;
+                        // conservative refund — transfer may have succeeded).
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
                         releaseCallerLock(caller);
-                        return #Err(transferErrorMessage(err));
+                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
-                    case (#Ok(_)) {};
+
+                    switch (transferResult) {
+                        case (#Err(err)) {
+                            gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                            platformStats := originalStats;
+                            dealerRepayments := originalRepayments;
+                            releaseCallerLock(caller);
+                            return #Err(transferErrorMessage(err));
+                        };
+                        case (#Ok(_)) {};
+                    };
                 };
 
                 releaseCallerLock(caller);
@@ -1085,8 +1101,8 @@ persistent actor {
         };
     };
 
-    // Settle a compounding game at maturity (credits principal + earnings to wallet)
-    // Returns #Ok(totalPayout) or #Err(message). See createGame for rationale.
+    // Settle a compounding game at maturity (credits net earnings to wallet; principal stays in pot).
+    // Returns #Ok(netEarnings) or #Err(message). See createGame for rationale.
     public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
@@ -1140,7 +1156,8 @@ persistent actor {
                 // Apply exit toll on earnings (15-day: 9%, 30-day: 13%)
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
-                let totalPayout = roundToEightDecimals(game.amount + netEarnings); // principal + net earnings
+                // Principal stays in the pot — payout is net earnings only.
+                let totalPayout = netEarnings;
 
                 // Capture state snapshots for compensation-on-failure.
                 // NOTE: distributeExitTollToBackers writes to dealerRepayments
