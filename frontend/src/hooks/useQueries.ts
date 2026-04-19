@@ -9,8 +9,23 @@ import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, Shena
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
 export type { BackerPosition };
 import { Principal } from '@dfinity/principal';
+import { Actor, HttpAgent } from '@dfinity/agent';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
+
+// Anonymous ledger actor for balance queries. icrc1_balance_of is a public
+// query — no identity needed. Cached at module scope so all callers share
+// one actor regardless of wallet type.
+let anonLedgerActor: any = null;
+function getAnonLedgerActor() {
+  if (anonLedgerActor) return anonLedgerActor;
+  const agent = new HttpAgent({ host: 'https://icp0.io' });
+  anonLedgerActor = Actor.createActor(icrcLedgerIDL, {
+    agent,
+    canisterId: ICP_LEDGER_CANISTER_ID,
+  });
+  return anonLedgerActor;
+}
 
 // User Profile Queries
 export function useGetCallerUserProfile() {
@@ -189,19 +204,24 @@ export function useGetHouseLedgerStats() {
   });
 }
 
-// Real ICP balance from the NNS ledger (what the user actually has in their wallet)
+// Real ICP balance from the NNS ledger (what the user actually has in their wallet).
+// Uses an anonymous ledger actor — icrc1_balance_of is a public query and works
+// for every wallet type (Plug, II, Oisy) without needing a signing identity.
 export function useICPBalance() {
-  const { principal, isConnected } = useWallet();
-  const ledger = useLedger();
+  const { principal } = useWallet();
 
   return useQuery({
     queryKey: ['icpLedgerBalance', principal],
     queryFn: async () => {
-      if (!principal || !isConnected) throw new Error('Not connected');
-      const balanceE8s = await ledger.getBalance();
+      if (!principal) throw new Error('No principal');
+      const actor = getAnonLedgerActor();
+      const balanceE8s = await actor.icrc1_balance_of({
+        owner: Principal.fromText(principal),
+        subaccount: [],
+      });
       return Number(balanceE8s) / 100_000_000;
     },
-    enabled: !!principal && isConnected && ledger.isConnected,
+    enabled: !!principal,
     refetchInterval: 5000,
   });
 }
