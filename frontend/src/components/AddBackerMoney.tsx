@@ -82,7 +82,7 @@ export default function AddBackerMoney() {
         )}
 
         <div className="space-y-1">
-          <p className="text-xs mc-text-green font-bold">Earn a guaranteed* 24% Series A return + 4,000 PP per ICP!</p>
+          <p className="text-xs mc-text-green font-bold">Series A backers get a guaranteed* 24% return on their capital + 4,000 PP per ICP.</p>
           <p className="text-xs mc-text-muted italic">*(Returns not guaranteed)</p>
         </div>
       </div>
