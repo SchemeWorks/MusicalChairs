@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useCreateGame, useICPBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
 import { useCountUp } from '../hooks/useCountUp';
+import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { EXIT_TOLL_EARLY, EXIT_TOLL_MID, EXIT_TOLL_LATE, JACKPOT_FEE_RATE, COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
@@ -66,9 +67,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   };
 
   // Hooks
+  const { walletType } = useWallet();
   const { data: icpBalance } = useICPBalance();
   const { data: maxDepositLimit } = useGetMaxDepositLimit();
   const { data: canDeposit } = useCheckDepositRateLimit();
+  // For Oisy users the rate-limit query is disabled; treat undefined as "allowed"
+  // (the backend will enforce rate limits on deposit if exceeded).
+  const isRateLimited = walletType === 'oisy' ? false : canDeposit === false;
   const createGameMutation = useCreateGame();
 
   const walletBalance = icpBalance || 0;
@@ -187,7 +192,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     if (dep < minDeposit) { triggerClickError(`Amount below minimum (${minDeposit} ICP)`); triggerShake(); return; }
     if (dep > walletBalance) { triggerClickError('Insufficient balance'); triggerShake(); return; }
     if (selectedMode === 'simple' && dep > maxDeposit) { triggerClickError(`Max for simple mode: ${formatICP(maxDeposit)} ICP`); triggerShake(); return; }
-    if (!canDeposit) { triggerClickError('Rate limited — wait before opening another position'); return; }
+    if (isRateLimited) { triggerClickError('Rate limited — wait before opening another position'); return; }
     const v = validateICPInput(amount);
     if (!v.isValid) { setInputError(v.error || ''); triggerShake(); return; }
     if (inputError) { triggerClickError('Fix input error first'); triggerShake(); return; }
@@ -405,7 +410,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                         {!inputError && depositAmount < minDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Minimum deposit is {minDeposit} ICP</div>}
                         {!inputError && depositAmount > walletBalance && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Insufficient balance</div>}
                         {!inputError && selectedMode === 'simple' && depositAmount > maxDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Max for simple mode: {formatICP(maxDeposit)} ICP</div>}
-                        {!canDeposit && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Rate limit: 3 positions per hour max</div>}
+                        {isRateLimited && <div className="mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Rate limit: 3 positions per hour max</div>}
                       </div>
                     )}
 
