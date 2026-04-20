@@ -7,6 +7,15 @@ import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
+import Blob "mo:base/Blob";
+import Error "mo:base/Error";
+import Timer "mo:base/Timer";
+import Array "mo:base/Array";
+import Text "mo:base/Text";
+
+import PpLedger "PpLedger";
+import Subaccount "Subaccount";
 
 persistent actor {
 
@@ -68,17 +77,74 @@ persistent actor {
         backgroundColor : Text;
     };
 
+    /// A queued cash-out. Stays in the chip subaccount until claimed so
+    /// hostile spells can still drain it during the delay window.
+    public type CashOutEntry = {
+        id : Nat;
+        player : Principal;
+        amount : Nat;              // PP-units requested
+        claimableAfter : Int;      // nanoseconds (Time.now() + delay)
+        claimed : Bool;            // set true after claimCashOut succeeds
+    };
+
+    /// Mutable mint + economy configuration. All fields admin-tunable.
+    public type MintConfig = {
+        simple21DayPpPerIcp : Nat;    // initial 1000 (whole PP per ICP)
+        compounding15DayPpPerIcp : Nat; // initial 2000
+        compounding30DayPpPerIcp : Nat; // initial 3000
+        dealerPpPerIcp : Nat;          // initial 4000
+        referralL1Bps : Nat;           // basis points; initial 800 (= 8%)
+        referralL2Bps : Nat;           // initial 500
+        referralL3Bps : Nat;           // initial 200
+        minDepositPp : Nat;            // initial 5000 (whole PP)
+        cashOutDelaySeconds : Nat;     // initial 604_800
+        observerIntervalSeconds : Nat; // initial 10
+    };
+
+    /// Per-dealer cumulative ICP seen by the observer. Used to mint only
+    /// on deltas when dealers top up.
+    public type DealerSeen = Float;
+
     // ================================================================
-    // Backend canister interface (for cross-canister calls)
-    // Inter-canister calls must be update calls, not queries.
+    // Backend canister interface (query-only; observer polls + referral lookups)
     // ================================================================
 
+    type BackendGamePlan = {
+        #simple21Day;
+        #compounding15Day;
+        #compounding30Day;
+    };
+
+    type BackendGameRecord = {
+        id : Nat;
+        player : Principal;
+        plan : BackendGamePlan;
+        amount : Float;
+        startTime : Int;
+        isCompounding : Bool;
+        isActive : Bool;
+        lastUpdateTime : Int;
+        accumulatedEarnings : Float;
+        totalWithdrawn : Float;
+    };
+
+    type BackendDealerType = { #upstream; #downstream };
+
+    type BackendDealerPosition = {
+        owner : Principal;
+        amount : Float;
+        entitlement : Float;
+        startTime : Int;
+        isActive : Bool;
+        name : Text;
+        dealerType : BackendDealerType;
+        firstDepositDate : ?Int;
+    };
+
     type BackendActor = actor {
-        deductPonziPoints : shared (user : Principal, amount : Float) -> async ();
-        transferPonziPoints : shared (from : Principal, to : Principal, amount : Float) -> async ();
-        distributeDealerCutFromShenanigans : shared (amount : Float) -> async ();
-        getPonziPointsBalanceFor : shared (user : Principal) -> async Float;
-        burnPonziPoints : shared (user : Principal, amount : Float) -> async ();
+        getAllGames : shared query () -> async [BackendGameRecord];
+        getDealerPositions : shared query () -> async [BackendDealerPosition];
+        getReferrer : shared query (Principal) -> async ?Principal;
     };
 
     // ================================================================
@@ -88,16 +154,50 @@ persistent actor {
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
 
+    // Spell configs — PRESERVED across migration (admin-tunable spell definitions)
+    var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
+
+    // Spell cast history — reset at migration; bounded to last 500 entries
     var shenanigans = natMap.empty<ShenaniganRecord>();
     var shenaniganStats = principalMap.empty<ShenaniganStats>();
-    var nextShenaniganId = 0;
-    var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
+    var nextShenaniganId : Nat = 0;
 
     // Admin state
     var adminPrincipal : ?Principal = null;
-
-    // Backend canister principal (set by admin after deployment)
     var backendPrincipal : ?Principal = null;
+
+    // Mint + economy configuration (mutable, admin-tunable)
+    var mintConfig : MintConfig = {
+        simple21DayPpPerIcp = 1000;
+        compounding15DayPpPerIcp = 2000;
+        compounding30DayPpPerIcp = 3000;
+        dealerPpPerIcp = 4000;
+        referralL1Bps = 800;
+        referralL2Bps = 500;
+        referralL3Bps = 200;
+        minDepositPp = 5000;
+        cashOutDelaySeconds = 604_800;
+        observerIntervalSeconds = 10;
+    };
+
+    // Observer cursors
+    var gameIdCursor : Nat = 0;                         // next unprocessed game id
+    var dealerSeen = principalMap.empty<DealerSeen>();  // cumulative ICP minted-for per dealer
+
+    // Observer lock to prevent concurrent ticks
+    transient var observerRunning : Bool = false;
+    var observerTimerId : ?Timer.TimerId = null;
+
+    // Cash-out queue
+    var cashOuts = natMap.empty<CashOutEntry>();
+    var nextCashOutId : Nat = 0;
+
+    // Leaderboard (local state — not derived from ledger)
+    var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
+    var spellsCastPerPlayer = principalMap.empty<Nat>(); // successful casts only
+
+    // PP ledger actor reference
+    transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
 
     // ================================================================
     // Initialization
@@ -108,7 +208,10 @@ persistent actor {
             case (null) {
                 adminPrincipal := ?caller;
                 backendPrincipal := ?backendCanisterId;
-                initializeDefaultShenanigans();
+                if (natMap.size(shenaniganConfigs) == 0) {
+                    initializeDefaultShenanigans();
+                };
+                startObserver();
             };
             case (?admin) {
                 if (caller != admin) {
@@ -123,11 +226,14 @@ persistent actor {
         switch (adminPrincipal) {
             case (null) { Debug.trap("Not initialized") };
             case (?admin) {
-                if (caller != admin) {
-                    Debug.trap("Unauthorized: admin only");
-                };
+                if (caller != admin) { Debug.trap("Unauthorized: admin only") };
             };
         };
+    };
+
+    public shared ({ caller }) func rotateAdmin(newAdmin : Principal) : async () {
+        requireAdmin(caller);
+        adminPrincipal := ?newAdmin;
     };
 
     func getBackend() : BackendActor {
@@ -135,6 +241,11 @@ persistent actor {
             case (null) { Debug.trap("Backend canister not configured") };
             case (?p) { actor (Principal.toText(p)) : BackendActor };
         };
+    };
+
+    // Implemented in Task 8; stub here so Task 5 scaffolding compiles.
+    func startObserver() {
+        // Implemented in Task 8
     };
 
     // ================================================================
@@ -164,96 +275,10 @@ persistent actor {
     // Core Logic
     // ================================================================
 
-    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
-        let backend = getBackend();
-
-        let cost = switch (shenaniganType) {
-            case (#moneyTrickster) { 120.0 };
-            case (#aoeSkim) { 600.0 };
-            case (#renameSpell) { 200.0 };
-            case (#mintTaxSiphon) { 1200.0 };
-            case (#downlineHeist) { 500.0 };
-            case (#magicMirror) { 200.0 };
-            case (#ppBoosterAura) { 300.0 };
-            case (#purseCutter) { 900.0 };
-            case (#whaleRebalance) { 800.0 };
-            case (#downlineBoost) { 400.0 };
-            case (#goldenName) { 100.0 };
-        };
-
-        // Check balance via cross-canister call
-        let userPoints = await backend.getPonziPointsBalanceFor(caller);
-        if (userPoints < cost) {
-            Debug.trap("Insufficient Ponzi Points to cast this shenanigan");
-        };
-
-        // Deduct cost
-        await backend.deductPonziPoints(caller, cost);
-
-        // Track burn
-        await backend.burnPonziPoints(caller, cost);
-
-        // Determine outcome
-        let outcome = determineOutcome(shenaniganType);
-
-        // Apply backfire effects
-        if (outcome == #backfire) {
-            switch (shenaniganType) {
-                case (#moneyTrickster) {
-                    switch (target) {
-                        case (null) {};
-                        case (?targetPrincipal) {
-                            let casterPoints = await backend.getPonziPointsBalanceFor(caller);
-                            let lossPercentage = 0.02 + (Float.fromInt(Int.abs(Time.now()) % 7) / 100.0);
-                            let lossAmount = casterPoints * lossPercentage;
-                            let cappedLoss = Float.min(lossAmount, 250.0);
-                            await backend.transferPonziPoints(caller, targetPrincipal, cappedLoss);
-                        };
-                    };
-                };
-                case (#aoeSkim) {
-                    let casterPoints = await backend.getPonziPointsBalanceFor(caller);
-                    let lossPercentage = 0.01 + (Float.fromInt(Int.abs(Time.now()) % 3) / 100.0);
-                    let lossAmount = casterPoints * lossPercentage;
-                    // Simplified: deduct from caster instead of distributing to all players
-                    // (cross-canister iteration of all PP holders is complex)
-                    await backend.deductPonziPoints(caller, lossAmount);
-                };
-                case (#downlineHeist) {
-                    switch (target) {
-                        case (null) {};
-                        case (?targetPrincipal) {
-                            Debug.print("Backfire: " # Principal.toText(caller) # " loses L3 downline to " # Principal.toText(targetPrincipal));
-                        };
-                    };
-                };
-                case (_) {};
-            };
-        };
-
-        // Record shenanigan
-        let shenaniganId = nextShenaniganId;
-        nextShenaniganId += 1;
-
-        let newShenanigan : ShenaniganRecord = {
-            id = shenaniganId;
-            user = caller;
-            shenaniganType;
-            target;
-            outcome;
-            timestamp = Time.now();
-            cost;
-        };
-        shenanigans := natMap.put(shenanigans, shenaniganId, newShenanigan);
-
-        // Update stats
-        updateShenaniganStats(caller, cost, outcome);
-
-        // Dealer cut (10% of cost)
-        let dealerCut = cost * 0.1;
-        await backend.distributeDealerCutFromShenanigans(dealerCut);
-
-        outcome;
+    public shared ({ caller = _ }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
+        ignore shenaniganType;
+        ignore target;
+        Debug.trap("Migration in progress — castShenanigan will be restored in Task 11");
     };
 
     func determineOutcome(shenaniganType : ShenaniganType) : ShenaniganOutcome {
