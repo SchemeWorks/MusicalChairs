@@ -16,6 +16,7 @@ import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
 import DocsPage from './components/DocsPage';
+import ChipWallet from './components/ChipWallet';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
@@ -288,13 +289,14 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
+  const [showChipWallet, setShowChipWallet] = useState(() => window.location.hash === '#chips');
   const { data: publicStats } = useGetPublicStats();
 
-  // Sync docs visibility with hash — allows direct linking to #docs or #docs-fees
+  // Sync docs / chip-wallet visibility with hash — allows direct linking to #docs, #docs-fees, or #chips
   useEffect(() => {
     const onHashChange = () => {
-      const isDocsHash = window.location.hash.startsWith('#docs');
-      setShowDocsPage(isDocsHash);
+      setShowDocsPage(window.location.hash.startsWith('#docs'));
+      setShowChipWallet(window.location.hash === '#chips');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -336,12 +338,13 @@ export default function App() {
     return () => window.removeEventListener('mc:open-docs', handler);
   }, []);
 
-  // Navigating to a tab always dismisses the docs page.
+  // Navigating to a tab always dismisses full-page overlays (docs / chip wallet).
   const goToTab = (tab: TabType) => {
     setActiveTab(tab);
-    if (showDocsPage) {
+    if (showDocsPage || showChipWallet) {
       history.replaceState(null, '', window.location.pathname);
       setShowDocsPage(false);
+      setShowChipWallet(false);
     }
   };
 
@@ -490,6 +493,11 @@ export default function App() {
               /* === DOCS PAGE === */
               <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
                 <DocsPage onBack={() => { history.replaceState(null, '', window.location.pathname); setShowDocsPage(false); }} />
+              </div>
+            ) : showChipWallet ? (
+              /* === CHIP WALLET PAGE === */
+              <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+                <ChipWallet />
               </div>
             ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
