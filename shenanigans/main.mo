@@ -851,6 +851,22 @@ persistent actor Self {
 
     public query func getMintConfig() : async MintConfig { mintConfig };
 
+    /// Current observer state — running/paused, cursor positions, and interval.
+    /// Surfaced in the admin panel for operational visibility.
+    public query func getObserverStatus() : async {
+        running : Bool;
+        gameIdCursor : Nat;
+        dealerSeenCount : Nat;
+        intervalSeconds : Nat;
+    } {
+        {
+            running = observerTimerId != null;
+            gameIdCursor;
+            dealerSeenCount = principalMap.size(dealerSeen);
+            intervalSeconds = mintConfig.observerIntervalSeconds;
+        };
+    };
+
     /// Admin-triggered manual PP issuance (direct mint to the player's chip
     /// subaccount). Use for fixups, comps, or seeding test accounts.
     public shared ({ caller }) func adminMint(to : Principal, wholePp : Nat) : async { #Ok : Nat; #Err : Text } {
