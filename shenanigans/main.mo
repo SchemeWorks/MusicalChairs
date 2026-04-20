@@ -782,6 +782,9 @@ persistent actor Self {
             goodOutcomes = currentStats.goodOutcomes + (if (outcome == #success) 1 else 0);
             badOutcomes = currentStats.badOutcomes + (if (outcome == #fail) 1 else 0);
             backfires = currentStats.backfires + (if (outcome == #backfire) 1 else 0);
+            // dealerCut is kept in stats for UI continuity, but since backend no
+            // longer tracks PP dealer pools (Open Question 1 resolution: dealer
+            // repayment is ICP-only) this number is purely informational.
             dealerCut = currentStats.dealerCut + (cost * 0.1);
         };
         shenaniganStats := principalMap.put(shenaniganStats, user, updatedStats);
