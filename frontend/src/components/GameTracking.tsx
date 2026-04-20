@@ -441,28 +441,19 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                 </div>
               </div>
 
-              {/* PP source breakdown */}
+              {/* PP custody breakdown */}
               {ponziData && (
                 <div className="mb-4">
-                  <div className="mc-label mb-2">Sources</div>
+                  <div className="mc-label mb-2">Custody</div>
                   <div className="text-xs space-y-1.5">
                     <div className="flex justify-between">
-                      <span className="mc-text-muted">From deposits</span>
-                      <span className="mc-text-green font-bold">+{(ponziData.depositPoints || 0).toLocaleString()} PP</span>
+                      <span className="mc-text-muted">Chips (spendable)</span>
+                      <span className="mc-text-green font-bold">{(ponziData.chipPoints || 0).toLocaleString()} PP</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="mc-text-muted">From referrals</span>
-                      <span className="mc-text-cyan font-bold">+{(ponziData.referralPoints || 0).toLocaleString()} PP</span>
+                      <span className="mc-text-muted">Wallet (external)</span>
+                      <span className="mc-text-cyan font-bold">{(ponziData.walletPoints || 0).toLocaleString()} PP</span>
                     </div>
-                    {(() => {
-                      const spent = Math.max(0, (ponziData.depositPoints || 0) + (ponziData.referralPoints || 0) - (ponziData.totalPoints || 0));
-                      return spent > 0 ? (
-                        <div className="flex justify-between">
-                          <span className="mc-text-muted">Spent on shenanigans</span>
-                          <span className="mc-text-danger font-bold">−{spent.toLocaleString()} PP</span>
-                        </div>
-                      ) : null;
-                    })()}
                   </div>
                 </div>
               )}

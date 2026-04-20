@@ -896,32 +896,25 @@ function getGamePlanString(plan: GamePlan): string {
   }
 }
 
-// MLM Queries - Updated to use real backend data
+// MLM stats — backend no longer tracks per-tier referral PP earnings (that work
+// moved to shenanigans' mint pipeline, which doesn't yet expose a per-user
+// breakdown). Return a zeroed shape so existing consumers compile; wire up a
+// shenanigans-side query later if we want the breakdown back.
 export function useGetReferralStats() {
-  const actor = useReadActor();
   const { principal } = useWallet();
-
   return useQuery({
     queryKey: ['mlmStats', principal],
-    queryFn: async () => {
-      if (!principal) throw new Error('No principal');
-
-      // Get real referral tier points from backend
-      const tierPoints = await actor.getReferralTierPointsFor(Principal.fromText(principal));
-
-      return {
-        level1Count: 0, // Backend doesn't track count, only points
-        level2Count: 0,
-        level3Count: 0,
-        level1Points: tierPoints.level1Points,
-        level2Points: tierPoints.level2Points,
-        level3Points: tierPoints.level3Points,
-        totalEarnings: tierPoints.totalPoints,
-        referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`
-      };
-    },
+    queryFn: async () => ({
+      level1Count: 0,
+      level2Count: 0,
+      level3Count: 0,
+      level1Points: 0,
+      level2Points: 0,
+      level3Points: 0,
+      totalEarnings: 0,
+      referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`,
+    }),
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
