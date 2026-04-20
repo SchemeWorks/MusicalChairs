@@ -16,6 +16,9 @@ import {
   useSetMinDeposit,
   useSetCashOutDelay,
   useSetObserverInterval,
+  useGetObserverStatus,
+  useStopObserver,
+  useResumeObserver,
 } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -251,6 +254,9 @@ export default function ShenanigansAdminPanel() {
           </div>
         </div>
       </div>
+
+      {/* Observer status */}
+      <ObserverStatusSection />
 
       {/* Mint Rules & Economy */}
       <MintRulesSection />
@@ -559,6 +565,64 @@ function MintRulesSection() {
             () => setObserver.mutateAsync([BigInt(observer)]))}
         </div>
       )}
+    </div>
+  );
+}
+
+/* ================================================================
+   Observer status — minting pipeline health indicator.
+   ================================================================ */
+function ObserverStatusSection() {
+  const { data: status, isLoading } = useGetObserverStatus();
+  const stop = useStopObserver();
+  const resume = useResumeObserver();
+
+  const handleStop = async () => {
+    try { await stop.mutateAsync(); toast.success('Observer paused'); }
+    catch (e: any) { toast.error(e?.message ?? 'Stop failed'); }
+  };
+  const handleResume = async () => {
+    try { await resume.mutateAsync(); toast.success('Observer resumed'); }
+    catch (e: any) { toast.error(e?.message ?? 'Resume failed'); }
+  };
+
+  const running = status?.running ?? false;
+  const badge = running
+    ? <span className="mc-text-green font-bold">● Running</span>
+    : <span className="mc-text-danger font-bold">● Paused</span>;
+
+  return (
+    <div className="mc-card mc-accent-cyan p-4">
+      <div className="flex items-start gap-3 mb-3">
+        <Waves className="h-5 w-5 mc-text-cyan flex-shrink-0 mt-0.5" />
+        <div className="text-sm mc-text-dim space-y-1 flex-1">
+          <div className="flex items-center justify-between">
+            <p className="font-bold mc-text-cyan">Observer</p>
+            {isLoading ? <span className="mc-text-muted">…</span> : badge}
+          </div>
+          <p>Polls the backend for new games and dealer deposits, then mints PP into chip subaccounts.</p>
+        </div>
+      </div>
+      {status && (
+        <div className="grid grid-cols-3 gap-2 text-xs mb-3">
+          <div className="mc-card p-2 text-center">
+            <div className="mc-label mb-1">Game cursor</div>
+            <div className="font-bold mc-text-primary">{status.gameIdCursor.toString()}</div>
+          </div>
+          <div className="mc-card p-2 text-center">
+            <div className="mc-label mb-1">Dealers tracked</div>
+            <div className="font-bold mc-text-primary">{status.dealerSeenCount.toString()}</div>
+          </div>
+          <div className="mc-card p-2 text-center">
+            <div className="mc-label mb-1">Interval</div>
+            <div className="font-bold mc-text-primary">{status.intervalSeconds.toString()}s</div>
+          </div>
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button className="mc-btn mc-btn-secondary" disabled={!running} onClick={handleStop}>Pause</button>
+        <button className="mc-btn mc-btn-primary" disabled={running} onClick={handleResume}>Resume</button>
+      </div>
     </div>
   );
 }

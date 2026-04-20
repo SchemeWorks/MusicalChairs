@@ -1138,6 +1138,44 @@ export function useClaimCashOut() {
   });
 }
 
+/** Live observer status — running/paused, cursors, interval. */
+export function useGetObserverStatus() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['observerStatus'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getObserverStatus();
+    },
+    enabled: !!actor,
+    refetchInterval: 5000,
+  });
+}
+
+export function useStopObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.stopObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
+export function useResumeObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.resumeObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
 /** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
 export function useGetMintConfig() {
   const { actor } = useShenaniganActor();

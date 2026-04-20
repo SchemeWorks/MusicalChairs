@@ -68,6 +68,11 @@ export const idlFactory = ({ IDL }) => {
     'badOutcomes' : IDL.Nat,
   });
   return IDL.Service({
+    'adminMint' : IDL.Func(
+        [IDL.Principal, IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
     'castShenanigan' : IDL.Func(
         [ShenaniganType, IDL.Opt(IDL.Principal)],
         [ShenaniganOutcome],
@@ -90,6 +95,18 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
     'getMyCashOuts' : IDL.Func([], [IDL.Vec(CashOutEntry)], ['query']),
+    'getObserverStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'gameIdCursor' : IDL.Nat,
+            'intervalSeconds' : IDL.Nat,
+            'dealerSeenCount' : IDL.Nat,
+            'running' : IDL.Bool,
+          }),
+        ],
+        ['query'],
+      ),
     'getPpBurnedFor' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getRecentShenanigans' : IDL.Func(
         [],

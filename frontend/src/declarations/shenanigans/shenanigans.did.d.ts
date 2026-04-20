@@ -67,6 +67,15 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'renameSpell' : null } |
   { 'purseCutter' : null };
 export interface _SERVICE {
+  /**
+   * / Admin-triggered manual PP issuance (direct mint to the player's chip
+   * / subaccount). Use for fixups, comps, or seeding test accounts.
+   */
+  'adminMint' : ActorMethod<
+    [Principal, bigint],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
     ShenaniganOutcome
@@ -92,6 +101,19 @@ export interface _SERVICE {
   'getCashOutsFor' : ActorMethod<[Principal], Array<CashOutEntry>>,
   'getMintConfig' : ActorMethod<[], MintConfig>,
   'getMyCashOuts' : ActorMethod<[], Array<CashOutEntry>>,
+  /**
+   * / Current observer state — running/paused, cursor positions, and interval.
+   * / Surfaced in the admin panel for operational visibility.
+   */
+  'getObserverStatus' : ActorMethod<
+    [],
+    {
+      'gameIdCursor' : bigint,
+      'intervalSeconds' : bigint,
+      'dealerSeenCount' : bigint,
+      'running' : boolean,
+    }
+  >,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,

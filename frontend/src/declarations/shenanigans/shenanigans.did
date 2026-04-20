@@ -74,6 +74,12 @@ type CashOutEntry =
    player: principal;
  };
 service : {
+  /// Admin-triggered manual PP issuance (direct mint to the player's chip
+  /// subaccount). Use for fixups, comps, or seeding test accounts.
+  adminMint: (to: principal, wholePp: nat) -> (variant {
+                                                 Err: text;
+                                                 Ok: nat;
+                                               });
   castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
    (ShenaniganOutcome);
   claimCashOut: (id: nat) -> (variant {
@@ -91,6 +97,15 @@ service : {
   getCashOutsFor: (user: principal) -> (vec CashOutEntry) query;
   getMintConfig: () -> (MintConfig) query;
   getMyCashOuts: () -> (vec CashOutEntry) query;
+  /// Current observer state — running/paused, cursor positions, and interval.
+  /// Surfaced in the admin panel for operational visibility.
+  getObserverStatus: () ->
+   (record {
+      dealerSeenCount: nat;
+      gameIdCursor: nat;
+      intervalSeconds: nat;
+      running: bool;
+    }) query;
   getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
