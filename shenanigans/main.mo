@@ -330,6 +330,37 @@ persistent actor Self {
         };
     };
 
+    /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
+    /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
+    func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
+        if (baseUnits == 0) return;
+        let backend = getBackend();
+        let l1Maybe = try { await backend.getReferrer(originUser) } catch (_) { null };
+        switch (l1Maybe) {
+            case (null) {};
+            case (?l1) {
+                let l1Units = baseUnits * mintConfig.referralL1Bps / 10_000;
+                let _ = await mintTo(l1, l1Units, "referral-L1-" # eventId);
+                let l2Maybe = try { await backend.getReferrer(l1) } catch (_) { null };
+                switch (l2Maybe) {
+                    case (null) {};
+                    case (?l2) {
+                        let l2Units = baseUnits * mintConfig.referralL2Bps / 10_000;
+                        let _ = await mintTo(l2, l2Units, "referral-L2-" # eventId);
+                        let l3Maybe = try { await backend.getReferrer(l2) } catch (_) { null };
+                        switch (l3Maybe) {
+                            case (null) {};
+                            case (?l3) {
+                                let l3Units = baseUnits * mintConfig.referralL3Bps / 10_000;
+                                let _ = await mintTo(l3, l3Units, "referral-L3-" # eventId);
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
     // ================================================================
     // Core Logic
     // ================================================================
