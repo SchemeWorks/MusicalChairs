@@ -567,6 +567,58 @@ persistent actor Self {
         };
     };
 
+    /// Burn PP-units from a chip subaccount (transfer to minting account).
+    func burnFrom(player : Principal, units : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
+        if (units == 0) { return #Ok(0) };
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = ?Subaccount.principalToChipSubaccount(player);
+                to = { owner = Principal.fromActor(Self); subaccount = null };
+                amount = units;
+                fee = null;
+                memo = ?Text.encodeUtf8(memoText);
+                created_at_time = ?nowNat64();
+            });
+            switch (res) {
+                case (#Ok(idx)) { #Ok(idx) };
+                case (#Err(e)) { #Err(describeTransferErr(e)) };
+            };
+        } catch (e) {
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
+    };
+
+    /// Chip-to-chip transfer (between two player subaccounts).
+    func chipTransfer(from : Principal, to : Principal, units : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
+        if (units == 0) { return #Ok(0) };
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = ?Subaccount.principalToChipSubaccount(from);
+                to = {
+                    owner = Principal.fromActor(Self);
+                    subaccount = ?Subaccount.principalToChipSubaccount(to);
+                };
+                amount = units;
+                fee = ?0;
+                memo = ?Text.encodeUtf8(memoText);
+                created_at_time = ?nowNat64();
+            });
+            switch (res) {
+                case (#Ok(idx)) { #Ok(idx) };
+                case (#Err(e)) { #Err(describeTransferErr(e)) };
+            };
+        } catch (e) {
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
+    };
+
+    func getChipBalance(player : Principal) : async Nat {
+        await ppLedger.icrc1_balance_of({
+            owner = Principal.fromActor(Self);
+            subaccount = ?Subaccount.principalToChipSubaccount(player);
+        });
+    };
+
     /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
     /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
     func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
@@ -602,10 +654,103 @@ persistent actor Self {
     // Core Logic
     // ================================================================
 
-    public shared ({ caller = _ }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
-        ignore shenaniganType;
-        ignore target;
-        Debug.trap("Migration in progress — castShenanigan will be restored in Task 11");
+    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+
+        let config = switch (getConfigForType(shenaniganType)) {
+            case (null) { Debug.trap("Unknown shenanigan type") };
+            case (?c) { c };
+        };
+        let costUnits = ppToUnits(Int.abs(Float.toInt(config.cost)));
+
+        let balance = await getChipBalance(caller);
+        if (balance < costUnits) { Debug.trap("Insufficient chips to cast this shenanigan") };
+
+        let castId = nextShenaniganId;
+        let burnMemo = "cast-" # Nat.toText(castId);
+        switch (await burnFrom(caller, costUnits, burnMemo)) {
+            case (#Err(msg)) { Debug.trap("Burn failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + costUnits);
+
+        let outcome = determineOutcome(shenaniganType);
+
+        if (outcome == #backfire) {
+            switch (shenaniganType) {
+                case (#moneyTrickster) {
+                    switch (target) {
+                        case (null) {};
+                        case (?targetP) {
+                            let casterBal = await getChipBalance(caller);
+                            let pct = 2 + (Int.abs(Time.now()) % 7);
+                            let raw = casterBal * pct / 100;
+                            let capped = if (raw > ppToUnits(250)) { ppToUnits(250) } else { raw };
+                            let _ = await chipTransfer(caller, targetP, capped, "backfire-" # Nat.toText(castId));
+                        };
+                    };
+                };
+                case (#aoeSkim) {
+                    let casterBal = await getChipBalance(caller);
+                    let pct = 1 + (Int.abs(Time.now()) % 3);
+                    let loss = casterBal * pct / 100;
+                    let _ = await burnFrom(caller, loss, "backfire-aoe-" # Nat.toText(castId));
+                };
+                case (#downlineHeist) {
+                    switch (target) {
+                        case (null) {};
+                        case (?t) {
+                            Debug.print("Backfire: " # Principal.toText(caller) # " loses L3 downline to " # Principal.toText(t));
+                        };
+                    };
+                };
+                case (_) {};
+            };
+        };
+
+        nextShenaniganId += 1;
+        let newShenanigan : ShenaniganRecord = {
+            id = castId;
+            user = caller;
+            shenaniganType;
+            target;
+            outcome;
+            timestamp = Time.now();
+            cost = config.cost;
+        };
+        shenanigans := natMap.put(shenanigans, castId, newShenanigan);
+        updateShenaniganStats(caller, config.cost, outcome);
+        if (outcome == #success or outcome == #backfire) {
+            let prior = switch (principalMap.get(spellsCastPerPlayer, caller)) {
+                case (null) { 0 };
+                case (?n) { n };
+            };
+            spellsCastPerPlayer := principalMap.put(spellsCastPerPlayer, caller, prior + 1);
+        };
+
+        outcome;
+    };
+
+    func getConfigForType(t : ShenaniganType) : ?ShenaniganConfig {
+        let id : Nat = switch (t) {
+            case (#moneyTrickster) { 0 };
+            case (#aoeSkim) { 1 };
+            case (#renameSpell) { 2 };
+            case (#mintTaxSiphon) { 3 };
+            case (#downlineHeist) { 4 };
+            case (#magicMirror) { 5 };
+            case (#ppBoosterAura) { 6 };
+            case (#purseCutter) { 7 };
+            case (#whaleRebalance) { 8 };
+            case (#downlineBoost) { 9 };
+            case (#goldenName) { 10 };
+        };
+        natMap.get(shenaniganConfigs, id);
     };
 
     func determineOutcome(shenaniganType : ShenaniganType) : ShenaniganOutcome {
