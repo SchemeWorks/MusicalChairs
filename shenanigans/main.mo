@@ -888,6 +888,25 @@ persistent actor Self {
         startObserver();
     };
 
+    public shared ({ caller }) func stopObserver() : async () {
+        requireAdmin(caller);
+        switch (observerTimerId) {
+            case (?tid) { Timer.cancelTimer(tid); observerTimerId := null };
+            case (null) {};
+        };
+    };
+
+    public shared ({ caller }) func resumeObserver() : async () {
+        requireAdmin(caller);
+        startObserver();
+    };
+
+    /// Manual one-shot observer tick (admin debug).
+    public shared ({ caller }) func runObserverOnce() : async () {
+        requireAdmin(caller);
+        await observerTick();
+    };
+
     // ================================================================
     // Admin Functions
     // ================================================================
