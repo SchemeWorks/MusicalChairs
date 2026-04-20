@@ -810,6 +810,39 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Leaderboard
+    // ================================================================
+
+    /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
+    public query func getTopPpBurners(limit : Nat) : async [(Principal, Nat)] {
+        let entries = Iter.toArray(principalMap.entries(ppBurnedPerPlayer));
+        let sorted = Array.sort<(Principal, Nat)>(
+            entries,
+            func(a, b) = Nat.compare(b.1, a.1),
+        );
+        let cap = if (limit < sorted.size()) { limit } else { sorted.size() };
+        Array.subArray(sorted, 0, cap);
+    };
+
+    /// Top-N players by number of spells cast (success + backfire).
+    public query func getTopSpellCasters(limit : Nat) : async [(Principal, Nat)] {
+        let entries = Iter.toArray(principalMap.entries(spellsCastPerPlayer));
+        let sorted = Array.sort<(Principal, Nat)>(
+            entries,
+            func(a, b) = Nat.compare(b.1, a.1),
+        );
+        let cap = if (limit < sorted.size()) { limit } else { sorted.size() };
+        Array.subArray(sorted, 0, cap);
+    };
+
+    public query func getPpBurnedFor(user : Principal) : async Nat {
+        switch (principalMap.get(ppBurnedPerPlayer, user)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
+    };
+
+    // ================================================================
     // Admin Functions
     // ================================================================
 
