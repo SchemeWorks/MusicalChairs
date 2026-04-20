@@ -1373,6 +1373,12 @@ persistent actor {
         };
     };
 
+    /// One-hop lookup — returns the caller's immediate referrer (L1) or null.
+    /// Used by shenanigans for referral PP cascades.
+    public query func getReferrer(user : Principal) : async ?Principal {
+        principalMapNat.get(referralChain, user);
+    };
+
     // Get All Games
     public query func getAllGames() : async [GameRecord] {
         Iter.toArray(natMap.vals(gameRecords));
