@@ -106,14 +106,15 @@ export default function AddBackerMoney() {
                 !canInteract ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >MAX</button>
-            <button
-              onClick={handleDeposit}
-              disabled={!amount || !isAmountValid || addBackerMoneyMutation.isPending || !canInteract || !!inputError}
-              className="mc-btn-primary px-4 py-2 text-xs whitespace-nowrap"
-            >
-              {addBackerMoneyMutation.isPending ? 'Depositing...' : 'Deposit'}
-            </button>
           </div>
+
+          <button
+            onClick={handleDeposit}
+            disabled={!amount || !isAmountValid || addBackerMoneyMutation.isPending || !canInteract || !!inputError}
+            className="mc-btn-primary w-full py-2 text-sm font-bold"
+          >
+            {addBackerMoneyMutation.isPending ? 'Depositing...' : 'Deposit'}
+          </button>
 
           {depositAmount > 0 && !addBackerMoneyMutation.isPending && (
             <div className="space-y-1 text-xs">
@@ -129,8 +130,12 @@ export default function AddBackerMoney() {
           </div>
         </div>
 
-        {/* Right: instant calculator */}
-        <div>
+        {/* Right: warning + instant calculator */}
+        <div className="space-y-3">
+          <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg">
+            <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME
+            <div className="font-normal text-xs opacity-80 mt-0.5">Only play with money you can afford to lose</div>
+          </div>
           {depositAmount > 0 ? (
             <div>
               <div className="text-center mb-3">
