@@ -345,6 +345,61 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Chip custody — deposit / cash-out
+    // ================================================================
+
+    /// Pull `amountUnits` PP-units from the caller's wallet into their
+    /// chip subaccount. Caller must have signed icrc2_approve on pp_ledger
+    /// beforehand.
+    public shared ({ caller }) func depositChips(amountUnits : Nat) : async { #Ok : Nat; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        let minUnits = ppToUnits(mintConfig.minDepositPp);
+        if (amountUnits < minUnits) {
+            return #Err("Minimum deposit is " # Nat.toText(mintConfig.minDepositPp) # " PP");
+        };
+        try {
+            let res = await ppLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = {
+                    owner = Principal.fromActor(Self);
+                    subaccount = ?Subaccount.principalToChipSubaccount(caller);
+                };
+                amount = amountUnits;
+                fee = ?0;
+                memo = ?Text.encodeUtf8("chip-deposit");
+                created_at_time = ?nowNat64();
+            });
+            switch (res) {
+                case (#Ok(idx)) { #Ok(idx) };
+                case (#Err(#InsufficientAllowance(_))) {
+                    #Err("Approve shenanigans on pp_ledger first");
+                };
+                case (#Err(#InsufficientFunds({ balance }))) {
+                    #Err("Wallet balance too low (" # Nat.toText(balance) # " units)");
+                };
+                case (#Err(e)) { #Err(describeTransferFromErr(e)) };
+            };
+        } catch (e) {
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
+    };
+
+    func describeTransferFromErr(err : PpLedger.TransferFromError) : Text {
+        switch (err) {
+            case (#BadFee({ expected_fee })) { "BadFee expected=" # Nat.toText(expected_fee) };
+            case (#BadBurn({ min_burn_amount })) { "BadBurn min=" # Nat.toText(min_burn_amount) };
+            case (#InsufficientFunds({ balance })) { "InsufficientFunds balance=" # Nat.toText(balance) };
+            case (#InsufficientAllowance({ allowance })) { "InsufficientAllowance=" # Nat.toText(allowance) };
+            case (#TooOld) { "TooOld" };
+            case (#CreatedInFuture(_)) { "CreatedInFuture" };
+            case (#Duplicate({ duplicate_of })) { "Duplicate of=" # Nat.toText(duplicate_of) };
+            case (#TemporarilyUnavailable) { "TemporarilyUnavailable" };
+            case (#GenericError({ message; error_code = _ })) { "GenericError: " # message };
+        };
+    };
+
+    // ================================================================
     // Default configs (identical to current backend)
     // ================================================================
 
