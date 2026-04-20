@@ -243,9 +243,105 @@ persistent actor Self {
         };
     };
 
-    // Implemented in Task 8; stub here so Task 5 scaffolding compiles.
-    func startObserver() {
-        // Implemented in Task 8
+    // ================================================================
+    // Observer (polling timer)
+    // ================================================================
+
+    func startObserver<system>() {
+        switch (observerTimerId) {
+            case (?tid) { Timer.cancelTimer(tid) };
+            case (null) {};
+        };
+        let interval : Nat = mintConfig.observerIntervalSeconds;
+        let tid = Timer.recurringTimer<system>(#seconds(interval), observerTick);
+        observerTimerId := ?tid;
+    };
+
+    /// One observer pass. Mints PP for new deposits and dealer top-ups.
+    /// Advances cursors only after successful mint to guarantee at-least-once
+    /// minting with ledger-level dedup (via created_at_time + memo) preventing
+    /// duplicates.
+    func observerTick() : async () {
+        if (observerRunning) return;
+        observerRunning := true;
+        try {
+            await processNewGames();
+            await processDealerDeltas();
+        } catch (e) {
+            Debug.print("Observer tick error: " # Error.message(e));
+        };
+        observerRunning := false;
+    };
+
+    func processNewGames() : async () {
+        let backend = getBackend();
+        let games = try { await backend.getAllGames() } catch (_) { [] };
+        let sorted = Array.sort<BackendGameRecord>(games, func(a, b) = Nat.compare(a.id, b.id));
+        for (game in sorted.vals()) {
+            if (game.id >= gameIdCursor) {
+                let ppPerIcp = switch (game.plan) {
+                    case (#simple21Day) { mintConfig.simple21DayPpPerIcp };
+                    case (#compounding15Day) { mintConfig.compounding15DayPpPerIcp };
+                    case (#compounding30Day) { mintConfig.compounding30DayPpPerIcp };
+                };
+                let units = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let eventId = "game-" # Nat.toText(game.id);
+                let res = await mintTo(game.player, units, eventId);
+                switch (res) {
+                    case (#Ok(_)) {
+                        await cascadeReferralMint(game.player, units, eventId);
+                        gameIdCursor := game.id + 1;
+                    };
+                    case (#Err(msg)) {
+                        Debug.print("Mint failed for " # eventId # ": " # msg);
+                        return;
+                    };
+                };
+            };
+        };
+    };
+
+    func processDealerDeltas() : async () {
+        let backend = getBackend();
+        let dealers = try { await backend.getDealerPositions() } catch (_) { [] };
+        for (dealer in dealers.vals()) {
+            let seen : Float = switch (principalMap.get(dealerSeen, dealer.owner)) {
+                case (null) { 0.0 };
+                case (?v) { v };
+            };
+            if (dealer.amount > seen) {
+                let delta : Float = dealer.amount - seen;
+                let units = icpFloatToPpUnits(delta, mintConfig.dealerPpPerIcp);
+                let eventId = "dealer-" # Principal.toText(dealer.owner) # "-"
+                    # Float.toText(dealer.amount);
+                let res = await mintTo(dealer.owner, units, eventId);
+                switch (res) {
+                    case (#Ok(_)) {
+                        await cascadeReferralMint(dealer.owner, units, eventId);
+                        dealerSeen := principalMap.put(dealerSeen, dealer.owner, dealer.amount);
+                    };
+                    case (#Err(msg)) {
+                        Debug.print("Dealer mint failed: " # msg);
+                    };
+                };
+            };
+        };
+    };
+
+    /// One-shot catch-up primer. Admin only. Call immediately after the
+    /// cutover upgrade completes, before unpausing user traffic.
+    public shared ({ caller }) func primeObserverCursors() : async () {
+        requireAdmin(caller);
+        let backend = getBackend();
+        let games = await backend.getAllGames();
+        var maxId : Nat = 0;
+        for (g in games.vals()) { if (g.id >= maxId) { maxId := g.id + 1 } };
+        gameIdCursor := maxId;
+
+        let dealers = await backend.getDealerPositions();
+        for (d in dealers.vals()) {
+            dealerSeen := principalMap.put(dealerSeen, d.owner, d.amount);
+        };
     };
 
     // ================================================================
