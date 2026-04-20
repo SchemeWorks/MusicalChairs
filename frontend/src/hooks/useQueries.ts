@@ -4,7 +4,7 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
-import { useReadPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole } from './usePpLedger';
+import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
@@ -1069,6 +1069,100 @@ export function useGetHallOfFame() {
     isLoading: false,
     error: null
   };
+}
+
+// === Chip custody & cash-out (pp_ledger + shenanigans) ===
+
+const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
+
+/** One-time approve for chip deposits. Amount in whole PP. */
+export function useApproveForDeposits() {
+  const ppLedger = useAuthPpLedger();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount: wholePpToUnits(wholePp),
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+  });
+}
+
+export function useDepositChips() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.depositChips(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+    },
+  });
+}
+
+export function useRequestCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.requestCashOut(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pendingCashOuts'] }),
+  });
+}
+
+export function useClaimCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.claimCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
+export function usePendingCashOuts() {
+  const { actor } = useShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['pendingCashOuts', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      const entries = await actor.getMyCashOuts();
+      return entries.map((e) => ({
+        id: e.id,
+        amount: Number(e.amount) / 1e8,
+        claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
+        claimed: e.claimed,
+      }));
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 10000,
+  });
 }
 
 // Ponzi Points calculation utilities
