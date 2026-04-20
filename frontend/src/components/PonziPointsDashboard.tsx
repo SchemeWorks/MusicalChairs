@@ -16,8 +16,8 @@ export default function PonziPointsDashboard() {
   }
 
   const totalPoints = ponziData?.totalPoints || 0;
-  const depositPoints = ponziData?.depositPoints || 0;
-  const referralPoints = ponziData?.referralPoints || 0;
+  const chipPoints = ponziData?.chipPoints || 0;
+  const walletPoints = ponziData?.walletPoints || 0;
 
   return (
     <div className="space-y-6">
@@ -31,16 +31,21 @@ export default function PonziPointsDashboard() {
           <p className="text-xs mc-text-muted mt-2 font-accent italic">Worthless tokens for YOLOing into a Ponzi</p>
         </div>
 
-        {/* Breakdown */}
+        {/* Breakdown: chip subaccount (spendable) vs external wallet */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="mc-card mc-accent-green p-4 text-center">
-            <div className="mc-label mb-1">Earned from Deposits</div>
-            <div className="text-xl font-bold mc-text-green">{depositPoints.toLocaleString()}</div>
+            <div className="mc-label mb-1">Chips (spendable)</div>
+            <div className="text-xl font-bold mc-text-green">{chipPoints.toLocaleString()}</div>
           </div>
           <div className="mc-card mc-accent-cyan p-4 text-center">
-            <div className="mc-label mb-1">From Referrals</div>
-            <div className="text-xl font-bold mc-text-cyan">{referralPoints.toLocaleString()}</div>
+            <div className="mc-label mb-1">Wallet (external)</div>
+            <div className="text-xl font-bold mc-text-cyan">{walletPoints.toLocaleString()}</div>
           </div>
+        </div>
+        <div className="flex gap-3 mt-4 justify-center">
+          <button onClick={() => { window.location.hash = '#chips'; }} className="mc-btn mc-btn-primary">
+            Manage chips
+          </button>
         </div>
       </div>
 
