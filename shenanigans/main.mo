@@ -843,6 +843,52 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Admin tunables
+    // ================================================================
+
+    public query func getMintConfig() : async MintConfig { mintConfig };
+
+    public shared ({ caller }) func setSimple21DayPpPerIcp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with simple21DayPpPerIcp = v };
+    };
+    public shared ({ caller }) func setCompounding15DayPpPerIcp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding15DayPpPerIcp = v };
+    };
+    public shared ({ caller }) func setCompounding30DayPpPerIcp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding30DayPpPerIcp = v };
+    };
+    public shared ({ caller }) func setDealerPpPerIcp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with dealerPpPerIcp = v };
+    };
+    public shared ({ caller }) func setReferralBps(l1 : Nat, l2 : Nat, l3 : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := {
+            mintConfig with
+            referralL1Bps = l1;
+            referralL2Bps = l2;
+            referralL3Bps = l3;
+        };
+    };
+    public shared ({ caller }) func setMinDepositPp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with minDepositPp = v };
+    };
+    public shared ({ caller }) func setCashOutDelaySeconds(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with cashOutDelaySeconds = v };
+    };
+    public shared ({ caller }) func setObserverIntervalSeconds(v : Nat) : async () {
+        requireAdmin(caller);
+        if (v < 1) { Debug.trap("Interval must be >= 1 second") };
+        mintConfig := { mintConfig with observerIntervalSeconds = v };
+        startObserver();
+    };
+
+    // ================================================================
     // Admin Functions
     // ================================================================
 
