@@ -130,12 +130,8 @@ export default function AddBackerMoney() {
           </div>
         </div>
 
-        {/* Right: warning + instant calculator */}
+        {/* Right: instant calculator + warning */}
         <div className="space-y-3">
-          <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg">
-            <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME
-            <div className="font-normal text-xs opacity-80 mt-0.5">Only play with money you can afford to lose</div>
-          </div>
           {depositAmount > 0 ? (
             <div>
               <div className="text-center mb-3">
@@ -177,6 +173,10 @@ export default function AddBackerMoney() {
               </div>
             </div>
           )}
+          <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg">
+            <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME
+            <div className="font-normal text-xs opacity-80 mt-0.5">Only play with money you can afford to lose</div>
+          </div>
         </div>
       </div>
     </>
