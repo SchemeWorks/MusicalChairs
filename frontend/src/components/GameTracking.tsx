@@ -498,7 +498,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           <div className="text-center">
             <button
               onClick={() => onTabChange('shenanigans')}
-              className="mc-btn-secondary flex items-center gap-2 mx-auto text-xs"
+              className="mc-btn-secondary inline-flex items-center gap-2 mx-auto text-xs px-4 py-2 rounded-lg"
             >
               <Dice5 className="h-4 w-4 mc-text-purple" />
               Spend your {ponziData?.totalPoints?.toLocaleString()} PP on Shenanigans →
