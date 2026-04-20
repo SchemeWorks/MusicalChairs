@@ -2131,41 +2131,23 @@ dfx deploy shenanigans --network ic
 dfx canister install pp_ledger --mode reinstall --network ic --yes
 ```
 
-This wipes all balances including the 1M owner genesis. Confirm the install output shows new init args with `decimals = 8` and the shenanigans principal as minting account.
+This wipes all pre-existing balances and replaces them with the new init args:
+- `decimals = 8`
+- `minting_account = j56tm-oaaaa-aaaac-qf34q-cai` (shenanigans)
+- `initial_balances` re-mints **1,000,000 whole PP** (= `100_000_000_000_000` raw units) to the front-end-load recipient `gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe` in their top-level wallet (subaccount=null). These sit in the external wallet — they'll need `depositChips` to spend on spells like any other player.
 
-- [ ] **Step 4: Re-mint owner's 1M PP (optional, per spec non-goal #3)**
+Confirm the install output reflects all three.
 
-If the user wants it kept:
+- [ ] **Step 4: Verify the genesis re-mint landed**
 
 ```bash
-dfx canister call pp_ledger icrc1_transfer --network ic "(record {
-  from_subaccount = null;
-  to = record { owner = principal \"ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae\"; subaccount = null };
-  amount = 100_000_000_000_000 : nat;
-  fee = null;
-  memo = null;
-  created_at_time = null;
+dfx canister call pp_ledger icrc1_balance_of --network ic "(record {
+  owner = principal \"gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe\";
+  subaccount = null;
 })"
 ```
 
-(1,000,000 PP × 10^8 units = 100_000_000_000_000 units.)
-
-This must be called by the minting account, which is the shenanigans canister. Since only shenanigans can mint, you need a shenanigans admin method. Add to `shenanigans/main.mo`:
-
-```motoko
-public shared ({ caller }) func mintTo(to : Principal, wholePp : Nat) : async { #Ok : Nat; #Err : Text } {
-    requireAdmin(caller);
-    let units = ppToUnits(wholePp);
-    switch (await mintTo(to, units, "admin-mint")) {
-        case (#Ok(idx)) { #Ok(idx) };
-        case (#Err(msg)) { #Err(msg) };
-    };
-};
-```
-
-(Rename the internal helper `mintTo` → `mintInternal` to avoid the collision, or use a distinct public name like `adminMint`.)
-
-Add this helper as an additional task below (Task 35).
+Expected: `(100_000_000_000_000 : nat)` = 1,000,000 whole PP.
 
 - [ ] **Step 5: Upgrade backend (strips PP)**
 
