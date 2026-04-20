@@ -286,7 +286,7 @@ persistent actor Self {
                 };
                 let units = icpFloatToPpUnits(game.amount, ppPerIcp);
                 let eventId = "game-" # Nat.toText(game.id);
-                let res = await mintTo(game.player, units, eventId);
+                let res = await mintInternal(game.player, units, eventId);
                 switch (res) {
                     case (#Ok(_)) {
                         await cascadeReferralMint(game.player, units, eventId);
@@ -314,7 +314,7 @@ persistent actor Self {
                 let units = icpFloatToPpUnits(delta, mintConfig.dealerPpPerIcp);
                 let eventId = "dealer-" # Principal.toText(dealer.owner) # "-"
                     # Float.toText(dealer.amount);
-                let res = await mintTo(dealer.owner, units, eventId);
+                let res = await mintInternal(dealer.owner, units, eventId);
                 switch (res) {
                     case (#Ok(_)) {
                         await cascadeReferralMint(dealer.owner, units, eventId);
@@ -529,7 +529,7 @@ persistent actor Self {
 
     /// Mint PP-units to a player's chip subaccount.
     /// Returns #Ok(blockIndex) or #Err(text).
-    func mintTo(player : Principal, amount : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
+    func mintInternal(player : Principal, amount : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
         if (amount == 0) { return #Ok(0) };
         let memo = ?Text.encodeUtf8(memoText);
         try {
@@ -629,19 +629,19 @@ persistent actor Self {
             case (null) {};
             case (?l1) {
                 let l1Units = baseUnits * mintConfig.referralL1Bps / 10_000;
-                let _ = await mintTo(l1, l1Units, "referral-L1-" # eventId);
+                let _ = await mintInternal(l1, l1Units, "referral-L1-" # eventId);
                 let l2Maybe = try { await backend.getReferrer(l1) } catch (_) { null };
                 switch (l2Maybe) {
                     case (null) {};
                     case (?l2) {
                         let l2Units = baseUnits * mintConfig.referralL2Bps / 10_000;
-                        let _ = await mintTo(l2, l2Units, "referral-L2-" # eventId);
+                        let _ = await mintInternal(l2, l2Units, "referral-L2-" # eventId);
                         let l3Maybe = try { await backend.getReferrer(l2) } catch (_) { null };
                         switch (l3Maybe) {
                             case (null) {};
                             case (?l3) {
                                 let l3Units = baseUnits * mintConfig.referralL3Bps / 10_000;
-                                let _ = await mintTo(l3, l3Units, "referral-L3-" # eventId);
+                                let _ = await mintInternal(l3, l3Units, "referral-L3-" # eventId);
                             };
                         };
                     };
@@ -850,6 +850,13 @@ persistent actor Self {
     // ================================================================
 
     public query func getMintConfig() : async MintConfig { mintConfig };
+
+    /// Admin-triggered manual PP issuance (direct mint to the player's chip
+    /// subaccount). Use for fixups, comps, or seeding test accounts.
+    public shared ({ caller }) func adminMint(to : Principal, wholePp : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        await mintInternal(to, ppToUnits(wholePp), "admin-mint-" # Principal.toText(to));
+    };
 
     public shared ({ caller }) func setSimple21DayPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
