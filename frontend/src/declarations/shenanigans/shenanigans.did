@@ -52,14 +52,96 @@ type ShenaniganConfig =
    name: text;
    successOdds: nat;
  };
+type MintConfig = 
+ record {
+   cashOutDelaySeconds: nat;
+   compounding15DayPpPerIcp: nat;
+   compounding30DayPpPerIcp: nat;
+   dealerPpPerIcp: nat;
+   minDepositPp: nat;
+   observerIntervalSeconds: nat;
+   referralL1Bps: nat;
+   referralL2Bps: nat;
+   referralL3Bps: nat;
+   simple21DayPpPerIcp: nat;
+ };
+type CashOutEntry = 
+ record {
+   amount: nat;
+   claimableAfter: int;
+   claimed: bool;
+   id: nat;
+   player: principal;
+ };
 service : {
+  /// Admin-triggered manual PP issuance (direct mint to the player's chip
+  /// subaccount). Use for fixups, comps, or seeding test accounts.
+  adminMint: (to: principal, wholePp: nat) -> (variant {
+                                                 Err: text;
+                                                 Ok: nat;
+                                               });
   castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
    (ShenaniganOutcome);
+  claimCashOut: (id: nat) -> (variant {
+                                Err: text;
+                                Ok: nat;
+                              });
+  /// Pull `amountUnits` PP-units from the caller's wallet into their
+  /// chip subaccount. Caller must have signed icrc2_approve on pp_ledger
+  /// beforehand.
+  depositChips: (amountUnits: nat) -> (variant {
+                                         Err: text;
+                                         Ok: nat;
+                                       });
+  /// Pending and recently claimed cash-outs for a given user.
+  getCashOutsFor: (user: principal) -> (vec CashOutEntry) query;
+  getMintConfig: () -> (MintConfig) query;
+  getMyCashOuts: () -> (vec CashOutEntry) query;
+  /// Current observer state — running/paused, cursor positions, and interval.
+  /// Surfaced in the admin panel for operational visibility.
+  getObserverStatus: () ->
+   (record {
+      dealerSeenCount: nat;
+      gameIdCursor: nat;
+      intervalSeconds: nat;
+      running: bool;
+    }) query;
+  getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
   getShenaniganStats: () -> (ShenaniganStats) query;
+  /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
+  getTopPpBurners: (limit: nat) -> (vec record {
+                                          principal;
+                                          nat;
+                                        }) query;
+  /// Top-N players by number of spells cast (success + backfire).
+  getTopSpellCasters: (limit: nat) -> (vec record {
+                                             principal;
+                                             nat;
+                                           }) query;
   initialize: (backendCanisterId: principal) -> ();
+  /// One-shot catch-up primer. Admin only. Call immediately after the
+  /// cutover upgrade completes, before unpausing user traffic.
+  primeObserverCursors: () -> ();
+  requestCashOut: (amountUnits: nat) -> (variant {
+                                           Err: text;
+                                           Ok: nat;
+                                         });
   resetShenaniganConfig: (id: nat) -> ();
+  resumeObserver: () -> ();
+  rotateAdmin: (newAdmin: principal) -> ();
+  /// Manual one-shot observer tick (admin debug).
+  runObserverOnce: () -> ();
   saveAllShenaniganConfigs: (configs: vec ShenaniganConfig) -> ();
+  setCashOutDelaySeconds: (v: nat) -> ();
+  setCompounding15DayPpPerIcp: (v: nat) -> ();
+  setCompounding30DayPpPerIcp: (v: nat) -> ();
+  setDealerPpPerIcp: (v: nat) -> ();
+  setMinDepositPp: (v: nat) -> ();
+  setObserverIntervalSeconds: (v: nat) -> ();
+  setReferralBps: (l1: nat, l2: nat, l3: nat) -> ();
+  setSimple21DayPpPerIcp: (v: nat) -> ();
+  stopObserver: () -> ();
   updateShenaniganConfig: (config: ShenaniganConfig) -> ();
 }

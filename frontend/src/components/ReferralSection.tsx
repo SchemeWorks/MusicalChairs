@@ -149,7 +149,9 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
           const directReferrals = referralStats?.level1Count || 0;
           const level2 = referralStats?.level2Count || 0;
           const level3 = referralStats?.level3Count || 0;
-          const referralPP = ponziData?.referralPoints || 0;
+          // Per-tier referral PP earnings retired with the backend PP strip;
+          // use chip balance as a proxy for "PP available to spend" here.
+          const referralPP = ponziData?.chipPoints || 0;
           const directContext =
             directReferrals === 0 ? 'Share your link to get started' :
             directReferrals < 5 ? `${5 - directReferrals} more for Networker badge` :
@@ -174,10 +176,10 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
                 <div className="text-xs mc-text-dim mt-1">Three levels deep</div>
               </div>
               <div className="mc-card p-3 text-center">
-                <div className="mc-label mb-1">Referral PP</div>
+                <div className="mc-label mb-1">Chip PP</div>
                 <div className="text-xl font-bold mc-text-purple">{referralPP.toLocaleString()}</div>
                 <div className="text-xs mc-text-dim mt-1">
-                  {referralPP === 0 ? 'Earn PP from referral deposits' :
+                  {referralPP === 0 ? 'Deposit chips to start spending' :
                    referralPP < 100 ? 'Keep growing your network' :
                    `Enough for ${Math.floor(referralPP / 100)} shenanigan casts`}
                 </div>

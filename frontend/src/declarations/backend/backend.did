@@ -129,7 +129,6 @@ service : {
                                           Ok: nat;
                                         });
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
-  burnPonziPoints: (user: principal, amount: float64) -> ();
   calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
   calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
   calculateCompoundedROI: () -> (float64) query;
@@ -144,11 +143,13 @@ service : {
                                   Err: text;
                                   Ok: nat;
                                 });
-  deductPonziPoints: (user: principal, amount: float64) -> ();
-  distributeDealerCutFromShenanigans: (amount: float64) -> ();
   distributeFees: (totalFees: float64) -> ();
   getActiveGameCount: () -> (nat) query;
   getAllActiveGames: () -> (vec GameRecord) query;
+  getAllDealerRepayments: () -> (vec record {
+                                       principal;
+                                       float64;
+                                     }) query;
   getAllGames: () -> (vec GameRecord) query;
   getAvailableBalance: () -> (float64) query;
   getCallerUserProfile: () -> (opt UserProfile) query;
@@ -158,7 +159,6 @@ service : {
   getCoverChargeBalance: () -> (nat) query;
   getCoverChargeTransactions: () -> (vec CoverChargeEntry) query;
   getDaysActive: () -> (nat) query;
-  getAllDealerRepayments: () -> (vec record { principal; float64 }) query;
   getDealerPositions: () -> (vec DealerPosition) query;
   getDealerRepaymentBalance: () -> (float64) query;
   getDealerRepaymentBalanceFor: (user: principal) -> (float64) query;
@@ -175,44 +175,9 @@ service : {
   getMaxDepositLimit: () -> (float64) query;
   getOldestUpstreamDealer: () -> (opt DealerPosition) query;
   getPlatformStats: () -> (PlatformStats) query;
-  getPonziPoints: () -> (float64) query;
-  getPonziPointsBreakdownFor: (user: principal) ->
-   (record {
-      depositPoints: float64;
-      referralPoints: float64;
-      totalPoints: float64;
-    }) query;
-  getPonziPointsBalance: () ->
-   (record {
-      depositPoints: float64;
-      referralPoints: float64;
-      totalPoints: float64;
-    }) query;
-  getPonziPointsBalanceFor: (user: principal) -> (float64);
-  getPonziPointsFor: (user: principal) -> (float64) query;
-  getReferralEarnings: (user: principal) -> (float64) query;
-  getReferralTierPoints: () ->
-   (record {
-      level1Points: float64;
-      level2Points: float64;
-      level3Points: float64;
-      totalPoints: float64;
-    }) query;
-  getReferralTierPointsFor: (user: principal) ->
-   (record {
-      level1Points: float64;
-      level2Points: float64;
-      level3Points: float64;
-      totalPoints: float64;
-    }) query;
-  getTopPonziPointsBurners: () -> (vec record {
-                                         principal;
-                                         float64;
-                                       }) query;
-  getTopPonziPointsHolders: () -> (vec record {
-                                         principal;
-                                         float64;
-                                       }) query;
+  /// One-hop lookup — returns the caller's immediate referrer (L1) or null.
+  /// Used by shenanigans for referral PP cascades.
+  getReferrer: (user: principal) -> (opt principal) query;
   getTotalDealerDebt: () -> (float64) query;
   getTotalDeposits: () -> (float64) query;
   getTotalHouseMoneyAdded: () -> (float64) query;
@@ -221,12 +186,12 @@ service : {
   getUserGamesFor: (user: principal) -> (vec GameRecord) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
   getUserRole: (user: principal) -> (UserRole) query;
-  isAdmin: (user: principal) -> (bool) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
    (ConsentMessageResponse);
   icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
   initializeAccessControl: () -> ();
+  isAdmin: (user: principal) -> (bool) query;
   isCallerAdmin: () -> (bool) query;
   isTestMode: () -> (bool) query;
   saveCallerUserProfile: (profile: UserProfile) -> ();
@@ -234,14 +199,11 @@ service : {
    isCompounding: bool, startTimeNanos: int) -> (nat);
   seedReferral: (user: principal, referrer: principal) -> ();
   setCanisterPrincipal: (p: principal) -> ();
-  setShenanigansPrincipal: (p: principal) -> ();
   setTestMode: (enabled: bool) -> ();
   settleCompoundingGame: (gameId: nat) -> (variant {
                                              Err: text;
                                              Ok: float64;
                                            });
-  transferPonziPoints: (from: principal, to: principal, amount: float64) ->
-   ();
   withdrawCoverCharges: (amount: nat) -> (variant {
                                             Err: text;
                                             Ok: nat;

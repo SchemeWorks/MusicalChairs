@@ -4,6 +4,7 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
+import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
@@ -895,56 +896,53 @@ function getGamePlanString(plan: GamePlan): string {
   }
 }
 
-// MLM Queries - Updated to use real backend data
+// MLM stats — backend no longer tracks per-tier referral PP earnings (that work
+// moved to shenanigans' mint pipeline, which doesn't yet expose a per-user
+// breakdown). Return a zeroed shape so existing consumers compile; wire up a
+// shenanigans-side query later if we want the breakdown back.
 export function useGetReferralStats() {
-  const actor = useReadActor();
   const { principal } = useWallet();
-
   return useQuery({
     queryKey: ['mlmStats', principal],
-    queryFn: async () => {
-      if (!principal) throw new Error('No principal');
-
-      // Get real referral tier points from backend
-      const tierPoints = await actor.getReferralTierPointsFor(Principal.fromText(principal));
-
-      return {
-        level1Count: 0, // Backend doesn't track count, only points
-        level2Count: 0,
-        level3Count: 0,
-        level1Points: tierPoints.level1Points,
-        level2Points: tierPoints.level2Points,
-        level3Points: tierPoints.level3Points,
-        totalEarnings: tierPoints.totalPoints,
-        referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`
-      };
-    },
+    queryFn: async () => ({
+      level1Count: 0,
+      level2Count: 0,
+      level3Count: 0,
+      level1Points: 0,
+      level2Points: 0,
+      level3Points: 0,
+      totalEarnings: 0,
+      referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`,
+    }),
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
-// Ponzi Points Queries - Updated to use real backend data
+// PP balances — read directly from pp_ledger (chip subaccount + user wallet)
 export function useGetPonziPoints() {
-  const actor = useReadActor();
+  const ledger = useReadPpLedger();
   const { principal } = useWallet();
 
   return useQuery({
-    queryKey: ['ponziPointsBalance', principal],
+    queryKey: ['ppBalances', principal],
     queryFn: async () => {
       if (!principal) throw new Error('No principal');
-
-      // Get real Ponzi Points balance from backend
-      const balance = await actor.getPonziPointsBreakdownFor(Principal.fromText(principal));
-
+      const p = Principal.fromText(principal);
+      const [chipUnits, walletUnits] = await Promise.all([
+        ledger.icrc1_balance_of({
+          owner: shenanigansOwner(),
+          subaccount: [principalToChipSubaccount(p)],
+        }),
+        ledger.icrc1_balance_of({ owner: p, subaccount: [] }),
+      ]);
       return {
-        totalPoints: balance.totalPoints,
-        depositPoints: balance.depositPoints,
-        referralPoints: balance.referralPoints,
+        chipPoints: ppUnitsToWhole(chipUnits),
+        walletPoints: ppUnitsToWhole(walletUnits),
+        totalPoints: ppUnitsToWhole(chipUnits + walletUnits),
       };
     },
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
   });
 }
 
@@ -1026,44 +1024,31 @@ export function useGetSeedRoundDashboard() {
 // Legacy alias
 export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
-// Hall of Fame Queries - Updated to use separate backend calls
+// Top-holders leaderboard retired — pp_ledger exposes balances as on-chain state,
+// not as a sorted view. The hook is kept as a no-op stub so existing consumers
+// compile until Task 29 removes them.
 export function useGetTopPonziPointsHolders() {
-  const actor = useReadActor();
-
   return useQuery({
     queryKey: ['topPonziPointsHolders'],
-    queryFn: async () => {
-      const holders = await actor.getTopPonziPointsHolders();
-
-      // Transform backend data to include user names
-      return holders.map(([principal, points], index) => ({
-        rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPoints: points,
-        principal: principal.toString()
-      }));
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    queryFn: async () => [] as { rank: number; name: string; ponziPoints: number; principal: string }[],
   });
 }
 
 export function useGetTopPonziPointsBurners() {
-  const actor = useReadActor();
-
+  const actor = useShenaniganActor().actor;
   return useQuery({
-    queryKey: ['topPonziPointsBurners'],
+    queryKey: ['topPpBurners'],
     queryFn: async () => {
-      const burners = await actor.getTopPonziPointsBurners();
-
-      // Transform backend data to include user names
-      return burners.map(([principal, pointsBurned], index) => ({
+      if (!actor) return [];
+      const burners = await actor.getTopPpBurners(50n);
+      return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPointsBurned: pointsBurned,
-        principal: principal.toString()
+        name: `User ${principal.toString().slice(-8)}`,
+        ponziPointsBurned: Number(unitsBig / 100_000_000n),
+        principal: principal.toString(),
       }));
     },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    refetchInterval: 30000,
   });
 }
 
@@ -1077,6 +1062,183 @@ export function useGetHallOfFame() {
     isLoading: false,
     error: null
   };
+}
+
+// === Chip custody & cash-out (pp_ledger + shenanigans) ===
+
+const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
+
+/** One-time approve for chip deposits. Amount in whole PP. */
+export function useApproveForDeposits() {
+  const ppLedger = useAuthPpLedger();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount: wholePpToUnits(wholePp),
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+  });
+}
+
+export function useDepositChips() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.depositChips(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+    },
+  });
+}
+
+export function useRequestCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.requestCashOut(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pendingCashOuts'] }),
+  });
+}
+
+export function useClaimCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.claimCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
+/** Live observer status — running/paused, cursors, interval. */
+export function useGetObserverStatus() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['observerStatus'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getObserverStatus();
+    },
+    enabled: !!actor,
+    refetchInterval: 5000,
+  });
+}
+
+export function useStopObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.stopObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
+export function useResumeObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.resumeObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
+/** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
+export function useGetMintConfig() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['mintConfig'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getMintConfig();
+    },
+    enabled: !!actor,
+    refetchInterval: 30000,
+  });
+}
+
+function useMintConfigSetter<Args extends unknown[]>(
+  run: (actor: NonNullable<ReturnType<typeof useShenaniganActor>['actor']>, args: Args) => Promise<unknown>,
+) {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: Args) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return run(actor, args);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mintConfig'] }),
+  });
+}
+
+export const useSetSimple21 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setSimple21DayPpPerIcp(v));
+export const useSetCompounding15 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding15DayPpPerIcp(v));
+export const useSetCompounding30 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding30DayPpPerIcp(v));
+export const useSetDealerMultiplier = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setDealerPpPerIcp(v));
+export const useSetReferralBps = () =>
+  useMintConfigSetter<[bigint, bigint, bigint]>((a, [l1, l2, l3]) => a.setReferralBps(l1, l2, l3));
+export const useSetMinDeposit = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setMinDepositPp(v));
+export const useSetCashOutDelay = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCashOutDelaySeconds(v));
+export const useSetObserverInterval = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setObserverIntervalSeconds(v));
+
+export function usePendingCashOuts() {
+  const { actor } = useShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['pendingCashOuts', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      const entries = await actor.getMyCashOuts();
+      return entries.map((e) => ({
+        id: e.id,
+        amount: Number(e.amount) / 1e8,
+        claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
+        claimed: e.claimed,
+      }));
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 10000,
+  });
 }
 
 // Ponzi Points calculation utilities

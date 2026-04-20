@@ -17,6 +17,21 @@ import AccessControl "authorization/access-control";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 
+// Migration: explicitly drop the four PP-related stable variables that were
+// removed when PP custody migrated to the shenanigans canister and pp_ledger.
+// Motoko 0.x requires an explicit migration function to discard stable state.
+// The function receives the old values and returns a new state that simply
+// omits them.
+(with migration = func(_old : {
+    var ponziPoints : OrderedMap.Map<Principal, Float>;
+    var ponziPointsBurned : OrderedMap.Map<Principal, Float>;
+    var referralEarnings : OrderedMap.Map<Principal, {
+        level1Points : Float;
+        level2Points : Float;
+        level3Points : Float;
+    }>;
+    var shenanigansPrincipal : ?Principal;
+}) : {} = {})
 persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
@@ -123,13 +138,6 @@ persistent actor {
         totalWithdrawn : Float;
     };
 
-    // Referral Earnings (PP earned through referrals, tracked per level for display)
-    public type ReferralEarnings = {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-    };
-
     // Platform Stats
     public type PlatformStats = {
         totalDeposits : Float;
@@ -178,8 +186,6 @@ persistent actor {
     }>();
     // Maps user → who referred them (one-time, immutable chain)
     var referralChain = principalMapNat.empty<Principal>();
-    // Tracks PP earned through referrals, per referrer principal
-    var referralEarnings = principalMapNat.empty<ReferralEarnings>();
     var platformStats : PlatformStats = {
         totalDeposits = 0.0;
         totalWithdrawals = 0.0;
@@ -198,12 +204,6 @@ persistent actor {
 
     // Dealer Positions
     var dealerPositions = principalMapNat.empty<DealerPosition>();
-
-    // Ponzi Points Tracking
-    var ponziPoints = principalMapNat.empty<Float>();
-
-    // Ponzi Points Burned Tracking
-    var ponziPointsBurned = principalMapNat.empty<Float>();
 
     // Per-caller reentrancy lock to prevent TOCTOU exploits (transient — resets on upgrade, which is safe)
     transient var callerLocks = principalMapNat.empty<Bool>();
@@ -316,9 +316,6 @@ persistent actor {
 
     var houseLedger = natMap.empty<HouseLedgerRecord>();
     var nextHouseLedgerId = 0;
-
-    // Authorized shenanigans canister principal
-    var shenanigansPrincipal : ?Principal = null;
 
     // Record a cover charge entry (see the Cover Charge
     // state block above).
@@ -485,14 +482,6 @@ persistent actor {
             activeGames = platformStats.activeGames + 1;
             potBalance = platformStats.potBalance + amount;
         };
-
-        // Award Ponzi Points (same as createGame)
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(player, points);
 
         gameId;
     };
@@ -675,14 +664,6 @@ persistent actor {
             };
         };
 
-        // Award Ponzi Points based on plan
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(caller, points);
-
         releaseCallerLock(caller);
         #Ok(gameId);
     };
@@ -766,9 +747,6 @@ persistent actor {
             };
         };
 
-        // Award 4,000 Ponzi Points per ICP deposited
-        awardPonziPoints(caller, amount * 4000.0);
-
         // Add the deposited amount directly to the pot
         platformStats := {
             platformStats with
@@ -779,73 +757,7 @@ persistent actor {
         #Ok(blockIndex);
     };
 
-    // ========================================================================
-    // Ponzi Points & Referral System (PP-only, never ICP)
-    // Referral rates: Level 1 = 8%, Level 2 = 5%, Level 3 = 2% of PP earned
-    // ========================================================================
-
-    // Award Ponzi Points to a user AND cascade referral PP up the chain
-    func awardPonziPoints(user : Principal, points : Float) {
-        creditPonziPointsDirect(user, points);
-        awardReferralPP(user, points);
-    };
-
-    // Credit PP directly without triggering referral cascade (prevents infinite recursion)
-    func creditPonziPointsDirect(user : Principal, points : Float) {
-        let current = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?existing) { existing };
-        };
-        ponziPoints := principalMapNat.put(ponziPoints, user, current + points);
-    };
-
-    // Walk the referral chain and award PP at each level (8% / 5% / 2%)
-    func awardReferralPP(user : Principal, pointsEarned : Float) {
-        // Level 1: direct referrer gets 8%
-        switch (principalMapNat.get(referralChain, user)) {
-            case (null) {}; // no referrer
-            case (?level1Referrer) {
-                let l1Points = pointsEarned * 0.08;
-                creditPonziPointsDirect(level1Referrer, l1Points);
-                creditReferralEarnings(level1Referrer, l1Points, 1);
-
-                // Level 2: referrer's referrer gets 5%
-                switch (principalMapNat.get(referralChain, level1Referrer)) {
-                    case (null) {};
-                    case (?level2Referrer) {
-                        let l2Points = pointsEarned * 0.05;
-                        creditPonziPointsDirect(level2Referrer, l2Points);
-                        creditReferralEarnings(level2Referrer, l2Points, 2);
-
-                        // Level 3: one more hop up the chain gets 2%
-                        switch (principalMapNat.get(referralChain, level2Referrer)) {
-                            case (null) {};
-                            case (?level3Referrer) {
-                                let l3Points = pointsEarned * 0.02;
-                                creditPonziPointsDirect(level3Referrer, l3Points);
-                                creditReferralEarnings(level3Referrer, l3Points, 3);
-                            };
-                        };
-                    };
-                };
-            };
-        };
-    };
-
-    // Track referral earnings by level (for display in the MLM dashboard)
-    func creditReferralEarnings(referrer : Principal, points : Float, level : Nat) {
-        let current = switch (principalMapNat.get(referralEarnings, referrer)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?existing) { existing };
-        };
-        let updated : ReferralEarnings = switch (level) {
-            case (1) { { current with level1Points = current.level1Points + points } };
-            case (2) { { current with level2Points = current.level2Points + points } };
-            case (3) { { current with level3Points = current.level3Points + points } };
-            case (_) { current };
-        };
-        referralEarnings := principalMapNat.put(referralEarnings, referrer, updated);
-    };
+    // PP mint + referral cascade moved to shenanigans canister.
 
     // Register a referral relationship (one-time, first referrer wins)
     func registerReferral(user : Principal, referrer : Principal) {
@@ -1365,12 +1277,10 @@ persistent actor {
         natMap.get(gameRecords, gameId);
     };
 
-    // Get Referral Earnings (total PP earned through referrals)
-    public query func getReferralEarnings(user : Principal) : async Float {
-        switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
+    /// One-hop lookup — returns the caller's immediate referrer (L1) or null.
+    /// Used by shenanigans for referral PP cascades.
+    public query func getReferrer(user : Principal) : async ?Principal {
+        principalMapNat.get(referralChain, user);
     };
 
     // Get All Games
@@ -1505,146 +1415,6 @@ persistent actor {
         Iter.toArray(principalMapNat.vals(dealerPositions));
     };
 
-    // Get Ponzi Points
-    public query ({ caller }) func getPonziPoints() : async Float {
-        switch (principalMapNat.get(ponziPoints, caller)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    // Get ponzi points for a given principal (anonymous-callable sibling)
-    public query func getPonziPointsFor(user : Principal) : async Float {
-        switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    // Get Ponzi Points Balance (for Rewards page)
-    public query ({ caller }) func getPonziPointsBalance() : async {
-        totalPoints : Float;
-        depositPoints : Float;
-        referralPoints : Float;
-    } {
-        let totalPoints = switch (principalMapNat.get(ponziPoints, caller)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-
-        // Calculate deposit points (from games and dealer positions)
-        var depositPoints = 0.0;
-        for (game in natMap.vals(gameRecords)) {
-            if (game.player == caller) {
-                depositPoints += switch (game.plan) {
-                    case (#simple21Day) { game.amount * 1000.0 };
-                    case (#compounding15Day) { game.amount * 2000.0 };
-                    case (#compounding30Day) { game.amount * 3000.0 };
-                };
-            };
-        };
-        switch (principalMapNat.get(dealerPositions, caller)) {
-            case (null) {};
-            case (?dealer) {
-                depositPoints += dealer.amount * 4000.0;
-            };
-        };
-
-        // Calculate referral points (PP earned through the referral chain)
-        let referralPoints = switch (principalMapNat.get(referralEarnings, caller)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
-
-        {
-            totalPoints;
-            depositPoints;
-            referralPoints;
-        };
-    };
-
-    // Get Ponzi Points Breakdown for a specific user (principal-parameterized query variant)
-    public query func getPonziPointsBreakdownFor(user : Principal) : async {
-        totalPoints : Float;
-        depositPoints : Float;
-        referralPoints : Float;
-    } {
-        let totalPoints = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-
-        // Calculate deposit points (from games and dealer positions)
-        var depositPoints = 0.0;
-        for (game in natMap.vals(gameRecords)) {
-            if (game.player == user) {
-                depositPoints += switch (game.plan) {
-                    case (#simple21Day) { game.amount * 1000.0 };
-                    case (#compounding15Day) { game.amount * 2000.0 };
-                    case (#compounding30Day) { game.amount * 3000.0 };
-                };
-            };
-        };
-        switch (principalMapNat.get(dealerPositions, user)) {
-            case (null) {};
-            case (?dealer) {
-                depositPoints += dealer.amount * 4000.0;
-            };
-        };
-
-        // Calculate referral points (PP earned through the referral chain)
-        let referralPoints = switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
-
-        {
-            totalPoints;
-            depositPoints;
-            referralPoints;
-        };
-    };
-
-    // Get Referral Tier Points (for Multi-Level Marketing page)
-    public query ({ caller }) func getReferralTierPoints() : async {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-        totalPoints : Float;
-    } {
-        let earnings = switch (principalMapNat.get(referralEarnings, caller)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?e) { e };
-        };
-
-        {
-            level1Points = earnings.level1Points;
-            level2Points = earnings.level2Points;
-            level3Points = earnings.level3Points;
-            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
-        };
-    };
-
-    // Get referral tier points for a given principal (anonymous-callable sibling)
-    public query func getReferralTierPointsFor(user : Principal) : async {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-        totalPoints : Float;
-    } {
-        let earnings = switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?e) { e };
-        };
-
-        {
-            level1Points = earnings.level1Points;
-            level2Points = earnings.level2Points;
-            level3Points = earnings.level3Points;
-            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
-        };
-    };
-
     // Calculate Total Dealer Debt (including 12% bonus)
     public query func getTotalDealerDebt() : async Float {
         var totalDebt = 0.0;
@@ -1690,110 +1460,8 @@ persistent actor {
         rounded == value;
     };
 
-    // === Cross-canister API for Shenanigans canister ===
-
-    func requireShenanigansCanister(caller : Principal) {
-        switch (shenanigansPrincipal) {
-            case (null) { Debug.trap("Shenanigans canister not configured") };
-            case (?p) {
-                if (caller != p) {
-                    Debug.trap("Unauthorized: only shenanigans canister can call this");
-                };
-            };
-        };
-    };
-
-    public shared ({ caller }) func setShenanigansPrincipal(p : Principal) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can set shenanigans principal");
-        };
-        shenanigansPrincipal := ?p;
-    };
-
-    public shared ({ caller }) func deductPonziPoints(user : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let current = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        if (current < amount) { Debug.trap("Insufficient points") };
-        ponziPoints := principalMapNat.put(ponziPoints, user, current - amount);
-    };
-
-    public shared ({ caller }) func transferPonziPoints(from : Principal, to : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let fromBalance = switch (principalMapNat.get(ponziPoints, from)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        if (fromBalance < amount) { Debug.trap("Insufficient points") };
-        ponziPoints := principalMapNat.put(ponziPoints, from, fromBalance - amount);
-        let toBalance = switch (principalMapNat.get(ponziPoints, to)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        ponziPoints := principalMapNat.put(ponziPoints, to, toBalance + amount);
-    };
-
-    public shared ({ caller }) func distributeDealerCutFromShenanigans(amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        updateDealerCut(amount);
-    };
-
-    // Restricted to shenanigans canister (used for balance checks before casting)
-    public shared ({ caller }) func getPonziPointsBalanceFor(user : Principal) : async Float {
-        requireShenanigansCanister(caller);
-        switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    public shared ({ caller }) func burnPonziPoints(user : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let burned = switch (principalMapNat.get(ponziPointsBurned, user)) {
-            case (null) { 0.0 };
-            case (?existing) { existing };
-        };
-        ponziPointsBurned := principalMapNat.put(ponziPointsBurned, user, burned + amount);
-    };
-
-    // castShenanigan, determineOutcome, updateShenaniganStats — moved to shenanigans canister
-
-    // Update dealer cut (distribute among active dealers)
-    func updateDealerCut(amount : Float) {
-        let activeDealers = Iter.toArray(principalMapNat.vals(dealerPositions));
-        let activeCount = activeDealers.size();
-
-        if (activeCount > 0) {
-            let perDealerAmount = amount / Float.fromInt(activeCount);
-            for (dealer in activeDealers.vals()) {
-                let currentRepayment = switch (principalMapNat.get(dealerRepayments, dealer.owner)) {
-                    case (null) { 0.0 };
-                    case (?repayment) { repayment };
-                };
-                dealerRepayments := principalMapNat.put(dealerRepayments, dealer.owner, currentRepayment + perDealerAmount);
-            };
-        };
-    };
-
-    // getShenaniganStats, getRecentShenanigans — moved to shenanigans canister
-
-    // Get Top Ponzi Points Holders
-    public query func getTopPonziPointsHolders() : async [(Principal, Float)] {
-        let allPoints = Iter.toArray(principalMapNat.entries(ponziPoints));
-        let sorted = List.fromArray(allPoints);
-        let top = List.take(sorted, 50);
-        List.toArray(top);
-    };
-
-    // Get Top Ponzi Points Burners
-    public query func getTopPonziPointsBurners() : async [(Principal, Float)] {
-        let allBurned = Iter.toArray(principalMapNat.entries(ponziPointsBurned));
-        let sorted = List.fromArray(allBurned);
-        let top = List.take(sorted, 50);
-        List.toArray(top);
-    };
+    // PP custody, burn tracking, leaderboards, castShenanigan, and dealer cut
+    // distribution moved to the shenanigans canister.
 
     // Get Total House Money Added
     public query func getTotalHouseMoneyAdded() : async Float {
