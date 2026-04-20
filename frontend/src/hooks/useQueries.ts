@@ -4,6 +4,7 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
+import { useReadPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
@@ -924,27 +925,31 @@ export function useGetReferralStats() {
   });
 }
 
-// Ponzi Points Queries - Updated to use real backend data
+// PP balances — read directly from pp_ledger (chip subaccount + user wallet)
 export function useGetPonziPoints() {
-  const actor = useReadActor();
+  const ledger = useReadPpLedger();
   const { principal } = useWallet();
 
   return useQuery({
-    queryKey: ['ponziPointsBalance', principal],
+    queryKey: ['ppBalances', principal],
     queryFn: async () => {
       if (!principal) throw new Error('No principal');
-
-      // Get real Ponzi Points balance from backend
-      const balance = await actor.getPonziPointsBreakdownFor(Principal.fromText(principal));
-
+      const p = Principal.fromText(principal);
+      const [chipUnits, walletUnits] = await Promise.all([
+        ledger.icrc1_balance_of({
+          owner: shenanigansOwner(),
+          subaccount: [principalToChipSubaccount(p)],
+        }),
+        ledger.icrc1_balance_of({ owner: p, subaccount: [] }),
+      ]);
       return {
-        totalPoints: balance.totalPoints,
-        depositPoints: balance.depositPoints,
-        referralPoints: balance.referralPoints,
+        chipPoints: ppUnitsToWhole(chipUnits),
+        walletPoints: ppUnitsToWhole(walletUnits),
+        totalPoints: ppUnitsToWhole(chipUnits + walletUnits),
       };
     },
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
   });
 }
 
@@ -1026,44 +1031,31 @@ export function useGetSeedRoundDashboard() {
 // Legacy alias
 export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
-// Hall of Fame Queries - Updated to use separate backend calls
+// Top-holders leaderboard retired — pp_ledger exposes balances as on-chain state,
+// not as a sorted view. The hook is kept as a no-op stub so existing consumers
+// compile until Task 29 removes them.
 export function useGetTopPonziPointsHolders() {
-  const actor = useReadActor();
-
   return useQuery({
     queryKey: ['topPonziPointsHolders'],
-    queryFn: async () => {
-      const holders = await actor.getTopPonziPointsHolders();
-
-      // Transform backend data to include user names
-      return holders.map(([principal, points], index) => ({
-        rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPoints: points,
-        principal: principal.toString()
-      }));
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    queryFn: async () => [] as { rank: number; name: string; ponziPoints: number; principal: string }[],
   });
 }
 
 export function useGetTopPonziPointsBurners() {
-  const actor = useReadActor();
-
+  const actor = useShenaniganActor().actor;
   return useQuery({
-    queryKey: ['topPonziPointsBurners'],
+    queryKey: ['topPpBurners'],
     queryFn: async () => {
-      const burners = await actor.getTopPonziPointsBurners();
-
-      // Transform backend data to include user names
-      return burners.map(([principal, pointsBurned], index) => ({
+      if (!actor) return [];
+      const burners = await actor.getTopPpBurners(50n);
+      return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPointsBurned: pointsBurned,
-        principal: principal.toString()
+        name: `User ${principal.toString().slice(-8)}`,
+        ponziPointsBurned: Number(unitsBig / 100_000_000n),
+        principal: principal.toString(),
       }));
     },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    refetchInterval: 30000,
   });
 }
 
