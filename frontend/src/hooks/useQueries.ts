@@ -1145,6 +1145,51 @@ export function useClaimCashOut() {
   });
 }
 
+/** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
+export function useGetMintConfig() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['mintConfig'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getMintConfig();
+    },
+    enabled: !!actor,
+    refetchInterval: 30000,
+  });
+}
+
+function useMintConfigSetter<Args extends unknown[]>(
+  run: (actor: NonNullable<ReturnType<typeof useShenaniganActor>['actor']>, args: Args) => Promise<unknown>,
+) {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: Args) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return run(actor, args);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mintConfig'] }),
+  });
+}
+
+export const useSetSimple21 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setSimple21DayPpPerIcp(v));
+export const useSetCompounding15 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding15DayPpPerIcp(v));
+export const useSetCompounding30 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding30DayPpPerIcp(v));
+export const useSetDealerMultiplier = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setDealerPpPerIcp(v));
+export const useSetReferralBps = () =>
+  useMintConfigSetter<[bigint, bigint, bigint]>((a, [l1, l2, l3]) => a.setReferralBps(l1, l2, l3));
+export const useSetMinDeposit = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setMinDepositPp(v));
+export const useSetCashOutDelay = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCashOutDelaySeconds(v));
+export const useSetObserverInterval = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setObserverIntervalSeconds(v));
+
 export function usePendingCashOuts() {
   const { actor } = useShenaniganActor();
   const { principal } = useWallet();

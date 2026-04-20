@@ -2,7 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { Save, RotateCcw, AlertTriangle, CheckCircle, Info, ChevronRight, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { CharlesIcon } from '../lib/charles';
-import { useGetShenaniganConfigs, useUpdateShenaniganConfig, useSaveAllShenaniganConfigs, useResetShenaniganConfig } from '../hooks/useQueries';
+import {
+  useGetShenaniganConfigs,
+  useUpdateShenaniganConfig,
+  useSaveAllShenaniganConfigs,
+  useResetShenaniganConfig,
+  useGetMintConfig,
+  useSetSimple21,
+  useSetCompounding15,
+  useSetCompounding30,
+  useSetDealerMultiplier,
+  useSetReferralBps,
+  useSetMinDeposit,
+  useSetCashOutDelay,
+  useSetObserverInterval,
+} from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ShenaniganConfig {
@@ -238,19 +252,8 @@ export default function ShenanigansAdminPanel() {
         </div>
       </div>
 
-      {/* Minter reminder */}
-      <div className="mc-card mc-accent-danger p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="h-5 w-5 mc-text-danger flex-shrink-0 mt-0.5" />
-          <div className="text-sm mc-text-dim space-y-1">
-            <p className="font-bold mc-text-danger">Post-Deploy Ritual</p>
-            <p>After each new deployment, re-authorize the backend to mint PP. Forget this and shenanigans stop working:</p>
-            <code className="block bg-white/5 px-3 py-2 rounded text-xs mc-text-gold mt-1 font-mono break-all">
-              dfx canister call 5xv2o-iiaaa-aaaac-qeclq-cai set_minter '(principal "YOUR_BACKEND_ID")'
-            </code>
-          </div>
-        </div>
-      </div>
+      {/* Mint Rules & Economy */}
+      <MintRulesSection />
 
       {/* Main layout: list + editor */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -444,6 +447,118 @@ export default function ShenanigansAdminPanel() {
         <Save className="h-5 w-5" />
         {saveAllConfigs.isPending ? 'Saving All...' : 'Save All Changes'}
       </button>
+    </div>
+  );
+}
+
+/* ================================================================
+   Mint Rules & Economy section — tunable knobs backed by
+   shenanigans' MintConfig state.
+   ================================================================ */
+function MintRulesSection() {
+  const { data: config, isLoading } = useGetMintConfig();
+  const setSimple = useSetSimple21();
+  const setC15 = useSetCompounding15();
+  const setC30 = useSetCompounding30();
+  const setDealer = useSetDealerMultiplier();
+  const setRefBps = useSetReferralBps();
+  const setMinDep = useSetMinDeposit();
+  const setCashDelay = useSetCashOutDelay();
+  const setObserver = useSetObserverInterval();
+
+  const [simple, setSimpleVal] = useState('');
+  const [c15, setC15Val] = useState('');
+  const [c30, setC30Val] = useState('');
+  const [dealer, setDealerVal] = useState('');
+  const [l1, setL1] = useState('');
+  const [l2, setL2] = useState('');
+  const [l3, setL3] = useState('');
+  const [minDep, setMinDep_] = useState('');
+  const [cashDelay, setCashDelay_] = useState('');
+  const [observer, setObserver_] = useState('');
+
+  useEffect(() => {
+    if (!config) return;
+    setSimpleVal(config.simple21DayPpPerIcp.toString());
+    setC15Val(config.compounding15DayPpPerIcp.toString());
+    setC30Val(config.compounding30DayPpPerIcp.toString());
+    setDealerVal(config.dealerPpPerIcp.toString());
+    setL1(config.referralL1Bps.toString());
+    setL2(config.referralL2Bps.toString());
+    setL3(config.referralL3Bps.toString());
+    setMinDep_(config.minDepositPp.toString());
+    setCashDelay_(config.cashOutDelaySeconds.toString());
+    setObserver_(config.observerIntervalSeconds.toString());
+  }, [config]);
+
+  const run = async (label: string, fn: () => Promise<unknown>) => {
+    try {
+      await fn();
+      toast.success(`${label} updated`);
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Update failed');
+    }
+  };
+
+  const row = (
+    label: string,
+    hint: string,
+    value: string,
+    onChange: (v: string) => void,
+    onSave: () => Promise<unknown>,
+  ) => (
+    <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
+      <AdminInput label={label} hint={hint} type="number" value={value} onChange={onChange} />
+      <button
+        className="mc-btn mc-btn-secondary"
+        onClick={() => run(label, onSave)}
+      >
+        <Save className="h-4 w-4" />
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="mc-card mc-accent-purple p-4">
+      <div className="flex items-start gap-3 mb-3">
+        <SlidersHorizontal className="h-5 w-5 mc-text-purple flex-shrink-0 mt-0.5" />
+        <div className="text-sm mc-text-dim space-y-1">
+          <p className="font-bold mc-text-purple">Mint Rules & Economy</p>
+          <p>Tunable knobs for PP issuance, referral cascades, deposit floor, and cash-out windows. Changes apply to future events only — past mints are final.</p>
+        </div>
+      </div>
+      {isLoading || !config ? (
+        <div className="flex justify-center p-4"><LoadingSpinner /></div>
+      ) : (
+        <div className="space-y-3">
+          {row('Simple 21-day PP per ICP', 'Default 1000', simple, setSimpleVal,
+            () => setSimple.mutateAsync([BigInt(simple)]))}
+          {row('Compounding 15-day PP per ICP', 'Default 2000', c15, setC15Val,
+            () => setC15.mutateAsync([BigInt(c15)]))}
+          {row('Compounding 30-day PP per ICP', 'Default 3000', c30, setC30Val,
+            () => setC30.mutateAsync([BigInt(c30)]))}
+          {row('Dealer (Seed Round) PP per ICP', 'Default 4000', dealer, setDealerVal,
+            () => setDealer.mutateAsync([BigInt(dealer)]))}
+          <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-end">
+            <AdminInput label="Referral L1 BPS" hint="Default 800" type="number" value={l1} onChange={setL1} />
+            <AdminInput label="Referral L2 BPS" hint="Default 500" type="number" value={l2} onChange={setL2} />
+            <AdminInput label="Referral L3 BPS" hint="Default 200" type="number" value={l3} onChange={setL3} />
+            <button
+              className="mc-btn mc-btn-secondary"
+              onClick={() => run('Referral BPS',
+                () => setRefBps.mutateAsync([BigInt(l1), BigInt(l2), BigInt(l3)]))}
+            >
+              <Save className="h-4 w-4" />
+            </button>
+          </div>
+          {row('Min chip deposit (whole PP)', 'Default 5000', minDep, setMinDep_,
+            () => setMinDep.mutateAsync([BigInt(minDep)]))}
+          {row('Cash-out delay (seconds)', 'Default 604800 = 7 days', cashDelay, setCashDelay_,
+            () => setCashDelay.mutateAsync([BigInt(cashDelay)]))}
+          {row('Observer interval (seconds)', 'Default 10', observer, setObserver_,
+            () => setObserver.mutateAsync([BigInt(observer)]))}
+        </div>
+      )}
     </div>
   );
 }
