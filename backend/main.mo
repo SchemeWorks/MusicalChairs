@@ -486,14 +486,6 @@ persistent actor {
             potBalance = platformStats.potBalance + amount;
         };
 
-        // Award Ponzi Points (same as createGame)
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(player, points);
-
         gameId;
     };
 
@@ -675,14 +667,6 @@ persistent actor {
             };
         };
 
-        // Award Ponzi Points based on plan
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(caller, points);
-
         releaseCallerLock(caller);
         #Ok(gameId);
     };
@@ -766,9 +750,6 @@ persistent actor {
             };
         };
 
-        // Award 4,000 Ponzi Points per ICP deposited
-        awardPonziPoints(caller, amount * 4000.0);
-
         // Add the deposited amount directly to the pot
         platformStats := {
             platformStats with
@@ -779,73 +760,7 @@ persistent actor {
         #Ok(blockIndex);
     };
 
-    // ========================================================================
-    // Ponzi Points & Referral System (PP-only, never ICP)
-    // Referral rates: Level 1 = 8%, Level 2 = 5%, Level 3 = 2% of PP earned
-    // ========================================================================
-
-    // Award Ponzi Points to a user AND cascade referral PP up the chain
-    func awardPonziPoints(user : Principal, points : Float) {
-        creditPonziPointsDirect(user, points);
-        awardReferralPP(user, points);
-    };
-
-    // Credit PP directly without triggering referral cascade (prevents infinite recursion)
-    func creditPonziPointsDirect(user : Principal, points : Float) {
-        let current = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?existing) { existing };
-        };
-        ponziPoints := principalMapNat.put(ponziPoints, user, current + points);
-    };
-
-    // Walk the referral chain and award PP at each level (8% / 5% / 2%)
-    func awardReferralPP(user : Principal, pointsEarned : Float) {
-        // Level 1: direct referrer gets 8%
-        switch (principalMapNat.get(referralChain, user)) {
-            case (null) {}; // no referrer
-            case (?level1Referrer) {
-                let l1Points = pointsEarned * 0.08;
-                creditPonziPointsDirect(level1Referrer, l1Points);
-                creditReferralEarnings(level1Referrer, l1Points, 1);
-
-                // Level 2: referrer's referrer gets 5%
-                switch (principalMapNat.get(referralChain, level1Referrer)) {
-                    case (null) {};
-                    case (?level2Referrer) {
-                        let l2Points = pointsEarned * 0.05;
-                        creditPonziPointsDirect(level2Referrer, l2Points);
-                        creditReferralEarnings(level2Referrer, l2Points, 2);
-
-                        // Level 3: one more hop up the chain gets 2%
-                        switch (principalMapNat.get(referralChain, level2Referrer)) {
-                            case (null) {};
-                            case (?level3Referrer) {
-                                let l3Points = pointsEarned * 0.02;
-                                creditPonziPointsDirect(level3Referrer, l3Points);
-                                creditReferralEarnings(level3Referrer, l3Points, 3);
-                            };
-                        };
-                    };
-                };
-            };
-        };
-    };
-
-    // Track referral earnings by level (for display in the MLM dashboard)
-    func creditReferralEarnings(referrer : Principal, points : Float, level : Nat) {
-        let current = switch (principalMapNat.get(referralEarnings, referrer)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?existing) { existing };
-        };
-        let updated : ReferralEarnings = switch (level) {
-            case (1) { { current with level1Points = current.level1Points + points } };
-            case (2) { { current with level2Points = current.level2Points + points } };
-            case (3) { { current with level3Points = current.level3Points + points } };
-            case (_) { current };
-        };
-        referralEarnings := principalMapNat.put(referralEarnings, referrer, updated);
-    };
+    // PP mint + referral cascade moved to shenanigans canister.
 
     // Register a referral relationship (one-time, first referrer wins)
     func registerReferral(user : Principal, referrer : Principal) {
