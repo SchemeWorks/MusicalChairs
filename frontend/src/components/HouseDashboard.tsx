@@ -5,7 +5,7 @@ import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
 import { formatICP } from '../lib/formatICP';
 import { Progress } from '@/components/ui/progress';
-import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, AlertTriangle, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
+import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
 /* ================================================================
    Tab Control
@@ -273,20 +273,7 @@ function BackerPositions() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4">
         <div className="mc-card-elevated p-6">
           <h3 className="font-display text-lg mc-text-gold mb-3">Fund the Project</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4 items-start">
-            <div>
-              <p className="text-sm mc-text-dim mb-4">
-                Back the next generation of yield innovation. Earn your entitlement — you've earned it.
-              </p>
-              <AddBackerMoney />
-            </div>
-            <div className="mc-status-red p-4 flex items-center justify-center text-center text-xs font-bold sm:w-48 rounded-lg">
-              <div>
-                <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME<br />
-                <span className="font-normal text-[10px] opacity-80">Only play with money you can afford to lose</span>
-              </div>
-            </div>
-          </div>
+          <AddBackerMoney />
         </div>
 
         {/* Stats stacked to the right — two cards matching Fund the Project height */}
