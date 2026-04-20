@@ -17,7 +17,7 @@ import Text "mo:base/Text";
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
 
-persistent actor {
+persistent actor Self {
 
     // ================================================================
     // Types
@@ -268,6 +268,65 @@ persistent actor {
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
+        };
+    };
+
+    // ================================================================
+    // Mint engine (internal helpers)
+    // ================================================================
+
+    func nowNat64() : Nat64 {
+        Nat64.fromNat(Int.abs(Time.now()));
+    };
+
+    /// Convert whole PP → PP-units.
+    func ppToUnits(pp : Nat) : Nat { pp * PpLedger.PP_UNIT_SCALE };
+
+    /// ICP-float * (PP per ICP) → PP-units.
+    /// Example: 1.0 ICP * 1000 PP/ICP = 1000 whole PP = 10^11 PP-units.
+    func icpFloatToPpUnits(icp : Float, ppPerIcp : Nat) : Nat {
+        if (icp <= 0.0) return 0;
+        let icpE8s : Nat = Int.abs(Float.toInt(icp * 100_000_000.0));
+        icpE8s * ppPerIcp;
+    };
+
+    /// Mint PP-units to a player's chip subaccount.
+    /// Returns #Ok(blockIndex) or #Err(text).
+    func mintTo(player : Principal, amount : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
+        if (amount == 0) { return #Ok(0) };
+        let memo = ?Text.encodeUtf8(memoText);
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = {
+                    owner = Principal.fromActor(Self);
+                    subaccount = ?Subaccount.principalToChipSubaccount(player);
+                };
+                amount;
+                fee = null;
+                memo;
+                created_at_time = ?nowNat64();
+            });
+            switch (res) {
+                case (#Ok(idx)) { #Ok(idx) };
+                case (#Err(#Duplicate { duplicate_of })) { #Ok(duplicate_of) };
+                case (#Err(e)) { #Err(describeTransferErr(e)) };
+            };
+        } catch (e) {
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
+    };
+
+    func describeTransferErr(err : PpLedger.TransferError) : Text {
+        switch (err) {
+            case (#BadFee({ expected_fee })) { "BadFee expected=" # Nat.toText(expected_fee) };
+            case (#BadBurn({ min_burn_amount })) { "BadBurn min=" # Nat.toText(min_burn_amount) };
+            case (#InsufficientFunds({ balance })) { "InsufficientFunds balance=" # Nat.toText(balance) };
+            case (#TooOld) { "TooOld" };
+            case (#CreatedInFuture(_)) { "CreatedInFuture" };
+            case (#Duplicate({ duplicate_of })) { "Duplicate of=" # Nat.toText(duplicate_of) };
+            case (#TemporarilyUnavailable) { "TemporarilyUnavailable" };
+            case (#GenericError({ message; error_code = _ })) { "GenericError: " # message };
         };
     };
 
