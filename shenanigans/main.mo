@@ -399,6 +399,92 @@ persistent actor Self {
         };
     };
 
+    public shared ({ caller }) func requestCashOut(amountUnits : Nat) : async { #Ok : Nat; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        if (amountUnits == 0) { return #Err("Amount must be positive") };
+
+        var pending : Nat = 0;
+        for (entry in natMap.vals(cashOuts)) {
+            if (entry.player == caller and not entry.claimed) {
+                pending += entry.amount;
+            };
+        };
+
+        let chipBalance = await ppLedger.icrc1_balance_of({
+            owner = Principal.fromActor(Self);
+            subaccount = ?Subaccount.principalToChipSubaccount(caller);
+        });
+        if (pending + amountUnits > chipBalance) {
+            return #Err("Requested amount exceeds unqueued chip balance");
+        };
+
+        let id = nextCashOutId;
+        nextCashOutId += 1;
+        let claimableAfter : Int = Time.now() + (mintConfig.cashOutDelaySeconds * 1_000_000_000);
+        let entry : CashOutEntry = {
+            id;
+            player = caller;
+            amount = amountUnits;
+            claimableAfter;
+            claimed = false;
+        };
+        cashOuts := natMap.put(cashOuts, id, entry);
+        #Ok(id);
+    };
+
+    public shared ({ caller }) func claimCashOut(id : Nat) : async { #Ok : Nat; #Err : Text } {
+        let entry = switch (natMap.get(cashOuts, id)) {
+            case (null) { return #Err("No such cash-out") };
+            case (?e) { e };
+        };
+        if (entry.player != caller) { return #Err("Not your cash-out") };
+        if (entry.claimed) { return #Err("Already claimed") };
+        if (Time.now() < entry.claimableAfter) {
+            return #Err("Claim not yet unlocked");
+        };
+
+        let chipBalance = await ppLedger.icrc1_balance_of({
+            owner = Principal.fromActor(Self);
+            subaccount = ?Subaccount.principalToChipSubaccount(caller);
+        });
+        let payable : Nat = if (chipBalance < entry.amount) { chipBalance } else { entry.amount };
+        if (payable == 0) {
+            cashOuts := natMap.put(cashOuts, id, { entry with claimed = true });
+            return #Err("No chips left to cash out");
+        };
+
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = ?Subaccount.principalToChipSubaccount(caller);
+                to = { owner = caller; subaccount = null };
+                amount = payable;
+                fee = ?0;
+                memo = ?Text.encodeUtf8("cash-out-" # Nat.toText(id));
+                created_at_time = ?nowNat64();
+            });
+            switch (res) {
+                case (#Ok(idx)) {
+                    cashOuts := natMap.put(cashOuts, id, { entry with claimed = true });
+                    #Ok(idx);
+                };
+                case (#Err(e)) { #Err(describeTransferErr(e)) };
+            };
+        } catch (e) {
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
+    };
+
+    /// Pending and recently claimed cash-outs for a given user.
+    public query func getCashOutsFor(user : Principal) : async [CashOutEntry] {
+        let all = Iter.toArray(natMap.vals(cashOuts));
+        Array.filter<CashOutEntry>(all, func(e) { e.player == user });
+    };
+
+    public shared query ({ caller }) func getMyCashOuts() : async [CashOutEntry] {
+        let all = Iter.toArray(natMap.vals(cashOuts));
+        Array.filter<CashOutEntry>(all, func(e) { e.player == caller });
+    };
+
     // ================================================================
     // Default configs (identical to current backend)
     // ================================================================
