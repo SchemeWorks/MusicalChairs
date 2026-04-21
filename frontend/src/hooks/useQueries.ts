@@ -1068,6 +1068,36 @@ export function useGetHallOfFame() {
 
 const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
 
+/** Send whole-PP from the caller's main account to an arbitrary principal. */
+export function useSendPp() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ to, wholePp }: { to: Principal; wholePp: number }) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc1_transfer({
+        to: { owner: to, subaccount: [] },
+        amount: wholePpToUnits(wholePp),
+        fee: [],
+        memo: [],
+        from_subaccount: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) {
+        const err: any = res.Err;
+        const msg = err.InsufficientFunds ? 'Insufficient funds'
+          : err.BadFee ? 'Bad fee'
+          : err.TooOld ? 'Transfer too old'
+          : err.TemporarilyUnavailable ? 'Ledger temporarily unavailable'
+          : err.GenericError?.message || 'Transfer failed';
+        throw new Error(msg);
+      }
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppBalances'] }),
+  });
+}
+
 /** One-time approve for chip deposits. Defaults to the ICRC-1 unlimited sentinel. */
 export function useApproveForDeposits() {
   const ppLedger = useAuthPpLedger();
