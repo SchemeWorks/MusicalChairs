@@ -295,7 +295,7 @@ export default function App() {
   );
   const { data: publicStats } = useGetPublicStats();
 
-  // Sync docs / chip-wallet visibility with hash — allows direct linking to #docs, #docs-fees, or #chips
+  // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #chips
   useEffect(() => {
     const onHashChange = () => {
       setShowDocsPage(window.location.hash.startsWith('#docs'));
@@ -341,7 +341,7 @@ export default function App() {
     return () => window.removeEventListener('mc:open-docs', handler);
   }, []);
 
-  // Navigating to a tab always dismisses full-page overlays (docs / chip wallet).
+  // Navigating to a tab always dismisses full-page overlays (docs / bank page).
   const goToTab = (tab: TabType) => {
     setActiveTab(tab);
     if (showDocsPage || showBankPage) {
