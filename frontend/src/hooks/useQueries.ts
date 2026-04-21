@@ -1068,16 +1068,18 @@ export function useGetHallOfFame() {
 
 const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
 
-/** One-time approve for chip deposits. Amount in whole PP. */
+/** One-time approve for chip deposits. Defaults to the ICRC-1 unlimited sentinel. */
 export function useApproveForDeposits() {
   const ppLedger = useAuthPpLedger();
   return useMutation({
-    mutationFn: async (wholePp: number) => {
+    mutationFn: async (explicitAmount?: bigint) => {
       if (!ppLedger) throw new Error('No pp_ledger actor');
+      const UNLIMITED = 18_446_744_073_709_551_615n; // 2^64 - 1
+      const amount = explicitAmount ?? UNLIMITED;
       const res = await ppLedger.icrc2_approve({
         from_subaccount: [],
         spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
-        amount: wholePpToUnits(wholePp),
+        amount,
         expected_allowance: [],
         expires_at: [],
         fee: [],
