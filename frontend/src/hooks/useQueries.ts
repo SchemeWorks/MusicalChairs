@@ -1092,6 +1092,52 @@ export function useApproveForDeposits() {
   });
 }
 
+/** Current ICRC-2 allowance granted by the caller's main account to shenanigans. */
+export function useAllowance() {
+  const ppLedger = useReadPpLedger();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['ppAllowance', principal],
+    queryFn: async () => {
+      if (!principal) return null;
+      const res = await ppLedger.icrc2_allowance({
+        account: { owner: Principal.fromText(principal), subaccount: [] },
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+      });
+      return {
+        allowance: res.allowance, // bigint, in PP-units
+        expiresAt: res.expires_at[0] ?? null,
+      };
+    },
+    enabled: !!principal,
+    refetchInterval: 15000,
+  });
+}
+
+/** Revoke by setting the allowance to 0. */
+export function useRevokeAllowance() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount: 0n,
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
+  });
+}
+
 export function useDepositChips() {
   const { actor } = useShenaniganActor();
   const qc = useQueryClient();
