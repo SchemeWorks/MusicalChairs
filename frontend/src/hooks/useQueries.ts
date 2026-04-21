@@ -1071,6 +1071,7 @@ const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
 /** One-time approve for chip deposits. Defaults to the ICRC-1 unlimited sentinel. */
 export function useApproveForDeposits() {
   const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async (explicitAmount?: bigint) => {
       if (!ppLedger) throw new Error('No pp_ledger actor');
@@ -1089,6 +1090,7 @@ export function useApproveForDeposits() {
       if ('Err' in res) throw new Error(JSON.stringify(res.Err));
       return res.Ok;
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
   });
 }
 
@@ -1150,7 +1152,7 @@ export function useDepositChips() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ppBalances'] });
-      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppAllowance'] });
     },
   });
 }
@@ -1294,12 +1296,14 @@ export function usePendingCashOuts() {
     queryFn: async () => {
       if (!actor) return [];
       const entries = await actor.getMyCashOuts();
-      return entries.map((e) => ({
-        id: e.id,
-        amount: Number(e.amount) / 1e8,
-        claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
-        claimed: e.claimed,
-      }));
+      return entries
+        .filter((e) => !e.claimed)
+        .map((e) => ({
+          id: e.id,
+          amount: Number(e.amount) / 1e8,
+          claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
+          claimed: e.claimed,
+        }));
     },
     enabled: !!actor && !!principal,
     refetchInterval: 10000,

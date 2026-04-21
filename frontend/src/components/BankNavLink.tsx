@@ -9,11 +9,9 @@ interface BankNavLinkProps {
 export default function BankNavLink({ onClick }: BankNavLinkProps) {
   const { data: pending } = usePendingCashOuts();
 
-  // Badge count = entries whose claimableAfter is in the past and not yet claimed/cancelled.
-  // (usePendingCashOuts already filters out claimed; cancelled is filtered by backend.)
   const now = Date.now();
   const claimable = (pending ?? []).filter(
-    (p) => !p.claimed && p.claimableAfter.getTime() <= now,
+    (p) => p.claimableAfter.getTime() <= now,
   ).length;
 
   return (

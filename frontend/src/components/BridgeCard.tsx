@@ -24,15 +24,19 @@ export default function BridgeCard() {
   const wallet = pp?.walletPoints ?? 0;
   const position = pp?.chipPoints ?? 0;
 
-  // Default direction: deposit if no position, otherwise deposit still (fresh interaction).
-  const [direction, setDirection] = useState<Direction>(position === 0 ? 'deposit' : 'deposit');
+  const [direction, setDirection] = useState<Direction>('deposit');
   const [amount, setAmount] = useState<number>(MIN_DEPOSIT);
 
   const isFirstTime = position === 0 && direction === 'deposit';
   const hasAllowance =
     !!allowance && allowance.allowance >= wholePpToUnits(amount || MIN_DEPOSIT);
 
-  const flip = () => setDirection((d) => (d === 'deposit' ? 'redeem' : 'deposit'));
+  const flip = () =>
+    setDirection((d) => {
+      const next: Direction = d === 'deposit' ? 'redeem' : 'deposit';
+      setAmount(next === 'deposit' ? MIN_DEPOSIT : 1);
+      return next;
+    });
 
   const runDeposit = async () => {
     try {
