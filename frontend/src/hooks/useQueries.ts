@@ -1138,6 +1138,23 @@ export function useClaimCashOut() {
   });
 }
 
+export function useCancelCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.cancelCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
 /** Live observer status — running/paused, cursors, interval. */
 export function useGetObserverStatus() {
   const { actor } = useShenaniganActor();
