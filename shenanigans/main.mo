@@ -17,52 +17,6 @@ import Text "mo:base/Text";
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
 
-// Migration: add `cancelled : Bool` to every existing CashOutEntry in the
-// `cashOuts` stable variable. Motoko requires an explicit migration function
-// to add non-optional fields to records held in stable state.
-(with migration = func(old : {
-    var cashOuts : OrderedMap.Map<Nat, {
-        id : Nat;
-        player : Principal;
-        amount : Nat;
-        claimableAfter : Int;
-        claimed : Bool;
-    }>;
-}) : {
-    var cashOuts : OrderedMap.Map<Nat, {
-        id : Nat;
-        player : Principal;
-        amount : Nat;
-        claimableAfter : Int;
-        claimed : Bool;
-        cancelled : Bool;
-    }>;
-} {
-    let m = OrderedMap.Make<Nat>(Nat.compare);
-    {
-        var cashOuts = m.map<{
-            id : Nat;
-            player : Principal;
-            amount : Nat;
-            claimableAfter : Int;
-            claimed : Bool;
-        }, {
-            id : Nat;
-            player : Principal;
-            amount : Nat;
-            claimableAfter : Int;
-            claimed : Bool;
-            cancelled : Bool;
-        }>(old.cashOuts, func(_id, e) { {
-            id = e.id;
-            player = e.player;
-            amount = e.amount;
-            claimableAfter = e.claimableAfter;
-            claimed = e.claimed;
-            cancelled = false;
-        } });
-    }
-})
 persistent actor Self {
 
     // ================================================================
@@ -522,15 +476,28 @@ persistent actor Self {
         };
     };
 
+    public shared ({ caller }) func cancelCashOut(id : Nat) : async { #Ok; #Err : Text } {
+        let entry = switch (natMap.get(cashOuts, id)) {
+            case (null) { return #Err("No such cash-out") };
+            case (?e) { e };
+        };
+        if (entry.player != caller) { return #Err("Not your cash-out") };
+        if (entry.claimed) { return #Err("Already claimed") };
+        if (entry.cancelled) { return #Err("Already cancelled") };
+
+        cashOuts := natMap.put(cashOuts, id, { entry with cancelled = true });
+        #Ok;
+    };
+
     /// Pending and recently claimed cash-outs for a given user.
     public query func getCashOutsFor(user : Principal) : async [CashOutEntry] {
         let all = Iter.toArray(natMap.vals(cashOuts));
-        Array.filter<CashOutEntry>(all, func(e) { e.player == user });
+        Array.filter<CashOutEntry>(all, func(e) { e.player == user and not e.cancelled });
     };
 
     public shared query ({ caller }) func getMyCashOuts() : async [CashOutEntry] {
         let all = Iter.toArray(natMap.vals(cashOuts));
-        Array.filter<CashOutEntry>(all, func(e) { e.player == caller });
+        Array.filter<CashOutEntry>(all, func(e) { e.player == caller and not e.cancelled });
     };
 
     // ================================================================
