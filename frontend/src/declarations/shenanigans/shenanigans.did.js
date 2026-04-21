@@ -19,6 +19,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const CashOutEntry = IDL.Record({
     'id' : IDL.Nat,
+    'cancelled' : IDL.Bool,
     'player' : IDL.Principal,
     'claimed' : IDL.Bool,
     'claimableAfter' : IDL.Int,
@@ -71,6 +72,11 @@ export const idlFactory = ({ IDL }) => {
     'adminMint' : IDL.Func(
         [IDL.Principal, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'cancelCashOut' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
     'castShenanigan' : IDL.Func(

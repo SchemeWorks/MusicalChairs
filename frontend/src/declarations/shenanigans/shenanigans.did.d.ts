@@ -4,6 +4,7 @@ import type { IDL } from '@dfinity/candid';
 
 export interface CashOutEntry {
   'id' : bigint,
+  'cancelled' : boolean,
   'player' : Principal,
   'claimed' : boolean,
   'claimableAfter' : bigint,
@@ -76,6 +77,7 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
     ShenaniganOutcome
