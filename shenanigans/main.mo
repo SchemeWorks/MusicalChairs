@@ -17,6 +17,52 @@ import Text "mo:base/Text";
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
 
+// Migration: add `cancelled : Bool` to every existing CashOutEntry in the
+// `cashOuts` stable variable. Motoko requires an explicit migration function
+// to add non-optional fields to records held in stable state.
+(with migration = func(old : {
+    var cashOuts : OrderedMap.Map<Nat, {
+        id : Nat;
+        player : Principal;
+        amount : Nat;
+        claimableAfter : Int;
+        claimed : Bool;
+    }>;
+}) : {
+    var cashOuts : OrderedMap.Map<Nat, {
+        id : Nat;
+        player : Principal;
+        amount : Nat;
+        claimableAfter : Int;
+        claimed : Bool;
+        cancelled : Bool;
+    }>;
+} {
+    let m = OrderedMap.Make<Nat>(Nat.compare);
+    {
+        var cashOuts = m.map<{
+            id : Nat;
+            player : Principal;
+            amount : Nat;
+            claimableAfter : Int;
+            claimed : Bool;
+        }, {
+            id : Nat;
+            player : Principal;
+            amount : Nat;
+            claimableAfter : Int;
+            claimed : Bool;
+            cancelled : Bool;
+        }>(old.cashOuts, func(_id, e) { {
+            id = e.id;
+            player = e.player;
+            amount = e.amount;
+            claimableAfter = e.claimableAfter;
+            claimed = e.claimed;
+            cancelled = false;
+        } });
+    }
+})
 persistent actor Self {
 
     // ================================================================
@@ -85,6 +131,7 @@ persistent actor Self {
         amount : Nat;              // PP-units requested
         claimableAfter : Int;      // nanoseconds (Time.now() + delay)
         claimed : Bool;            // set true after claimCashOut succeeds
+        cancelled : Bool;          // set true after cancelCashOut succeeds
     };
 
     /// Mutable mint + economy configuration. All fields admin-tunable.
@@ -405,7 +452,7 @@ persistent actor Self {
 
         var pending : Nat = 0;
         for (entry in natMap.vals(cashOuts)) {
-            if (entry.player == caller and not entry.claimed) {
+            if (entry.player == caller and not entry.claimed and not entry.cancelled) {
                 pending += entry.amount;
             };
         };
@@ -427,6 +474,7 @@ persistent actor Self {
             amount = amountUnits;
             claimableAfter;
             claimed = false;
+            cancelled = false;
         };
         cashOuts := natMap.put(cashOuts, id, entry);
         #Ok(id);
