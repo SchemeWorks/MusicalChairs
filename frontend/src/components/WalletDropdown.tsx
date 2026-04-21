@@ -139,7 +139,6 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   };
 
   const principalId = principal || '';
-  const ponziPoints = ponziPointsData?.totalPoints || 0;
   const userName = userProfile?.name || 'User';
 
   const walletIcon = walletType === 'internet-identity' ? <img src="/ii-logo.svg" alt="II" className="h-4 w-4" /> : walletType === 'plug' ? <img src="/plug-logo.svg" alt="Plug" className="h-4 w-4" /> : walletType === 'oisy' ? <img src="/oisy-logo.svg" alt="OISY" className="h-4 w-4" /> : <CreditCard className="h-4 w-4 mc-text-muted" />;
@@ -292,8 +291,30 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           </div>
         )}
 
-        <div className="text-center text-xs">
-          <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>
+        <div className="mc-card p-3">
+          <div className="flex items-center justify-between text-xs">
+            <div>
+              <div className="mc-label">Wallet</div>
+              <div className="font-bold mc-text-primary">
+                {ponziLoading ? '...' : (ponziPointsData?.walletPoints ?? 0).toLocaleString()} PP
+              </div>
+            </div>
+            <div>
+              <div className="mc-label">Position</div>
+              <div className="font-bold mc-text-green">
+                {ponziLoading ? '...' : (ponziPointsData?.chipPoints ?? 0).toLocaleString()} PP
+              </div>
+            </div>
+            <button
+              onClick={() => {
+                window.location.hash = '#bank';
+                onClose();
+              }}
+              className="mc-btn-secondary text-xs px-2 py-1"
+            >
+              Bank →
+            </button>
+          </div>
         </div>
       </div>
 
