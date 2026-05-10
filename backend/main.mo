@@ -17,21 +17,10 @@ import AccessControl "authorization/access-control";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 
-// Migration: explicitly drop the four PP-related stable variables that were
-// removed when PP custody migrated to the shenanigans canister and pp_ledger.
-// Motoko 0.x requires an explicit migration function to discard stable state.
-// The function receives the old values and returns a new state that simply
-// omits them.
-(with migration = func(_old : {
-    var ponziPoints : OrderedMap.Map<Principal, Float>;
-    var ponziPointsBurned : OrderedMap.Map<Principal, Float>;
-    var referralEarnings : OrderedMap.Map<Principal, {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-    }>;
-    var shenanigansPrincipal : ?Principal;
-}) : {} = {})
+// PP-related stable vars (ponziPoints, ponziPointsBurned, referralEarnings,
+// shenanigansPrincipal) were dropped in an earlier deploy via a migration
+// function. The deployed canister no longer contains them, so no migration
+// expression is needed here.
 persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
@@ -439,7 +428,9 @@ persistent actor {
     // dealer repayments + roundSeedReserve), subtracts them from the actual
     // canister ICP balance, and credits the remainder to the pot.
     //
-    // Requires no active games to avoid mid-round accounting drift.
+    // Allows up to 1 active game (escape hatch for the case where one tiny
+    // round-2 deposit is already open). Admin should otherwise coordinate to
+    // pause activity before calling to avoid TOCTOU race on canister balance.
     public shared ({ caller }) func migrateReconcilePot() : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
@@ -450,8 +441,8 @@ persistent actor {
         for (g in natMap.vals(gameRecords)) {
             if (g.isActive) { activeCount += 1 };
         };
-        if (activeCount > 0) {
-            return #Err("Reconcile requires zero active games (found " # Nat.toText(activeCount) # ")");
+        if (activeCount > 1) {
+            return #Err("Reconcile requires ≤1 active game (found " # Nat.toText(activeCount) # ")");
         };
 
         let selfPrincipal = switch (canisterPrincipal) {
