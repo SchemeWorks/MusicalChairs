@@ -215,6 +215,46 @@ persistent actor {
         callerLocks := principalMapNat.delete(callerLocks, caller);
     };
 
+    // Global critical-section lock. Serializes the async money-flow paths
+    // (withdrawEarnings, settleCompoundingGame, claimDealerRepayment,
+    // createGame, addDealerMoney) so their snapshot-and-revert sagas cannot
+    // interleave with each other across ledger-transfer awaits.
+    //
+    // Without this, two scenarios produced bugs:
+    //   1. Two concurrent insolvency settles racing to call triggerGameReset —
+    //      the second reset would zero a seedReserve that the first reset had
+    //      already moved into the pot, orphaning that ICP.
+    //   2. A failed transfer's saga revert (`dealerRepayments := originalRepayments`,
+    //      `platformStats := originalStats`) would overwrite legitimate updates
+    //      that any concurrent call made during the await window — wiping
+    //      backer credits or deposit-side pot increases.
+    //
+    // Trade-off: the 5 critical functions are serialized. A second caller
+    // hitting the lock traps with a retry message — they re-submit. For a
+    // Ponzi protocol with infrequent withdraws/deposits this throughput cost
+    // is negligible compared to the correctness benefit.
+    //
+    // Transient on purpose: a trap or upgrade releases the lock. Normal
+    // returns and try/catch branches must release it explicitly via
+    // releaseGlobalLock() before every releaseCallerLock(caller).
+    transient var globalCriticalLock : Bool = false;
+
+    func acquireGlobalLock() {
+        if (globalCriticalLock) {
+            Debug.trap("Critical section busy — another operation is in progress, please retry");
+        };
+        globalCriticalLock := true;
+    };
+
+    func releaseGlobalLock() {
+        globalCriticalLock := false;
+    };
+
+    // Diagnostic getter — admin or anyone can check whether the lock is held.
+    public query func isCriticalSectionBusy() : async Bool {
+        globalCriticalLock;
+    };
+
     func transferFromErrorMessage(err : Ledger.TransferFromError) : Text {
         switch (err) {
             case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
@@ -445,14 +485,20 @@ persistent actor {
             return #Err("Reconcile requires ≤1 active game (found " # Nat.toText(activeCount) # ")");
         };
 
+        acquireGlobalLock();
+
         let selfPrincipal = switch (canisterPrincipal) {
-            case (null) { return #Err("canisterPrincipal not set") };
+            case (null) {
+                releaseGlobalLock();
+                return #Err("canisterPrincipal not set");
+            };
             case (?p) { p };
         };
 
         let canisterE8s = try {
             await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
         } catch (e) {
+            releaseGlobalLock();
             return #Err("Failed to read canister balance: " # Error.message(e));
         };
         let canisterICP = Float.fromInt(canisterE8s) / 100_000_000.0;
@@ -469,6 +515,7 @@ persistent actor {
         let extra = target - platformStats.potBalance;
 
         if (extra <= 0.0) {
+            releaseGlobalLock();
             return #Err("Nothing to reconcile (pot already in sync; would have changed by " # Float.toText(extra) # ")");
         };
 
@@ -477,6 +524,7 @@ persistent actor {
             potBalance = platformStats.potBalance + extra;
         };
 
+        releaseGlobalLock();
         #Ok(extra);
     };
 
@@ -503,6 +551,8 @@ persistent actor {
             return #Err("Sweep requires zero active games (found " # Nat.toText(activeCount) # ")");
         };
 
+        acquireGlobalLock();
+
         let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
         let transferResult = try {
             await icpLedger.icrc1_transfer({
@@ -514,9 +564,11 @@ persistent actor {
                 created_at_time = null;
             });
         } catch (e) {
+            releaseGlobalLock();
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
+        releaseGlobalLock();
         switch (transferResult) {
             case (#Ok(blockIndex)) { #Ok(blockIndex) };
             case (#Err(err)) { #Err(transferErrorMessage(err)) };
@@ -643,6 +695,7 @@ persistent actor {
         };
 
         acquireCallerLock(caller);
+        acquireGlobalLock();
 
         // Check deposit rate limit BEFORE the transfer (prevents TOCTOU on rate limit)
         let currentTime = Time.now();
@@ -655,6 +708,7 @@ persistent actor {
                     func(timestamp) { currentHour - timestamp < 1 },
                 );
                 if (List.size(filteredTimestamps) >= 3) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("You can only open 3 positions per hour");
                 };
@@ -665,6 +719,7 @@ persistent actor {
         if (not isCompounding) {
             let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
             if (amount > maxDeposit) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
             };
@@ -672,6 +727,7 @@ persistent actor {
 
         let selfPrincipal = switch (canisterPrincipal) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Canister principal not set");
             };
@@ -691,12 +747,14 @@ persistent actor {
                 created_at_time = null;
             });
         } catch (e) {
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         switch (transferResult) {
             case (#Err(err)) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferFromErrorMessage(err));
             };
@@ -765,6 +823,7 @@ persistent actor {
             };
         };
 
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(gameId);
     };
@@ -781,9 +840,11 @@ persistent actor {
         };
 
         acquireCallerLock(caller);
+        acquireGlobalLock();
 
         let selfPrincipal = switch (canisterPrincipal) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Canister principal not set");
             };
@@ -803,12 +864,14 @@ persistent actor {
                 created_at_time = null;
             });
         } catch (e) {
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         let blockIndex = switch (transferResult) {
             case (#Err(err)) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferFromErrorMessage(err));
             };
@@ -854,6 +917,7 @@ persistent actor {
             potBalance = platformStats.potBalance + amount;
         };
 
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(blockIndex);
     };
@@ -1010,17 +1074,21 @@ persistent actor {
     public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Unauthorized: Only the game owner can withdraw earnings");
                 };
                 if (game.isCompounding) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Cannot withdraw from compounding games");
                 };
@@ -1048,6 +1116,7 @@ persistent actor {
                 if (isInsolvent and pot <= 0.0) {
                     // Pot already empty — wipe the round, player gets nothing
                     triggerGameReset("Insufficient funds for payout (pot empty)");
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game reset: pot is empty");
                 };
@@ -1106,6 +1175,7 @@ persistent actor {
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
                         roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
                         return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
@@ -1116,6 +1186,7 @@ persistent actor {
                             platformStats := originalStats;
                             dealerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
                             releaseCallerLock(caller);
                             return #Err(transferErrorMessage(err));
                         };
@@ -1130,6 +1201,7 @@ persistent actor {
                     triggerGameReset("Pot drained (partial payout)");
                 };
 
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Ok(actualNetEarnings);
             };
@@ -1141,21 +1213,26 @@ persistent actor {
     public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Unauthorized: Only the game owner can settle this game");
                 };
                 if (not game.isCompounding) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
                 };
                 if (not game.isActive) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game is already settled");
                 };
@@ -1170,12 +1247,14 @@ persistent actor {
                 };
                 let maturityDays = switch (maturityDaysOpt) {
                     case (null) {
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
                         return #Err("Simple games cannot be settled this way");
                     };
                     case (?d) { d };
                 };
                 if (daysElapsed < maturityDays) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
                 };
@@ -1204,6 +1283,7 @@ persistent actor {
 
                 if (isInsolvent and pot <= 0.0) {
                     triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game reset: pot is empty");
                 };
@@ -1251,6 +1331,7 @@ persistent actor {
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
                         roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
                         return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
@@ -1261,6 +1342,7 @@ persistent actor {
                             platformStats := originalStats;
                             dealerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
                             releaseCallerLock(caller);
                             return #Err(transferErrorMessage(err));
                         };
@@ -1272,6 +1354,7 @@ persistent actor {
                     triggerGameReset("Pot drained (partial payout)");
                 };
 
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Ok(actualNetEarnings);
             };
@@ -1497,12 +1580,14 @@ persistent actor {
     public shared ({ caller }) func claimDealerRepayment() : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         let balanceOpt : ?Float = switch (principalMapNat.get(dealerRepayments, caller)) {
             case (null) { null };
             case (?b) { if (b <= 0.0) { null } else { ?b } };
         };
         let balance = switch (balanceOpt) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("No repayment balance to claim");
             };
@@ -1527,6 +1612,7 @@ persistent actor {
             // Note: This is the conservative approach; the transfer may have succeeded.
             // In production, consider logging for manual reconciliation.
             dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
@@ -1534,12 +1620,14 @@ persistent actor {
         switch (transferResult) {
             case (#Err(err)) {
                 dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferErrorMessage(err));
             };
             case (#Ok(_)) {};
         };
 
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(balance);
     };
@@ -1638,7 +1726,9 @@ persistent actor {
             Debug.trap("Unauthorized: Only admins can distribute fees");
         };
         validateAmount(totalFees);
+        acquireGlobalLock();
         distributeExitToll(totalFees);
+        releaseGlobalLock();
     };
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,
