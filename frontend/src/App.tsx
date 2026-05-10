@@ -19,6 +19,7 @@ import DocsPage from './components/DocsPage';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
+import { captureReferrerFromUrl } from './lib/referral';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
 
@@ -300,6 +301,9 @@ export default function App() {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
+  // Capture `?ref=<principal>` from the landing URL once. First referrer wins.
+  useEffect(() => { captureReferrerFromUrl(); }, []);
+
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
   const ribbonRef = useRef<HTMLDivElement>(null);
@@ -379,7 +383,7 @@ export default function App() {
 
         {/* Header */}
         <header className="mc-header fixed top-0 left-0 right-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center h-16 md:h-20">
 
               {/* Logo */}

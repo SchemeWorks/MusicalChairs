@@ -12,6 +12,7 @@ import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
+import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 
 // Anonymous ledger actor for balance queries. icrc1_balance_of is a public
 // query — no identity needed. Cached at module scope so all callers share
@@ -469,6 +470,18 @@ export function useCreateGame() {
       const approveAmount = amountE8s + 20_000n; // extra for fees
       const isCompounding = mode === 'compounding';
 
+      // Resolve referrer from the captured URL param. Backend dedupes (first
+      // referrer wins), so it's safe to send on every createGame.
+      const refStr = getStoredReferrer();
+      let referrerOpt: [] | [Principal] = [];
+      if (refStr && refStr !== principal) {
+        try {
+          referrerOpt = [Principal.fromText(refStr)];
+        } catch {
+          referrerOpt = [];
+        }
+      }
+
       let gameId: bigint;
 
       // Oisy path: ICRC-112 batching (approve + createGame in one popup)
@@ -493,7 +506,7 @@ export function useCreateGame() {
 
         // Sequence 1: createGame
         signerAgent.batch();
-        const gamePromise = backendActor.createGame(plan, amount, isCompounding, []);
+        const gamePromise = backendActor.createGame(plan, amount, isCompounding, referrerOpt);
 
         // Fire single ICRC-112 request — ONE signer popup
         await signerAgent.execute();
@@ -503,7 +516,7 @@ export function useCreateGame() {
       } else {
         // Standard path: separate approve + createGame
         await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-        const gameResult = await actor.createGame(plan, amount, isCompounding, []);
+        const gameResult = await actor.createGame(plan, amount, isCompounding, referrerOpt);
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       }
@@ -916,7 +929,7 @@ export function useGetReferralStats() {
         level2Points: tierPoints.level2Points,
         level3Points: tierPoints.level3Points,
         totalEarnings: tierPoints.totalPoints,
-        referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`
+        referralLink: buildReferralLink(principal)
       };
     },
     enabled: !!principal,

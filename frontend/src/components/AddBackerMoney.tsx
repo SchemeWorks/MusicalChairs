@@ -3,7 +3,7 @@ import { useAddBackerMoney, useICPBalance } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import BackerMoneyToast from './BackerMoneyToast';
-import { AlertTriangle, BarChart3, TrendingUp } from 'lucide-react';
+import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { UPSTREAM_BACKER_BONUS } from '../lib/gameConstants';
 
@@ -130,9 +130,9 @@ export default function AddBackerMoney() {
           </div>
         </div>
 
-        {/* Right: instant calculator + warning */}
-        <div className="space-y-3">
-          {depositAmount > 0 ? (
+        {/* Right: instant calculator + warning (warning anchored bottom on lg) */}
+        <div className="flex flex-col gap-3 lg:h-full">
+          {depositAmount > 0 && (
             <div>
               <div className="text-center mb-3">
                 <span className="text-xs font-bold mc-text-primary">Expected Series A Return</span>
@@ -165,15 +165,8 @@ export default function AddBackerMoney() {
                 </div>
               </div>
             </div>
-          ) : (
-            <div className="h-full flex items-center justify-center text-center min-h-[140px]">
-              <div>
-                <BarChart3 className="h-8 w-8 mc-text-muted mb-2 mx-auto opacity-30" />
-                <p className="text-sm mc-text-muted">Enter an amount to see projected returns</p>
-              </div>
-            </div>
           )}
-          <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg">
+          <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg lg:mt-auto">
             <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME
             <div className="font-normal text-xs opacity-80 mt-0.5">Only play with money you can afford to lose</div>
           </div>

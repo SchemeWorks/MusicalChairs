@@ -18,7 +18,7 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
   const { data: referralStats, isLoading, error } = useGetReferralStats();
   const { data: ponziData } = useGetPonziPoints();
 
-  const referralLink = referralStats?.referralLink || 'https://musicalchairs.fun/ref/loading...';
+  const referralLink = referralStats?.referralLink || 'https://musicalchairs.fun/';
 
   const copyToClipboard = async () => {
     try {
