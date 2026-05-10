@@ -895,18 +895,15 @@ export function calculateExitTollFee(game: GameRecord, earnings: number): number
   }
 }
 
-// Helper function to convert GamePlan enum to string
+// Helper function to convert GamePlan variant to plan-id string.
+// Candid variants come back as fresh objects ({ compounding30Day: null }),
+// not as the static GamePlan.* references — switch-by-identity returned
+// default for everything, which made all plans look like 21-day-simple.
 function getGamePlanString(plan: GamePlan): string {
-  switch (plan) {
-    case GamePlan.simple21Day:
-      return '21-day-simple';
-    case GamePlan.compounding15Day:
-      return '15-day-compounding';
-    case GamePlan.compounding30Day:
-      return '30-day-compounding';
-    default:
-      return '21-day-simple';
-  }
+  if ('simple21Day' in plan) return '21-day-simple';
+  if ('compounding15Day' in plan) return '15-day-compounding';
+  if ('compounding30Day' in plan) return '30-day-compounding';
+  return '21-day-simple';
 }
 
 // MLM stats — backend no longer tracks per-tier referral PP earnings (that work

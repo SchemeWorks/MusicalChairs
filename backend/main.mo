@@ -196,6 +196,11 @@ persistent actor {
     var gameResetHistory = intMap.empty<GameResetRecord>();
     var nextGameId = 0;
 
+    // Next-round seed reserve. 50% of every realized exit toll routes here
+    // (instead of "staying in the pot"). On round reset this becomes the
+    // starting potBalance for the next round, and the reserve resets to 0.
+    var roundSeedReserve : Float = 0.0;
+
     // Deposit Rate Limiting
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
 
@@ -252,8 +257,8 @@ persistent actor {
     // Cover Charge — 4% skimmed from every deposit, routed to a dedicated
     // admin bucket ("Pay Management") with its own audit log so it never
     // mingles with game-pot accounting.
-    // Exit tolls continue to use the 50/50 pot/backer split in
-    // distributeExitTollToBackers — this change only touches the entry fee.
+    // Exit tolls continue to use the 50/50 backer/seed-reserve split in
+    // distributeExitToll — this change only touches the entry fee.
     // ========================================================================
 
     // Hardcoded admin principal — the only caller allowed to query or
@@ -418,10 +423,115 @@ persistent actor {
         };
     };
 
+    // Get the round seed reserve. The next round's pot will start from this
+    // value once the current round resets.
+    public query func getRoundSeedReserve() : async Float {
+        roundSeedReserve;
+    };
+
     // ========================================================================
     // Admin Functions
     // ========================================================================
-    
+
+    // Reconcile pot bookkeeping with the canister's actual ICP balance.
+    // One-shot recovery for orphaned ICP from earlier-version resets that
+    // zeroed potBalance. Sums the tracked non-pot buckets (cover charge +
+    // dealer repayments + roundSeedReserve), subtracts them from the actual
+    // canister ICP balance, and credits the remainder to the pot.
+    //
+    // Requires no active games to avoid mid-round accounting drift.
+    public shared ({ caller }) func migrateReconcilePot() : async { #Ok : Float; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            return #Err("Unauthorized: admin only");
+        };
+
+        var activeCount = 0;
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) { activeCount += 1 };
+        };
+        if (activeCount > 0) {
+            return #Err("Reconcile requires zero active games (found " # Nat.toText(activeCount) # ")");
+        };
+
+        let selfPrincipal = switch (canisterPrincipal) {
+            case (null) { return #Err("canisterPrincipal not set") };
+            case (?p) { p };
+        };
+
+        let canisterE8s = try {
+            await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
+        } catch (e) {
+            return #Err("Failed to read canister balance: " # Error.message(e));
+        };
+        let canisterICP = Float.fromInt(canisterE8s) / 100_000_000.0;
+
+        // Sum dealer repayments
+        var totalRepayments : Float = 0.0;
+        for (amt in principalMapNat.vals(dealerRepayments)) {
+            totalRepayments += amt;
+        };
+        let coverChargeICP = Float.fromInt(coverChargeBalance) / 100_000_000.0;
+
+        let trackedNonPot = coverChargeICP + totalRepayments + roundSeedReserve;
+        let target = canisterICP - trackedNonPot;
+        let extra = target - platformStats.potBalance;
+
+        if (extra <= 0.0) {
+            return #Err("Nothing to reconcile (pot already in sync; would have changed by " # Float.toText(extra) # ")");
+        };
+
+        platformStats := {
+            platformStats with
+            potBalance = platformStats.potBalance + extra;
+        };
+
+        #Ok(extra);
+    };
+
+    // Sweep arbitrary ICP from the canister to a target principal. Admin only,
+    // gated on no active games. Use after a reset (or for emergency cleanup)
+    // to drain residual ICP that bookkeeping doesn't track.
+    public shared ({ caller }) func adminSweep(to : Principal, amount : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            return #Err("Unauthorized: admin only");
+        };
+        if (amount == 0) {
+            return #Err("Amount must be greater than zero");
+        };
+        if (amount <= Ledger.ICP_TRANSFER_FEE) {
+            return #Err("Amount must exceed the ledger transfer fee of " # Nat.toText(Ledger.ICP_TRANSFER_FEE) # " e8s");
+        };
+
+        var activeCount = 0;
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) { activeCount += 1 };
+        };
+        if (activeCount > 0) {
+            return #Err("Sweep requires zero active games (found " # Nat.toText(activeCount) # ")");
+        };
+
+        let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = to; subaccount = null };
+                amount = transferAmount;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        switch (transferResult) {
+            case (#Ok(blockIndex)) { #Ok(blockIndex) };
+            case (#Err(err)) { #Err(transferErrorMessage(err)) };
+        };
+    };
+
     // Toggle test mode (admin only)
     public shared ({ caller }) func setTestMode(enabled : Bool) : async () {
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
@@ -618,7 +728,7 @@ persistent actor {
 
         // Cover Charge: 4% skimmed from every deposit, routed 100% to the
         // admin bucket (see coverChargeBalance). Exit tolls still use the
-        // 50/50 pot/backer split via distributeExitTollToBackers — only the entry
+        // 50/50 backer/seed-reserve split via distributeExitToll — only the entry
         // fee changed. Pot receives 96% of the gross deposit.
         let coverCharge = amount * COVER_CHARGE_RATE;
         let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
@@ -790,20 +900,26 @@ persistent actor {
 
     // Distribute an exit toll using the 35/25/40 formula to backer repayment
     // balances. `tollAmount` is the FULL toll — this function handles the
-    // 50/50 pot/backer split. Returns the portion that stays in the pot.
+    // 50% of toll seeds the next round (routed to roundSeedReserve, OUT of
+    // the pot), the other 50% credits backer repayment. Tolls never stay in
+    // the pot — that's how reset preserves carryover cleanly.
     //
     // This is called ONLY from exit toll paths after the cover-charge refactor.
     // The entry fee (cover charge) routes 100% to Management and never enters
     // this function.
-    func distributeExitTollToBackers(tollAmount : Float) : Float {
-        let potSeedAmount = tollAmount * 0.5;           // 50% seeds the next round
+    func distributeExitToll(tollAmount : Float) {
+        let seedAmount = tollAmount * 0.5;              // 50% to next-round reserve
         let backerRepaymentAmount = tollAmount * 0.5;   // 50% to backer repayment
+
+        roundSeedReserve += seedAmount;
 
         // Get all backers
         let allBackers = Iter.toArray(principalMapNat.vals(dealerPositions));
         if (allBackers.size() == 0) {
-            // No backers — everything stays in pot
-            return tollAmount;
+            // No backers yet — the backer half also flows to the seed reserve
+            // (so it doesn't get stranded or stay in the pot).
+            roundSeedReserve += backerRepaymentAmount;
+            return;
         };
 
         let seriesABackers = List.toArray(
@@ -862,8 +978,6 @@ persistent actor {
         for (dealer in allBackers.vals()) {
             creditBackerRepayment(dealer.owner, perBacker);
         };
-
-        potSeedAmount; // Return the portion that stays in pot
     };
 
     // Calculate exit toll fee based on game type and elapsed time
@@ -935,36 +1049,45 @@ persistent actor {
                 let originalGame = game;
                 let originalStats = platformStats;
                 let originalRepayments = dealerRepayments;
+                let originalSeedReserve = roundSeedReserve;
 
-                // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeExitTollToBackers(exitToll);
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
 
-                // Check solvency against what actually leaves the pot
-                let potDeduction = netEarnings + (exitToll - potSeedFromToll);
-                if (potDeduction > platformStats.potBalance) {
-                    // Revert dealer distribution before returning
-                    dealerRepayments := originalRepayments;
-                    triggerGameReset("Insufficient funds for payout");
+                if (isInsolvent and pot <= 0.0) {
+                    // Pot already empty — wipe the round, player gets nothing
+                    triggerGameReset("Insufficient funds for payout (pot empty)");
                     releaseCallerLock(caller);
-                    return #Err("Game reset due to insufficient funds");
+                    return #Err("Game reset: pot is empty");
                 };
 
-                // Reset the game record and update platform stats
+                // Pro-rata partial payout when insolvent. Pot drains 100%; player
+                // gets 87% of what flows, backers/seed split the 13% toll.
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                // Distribute the toll (routes to backers + seedReserve, NOT pot)
+                distributeExitToll(actualToll);
+
+                // Insolvency forces close even if elapsedDays < 21 (round is over)
+                let willClose = closePosition or isInsolvent;
                 let updatedGame : GameRecord = {
                     game with
                     accumulatedEarnings = 0.0;
                     lastUpdateTime = Time.now();
-                    totalWithdrawn = game.totalWithdrawn + netEarnings;
-                    isActive = if (closePosition) false else game.isActive;
+                    totalWithdrawn = game.totalWithdrawn + actualNetEarnings;
+                    isActive = if (willClose) false else game.isActive;
                 };
                 gameRecords := natMap.put(gameRecords, gameId, updatedGame);
 
                 platformStats := {
                     platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + netEarnings;
-                    potBalance = platformStats.potBalance - potDeduction;
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
                     activeGames =
-                        if (closePosition and platformStats.activeGames > 0) {
+                        if (willClose and platformStats.activeGames > 0) {
                             platformStats.activeGames - 1
                         } else {
                             platformStats.activeGames
@@ -972,9 +1095,9 @@ persistent actor {
                 };
 
                 // Pay out to user's ledger account (saga: revert on failure).
-                // Skip transfer entirely when netEarnings == 0 (matured position with no
-                // fresh earnings since last withdraw — this call is a pure close).
-                let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
+                // Skip transfer entirely when actualNetEarnings == 0 (matured position
+                // with no fresh earnings since last withdraw — pure close).
+                let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
                 if (netEarningsE8s > 0) {
                     let transferResult = try {
                         await icpLedger.icrc1_transfer({
@@ -991,6 +1114,7 @@ persistent actor {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
                         releaseCallerLock(caller);
                         return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
@@ -1000,6 +1124,7 @@ persistent actor {
                             gameRecords := natMap.put(gameRecords, gameId, originalGame);
                             platformStats := originalStats;
                             dealerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
                             releaseCallerLock(caller);
                             return #Err(transferErrorMessage(err));
                         };
@@ -1007,8 +1132,15 @@ persistent actor {
                     };
                 };
 
+                // Insolvency path: trigger reset AFTER successful payout. Reset
+                // moves the seed reserve (which just got topped up by half this
+                // toll) into the pot for the next round.
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
+                };
+
                 releaseCallerLock(caller);
-                #Ok(netEarnings);
+                #Ok(actualNetEarnings);
             };
         };
     };
@@ -1068,82 +1200,89 @@ persistent actor {
                 // Apply exit toll on earnings (15-day: 9%, 30-day: 13%)
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
-                // Principal stays in the pot — payout is net earnings only.
-                let totalPayout = netEarnings;
 
                 // Capture state snapshots for compensation-on-failure.
-                // NOTE: distributeExitTollToBackers writes to dealerRepayments
-                // (via creditBackerRepayment) and only reads dealerPositions.
-                // Snapshot and revert dealerRepayments — reverting dealerPositions
-                // is a no-op that leaks repayments on retry. See commit 588cedb.
+                // distributeExitToll writes to dealerRepayments and roundSeedReserve.
                 let originalGame = game;
                 let originalStats = platformStats;
                 let originalRepayments = dealerRepayments;
+                let originalSeedReserve = roundSeedReserve;
 
-                // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeExitTollToBackers(exitToll);
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
 
-                // Pot loses: totalPayout (to player) + dealer portion of toll
-                let potDeduction = totalPayout + (exitToll - potSeedFromToll);
-                if (potDeduction > platformStats.potBalance) {
-                    dealerRepayments := originalRepayments;
-                    triggerGameReset("Insufficient funds for compounding game settlement");
+                if (isInsolvent and pot <= 0.0) {
+                    triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
                     releaseCallerLock(caller);
-                    return #Err("Game reset due to insufficient funds");
+                    return #Err("Game reset: pot is empty");
                 };
+
+                // Pro-rata partial payout when insolvent.
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                // Distribute the toll (routes to backers + seedReserve, NOT pot)
+                distributeExitToll(actualToll);
 
                 // Mark game as settled
                 let settledGame : GameRecord = {
                     game with
                     isActive = false;
-                    accumulatedEarnings = netEarnings;
-                    totalWithdrawn = totalPayout;
+                    accumulatedEarnings = actualNetEarnings;
+                    totalWithdrawn = actualNetEarnings;
                     lastUpdateTime = Time.now();
                 };
                 gameRecords := natMap.put(gameRecords, gameId, settledGame);
 
                 platformStats := {
                     platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + totalPayout;
-                    potBalance = platformStats.potBalance - potDeduction;
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
                     activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
                 };
 
                 // Pay out to user's ledger account (saga: revert on failure)
-                let payoutE8s = Int.abs(Float.toInt(totalPayout * 100_000_000.0));
-                let transferResult = try {
-                    await icpLedger.icrc1_transfer({
-                        from_subaccount = null;
-                        to = { owner = caller; subaccount = null };
-                        amount = payoutE8s;
-                        fee = null;
-                        memo = null;
-                        created_at_time = null;
-                    });
-                } catch (e) {
-                    // Compensate: refund on catch (network failure — transfer status unknown)
-                    // Note: This is the conservative approach; the transfer may have succeeded.
-                    // In production, consider logging for manual reconciliation.
-                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
-                    platformStats := originalStats;
-                    dealerRepayments := originalRepayments;
-                    releaseCallerLock(caller);
-                    return #Err("Failed to contact ICP ledger: " # Error.message(e));
-                };
-
-                switch (transferResult) {
-                    case (#Err(err)) {
+                let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                if (payoutE8s > 0) {
+                    let transferResult = try {
+                        await icpLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = { owner = caller; subaccount = null };
+                            amount = payoutE8s;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        });
+                    } catch (e) {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
                         releaseCallerLock(caller);
-                        return #Err(transferErrorMessage(err));
+                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
-                    case (#Ok(_)) {};
+
+                    switch (transferResult) {
+                        case (#Err(err)) {
+                            gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                            platformStats := originalStats;
+                            dealerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
+                            releaseCallerLock(caller);
+                            return #Err(transferErrorMessage(err));
+                        };
+                        case (#Ok(_)) {};
+                    };
+                };
+
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
                 };
 
                 releaseCallerLock(caller);
-                #Ok(totalPayout);
+                #Ok(actualNetEarnings);
             };
         };
     };
@@ -1230,11 +1369,15 @@ persistent actor {
         };
         gameResetHistory := intMap.put(gameResetHistory, Time.now(), resetRecord);
         gameRecords := natMap.empty<GameRecord>();
+        // Carry the seed reserve into the new round's pot. The reserve has been
+        // accumulating 50% of every realized exit toll since the last reset.
+        let newPot = roundSeedReserve;
+        roundSeedReserve := 0.0;
         platformStats := {
             totalDeposits = 0.0;
             totalWithdrawals = 0.0;
             activeGames = 0;
-            potBalance = 0.0;
+            potBalance = newPot;
             daysActive = 0;
         };
         nextGameId := 0;
@@ -1496,16 +1639,15 @@ persistent actor {
     };
 
     // Manual backer-repayment distribution (admin only).
-    // Uses the same 50/50 pot/backer split as automatic exit-toll distribution.
-    // The public Candid name stays `distributeFees` for backward compatibility;
-    // internally it delegates to `distributeExitTollToBackers`.
+    // Uses the same 50/50 backer/seed-reserve split as automatic exit-toll distribution.
+    // The public Candid name stays `distributeFees` for backward compatibility.
     public shared ({ caller }) func distributeFees(totalFees : Float) : async () {
         requireAuthenticated(caller);
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
             Debug.trap("Unauthorized: Only admins can distribute fees");
         };
         validateAmount(totalFees);
-        ignore distributeExitTollToBackers(totalFees);
+        distributeExitToll(totalFees);
     };
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,
