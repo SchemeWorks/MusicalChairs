@@ -68,6 +68,7 @@ type MintConfig =
 type CashOutEntry = 
  record {
    amount: nat;
+   cancelled: bool;
    claimableAfter: int;
    claimed: bool;
    id: nat;
@@ -80,6 +81,10 @@ service : {
                                                  Err: text;
                                                  Ok: nat;
                                                });
+  cancelCashOut: (id: nat) -> (variant {
+                                 Err: text;
+                                 Ok;
+                               });
   castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
    (ShenaniganOutcome);
   claimCashOut: (id: nat) -> (variant {

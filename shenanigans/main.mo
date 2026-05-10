@@ -85,6 +85,7 @@ persistent actor Self {
         amount : Nat;              // PP-units requested
         claimableAfter : Int;      // nanoseconds (Time.now() + delay)
         claimed : Bool;            // set true after claimCashOut succeeds
+        cancelled : Bool;          // set true after cancelCashOut succeeds
     };
 
     /// Mutable mint + economy configuration. All fields admin-tunable.
@@ -405,7 +406,7 @@ persistent actor Self {
 
         var pending : Nat = 0;
         for (entry in natMap.vals(cashOuts)) {
-            if (entry.player == caller and not entry.claimed) {
+            if (entry.player == caller and not entry.claimed and not entry.cancelled) {
                 pending += entry.amount;
             };
         };
@@ -427,6 +428,7 @@ persistent actor Self {
             amount = amountUnits;
             claimableAfter;
             claimed = false;
+            cancelled = false;
         };
         cashOuts := natMap.put(cashOuts, id, entry);
         #Ok(id);
@@ -474,15 +476,28 @@ persistent actor Self {
         };
     };
 
+    public shared ({ caller }) func cancelCashOut(id : Nat) : async { #Ok; #Err : Text } {
+        let entry = switch (natMap.get(cashOuts, id)) {
+            case (null) { return #Err("No such cash-out") };
+            case (?e) { e };
+        };
+        if (entry.player != caller) { return #Err("Not your cash-out") };
+        if (entry.claimed) { return #Err("Already claimed") };
+        if (entry.cancelled) { return #Err("Already cancelled") };
+
+        cashOuts := natMap.put(cashOuts, id, { entry with cancelled = true });
+        #Ok;
+    };
+
     /// Pending and recently claimed cash-outs for a given user.
     public query func getCashOutsFor(user : Principal) : async [CashOutEntry] {
         let all = Iter.toArray(natMap.vals(cashOuts));
-        Array.filter<CashOutEntry>(all, func(e) { e.player == user });
+        Array.filter<CashOutEntry>(all, func(e) { e.player == user and not e.cancelled });
     };
 
     public shared query ({ caller }) func getMyCashOuts() : async [CashOutEntry] {
         let all = Iter.toArray(natMap.vals(cashOuts));
-        Array.filter<CashOutEntry>(all, func(e) { e.player == caller });
+        Array.filter<CashOutEntry>(all, func(e) { e.player == caller and not e.cancelled });
     };
 
     // ================================================================

@@ -3,7 +3,7 @@ import { Principal } from '@dfinity/principal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '../hooks/useWallet';
 import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
-import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin, useICPBalance } from '../hooks/useQueries';
+import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
@@ -116,6 +116,45 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const { data: ponziPointsData, isLoading: ponziLoading } = useGetPonziPoints();
   const saveProfileMutation = useSaveUserProfile();
 
+  const sendPp = useSendPp();
+  const [sendPpOpen, setSendPpOpen] = useState(false);
+  const [sendPpTo, setSendPpTo] = useState('');
+  const [sendPpAmount, setSendPpAmount] = useState('');
+  const [sendPpError, setSendPpError] = useState('');
+  const [sendPpSuccess, setSendPpSuccess] = useState(false);
+
+  const handleSendPp = async () => {
+    setSendPpError('');
+    setSendPpSuccess(false);
+    const toTrim = sendPpTo.trim();
+    if (!toTrim) { setSendPpError('Enter a destination principal'); return; }
+    let toPrincipal: Principal;
+    try { toPrincipal = Principal.fromText(toTrim); }
+    catch { setSendPpError('Invalid principal'); return; }
+    if (principal && toPrincipal.toText() === principal) {
+      setSendPpError('Cannot send to yourself');
+      return;
+    }
+    const amt = Number(sendPpAmount);
+    if (!Number.isFinite(amt) || amt <= 0 || !Number.isInteger(amt)) {
+      setSendPpError('Enter a whole-number PP amount');
+      return;
+    }
+    const walletPp = ponziPointsData?.walletPoints ?? 0;
+    if (amt > walletPp) {
+      setSendPpError('Amount exceeds Wallet balance');
+      return;
+    }
+    try {
+      await sendPp.mutateAsync({ to: toPrincipal, wholePp: amt });
+      setSendPpSuccess(true);
+      setSendPpAmount('');
+      setSendPpTo('');
+    } catch (e: any) {
+      setSendPpError(e?.message || 'Transfer failed');
+    }
+  };
+
   // Cover Charge — admin only. Hooks below are no-ops unless the connected
   // principal matches COVER_CHARGE_RECIPIENT (backend enforces independently).
   const isAdmin = isCoverChargeAdmin(principal);
@@ -139,7 +178,6 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   };
 
   const principalId = principal || '';
-  const ponziPoints = ponziPointsData?.totalPoints || 0;
   const userName = userProfile?.name || 'User';
 
   const walletIcon = walletType === 'internet-identity' ? <img src="/ii-logo.svg" alt="II" className="h-4 w-4" /> : walletType === 'plug' ? <img src="/plug-logo.svg" alt="Plug" className="h-4 w-4" /> : walletType === 'oisy' ? <img src="/oisy-logo.svg" alt="OISY" className="h-4 w-4" /> : <CreditCard className="h-4 w-4 mc-text-muted" />;
@@ -292,8 +330,69 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
           </div>
         )}
 
-        <div className="text-center text-xs">
-          <span className="mc-text-purple font-bold">{ponziLoading ? '...' : ponziPoints.toLocaleString()} PP</span>
+        <div className="mc-card p-3">
+          <div className="flex items-center justify-between text-xs gap-2">
+            <div>
+              <div className="mc-label">Wallet</div>
+              <div className="font-bold mc-text-primary">
+                {ponziLoading ? '...' : (ponziPointsData?.walletPoints ?? 0).toLocaleString()} PP
+              </div>
+            </div>
+            <div>
+              <div className="mc-label">Position</div>
+              <div className="font-bold mc-text-green">
+                {ponziLoading ? '...' : (ponziPointsData?.chipPoints ?? 0).toLocaleString()} PP
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <button
+                onClick={() => { setSendPpOpen(v => !v); setSendPpError(''); setSendPpSuccess(false); }}
+                className="mc-btn-secondary text-xs px-2 py-1 flex items-center gap-1"
+              >
+                <Send className="h-3 w-3" /> Send
+              </button>
+              <button
+                onClick={() => {
+                  window.location.hash = '#bank';
+                  onClose();
+                }}
+                className="mc-btn-secondary text-xs px-2 py-1"
+              >
+                Bank →
+              </button>
+            </div>
+          </div>
+          {sendPpOpen && (
+            <div className="mt-3 pt-3 border-t border-white/10 space-y-2">
+              <input
+                value={sendPpTo}
+                onChange={e => setSendPpTo(e.target.value)}
+                placeholder="Destination principal"
+                className="mc-input w-full h-8 text-xs px-2 font-mono"
+              />
+              <div className="flex gap-2">
+                <input
+                  value={sendPpAmount}
+                  onChange={e => setSendPpAmount(e.target.value)}
+                  placeholder="Amount (PP)"
+                  inputMode="numeric"
+                  className="mc-input flex-1 h-8 text-xs px-2"
+                />
+                <button
+                  onClick={handleSendPp}
+                  disabled={sendPp.isPending}
+                  className="mc-btn-primary px-3 py-1 text-xs flex items-center gap-1 disabled:opacity-50"
+                >
+                  {sendPp.isPending ? <><Loader2 className="h-3 w-3 animate-spin" /> Sending…</> : 'Send'}
+                </button>
+              </div>
+              <div className="text-[10px] mc-text-muted">
+                Sends from your Wallet balance. Position PP is not sendable — redeem first via Bank.
+              </div>
+              {sendPpError && <div className="mc-status-red p-2 text-xs text-center">{sendPpError}</div>}
+              {sendPpSuccess && <div className="mc-status-green p-2 text-xs text-center">PP sent.</div>}
+            </div>
+          )}
         </div>
       </div>
 

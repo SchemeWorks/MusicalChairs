@@ -1081,16 +1081,49 @@ export function useGetHallOfFame() {
 
 const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
 
-/** One-time approve for chip deposits. Amount in whole PP. */
+/** Send whole-PP from the caller's main account to an arbitrary principal. */
+export function useSendPp() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ to, wholePp }: { to: Principal; wholePp: number }) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc1_transfer({
+        to: { owner: to, subaccount: [] },
+        amount: wholePpToUnits(wholePp),
+        fee: [],
+        memo: [],
+        from_subaccount: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) {
+        const err: any = res.Err;
+        const msg = err.InsufficientFunds ? 'Insufficient funds'
+          : err.BadFee ? 'Bad fee'
+          : err.TooOld ? 'Transfer too old'
+          : err.TemporarilyUnavailable ? 'Ledger temporarily unavailable'
+          : err.GenericError?.message || 'Transfer failed';
+        throw new Error(msg);
+      }
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppBalances'] }),
+  });
+}
+
+/** One-time approve for chip deposits. Defaults to the ICRC-1 unlimited sentinel. */
 export function useApproveForDeposits() {
   const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (wholePp: number) => {
+    mutationFn: async (explicitAmount?: bigint) => {
       if (!ppLedger) throw new Error('No pp_ledger actor');
+      const UNLIMITED = 18_446_744_073_709_551_615n; // 2^64 - 1
+      const amount = explicitAmount ?? UNLIMITED;
       const res = await ppLedger.icrc2_approve({
         from_subaccount: [],
         spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
-        amount: wholePpToUnits(wholePp),
+        amount,
         expected_allowance: [],
         expires_at: [],
         fee: [],
@@ -1100,6 +1133,53 @@ export function useApproveForDeposits() {
       if ('Err' in res) throw new Error(JSON.stringify(res.Err));
       return res.Ok;
     },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
+  });
+}
+
+/** Current ICRC-2 allowance granted by the caller's main account to shenanigans. */
+export function useAllowance() {
+  const ppLedger = useReadPpLedger();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['ppAllowance', principal],
+    queryFn: async () => {
+      if (!principal) return null;
+      const res = await ppLedger.icrc2_allowance({
+        account: { owner: Principal.fromText(principal), subaccount: [] },
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+      });
+      return {
+        allowance: res.allowance, // bigint, in PP-units
+        expiresAt: res.expires_at[0] ?? null,
+      };
+    },
+    enabled: !!principal,
+    refetchInterval: 15000,
+  });
+}
+
+/** Revoke by setting the allowance to 0. */
+export function useRevokeAllowance() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount: 0n,
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
   });
 }
 
@@ -1115,7 +1195,7 @@ export function useDepositChips() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ppBalances'] });
-      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppAllowance'] });
     },
   });
 }
@@ -1141,6 +1221,23 @@ export function useClaimCashOut() {
     mutationFn: async (id: bigint) => {
       if (!actor) throw new Error('No shenanigans actor');
       const res = await actor.claimCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
+export function useCancelCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.cancelCashOut(id);
       if ('Err' in res) throw new Error(res.Err);
       return res.Ok;
     },
@@ -1242,12 +1339,14 @@ export function usePendingCashOuts() {
     queryFn: async () => {
       if (!actor) return [];
       const entries = await actor.getMyCashOuts();
-      return entries.map((e) => ({
-        id: e.id,
-        amount: Number(e.amount) / 1e8,
-        claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
-        claimed: e.claimed,
-      }));
+      return entries
+        .filter((e) => !e.claimed)
+        .map((e) => ({
+          id: e.id,
+          amount: Number(e.amount) / 1e8,
+          claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
+          claimed: e.claimed,
+        }));
     },
     enabled: !!actor && !!principal,
     refetchInterval: 10000,
