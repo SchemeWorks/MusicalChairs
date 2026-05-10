@@ -112,7 +112,6 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'burnPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
     'calculateCompounded30DayEarnings' : IDL.Func(
         [GameRecord],
         [IDL.Float64],
@@ -136,11 +135,14 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
-    'deductPonziPoints' : IDL.Func([IDL.Principal, IDL.Float64], [], []),
-    'distributeDealerCutFromShenanigans' : IDL.Func([IDL.Float64], [], []),
     'distributeFees' : IDL.Func([IDL.Float64], [], []),
     'getActiveGameCount' : IDL.Func([], [IDL.Nat], ['query']),
     'getAllActiveGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
+    'getAllDealerRepayments' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
+        ['query'],
+      ),
     'getAllGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
     'getAvailableBalance' : IDL.Func([], [IDL.Float64], ['query']),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
@@ -154,14 +156,13 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getDaysActive' : IDL.Func([], [IDL.Nat], ['query']),
-    'getAllDealerRepayments' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
-        ['query'],
-      ),
     'getDealerPositions' : IDL.Func([], [IDL.Vec(DealerPosition)], ['query']),
     'getDealerRepaymentBalance' : IDL.Func([], [IDL.Float64], ['query']),
-    'getDealerRepaymentBalanceFor' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
+    'getDealerRepaymentBalanceFor' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Float64],
+        ['query'],
+      ),
     'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
     'getGameResetHistory' : IDL.Func([], [IDL.Vec(GameResetRecord)], ['query']),
     'getHouseLedger' : IDL.Func([], [IDL.Vec(HouseLedgerRecord)], ['query']),
@@ -184,64 +185,9 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getPlatformStats' : IDL.Func([], [PlatformStats], ['query']),
-    'getPonziPoints' : IDL.Func([], [IDL.Float64], ['query']),
-    'getPonziPointsBreakdownFor' : IDL.Func(
+    'getReferrer' : IDL.Func(
         [IDL.Principal],
-        [
-          IDL.Record({
-            'depositPoints' : IDL.Float64,
-            'referralPoints' : IDL.Float64,
-            'totalPoints' : IDL.Float64,
-          }),
-        ],
-        ['query'],
-      ),
-    'getPonziPointsBalance' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'depositPoints' : IDL.Float64,
-            'referralPoints' : IDL.Float64,
-            'totalPoints' : IDL.Float64,
-          }),
-        ],
-        ['query'],
-      ),
-    'getPonziPointsBalanceFor' : IDL.Func([IDL.Principal], [IDL.Float64], []),
-    'getPonziPointsFor' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
-    'getReferralEarnings' : IDL.Func([IDL.Principal], [IDL.Float64], ['query']),
-    'getReferralTierPoints' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'level3Points' : IDL.Float64,
-            'level1Points' : IDL.Float64,
-            'totalPoints' : IDL.Float64,
-            'level2Points' : IDL.Float64,
-          }),
-        ],
-        ['query'],
-      ),
-    'getReferralTierPointsFor' : IDL.Func(
-        [IDL.Principal],
-        [
-          IDL.Record({
-            'level3Points' : IDL.Float64,
-            'level1Points' : IDL.Float64,
-            'totalPoints' : IDL.Float64,
-            'level2Points' : IDL.Float64,
-          }),
-        ],
-        ['query'],
-      ),
-    'getTopPonziPointsBurners' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
-        ['query'],
-      ),
-    'getTopPonziPointsHolders' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
+        [IDL.Opt(IDL.Principal)],
         ['query'],
       ),
     'getTotalDealerDebt' : IDL.Func([], [IDL.Float64], ['query']),
@@ -249,14 +195,17 @@ export const idlFactory = ({ IDL }) => {
     'getTotalHouseMoneyAdded' : IDL.Func([], [IDL.Float64], ['query']),
     'getTotalWithdrawals' : IDL.Func([], [IDL.Float64], ['query']),
     'getUserGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
-    'getUserGamesFor' : IDL.Func([IDL.Principal], [IDL.Vec(GameRecord)], ['query']),
+    'getUserGamesFor' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(GameRecord)],
+        ['query'],
+      ),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
         ['query'],
       ),
     'getUserRole' : IDL.Func([IDL.Principal], [UserRole], ['query']),
-    'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(StandardRecord)],
@@ -273,6 +222,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'initializeAccessControl' : IDL.Func([], [], []),
+    'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'isTestMode' : IDL.Func([], [IDL.Bool], ['query']),
     'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
@@ -283,16 +233,10 @@ export const idlFactory = ({ IDL }) => {
       ),
     'seedReferral' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
     'setCanisterPrincipal' : IDL.Func([IDL.Principal], [], []),
-    'setShenanigansPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setTestMode' : IDL.Func([IDL.Bool], [], []),
     'settleCompoundingGame' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
-        [],
-      ),
-    'transferPonziPoints' : IDL.Func(
-        [IDL.Principal, IDL.Principal, IDL.Float64],
-        [],
         [],
       ),
     'withdrawCoverCharges' : IDL.Func(

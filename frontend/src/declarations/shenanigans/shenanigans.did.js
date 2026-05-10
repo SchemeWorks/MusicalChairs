@@ -17,6 +17,25 @@ export const idlFactory = ({ IDL }) => {
     'fail' : IDL.Null,
     'success' : IDL.Null,
   });
+  const CashOutEntry = IDL.Record({
+    'id' : IDL.Nat,
+    'player' : IDL.Principal,
+    'claimed' : IDL.Bool,
+    'claimableAfter' : IDL.Int,
+    'amount' : IDL.Nat,
+  });
+  const MintConfig = IDL.Record({
+    'compounding15DayPpPerIcp' : IDL.Nat,
+    'minDepositPp' : IDL.Nat,
+    'dealerPpPerIcp' : IDL.Nat,
+    'compounding30DayPpPerIcp' : IDL.Nat,
+    'referralL1Bps' : IDL.Nat,
+    'referralL2Bps' : IDL.Nat,
+    'referralL3Bps' : IDL.Nat,
+    'observerIntervalSeconds' : IDL.Nat,
+    'cashOutDelaySeconds' : IDL.Nat,
+    'simple21DayPpPerIcp' : IDL.Nat,
+  });
   const ShenaniganRecord = IDL.Record({
     'id' : IDL.Nat,
     'shenaniganType' : ShenaniganType,
@@ -49,11 +68,46 @@ export const idlFactory = ({ IDL }) => {
     'badOutcomes' : IDL.Nat,
   });
   return IDL.Service({
+    'adminMint' : IDL.Func(
+        [IDL.Principal, IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
     'castShenanigan' : IDL.Func(
         [ShenaniganType, IDL.Opt(IDL.Principal)],
         [ShenaniganOutcome],
         [],
       ),
+    'claimCashOut' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'depositChips' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'getCashOutsFor' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(CashOutEntry)],
+        ['query'],
+      ),
+    'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
+    'getMyCashOuts' : IDL.Func([], [IDL.Vec(CashOutEntry)], ['query']),
+    'getObserverStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'gameIdCursor' : IDL.Nat,
+            'intervalSeconds' : IDL.Nat,
+            'dealerSeenCount' : IDL.Nat,
+            'running' : IDL.Bool,
+          }),
+        ],
+        ['query'],
+      ),
+    'getPpBurnedFor' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getRecentShenanigans' : IDL.Func(
         [],
         [IDL.Vec(ShenaniganRecord)],
@@ -65,9 +119,37 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getShenaniganStats' : IDL.Func([], [ShenaniganStats], ['query']),
+    'getTopPpBurners' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        ['query'],
+      ),
+    'getTopSpellCasters' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        ['query'],
+      ),
     'initialize' : IDL.Func([IDL.Principal], [], []),
+    'primeObserverCursors' : IDL.Func([], [], []),
+    'requestCashOut' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
     'resetShenaniganConfig' : IDL.Func([IDL.Nat], [], []),
+    'resumeObserver' : IDL.Func([], [], []),
+    'rotateAdmin' : IDL.Func([IDL.Principal], [], []),
+    'runObserverOnce' : IDL.Func([], [], []),
     'saveAllShenaniganConfigs' : IDL.Func([IDL.Vec(ShenaniganConfig)], [], []),
+    'setCashOutDelaySeconds' : IDL.Func([IDL.Nat], [], []),
+    'setCompounding15DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setDealerPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
+    'setObserverIntervalSeconds' : IDL.Func([IDL.Nat], [], []),
+    'setReferralBps' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
+    'setSimple21DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'stopObserver' : IDL.Func([], [], []),
     'updateShenaniganConfig' : IDL.Func([ShenaniganConfig], [], []),
   });
 };
