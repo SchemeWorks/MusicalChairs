@@ -9,6 +9,22 @@ import { DollarSign, Rocket, Landmark, Users, Dice5, RefreshCw } from 'lucide-re
 import type { TabType } from '../App';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import OnboardingTour from './OnboardingTour';
+import { useWallet } from '../hooks/useWallet';
+import { isCharles } from '../lib/charles';
+
+function ShenanigansComingSoon() {
+  return (
+    <div className="mc-card-elevated mc-accent-purple p-10 text-center max-w-xl mx-auto mt-8">
+      <Dice5 className="h-12 w-12 mc-text-purple mx-auto mb-4" />
+      <h2 className="font-display text-xl mc-text-primary mb-2">Shenanigans</h2>
+      <p className="mc-text-purple font-bold mb-3">Coming Soon</p>
+      <p className="text-sm mc-text-dim leading-relaxed">
+        Spend your hard-earned Ponzi Points on tricks that annoy other players. We're putting the
+        finishing touches on chaos. Check back after the music starts.
+      </p>
+    </div>
+  );
+}
 
 interface NavItem {
   id: TabType;
@@ -90,6 +106,8 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
   const [isAnimating, setIsAnimating] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const queryClient = useQueryClient();
+  const { principal } = useWallet();
+  const shenanigansEnabled = !!principal && isCharles(principal);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 769);
@@ -124,7 +142,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
       case 'invest': return <div className={cls}><GamePlans onNavigateToProfitCenter={handleNavigateToProfitCenter} /></div>;
       case 'seedRound': return <div className={cls}><HouseDashboard /></div>;
       case 'mlm': return <div className={cls}><ReferralSection onTabChange={handleTabChange} /></div>;
-      case 'shenanigans': return <div className={cls}><Shenanigans /></div>;
+      case 'shenanigans': return <div className={cls}>{shenanigansEnabled ? <Shenanigans /> : <ShenanigansComingSoon />}</div>;
       default: return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} onTabChange={handleTabChange} visible={activeTab === 'profitCenter'} /></div>;
     }
   };

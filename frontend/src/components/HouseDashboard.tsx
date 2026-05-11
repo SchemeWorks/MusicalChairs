@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { toast } from 'sonner';
 import { useWallet } from '../hooks/useWallet';
-import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments } from '../hooks/useQueries';
+import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
 import { formatICP } from '../lib/formatICP';
@@ -235,6 +236,16 @@ function BackerPositions() {
   const { principal } = useWallet();
   const { data: backerPositions = [], isLoading, error, refetch } = useGetBackerPositions();
   const { data: repaymentEntries = [] } = useGetAllBackerRepayments();
+  const claimRepayment = useClaimDealerRepayment();
+
+  const handleClaim = async (amount: number) => {
+    try {
+      const paid = await claimRepayment.mutateAsync();
+      toast.success(`Claimed ${formatICP(Number(paid))} ICP`);
+    } catch (err: any) {
+      toast.error(err?.message || `Claim failed (had ${formatICP(amount)} ICP claimable)`);
+    }
+  };
 
   const repaidByOwner = new Map<string, number>(
     repaymentEntries.map(([p, v]) => [p.toString(), v])
@@ -354,6 +365,20 @@ function BackerPositions() {
                     </div>
                   </div>
                 </div>
+                {backer.owner.toString() === principal && repaid > 0 && (
+                  <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-3">
+                    <span className="text-xs mc-text-dim">
+                      <span className="mc-text-green font-bold">{formatICP(repaid)} ICP</span> ready to claim
+                    </span>
+                    <button
+                      onClick={() => handleClaim(repaid)}
+                      disabled={claimRepayment.isPending}
+                      className="mc-btn-primary px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-50"
+                    >
+                      {claimRepayment.isPending ? 'Claiming…' : 'Claim Repayment'}
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })}

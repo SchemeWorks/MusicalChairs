@@ -1,18 +1,17 @@
 import React from 'react';
-import { Medal, Trophy, Target, Gem, Shield, Crown } from 'lucide-react';
-import { useGetTopPonziPointsHolders, useGetTopPonziPointsBurners, useGetPonziPoints } from '../hooks/useQueries';
+import { Medal, Trophy, Target, Gem, Shield } from 'lucide-react';
+import { useGetTopPonziPointsBurners, useGetPonziPoints } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import LoadingSpinner from './LoadingSpinner';
 
 interface HallOfFameEntry {
   rank: number;
   name: string;
-  ponziPoints?: number;
   ponziPointsBurned?: number;
   principal: string;
 }
 
-function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders: boolean }) {
+function Podium({ entries }: { entries: HallOfFameEntry[] }) {
   const top3 = entries.slice(0, 3);
   if (top3.length === 0) return null;
 
@@ -25,7 +24,7 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
 
   const heights = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
   const medals = {
-    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Crown className="h-3.5 w-3.5 mc-text-gold" /> },
+    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Medal className="h-3.5 w-3.5 mc-text-gold" /> },
     2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-3 w-3 text-gray-300" /> },
     3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-3 w-3 text-amber-500" /> },
   };
@@ -36,7 +35,6 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
         const rank = entry.rank as 1 | 2 | 3;
         const m = medals[rank];
         const h = heights[rank];
-        const value = isHolders ? entry.ponziPoints : entry.ponziPointsBurned;
         return (
           <div key={entry.rank} className="flex flex-col items-center" style={{ minWidth: '90px' }}>
             {/* Avatar initial + medal badge */}
@@ -47,7 +45,7 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
               </div>
             </div>
             <span className="text-xs font-bold mc-text-primary truncate max-w-[80px] text-center">{entry.name}</span>
-            <span className="text-xs font-bold mc-text-purple">{(value || 0).toLocaleString()}</span>
+            <span className="text-xs font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</span>
             {/* Podium block */}
             <div className={`${h} w-full mt-2 rounded-t-lg ${m.bg} border-t border-x ${m.border} flex items-start justify-center pt-2`}>
               <span className={`font-display text-sm ${m.text}`}>#{rank}</span>
@@ -60,14 +58,13 @@ function Podium({ entries, isHolders }: { entries: HallOfFameEntry[]; isHolders:
 }
 
 export default function HallOfFame() {
-  const { data: holdersData, isLoading: holdersLoading, error: holdersError } = useGetTopPonziPointsHolders();
   const { data: burnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
   const { data: ponziData } = useGetPonziPoints();
   const { principal } = useWallet();
 
-  if (holdersLoading || burnersLoading) return <LoadingSpinner />;
+  if (burnersLoading) return <LoadingSpinner />;
 
-  if (holdersError || burnersError) {
+  if (burnersError) {
     return (
       <div className="mc-status-red p-4 text-center text-sm">
         Unable to load Hall of Fame data. Please try again later.
@@ -75,11 +72,9 @@ export default function HallOfFame() {
     );
   }
 
-  const hasData = (holdersData && holdersData.length > 0) || (burnersData && burnersData.length > 0);
+  const hasData = burnersData && burnersData.length > 0;
 
-  // Find user's rank
   const userPrincipal = principal || '';
-  const userHolderRank = holdersData?.findIndex(e => e.principal === userPrincipal);
   const userBurnerRank = burnersData?.findIndex(e => e.principal === userPrincipal);
   const userPoints = ponziData?.totalPoints || 0;
 
@@ -92,14 +87,13 @@ export default function HallOfFame() {
     }
   };
 
-  const renderEntry = (entry: HallOfFameEntry, isHolders: boolean) => {
+  const renderEntry = (entry: HallOfFameEntry) => {
     const style = getRankStyle(entry.rank);
-    const value = isHolders ? entry.ponziPoints : entry.ponziPointsBurned;
     const isTop3 = entry.rank <= 3;
     const isUser = entry.principal === userPrincipal;
     return (
       <div
-        key={`${isHolders ? 'h' : 'b'}-${entry.rank}`}
+        key={`b-${entry.rank}`}
         className={`${style.card} p-3 flex items-center justify-between transition-all ${
           isTop3 ? 'ring-1 ring-white/10' : ''
         } ${isUser ? 'ring-2 ring-purple-500/40' : ''}`}
@@ -123,8 +117,8 @@ export default function HallOfFame() {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-lg font-bold mc-text-purple">{value?.toLocaleString() || 0}</div>
-          <div className="text-xs mc-text-muted">{isHolders ? 'Points' : 'Burned'}</div>
+          <div className="text-lg font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</div>
+          <div className="text-xs mc-text-muted">Burned</div>
         </div>
       </div>
     );
@@ -135,7 +129,7 @@ export default function HallOfFame() {
       <div className="mc-card-elevated text-center py-10">
         <Trophy className="h-12 w-12 mc-text-gold mb-4 mx-auto" />
         <p className="font-display text-lg mc-text-primary mb-2">The Leaderboard Is Empty</p>
-        <p className="text-sm mc-text-dim mb-4">Start playing to earn Ponzi Points and claim your spot.</p>
+        <p className="text-sm mc-text-dim mb-4">Start burning Ponzi Points on Shenanigans to claim your spot.</p>
         <p className="font-accent text-xs mc-text-dim italic">
           Every empire starts with a first transaction.
         </p>
@@ -166,14 +160,14 @@ export default function HallOfFame() {
         <div className="flex items-center gap-3">
           <Target className="h-5 w-5 mc-text-cyan" />
           <div>
-            <span className="text-xs mc-label">Your Rank</span>
+            <span className="text-xs mc-label">Your Rank (Diamond Tier)</span>
             <div className="font-bold mc-text-primary text-sm">
-              {userHolderRank !== undefined && userHolderRank >= 0 ? (
-                <span className={userHolderRank < 3 ? 'mc-text-gold mc-glow-gold' : ''}>
-                  #{userHolderRank + 1} of {holdersData?.length || 0} players
+              {userBurnerRank !== undefined && userBurnerRank >= 0 ? (
+                <span className={userBurnerRank < 3 ? 'mc-text-gold mc-glow-gold' : ''}>
+                  #{userBurnerRank + 1} of {burnersData?.length || 0} burners
                 </span>
               ) : (
-                <span className="mc-text-muted">Unranked — earn PP to climb</span>
+                <span className="mc-text-muted">Unranked — burn PP to climb</span>
               )}
             </div>
           </div>
@@ -185,40 +179,18 @@ export default function HallOfFame() {
       </div>
 
       <div className="mc-card-elevated">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Holders */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Trophy className="h-4 w-4 mc-text-gold" />
-              <h3 className="font-display text-base mc-text-primary">Top Holders</h3>
-            </div>
-            <p className="text-xs mc-text-muted mb-4">Most Points Accumulated</p>
-            {holdersData && holdersData.length >= 2 && (
-              <Podium entries={holdersData} isHolders={true} />
-            )}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {holdersData && holdersData.length > 0
-                ? holdersData.slice(holdersData.length >= 2 ? Math.min(3, holdersData.length) : 0).map(e => renderEntry(e, true))
-                : <p className="text-sm mc-text-dim text-center py-4">No holders yet</p>}
-            </div>
-          </div>
-
-          {/* Diamond Tier */}
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Gem className="h-4 w-4 mc-text-cyan" />
-              <h3 className="font-display text-base mc-text-primary">Diamond Tier</h3>
-            </div>
-            <p className="text-xs mc-text-muted mb-4">Most Points Spent on Shenanigans</p>
-            {burnersData && burnersData.length >= 2 && (
-              <Podium entries={burnersData} isHolders={false} />
-            )}
-            <div className="space-y-2 max-h-96 overflow-y-auto">
-              {burnersData && burnersData.length > 0
-                ? burnersData.slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0).map(e => renderEntry(e, false))
-                : <p className="text-sm mc-text-dim text-center py-4">No Diamond Tier members yet</p>}
-            </div>
-          </div>
+        <div className="flex items-center gap-2 mb-1">
+          <Gem className="h-4 w-4 mc-text-cyan" />
+          <h3 className="font-display text-base mc-text-primary">Diamond Tier</h3>
+        </div>
+        <p className="text-xs mc-text-muted mb-4">Most Points Spent on Shenanigans</p>
+        {burnersData && burnersData.length >= 2 && (
+          <Podium entries={burnersData} />
+        )}
+        <div className="space-y-2 max-h-96 overflow-y-auto">
+          {burnersData && burnersData.length > 0
+            ? burnersData.slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0).map(renderEntry)
+            : <p className="text-sm mc-text-dim text-center py-4">No Diamond Tier members yet</p>}
         </div>
       </div>
 

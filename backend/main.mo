@@ -17,6 +17,10 @@ import AccessControl "authorization/access-control";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 
+// PP-related stable vars (ponziPoints, ponziPointsBurned, referralEarnings,
+// shenanigansPrincipal) were dropped in an earlier deploy via a migration
+// function. The deployed canister no longer contains them, so no migration
+// expression is needed here.
 persistent actor {
     // Access Control State
     let accessControlState = AccessControl.initState();
@@ -123,13 +127,6 @@ persistent actor {
         totalWithdrawn : Float;
     };
 
-    // Referral Earnings (PP earned through referrals, tracked per level for display)
-    public type ReferralEarnings = {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-    };
-
     // Platform Stats
     public type PlatformStats = {
         totalDeposits : Float;
@@ -178,8 +175,6 @@ persistent actor {
     }>();
     // Maps user → who referred them (one-time, immutable chain)
     var referralChain = principalMapNat.empty<Principal>();
-    // Tracks PP earned through referrals, per referrer principal
-    var referralEarnings = principalMapNat.empty<ReferralEarnings>();
     var platformStats : PlatformStats = {
         totalDeposits = 0.0;
         totalWithdrawals = 0.0;
@@ -190,6 +185,11 @@ persistent actor {
     var gameResetHistory = intMap.empty<GameResetRecord>();
     var nextGameId = 0;
 
+    // Next-round seed reserve. 50% of every realized exit toll routes here
+    // (instead of "staying in the pot"). On round reset this becomes the
+    // starting potBalance for the next round, and the reserve resets to 0.
+    var roundSeedReserve : Float = 0.0;
+
     // Deposit Rate Limiting
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
 
@@ -198,12 +198,6 @@ persistent actor {
 
     // Dealer Positions
     var dealerPositions = principalMapNat.empty<DealerPosition>();
-
-    // Ponzi Points Tracking
-    var ponziPoints = principalMapNat.empty<Float>();
-
-    // Ponzi Points Burned Tracking
-    var ponziPointsBurned = principalMapNat.empty<Float>();
 
     // Per-caller reentrancy lock to prevent TOCTOU exploits (transient — resets on upgrade, which is safe)
     transient var callerLocks = principalMapNat.empty<Bool>();
@@ -219,6 +213,46 @@ persistent actor {
 
     func releaseCallerLock(caller : Principal) {
         callerLocks := principalMapNat.delete(callerLocks, caller);
+    };
+
+    // Global critical-section lock. Serializes the async money-flow paths
+    // (withdrawEarnings, settleCompoundingGame, claimDealerRepayment,
+    // createGame, addDealerMoney) so their snapshot-and-revert sagas cannot
+    // interleave with each other across ledger-transfer awaits.
+    //
+    // Without this, two scenarios produced bugs:
+    //   1. Two concurrent insolvency settles racing to call triggerGameReset —
+    //      the second reset would zero a seedReserve that the first reset had
+    //      already moved into the pot, orphaning that ICP.
+    //   2. A failed transfer's saga revert (`dealerRepayments := originalRepayments`,
+    //      `platformStats := originalStats`) would overwrite legitimate updates
+    //      that any concurrent call made during the await window — wiping
+    //      backer credits or deposit-side pot increases.
+    //
+    // Trade-off: the 5 critical functions are serialized. A second caller
+    // hitting the lock traps with a retry message — they re-submit. For a
+    // Ponzi protocol with infrequent withdraws/deposits this throughput cost
+    // is negligible compared to the correctness benefit.
+    //
+    // Transient on purpose: a trap or upgrade releases the lock. Normal
+    // returns and try/catch branches must release it explicitly via
+    // releaseGlobalLock() before every releaseCallerLock(caller).
+    transient var globalCriticalLock : Bool = false;
+
+    func acquireGlobalLock() {
+        if (globalCriticalLock) {
+            Debug.trap("Critical section busy — another operation is in progress, please retry");
+        };
+        globalCriticalLock := true;
+    };
+
+    func releaseGlobalLock() {
+        globalCriticalLock := false;
+    };
+
+    // Diagnostic getter — admin or anyone can check whether the lock is held.
+    public query func isCriticalSectionBusy() : async Bool {
+        globalCriticalLock;
     };
 
     func transferFromErrorMessage(err : Ledger.TransferFromError) : Text {
@@ -252,8 +286,8 @@ persistent actor {
     // Cover Charge — 4% skimmed from every deposit, routed to a dedicated
     // admin bucket ("Pay Management") with its own audit log so it never
     // mingles with game-pot accounting.
-    // Exit tolls continue to use the 50/50 pot/backer split in
-    // distributeExitTollToBackers — this change only touches the entry fee.
+    // Exit tolls continue to use the 50/50 backer/seed-reserve split in
+    // distributeExitToll — this change only touches the entry fee.
     // ========================================================================
 
     // Hardcoded admin principal — the only caller allowed to query or
@@ -316,9 +350,6 @@ persistent actor {
 
     var houseLedger = natMap.empty<HouseLedgerRecord>();
     var nextHouseLedgerId = 0;
-
-    // Authorized shenanigans canister principal
-    var shenanigansPrincipal : ?Principal = null;
 
     // Record a cover charge entry (see the Cover Charge
     // state block above).
@@ -421,10 +452,129 @@ persistent actor {
         };
     };
 
+    // Get the round seed reserve. The next round's pot will start from this
+    // value once the current round resets.
+    public query func getRoundSeedReserve() : async Float {
+        roundSeedReserve;
+    };
+
     // ========================================================================
     // Admin Functions
     // ========================================================================
-    
+
+    // Reconcile pot bookkeeping with the canister's actual ICP balance.
+    // One-shot recovery for orphaned ICP from earlier-version resets that
+    // zeroed potBalance. Sums the tracked non-pot buckets (cover charge +
+    // dealer repayments + roundSeedReserve), subtracts them from the actual
+    // canister ICP balance, and credits the remainder to the pot.
+    //
+    // Allows up to 1 active game (escape hatch for the case where one tiny
+    // round-2 deposit is already open). Admin should otherwise coordinate to
+    // pause activity before calling to avoid TOCTOU race on canister balance.
+    public shared ({ caller }) func migrateReconcilePot() : async { #Ok : Float; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            return #Err("Unauthorized: admin only");
+        };
+
+        var activeCount = 0;
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) { activeCount += 1 };
+        };
+        if (activeCount > 1) {
+            return #Err("Reconcile requires ≤1 active game (found " # Nat.toText(activeCount) # ")");
+        };
+
+        acquireGlobalLock();
+
+        let selfPrincipal = switch (canisterPrincipal) {
+            case (null) {
+                releaseGlobalLock();
+                return #Err("canisterPrincipal not set");
+            };
+            case (?p) { p };
+        };
+
+        let canisterE8s = try {
+            await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
+        } catch (e) {
+            releaseGlobalLock();
+            return #Err("Failed to read canister balance: " # Error.message(e));
+        };
+        let canisterICP = Float.fromInt(canisterE8s) / 100_000_000.0;
+
+        // Sum dealer repayments
+        var totalRepayments : Float = 0.0;
+        for (amt in principalMapNat.vals(dealerRepayments)) {
+            totalRepayments += amt;
+        };
+        let coverChargeICP = Float.fromInt(coverChargeBalance) / 100_000_000.0;
+
+        let trackedNonPot = coverChargeICP + totalRepayments + roundSeedReserve;
+        let target = canisterICP - trackedNonPot;
+        let extra = target - platformStats.potBalance;
+
+        if (extra <= 0.0) {
+            releaseGlobalLock();
+            return #Err("Nothing to reconcile (pot already in sync; would have changed by " # Float.toText(extra) # ")");
+        };
+
+        platformStats := {
+            platformStats with
+            potBalance = platformStats.potBalance + extra;
+        };
+
+        releaseGlobalLock();
+        #Ok(extra);
+    };
+
+    // Sweep arbitrary ICP from the canister to a target principal. Admin only,
+    // gated on no active games. Use after a reset (or for emergency cleanup)
+    // to drain residual ICP that bookkeeping doesn't track.
+    public shared ({ caller }) func adminSweep(to : Principal, amount : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            return #Err("Unauthorized: admin only");
+        };
+        if (amount == 0) {
+            return #Err("Amount must be greater than zero");
+        };
+        if (amount <= Ledger.ICP_TRANSFER_FEE) {
+            return #Err("Amount must exceed the ledger transfer fee of " # Nat.toText(Ledger.ICP_TRANSFER_FEE) # " e8s");
+        };
+
+        var activeCount = 0;
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) { activeCount += 1 };
+        };
+        if (activeCount > 0) {
+            return #Err("Sweep requires zero active games (found " # Nat.toText(activeCount) # ")");
+        };
+
+        acquireGlobalLock();
+
+        let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = to; subaccount = null };
+                amount = transferAmount;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseGlobalLock();
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        releaseGlobalLock();
+        switch (transferResult) {
+            case (#Ok(blockIndex)) { #Ok(blockIndex) };
+            case (#Err(err)) { #Err(transferErrorMessage(err)) };
+        };
+    };
+
     // Toggle test mode (admin only)
     public shared ({ caller }) func setTestMode(enabled : Bool) : async () {
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
@@ -486,14 +636,6 @@ persistent actor {
             potBalance = platformStats.potBalance + amount;
         };
 
-        // Award Ponzi Points (same as createGame)
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(player, points);
-
         gameId;
     };
 
@@ -553,6 +695,7 @@ persistent actor {
         };
 
         acquireCallerLock(caller);
+        acquireGlobalLock();
 
         // Check deposit rate limit BEFORE the transfer (prevents TOCTOU on rate limit)
         let currentTime = Time.now();
@@ -565,6 +708,7 @@ persistent actor {
                     func(timestamp) { currentHour - timestamp < 1 },
                 );
                 if (List.size(filteredTimestamps) >= 3) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("You can only open 3 positions per hour");
                 };
@@ -575,6 +719,7 @@ persistent actor {
         if (not isCompounding) {
             let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
             if (amount > maxDeposit) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
             };
@@ -582,6 +727,7 @@ persistent actor {
 
         let selfPrincipal = switch (canisterPrincipal) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Canister principal not set");
             };
@@ -601,12 +747,14 @@ persistent actor {
                 created_at_time = null;
             });
         } catch (e) {
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         switch (transferResult) {
             case (#Err(err)) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferFromErrorMessage(err));
             };
@@ -629,7 +777,7 @@ persistent actor {
 
         // Cover Charge: 4% skimmed from every deposit, routed 100% to the
         // admin bucket (see coverChargeBalance). Exit tolls still use the
-        // 50/50 pot/backer split via distributeExitTollToBackers — only the entry
+        // 50/50 backer/seed-reserve split via distributeExitToll — only the entry
         // fee changed. Pot receives 96% of the gross deposit.
         let coverCharge = amount * COVER_CHARGE_RATE;
         let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
@@ -675,14 +823,7 @@ persistent actor {
             };
         };
 
-        // Award Ponzi Points based on plan
-        let points = switch (plan) {
-            case (#simple21Day) { amount * 1000.0 };
-            case (#compounding15Day) { amount * 2000.0 };
-            case (#compounding30Day) { amount * 3000.0 };
-        };
-        awardPonziPoints(caller, points);
-
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(gameId);
     };
@@ -699,9 +840,11 @@ persistent actor {
         };
 
         acquireCallerLock(caller);
+        acquireGlobalLock();
 
         let selfPrincipal = switch (canisterPrincipal) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("Canister principal not set");
             };
@@ -721,12 +864,14 @@ persistent actor {
                 created_at_time = null;
             });
         } catch (e) {
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         let blockIndex = switch (transferResult) {
             case (#Err(err)) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferFromErrorMessage(err));
             };
@@ -766,86 +911,18 @@ persistent actor {
             };
         };
 
-        // Award 4,000 Ponzi Points per ICP deposited
-        awardPonziPoints(caller, amount * 4000.0);
-
         // Add the deposited amount directly to the pot
         platformStats := {
             platformStats with
             potBalance = platformStats.potBalance + amount;
         };
 
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(blockIndex);
     };
 
-    // ========================================================================
-    // Ponzi Points & Referral System (PP-only, never ICP)
-    // Referral rates: Level 1 = 8%, Level 2 = 5%, Level 3 = 2% of PP earned
-    // ========================================================================
-
-    // Award Ponzi Points to a user AND cascade referral PP up the chain
-    func awardPonziPoints(user : Principal, points : Float) {
-        creditPonziPointsDirect(user, points);
-        awardReferralPP(user, points);
-    };
-
-    // Credit PP directly without triggering referral cascade (prevents infinite recursion)
-    func creditPonziPointsDirect(user : Principal, points : Float) {
-        let current = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?existing) { existing };
-        };
-        ponziPoints := principalMapNat.put(ponziPoints, user, current + points);
-    };
-
-    // Walk the referral chain and award PP at each level (8% / 5% / 2%)
-    func awardReferralPP(user : Principal, pointsEarned : Float) {
-        // Level 1: direct referrer gets 8%
-        switch (principalMapNat.get(referralChain, user)) {
-            case (null) {}; // no referrer
-            case (?level1Referrer) {
-                let l1Points = pointsEarned * 0.08;
-                creditPonziPointsDirect(level1Referrer, l1Points);
-                creditReferralEarnings(level1Referrer, l1Points, 1);
-
-                // Level 2: referrer's referrer gets 5%
-                switch (principalMapNat.get(referralChain, level1Referrer)) {
-                    case (null) {};
-                    case (?level2Referrer) {
-                        let l2Points = pointsEarned * 0.05;
-                        creditPonziPointsDirect(level2Referrer, l2Points);
-                        creditReferralEarnings(level2Referrer, l2Points, 2);
-
-                        // Level 3: one more hop up the chain gets 2%
-                        switch (principalMapNat.get(referralChain, level2Referrer)) {
-                            case (null) {};
-                            case (?level3Referrer) {
-                                let l3Points = pointsEarned * 0.02;
-                                creditPonziPointsDirect(level3Referrer, l3Points);
-                                creditReferralEarnings(level3Referrer, l3Points, 3);
-                            };
-                        };
-                    };
-                };
-            };
-        };
-    };
-
-    // Track referral earnings by level (for display in the MLM dashboard)
-    func creditReferralEarnings(referrer : Principal, points : Float, level : Nat) {
-        let current = switch (principalMapNat.get(referralEarnings, referrer)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?existing) { existing };
-        };
-        let updated : ReferralEarnings = switch (level) {
-            case (1) { { current with level1Points = current.level1Points + points } };
-            case (2) { { current with level2Points = current.level2Points + points } };
-            case (3) { { current with level3Points = current.level3Points + points } };
-            case (_) { current };
-        };
-        referralEarnings := principalMapNat.put(referralEarnings, referrer, updated);
-    };
+    // PP mint + referral cascade moved to shenanigans canister.
 
     // Register a referral relationship (one-time, first referrer wins)
     func registerReferral(user : Principal, referrer : Principal) {
@@ -878,20 +955,26 @@ persistent actor {
 
     // Distribute an exit toll using the 35/25/40 formula to backer repayment
     // balances. `tollAmount` is the FULL toll — this function handles the
-    // 50/50 pot/backer split. Returns the portion that stays in the pot.
+    // 50% of toll seeds the next round (routed to roundSeedReserve, OUT of
+    // the pot), the other 50% credits backer repayment. Tolls never stay in
+    // the pot — that's how reset preserves carryover cleanly.
     //
     // This is called ONLY from exit toll paths after the cover-charge refactor.
     // The entry fee (cover charge) routes 100% to Management and never enters
     // this function.
-    func distributeExitTollToBackers(tollAmount : Float) : Float {
-        let potSeedAmount = tollAmount * 0.5;           // 50% seeds the next round
+    func distributeExitToll(tollAmount : Float) {
+        let seedAmount = tollAmount * 0.5;              // 50% to next-round reserve
         let backerRepaymentAmount = tollAmount * 0.5;   // 50% to backer repayment
+
+        roundSeedReserve += seedAmount;
 
         // Get all backers
         let allBackers = Iter.toArray(principalMapNat.vals(dealerPositions));
         if (allBackers.size() == 0) {
-            // No backers — everything stays in pot
-            return tollAmount;
+            // No backers yet — the backer half also flows to the seed reserve
+            // (so it doesn't get stranded or stay in the pot).
+            roundSeedReserve += backerRepaymentAmount;
+            return;
         };
 
         let seriesABackers = List.toArray(
@@ -950,8 +1033,6 @@ persistent actor {
         for (dealer in allBackers.vals()) {
             creditBackerRepayment(dealer.owner, perBacker);
         };
-
-        potSeedAmount; // Return the portion that stays in pot
     };
 
     // Calculate exit toll fee based on game type and elapsed time
@@ -993,17 +1074,21 @@ persistent actor {
     public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Unauthorized: Only the game owner can withdraw earnings");
                 };
                 if (game.isCompounding) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Cannot withdraw from compounding games");
                 };
@@ -1023,36 +1108,46 @@ persistent actor {
                 let originalGame = game;
                 let originalStats = platformStats;
                 let originalRepayments = dealerRepayments;
+                let originalSeedReserve = roundSeedReserve;
 
-                // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeExitTollToBackers(exitToll);
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
 
-                // Check solvency against what actually leaves the pot
-                let potDeduction = netEarnings + (exitToll - potSeedFromToll);
-                if (potDeduction > platformStats.potBalance) {
-                    // Revert dealer distribution before returning
-                    dealerRepayments := originalRepayments;
-                    triggerGameReset("Insufficient funds for payout");
+                if (isInsolvent and pot <= 0.0) {
+                    // Pot already empty — wipe the round, player gets nothing
+                    triggerGameReset("Insufficient funds for payout (pot empty)");
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
-                    return #Err("Game reset due to insufficient funds");
+                    return #Err("Game reset: pot is empty");
                 };
 
-                // Reset the game record and update platform stats
+                // Pro-rata partial payout when insolvent. Pot drains 100%; player
+                // gets 87% of what flows, backers/seed split the 13% toll.
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                // Distribute the toll (routes to backers + seedReserve, NOT pot)
+                distributeExitToll(actualToll);
+
+                // Insolvency forces close even if elapsedDays < 21 (round is over)
+                let willClose = closePosition or isInsolvent;
                 let updatedGame : GameRecord = {
                     game with
                     accumulatedEarnings = 0.0;
                     lastUpdateTime = Time.now();
-                    totalWithdrawn = game.totalWithdrawn + netEarnings;
-                    isActive = if (closePosition) false else game.isActive;
+                    totalWithdrawn = game.totalWithdrawn + actualNetEarnings;
+                    isActive = if (willClose) false else game.isActive;
                 };
                 gameRecords := natMap.put(gameRecords, gameId, updatedGame);
 
                 platformStats := {
                     platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + netEarnings;
-                    potBalance = platformStats.potBalance - potDeduction;
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
                     activeGames =
-                        if (closePosition and platformStats.activeGames > 0) {
+                        if (willClose and platformStats.activeGames > 0) {
                             platformStats.activeGames - 1
                         } else {
                             platformStats.activeGames
@@ -1060,9 +1155,9 @@ persistent actor {
                 };
 
                 // Pay out to user's ledger account (saga: revert on failure).
-                // Skip transfer entirely when netEarnings == 0 (matured position with no
-                // fresh earnings since last withdraw — this call is a pure close).
-                let netEarningsE8s = Int.abs(Float.toInt(netEarnings * 100_000_000.0));
+                // Skip transfer entirely when actualNetEarnings == 0 (matured position
+                // with no fresh earnings since last withdraw — pure close).
+                let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
                 if (netEarningsE8s > 0) {
                     let transferResult = try {
                         await icpLedger.icrc1_transfer({
@@ -1079,6 +1174,8 @@ persistent actor {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
                         return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
@@ -1088,6 +1185,8 @@ persistent actor {
                             gameRecords := natMap.put(gameRecords, gameId, originalGame);
                             platformStats := originalStats;
                             dealerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
                             releaseCallerLock(caller);
                             return #Err(transferErrorMessage(err));
                         };
@@ -1095,8 +1194,16 @@ persistent actor {
                     };
                 };
 
+                // Insolvency path: trigger reset AFTER successful payout. Reset
+                // moves the seed reserve (which just got topped up by half this
+                // toll) into the pot for the next round.
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
+                };
+
+                releaseGlobalLock();
                 releaseCallerLock(caller);
-                #Ok(netEarnings);
+                #Ok(actualNetEarnings);
             };
         };
     };
@@ -1106,21 +1213,26 @@ persistent actor {
     public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         switch (natMap.get(gameRecords, gameId)) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 #Err("Game not found");
             };
             case (?game) {
                 if (game.player != caller) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Unauthorized: Only the game owner can settle this game");
                 };
                 if (not game.isCompounding) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
                 };
                 if (not game.isActive) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game is already settled");
                 };
@@ -1135,12 +1247,14 @@ persistent actor {
                 };
                 let maturityDays = switch (maturityDaysOpt) {
                     case (null) {
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
                         return #Err("Simple games cannot be settled this way");
                     };
                     case (?d) { d };
                 };
                 if (daysElapsed < maturityDays) {
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
                 };
@@ -1156,82 +1270,93 @@ persistent actor {
                 // Apply exit toll on earnings (15-day: 9%, 30-day: 13%)
                 let exitToll = calculateExitToll(game, earnings);
                 let netEarnings = roundToEightDecimals(earnings - exitToll);
-                // Principal stays in the pot — payout is net earnings only.
-                let totalPayout = netEarnings;
 
                 // Capture state snapshots for compensation-on-failure.
-                // NOTE: distributeExitTollToBackers writes to dealerRepayments
-                // (via creditBackerRepayment) and only reads dealerPositions.
-                // Snapshot and revert dealerRepayments — reverting dealerPositions
-                // is a no-op that leaks repayments on retry. See commit 588cedb.
+                // distributeExitToll writes to dealerRepayments and roundSeedReserve.
                 let originalGame = game;
                 let originalStats = platformStats;
                 let originalRepayments = dealerRepayments;
+                let originalSeedReserve = roundSeedReserve;
 
-                // Distribute exit toll: 50% stays in pot, 50% to dealers
-                let potSeedFromToll = distributeExitTollToBackers(exitToll);
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
 
-                // Pot loses: totalPayout (to player) + dealer portion of toll
-                let potDeduction = totalPayout + (exitToll - potSeedFromToll);
-                if (potDeduction > platformStats.potBalance) {
-                    dealerRepayments := originalRepayments;
-                    triggerGameReset("Insufficient funds for compounding game settlement");
+                if (isInsolvent and pot <= 0.0) {
+                    triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                    releaseGlobalLock();
                     releaseCallerLock(caller);
-                    return #Err("Game reset due to insufficient funds");
+                    return #Err("Game reset: pot is empty");
                 };
+
+                // Pro-rata partial payout when insolvent.
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                // Distribute the toll (routes to backers + seedReserve, NOT pot)
+                distributeExitToll(actualToll);
 
                 // Mark game as settled
                 let settledGame : GameRecord = {
                     game with
                     isActive = false;
-                    accumulatedEarnings = netEarnings;
-                    totalWithdrawn = totalPayout;
+                    accumulatedEarnings = actualNetEarnings;
+                    totalWithdrawn = actualNetEarnings;
                     lastUpdateTime = Time.now();
                 };
                 gameRecords := natMap.put(gameRecords, gameId, settledGame);
 
                 platformStats := {
                     platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + totalPayout;
-                    potBalance = platformStats.potBalance - potDeduction;
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
                     activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
                 };
 
                 // Pay out to user's ledger account (saga: revert on failure)
-                let payoutE8s = Int.abs(Float.toInt(totalPayout * 100_000_000.0));
-                let transferResult = try {
-                    await icpLedger.icrc1_transfer({
-                        from_subaccount = null;
-                        to = { owner = caller; subaccount = null };
-                        amount = payoutE8s;
-                        fee = null;
-                        memo = null;
-                        created_at_time = null;
-                    });
-                } catch (e) {
-                    // Compensate: refund on catch (network failure — transfer status unknown)
-                    // Note: This is the conservative approach; the transfer may have succeeded.
-                    // In production, consider logging for manual reconciliation.
-                    gameRecords := natMap.put(gameRecords, gameId, originalGame);
-                    platformStats := originalStats;
-                    dealerRepayments := originalRepayments;
-                    releaseCallerLock(caller);
-                    return #Err("Failed to contact ICP ledger: " # Error.message(e));
-                };
-
-                switch (transferResult) {
-                    case (#Err(err)) {
+                let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                if (payoutE8s > 0) {
+                    let transferResult = try {
+                        await icpLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = { owner = caller; subaccount = null };
+                            amount = payoutE8s;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        });
+                    } catch (e) {
                         gameRecords := natMap.put(gameRecords, gameId, originalGame);
                         platformStats := originalStats;
                         dealerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
                         releaseCallerLock(caller);
-                        return #Err(transferErrorMessage(err));
+                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
                     };
-                    case (#Ok(_)) {};
+
+                    switch (transferResult) {
+                        case (#Err(err)) {
+                            gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                            platformStats := originalStats;
+                            dealerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
+                            releaseCallerLock(caller);
+                            return #Err(transferErrorMessage(err));
+                        };
+                        case (#Ok(_)) {};
+                    };
                 };
 
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
+                };
+
+                releaseGlobalLock();
                 releaseCallerLock(caller);
-                #Ok(totalPayout);
+                #Ok(actualNetEarnings);
             };
         };
     };
@@ -1318,11 +1443,15 @@ persistent actor {
         };
         gameResetHistory := intMap.put(gameResetHistory, Time.now(), resetRecord);
         gameRecords := natMap.empty<GameRecord>();
+        // Carry the seed reserve into the new round's pot. The reserve has been
+        // accumulating 50% of every realized exit toll since the last reset.
+        let newPot = roundSeedReserve;
+        roundSeedReserve := 0.0;
         platformStats := {
             totalDeposits = 0.0;
             totalWithdrawals = 0.0;
             activeGames = 0;
-            potBalance = 0.0;
+            potBalance = newPot;
             daysActive = 0;
         };
         nextGameId := 0;
@@ -1365,12 +1494,10 @@ persistent actor {
         natMap.get(gameRecords, gameId);
     };
 
-    // Get Referral Earnings (total PP earned through referrals)
-    public query func getReferralEarnings(user : Principal) : async Float {
-        switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
+    /// One-hop lookup — returns the caller's immediate referrer (L1) or null.
+    /// Used by shenanigans for referral PP cascades.
+    public query func getReferrer(user : Principal) : async ?Principal {
+        principalMapNat.get(referralChain, user);
     };
 
     // Get All Games
@@ -1453,12 +1580,14 @@ persistent actor {
     public shared ({ caller }) func claimDealerRepayment() : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
+        acquireGlobalLock();
         let balanceOpt : ?Float = switch (principalMapNat.get(dealerRepayments, caller)) {
             case (null) { null };
             case (?b) { if (b <= 0.0) { null } else { ?b } };
         };
         let balance = switch (balanceOpt) {
             case (null) {
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err("No repayment balance to claim");
             };
@@ -1483,6 +1612,7 @@ persistent actor {
             // Note: This is the conservative approach; the transfer may have succeeded.
             // In production, consider logging for manual reconciliation.
             dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+            releaseGlobalLock();
             releaseCallerLock(caller);
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
@@ -1490,12 +1620,14 @@ persistent actor {
         switch (transferResult) {
             case (#Err(err)) {
                 dealerRepayments := principalMapNat.put(dealerRepayments, caller, balance);
+                releaseGlobalLock();
                 releaseCallerLock(caller);
                 return #Err(transferErrorMessage(err));
             };
             case (#Ok(_)) {};
         };
 
+        releaseGlobalLock();
         releaseCallerLock(caller);
         #Ok(balance);
     };
@@ -1503,146 +1635,6 @@ persistent actor {
     // Get Dealer Positions
     public query func getDealerPositions() : async [DealerPosition] {
         Iter.toArray(principalMapNat.vals(dealerPositions));
-    };
-
-    // Get Ponzi Points
-    public query ({ caller }) func getPonziPoints() : async Float {
-        switch (principalMapNat.get(ponziPoints, caller)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    // Get ponzi points for a given principal (anonymous-callable sibling)
-    public query func getPonziPointsFor(user : Principal) : async Float {
-        switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    // Get Ponzi Points Balance (for Rewards page)
-    public query ({ caller }) func getPonziPointsBalance() : async {
-        totalPoints : Float;
-        depositPoints : Float;
-        referralPoints : Float;
-    } {
-        let totalPoints = switch (principalMapNat.get(ponziPoints, caller)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-
-        // Calculate deposit points (from games and dealer positions)
-        var depositPoints = 0.0;
-        for (game in natMap.vals(gameRecords)) {
-            if (game.player == caller) {
-                depositPoints += switch (game.plan) {
-                    case (#simple21Day) { game.amount * 1000.0 };
-                    case (#compounding15Day) { game.amount * 2000.0 };
-                    case (#compounding30Day) { game.amount * 3000.0 };
-                };
-            };
-        };
-        switch (principalMapNat.get(dealerPositions, caller)) {
-            case (null) {};
-            case (?dealer) {
-                depositPoints += dealer.amount * 4000.0;
-            };
-        };
-
-        // Calculate referral points (PP earned through the referral chain)
-        let referralPoints = switch (principalMapNat.get(referralEarnings, caller)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
-
-        {
-            totalPoints;
-            depositPoints;
-            referralPoints;
-        };
-    };
-
-    // Get Ponzi Points Breakdown for a specific user (principal-parameterized query variant)
-    public query func getPonziPointsBreakdownFor(user : Principal) : async {
-        totalPoints : Float;
-        depositPoints : Float;
-        referralPoints : Float;
-    } {
-        let totalPoints = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-
-        // Calculate deposit points (from games and dealer positions)
-        var depositPoints = 0.0;
-        for (game in natMap.vals(gameRecords)) {
-            if (game.player == user) {
-                depositPoints += switch (game.plan) {
-                    case (#simple21Day) { game.amount * 1000.0 };
-                    case (#compounding15Day) { game.amount * 2000.0 };
-                    case (#compounding30Day) { game.amount * 3000.0 };
-                };
-            };
-        };
-        switch (principalMapNat.get(dealerPositions, user)) {
-            case (null) {};
-            case (?dealer) {
-                depositPoints += dealer.amount * 4000.0;
-            };
-        };
-
-        // Calculate referral points (PP earned through the referral chain)
-        let referralPoints = switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { 0.0 };
-            case (?earnings) { earnings.level1Points + earnings.level2Points + earnings.level3Points };
-        };
-
-        {
-            totalPoints;
-            depositPoints;
-            referralPoints;
-        };
-    };
-
-    // Get Referral Tier Points (for Multi-Level Marketing page)
-    public query ({ caller }) func getReferralTierPoints() : async {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-        totalPoints : Float;
-    } {
-        let earnings = switch (principalMapNat.get(referralEarnings, caller)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?e) { e };
-        };
-
-        {
-            level1Points = earnings.level1Points;
-            level2Points = earnings.level2Points;
-            level3Points = earnings.level3Points;
-            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
-        };
-    };
-
-    // Get referral tier points for a given principal (anonymous-callable sibling)
-    public query func getReferralTierPointsFor(user : Principal) : async {
-        level1Points : Float;
-        level2Points : Float;
-        level3Points : Float;
-        totalPoints : Float;
-    } {
-        let earnings = switch (principalMapNat.get(referralEarnings, user)) {
-            case (null) { { level1Points = 0.0; level2Points = 0.0; level3Points = 0.0 } };
-            case (?e) { e };
-        };
-
-        {
-            level1Points = earnings.level1Points;
-            level2Points = earnings.level2Points;
-            level3Points = earnings.level3Points;
-            totalPoints = earnings.level1Points + earnings.level2Points + earnings.level3Points;
-        };
     };
 
     // Calculate Total Dealer Debt (including 12% bonus)
@@ -1690,110 +1682,8 @@ persistent actor {
         rounded == value;
     };
 
-    // === Cross-canister API for Shenanigans canister ===
-
-    func requireShenanigansCanister(caller : Principal) {
-        switch (shenanigansPrincipal) {
-            case (null) { Debug.trap("Shenanigans canister not configured") };
-            case (?p) {
-                if (caller != p) {
-                    Debug.trap("Unauthorized: only shenanigans canister can call this");
-                };
-            };
-        };
-    };
-
-    public shared ({ caller }) func setShenanigansPrincipal(p : Principal) : async () {
-        if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
-            Debug.trap("Unauthorized: Only admins can set shenanigans principal");
-        };
-        shenanigansPrincipal := ?p;
-    };
-
-    public shared ({ caller }) func deductPonziPoints(user : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let current = switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        if (current < amount) { Debug.trap("Insufficient points") };
-        ponziPoints := principalMapNat.put(ponziPoints, user, current - amount);
-    };
-
-    public shared ({ caller }) func transferPonziPoints(from : Principal, to : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let fromBalance = switch (principalMapNat.get(ponziPoints, from)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        if (fromBalance < amount) { Debug.trap("Insufficient points") };
-        ponziPoints := principalMapNat.put(ponziPoints, from, fromBalance - amount);
-        let toBalance = switch (principalMapNat.get(ponziPoints, to)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-        ponziPoints := principalMapNat.put(ponziPoints, to, toBalance + amount);
-    };
-
-    public shared ({ caller }) func distributeDealerCutFromShenanigans(amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        updateDealerCut(amount);
-    };
-
-    // Restricted to shenanigans canister (used for balance checks before casting)
-    public shared ({ caller }) func getPonziPointsBalanceFor(user : Principal) : async Float {
-        requireShenanigansCanister(caller);
-        switch (principalMapNat.get(ponziPoints, user)) {
-            case (null) { 0.0 };
-            case (?points) { points };
-        };
-    };
-
-    public shared ({ caller }) func burnPonziPoints(user : Principal, amount : Float) : async () {
-        requireShenanigansCanister(caller);
-        let burned = switch (principalMapNat.get(ponziPointsBurned, user)) {
-            case (null) { 0.0 };
-            case (?existing) { existing };
-        };
-        ponziPointsBurned := principalMapNat.put(ponziPointsBurned, user, burned + amount);
-    };
-
-    // castShenanigan, determineOutcome, updateShenaniganStats — moved to shenanigans canister
-
-    // Update dealer cut (distribute among active dealers)
-    func updateDealerCut(amount : Float) {
-        let activeDealers = Iter.toArray(principalMapNat.vals(dealerPositions));
-        let activeCount = activeDealers.size();
-
-        if (activeCount > 0) {
-            let perDealerAmount = amount / Float.fromInt(activeCount);
-            for (dealer in activeDealers.vals()) {
-                let currentRepayment = switch (principalMapNat.get(dealerRepayments, dealer.owner)) {
-                    case (null) { 0.0 };
-                    case (?repayment) { repayment };
-                };
-                dealerRepayments := principalMapNat.put(dealerRepayments, dealer.owner, currentRepayment + perDealerAmount);
-            };
-        };
-    };
-
-    // getShenaniganStats, getRecentShenanigans — moved to shenanigans canister
-
-    // Get Top Ponzi Points Holders
-    public query func getTopPonziPointsHolders() : async [(Principal, Float)] {
-        let allPoints = Iter.toArray(principalMapNat.entries(ponziPoints));
-        let sorted = List.fromArray(allPoints);
-        let top = List.take(sorted, 50);
-        List.toArray(top);
-    };
-
-    // Get Top Ponzi Points Burners
-    public query func getTopPonziPointsBurners() : async [(Principal, Float)] {
-        let allBurned = Iter.toArray(principalMapNat.entries(ponziPointsBurned));
-        let sorted = List.fromArray(allBurned);
-        let top = List.take(sorted, 50);
-        List.toArray(top);
-    };
+    // PP custody, burn tracking, leaderboards, castShenanigan, and dealer cut
+    // distribution moved to the shenanigans canister.
 
     // Get Total House Money Added
     public query func getTotalHouseMoneyAdded() : async Float {
@@ -1828,16 +1718,17 @@ persistent actor {
     };
 
     // Manual backer-repayment distribution (admin only).
-    // Uses the same 50/50 pot/backer split as automatic exit-toll distribution.
-    // The public Candid name stays `distributeFees` for backward compatibility;
-    // internally it delegates to `distributeExitTollToBackers`.
+    // Uses the same 50/50 backer/seed-reserve split as automatic exit-toll distribution.
+    // The public Candid name stays `distributeFees` for backward compatibility.
     public shared ({ caller }) func distributeFees(totalFees : Float) : async () {
         requireAuthenticated(caller);
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
             Debug.trap("Unauthorized: Only admins can distribute fees");
         };
         validateAmount(totalFees);
-        ignore distributeExitTollToBackers(totalFees);
+        acquireGlobalLock();
+        distributeExitToll(totalFees);
+        releaseGlobalLock();
     };
 
     // getShenaniganConfigs, updateShenaniganConfig, resetShenaniganConfig,

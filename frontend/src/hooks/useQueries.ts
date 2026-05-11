@@ -4,6 +4,7 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
+import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
 // Re-export backend's DealerPosition as BackerPosition for the rest of the app
@@ -12,6 +13,7 @@ import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { idlFactory } from '../declarations/backend';
 import type { _SERVICE } from '../declarations/backend';
+import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 
 // Anonymous ledger actor for balance queries. icrc1_balance_of is a public
 // query — no identity needed. Cached at module scope so all callers share
@@ -469,6 +471,18 @@ export function useCreateGame() {
       const approveAmount = amountE8s + 20_000n; // extra for fees
       const isCompounding = mode === 'compounding';
 
+      // Resolve referrer from the captured URL param. Backend dedupes (first
+      // referrer wins), so it's safe to send on every createGame.
+      const refStr = getStoredReferrer();
+      let referrerOpt: [] | [Principal] = [];
+      if (refStr && refStr !== principal) {
+        try {
+          referrerOpt = [Principal.fromText(refStr)];
+        } catch {
+          referrerOpt = [];
+        }
+      }
+
       let gameId: bigint;
 
       // Oisy path: ICRC-112 batching (approve + createGame in one popup)
@@ -493,7 +507,7 @@ export function useCreateGame() {
 
         // Sequence 1: createGame
         signerAgent.batch();
-        const gamePromise = backendActor.createGame(plan, amount, isCompounding, []);
+        const gamePromise = backendActor.createGame(plan, amount, isCompounding, referrerOpt);
 
         // Fire single ICRC-112 request — ONE signer popup
         await signerAgent.execute();
@@ -503,7 +517,7 @@ export function useCreateGame() {
       } else {
         // Standard path: separate approve + createGame
         await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-        const gameResult = await actor.createGame(plan, amount, isCompounding, []);
+        const gameResult = await actor.createGame(plan, amount, isCompounding, referrerOpt);
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       }
@@ -881,70 +895,64 @@ export function calculateExitTollFee(game: GameRecord, earnings: number): number
   }
 }
 
-// Helper function to convert GamePlan enum to string
+// Helper function to convert GamePlan variant to plan-id string.
+// Candid variants come back as fresh objects ({ compounding30Day: null }),
+// not as the static GamePlan.* references — switch-by-identity returned
+// default for everything, which made all plans look like 21-day-simple.
 function getGamePlanString(plan: GamePlan): string {
-  switch (plan) {
-    case GamePlan.simple21Day:
-      return '21-day-simple';
-    case GamePlan.compounding15Day:
-      return '15-day-compounding';
-    case GamePlan.compounding30Day:
-      return '30-day-compounding';
-    default:
-      return '21-day-simple';
-  }
+  if ('simple21Day' in plan) return '21-day-simple';
+  if ('compounding15Day' in plan) return '15-day-compounding';
+  if ('compounding30Day' in plan) return '30-day-compounding';
+  return '21-day-simple';
 }
 
-// MLM Queries - Updated to use real backend data
+// MLM stats — backend no longer tracks per-tier referral PP earnings (that work
+// moved to shenanigans' mint pipeline, which doesn't yet expose a per-user
+// breakdown). Return a zeroed shape so existing consumers compile; wire up a
+// shenanigans-side query later if we want the breakdown back.
 export function useGetReferralStats() {
-  const actor = useReadActor();
   const { principal } = useWallet();
-
   return useQuery({
     queryKey: ['mlmStats', principal],
-    queryFn: async () => {
-      if (!principal) throw new Error('No principal');
-
-      // Get real referral tier points from backend
-      const tierPoints = await actor.getReferralTierPointsFor(Principal.fromText(principal));
-
-      return {
-        level1Count: 0, // Backend doesn't track count, only points
-        level2Count: 0,
-        level3Count: 0,
-        level1Points: tierPoints.level1Points,
-        level2Points: tierPoints.level2Points,
-        level3Points: tierPoints.level3Points,
-        totalEarnings: tierPoints.totalPoints,
-        referralLink: `https://musical-chairs.com/ref/${Date.now().toString(36)}`
-      };
-    },
+    queryFn: async () => ({
+      level1Count: 0,
+      level2Count: 0,
+      level3Count: 0,
+      level1Points: 0,
+      level2Points: 0,
+      level3Points: 0,
+      totalEarnings: 0,
+      referralLink: buildReferralLink(principal),
+    }),
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
   });
 }
 
-// Ponzi Points Queries - Updated to use real backend data
+// PP balances — read directly from pp_ledger (chip subaccount + user wallet)
 export function useGetPonziPoints() {
-  const actor = useReadActor();
+  const ledger = useReadPpLedger();
   const { principal } = useWallet();
 
   return useQuery({
-    queryKey: ['ponziPointsBalance', principal],
+    queryKey: ['ppBalances', principal],
     queryFn: async () => {
       if (!principal) throw new Error('No principal');
-
-      // Get real Ponzi Points balance from backend
-      const balance = await actor.getPonziPointsBreakdownFor(Principal.fromText(principal));
-
+      const p = Principal.fromText(principal);
+      const [chipUnits, walletUnits] = await Promise.all([
+        ledger.icrc1_balance_of({
+          owner: shenanigansOwner(),
+          subaccount: [principalToChipSubaccount(p)],
+        }),
+        ledger.icrc1_balance_of({ owner: p, subaccount: [] }),
+      ]);
       return {
-        totalPoints: balance.totalPoints,
-        depositPoints: balance.depositPoints,
-        referralPoints: balance.referralPoints,
+        chipPoints: ppUnitsToWhole(chipUnits),
+        walletPoints: ppUnitsToWhole(walletUnits),
+        totalPoints: ppUnitsToWhole(chipUnits + walletUnits),
       };
     },
     enabled: !!principal,
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
   });
 }
 
@@ -1026,44 +1034,31 @@ export function useGetSeedRoundDashboard() {
 // Legacy alias
 export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
-// Hall of Fame Queries - Updated to use separate backend calls
+// Top-holders leaderboard retired — pp_ledger exposes balances as on-chain state,
+// not as a sorted view. The hook is kept as a no-op stub so existing consumers
+// compile until Task 29 removes them.
 export function useGetTopPonziPointsHolders() {
-  const actor = useReadActor();
-
   return useQuery({
     queryKey: ['topPonziPointsHolders'],
-    queryFn: async () => {
-      const holders = await actor.getTopPonziPointsHolders();
-
-      // Transform backend data to include user names
-      return holders.map(([principal, points], index) => ({
-        rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPoints: points,
-        principal: principal.toString()
-      }));
-    },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    queryFn: async () => [] as { rank: number; name: string; ponziPoints: number; principal: string }[],
   });
 }
 
 export function useGetTopPonziPointsBurners() {
-  const actor = useReadActor();
-
+  const actor = useShenaniganActor().actor;
   return useQuery({
-    queryKey: ['topPonziPointsBurners'],
+    queryKey: ['topPpBurners'],
     queryFn: async () => {
-      const burners = await actor.getTopPonziPointsBurners();
-
-      // Transform backend data to include user names
-      return burners.map(([principal, pointsBurned], index) => ({
+      if (!actor) return [];
+      const burners = await actor.getTopPpBurners(50n);
+      return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`, // Use last 8 chars of principal as name
-        ponziPointsBurned: pointsBurned,
-        principal: principal.toString()
+        name: `User ${principal.toString().slice(-8)}`,
+        ponziPointsBurned: Number(unitsBig / 100_000_000n),
+        principal: principal.toString(),
       }));
     },
-    refetchInterval: 30000, // Refetch every 30 seconds for live updates
+    refetchInterval: 30000,
   });
 }
 
@@ -1077,6 +1072,282 @@ export function useGetHallOfFame() {
     isLoading: false,
     error: null
   };
+}
+
+// === Chip custody & cash-out (pp_ledger + shenanigans) ===
+
+const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');
+
+/** Send whole-PP from the caller's main account to an arbitrary principal. */
+export function useSendPp() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ to, wholePp }: { to: Principal; wholePp: number }) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc1_transfer({
+        to: { owner: to, subaccount: [] },
+        amount: wholePpToUnits(wholePp),
+        fee: [],
+        memo: [],
+        from_subaccount: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) {
+        const err: any = res.Err;
+        const msg = err.InsufficientFunds ? 'Insufficient funds'
+          : err.BadFee ? 'Bad fee'
+          : err.TooOld ? 'Transfer too old'
+          : err.TemporarilyUnavailable ? 'Ledger temporarily unavailable'
+          : err.GenericError?.message || 'Transfer failed';
+        throw new Error(msg);
+      }
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppBalances'] }),
+  });
+}
+
+/** One-time approve for chip deposits. Defaults to the ICRC-1 unlimited sentinel. */
+export function useApproveForDeposits() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (explicitAmount?: bigint) => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const UNLIMITED = 18_446_744_073_709_551_615n; // 2^64 - 1
+      const amount = explicitAmount ?? UNLIMITED;
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount,
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
+  });
+}
+
+/** Current ICRC-2 allowance granted by the caller's main account to shenanigans. */
+export function useAllowance() {
+  const ppLedger = useReadPpLedger();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['ppAllowance', principal],
+    queryFn: async () => {
+      if (!principal) return null;
+      const res = await ppLedger.icrc2_allowance({
+        account: { owner: Principal.fromText(principal), subaccount: [] },
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+      });
+      return {
+        allowance: res.allowance, // bigint, in PP-units
+        expiresAt: res.expires_at[0] ?? null,
+      };
+    },
+    enabled: !!principal,
+    refetchInterval: 15000,
+  });
+}
+
+/** Revoke by setting the allowance to 0. */
+export function useRevokeAllowance() {
+  const ppLedger = useAuthPpLedger();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!ppLedger) throw new Error('No pp_ledger actor');
+      const res = await ppLedger.icrc2_approve({
+        from_subaccount: [],
+        spender: { owner: SHENANIGANS_PRINCIPAL, subaccount: [] },
+        amount: 0n,
+        expected_allowance: [],
+        expires_at: [],
+        fee: [],
+        memo: [],
+        created_at_time: [],
+      });
+      if ('Err' in res) throw new Error(JSON.stringify(res.Err));
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['ppAllowance'] }),
+  });
+}
+
+export function useDepositChips() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.depositChips(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+      qc.invalidateQueries({ queryKey: ['ppAllowance'] });
+    },
+  });
+}
+
+export function useRequestCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (wholePp: number) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.requestCashOut(wholePpToUnits(wholePp));
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['pendingCashOuts'] }),
+  });
+}
+
+export function useClaimCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.claimCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
+export function useCancelCashOut() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const res = await actor.cancelCashOut(id);
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['pendingCashOuts'] });
+      qc.invalidateQueries({ queryKey: ['ppBalances'] });
+    },
+  });
+}
+
+/** Live observer status — running/paused, cursors, interval. */
+export function useGetObserverStatus() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['observerStatus'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getObserverStatus();
+    },
+    enabled: !!actor,
+    refetchInterval: 5000,
+  });
+}
+
+export function useStopObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.stopObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
+export function useResumeObserver() {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.resumeObserver();
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['observerStatus'] }),
+  });
+}
+
+/** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
+export function useGetMintConfig() {
+  const { actor } = useShenaniganActor();
+  return useQuery({
+    queryKey: ['mintConfig'],
+    queryFn: async () => {
+      if (!actor) return null;
+      return actor.getMintConfig();
+    },
+    enabled: !!actor,
+    refetchInterval: 30000,
+  });
+}
+
+function useMintConfigSetter<Args extends unknown[]>(
+  run: (actor: NonNullable<ReturnType<typeof useShenaniganActor>['actor']>, args: Args) => Promise<unknown>,
+) {
+  const { actor } = useShenaniganActor();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (args: Args) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return run(actor, args);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['mintConfig'] }),
+  });
+}
+
+export const useSetSimple21 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setSimple21DayPpPerIcp(v));
+export const useSetCompounding15 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding15DayPpPerIcp(v));
+export const useSetCompounding30 = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding30DayPpPerIcp(v));
+export const useSetDealerMultiplier = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setDealerPpPerIcp(v));
+export const useSetReferralBps = () =>
+  useMintConfigSetter<[bigint, bigint, bigint]>((a, [l1, l2, l3]) => a.setReferralBps(l1, l2, l3));
+export const useSetMinDeposit = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setMinDepositPp(v));
+export const useSetCashOutDelay = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setCashOutDelaySeconds(v));
+export const useSetObserverInterval = () =>
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setObserverIntervalSeconds(v));
+
+export function usePendingCashOuts() {
+  const { actor } = useShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['pendingCashOuts', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      const entries = await actor.getMyCashOuts();
+      return entries
+        .filter((e) => !e.claimed)
+        .map((e) => ({
+          id: e.id,
+          amount: Number(e.amount) / 1e8,
+          claimableAfter: new Date(Number(e.claimableAfter) / 1_000_000),
+          claimed: e.claimed,
+        }));
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 10000,
+  });
 }
 
 // Ponzi Points calculation utilities

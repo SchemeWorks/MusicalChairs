@@ -16,9 +16,12 @@ import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
 import DocsPage from './components/DocsPage';
+import BankPage from './components/BankPage';
+import BankNavLink from './components/BankNavLink';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
+import { captureReferrerFromUrl } from './lib/referral';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
 
@@ -288,17 +291,23 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
+  const [showBankPage, setShowBankPage] = useState(
+    () => window.location.hash === '#bank' || window.location.hash === '#chips',
+  );
   const { data: publicStats } = useGetPublicStats();
 
-  // Sync docs visibility with hash — allows direct linking to #docs or #docs-fees
+  // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #chips
   useEffect(() => {
     const onHashChange = () => {
-      const isDocsHash = window.location.hash.startsWith('#docs');
-      setShowDocsPage(isDocsHash);
+      setShowDocsPage(window.location.hash.startsWith('#docs'));
+      setShowBankPage(window.location.hash === '#bank' || window.location.hash === '#chips');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
+
+  // Capture `?ref=<principal>` from the landing URL once. First referrer wins.
+  useEffect(() => { captureReferrerFromUrl(); }, []);
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
@@ -336,12 +345,13 @@ export default function App() {
     return () => window.removeEventListener('mc:open-docs', handler);
   }, []);
 
-  // Navigating to a tab always dismisses the docs page.
+  // Navigating to a tab always dismisses full-page overlays (docs / bank page).
   const goToTab = (tab: TabType) => {
     setActiveTab(tab);
-    if (showDocsPage) {
+    if (showDocsPage || showBankPage) {
       history.replaceState(null, '', window.location.pathname);
       setShowDocsPage(false);
+      setShowBankPage(false);
     }
   };
 
@@ -379,7 +389,7 @@ export default function App() {
 
         {/* Header */}
         <header className="mc-header fixed top-0 left-0 right-0 z-40">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center h-16 md:h-20">
 
               {/* Logo */}
@@ -423,6 +433,8 @@ export default function App() {
 
               {/* Right controls */}
               <div className="flex items-center gap-2 sm:gap-3">
+                <BankNavLink onClick={() => { window.location.hash = '#bank'; setShowBankPage(true); }} />
+
                 {/* Docs — always visible, visually distinct */}
                 <button
                   onClick={() => { window.location.hash = '#docs'; setShowDocsPage(true); }}
@@ -490,6 +502,11 @@ export default function App() {
               /* === DOCS PAGE === */
               <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
                 <DocsPage onBack={() => { history.replaceState(null, '', window.location.pathname); setShowDocsPage(false); }} />
+              </div>
+            ) : showBankPage ? (
+              /* === BANK PAGE === */
+              <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
+                <BankPage />
               </div>
             ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */

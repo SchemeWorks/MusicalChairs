@@ -99,7 +99,6 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'burnPonziPoints' : ActorMethod<[Principal, number], undefined>,
   'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedROI' : ActorMethod<[], number>,
@@ -115,11 +114,10 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
-  'deductPonziPoints' : ActorMethod<[Principal, number], undefined>,
-  'distributeDealerCutFromShenanigans' : ActorMethod<[number], undefined>,
   'distributeFees' : ActorMethod<[number], undefined>,
   'getActiveGameCount' : ActorMethod<[], bigint>,
   'getAllActiveGames' : ActorMethod<[], Array<GameRecord>>,
+  'getAllDealerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
   'getAllGames' : ActorMethod<[], Array<GameRecord>>,
   'getAvailableBalance' : ActorMethod<[], number>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
@@ -129,7 +127,6 @@ export interface _SERVICE {
   'getCoverChargeBalance' : ActorMethod<[], bigint>,
   'getCoverChargeTransactions' : ActorMethod<[], Array<CoverChargeEntry>>,
   'getDaysActive' : ActorMethod<[], bigint>,
-  'getAllDealerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
   'getDealerPositions' : ActorMethod<[], Array<DealerPosition>>,
   'getDealerRepaymentBalance' : ActorMethod<[], number>,
   'getDealerRepaymentBalanceFor' : ActorMethod<[Principal], number>,
@@ -148,46 +145,11 @@ export interface _SERVICE {
   'getMaxDepositLimit' : ActorMethod<[], number>,
   'getOldestUpstreamDealer' : ActorMethod<[], [] | [DealerPosition]>,
   'getPlatformStats' : ActorMethod<[], PlatformStats>,
-  'getPonziPoints' : ActorMethod<[], number>,
-  'getPonziPointsBreakdownFor' : ActorMethod<
-    [Principal],
-    {
-      'depositPoints' : number,
-      'referralPoints' : number,
-      'totalPoints' : number,
-    }
-  >,
-  'getPonziPointsBalance' : ActorMethod<
-    [],
-    {
-      'depositPoints' : number,
-      'referralPoints' : number,
-      'totalPoints' : number,
-    }
-  >,
-  'getPonziPointsBalanceFor' : ActorMethod<[Principal], number>,
-  'getPonziPointsFor' : ActorMethod<[Principal], number>,
-  'getReferralEarnings' : ActorMethod<[Principal], number>,
-  'getReferralTierPoints' : ActorMethod<
-    [],
-    {
-      'level3Points' : number,
-      'level1Points' : number,
-      'totalPoints' : number,
-      'level2Points' : number,
-    }
-  >,
-  'getReferralTierPointsFor' : ActorMethod<
-    [Principal],
-    {
-      'level3Points' : number,
-      'level1Points' : number,
-      'totalPoints' : number,
-      'level2Points' : number,
-    }
-  >,
-  'getTopPonziPointsBurners' : ActorMethod<[], Array<[Principal, number]>>,
-  'getTopPonziPointsHolders' : ActorMethod<[], Array<[Principal, number]>>,
+  /**
+   * / One-hop lookup — returns the caller's immediate referrer (L1) or null.
+   * / Used by shenanigans for referral PP cascades.
+   */
+  'getReferrer' : ActorMethod<[Principal], [] | [Principal]>,
   'getTotalDealerDebt' : ActorMethod<[], number>,
   'getTotalDeposits' : ActorMethod<[], number>,
   'getTotalHouseMoneyAdded' : ActorMethod<[], number>,
@@ -196,7 +158,6 @@ export interface _SERVICE {
   'getUserGamesFor' : ActorMethod<[Principal], Array<GameRecord>>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserRole' : ActorMethod<[Principal], UserRole>,
-  'isAdmin' : ActorMethod<[Principal], boolean>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
@@ -204,6 +165,7 @@ export interface _SERVICE {
   >,
   'icrc28_trusted_origins' : ActorMethod<[], TrustedOriginsResponse>,
   'initializeAccessControl' : ActorMethod<[], undefined>,
+  'isAdmin' : ActorMethod<[Principal], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
   'isTestMode' : ActorMethod<[], boolean>,
   'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
@@ -213,16 +175,11 @@ export interface _SERVICE {
   >,
   'seedReferral' : ActorMethod<[Principal, Principal], undefined>,
   'setCanisterPrincipal' : ActorMethod<[Principal], undefined>,
-  'setShenanigansPrincipal' : ActorMethod<[Principal], undefined>,
   'setTestMode' : ActorMethod<[boolean], undefined>,
   'settleCompoundingGame' : ActorMethod<
     [bigint],
     { 'Ok' : number } |
       { 'Err' : string }
-  >,
-  'transferPonziPoints' : ActorMethod<
-    [Principal, Principal, number],
-    undefined
   >,
   'withdrawCoverCharges' : ActorMethod<
     [bigint],
