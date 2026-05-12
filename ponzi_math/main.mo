@@ -2,6 +2,7 @@ import Principal "mo:base/Principal";
 import OrderedMap "mo:base/OrderedMap";
 import Time "mo:base/Time";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
@@ -24,6 +25,7 @@ persistent actor class PonziMath(initArgs : {
     transient let BACKEND_PRINCIPAL : Principal = initArgs.backendPrincipal;
     transient let TEST_ADMIN : Principal = initArgs.testAdmin;
     transient let icpLedger : Ledger.LedgerActor = actor(Ledger.ICP_LEDGER_CANISTER_ID);
+    transient let ic : actor { raw_rand : () -> async Blob } = actor "aaaaa-aa";
 
     // ========================================================================
     // Public types
@@ -441,6 +443,101 @@ persistent actor class PonziMath(initArgs : {
             toOtherSeriesA = toOthers;
             toAllBackers = toAll;
         }));
+    };
+
+    // ========================================================================
+    // Series B promotion: pick a random underwater player at round-reset time
+    // and grant them a Series B backer position with entitlement
+    // (amount - totalWithdrawn) * 1.16.
+    // ========================================================================
+
+    // Pick a Series B promotion candidate from the current round's losers.
+    // Eligibility (phase 1): underwater players who currently have ZERO entries
+    // in backerPositions. If none qualify (phase 2 — every underwater player
+    // already has a position), fall back to all underwater players. Uses
+    // raw_rand for selection — caller must be in an async update context.
+    // Returns null if no one is underwater.
+    func selectPromotionCandidate() : async ?{ owner : Principal; underwater : Float } {
+        var underwaterByPlayer = principalMapNat.empty<Float>();
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) {
+                let loss = g.amount - g.totalWithdrawn;
+                if (loss > 0.0) {
+                    let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
+                        case (null) { 0.0 };
+                        case (?v) { v };
+                    };
+                    underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
+                };
+            };
+        };
+
+        let allLosers = Iter.toArray(principalMapNat.entries(underwaterByPlayer));
+        if (allLosers.size() == 0) { return null };
+
+        let withoutBacker = List.toArray(
+            List.filter(
+                List.fromArray(allLosers),
+                func((p, _) : (Principal, Float)) : Bool {
+                    let aHas = switch (backerKeyMap.get(backerPositions, (p, #seriesA))) {
+                        case (null) { false };
+                        case (?_) { true };
+                    };
+                    let bHas = switch (backerKeyMap.get(backerPositions, (p, #seriesB))) {
+                        case (null) { false };
+                        case (?_) { true };
+                    };
+                    not aHas and not bHas;
+                },
+            )
+        );
+
+        let pool = if (withoutBacker.size() > 0) { withoutBacker } else { allLosers };
+
+        let entropy = await ic.raw_rand();
+        let bytes = Blob.toArray(entropy);
+        var seed : Nat = 0;
+        var i = 0;
+        while (i < 8 and i < bytes.size()) {
+            seed := seed * 256 + Nat8.toNat(bytes[i]);
+            i += 1;
+        };
+        let idx = seed % pool.size();
+        let (chosen, loss) = pool[idx];
+        ?{ owner = chosen; underwater = loss };
+    };
+
+    // Apply a Series B promotion. If the player already has a Series B
+    // position, merge: sum amount and entitlement. Otherwise create a new
+    // Series B row alongside any existing Series A.
+    func applySeriesBPromotion(owner : Principal, underwater : Float) {
+        let entitlement = underwater * 1.16;
+        let now = Time.now();
+        let key : BackerKey = (owner, #seriesB);
+        switch (backerKeyMap.get(backerPositions, key)) {
+            case (null) {
+                let fresh : BackerPosition = {
+                    owner;
+                    amount = underwater;
+                    entitlement;
+                    startTime = now;
+                    isActive = true;
+                    backerType = #seriesB;
+                    firstDepositDate = ?now;
+                };
+                backerPositions := backerKeyMap.put(backerPositions, key, fresh);
+            };
+            case (?existing) {
+                let merged : BackerPosition = {
+                    existing with
+                    amount = existing.amount + underwater;
+                    entitlement = existing.entitlement + entitlement;
+                };
+                backerPositions := backerKeyMap.put(backerPositions, key, merged);
+            };
+        };
+
+        recordLedger(#seriesBPromotion({ owner; underwater; entitlement }));
     };
 
     // ========================================================================
