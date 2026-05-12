@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
-import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
@@ -21,7 +21,8 @@ import BankNavLink from './components/BankNavLink';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
-import { captureReferrerFromUrl } from './lib/referral';
+import { captureReferrerFromUrl, getStoredReferrer } from './lib/referral';
+import { Principal } from '@dfinity/principal';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
 
@@ -308,6 +309,25 @@ export default function App() {
 
   // Capture `?ref=<principal>` from the landing URL once. First referrer wins.
   useEffect(() => { captureReferrerFromUrl(); }, []);
+
+  // Register referral with shenanigans once per session after authentication.
+  // Uses the stored referrer from localStorage (captured above). First-wins on
+  // the canister side; idempotent and safe to call on every login.
+  const registerReferral = useRegisterReferral();
+  const hasRegisteredReferralRef = React.useRef(false);
+  useEffect(() => {
+    if (!isAuthenticated || hasRegisteredReferralRef.current) return;
+    const stored = getStoredReferrer();
+    if (!stored) return;
+    if (principal && stored === principal) return; // self-referral — skip
+    hasRegisteredReferralRef.current = true;
+    try {
+      const referrerPrincipal = Principal.fromText(stored);
+      registerReferral.mutate(referrerPrincipal);
+    } catch {
+      // Malformed principal in localStorage — ignore
+    }
+  }, [isAuthenticated, principal]);
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);

@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useWallet } from '../hooks/useWallet';
-import { useGetHouseLedger, useGetHouseLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment } from '../hooks/useQueries';
+import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment } from '../hooks/useQueries';
+import type { GeneralLedgerEntry } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
 import { formatICP } from '../lib/formatICP';
@@ -140,9 +141,28 @@ function BackerInfoCard() {
 /* ================================================================
    House Ledger Records
    ================================================================ */
+// Derive a human-readable event type and summary from the tagged GeneralLedgerEvent variant.
+function describeEvent(entry: GeneralLedgerEntry): { label: string; isInflow: boolean | null } {
+  const eventKey = Object.keys(entry.event)[0];
+  const eventData: any = (entry.event as any)[eventKey];
+  switch (eventKey) {
+    case 'deposit': return { label: `Deposit — ${Object.keys(eventData.plan)[0]}`, isInflow: true };
+    case 'backerDeposit': return { label: 'Backer Deposit', isInflow: true };
+    case 'withdrawal': return { label: `Withdrawal${eventData.isInsolvent ? ' (Insolvent)' : ''}`, isInflow: false };
+    case 'settlement': return { label: `Settlement${eventData.isInsolvent ? ' (Insolvent)' : ''}`, isInflow: false };
+    case 'tollDistribution': return { label: 'Toll Distribution', isInflow: null };
+    case 'backerRepaymentClaim': return { label: 'Backer Repayment Claim', isInflow: false };
+    case 'coverChargeAccrued': return { label: 'Front-End Load Accrued', isInflow: null };
+    case 'coverChargeSwept': return { label: 'Front-End Load Swept', isInflow: null };
+    case 'gameReset': return { label: `Game Reset — ${eventData.reason}`, isInflow: null };
+    case 'backdatedGameCreated': return { label: 'Backdated Game Created', isInflow: null };
+    default: return { label: eventKey, isInflow: null };
+  }
+}
+
 function HouseLedgerRecords() {
-  const { data: ledgerRecords = [], isLoading, error, refetch } = useGetHouseLedger();
-  const { data: ledgerStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useGetHouseLedgerStats();
+  const { data: ledgerRecords = [], isLoading, error, refetch } = useGetGeneralLedger();
+  const { data: ledgerStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useGetGeneralLedgerStats();
 
   if (error || statsError) {
     return (
@@ -163,7 +183,7 @@ function HouseLedgerRecords() {
     } catch { return 'Invalid Date'; }
   };
 
-  const stats = ledgerStats || { totalDeposits: 0, totalWithdrawals: 0, netBalance: 0, recordCount: BigInt(0) };
+  const stats = ledgerStats || { totalInflows: 0, totalOutflows: 0, netFlow: 0, entryCount: BigInt(0) };
   const records = Array.isArray(ledgerRecords) ? ledgerRecords : [];
 
   return (
@@ -171,10 +191,10 @@ function HouseLedgerRecords() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Deposits', value: `${formatICP(stats.totalDeposits)} ICP`, color: 'mc-text-green' },
-          { label: 'Total Withdrawals', value: `${formatICP(stats.totalWithdrawals)} ICP`, color: 'mc-text-pink' },
-          { label: 'Net Balance', value: `${formatICP(stats.netBalance)} ICP`, color: 'mc-text-cyan' },
-          { label: 'Total Records', value: `${Number(stats.recordCount)}`, color: 'mc-text-purple' },
+          { label: 'Total Inflows', value: `${formatICP(stats.totalInflows)} ICP`, color: 'mc-text-green' },
+          { label: 'Total Outflows', value: `${formatICP(stats.totalOutflows)} ICP`, color: 'mc-text-pink' },
+          { label: 'Net Flow', value: `${formatICP(stats.netFlow)} ICP`, color: 'mc-text-cyan' },
+          { label: 'Total Records', value: `${Number(stats.entryCount)}`, color: 'mc-text-purple' },
         ].map(s => (
           <div key={s.label} className="mc-card p-3 text-center">
             <div className="mc-label mb-1">{s.label}</div>
@@ -187,42 +207,42 @@ function HouseLedgerRecords() {
       {records.length === 0 ? (
         <div className="text-center py-8">
           <BarChart3 className="h-10 w-10 mc-text-muted mb-3 mx-auto opacity-40" />
-          <p className="mc-text-dim text-sm">No house ledger records yet.</p>
+          <p className="mc-text-dim text-sm">No ledger records yet.</p>
         </div>
       ) : (
         <div className="max-h-96 overflow-y-auto">
           {records
             .sort((a, b) => Number(b.timestamp) - Number(a.timestamp))
-            .map((record, i) => (
-              <div key={Number(record.id)} className="flex gap-3 py-3 border-b border-white/5 last:border-0">
-                {/* Timeline dot + line */}
-                <div className="flex flex-col items-center">
-                  <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${
-                    record.amount > 0 ? 'mc-bg-green' : 'mc-bg-danger'
-                  }`} />
-                  {i < records.length - 1 && (
-                    <div className="w-px flex-1 bg-white/10 mt-1" />
-                  )}
-                </div>
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    {record.amount > 0 ? (
-                      <ArrowDownLeft className="h-3.5 w-3.5 mc-text-green flex-shrink-0" />
-                    ) : (
-                      <ArrowUpRight className="h-3.5 w-3.5 mc-text-danger flex-shrink-0" />
+            .map((record, i) => {
+              const { label, isInflow } = describeEvent(record);
+              const dotClass = isInflow === true ? 'mc-bg-green' : isInflow === false ? 'mc-bg-danger' : 'bg-white/30';
+              const arrowEl = isInflow === true
+                ? <ArrowDownLeft className="h-3.5 w-3.5 mc-text-green flex-shrink-0" />
+                : isInflow === false
+                ? <ArrowUpRight className="h-3.5 w-3.5 mc-text-danger flex-shrink-0" />
+                : null;
+              return (
+                <div key={Number(record.id)} className="flex gap-3 py-3 border-b border-white/5 last:border-0">
+                  {/* Timeline dot + line */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-2.5 h-2.5 rounded-full mt-1 flex-shrink-0 ${dotClass}`} />
+                    {i < records.length - 1 && (
+                      <div className="w-px flex-1 bg-white/10 mt-1" />
                     )}
-                    <span className="text-sm font-bold truncate mc-text-primary">{record.description || 'Seed Round Transaction'}</span>
                   </div>
-                  <div className="flex justify-between mt-1 text-xs mc-text-muted">
-                    <span>{fmtDate(record.timestamp)}</span>
-                    <span className={record.amount > 0 ? 'mc-text-green' : 'mc-text-danger'}>
-                      {record.amount > 0 ? '+' : ''}{formatICP(record.amount)} ICP
-                    </span>
+                  {/* Content */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      {arrowEl}
+                      <span className="text-sm font-bold truncate mc-text-primary">{label}</span>
+                    </div>
+                    <div className="flex justify-between mt-1 text-xs mc-text-muted">
+                      <span>{fmtDate(record.timestamp)}</span>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
         </div>
       )}
     </div>
@@ -314,7 +334,7 @@ function BackerPositions() {
               ? (repaid / backer.entitlement) * 100
               : 0;
             const remaining = Math.max(0, backer.entitlement - repaid);
-            const isSeriesA = 'upstream' in backer.dealerType;
+            const isSeriesA = 'seriesA' in backer.backerType;
 
             return (
               <div
@@ -331,7 +351,7 @@ function BackerPositions() {
                     </div>
                     <div>
                       <div className="font-bold mc-text-primary">
-                        {backer.owner.toString() === principal ? 'My Equity' : (backer.name && backer.name !== 'Unknown Backer' ? backer.name : 'Anonymous Backer')}
+                        {backer.owner.toString() === principal ? 'My Equity' : 'Anonymous Backer'}
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         isSeriesA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'
@@ -401,7 +421,7 @@ function BackerPositions() {
 export default function HouseDashboard() {
   const [activeTab, setActiveTab] = useState<'backers' | 'ledger'>('backers');
   const { data: backerPositions } = useGetBackerPositions();
-  const { data: ledgerRecords } = useGetHouseLedger();
+  const { data: ledgerRecords } = useGetGeneralLedger();
 
   const backerCount = Array.isArray(backerPositions) ? backerPositions.length : 0;
   const ledgerCount = Array.isArray(ledgerRecords) ? ledgerRecords.length : 0;

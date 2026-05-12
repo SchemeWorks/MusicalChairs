@@ -4,62 +4,7 @@ export const idlFactory = ({ IDL }) => {
     'user' : IDL.Null,
     'guest' : IDL.Null,
   });
-  const GamePlan = IDL.Variant({
-    'compounding15Day' : IDL.Null,
-    'simple21Day' : IDL.Null,
-    'compounding30Day' : IDL.Null,
-  });
-  const GameRecord = IDL.Record({
-    'id' : IDL.Nat,
-    'startTime' : IDL.Int,
-    'player' : IDL.Principal,
-    'plan' : GamePlan,
-    'isActive' : IDL.Bool,
-    'accumulatedEarnings' : IDL.Float64,
-    'lastUpdateTime' : IDL.Int,
-    'isCompounding' : IDL.Bool,
-    'totalWithdrawn' : IDL.Float64,
-    'amount' : IDL.Float64,
-  });
   const UserProfile = IDL.Record({ 'name' : IDL.Text });
-  const CoverChargeEntry = IDL.Record({
-    'id' : IDL.Nat,
-    'player' : IDL.Principal,
-    'gameId' : IDL.Nat,
-    'timestamp' : IDL.Int,
-    'amount' : IDL.Nat,
-  });
-  const DealerType = IDL.Variant({
-    'downstream' : IDL.Null,
-    'upstream' : IDL.Null,
-  });
-  const DealerPosition = IDL.Record({
-    'startTime' : IDL.Int,
-    'firstDepositDate' : IDL.Opt(IDL.Int),
-    'owner' : IDL.Principal,
-    'name' : IDL.Text,
-    'isActive' : IDL.Bool,
-    'dealerType' : DealerType,
-    'amount' : IDL.Float64,
-    'entitlement' : IDL.Float64,
-  });
-  const GameResetRecord = IDL.Record({
-    'resetTime' : IDL.Int,
-    'reason' : IDL.Text,
-  });
-  const HouseLedgerRecord = IDL.Record({
-    'id' : IDL.Nat,
-    'description' : IDL.Text,
-    'timestamp' : IDL.Int,
-    'amount' : IDL.Float64,
-  });
-  const PlatformStats = IDL.Record({
-    'daysActive' : IDL.Nat,
-    'potBalance' : IDL.Float64,
-    'totalWithdrawals' : IDL.Float64,
-    'activeGames' : IDL.Nat,
-    'totalDeposits' : IDL.Float64,
-  });
   const StandardRecord = IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text });
   const ConsentMessageMetadata = IDL.Record({
     'utc_offset_minutes' : IDL.Opt(IDL.Int16),
@@ -106,100 +51,11 @@ export const idlFactory = ({ IDL }) => {
     'trusted_origins' : IDL.Vec(IDL.Text),
   });
   return IDL.Service({
-    'addDealerMoney' : IDL.Func(
-        [IDL.Float64],
-        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
-        [],
-      ),
     'assignCallerUserRole' : IDL.Func([IDL.Principal, UserRole], [], []),
-    'calculateCompounded30DayEarnings' : IDL.Func(
-        [GameRecord],
-        [IDL.Float64],
-        ['query'],
-      ),
-    'calculateCompoundedEarnings' : IDL.Func(
-        [GameRecord],
-        [IDL.Float64],
-        ['query'],
-      ),
-    'calculateCompoundedROI' : IDL.Func([], [IDL.Float64], ['query']),
-    'calculateEarnings' : IDL.Func([GameRecord], [IDL.Float64], ['query']),
-    'checkDepositRateLimit' : IDL.Func([], [IDL.Bool], ['query']),
-    'claimDealerRepayment' : IDL.Func(
-        [],
-        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
-        [],
-      ),
-    'createGame' : IDL.Func(
-        [GamePlan, IDL.Float64, IDL.Bool, IDL.Opt(IDL.Principal)],
-        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
-        [],
-      ),
-    'distributeFees' : IDL.Func([IDL.Float64], [], []),
-    'getActiveGameCount' : IDL.Func([], [IDL.Nat], ['query']),
-    'getAllActiveGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
-    'getAllDealerRepayments' : IDL.Func(
-        [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
-        ['query'],
-      ),
-    'getAllGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
-    'getAvailableBalance' : IDL.Func([], [IDL.Float64], ['query']),
+    'getBackendICPBalance' : IDL.Func([], [IDL.Nat], []),
     'getCallerUserProfile' : IDL.Func([], [IDL.Opt(UserProfile)], ['query']),
     'getCallerUserRole' : IDL.Func([], [UserRole], ['query']),
-    'getCanisterICPBalance' : IDL.Func([], [IDL.Nat], []),
-    'getCanisterPrincipal' : IDL.Func([], [IDL.Opt(IDL.Principal)], ['query']),
-    'getCoverChargeBalance' : IDL.Func([], [IDL.Nat], ['query']),
-    'getCoverChargeTransactions' : IDL.Func(
-        [],
-        [IDL.Vec(CoverChargeEntry)],
-        ['query'],
-      ),
-    'getDaysActive' : IDL.Func([], [IDL.Nat], ['query']),
-    'getDealerPositions' : IDL.Func([], [IDL.Vec(DealerPosition)], ['query']),
-    'getDealerRepaymentBalance' : IDL.Func([], [IDL.Float64], ['query']),
-    'getDealerRepaymentBalanceFor' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Float64],
-        ['query'],
-      ),
-    'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
-    'getGameResetHistory' : IDL.Func([], [IDL.Vec(GameResetRecord)], ['query']),
-    'getHouseLedger' : IDL.Func([], [IDL.Vec(HouseLedgerRecord)], ['query']),
-    'getHouseLedgerStats' : IDL.Func(
-        [],
-        [
-          IDL.Record({
-            'totalWithdrawals' : IDL.Float64,
-            'netBalance' : IDL.Float64,
-            'totalDeposits' : IDL.Float64,
-            'recordCount' : IDL.Nat,
-          }),
-        ],
-        ['query'],
-      ),
-    'getMaxDepositLimit' : IDL.Func([], [IDL.Float64], ['query']),
-    'getOldestUpstreamDealer' : IDL.Func(
-        [],
-        [IDL.Opt(DealerPosition)],
-        ['query'],
-      ),
-    'getPlatformStats' : IDL.Func([], [PlatformStats], ['query']),
-    'getReferrer' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Opt(IDL.Principal)],
-        ['query'],
-      ),
-    'getTotalDealerDebt' : IDL.Func([], [IDL.Float64], ['query']),
-    'getTotalDeposits' : IDL.Func([], [IDL.Float64], ['query']),
-    'getTotalHouseMoneyAdded' : IDL.Func([], [IDL.Float64], ['query']),
-    'getTotalWithdrawals' : IDL.Func([], [IDL.Float64], ['query']),
-    'getUserGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
-    'getUserGamesFor' : IDL.Func(
-        [IDL.Principal],
-        [IDL.Vec(GameRecord)],
-        ['query'],
-      ),
+    'getPonziMathPrincipal' : IDL.Func([], [IDL.Opt(IDL.Principal)], ['query']),
     'getUserProfile' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(UserProfile)],
@@ -224,31 +80,13 @@ export const idlFactory = ({ IDL }) => {
     'initializeAccessControl' : IDL.Func([], [], []),
     'isAdmin' : IDL.Func([IDL.Principal], [IDL.Bool], ['query']),
     'isCallerAdmin' : IDL.Func([], [IDL.Bool], ['query']),
-    'isTestMode' : IDL.Func([], [IDL.Bool], ['query']),
-    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
-    'seedGame' : IDL.Func(
-        [IDL.Principal, GamePlan, IDL.Float64, IDL.Bool, IDL.Int],
-        [IDL.Nat],
-        [],
-      ),
-    'seedReferral' : IDL.Func([IDL.Principal, IDL.Principal], [], []),
-    'setCanisterPrincipal' : IDL.Func([IDL.Principal], [], []),
-    'setTestMode' : IDL.Func([IDL.Bool], [], []),
-    'settleCompoundingGame' : IDL.Func(
-        [IDL.Nat],
-        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
-        [],
-      ),
-    'withdrawCoverCharges' : IDL.Func(
-        [IDL.Nat],
+    'payManagement' : IDL.Func(
+        [IDL.Principal, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
-    'withdrawEarnings' : IDL.Func(
-        [IDL.Nat],
-        [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
-        [],
-      ),
+    'saveCallerUserProfile' : IDL.Func([UserProfile], [], []),
+    'setPonziMathPrincipal' : IDL.Func([IDL.Principal], [], []),
   });
 };
 export const init = ({ IDL }) => { return []; };

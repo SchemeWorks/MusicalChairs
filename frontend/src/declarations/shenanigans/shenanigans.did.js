@@ -28,12 +28,12 @@ export const idlFactory = ({ IDL }) => {
   const MintConfig = IDL.Record({
     'compounding15DayPpPerIcp' : IDL.Nat,
     'minDepositPp' : IDL.Nat,
-    'dealerPpPerIcp' : IDL.Nat,
     'compounding30DayPpPerIcp' : IDL.Nat,
     'referralL1Bps' : IDL.Nat,
     'referralL2Bps' : IDL.Nat,
     'referralL3Bps' : IDL.Nat,
     'observerIntervalSeconds' : IDL.Nat,
+    'backerPpPerIcp' : IDL.Nat,
     'cashOutDelaySeconds' : IDL.Nat,
     'simple21DayPpPerIcp' : IDL.Nat,
   });
@@ -107,8 +107,8 @@ export const idlFactory = ({ IDL }) => {
           IDL.Record({
             'gameIdCursor' : IDL.Nat,
             'intervalSeconds' : IDL.Nat,
-            'dealerSeenCount' : IDL.Nat,
             'running' : IDL.Bool,
+            'backerSeenCount' : IDL.Nat,
           }),
         ],
         ['query'],
@@ -117,6 +117,11 @@ export const idlFactory = ({ IDL }) => {
     'getRecentShenanigans' : IDL.Func(
         [],
         [IDL.Vec(ShenaniganRecord)],
+        ['query'],
+      ),
+    'getReferrer' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Principal)],
         ['query'],
       ),
     'getShenaniganConfigs' : IDL.Func(
@@ -137,6 +142,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'initialize' : IDL.Func([IDL.Principal], [], []),
     'primeObserverCursors' : IDL.Func([], [], []),
+    'registerReferral' : IDL.Func([IDL.Principal], [], []),
     'requestCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
@@ -147,10 +153,10 @@ export const idlFactory = ({ IDL }) => {
     'rotateAdmin' : IDL.Func([IDL.Principal], [], []),
     'runObserverOnce' : IDL.Func([], [], []),
     'saveAllShenaniganConfigs' : IDL.Func([IDL.Vec(ShenaniganConfig)], [], []),
+    'setBackerPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setCashOutDelaySeconds' : IDL.Func([IDL.Nat], [], []),
     'setCompounding15DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
-    'setDealerPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setObserverIntervalSeconds' : IDL.Func([IDL.Nat], [], []),
     'setReferralBps' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),

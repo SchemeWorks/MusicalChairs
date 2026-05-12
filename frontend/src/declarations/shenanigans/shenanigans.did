@@ -54,10 +54,10 @@ type ShenaniganConfig =
  };
 type MintConfig = 
  record {
+   backerPpPerIcp: nat;
    cashOutDelaySeconds: nat;
    compounding15DayPpPerIcp: nat;
    compounding30DayPpPerIcp: nat;
-   dealerPpPerIcp: nat;
    minDepositPp: nat;
    observerIntervalSeconds: nat;
    referralL1Bps: nat;
@@ -106,13 +106,15 @@ service : {
   /// Surfaced in the admin panel for operational visibility.
   getObserverStatus: () ->
    (record {
-      dealerSeenCount: nat;
+      backerSeenCount: nat;
       gameIdCursor: nat;
       intervalSeconds: nat;
       running: bool;
     }) query;
   getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
+  /// One-hop lookup — returns the user's immediate referrer (L1) or null.
+  getReferrer: (user: principal) -> (opt principal) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
   getShenaniganStats: () -> (ShenaniganStats) query;
   /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
@@ -125,10 +127,13 @@ service : {
                                              principal;
                                              nat;
                                            }) query;
-  initialize: (backendCanisterId: principal) -> ();
+  initialize: (ponziMathCanisterId: principal) -> ();
   /// One-shot catch-up primer. Admin only. Call immediately after the
   /// cutover upgrade completes, before unpausing user traffic.
   primeObserverCursors: () -> ();
+  /// Idempotent referral registration. First call sets the chain entry;
+  /// subsequent calls for the same caller are no-ops. Self-referral rejected.
+  registerReferral: (referrer: principal) -> ();
   requestCashOut: (amountUnits: nat) -> (variant {
                                            Err: text;
                                            Ok: nat;
@@ -139,10 +144,10 @@ service : {
   /// Manual one-shot observer tick (admin debug).
   runObserverOnce: () -> ();
   saveAllShenaniganConfigs: (configs: vec ShenaniganConfig) -> ();
+  setBackerPpPerIcp: (v: nat) -> ();
   setCashOutDelaySeconds: (v: nat) -> ();
   setCompounding15DayPpPerIcp: (v: nat) -> ();
   setCompounding30DayPpPerIcp: (v: nat) -> ();
-  setDealerPpPerIcp: (v: nat) -> ();
   setMinDepositPp: (v: nat) -> ();
   setObserverIntervalSeconds: (v: nat) -> ();
   setReferralBps: (l1: nat, l2: nat, l3: nat) -> ();

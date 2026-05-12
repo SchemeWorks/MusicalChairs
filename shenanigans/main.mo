@@ -17,6 +17,12 @@ import Text "mo:base/Text";
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
 
+// TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
+// claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
+// (e.g. credits, PP units, tokens). Deferred from the ponzi_math extraction
+// migration to keep that scope tight. See
+// docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
+
 persistent actor Self {
 
     // ================================================================
@@ -93,7 +99,7 @@ persistent actor Self {
         simple21DayPpPerIcp : Nat;    // initial 1000 (whole PP per ICP)
         compounding15DayPpPerIcp : Nat; // initial 2000
         compounding30DayPpPerIcp : Nat; // initial 3000
-        dealerPpPerIcp : Nat;          // initial 4000
+        backerPpPerIcp : Nat;          // initial 4000
         referralL1Bps : Nat;           // basis points; initial 800 (= 8%)
         referralL2Bps : Nat;           // initial 500
         referralL3Bps : Nat;           // initial 200
@@ -102,24 +108,24 @@ persistent actor Self {
         observerIntervalSeconds : Nat; // initial 10
     };
 
-    /// Per-dealer cumulative ICP seen by the observer. Used to mint only
-    /// on deltas when dealers top up.
-    public type DealerSeen = Float;
+    /// Per-backer cumulative ICP seen by the observer. Used to mint only
+    /// on deltas when backers top up.
+    public type BackerSeen = Float;
 
     // ================================================================
-    // Backend canister interface (query-only; observer polls + referral lookups)
+    // ponzi_math canister interface (query-only; observer polls)
     // ================================================================
 
-    type BackendGamePlan = {
+    type PonziMathGamePlan = {
         #simple21Day;
         #compounding15Day;
         #compounding30Day;
     };
 
-    type BackendGameRecord = {
+    type PonziMathGameRecord = {
         id : Nat;
         player : Principal;
-        plan : BackendGamePlan;
+        plan : PonziMathGamePlan;
         amount : Float;
         startTime : Int;
         isCompounding : Bool;
@@ -129,23 +135,21 @@ persistent actor Self {
         totalWithdrawn : Float;
     };
 
-    type BackendDealerType = { #upstream; #downstream };
+    type PonziMathBackerType = { #seriesA; #seriesB };
 
-    type BackendDealerPosition = {
+    type PonziMathBackerPosition = {
         owner : Principal;
         amount : Float;
         entitlement : Float;
         startTime : Int;
         isActive : Bool;
-        name : Text;
-        dealerType : BackendDealerType;
+        backerType : PonziMathBackerType;
         firstDepositDate : ?Int;
     };
 
-    type BackendActor = actor {
-        getAllGames : shared query () -> async [BackendGameRecord];
-        getDealerPositions : shared query () -> async [BackendDealerPosition];
-        getReferrer : shared query (Principal) -> async ?Principal;
+    type PonziMathActor = actor {
+        getAllGames : shared query () -> async [PonziMathGameRecord];
+        getBackerPositions : shared query () -> async [PonziMathBackerPosition];
     };
 
     // ================================================================
@@ -165,14 +169,19 @@ persistent actor Self {
 
     // Admin state
     var adminPrincipal : ?Principal = null;
-    var backendPrincipal : ?Principal = null;
+    var ponziMathPrincipal : ?Principal = null;
+
+    // Referral chain — moved from backend during the ponzi_math extraction.
+    // Maps user → who referred them. First-wins, one-time, immutable per user.
+    // Referrals are PP-economy metadata; not money math.
+    var referralChain = principalMap.empty<Principal>();
 
     // Mint + economy configuration (mutable, admin-tunable)
     var mintConfig : MintConfig = {
         simple21DayPpPerIcp = 1000;
         compounding15DayPpPerIcp = 2000;
         compounding30DayPpPerIcp = 3000;
-        dealerPpPerIcp = 4000;
+        backerPpPerIcp = 4000;
         referralL1Bps = 800;
         referralL2Bps = 500;
         referralL3Bps = 200;
@@ -183,7 +192,7 @@ persistent actor Self {
 
     // Observer cursors
     var gameIdCursor : Nat = 0;                         // next unprocessed game id
-    var dealerSeen = principalMap.empty<DealerSeen>();  // cumulative ICP minted-for per dealer
+    var backerSeen = principalMap.empty<BackerSeen>();  // cumulative ICP minted-for per backer
 
     // Observer lock to prevent concurrent ticks
     transient var observerRunning : Bool = false;
@@ -204,11 +213,11 @@ persistent actor Self {
     // Initialization
     // ================================================================
 
-    public shared ({ caller }) func initialize(backendCanisterId : Principal) : async () {
+    public shared ({ caller }) func initialize(ponziMathCanisterId : Principal) : async () {
         switch (adminPrincipal) {
             case (null) {
                 adminPrincipal := ?caller;
-                backendPrincipal := ?backendCanisterId;
+                ponziMathPrincipal := ?ponziMathCanisterId;
                 if (natMap.size(shenaniganConfigs) == 0) {
                     initializeDefaultShenanigans();
                 };
@@ -218,9 +227,25 @@ persistent actor Self {
                 if (caller != admin) {
                     Debug.trap("Already initialized. Only admin can reconfigure.");
                 };
-                backendPrincipal := ?backendCanisterId;
+                ponziMathPrincipal := ?ponziMathCanisterId;
             };
         };
+    };
+
+    /// Idempotent referral registration. First call sets the chain entry;
+    /// subsequent calls for the same caller are no-ops. Self-referral rejected.
+    public shared ({ caller }) func registerReferral(referrer : Principal) : async () {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Anonymous principal not allowed") };
+        if (caller == referrer) { return };
+        switch (principalMap.get(referralChain, caller)) {
+            case (?_) { /* already set */ };
+            case null { referralChain := principalMap.put(referralChain, caller, referrer) };
+        };
+    };
+
+    /// One-hop lookup — returns the user's immediate referrer (L1) or null.
+    public query func getReferrer(user : Principal) : async ?Principal {
+        principalMap.get(referralChain, user);
     };
 
     func requireAdmin(caller : Principal) {
@@ -237,10 +262,10 @@ persistent actor Self {
         adminPrincipal := ?newAdmin;
     };
 
-    func getBackend() : BackendActor {
-        switch (backendPrincipal) {
-            case (null) { Debug.trap("Backend canister not configured") };
-            case (?p) { actor (Principal.toText(p)) : BackendActor };
+    func getPonziMath() : PonziMathActor {
+        switch (ponziMathPrincipal) {
+            case (null) { Debug.trap("ponzi_math canister not configured") };
+            case (?p) { actor (Principal.toText(p)) : PonziMathActor };
         };
     };
 
@@ -267,7 +292,7 @@ persistent actor Self {
         observerRunning := true;
         try {
             await processNewGames();
-            await processDealerDeltas();
+            await processBackerDeltas();
         } catch (e) {
             Debug.print("Observer tick error: " # Error.message(e));
         };
@@ -275,9 +300,9 @@ persistent actor Self {
     };
 
     func processNewGames() : async () {
-        let backend = getBackend();
-        let games = try { await backend.getAllGames() } catch (_) { [] };
-        let sorted = Array.sort<BackendGameRecord>(games, func(a, b) = Nat.compare(a.id, b.id));
+        let ponziMath = getPonziMath();
+        let games = try { await ponziMath.getAllGames() } catch (_) { [] };
+        let sorted = Array.sort<PonziMathGameRecord>(games, func(a, b) = Nat.compare(a.id, b.id));
         for (game in sorted.vals()) {
             if (game.id >= gameIdCursor) {
                 let ppPerIcp = switch (game.plan) {
@@ -302,27 +327,27 @@ persistent actor Self {
         };
     };
 
-    func processDealerDeltas() : async () {
-        let backend = getBackend();
-        let dealers = try { await backend.getDealerPositions() } catch (_) { [] };
-        for (dealer in dealers.vals()) {
-            let seen : Float = switch (principalMap.get(dealerSeen, dealer.owner)) {
+    func processBackerDeltas() : async () {
+        let ponziMath = getPonziMath();
+        let backers = try { await ponziMath.getBackerPositions() } catch (_) { [] };
+        for (backer in backers.vals()) {
+            let seen : Float = switch (principalMap.get(backerSeen, backer.owner)) {
                 case (null) { 0.0 };
                 case (?v) { v };
             };
-            if (dealer.amount > seen) {
-                let delta : Float = dealer.amount - seen;
-                let units = icpFloatToPpUnits(delta, mintConfig.dealerPpPerIcp);
-                let eventId = "dealer-" # Principal.toText(dealer.owner) # "-"
-                    # Float.toText(dealer.amount);
-                let res = await mintInternal(dealer.owner, units, eventId);
+            if (backer.amount > seen) {
+                let delta : Float = backer.amount - seen;
+                let units = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
+                let eventId = "backer-" # Principal.toText(backer.owner) # "-"
+                    # Float.toText(backer.amount);
+                let res = await mintInternal(backer.owner, units, eventId);
                 switch (res) {
                     case (#Ok(_)) {
-                        await cascadeReferralMint(dealer.owner, units, eventId);
-                        dealerSeen := principalMap.put(dealerSeen, dealer.owner, dealer.amount);
+                        await cascadeReferralMint(backer.owner, units, eventId);
+                        backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
                     };
                     case (#Err(msg)) {
-                        Debug.print("Dealer mint failed: " # msg);
+                        Debug.print("Backer mint failed: " # msg);
                     };
                 };
             };
@@ -333,15 +358,15 @@ persistent actor Self {
     /// cutover upgrade completes, before unpausing user traffic.
     public shared ({ caller }) func primeObserverCursors() : async () {
         requireAdmin(caller);
-        let backend = getBackend();
-        let games = await backend.getAllGames();
+        let ponziMath = getPonziMath();
+        let games = await ponziMath.getAllGames();
         var maxId : Nat = 0;
         for (g in games.vals()) { if (g.id >= maxId) { maxId := g.id + 1 } };
         gameIdCursor := maxId;
 
-        let dealers = await backend.getDealerPositions();
-        for (d in dealers.vals()) {
-            dealerSeen := principalMap.put(dealerSeen, d.owner, d.amount);
+        let backers = await ponziMath.getBackerPositions();
+        for (b in backers.vals()) {
+            backerSeen := principalMap.put(backerSeen, b.owner, b.amount);
         };
     };
 
@@ -636,22 +661,22 @@ persistent actor Self {
 
     /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
     /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
+    /// Lookups are local — referralChain lives in this canister.
     func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
         if (baseUnits == 0) return;
-        let backend = getBackend();
-        let l1Maybe = try { await backend.getReferrer(originUser) } catch (_) { null };
+        let l1Maybe = principalMap.get(referralChain, originUser);
         switch (l1Maybe) {
             case (null) {};
             case (?l1) {
                 let l1Units = baseUnits * mintConfig.referralL1Bps / 10_000;
                 let _ = await mintInternal(l1, l1Units, "referral-L1-" # eventId);
-                let l2Maybe = try { await backend.getReferrer(l1) } catch (_) { null };
+                let l2Maybe = principalMap.get(referralChain, l1);
                 switch (l2Maybe) {
                     case (null) {};
                     case (?l2) {
                         let l2Units = baseUnits * mintConfig.referralL2Bps / 10_000;
                         let _ = await mintInternal(l2, l2Units, "referral-L2-" # eventId);
-                        let l3Maybe = try { await backend.getReferrer(l2) } catch (_) { null };
+                        let l3Maybe = principalMap.get(referralChain, l2);
                         switch (l3Maybe) {
                             case (null) {};
                             case (?l3) {
@@ -871,13 +896,13 @@ persistent actor Self {
     public query func getObserverStatus() : async {
         running : Bool;
         gameIdCursor : Nat;
-        dealerSeenCount : Nat;
+        backerSeenCount : Nat;
         intervalSeconds : Nat;
     } {
         {
             running = observerTimerId != null;
             gameIdCursor;
-            dealerSeenCount = principalMap.size(dealerSeen);
+            backerSeenCount = principalMap.size(backerSeen);
             intervalSeconds = mintConfig.observerIntervalSeconds;
         };
     };
@@ -901,9 +926,9 @@ persistent actor Self {
         requireAdmin(caller);
         mintConfig := { mintConfig with compounding30DayPpPerIcp = v };
     };
-    public shared ({ caller }) func setDealerPpPerIcp(v : Nat) : async () {
+    public shared ({ caller }) func setBackerPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
-        mintConfig := { mintConfig with dealerPpPerIcp = v };
+        mintConfig := { mintConfig with backerPpPerIcp = v };
     };
     public shared ({ caller }) func setReferralBps(l1 : Nat, l2 : Nat, l3 : Nat) : async () {
         requireAdmin(caller);
