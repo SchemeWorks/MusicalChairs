@@ -1201,37 +1201,47 @@ persistent actor class PonziMath(initArgs : {
     // ========================================================================
 
     public query func getBackerPositions() : async [BackerPosition] {
-        Iter.toArray(principalMapNat.vals(backerPositions));
+        Iter.toArray(backerKeyMap.vals(backerPositions));
     };
 
     public query ({ caller }) func getBackerRepaymentBalance() : async Float {
-        switch (principalMapNat.get(backerRepayments, caller)) {
+        let a = switch (backerKeyMap.get(backerRepayments, (caller, #seriesA))) {
             case (null) { 0.0 };
             case (?b) { b };
         };
+        let b = switch (backerKeyMap.get(backerRepayments, (caller, #seriesB))) {
+            case (null) { 0.0 };
+            case (?v) { v };
+        };
+        a + b;
     };
 
     public query func getBackerRepaymentBalanceFor(user : Principal) : async Float {
-        switch (principalMapNat.get(backerRepayments, user)) {
+        let a = switch (backerKeyMap.get(backerRepayments, (user, #seriesA))) {
             case (null) { 0.0 };
             case (?b) { b };
         };
+        let b = switch (backerKeyMap.get(backerRepayments, (user, #seriesB))) {
+            case (null) { 0.0 };
+            case (?v) { v };
+        };
+        a + b;
     };
 
-    public query func getAllBackerRepayments() : async [(Principal, Float)] {
-        Iter.toArray(principalMapNat.entries(backerRepayments));
+    public query func getAllBackerRepayments() : async [(BackerKey, Float)] {
+        Iter.toArray(backerKeyMap.entries(backerRepayments));
     };
 
     public query func getTotalBackerDebt() : async Float {
         var total = 0.0;
-        for (b in principalMapNat.vals(backerPositions)) { total += b.entitlement };
+        for (b in backerKeyMap.vals(backerPositions)) { total += b.entitlement };
         total;
     };
 
     public query func getOldestSeriesABacker() : async ?BackerPosition {
         var oldest : ?BackerPosition = null;
         var oldestTime : Int = 0;
-        for (b in principalMapNat.vals(backerPositions)) {
+        for (b in backerKeyMap.vals(backerPositions)) {
             if (b.backerType == #seriesA) {
                 switch (b.firstDepositDate) {
                     case (null) {};
