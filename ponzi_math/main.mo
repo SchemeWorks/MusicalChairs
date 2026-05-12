@@ -436,4 +436,56 @@ persistent actor class PonziMath(initArgs : {
         nextGameId := 0;
         recordLedger(#gameReset({ reason; seedReserveCarried = carried }));
     };
+
+    // ========================================================================
+    // Earnings calculations (public queries — frontend passes the GameRecord)
+    // ========================================================================
+
+    public query func calculateEarnings(game : GameRecord) : async Float {
+        let dailyRate = switch (game.plan) {
+            case (#simple21Day) { 0.11 };
+            case (#compounding15Day) { 0.12 };
+            case (#compounding30Day) { 0.09 };
+        };
+        let maxDurationSeconds = switch (game.plan) {
+            case (#simple21Day) { 21.0 * 86400.0 };
+            case (#compounding15Day) { 15.0 * 86400.0 };
+            case (#compounding30Day) { 30.0 * 86400.0 };
+        };
+        let timeAlreadyAccounted = Float.fromInt((game.lastUpdateTime - game.startTime) / 1_000_000_000);
+        let remainingAllowedTime = Float.max(0.0, maxDurationSeconds - timeAlreadyAccounted);
+        let timeSinceLastUpdate = Float.fromInt((Time.now() - game.lastUpdateTime) / 1_000_000_000);
+        let timeElapsed = Float.min(timeSinceLastUpdate, remainingAllowedTime);
+        let earnings = game.amount * dailyRate * (timeElapsed / 86400.0);
+        roundToEightDecimals(game.accumulatedEarnings + earnings);
+    };
+
+    public query func calculateCompoundedEarnings(game : GameRecord) : async Float {
+        if (game.plan != #compounding15Day) {
+            Debug.trap("This calculation is only for the 15-day compounding plan");
+        };
+        let timeElapsed = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+        let daysElapsed = Float.min(timeElapsed / 86400.0, 15.0);
+        let dailyRate = 0.12;
+        let compoundedEarnings = game.amount * (Float.pow(1.0 + dailyRate, daysElapsed) - 1.0);
+        roundToEightDecimals(compoundedEarnings);
+    };
+
+    public query func calculateCompounded30DayEarnings(game : GameRecord) : async Float {
+        if (game.plan != #compounding30Day) {
+            Debug.trap("This calculation is only for the 30-day compounding plan");
+        };
+        let timeElapsed = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+        let daysElapsed = Float.min(timeElapsed / 86400.0, 30.0);
+        let dailyRate = 0.09;
+        let compoundedEarnings = game.amount * (Float.pow(1.0 + dailyRate, daysElapsed) - 1.0);
+        roundToEightDecimals(compoundedEarnings);
+    };
+
+    public query func calculateCompoundedROI() : async Float {
+        let dailyRate = 0.12;
+        let days = 15.0;
+        let roi = Float.pow(1.0 + dailyRate, days) - 1.0;
+        roundToEightDecimals(roi);
+    };
 };
