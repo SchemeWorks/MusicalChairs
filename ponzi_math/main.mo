@@ -208,4 +208,78 @@ persistent actor class PonziMath(initArgs : {
     public query func isCriticalSectionBusy() : async Bool {
         globalCriticalLock;
     };
+
+    // ========================================================================
+    // Validation + formatting helpers
+    // ========================================================================
+
+    func requireAuthenticated(caller : Principal) {
+        if (Principal.isAnonymous(caller)) {
+            Debug.trap("Anonymous principal not allowed");
+        };
+    };
+
+    func validateAmount(amount : Float) {
+        if (Float.isNaN(amount)) { Debug.trap("Amount cannot be NaN") };
+        if (Float.isNaN(amount - amount) and not Float.isNaN(amount)) {
+            Debug.trap("Amount must be finite");
+        };
+        if (amount < 0.0) { Debug.trap("Amount cannot be negative") };
+    };
+
+    func roundToEightDecimals(value : Float) : Float {
+        let multiplier = 100000000.0;
+        Float.fromInt(Float.toInt(value * multiplier)) / multiplier;
+    };
+
+    func validateEightDecimals(value : Float) : Bool {
+        let multiplier = 100000000.0;
+        let rounded = Float.fromInt(Float.toInt(value * multiplier)) / multiplier;
+        rounded == value;
+    };
+
+    func formatICP(value : Float) : Text {
+        let intValue = Float.toInt(value);
+        if (Float.fromInt(intValue) == value) {
+            Int.toText(intValue);
+        } else {
+            let textValue = Float.toText(value);
+            let parts = Iter.toArray(Text.split(textValue, #char '.'));
+            switch (parts.size()) {
+                case (1) { parts[0] };
+                case (2) {
+                    let trimmed = Text.trimEnd(parts[1], #char '0');
+                    if (trimmed == "") { parts[0] } else { parts[0] # "." # trimmed };
+                };
+                case (_) { textValue };
+            };
+        };
+    };
+
+    func transferFromErrorMessage(err : Ledger.TransferFromError) : Text {
+        switch (err) {
+            case (#InsufficientFunds(_)) { "Insufficient ICP balance" };
+            case (#InsufficientAllowance(_)) { "Please approve the transfer first" };
+            case (#BadFee(_)) { "Bad fee" };
+            case (#BadBurn(_)) { "Bad burn" };
+            case (#TooOld) { "Transaction too old" };
+            case (#CreatedInFuture(_)) { "Transaction created in future" };
+            case (#Duplicate(_)) { "Duplicate transaction" };
+            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+            case (#GenericError(e)) { "Error: " # e.message };
+        };
+    };
+
+    func transferErrorMessage(err : Ledger.TransferError) : Text {
+        switch (err) {
+            case (#InsufficientFunds(_)) { "Canister has insufficient ICP. Please contact support." };
+            case (#BadFee(_)) { "Bad fee" };
+            case (#BadBurn(_)) { "Bad burn" };
+            case (#TooOld) { "Transaction too old" };
+            case (#CreatedInFuture(_)) { "Transaction created in future" };
+            case (#Duplicate(_)) { "Duplicate transaction" };
+            case (#TemporarilyUnavailable) { "Ledger temporarily unavailable" };
+            case (#GenericError(e)) { "Error: " # e.message };
+        };
+    };
 };
