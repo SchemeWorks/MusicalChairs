@@ -833,4 +833,157 @@ persistent actor class PonziMath(initArgs : {
             };
         };
     };
+
+    // ========================================================================
+    // settleCompoundingGame — compounding-plan payout at maturity
+    // ========================================================================
+
+    public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
+        requireAuthenticated(caller);
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+        switch (natMap.get(gameRecords, gameId)) {
+            case (null) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                #Err("Game not found");
+            };
+            case (?game) {
+                if (game.player != caller) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Unauthorized: Only the game owner can settle this game");
+                };
+                if (not game.isCompounding) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
+                };
+                if (not game.isActive) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Game is already settled");
+                };
+
+                let timeElapsedSec = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+                let daysElapsed = timeElapsedSec / 86400.0;
+                let maturityDaysOpt : ?Float = switch (game.plan) {
+                    case (#compounding15Day) { ?15.0 };
+                    case (#compounding30Day) { ?30.0 };
+                    case (#simple21Day) { null };
+                };
+                let maturityDays = switch (maturityDaysOpt) {
+                    case (null) {
+                        releaseGlobalLock();
+                        releaseCallerLock(caller);
+                        return #Err("Simple games cannot be settled this way");
+                    };
+                    case (?d) { d };
+                };
+                if (daysElapsed < maturityDays) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
+                };
+
+                let dailyRate = switch (game.plan) {
+                    case (#compounding15Day) { 0.12 };
+                    case (#compounding30Day) { 0.09 };
+                    case (#simple21Day) { 0.0 };
+                };
+                let earnings = game.amount * (Float.pow(1.0 + dailyRate, maturityDays) - 1.0);
+                let exitToll = calculateExitToll(game, earnings);
+                let netEarnings = roundToEightDecimals(earnings - exitToll);
+
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalRepayments = backerRepayments;
+                let originalSeedReserve = roundSeedReserve;
+
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
+
+                if (isInsolvent and pot <= 0.0) {
+                    triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Game reset: pot is empty");
+                };
+
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                distributeExitToll(actualToll);
+
+                let settled : GameRecord = {
+                    game with
+                    isActive = false;
+                    accumulatedEarnings = actualNetEarnings;
+                    totalWithdrawn = actualNetEarnings;
+                    lastUpdateTime = Time.now();
+                };
+                gameRecords := natMap.put(gameRecords, gameId, settled);
+                platformStats := {
+                    platformStats with
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
+                    activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
+                };
+
+                let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                if (payoutE8s > 0) {
+                    let transferResult = try {
+                        await icpLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = { owner = caller; subaccount = null };
+                            amount = payoutE8s;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        });
+                    } catch (e) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        backerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
+                        releaseCallerLock(caller);
+                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
+                    };
+                    switch (transferResult) {
+                        case (#Err(err)) {
+                            gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                            platformStats := originalStats;
+                            backerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
+                            releaseCallerLock(caller);
+                            return #Err(transferErrorMessage(err));
+                        };
+                        case (#Ok(_)) {};
+                    };
+                };
+
+                recordLedger(#settlement({
+                    player = caller;
+                    gameId;
+                    grossEarnings = earnings;
+                    toll = actualToll;
+                    netToPlayer = actualNetEarnings;
+                    potDeduction = actualPotDeduction;
+                    isInsolvent;
+                }));
+
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
+                };
+
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                #Ok(actualNetEarnings);
+            };
+        };
+    };
 };
