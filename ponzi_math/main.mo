@@ -702,7 +702,7 @@ persistent actor class PonziMath(initArgs : {
 
             let entitlement = amount * 1.24; // Series A 24% bonus
 
-            switch (principalMapNat.get(backerPositions, caller)) {
+            switch (backerKeyMap.get(backerPositions, (caller, #seriesA))) {
                 case (null) {
                     let newBacker : BackerPosition = {
                         owner = caller;
@@ -713,7 +713,7 @@ persistent actor class PonziMath(initArgs : {
                         backerType = #seriesA;
                         firstDepositDate = ?Time.now();
                     };
-                    backerPositions := principalMapNat.put(backerPositions, caller, newBacker);
+                    backerPositions := backerKeyMap.put(backerPositions, (caller, #seriesA), newBacker);
                 };
                 case (?existing) {
                     let updated : BackerPosition = {
@@ -721,7 +721,7 @@ persistent actor class PonziMath(initArgs : {
                         amount = existing.amount + amount;
                         entitlement = existing.entitlement + entitlement;
                     };
-                    backerPositions := principalMapNat.put(backerPositions, caller, updated);
+                    backerPositions := backerKeyMap.put(backerPositions, (caller, #seriesA), updated);
                 };
             };
 
