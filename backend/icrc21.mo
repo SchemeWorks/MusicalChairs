@@ -64,12 +64,9 @@ module {
     public func consentMessage(request : ConsentMessageRequest) : ConsentMessageResponse {
         let methodLabel = switch (request.method) {
             case "saveCallerUserProfile" { ?"Set Display Name" };
-            case "createGame" { ?"Open Investment Position" };
-            case "withdrawEarnings" { ?"Withdraw Earnings" };
-            case "settleCompoundingGame" { ?"Settle Compounding Game" };
-            case "addDealerMoney" { ?"Fund as Backer" };
-            case "claimDealerRepayment" { ?"Claim Backer Repayment" };
             case "initializeAccessControl" { ?"Initialize Account" };
+            case "payManagement" { ?"Pay Management (Cover-Charge Pay-Out)" };
+            case "setPonziMathPrincipal" { ?"Set Ponzi Math Canister" };
             case _ { null };
         };
 
