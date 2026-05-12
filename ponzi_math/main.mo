@@ -409,4 +409,31 @@ persistent actor class PonziMath(initArgs : {
             toAllBackers = toAll;
         }));
     };
+
+    // ========================================================================
+    // Game reset (called on insolvency)
+    // ========================================================================
+
+    func triggerGameReset(reason : Text) {
+        let resetRecord : GameResetRecord = {
+            resetTime = Time.now();
+            reason;
+        };
+        gameResetHistory := intMap.put(gameResetHistory, Time.now(), resetRecord);
+        gameRecords := natMap.empty<GameRecord>();
+
+        // Carry the seed reserve into the new round's pot.
+        let newPot = roundSeedReserve;
+        let carried = newPot;
+        roundSeedReserve := 0.0;
+        platformStats := {
+            totalDeposits = 0.0;
+            totalWithdrawals = 0.0;
+            activeGames = 0;
+            potBalance = newPot;
+            daysActive = 0;
+        };
+        nextGameId := 0;
+        recordLedger(#gameReset({ reason; seedReserveCarried = carried }));
+    };
 };
