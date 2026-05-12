@@ -1283,4 +1283,117 @@ persistent actor class PonziMath(initArgs : {
             await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
         } catch (_) { 0 };
     };
+
+    // ========================================================================
+    // PRE-BLACKHOLE TEST HATCH — DELETE THIS ENTIRE BLOCK BEFORE BLACKHOLING.
+    // Gated on caller == TEST_ADMIN (init arg).
+    // Same flow as createGame but with a caller-specified startTime, enabling
+    // tests of matured-position payouts.
+    // ========================================================================
+
+    public shared ({ caller }) func createBackdatedGame(
+        plan : GamePlan,
+        amount : Float,
+        isCompounding : Bool,
+        startTimeNanos : Int,
+    ) : async { #Ok : Nat; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        requireAuthenticated(caller);
+        validateAmount(amount);
+        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
+        if (not validateEightDecimals(amount)) {
+            return #Err("Amount cannot have more than 8 decimal places");
+        };
+
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+
+        let selfPrincipal = Principal.fromActor(Self);
+        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseGlobalLock();
+            releaseCallerLock(caller);
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err(transferFromErrorMessage(err));
+            };
+            case (#Ok(_)) {};
+        };
+
+        let coverCharge = amount * COVER_CHARGE_RATE;
+        let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
+        coverChargeBalance += coverChargeE8s;
+        let netAmount = amount - coverCharge;
+
+        let gameId = nextGameId;
+        nextGameId += 1;
+
+        if (coverChargeE8s > 0) {
+            recordLedger(#coverChargeAccrued({ gameId; player = caller; amountE8s = coverChargeE8s }));
+        };
+
+        let newGame : GameRecord = {
+            id = gameId;
+            player = caller;
+            plan;
+            amount;
+            startTime = startTimeNanos;
+            isCompounding;
+            isActive = true;
+            lastUpdateTime = startTimeNanos;
+            accumulatedEarnings = 0.0;
+            totalWithdrawn = 0.0;
+        };
+        gameRecords := natMap.put(gameRecords, gameId, newGame);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + amount;
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + netAmount;
+        };
+
+        recordLedger(#backdatedGameCreated({
+            admin = caller;
+            player = caller;
+            gameId;
+            startTime = startTimeNanos;
+            amount;
+        }));
+
+        releaseGlobalLock();
+        releaseCallerLock(caller);
+        #Ok(gameId);
+    };
+
+    // ========================================================================
+    // ICRC-21 consent messages, ICRC-28 trusted origins, ICRC-10 standards
+    // ========================================================================
+
+    public shared func icrc21_canister_call_consent_message(request : Icrc21.ConsentMessageRequest) : async Icrc21.ConsentMessageResponse {
+        Icrc21.consentMessage(request);
+    };
+
+    public query func icrc28_trusted_origins() : async Icrc21.TrustedOriginsResponse {
+        Icrc21.trustedOrigins();
+    };
+
+    public query func icrc10_supported_standards() : async [Icrc21.StandardRecord] {
+        Icrc21.supportedStandards();
+    };
 };
