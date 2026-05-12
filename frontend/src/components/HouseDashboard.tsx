@@ -320,10 +320,6 @@ function BackerPositions() {
         </div>
       </div>
 
-      {/* Info card */}
-      <BackerInfoCard />
-      <div className="mc-border-subtle border-t my-6" />
-
       {/* Backer list */}
       {backers.length > 0 ? (
         <div className="space-y-3">
@@ -410,6 +406,10 @@ function BackerPositions() {
           <p className="text-sm mc-text-dim">Fund the project above to become the first Series A backer.</p>
         </div>
       )}
+
+      <div className="mc-border-subtle border-t my-6" />
+      {/* Info card */}
+      <BackerInfoCard />
 
     </div>
   );
