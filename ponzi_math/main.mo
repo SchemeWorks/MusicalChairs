@@ -296,4 +296,26 @@ persistent actor class PonziMath(initArgs : {
         generalLedger := natMap.put(generalLedger, nextGeneralLedgerId, entry);
         nextGeneralLedgerId += 1;
     };
+
+    // ========================================================================
+    // Exit toll calculation
+    // Simple: 7% (< 3 days), 5% (3-10), 3% (> 10)
+    // Compounding: 9% (15-day plan), 13% (30-day plan)
+    // ========================================================================
+
+    func calculateExitToll(game : GameRecord, earnings : Float) : Float {
+        if (game.isCompounding) {
+            switch (game.plan) {
+                case (#compounding15Day) { earnings * 0.09 };
+                case (#compounding30Day) { earnings * 0.13 };
+                case (#simple21Day) { 0.0 };
+            };
+        } else {
+            let elapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+            let elapsedDays = elapsedSeconds / 86400.0;
+            if (elapsedDays < 3.0) { earnings * 0.07 }
+            else if (elapsedDays < 10.0) { earnings * 0.05 }
+            else { earnings * 0.03 };
+        };
+    };
 };
