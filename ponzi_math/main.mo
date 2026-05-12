@@ -986,4 +986,117 @@ persistent actor class PonziMath(initArgs : {
             };
         };
     };
+
+    // ========================================================================
+    // claimBackerRepayment — transfers backer's accrued repayment balance
+    // ========================================================================
+
+    public shared ({ caller }) func claimBackerRepayment() : async { #Ok : Float; #Err : Text } {
+        requireAuthenticated(caller);
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+        let balanceOpt : ?Float = switch (principalMapNat.get(backerRepayments, caller)) {
+            case (null) { null };
+            case (?b) { if (b <= 0.0) { null } else { ?b } };
+        };
+        let balance = switch (balanceOpt) {
+            case (null) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err("No repayment balance to claim");
+            };
+            case (?b) { b };
+        };
+
+        backerRepayments := principalMapNat.put(backerRepayments, caller, 0.0);
+
+        let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = caller; subaccount = null };
+                amount = balanceE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+            releaseGlobalLock();
+            releaseCallerLock(caller);
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err(transferErrorMessage(err));
+            };
+            case (#Ok(_)) {};
+        };
+
+        recordLedger(#backerRepaymentClaim({ backer = caller; amount = balance }));
+
+        releaseGlobalLock();
+        releaseCallerLock(caller);
+        #Ok(balance);
+    };
+
+    // ========================================================================
+    // sweepCoverCharges — gated on backend canister principal.
+    // Transfers full coverChargeBalance to BACKEND_PRINCIPAL.
+    // ========================================================================
+
+    public shared ({ caller }) func sweepCoverCharges() : async { #Ok : Nat; #Err : Text } {
+        if (caller != BACKEND_PRINCIPAL) {
+            return #Err("Unauthorized: only backend canister can sweep");
+        };
+        if (coverChargeBalance == 0) {
+            return #Err("Nothing to sweep");
+        };
+        if (coverChargeBalance <= Ledger.ICP_TRANSFER_FEE) {
+            return #Err("Accumulated balance below transfer fee");
+        };
+
+        acquireGlobalLock();
+
+        let amount = coverChargeBalance;
+        let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+
+        coverChargeBalance := 0;
+
+        let transferResult = try {
+            await icpLedger.icrc1_transfer({
+                from_subaccount = null;
+                to = { owner = BACKEND_PRINCIPAL; subaccount = null };
+                amount = transferAmount;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            coverChargeBalance := amount;
+            releaseGlobalLock();
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                coverChargeBalance := amount;
+                releaseGlobalLock();
+                return #Err(transferErrorMessage(err));
+            };
+            case (#Ok(blockIndex)) {
+                recordLedger(#coverChargeSwept({
+                    amountE8s = amount;
+                    toBackend = BACKEND_PRINCIPAL;
+                    blockIndex;
+                }));
+                releaseGlobalLock();
+                #Ok(blockIndex);
+            };
+        };
+    };
 };
