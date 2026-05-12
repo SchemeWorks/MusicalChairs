@@ -318,4 +318,95 @@ persistent actor class PonziMath(initArgs : {
             else { earnings * 0.03 };
         };
     };
+
+    // ========================================================================
+    // Backer repayment crediting + 35/25/40 exit-toll distribution
+    // ========================================================================
+
+    func creditBackerRepayment(backer : Principal, amount : Float) {
+        let current = switch (principalMapNat.get(backerRepayments, backer)) {
+            case (null) { 0.0 };
+            case (?existing) { existing };
+        };
+        backerRepayments := principalMapNat.put(backerRepayments, backer, current + amount);
+    };
+
+    // 50% of the toll seeds the next round (routed to roundSeedReserve, OUT of
+    // the pot). The other 50% credits backer repayment balances via 35/25/40.
+    func distributeExitToll(tollAmount : Float) {
+        let seedAmount = tollAmount * 0.5;
+        let backerRepaymentAmount = tollAmount * 0.5;
+        roundSeedReserve += seedAmount;
+
+        let allBackers = Iter.toArray(principalMapNat.vals(backerPositions));
+        if (allBackers.size() == 0) {
+            // No backers yet — backer half also flows to seed reserve (not pot).
+            roundSeedReserve += backerRepaymentAmount;
+            recordLedger(#tollDistribution({
+                tollAmount;
+                toSeedReserve = tollAmount;
+                toOldestSeriesA = 0.0;
+                toOtherSeriesA = 0.0;
+                toAllBackers = 0.0;
+            }));
+            return;
+        };
+
+        let seriesABackers = List.toArray(
+            List.filter(
+                List.fromArray(allBackers),
+                func(b : BackerPosition) : Bool { b.backerType == #seriesA },
+            )
+        );
+
+        var oldestBacker : ?BackerPosition = null;
+        var oldestTime : Int = 0;
+        for (b in seriesABackers.vals()) {
+            switch (b.firstDepositDate) {
+                case (null) {};
+                case (?date) {
+                    if (oldestBacker == null or date < oldestTime) {
+                        oldestBacker := ?b;
+                        oldestTime := date;
+                    };
+                };
+            };
+        };
+
+        let toOldest : Float = backerRepaymentAmount * 0.35;
+        switch (oldestBacker) {
+            case (null) {};
+            case (?b) { creditBackerRepayment(b.owner, toOldest) };
+        };
+
+        let otherSeriesA = List.toArray(
+            List.filter(
+                List.fromArray(seriesABackers),
+                func(b : BackerPosition) : Bool {
+                    switch (oldestBacker) {
+                        case (null) { true };
+                        case (?oldest) { b.owner != oldest.owner };
+                    };
+                },
+            )
+        );
+        var toOthers : Float = 0.0;
+        if (otherSeriesA.size() > 0) {
+            let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
+            toOthers := perBacker * Float.fromInt(otherSeriesA.size());
+            for (b in otherSeriesA.vals()) { creditBackerRepayment(b.owner, perBacker) };
+        };
+
+        let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
+        let toAll = perAll * Float.fromInt(allBackers.size());
+        for (b in allBackers.vals()) { creditBackerRepayment(b.owner, perAll) };
+
+        recordLedger(#tollDistribution({
+            tollAmount;
+            toSeedReserve = seedAmount;
+            toOldestSeriesA = toOldest;
+            toOtherSeriesA = toOthers;
+            toAllBackers = toAll;
+        }));
+    };
 };
