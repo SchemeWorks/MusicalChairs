@@ -2,6 +2,7 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export type BackerKey = [Principal, BackerType];
 export interface BackerPosition {
   'startTime' : bigint,
   'firstDepositDate' : [] | [bigint],
@@ -74,6 +75,13 @@ export type GeneralLedgerEvent = {
     }
   } |
   { 'gameReset' : { 'reason' : string, 'seedReserveCarried' : number } } |
+  {
+    'seriesBPromotion' : {
+      'owner' : Principal,
+      'underwater' : number,
+      'entitlement' : number,
+    }
+  } |
   {
     'deposit' : {
       'netToPot' : number,
@@ -157,6 +165,11 @@ export interface PonziMath {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'adminMergeBackerPosition' : ActorMethod<
+    [Principal, Principal],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedEarnings' : ActorMethod<[GameRecord], number>,
   'calculateCompoundedROI' : ActorMethod<[], number>,
@@ -179,7 +192,7 @@ export interface PonziMath {
   >,
   'getActiveGameCount' : ActorMethod<[], bigint>,
   'getAllActiveGames' : ActorMethod<[], Array<GameRecord>>,
-  'getAllBackerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
+  'getAllBackerRepayments' : ActorMethod<[], Array<[BackerKey, number]>>,
   'getAllGames' : ActorMethod<[], Array<GameRecord>>,
   'getAvailableBalance' : ActorMethod<[], number>,
   'getBackerPositions' : ActorMethod<[], Array<BackerPosition>>,

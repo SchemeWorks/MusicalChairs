@@ -8,7 +8,7 @@ import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
-import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
+import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
@@ -138,7 +138,7 @@ export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 export function useGetAllBackerRepayments() {
   const actor = useReadPonziMath();
 
-  return useQuery<Array<[Principal, number]>>({
+  return useQuery<Array<[BackerKey, number]>>({
     queryKey: ['allBackerRepayments'],
     queryFn: async () => actor.getAllBackerRepayments(),
     refetchInterval: 5000,

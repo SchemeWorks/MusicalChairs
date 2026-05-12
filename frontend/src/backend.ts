@@ -15,6 +15,7 @@ export type {
   PlatformStats,
   GameResetRecord,
   BackerPosition,
+  BackerKey,
   GeneralLedgerEntry,
   GeneralLedgerEvent,
   _SERVICE as PonziMathService,

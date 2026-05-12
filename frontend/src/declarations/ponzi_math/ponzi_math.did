@@ -10,6 +10,11 @@ type PonziMath =
                                            Err: text;
                                            Ok: nat;
                                          });
+   adminMergeBackerPosition: (from: principal, to: principal) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
    calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
    calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
    calculateCompoundedROI: () -> (float64) query;
@@ -32,7 +37,7 @@ type PonziMath =
    getActiveGameCount: () -> (nat) query;
    getAllActiveGames: () -> (vec GameRecord) query;
    getAllBackerRepayments: () -> (vec record {
-                                        principal;
+                                        BackerKey;
                                         float64;
                                       }) query;
    getAllGames: () -> (vec GameRecord) query;
@@ -143,6 +148,12 @@ type GeneralLedgerEvent =
                 reason: text;
                 seedReserveCarried: float64;
               };
+   seriesBPromotion:
+    record {
+      entitlement: float64;
+      owner: principal;
+      underwater: float64;
+    };
    settlement:
     record {
       gameId: nat;
@@ -255,6 +266,11 @@ type BackerPosition =
    isActive: bool;
    owner: principal;
    startTime: int;
+ };
+type BackerKey = 
+ record {
+   principal;
+   BackerType;
  };
 service : (initArgs: record {
                        backendPrincipal: principal;
