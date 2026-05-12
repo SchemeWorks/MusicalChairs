@@ -1306,7 +1306,7 @@ export const useSetCompounding15 = () =>
 export const useSetCompounding30 = () =>
   useMintConfigSetter<[bigint]>((a, [v]) => a.setCompounding30DayPpPerIcp(v));
 export const useSetDealerMultiplier = () =>
-  useMintConfigSetter<[bigint]>((a, [v]) => a.setDealerPpPerIcp(v));
+  useMintConfigSetter<[bigint]>((a, [v]) => a.setBackerPpPerIcp(v));
 export const useSetReferralBps = () =>
   useMintConfigSetter<[bigint, bigint, bigint]>((a, [l1, l2, l3]) => a.setReferralBps(l1, l2, l3));
 export const useSetMinDeposit = () =>
@@ -1478,8 +1478,7 @@ export function useRegisterReferral() {
   return useMutation({
     mutationFn: async (referrer: Principal) => {
       if (!actor) throw new Error('Shenanigans actor not available');
-      // registerReferral may not be in the generated d.ts yet — cast to any
-      await (actor as any).registerReferral(referrer);
+      await actor.registerReferral(referrer);
     },
     // No cache invalidation needed — this is a fire-and-forget registration
   });

@@ -488,7 +488,7 @@ function MintRulesSection() {
     setSimpleVal(config.simple21DayPpPerIcp.toString());
     setC15Val(config.compounding15DayPpPerIcp.toString());
     setC30Val(config.compounding30DayPpPerIcp.toString());
-    setDealerVal(config.dealerPpPerIcp.toString());
+    setDealerVal(config.backerPpPerIcp.toString());
     setL1(config.referralL1Bps.toString());
     setL2(config.referralL2Bps.toString());
     setL3(config.referralL3Bps.toString());
@@ -610,8 +610,8 @@ function ObserverStatusSection() {
             <div className="font-bold mc-text-primary">{status.gameIdCursor.toString()}</div>
           </div>
           <div className="mc-card p-2 text-center">
-            <div className="mc-label mb-1">Dealers tracked</div>
-            <div className="font-bold mc-text-primary">{status.dealerSeenCount.toString()}</div>
+            <div className="mc-label mb-1">Backers tracked</div>
+            <div className="font-bold mc-text-primary">{status.backerSeenCount.toString()}</div>
           </div>
           <div className="mc-card p-2 text-center">
             <div className="mc-label mb-1">Interval</div>

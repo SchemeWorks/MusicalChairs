@@ -13,12 +13,12 @@ export interface CashOutEntry {
 export interface MintConfig {
   'compounding15DayPpPerIcp' : bigint,
   'minDepositPp' : bigint,
-  'dealerPpPerIcp' : bigint,
   'compounding30DayPpPerIcp' : bigint,
   'referralL1Bps' : bigint,
   'referralL2Bps' : bigint,
   'referralL3Bps' : bigint,
   'observerIntervalSeconds' : bigint,
+  'backerPpPerIcp' : bigint,
   'cashOutDelaySeconds' : bigint,
   'simple21DayPpPerIcp' : bigint,
 }
@@ -112,12 +112,16 @@ export interface _SERVICE {
     {
       'gameIdCursor' : bigint,
       'intervalSeconds' : bigint,
-      'dealerSeenCount' : bigint,
       'running' : boolean,
+      'backerSeenCount' : bigint,
     }
   >,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
+  /**
+   * / One-hop lookup — returns the user's immediate referrer (L1) or null.
+   */
+  'getReferrer' : ActorMethod<[Principal], [] | [Principal]>,
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
   'getShenaniganStats' : ActorMethod<[], ShenaniganStats>,
   /**
@@ -134,6 +138,11 @@ export interface _SERVICE {
    * / cutover upgrade completes, before unpausing user traffic.
    */
   'primeObserverCursors' : ActorMethod<[], undefined>,
+  /**
+   * / Idempotent referral registration. First call sets the chain entry;
+   * / subsequent calls for the same caller are no-ops. Self-referral rejected.
+   */
+  'registerReferral' : ActorMethod<[Principal], undefined>,
   'requestCashOut' : ActorMethod<
     [bigint],
     { 'Ok' : bigint } |
@@ -150,10 +159,10 @@ export interface _SERVICE {
     [Array<ShenaniganConfig>],
     undefined
   >,
+  'setBackerPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setCashOutDelaySeconds' : ActorMethod<[bigint], undefined>,
   'setCompounding15DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setCompounding30DayPpPerIcp' : ActorMethod<[bigint], undefined>,
-  'setDealerPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
   'setReferralBps' : ActorMethod<[bigint, bigint, bigint], undefined>,
