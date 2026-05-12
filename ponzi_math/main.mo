@@ -373,12 +373,6 @@ persistent actor class PonziMath(initArgs : {
             };
         };
 
-        let toOldest : Float = backerRepaymentAmount * 0.35;
-        switch (oldestBacker) {
-            case (null) {};
-            case (?b) { creditBackerRepayment(b.owner, toOldest) };
-        };
-
         let otherSeriesA = List.toArray(
             List.filter(
                 List.fromArray(seriesABackers),
@@ -390,6 +384,20 @@ persistent actor class PonziMath(initArgs : {
                 },
             )
         );
+
+        // If there's only one Series A backer (no "others"), the 25% portion
+        // also goes to that lone backer. Total to oldest in that case: 60%.
+        let toOldest : Float =
+            if (otherSeriesA.size() == 0) {
+                backerRepaymentAmount * 0.60;
+            } else {
+                backerRepaymentAmount * 0.35;
+            };
+        switch (oldestBacker) {
+            case (null) {};
+            case (?b) { creditBackerRepayment(b.owner, toOldest) };
+        };
+
         var toOthers : Float = 0.0;
         if (otherSeriesA.size() > 0) {
             let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
