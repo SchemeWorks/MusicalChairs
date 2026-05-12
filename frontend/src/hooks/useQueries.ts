@@ -2,18 +2,19 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useReadActor } from './useReadActor';
 import { useShenaniganActor } from './useShenaniganActor';
+import { usePonziMathActor } from './usePonziMathActor';
+import { useReadPonziMath } from './useReadPonziMath';
 import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
-import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, DealerPosition as BackerPosition, HouseLedgerRecord, ShenaniganConfig } from '../backend';
-// Re-export backend's DealerPosition as BackerPosition for the rest of the app
-export type { BackerPosition };
+import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
-import { idlFactory } from '../declarations/backend';
-import type { _SERVICE } from '../declarations/backend';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
+
+// ponzi_math canister ID (matches the constant in usePonziMathActor.ts)
+const PONZI_MATH_CANISTER_ID = 'REPLACE_WITH_PONZI_MATH_CANISTER_ID';
 
 // Anonymous ledger actor for balance queries. icrc1_balance_of is a public
 // query — no identity needed. Cached at module scope so all callers share
@@ -69,7 +70,7 @@ export function useSaveUserProfile() {
 
 // Game Statistics Queries
 export function useGetGameStats() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
 
   return useQuery<PlatformStats>({
     queryKey: ['gameStats'],
@@ -80,7 +81,7 @@ export function useGetGameStats() {
 
 // Public stats — no auth required, uses read actor for splash page
 export function useGetPublicStats() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
   return useQuery<PlatformStats>({
     queryKey: ['publicStats'],
     queryFn: async () => actor.getPlatformStats(),
@@ -91,7 +92,7 @@ export function useGetPublicStats() {
 
 // Deposit Limits and Rate Limiting Queries
 export function useGetMaxDepositLimit() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
 
   return useQuery<number>({
     queryKey: ['maxDepositLimit'],
@@ -101,7 +102,7 @@ export function useGetMaxDepositLimit() {
 }
 
 export function useCheckDepositRateLimit() {
-  const { actor, isFetching: actorFetching } = useActor();
+  const { actor, isFetching: actorFetching } = usePonziMathActor();
   const { walletType } = useWallet();
 
   return useQuery<boolean>({
@@ -117,14 +118,14 @@ export function useCheckDepositRateLimit() {
 
 // Backer Repayment Balance Query
 export function useGetBackerRepaymentBalance() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
   const { principal } = useWallet();
 
   return useQuery<number>({
     queryKey: ['backerRepaymentBalance', principal],
     queryFn: async () => {
       if (!principal) throw new Error('No principal');
-      return actor.getDealerRepaymentBalanceFor(Principal.fromText(principal));
+      return actor.getBackerRepaymentBalanceFor(Principal.fromText(principal));
     },
     enabled: !!principal,
     refetchInterval: 5000,
@@ -135,76 +136,76 @@ export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 
 // All Backer Repayment Balances (public — matches backer roster visibility)
 export function useGetAllBackerRepayments() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
 
   return useQuery<Array<[Principal, number]>>({
     queryKey: ['allBackerRepayments'],
-    queryFn: async () => actor.getAllDealerRepayments(),
+    queryFn: async () => actor.getAllBackerRepayments(),
     refetchInterval: 5000,
   });
 }
 
-// House Ledger Queries with enhanced error handling
-export function useGetHouseLedger() {
-  const actor = useReadActor();
+// General Ledger Queries (renamed from House Ledger)
+export function useGetGeneralLedger() {
+  const actor = useReadPonziMath();
 
-  return useQuery<HouseLedgerRecord[]>({
-    queryKey: ['houseLedger'],
+  return useQuery<GeneralLedgerEntry[]>({
+    queryKey: ['generalLedger'],
     queryFn: async () => {
       try {
-        const records = await actor.getHouseLedger();
+        const records = await actor.getGeneralLedger();
         return records || [];
       } catch (error: any) {
-        console.error('Failed to fetch house ledger:', error);
-        // Return empty array instead of throwing to prevent crashes
+        console.error('Failed to fetch general ledger:', error);
         return [];
       }
     },
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
-    // Provide fallback data to prevent crashes
     placeholderData: [],
   });
 }
+// Legacy alias for existing consumers
+export const useGetHouseLedger = useGetGeneralLedger;
 
-export function useGetHouseLedgerStats() {
-  const actor = useReadActor();
+export function useGetGeneralLedgerStats() {
+  const actor = useReadPonziMath();
 
   return useQuery({
-    queryKey: ['houseLedgerStats'],
+    queryKey: ['generalLedgerStats'],
     queryFn: async () => {
       try {
-        const stats = await actor.getHouseLedgerStats();
+        const stats = await actor.getGeneralLedgerStats();
         return stats || {
-          totalDeposits: 0,
-          totalWithdrawals: 0,
-          netBalance: 0,
-          recordCount: BigInt(0)
+          totalInflows: 0,
+          totalOutflows: 0,
+          netFlow: 0,
+          entryCount: BigInt(0)
         };
       } catch (error: any) {
-        console.error('Failed to fetch house ledger stats:', error);
-        // Return default stats instead of throwing to prevent crashes
+        console.error('Failed to fetch general ledger stats:', error);
         return {
-          totalDeposits: 0,
-          totalWithdrawals: 0,
-          netBalance: 0,
-          recordCount: BigInt(0)
+          totalInflows: 0,
+          totalOutflows: 0,
+          netFlow: 0,
+          entryCount: BigInt(0)
         };
       }
     },
-    refetchInterval: 5000, // Refetch every 5 seconds for live updates
+    refetchInterval: 5000,
     retry: 2,
     retryDelay: 1000,
-    // Provide fallback data to prevent crashes
     placeholderData: {
-      totalDeposits: 0,
-      totalWithdrawals: 0,
-      netBalance: 0,
-      recordCount: BigInt(0)
+      totalInflows: 0,
+      totalOutflows: 0,
+      netFlow: 0,
+      entryCount: BigInt(0)
     },
   });
 }
+// Legacy alias for existing consumers
+export const useGetHouseLedgerStats = useGetGeneralLedgerStats;
 
 // Real ICP balance from the NNS ledger (what the user actually has in their wallet).
 // Uses an anonymous ledger actor — icrc1_balance_of is a public query and works
@@ -242,50 +243,40 @@ export function isCoverChargeAdmin(principal: string | null | undefined): boolea
   return principal === COVER_CHARGE_RECIPIENT;
 }
 
-// Query the admin's cover-charge bucket balance.
-// Only enabled when the connected principal matches COVER_CHARGE_RECIPIENT —
-// the backend would trap otherwise.
+// Query the cover-charge bucket balance on ponzi_math.
+// Now public — no admin gate needed on the frontend (ponzi_math enforces nothing here).
 export function useGetCoverChargeBalance() {
-  const { actor, isFetching: actorFetching } = useActor();
-  const { principal, isConnected } = useWallet();
+  const actor = useReadPonziMath();
+  const { principal } = useWallet();
 
   return useQuery({
     queryKey: ['coverChargeBalance', principal],
     queryFn: async () => {
-      if (!actor) throw new Error('Actor not available');
       const balanceE8s = await actor.getCoverChargeBalance();
       return {
         e8s: balanceE8s,
         icp: Number(balanceE8s) / 100_000_000,
       };
     },
-    enabled:
-      !!actor &&
-      !actorFetching &&
-      !!principal &&
-      isConnected &&
-      isCoverChargeAdmin(principal),
+    // Still only show to admin in the UI; the query itself is public on ponzi_math
+    enabled: !!principal && isCoverChargeAdmin(principal),
     refetchInterval: 5000,
   });
 }
 
-// Pay Management — withdraw accumulated cover charges to the admin's external
-// ICP wallet. Callers must pass an amount in e8s greater than the ledger
-// transfer fee (10_000 e8s).
-export function useWithdrawCoverCharges() {
+// Pay Management — admin calls backend.payManagement(to, amountE8s) which
+// sweeps cover charges from ponzi_math and transfers `amountE8s` e8s to `to`.
+export function usePayManagement() {
   const { actor } = useActor();
   const { principal } = useWallet();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (amountE8s: bigint) => {
+    mutationFn: async ({ to, amountE8s }: { to: Principal; amountE8s: bigint }) => {
       if (!actor) throw new Error('Actor not available');
       if (!principal) throw new Error('Not authenticated');
-      if (!isCoverChargeAdmin(principal)) {
-        throw new Error('Unauthorized');
-      }
 
-      const result = await actor.withdrawCoverCharges(amountE8s);
+      const result = await actor.payManagement(to, amountE8s);
 
       if ('Err' in result) {
         throw new Error(result.Err);
@@ -304,10 +295,12 @@ export function useWithdrawCoverCharges() {
     },
   });
 }
+// Legacy alias — kept so WalletDropdown can be updated in Task 37
+export const useWithdrawCoverCharges = usePayManagement;
 
 // Add Backer Money Mutation — regular users become Series A backers
 export function useAddBackerMoney() {
-  const { actor } = useActor();
+  const { actor } = usePonziMathActor();
   const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
   const ledger = useLedger();
@@ -324,15 +317,15 @@ export function useAddBackerMoney() {
 
       try {
         if (walletType === 'oisy') {
-          // Oisy path: ICRC-112 batching (approve + addDealerMoney in one popup)
+          // Oisy path: ICRC-112 batching (approve + addBackerMoney in one popup)
           const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
           const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
-          const backendActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+          const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
           signerAgent.batch();
           const approvePromise = ledgerActor.icrc2_approve({
             amount: approveAmount,
-            spender: { owner: Principal.fromText(BACKEND_CANISTER_ID), subaccount: [] },
+            spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
             expires_at: [],
             expected_allowance: [],
             memo: [],
@@ -342,15 +335,15 @@ export function useAddBackerMoney() {
           });
 
           signerAgent.batch();
-          const addPromise = backendActor.addDealerMoney(amount);
+          const addPromise = ponziMathActor.addBackerMoney(amount);
 
           await signerAgent.execute();
           const [, addResult] = await Promise.all([approvePromise, addPromise]);
           if ('Err' in addResult) throw new Error(addResult.Err);
         } else {
-          // Standard path: approve then addDealerMoney
-          await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-          const addResult = await actor.addDealerMoney(amount);
+          // Standard path: approve then addBackerMoney
+          await ledger.approve(PONZI_MATH_CANISTER_ID, approveAmount);
+          const addResult = await actor.addBackerMoney(amount);
           if ('Err' in addResult) throw new Error(addResult.Err);
         }
 
@@ -399,7 +392,7 @@ const gameEarningsStore = new Map<string, { lastUpdateTime: number; accumulatedE
 
 // Game Queries with manual refresh functionality
 export function useGetUserGames() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
   const { principal } = useWallet();
 
   return useQuery<GameRecord[]>({
@@ -442,7 +435,7 @@ export function useGetUserGames() {
 }
 
 export function useCreateGame() {
-  const { actor } = useActor();
+  const { actor } = usePonziMathActor();
   const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
   const ledger = useLedger();
@@ -471,17 +464,11 @@ export function useCreateGame() {
       const approveAmount = amountE8s + 20_000n; // extra for fees
       const isCompounding = mode === 'compounding';
 
-      // Resolve referrer from the captured URL param. Backend dedupes (first
-      // referrer wins), so it's safe to send on every createGame.
-      const refStr = getStoredReferrer();
-      let referrerOpt: [] | [Principal] = [];
-      if (refStr && refStr !== principal) {
-        try {
-          referrerOpt = [Principal.fromText(refStr)];
-        } catch {
-          referrerOpt = [];
-        }
-      }
+      // Capture referrer from localStorage — used by Task 38 (useRegisterReferral).
+      // ponzi_math.createGame no longer takes a referrer arg; registration happens
+      // separately via shenanigans.registerReferral on first auth.
+      // We still call getStoredReferrer() here to confirm it exists (noop otherwise).
+      getStoredReferrer();
 
       let gameId: bigint;
 
@@ -490,13 +477,13 @@ export function useCreateGame() {
       if (walletType === 'oisy') {
         const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
         const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
-        const backendActor = createOisyActor(BACKEND_CANISTER_ID, idlFactory, signerAgent);
+        const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
         // Sequence 0: approve
         signerAgent.batch();
         const approvePromise = ledgerActor.icrc2_approve({
           amount: approveAmount,
-          spender: { owner: Principal.fromText(BACKEND_CANISTER_ID), subaccount: [] },
+          spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
           expires_at: [],
           expected_allowance: [],
           memo: [],
@@ -505,9 +492,9 @@ export function useCreateGame() {
           created_at_time: [],
         });
 
-        // Sequence 1: createGame
+        // Sequence 1: createGame (3 args — no referrer)
         signerAgent.batch();
-        const gamePromise = backendActor.createGame(plan, amount, isCompounding, referrerOpt);
+        const gamePromise = ponziMathActor.createGame(plan, amount, isCompounding);
 
         // Fire single ICRC-112 request — ONE signer popup
         await signerAgent.execute();
@@ -515,9 +502,9 @@ export function useCreateGame() {
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       } else {
-        // Standard path: separate approve + createGame
-        await ledger.approve(BACKEND_CANISTER_ID, approveAmount);
-        const gameResult = await actor.createGame(plan, amount, isCompounding, referrerOpt);
+        // Standard path: separate approve + createGame (3 args — no referrer)
+        await ledger.approve(PONZI_MATH_CANISTER_ID, approveAmount);
+        const gameResult = await actor.createGame(plan, amount, isCompounding);
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       }
@@ -557,7 +544,7 @@ export function useCreateGame() {
 }
 
 export function useWithdrawGameEarnings() {
-  const { actor } = useActor();
+  const { actor } = usePonziMathActor();
   const { principal } = useWallet();
   const queryClient = useQueryClient();
 
@@ -587,7 +574,7 @@ export function useWithdrawGameEarnings() {
 }
 
 export function useSettleCompoundingGame() {
-  const { actor } = useActor();
+  const { actor } = usePonziMathActor();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -608,14 +595,14 @@ export function useSettleCompoundingGame() {
   });
 }
 
-export function useClaimDealerRepayment() {
-  const { actor } = useActor();
+export function useClaimBackerRepayment() {
+  const { actor } = usePonziMathActor();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: async () => {
       if (!actor) throw new Error('Actor not available');
-      const result = await actor.claimDealerRepayment();
+      const result = await actor.claimBackerRepayment();
       if ('Err' in result) throw new Error(result.Err);
       return result.Ok;
     },
@@ -630,7 +617,7 @@ export function useClaimDealerRepayment() {
 }
 
 export function useCalculateGameEarnings() {
-  const { actor } = useActor();
+  const { actor } = usePonziMathActor();
 
   return useMutation({
     mutationFn: async (game: GameRecord) => {
@@ -958,13 +945,13 @@ export function useGetPonziPoints() {
 
 // Backer Positions Query
 export function useGetBackerPositions() {
-  const actor = useReadActor();
+  const actor = useReadPonziMath();
 
   return useQuery<BackerPosition[]>({
     queryKey: ['backerPositions'],
     queryFn: async () => {
       try {
-        const positions = await actor.getDealerPositions(); // Backend Candid name unchanged
+        const positions = await actor.getBackerPositions();
         return positions || [];
       } catch (error: any) {
         console.error('Failed to fetch backer positions:', error);
@@ -993,7 +980,8 @@ export function useGetSeedRoundDashboard() {
         const backersWithNames = positions.map((backer, index) => ({
           id: backer.owner.toString(),
           principal: backer.owner.toString(),
-          name: backer.name || `Backer ${index + 1}`,
+          // BackerPosition no longer has a name field — use generic label
+          name: `Backer ${index + 1}`,
           entitlement: backer.entitlement,
           repaid: backer.entitlement - backer.amount,
           remaining: backer.amount,
@@ -1456,5 +1444,43 @@ export function useGetTransactionHistory() {
 
       return baseTransactions;
     },
+  });
+}
+
+// ============================================================================
+// New hooks added during ponzi_math extraction
+// ============================================================================
+
+// Legacy alias — HouseDashboard imports useClaimDealerRepayment
+export const useClaimDealerRepayment = useClaimBackerRepayment;
+
+// Backend ICP balance — admin-only diagnostic. The canister enforces auth.
+export function useBackendICPBalance() {
+  const { actor, isFetching: actorFetching } = useActor();
+  const { principal } = useWallet();
+
+  return useQuery<bigint>({
+    queryKey: ['backendICPBalance'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getBackendICPBalance();
+    },
+    enabled: !!actor && !actorFetching && !!principal && isCoverChargeAdmin(principal),
+    refetchInterval: 10000,
+  });
+}
+
+// Register referral — one-shot per session when the user becomes authenticated.
+// Calls shenanigans.registerReferral(referrer). First-wins; idempotent.
+export function useRegisterReferral() {
+  const { actor } = useShenaniganActor();
+
+  return useMutation({
+    mutationFn: async (referrer: Principal) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      // registerReferral may not be in the generated d.ts yet — cast to any
+      await (actor as any).registerReferral(referrer);
+    },
+    // No cache invalidation needed — this is a fire-and-forget registration
   });
 }
