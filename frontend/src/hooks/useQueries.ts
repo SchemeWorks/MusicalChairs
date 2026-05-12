@@ -373,14 +373,14 @@ export function useAddBackerMoney() {
       queryClient.invalidateQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.invalidateQueries({ queryKey: ['houseRepaymentBalance'] });
       queryClient.invalidateQueries({ queryKey: ['backerPositions'] });
-      queryClient.invalidateQueries({ queryKey: ['houseLedger'] });
-      queryClient.invalidateQueries({ queryKey: ['houseLedgerStats'] });
+      queryClient.invalidateQueries({ queryKey: ['generalLedger'] });
+      queryClient.invalidateQueries({ queryKey: ['generalLedgerStats'] });
       queryClient.invalidateQueries({ queryKey: ['gameStats'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
       queryClient.refetchQueries({ queryKey: ['internalWalletBalance'] });
       queryClient.refetchQueries({ queryKey: ['backerPositions'] });
-      queryClient.refetchQueries({ queryKey: ['houseLedger'] });
-      queryClient.refetchQueries({ queryKey: ['houseLedgerStats'] });
+      queryClient.refetchQueries({ queryKey: ['generalLedger'] });
+      queryClient.refetchQueries({ queryKey: ['generalLedgerStats'] });
     },
   });
 }
