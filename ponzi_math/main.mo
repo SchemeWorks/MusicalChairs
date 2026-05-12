@@ -282,4 +282,18 @@ persistent actor class PonziMath(initArgs : {
             case (#GenericError(e)) { "Error: " # e.message };
         };
     };
+
+    // ========================================================================
+    // General Ledger event recording
+    // ========================================================================
+
+    func recordLedger(event : GeneralLedgerEvent) {
+        let entry : GeneralLedgerEntry = {
+            id = nextGeneralLedgerId;
+            timestamp = Time.now();
+            event;
+        };
+        generalLedger := natMap.put(generalLedger, nextGeneralLedgerId, entry);
+        nextGeneralLedgerId += 1;
+    };
 };
