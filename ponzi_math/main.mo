@@ -14,7 +14,9 @@ import Error "mo:base/Error";
 
 import Ledger "ledger";
 import Icrc21 "icrc21";
+import Migration "migration";
 
+(with migration = Migration.run)
 persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
     testAdmin : Principal;
