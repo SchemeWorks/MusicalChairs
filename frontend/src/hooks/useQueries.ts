@@ -14,7 +14,7 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 
 // ponzi_math canister ID (matches the constant in usePonziMathActor.ts)
-const PONZI_MATH_CANISTER_ID = 'REPLACE_WITH_PONZI_MATH_CANISTER_ID';
+const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
 
 // Anonymous ledger actor for balance queries. icrc1_balance_of is a public
 // query — no identity needed. Cached at module scope so all callers share
