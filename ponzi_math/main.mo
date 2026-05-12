@@ -420,15 +420,32 @@ persistent actor class PonziMath(initArgs : {
 
     // ========================================================================
     // Game reset (called on insolvency)
+    //
+    // Preserves the full game history: active games at reset time are marked
+    // isActive=false with lastUpdateTime=now (their close timestamp). The
+    // gameRecords map is NOT wiped, and nextGameId continues monotonically
+    // across rounds so historical game IDs remain stable references.
     // ========================================================================
 
     func triggerGameReset(reason : Text) {
+        let now = Time.now();
         let resetRecord : GameResetRecord = {
-            resetTime = Time.now();
+            resetTime = now;
             reason;
         };
-        gameResetHistory := intMap.put(gameResetHistory, Time.now(), resetRecord);
-        gameRecords := natMap.empty<GameRecord>();
+        gameResetHistory := intMap.put(gameResetHistory, now, resetRecord);
+
+        // Mark every active game as closed-by-reset. Preserve all other fields.
+        for ((gid, game) in natMap.entries(gameRecords)) {
+            if (game.isActive) {
+                let closed : GameRecord = {
+                    game with
+                    isActive = false;
+                    lastUpdateTime = now;
+                };
+                gameRecords := natMap.put(gameRecords, gid, closed);
+            };
+        };
 
         // Carry the seed reserve into the new round's pot.
         let newPot = roundSeedReserve;
@@ -441,7 +458,8 @@ persistent actor class PonziMath(initArgs : {
             potBalance = newPot;
             daysActive = 0;
         };
-        nextGameId := 0;
+        // nextGameId is NOT reset — IDs stay monotonic across rounds so the
+        // full history of games remains addressable by stable IDs.
         recordLedger(#gameReset({ reason; seedReserveCarried = carried }));
     };
 
@@ -737,6 +755,11 @@ persistent actor class PonziMath(initArgs : {
                     releaseGlobalLock();
                     releaseCallerLock(caller);
                     return #Err("Cannot withdraw from compounding games");
+                };
+                if (not game.isActive) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Game is closed (no longer active)");
                 };
 
                 let earnings = await calculateEarnings(game);
