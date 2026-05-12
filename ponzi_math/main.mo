@@ -1335,6 +1335,9 @@ persistent actor class PonziMath(initArgs : {
         if (not validateEightDecimals(amount)) {
             return #Err("Amount cannot have more than 8 decimal places");
         };
+        if (startTimeNanos > Time.now()) {
+            return #Err("startTime must not be in the future");
+        };
 
         acquireCallerLock(caller);
         acquireGlobalLock();
