@@ -343,12 +343,12 @@ persistent actor class PonziMath(initArgs : {
     // Backer repayment crediting + 35/25/40 exit-toll distribution
     // ========================================================================
 
-    func creditBackerRepayment(backer : Principal, amount : Float) {
-        let current = switch (principalMapNat.get(backerRepayments, backer)) {
+    func creditBackerRepayment(key : BackerKey, amount : Float) {
+        let current = switch (backerKeyMap.get(backerRepayments, key)) {
             case (null) { 0.0 };
             case (?existing) { existing };
         };
-        backerRepayments := principalMapNat.put(backerRepayments, backer, current + amount);
+        backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
     };
 
     // 50% of the toll seeds the next round (routed to roundSeedReserve, OUT of
@@ -358,7 +358,7 @@ persistent actor class PonziMath(initArgs : {
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
 
-        let allBackers = Iter.toArray(principalMapNat.vals(backerPositions));
+        let allBackers = Iter.toArray(backerKeyMap.vals(backerPositions));
         if (allBackers.size() == 0) {
             // No backers yet — backer half also flows to seed reserve (not pot).
             roundSeedReserve += backerRepaymentAmount;
@@ -415,19 +415,19 @@ persistent actor class PonziMath(initArgs : {
             };
         switch (oldestBacker) {
             case (null) {};
-            case (?b) { creditBackerRepayment(b.owner, toOldest) };
+            case (?b) { creditBackerRepayment((b.owner, b.backerType), toOldest) };
         };
 
         var toOthers : Float = 0.0;
         if (otherSeriesA.size() > 0) {
             let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
             toOthers := perBacker * Float.fromInt(otherSeriesA.size());
-            for (b in otherSeriesA.vals()) { creditBackerRepayment(b.owner, perBacker) };
+            for (b in otherSeriesA.vals()) { creditBackerRepayment((b.owner, b.backerType), perBacker) };
         };
 
         let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
         let toAll = perAll * Float.fromInt(allBackers.size());
-        for (b in allBackers.vals()) { creditBackerRepayment(b.owner, perAll) };
+        for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
 
         recordLedger(#tollDistribution({
             tollAmount;
