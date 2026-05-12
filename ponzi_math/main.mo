@@ -624,4 +624,84 @@ persistent actor class PonziMath(initArgs : {
         releaseCallerLock(caller);
         #Ok(gameId);
     };
+
+    // ========================================================================
+    // addBackerMoney — funds a Series A backer position
+    // ========================================================================
+
+    public shared ({ caller }) func addBackerMoney(amount : Float) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
+        validateAmount(amount);
+        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
+        if (not validateEightDecimals(amount)) {
+            return #Err("Amount cannot have more than 8 decimal places");
+        };
+
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+
+        let selfPrincipal = Principal.fromActor(Self);
+        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseGlobalLock();
+            releaseCallerLock(caller);
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        let blockIndex = switch (transferResult) {
+            case (#Err(err)) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err(transferFromErrorMessage(err));
+            };
+            case (#Ok(idx)) { idx };
+        };
+
+        let entitlement = amount * 1.24; // Series A 24% bonus
+
+        switch (principalMapNat.get(backerPositions, caller)) {
+            case (null) {
+                let newBacker : BackerPosition = {
+                    owner = caller;
+                    amount;
+                    entitlement;
+                    startTime = Time.now();
+                    isActive = true;
+                    backerType = #seriesA;
+                    firstDepositDate = ?Time.now();
+                };
+                backerPositions := principalMapNat.put(backerPositions, caller, newBacker);
+            };
+            case (?existing) {
+                let updated : BackerPosition = {
+                    existing with
+                    amount = existing.amount + amount;
+                    entitlement = existing.entitlement + entitlement;
+                };
+                backerPositions := principalMapNat.put(backerPositions, caller, updated);
+            };
+        };
+
+        platformStats := {
+            platformStats with
+            potBalance = platformStats.potBalance + amount;
+        };
+
+        recordLedger(#backerDeposit({ backer = caller; amount; entitlement }));
+
+        releaseGlobalLock();
+        releaseCallerLock(caller);
+        #Ok(blockIndex);
+    };
 };
