@@ -4,6 +4,10 @@
       "main": "backend/main.mo",
       "type": "motoko"
     },
+    "ponzi_math": {
+      "main": "ponzi_math/main.mo",
+      "type": "motoko"
+    },
     "shenanigans": {
       "main": "shenanigans/main.mo",
       "type": "motoko"
