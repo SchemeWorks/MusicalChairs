@@ -1005,16 +1005,18 @@ persistent actor class PonziMath(initArgs : {
         acquireCallerLock(caller);
         acquireGlobalLock();
         try {
-            let balanceOpt : ?Float = switch (principalMapNat.get(backerRepayments, caller)) {
-                case (null) { null };
-                case (?b) { if (b <= 0.0) { null } else { ?b } };
-            };
-            let balance = switch (balanceOpt) {
-                case (null) { return #Err("No repayment balance to claim") };
+            let aBalance = switch (backerKeyMap.get(backerRepayments, (caller, #seriesA))) {
+                case (null) { 0.0 };
                 case (?b) { b };
             };
-
-            backerRepayments := principalMapNat.put(backerRepayments, caller, 0.0);
+            let bBalance = switch (backerKeyMap.get(backerRepayments, (caller, #seriesB))) {
+                case (null) { 0.0 };
+                case (?b) { b };
+            };
+            let balance = aBalance + bBalance;
+            if (balance <= 0.0) { return #Err("No repayment balance to claim") };
+            backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
+            backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
 
             let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
             let transferResult = try {
@@ -1027,13 +1029,15 @@ persistent actor class PonziMath(initArgs : {
                     created_at_time = null;
                 });
             } catch (e) {
-                backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
                 return #Err("Failed to contact ICP ledger: " # Error.message(e));
             };
 
             switch (transferResult) {
                 case (#Err(err)) {
-                    backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
                     return #Err(transferErrorMessage(err));
                 };
                 case (#Ok(_)) {};
