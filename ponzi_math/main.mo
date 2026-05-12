@@ -164,6 +164,11 @@ persistent actor class PonziMath(initArgs : {
             startTime : Int;
             amount : Float;
         };
+        #seriesBPromotion : {
+            owner : Principal;
+            underwater : Float;
+            entitlement : Float;
+        };
     };
 
     // ========================================================================
