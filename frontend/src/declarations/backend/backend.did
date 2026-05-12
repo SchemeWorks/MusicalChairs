@@ -11,14 +11,6 @@ type StandardRecord =
    name: text;
    url: text;
  };
-type PlatformStats = 
- record {
-   activeGames: nat;
-   daysActive: nat;
-   potBalance: float64;
-   totalDeposits: float64;
-   totalWithdrawals: float64;
- };
 type LineDisplayPage = record {lines: vec text;};
 type Icrc21Error = 
  variant {
@@ -29,37 +21,6 @@ type Icrc21Error =
                  };
    UnsupportedCanisterCall: record {description: text;};
  };
-type HouseLedgerRecord = 
- record {
-   amount: float64;
-   description: text;
-   id: nat;
-   timestamp: int;
- };
-type GameResetRecord = 
- record {
-   reason: text;
-   resetTime: int;
- };
-type GameRecord = 
- record {
-   accumulatedEarnings: float64;
-   amount: float64;
-   id: nat;
-   isActive: bool;
-   isCompounding: bool;
-   lastUpdateTime: int;
-   plan: GamePlan;
-   player: principal;
-   startTime: int;
-   totalWithdrawn: float64;
- };
-type GamePlan = 
- variant {
-   compounding15Day;
-   compounding30Day;
-   simple21Day;
- };
 type DeviceSpec = 
  variant {
    GenericDisplay;
@@ -67,30 +28,6 @@ type DeviceSpec =
                   characters_per_line: nat16;
                   lines_per_page: nat16;
                 };
- };
-type DealerType = 
- variant {
-   downstream;
-   upstream;
- };
-type DealerPosition = 
- record {
-   amount: float64;
-   dealerType: DealerType;
-   entitlement: float64;
-   firstDepositDate: opt int;
-   isActive: bool;
-   name: text;
-   owner: principal;
-   startTime: int;
- };
-type CoverChargeEntry = 
- record {
-   amount: nat;
-   gameId: nat;
-   id: nat;
-   player: principal;
-   timestamp: int;
  };
 type ConsentMessageSpec = 
  record {
@@ -124,66 +61,11 @@ type ConsentInfo =
    metadata: ConsentMessageMetadata;
  };
 service : {
-  addDealerMoney: (amount: float64) -> (variant {
-                                          Err: text;
-                                          Ok: nat;
-                                        });
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
-  calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
-  calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
-  calculateCompoundedROI: () -> (float64) query;
-  calculateEarnings: (game: GameRecord) -> (float64) query;
-  checkDepositRateLimit: () -> (bool) query;
-  claimDealerRepayment: () -> (variant {
-                                 Err: text;
-                                 Ok: float64;
-                               });
-  createGame: (plan: GamePlan, amount: float64, isCompounding: bool,
-   referrer: opt principal) -> (variant {
-                                  Err: text;
-                                  Ok: nat;
-                                });
-  distributeFees: (totalFees: float64) -> ();
-  getActiveGameCount: () -> (nat) query;
-  getAllActiveGames: () -> (vec GameRecord) query;
-  getAllDealerRepayments: () -> (vec record {
-                                       principal;
-                                       float64;
-                                     }) query;
-  getAllGames: () -> (vec GameRecord) query;
-  getAvailableBalance: () -> (float64) query;
+  getBackendICPBalance: () -> (nat);
   getCallerUserProfile: () -> (opt UserProfile) query;
   getCallerUserRole: () -> (UserRole) query;
-  getCanisterICPBalance: () -> (nat);
-  getCanisterPrincipal: () -> (opt principal) query;
-  getCoverChargeBalance: () -> (nat) query;
-  getCoverChargeTransactions: () -> (vec CoverChargeEntry) query;
-  getDaysActive: () -> (nat) query;
-  getDealerPositions: () -> (vec DealerPosition) query;
-  getDealerRepaymentBalance: () -> (float64) query;
-  getDealerRepaymentBalanceFor: (user: principal) -> (float64) query;
-  getGameById: (gameId: nat) -> (opt GameRecord) query;
-  getGameResetHistory: () -> (vec GameResetRecord) query;
-  getHouseLedger: () -> (vec HouseLedgerRecord) query;
-  getHouseLedgerStats: () ->
-   (record {
-      netBalance: float64;
-      recordCount: nat;
-      totalDeposits: float64;
-      totalWithdrawals: float64;
-    }) query;
-  getMaxDepositLimit: () -> (float64) query;
-  getOldestUpstreamDealer: () -> (opt DealerPosition) query;
-  getPlatformStats: () -> (PlatformStats) query;
-  /// One-hop lookup — returns the caller's immediate referrer (L1) or null.
-  /// Used by shenanigans for referral PP cascades.
-  getReferrer: (user: principal) -> (opt principal) query;
-  getTotalDealerDebt: () -> (float64) query;
-  getTotalDeposits: () -> (float64) query;
-  getTotalHouseMoneyAdded: () -> (float64) query;
-  getTotalWithdrawals: () -> (float64) query;
-  getUserGames: () -> (vec GameRecord) query;
-  getUserGamesFor: (user: principal) -> (vec GameRecord) query;
+  getPonziMathPrincipal: () -> (opt principal) query;
   getUserProfile: (user: principal) -> (opt UserProfile) query;
   getUserRole: (user: principal) -> (UserRole) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
@@ -193,23 +75,11 @@ service : {
   initializeAccessControl: () -> ();
   isAdmin: (user: principal) -> (bool) query;
   isCallerAdmin: () -> (bool) query;
-  isTestMode: () -> (bool) query;
+  payManagement: (to: principal, amount: nat) ->
+   (variant {
+      Err: text;
+      Ok: nat;
+    });
   saveCallerUserProfile: (profile: UserProfile) -> ();
-  seedGame: (player: principal, plan: GamePlan, amount: float64,
-   isCompounding: bool, startTimeNanos: int) -> (nat);
-  seedReferral: (user: principal, referrer: principal) -> ();
-  setCanisterPrincipal: (p: principal) -> ();
-  setTestMode: (enabled: bool) -> ();
-  settleCompoundingGame: (gameId: nat) -> (variant {
-                                             Err: text;
-                                             Ok: float64;
-                                           });
-  withdrawCoverCharges: (amount: nat) -> (variant {
-                                            Err: text;
-                                            Ok: nat;
-                                          });
-  withdrawEarnings: (gameId: nat) -> (variant {
-                                        Err: text;
-                                        Ok: float64;
-                                      });
+  setPonziMathPrincipal: (p: principal) -> ();
 }

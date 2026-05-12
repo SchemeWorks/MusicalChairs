@@ -1,0 +1,262 @@
+type TrustedOriginsResponse = record {trusted_origins: vec text;};
+type StandardRecord = 
+ record {
+   name: text;
+   url: text;
+ };
+type PonziMath = 
+ service {
+   addBackerMoney: (amount: float64) -> (variant {
+                                           Err: text;
+                                           Ok: nat;
+                                         });
+   calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
+   calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
+   calculateCompoundedROI: () -> (float64) query;
+   calculateEarnings: (game: GameRecord) -> (float64) query;
+   checkDepositRateLimit: () -> (bool) query;
+   claimBackerRepayment: () -> (variant {
+                                  Err: text;
+                                  Ok: float64;
+                                });
+   createBackdatedGame: (plan: GamePlan, amount: float64, isCompounding:
+    bool, startTimeNanos: int) -> (variant {
+                                     Err: text;
+                                     Ok: nat;
+                                   });
+   createGame: (plan: GamePlan, amount: float64, isCompounding: bool) ->
+    (variant {
+       Err: text;
+       Ok: nat;
+     });
+   getActiveGameCount: () -> (nat) query;
+   getAllActiveGames: () -> (vec GameRecord) query;
+   getAllBackerRepayments: () -> (vec record {
+                                        principal;
+                                        float64;
+                                      }) query;
+   getAllGames: () -> (vec GameRecord) query;
+   getAvailableBalance: () -> (float64) query;
+   getBackerPositions: () -> (vec BackerPosition) query;
+   getBackerRepaymentBalance: () -> (float64) query;
+   getBackerRepaymentBalanceFor: (user: principal) -> (float64) query;
+   getCanisterICPBalance: () -> (nat);
+   getCoverChargeBalance: () -> (nat) query;
+   getDaysActive: () -> (nat) query;
+   getGameById: (gameId: nat) -> (opt GameRecord) query;
+   getGameResetHistory: () -> (vec GameResetRecord) query;
+   getGeneralLedger: () -> (vec GeneralLedgerEntry) query;
+   getGeneralLedgerStats: () ->
+    (record {
+       entryCount: nat;
+       netFlow: float64;
+       totalInflows: float64;
+       totalOutflows: float64;
+     }) query;
+   getMaxDepositLimit: () -> (float64) query;
+   getOldestSeriesABacker: () -> (opt BackerPosition) query;
+   getPlatformStats: () -> (PlatformStats) query;
+   getRoundSeedReserve: () -> (float64) query;
+   getTotalBackerDebt: () -> (float64) query;
+   getTotalDeposits: () -> (float64) query;
+   getTotalWithdrawals: () -> (float64) query;
+   getUserGames: () -> (vec GameRecord) query;
+   getUserGamesFor: (user: principal) -> (vec GameRecord) query;
+   icrc10_supported_standards: () -> (vec StandardRecord) query;
+   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
+    (ConsentMessageResponse);
+   icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
+   isCriticalSectionBusy: () -> (bool) query;
+   settleCompoundingGame: (gameId: nat) -> (variant {
+                                              Err: text;
+                                              Ok: float64;
+                                            });
+   sweepCoverCharges: () -> (variant {
+                               Err: text;
+                               Ok: nat;
+                             });
+   withdrawEarnings: (gameId: nat) -> (variant {
+                                         Err: text;
+                                         Ok: float64;
+                                       });
+ };
+type PlatformStats = 
+ record {
+   activeGames: nat;
+   daysActive: nat;
+   potBalance: float64;
+   totalDeposits: float64;
+   totalWithdrawals: float64;
+ };
+type LineDisplayPage = record {lines: vec text;};
+type Icrc21Error = 
+ variant {
+   ConsentMessageUnavailable: record {description: text;};
+   GenericError: record {
+                   description: text;
+                   error_code: nat;
+                 };
+   UnsupportedCanisterCall: record {description: text;};
+ };
+type GeneralLedgerEvent = 
+ variant {
+   backdatedGameCreated:
+    record {
+      admin: principal;
+      amount: float64;
+      gameId: nat;
+      player: principal;
+      startTime: int;
+    };
+   backerDeposit:
+    record {
+      amount: float64;
+      backer: principal;
+      entitlement: float64;
+    };
+   backerRepaymentClaim: record {
+                           amount: float64;
+                           backer: principal;
+                         };
+   coverChargeAccrued: record {
+                         amountE8s: nat;
+                         gameId: nat;
+                         player: principal;
+                       };
+   coverChargeSwept:
+    record {
+      amountE8s: nat;
+      blockIndex: nat;
+      toBackend: principal;
+    };
+   deposit:
+    record {
+      coverCharge: float64;
+      gameId: nat;
+      gross: float64;
+      isCompounding: bool;
+      netToPot: float64;
+      plan: GamePlan;
+      player: principal;
+    };
+   gameReset: record {
+                reason: text;
+                seedReserveCarried: float64;
+              };
+   settlement:
+    record {
+      gameId: nat;
+      grossEarnings: float64;
+      isInsolvent: bool;
+      netToPlayer: float64;
+      player: principal;
+      potDeduction: float64;
+      toll: float64;
+    };
+   tollDistribution:
+    record {
+      toAllBackers: float64;
+      toOldestSeriesA: float64;
+      toOtherSeriesA: float64;
+      toSeedReserve: float64;
+      tollAmount: float64;
+    };
+   withdrawal:
+    record {
+      gameId: nat;
+      grossEarnings: float64;
+      isInsolvent: bool;
+      netToPlayer: float64;
+      player: principal;
+      potDeduction: float64;
+      toll: float64;
+    };
+ };
+type GeneralLedgerEntry = 
+ record {
+   event: GeneralLedgerEvent;
+   id: nat;
+   timestamp: int;
+ };
+type GameResetRecord = 
+ record {
+   reason: text;
+   resetTime: int;
+ };
+type GameRecord = 
+ record {
+   accumulatedEarnings: float64;
+   amount: float64;
+   id: nat;
+   isActive: bool;
+   isCompounding: bool;
+   lastUpdateTime: int;
+   plan: GamePlan;
+   player: principal;
+   startTime: int;
+   totalWithdrawn: float64;
+ };
+type GamePlan = 
+ variant {
+   compounding15Day;
+   compounding30Day;
+   simple21Day;
+ };
+type DeviceSpec = 
+ variant {
+   GenericDisplay;
+   LineDisplay: record {
+                  characters_per_line: nat16;
+                  lines_per_page: nat16;
+                };
+ };
+type ConsentMessageSpec = 
+ record {
+   device_spec: opt DeviceSpec;
+   metadata: ConsentMessageMetadata;
+ };
+type ConsentMessageResponse = 
+ variant {
+   Err: Icrc21Error;
+   Ok: ConsentInfo;
+ };
+type ConsentMessageRequest = 
+ record {
+   arg: blob;
+   method: text;
+   user_preferences: ConsentMessageSpec;
+ };
+type ConsentMessageMetadata = 
+ record {
+   language: text;
+   utc_offset_minutes: opt int16;
+ };
+type ConsentMessage = 
+ variant {
+   GenericDisplayMessage: text;
+   LineDisplayMessage: record {pages: vec LineDisplayPage;};
+ };
+type ConsentInfo = 
+ record {
+   consent_message: ConsentMessage;
+   metadata: ConsentMessageMetadata;
+ };
+type BackerType = 
+ variant {
+   seriesA;
+   seriesB;
+ };
+type BackerPosition = 
+ record {
+   amount: float64;
+   backerType: BackerType;
+   entitlement: float64;
+   firstDepositDate: opt int;
+   isActive: bool;
+   owner: principal;
+   startTime: int;
+ };
+service : (initArgs: record {
+                       backendPrincipal: principal;
+                       testAdmin: principal;
+                     }) -> PonziMath

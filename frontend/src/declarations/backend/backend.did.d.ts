@@ -25,25 +25,6 @@ export interface ConsentMessageSpec {
   'metadata' : ConsentMessageMetadata,
   'device_spec' : [] | [DeviceSpec],
 }
-export interface CoverChargeEntry {
-  'id' : bigint,
-  'player' : Principal,
-  'gameId' : bigint,
-  'timestamp' : bigint,
-  'amount' : bigint,
-}
-export interface DealerPosition {
-  'startTime' : bigint,
-  'firstDepositDate' : [] | [bigint],
-  'owner' : Principal,
-  'name' : string,
-  'isActive' : boolean,
-  'dealerType' : DealerType,
-  'amount' : number,
-  'entitlement' : number,
-}
-export type DealerType = { 'downstream' : null } |
-  { 'upstream' : null };
 export type DeviceSpec = { 'GenericDisplay' : null } |
   {
     'LineDisplay' : {
@@ -51,41 +32,12 @@ export type DeviceSpec = { 'GenericDisplay' : null } |
       'lines_per_page' : number,
     }
   };
-export type GamePlan = { 'compounding15Day' : null } |
-  { 'simple21Day' : null } |
-  { 'compounding30Day' : null };
-export interface GameRecord {
-  'id' : bigint,
-  'startTime' : bigint,
-  'player' : Principal,
-  'plan' : GamePlan,
-  'isActive' : boolean,
-  'accumulatedEarnings' : number,
-  'lastUpdateTime' : bigint,
-  'isCompounding' : boolean,
-  'totalWithdrawn' : number,
-  'amount' : number,
-}
-export interface GameResetRecord { 'resetTime' : bigint, 'reason' : string }
-export interface HouseLedgerRecord {
-  'id' : bigint,
-  'description' : string,
-  'timestamp' : bigint,
-  'amount' : number,
-}
 export type Icrc21Error = {
     'GenericError' : { 'description' : string, 'error_code' : bigint }
   } |
   { 'UnsupportedCanisterCall' : { 'description' : string } } |
   { 'ConsentMessageUnavailable' : { 'description' : string } };
 export interface LineDisplayPage { 'lines' : Array<string> }
-export interface PlatformStats {
-  'daysActive' : bigint,
-  'potBalance' : number,
-  'totalWithdrawals' : number,
-  'activeGames' : bigint,
-  'totalDeposits' : number,
-}
 export interface StandardRecord { 'url' : string, 'name' : string }
 export interface TrustedOriginsResponse { 'trusted_origins' : Array<string> }
 export interface UserProfile { 'name' : string }
@@ -93,69 +45,11 @@ export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
 export interface _SERVICE {
-  'addDealerMoney' : ActorMethod<
-    [number],
-    { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
-  'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
-  'calculateCompoundedEarnings' : ActorMethod<[GameRecord], number>,
-  'calculateCompoundedROI' : ActorMethod<[], number>,
-  'calculateEarnings' : ActorMethod<[GameRecord], number>,
-  'checkDepositRateLimit' : ActorMethod<[], boolean>,
-  'claimDealerRepayment' : ActorMethod<
-    [],
-    { 'Ok' : number } |
-      { 'Err' : string }
-  >,
-  'createGame' : ActorMethod<
-    [GamePlan, number, boolean, [] | [Principal]],
-    { 'Ok' : bigint } |
-      { 'Err' : string }
-  >,
-  'distributeFees' : ActorMethod<[number], undefined>,
-  'getActiveGameCount' : ActorMethod<[], bigint>,
-  'getAllActiveGames' : ActorMethod<[], Array<GameRecord>>,
-  'getAllDealerRepayments' : ActorMethod<[], Array<[Principal, number]>>,
-  'getAllGames' : ActorMethod<[], Array<GameRecord>>,
-  'getAvailableBalance' : ActorMethod<[], number>,
+  'getBackendICPBalance' : ActorMethod<[], bigint>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,
-  'getCanisterICPBalance' : ActorMethod<[], bigint>,
-  'getCanisterPrincipal' : ActorMethod<[], [] | [Principal]>,
-  'getCoverChargeBalance' : ActorMethod<[], bigint>,
-  'getCoverChargeTransactions' : ActorMethod<[], Array<CoverChargeEntry>>,
-  'getDaysActive' : ActorMethod<[], bigint>,
-  'getDealerPositions' : ActorMethod<[], Array<DealerPosition>>,
-  'getDealerRepaymentBalance' : ActorMethod<[], number>,
-  'getDealerRepaymentBalanceFor' : ActorMethod<[Principal], number>,
-  'getGameById' : ActorMethod<[bigint], [] | [GameRecord]>,
-  'getGameResetHistory' : ActorMethod<[], Array<GameResetRecord>>,
-  'getHouseLedger' : ActorMethod<[], Array<HouseLedgerRecord>>,
-  'getHouseLedgerStats' : ActorMethod<
-    [],
-    {
-      'totalWithdrawals' : number,
-      'netBalance' : number,
-      'totalDeposits' : number,
-      'recordCount' : bigint,
-    }
-  >,
-  'getMaxDepositLimit' : ActorMethod<[], number>,
-  'getOldestUpstreamDealer' : ActorMethod<[], [] | [DealerPosition]>,
-  'getPlatformStats' : ActorMethod<[], PlatformStats>,
-  /**
-   * / One-hop lookup — returns the caller's immediate referrer (L1) or null.
-   * / Used by shenanigans for referral PP cascades.
-   */
-  'getReferrer' : ActorMethod<[Principal], [] | [Principal]>,
-  'getTotalDealerDebt' : ActorMethod<[], number>,
-  'getTotalDeposits' : ActorMethod<[], number>,
-  'getTotalHouseMoneyAdded' : ActorMethod<[], number>,
-  'getTotalWithdrawals' : ActorMethod<[], number>,
-  'getUserGames' : ActorMethod<[], Array<GameRecord>>,
-  'getUserGamesFor' : ActorMethod<[Principal], Array<GameRecord>>,
+  'getPonziMathPrincipal' : ActorMethod<[], [] | [Principal]>,
   'getUserProfile' : ActorMethod<[Principal], [] | [UserProfile]>,
   'getUserRole' : ActorMethod<[Principal], UserRole>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
@@ -167,30 +61,13 @@ export interface _SERVICE {
   'initializeAccessControl' : ActorMethod<[], undefined>,
   'isAdmin' : ActorMethod<[Principal], boolean>,
   'isCallerAdmin' : ActorMethod<[], boolean>,
-  'isTestMode' : ActorMethod<[], boolean>,
-  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
-  'seedGame' : ActorMethod<
-    [Principal, GamePlan, number, boolean, bigint],
-    bigint
-  >,
-  'seedReferral' : ActorMethod<[Principal, Principal], undefined>,
-  'setCanisterPrincipal' : ActorMethod<[Principal], undefined>,
-  'setTestMode' : ActorMethod<[boolean], undefined>,
-  'settleCompoundingGame' : ActorMethod<
-    [bigint],
-    { 'Ok' : number } |
-      { 'Err' : string }
-  >,
-  'withdrawCoverCharges' : ActorMethod<
-    [bigint],
+  'payManagement' : ActorMethod<
+    [Principal, bigint],
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
-  'withdrawEarnings' : ActorMethod<
-    [bigint],
-    { 'Ok' : number } |
-      { 'Err' : string }
-  >,
+  'saveCallerUserProfile' : ActorMethod<[UserProfile], undefined>,
+  'setPonziMathPrincipal' : ActorMethod<[Principal], undefined>,
 }
 export declare const idlFactory: IDL.InterfaceFactory;
 export declare const init: (args: { IDL: typeof IDL }) => IDL.Type[];
