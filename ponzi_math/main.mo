@@ -1399,14 +1399,14 @@ persistent actor class PonziMath(initArgs : {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
         if (from == to) { return #Err("from and to must differ") };
 
-        let fromPos = switch (principalMapNat.get(backerPositions, from)) {
+        let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
             case (null) { return #Err("from principal has no backer position") };
             case (?p) { p };
         };
 
-        switch (principalMapNat.get(backerPositions, to)) {
+        switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
             case (null) {
-                backerPositions := principalMapNat.put(backerPositions, to, {
+                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
                     fromPos with owner = to;
                 });
             };
@@ -1418,7 +1418,7 @@ persistent actor class PonziMath(initArgs : {
                     case (null, ?d) { ?d };
                     case (null, null) { null };
                 };
-                backerPositions := principalMapNat.put(backerPositions, to, {
+                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
                     toPos with
                     amount = toPos.amount + fromPos.amount;
                     entitlement = toPos.entitlement + fromPos.entitlement;
@@ -1428,20 +1428,20 @@ persistent actor class PonziMath(initArgs : {
             };
         };
 
-        backerPositions := principalMapNat.delete(backerPositions, from);
+        backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
 
-        let fromRepay = switch (principalMapNat.get(backerRepayments, from)) {
+        let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
             case (null) { 0.0 };
             case (?r) { r };
         };
         if (fromRepay > 0.0) {
-            let toRepay = switch (principalMapNat.get(backerRepayments, to)) {
+            let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
                 case (null) { 0.0 };
                 case (?r) { r };
             };
-            backerRepayments := principalMapNat.put(backerRepayments, to, toRepay + fromRepay);
+            backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
         };
-        backerRepayments := principalMapNat.delete(backerRepayments, from);
+        backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
         #Ok;
     };
