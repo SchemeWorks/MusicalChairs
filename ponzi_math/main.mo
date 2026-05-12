@@ -1269,12 +1269,12 @@ persistent actor class PonziMath(initArgs : {
     };
 
     // ========================================================================
-    // PRE-BLACKHOLE TEST HATCH — DELETE THIS ENTIRE BLOCK BEFORE BLACKHOLING.
-    // Gated on caller == TEST_ADMIN (init arg).
-    // Same flow as createGame but with a caller-specified startTime, enabling
-    // tests of matured-position payouts.
+    // PRE-BLACKHOLE TEST HATCHES — DELETE THIS ENTIRE BLOCK BEFORE BLACKHOLING.
+    // All methods below are gated on caller == TEST_ADMIN (init arg).
     // ========================================================================
 
+    // createBackdatedGame — same flow as createGame but with a caller-specified
+    // startTime, enabling tests of matured-position payouts.
     public shared ({ caller }) func createBackdatedGame(
         plan : GamePlan,
         amount : Float,
@@ -1362,6 +1362,64 @@ persistent actor class PonziMath(initArgs : {
             releaseGlobalLock();
             releaseCallerLock(caller);
         };
+    };
+
+    // adminMergeBackerPosition — merge `from`'s backer position into `to`.
+    // Sums amount + entitlement, keeps the earlier startTime / firstDepositDate,
+    // also moves any accumulated backerRepayments. Used to consolidate smoke-test
+    // backer positions left over from pre-cutover.
+    public shared ({ caller }) func adminMergeBackerPosition(
+        from : Principal,
+        to : Principal,
+    ) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (from == to) { return #Err("from and to must differ") };
+
+        let fromPos = switch (principalMapNat.get(backerPositions, from)) {
+            case (null) { return #Err("from principal has no backer position") };
+            case (?p) { p };
+        };
+
+        switch (principalMapNat.get(backerPositions, to)) {
+            case (null) {
+                backerPositions := principalMapNat.put(backerPositions, to, {
+                    fromPos with owner = to;
+                });
+            };
+            case (?toPos) {
+                let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
+                let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
+                    case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
+                    case (?d, null) { ?d };
+                    case (null, ?d) { ?d };
+                    case (null, null) { null };
+                };
+                backerPositions := principalMapNat.put(backerPositions, to, {
+                    toPos with
+                    amount = toPos.amount + fromPos.amount;
+                    entitlement = toPos.entitlement + fromPos.entitlement;
+                    startTime = mergedStart;
+                    firstDepositDate = mergedFirst;
+                });
+            };
+        };
+
+        backerPositions := principalMapNat.delete(backerPositions, from);
+
+        let fromRepay = switch (principalMapNat.get(backerRepayments, from)) {
+            case (null) { 0.0 };
+            case (?r) { r };
+        };
+        if (fromRepay > 0.0) {
+            let toRepay = switch (principalMapNat.get(backerRepayments, to)) {
+                case (null) { 0.0 };
+                case (?r) { r };
+            };
+            backerRepayments := principalMapNat.put(backerRepayments, to, toRepay + fromRepay);
+        };
+        backerRepayments := principalMapNat.delete(backerRepayments, from);
+
+        #Ok;
     };
 
     // ========================================================================
