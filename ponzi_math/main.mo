@@ -146,4 +146,36 @@ persistent actor class PonziMath(initArgs : {
             amount : Float;
         };
     };
+
+    // ========================================================================
+    // State
+    // ========================================================================
+
+    transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
+    transient let principalMapNat = OrderedMap.Make<Principal>(Principal.compare);
+    transient let intMap = OrderedMap.Make<Int>(Int.compare);
+
+    var gameRecords = natMap.empty<GameRecord>();
+    var nextGameId : Nat = 0;
+
+    var platformStats : PlatformStats = {
+        totalDeposits = 0.0;
+        totalWithdrawals = 0.0;
+        activeGames = 0;
+        potBalance = 0.0;
+        daysActive = 0;
+    };
+
+    var gameResetHistory = intMap.empty<GameResetRecord>();
+    var roundSeedReserve : Float = 0.0;
+    var depositTimestamps = principalMapNat.empty<List.List<Int>>();
+    var backerPositions = principalMapNat.empty<BackerPosition>();
+    var backerRepayments = principalMapNat.empty<Float>();
+    var coverChargeBalance : Nat = 0;
+    var generalLedger = natMap.empty<GeneralLedgerEntry>();
+    var nextGeneralLedgerId : Nat = 0;
+
+    // Transient concurrency state — resets on upgrade (safe by construction)
+    transient var callerLocks = principalMapNat.empty<Bool>();
+    transient var globalCriticalLock : Bool = false;
 };
