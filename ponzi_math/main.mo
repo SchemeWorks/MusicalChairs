@@ -187,8 +187,8 @@ persistent actor class PonziMath(initArgs : {
     var gameResetHistory = intMap.empty<GameResetRecord>();
     var roundSeedReserve : Float = 0.0;
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
-    var backerPositions = principalMapNat.empty<BackerPosition>();
-    var backerRepayments = principalMapNat.empty<Float>();
+    var backerPositions = backerKeyMap.empty<BackerPosition>();
+    var backerRepayments = backerKeyMap.empty<Float>();
     var coverChargeBalance : Nat = 0;
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
