@@ -540,6 +540,17 @@ persistent actor class PonziMath(initArgs : {
         recordLedger(#seriesBPromotion({ owner; underwater; entitlement }));
     };
 
+    // Async wrapper that performs the Series B promotion (if any eligible
+    // candidate exists) before zeroing the round state. Used by all four
+    // pot-empty paths in withdrawEarnings and settleCompoundingGame.
+    func promoteAndReset(reason : Text) : async () {
+        switch (await selectPromotionCandidate()) {
+            case (?c) { applySeriesBPromotion(c.owner, c.underwater) };
+            case (null) { /* nobody underwater — straight reset */ };
+        };
+        triggerGameReset(reason);
+    };
+
     // ========================================================================
     // Game reset (called on insolvency)
     //
@@ -879,7 +890,7 @@ persistent actor class PonziMath(initArgs : {
                     let isInsolvent = earnings > pot;
 
                     if (isInsolvent and pot <= 0.0) {
-                        triggerGameReset("Insufficient funds for payout (pot empty)");
+                        await promoteAndReset("Insufficient funds for payout (pot empty)");
                         return #Err("Game reset: pot is empty");
                     };
 
@@ -950,7 +961,7 @@ persistent actor class PonziMath(initArgs : {
                     }));
 
                     if (isInsolvent) {
-                        triggerGameReset("Pot drained (partial payout)");
+                        await promoteAndReset("Pot drained (partial payout)");
                     };
 
                     #Ok(actualNetEarnings);
@@ -1019,7 +1030,7 @@ persistent actor class PonziMath(initArgs : {
                     let isInsolvent = earnings > pot;
 
                     if (isInsolvent and pot <= 0.0) {
-                        triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                        await promoteAndReset("Insufficient funds for compounding game settlement (pot empty)");
                         return #Err("Game reset: pot is empty");
                     };
 
@@ -1086,7 +1097,7 @@ persistent actor class PonziMath(initArgs : {
                     }));
 
                     if (isInsolvent) {
-                        triggerGameReset("Pot drained (partial payout)");
+                        await promoteAndReset("Pot drained (partial payout)");
                     };
 
                     #Ok(actualNetEarnings);
