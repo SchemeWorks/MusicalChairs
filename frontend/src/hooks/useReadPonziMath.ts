@@ -4,7 +4,7 @@ import { ponziMathIdlFactory, PonziMathService } from '../backend';
 
 // ponzi_math canister ID. Replace with the actual mainnet canister ID after
 // ponzi_math is deployed. For local dev, replace with the locally-deployed ID.
-const PONZI_MATH_CANISTER_ID = 'REPLACE_WITH_PONZI_MATH_CANISTER_ID';
+const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
 const HOST = 'https://icp0.io';
 
 let cachedActor: ActorSubclass<PonziMathService> | null = null;
