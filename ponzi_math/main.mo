@@ -488,4 +488,140 @@ persistent actor class PonziMath(initArgs : {
         let roi = Float.pow(1.0 + dailyRate, days) - 1.0;
         roundToEightDecimals(roi);
     };
+
+    // ========================================================================
+    // createGame — opens a new investment position
+    // ========================================================================
+
+    transient let COVER_CHARGE_RATE : Float = 0.04;
+
+    public shared ({ caller }) func createGame(
+        plan : GamePlan,
+        amount : Float,
+        isCompounding : Bool,
+    ) : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
+        validateAmount(amount);
+        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
+        if (not validateEightDecimals(amount)) {
+            return #Err("Amount cannot have more than 8 decimal places");
+        };
+
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+
+        let currentTime = Time.now();
+        let currentHour = currentTime / 3600000000000;
+        switch (principalMapNat.get(depositTimestamps, caller)) {
+            case (null) {};
+            case (?timestamps) {
+                let filtered = List.filter<Int>(
+                    timestamps,
+                    func(t) { currentHour - t < 1 },
+                );
+                if (List.size(filtered) >= 3) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("You can only open 3 positions per hour");
+                };
+            };
+        };
+
+        if (not isCompounding) {
+            let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
+            if (amount > maxDeposit) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
+            };
+        };
+
+        let selfPrincipal = Principal.fromActor(Self);
+        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+
+        let transferResult = try {
+            await icpLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = { owner = selfPrincipal; subaccount = null };
+                amount = amountE8s;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+        } catch (e) {
+            releaseGlobalLock();
+            releaseCallerLock(caller);
+            return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        };
+
+        switch (transferResult) {
+            case (#Err(err)) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                return #Err(transferFromErrorMessage(err));
+            };
+            case (#Ok(_)) {};
+        };
+
+        switch (principalMapNat.get(depositTimestamps, caller)) {
+            case (null) {
+                depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
+            };
+            case (?timestamps) {
+                let filtered = List.filter<Int>(timestamps, func(t) { currentHour - t < 1 });
+                depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filtered));
+            };
+        };
+
+        let coverCharge = amount * COVER_CHARGE_RATE;
+        let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
+        coverChargeBalance += coverChargeE8s;
+        let netAmount = amount - coverCharge;
+
+        let gameId = nextGameId;
+        nextGameId += 1;
+
+        if (coverChargeE8s > 0) {
+            recordLedger(#coverChargeAccrued({
+                gameId;
+                player = caller;
+                amountE8s = coverChargeE8s;
+            }));
+        };
+
+        let newGame : GameRecord = {
+            id = gameId;
+            player = caller;
+            plan;
+            amount;
+            startTime = Time.now();
+            isCompounding;
+            isActive = true;
+            lastUpdateTime = Time.now();
+            accumulatedEarnings = 0.0;
+            totalWithdrawn = 0.0;
+        };
+        gameRecords := natMap.put(gameRecords, gameId, newGame);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + amount;
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + netAmount;
+        };
+
+        recordLedger(#deposit({
+            player = caller;
+            gameId;
+            gross = amount;
+            coverCharge;
+            netToPot = netAmount;
+            plan;
+            isCompounding;
+        }));
+
+        releaseGlobalLock();
+        releaseCallerLock(caller);
+        #Ok(gameId);
+    };
 };
