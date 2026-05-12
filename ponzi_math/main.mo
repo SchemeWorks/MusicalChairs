@@ -178,4 +178,34 @@ persistent actor class PonziMath(initArgs : {
     // Transient concurrency state — resets on upgrade (safe by construction)
     transient var callerLocks = principalMapNat.empty<Bool>();
     transient var globalCriticalLock : Bool = false;
+
+    // ========================================================================
+    // Concurrency: per-caller lock and global critical-section lock
+    // ========================================================================
+
+    func acquireCallerLock(caller : Principal) {
+        switch (principalMapNat.get(callerLocks, caller)) {
+            case (?true) { Debug.trap("Another operation is already in progress for this caller") };
+            case _ { callerLocks := principalMapNat.put(callerLocks, caller, true) };
+        };
+    };
+
+    func releaseCallerLock(caller : Principal) {
+        callerLocks := principalMapNat.delete(callerLocks, caller);
+    };
+
+    func acquireGlobalLock() {
+        if (globalCriticalLock) {
+            Debug.trap("Critical section busy — another operation is in progress, please retry");
+        };
+        globalCriticalLock := true;
+    };
+
+    func releaseGlobalLock() {
+        globalCriticalLock := false;
+    };
+
+    public query func isCriticalSectionBusy() : async Bool {
+        globalCriticalLock;
+    };
 };
