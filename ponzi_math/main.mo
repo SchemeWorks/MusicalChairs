@@ -535,120 +535,112 @@ persistent actor class PonziMath(initArgs : {
 
         acquireCallerLock(caller);
         acquireGlobalLock();
-
-        let currentTime = Time.now();
-        let currentHour = currentTime / 3600000000000;
-        switch (principalMapNat.get(depositTimestamps, caller)) {
-            case (null) {};
-            case (?timestamps) {
-                let filtered = List.filter<Int>(
-                    timestamps,
-                    func(t) { currentHour - t < 1 },
-                );
-                if (List.size(filtered) >= 3) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("You can only open 3 positions per hour");
+        try {
+            let currentTime = Time.now();
+            let currentHour = currentTime / 3600000000000;
+            switch (principalMapNat.get(depositTimestamps, caller)) {
+                case (null) {};
+                case (?timestamps) {
+                    let filtered = List.filter<Int>(
+                        timestamps,
+                        func(t) { currentHour - t < 1 },
+                    );
+                    if (List.size(filtered) >= 3) {
+                        return #Err("You can only open 3 positions per hour");
+                    };
                 };
             };
-        };
 
-        if (not isCompounding) {
-            let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
-            if (amount > maxDeposit) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
+            if (not isCompounding) {
+                let maxDeposit = Float.max(platformStats.potBalance * 0.2, 5.0);
+                if (amount > maxDeposit) {
+                    return #Err("Maximum deposit for simple mode is the greater of 20% of current pot balance or 5 ICP (" # formatICP(maxDeposit) # " ICP)");
+                };
             };
-        };
 
-        let selfPrincipal = Principal.fromActor(Self);
-        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+            let selfPrincipal = Principal.fromActor(Self);
+            let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let transferResult = try {
-            await icpLedger.icrc2_transfer_from({
-                spender_subaccount = null;
-                from = { owner = caller; subaccount = null };
-                to = { owner = selfPrincipal; subaccount = null };
-                amount = amountE8s;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-        } catch (e) {
+            let transferResult = try {
+                await icpLedger.icrc2_transfer_from({
+                    spender_subaccount = null;
+                    from = { owner = caller; subaccount = null };
+                    to = { owner = selfPrincipal; subaccount = null };
+                    amount = amountE8s;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
+
+            switch (transferResult) {
+                case (#Err(err)) { return #Err(transferFromErrorMessage(err)) };
+                case (#Ok(_)) {};
+            };
+
+            switch (principalMapNat.get(depositTimestamps, caller)) {
+                case (null) {
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
+                };
+                case (?timestamps) {
+                    let filtered = List.filter<Int>(timestamps, func(t) { currentHour - t < 1 });
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filtered));
+                };
+            };
+
+            let coverCharge = amount * COVER_CHARGE_RATE;
+            let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
+            coverChargeBalance += coverChargeE8s;
+            let netAmount = amount - coverCharge;
+
+            let gameId = nextGameId;
+            nextGameId += 1;
+
+            if (coverChargeE8s > 0) {
+                recordLedger(#coverChargeAccrued({
+                    gameId;
+                    player = caller;
+                    amountE8s = coverChargeE8s;
+                }));
+            };
+
+            let newGame : GameRecord = {
+                id = gameId;
+                player = caller;
+                plan;
+                amount;
+                startTime = Time.now();
+                isCompounding;
+                isActive = true;
+                lastUpdateTime = Time.now();
+                accumulatedEarnings = 0.0;
+                totalWithdrawn = 0.0;
+            };
+            gameRecords := natMap.put(gameRecords, gameId, newGame);
+            platformStats := {
+                platformStats with
+                totalDeposits = platformStats.totalDeposits + amount;
+                activeGames = platformStats.activeGames + 1;
+                potBalance = platformStats.potBalance + netAmount;
+            };
+
+            recordLedger(#deposit({
+                player = caller;
+                gameId;
+                gross = amount;
+                coverCharge;
+                netToPot = netAmount;
+                plan;
+                isCompounding;
+            }));
+
+            #Ok(gameId);
+        } finally {
             releaseGlobalLock();
             releaseCallerLock(caller);
-            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-
-        switch (transferResult) {
-            case (#Err(err)) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err(transferFromErrorMessage(err));
-            };
-            case (#Ok(_)) {};
-        };
-
-        switch (principalMapNat.get(depositTimestamps, caller)) {
-            case (null) {
-                depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
-            };
-            case (?timestamps) {
-                let filtered = List.filter<Int>(timestamps, func(t) { currentHour - t < 1 });
-                depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filtered));
-            };
-        };
-
-        let coverCharge = amount * COVER_CHARGE_RATE;
-        let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
-        coverChargeBalance += coverChargeE8s;
-        let netAmount = amount - coverCharge;
-
-        let gameId = nextGameId;
-        nextGameId += 1;
-
-        if (coverChargeE8s > 0) {
-            recordLedger(#coverChargeAccrued({
-                gameId;
-                player = caller;
-                amountE8s = coverChargeE8s;
-            }));
-        };
-
-        let newGame : GameRecord = {
-            id = gameId;
-            player = caller;
-            plan;
-            amount;
-            startTime = Time.now();
-            isCompounding;
-            isActive = true;
-            lastUpdateTime = Time.now();
-            accumulatedEarnings = 0.0;
-            totalWithdrawn = 0.0;
-        };
-        gameRecords := natMap.put(gameRecords, gameId, newGame);
-        platformStats := {
-            platformStats with
-            totalDeposits = platformStats.totalDeposits + amount;
-            activeGames = platformStats.activeGames + 1;
-            potBalance = platformStats.potBalance + netAmount;
-        };
-
-        recordLedger(#deposit({
-            player = caller;
-            gameId;
-            gross = amount;
-            coverCharge;
-            netToPot = netAmount;
-            plan;
-            isCompounding;
-        }));
-
-        releaseGlobalLock();
-        releaseCallerLock(caller);
-        #Ok(gameId);
     };
 
     // ========================================================================
@@ -665,70 +657,66 @@ persistent actor class PonziMath(initArgs : {
 
         acquireCallerLock(caller);
         acquireGlobalLock();
+        try {
+            let selfPrincipal = Principal.fromActor(Self);
+            let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let selfPrincipal = Principal.fromActor(Self);
-        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+            let transferResult = try {
+                await icpLedger.icrc2_transfer_from({
+                    spender_subaccount = null;
+                    from = { owner = caller; subaccount = null };
+                    to = { owner = selfPrincipal; subaccount = null };
+                    amount = amountE8s;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
 
-        let transferResult = try {
-            await icpLedger.icrc2_transfer_from({
-                spender_subaccount = null;
-                from = { owner = caller; subaccount = null };
-                to = { owner = selfPrincipal; subaccount = null };
-                amount = amountE8s;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-        } catch (e) {
+            let blockIndex = switch (transferResult) {
+                case (#Err(err)) { return #Err(transferFromErrorMessage(err)) };
+                case (#Ok(idx)) { idx };
+            };
+
+            let entitlement = amount * 1.24; // Series A 24% bonus
+
+            switch (principalMapNat.get(backerPositions, caller)) {
+                case (null) {
+                    let newBacker : BackerPosition = {
+                        owner = caller;
+                        amount;
+                        entitlement;
+                        startTime = Time.now();
+                        isActive = true;
+                        backerType = #seriesA;
+                        firstDepositDate = ?Time.now();
+                    };
+                    backerPositions := principalMapNat.put(backerPositions, caller, newBacker);
+                };
+                case (?existing) {
+                    let updated : BackerPosition = {
+                        existing with
+                        amount = existing.amount + amount;
+                        entitlement = existing.entitlement + entitlement;
+                    };
+                    backerPositions := principalMapNat.put(backerPositions, caller, updated);
+                };
+            };
+
+            platformStats := {
+                platformStats with
+                potBalance = platformStats.potBalance + amount;
+            };
+
+            recordLedger(#backerDeposit({ backer = caller; amount; entitlement }));
+
+            #Ok(blockIndex);
+        } finally {
             releaseGlobalLock();
             releaseCallerLock(caller);
-            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-
-        let blockIndex = switch (transferResult) {
-            case (#Err(err)) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err(transferFromErrorMessage(err));
-            };
-            case (#Ok(idx)) { idx };
-        };
-
-        let entitlement = amount * 1.24; // Series A 24% bonus
-
-        switch (principalMapNat.get(backerPositions, caller)) {
-            case (null) {
-                let newBacker : BackerPosition = {
-                    owner = caller;
-                    amount;
-                    entitlement;
-                    startTime = Time.now();
-                    isActive = true;
-                    backerType = #seriesA;
-                    firstDepositDate = ?Time.now();
-                };
-                backerPositions := principalMapNat.put(backerPositions, caller, newBacker);
-            };
-            case (?existing) {
-                let updated : BackerPosition = {
-                    existing with
-                    amount = existing.amount + amount;
-                    entitlement = existing.entitlement + entitlement;
-                };
-                backerPositions := principalMapNat.put(backerPositions, caller, updated);
-            };
-        };
-
-        platformStats := {
-            platformStats with
-            potBalance = platformStats.potBalance + amount;
-        };
-
-        recordLedger(#backerDeposit({ backer = caller; amount; entitlement }));
-
-        releaseGlobalLock();
-        releaseCallerLock(caller);
-        #Ok(blockIndex);
     };
 
     // ========================================================================
@@ -739,129 +727,116 @@ persistent actor class PonziMath(initArgs : {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
-        switch (natMap.get(gameRecords, gameId)) {
-            case (null) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                #Err("Game not found");
-            };
-            case (?game) {
-                if (game.player != caller) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Unauthorized: Only the game owner can withdraw earnings");
-                };
-                if (game.isCompounding) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Cannot withdraw from compounding games");
-                };
-                if (not game.isActive) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Game is closed (no longer active)");
-                };
-
-                let earnings = await calculateEarnings(game);
-                let exitToll = calculateExitToll(game, earnings);
-                let netEarnings = roundToEightDecimals(earnings - exitToll);
-
-                let elapsedDays = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000) / 86400.0;
-                let closePosition = elapsedDays >= 21.0;
-
-                let originalGame = game;
-                let originalStats = platformStats;
-                let originalRepayments = backerRepayments;
-                let originalSeedReserve = roundSeedReserve;
-
-                let pot = platformStats.potBalance;
-                let isInsolvent = earnings > pot;
-
-                if (isInsolvent and pot <= 0.0) {
-                    triggerGameReset("Insufficient funds for payout (pot empty)");
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Game reset: pot is empty");
-                };
-
-                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
-                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
-                let actualToll = exitToll * scaleFactor;
-                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
-
-                distributeExitToll(actualToll);
-
-                let willClose = closePosition or isInsolvent;
-                let updatedGame : GameRecord = {
-                    game with
-                    accumulatedEarnings = 0.0;
-                    lastUpdateTime = Time.now();
-                    totalWithdrawn = game.totalWithdrawn + actualNetEarnings;
-                    isActive = if (willClose) false else game.isActive;
-                };
-                gameRecords := natMap.put(gameRecords, gameId, updatedGame);
-                platformStats := {
-                    platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
-                    potBalance = platformStats.potBalance - actualPotDeduction;
-                    activeGames =
-                        if (willClose and platformStats.activeGames > 0) {
-                            platformStats.activeGames - 1
-                        } else { platformStats.activeGames };
-                };
-
-                let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                if (netEarningsE8s > 0) {
-                    let transferResult = try {
-                        await icpLedger.icrc1_transfer({
-                            from_subaccount = null;
-                            to = { owner = caller; subaccount = null };
-                            amount = netEarningsE8s;
-                            fee = null;
-                            memo = null;
-                            created_at_time = null;
-                        });
-                    } catch (e) {
-                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
-                        platformStats := originalStats;
-                        backerRepayments := originalRepayments;
-                        roundSeedReserve := originalSeedReserve;
-                        releaseGlobalLock();
-                        releaseCallerLock(caller);
-                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
+        try {
+            switch (natMap.get(gameRecords, gameId)) {
+                case (null) { #Err("Game not found") };
+                case (?game) {
+                    if (game.player != caller) {
+                        return #Err("Unauthorized: Only the game owner can withdraw earnings");
                     };
-                    switch (transferResult) {
-                        case (#Err(err)) {
+                    if (game.isCompounding) {
+                        return #Err("Cannot withdraw from compounding games");
+                    };
+                    if (not game.isActive) {
+                        return #Err("Game is closed (no longer active)");
+                    };
+
+                    let earnings = await calculateEarnings(game);
+                    let exitToll = calculateExitToll(game, earnings);
+                    let netEarnings = roundToEightDecimals(earnings - exitToll);
+
+                    let elapsedDays = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000) / 86400.0;
+                    let closePosition = elapsedDays >= 21.0;
+
+                    let originalGame = game;
+                    let originalStats = platformStats;
+                    let originalRepayments = backerRepayments;
+                    let originalSeedReserve = roundSeedReserve;
+
+                    let pot = platformStats.potBalance;
+                    let isInsolvent = earnings > pot;
+
+                    if (isInsolvent and pot <= 0.0) {
+                        triggerGameReset("Insufficient funds for payout (pot empty)");
+                        return #Err("Game reset: pot is empty");
+                    };
+
+                    let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                    let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                    let actualToll = exitToll * scaleFactor;
+                    let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                    distributeExitToll(actualToll);
+
+                    let willClose = closePosition or isInsolvent;
+                    let updatedGame : GameRecord = {
+                        game with
+                        accumulatedEarnings = 0.0;
+                        lastUpdateTime = Time.now();
+                        totalWithdrawn = game.totalWithdrawn + actualNetEarnings;
+                        isActive = if (willClose) false else game.isActive;
+                    };
+                    gameRecords := natMap.put(gameRecords, gameId, updatedGame);
+                    platformStats := {
+                        platformStats with
+                        totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                        potBalance = platformStats.potBalance - actualPotDeduction;
+                        activeGames =
+                            if (willClose and platformStats.activeGames > 0) {
+                                platformStats.activeGames - 1
+                            } else { platformStats.activeGames };
+                    };
+
+                    let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                    if (netEarningsE8s > 0) {
+                        let transferResult = try {
+                            await icpLedger.icrc1_transfer({
+                                from_subaccount = null;
+                                to = { owner = caller; subaccount = null };
+                                amount = netEarningsE8s;
+                                fee = null;
+                                memo = null;
+                                created_at_time = null;
+                            });
+                        } catch (e) {
                             gameRecords := natMap.put(gameRecords, gameId, originalGame);
                             platformStats := originalStats;
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
-                            releaseGlobalLock();
-                            releaseCallerLock(caller);
-                            return #Err(transferErrorMessage(err));
+                            return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
-                        case (#Ok(_)) {};
+                        switch (transferResult) {
+                            case (#Err(err)) {
+                                gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                                platformStats := originalStats;
+                                backerRepayments := originalRepayments;
+                                roundSeedReserve := originalSeedReserve;
+                                return #Err(transferErrorMessage(err));
+                            };
+                            case (#Ok(_)) {};
+                        };
                     };
+
+                    recordLedger(#withdrawal({
+                        player = caller;
+                        gameId;
+                        grossEarnings = earnings;
+                        toll = actualToll;
+                        netToPlayer = actualNetEarnings;
+                        potDeduction = actualPotDeduction;
+                        isInsolvent;
+                    }));
+
+                    if (isInsolvent) {
+                        triggerGameReset("Pot drained (partial payout)");
+                    };
+
+                    #Ok(actualNetEarnings);
                 };
-
-                recordLedger(#withdrawal({
-                    player = caller;
-                    gameId;
-                    grossEarnings = earnings;
-                    toll = actualToll;
-                    netToPlayer = actualNetEarnings;
-                    potDeduction = actualPotDeduction;
-                    isInsolvent;
-                }));
-
-                if (isInsolvent) {
-                    triggerGameReset("Pot drained (partial payout)");
-                };
-
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                #Ok(actualNetEarnings);
             };
+        } finally {
+            releaseGlobalLock();
+            releaseCallerLock(caller);
         };
     };
 
@@ -873,148 +848,131 @@ persistent actor class PonziMath(initArgs : {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
-        switch (natMap.get(gameRecords, gameId)) {
-            case (null) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                #Err("Game not found");
-            };
-            case (?game) {
-                if (game.player != caller) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Unauthorized: Only the game owner can settle this game");
-                };
-                if (not game.isCompounding) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
-                };
-                if (not game.isActive) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Game is already settled");
-                };
-
-                let timeElapsedSec = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
-                let daysElapsed = timeElapsedSec / 86400.0;
-                let maturityDaysOpt : ?Float = switch (game.plan) {
-                    case (#compounding15Day) { ?15.0 };
-                    case (#compounding30Day) { ?30.0 };
-                    case (#simple21Day) { null };
-                };
-                let maturityDays = switch (maturityDaysOpt) {
-                    case (null) {
-                        releaseGlobalLock();
-                        releaseCallerLock(caller);
-                        return #Err("Simple games cannot be settled this way");
+        try {
+            switch (natMap.get(gameRecords, gameId)) {
+                case (null) { #Err("Game not found") };
+                case (?game) {
+                    if (game.player != caller) {
+                        return #Err("Unauthorized: Only the game owner can settle this game");
                     };
-                    case (?d) { d };
-                };
-                if (daysElapsed < maturityDays) {
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
-                };
-
-                let dailyRate = switch (game.plan) {
-                    case (#compounding15Day) { 0.12 };
-                    case (#compounding30Day) { 0.09 };
-                    case (#simple21Day) { 0.0 };
-                };
-                let earnings = game.amount * (Float.pow(1.0 + dailyRate, maturityDays) - 1.0);
-                let exitToll = calculateExitToll(game, earnings);
-                let netEarnings = roundToEightDecimals(earnings - exitToll);
-
-                let originalGame = game;
-                let originalStats = platformStats;
-                let originalRepayments = backerRepayments;
-                let originalSeedReserve = roundSeedReserve;
-
-                let pot = platformStats.potBalance;
-                let isInsolvent = earnings > pot;
-
-                if (isInsolvent and pot <= 0.0) {
-                    triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
-                    releaseGlobalLock();
-                    releaseCallerLock(caller);
-                    return #Err("Game reset: pot is empty");
-                };
-
-                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
-                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
-                let actualToll = exitToll * scaleFactor;
-                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
-
-                distributeExitToll(actualToll);
-
-                let settled : GameRecord = {
-                    game with
-                    isActive = false;
-                    accumulatedEarnings = actualNetEarnings;
-                    totalWithdrawn = actualNetEarnings;
-                    lastUpdateTime = Time.now();
-                };
-                gameRecords := natMap.put(gameRecords, gameId, settled);
-                platformStats := {
-                    platformStats with
-                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
-                    potBalance = platformStats.potBalance - actualPotDeduction;
-                    activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
-                };
-
-                let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                if (payoutE8s > 0) {
-                    let transferResult = try {
-                        await icpLedger.icrc1_transfer({
-                            from_subaccount = null;
-                            to = { owner = caller; subaccount = null };
-                            amount = payoutE8s;
-                            fee = null;
-                            memo = null;
-                            created_at_time = null;
-                        });
-                    } catch (e) {
-                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
-                        platformStats := originalStats;
-                        backerRepayments := originalRepayments;
-                        roundSeedReserve := originalSeedReserve;
-                        releaseGlobalLock();
-                        releaseCallerLock(caller);
-                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
+                    if (not game.isCompounding) {
+                        return #Err("This function is only for compounding games. Use withdrawEarnings instead.");
                     };
-                    switch (transferResult) {
-                        case (#Err(err)) {
+                    if (not game.isActive) {
+                        return #Err("Game is already settled");
+                    };
+
+                    let timeElapsedSec = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
+                    let daysElapsed = timeElapsedSec / 86400.0;
+                    let maturityDaysOpt : ?Float = switch (game.plan) {
+                        case (#compounding15Day) { ?15.0 };
+                        case (#compounding30Day) { ?30.0 };
+                        case (#simple21Day) { null };
+                    };
+                    let maturityDays = switch (maturityDaysOpt) {
+                        case (null) {
+                            return #Err("Simple games cannot be settled this way");
+                        };
+                        case (?d) { d };
+                    };
+                    if (daysElapsed < maturityDays) {
+                        return #Err("Game has not matured yet. " # Float.toText(maturityDays - daysElapsed) # " days remaining.");
+                    };
+
+                    let dailyRate = switch (game.plan) {
+                        case (#compounding15Day) { 0.12 };
+                        case (#compounding30Day) { 0.09 };
+                        case (#simple21Day) { 0.0 };
+                    };
+                    let earnings = game.amount * (Float.pow(1.0 + dailyRate, maturityDays) - 1.0);
+                    let exitToll = calculateExitToll(game, earnings);
+                    let netEarnings = roundToEightDecimals(earnings - exitToll);
+
+                    let originalGame = game;
+                    let originalStats = platformStats;
+                    let originalRepayments = backerRepayments;
+                    let originalSeedReserve = roundSeedReserve;
+
+                    let pot = platformStats.potBalance;
+                    let isInsolvent = earnings > pot;
+
+                    if (isInsolvent and pot <= 0.0) {
+                        triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                        return #Err("Game reset: pot is empty");
+                    };
+
+                    let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                    let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                    let actualToll = exitToll * scaleFactor;
+                    let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                    distributeExitToll(actualToll);
+
+                    let settled : GameRecord = {
+                        game with
+                        isActive = false;
+                        accumulatedEarnings = actualNetEarnings;
+                        totalWithdrawn = actualNetEarnings;
+                        lastUpdateTime = Time.now();
+                    };
+                    gameRecords := natMap.put(gameRecords, gameId, settled);
+                    platformStats := {
+                        platformStats with
+                        totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                        potBalance = platformStats.potBalance - actualPotDeduction;
+                        activeGames = if (platformStats.activeGames > 0) { platformStats.activeGames - 1 } else { 0 };
+                    };
+
+                    let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                    if (payoutE8s > 0) {
+                        let transferResult = try {
+                            await icpLedger.icrc1_transfer({
+                                from_subaccount = null;
+                                to = { owner = caller; subaccount = null };
+                                amount = payoutE8s;
+                                fee = null;
+                                memo = null;
+                                created_at_time = null;
+                            });
+                        } catch (e) {
                             gameRecords := natMap.put(gameRecords, gameId, originalGame);
                             platformStats := originalStats;
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
-                            releaseGlobalLock();
-                            releaseCallerLock(caller);
-                            return #Err(transferErrorMessage(err));
+                            return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
-                        case (#Ok(_)) {};
+                        switch (transferResult) {
+                            case (#Err(err)) {
+                                gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                                platformStats := originalStats;
+                                backerRepayments := originalRepayments;
+                                roundSeedReserve := originalSeedReserve;
+                                return #Err(transferErrorMessage(err));
+                            };
+                            case (#Ok(_)) {};
+                        };
                     };
+
+                    recordLedger(#settlement({
+                        player = caller;
+                        gameId;
+                        grossEarnings = earnings;
+                        toll = actualToll;
+                        netToPlayer = actualNetEarnings;
+                        potDeduction = actualPotDeduction;
+                        isInsolvent;
+                    }));
+
+                    if (isInsolvent) {
+                        triggerGameReset("Pot drained (partial payout)");
+                    };
+
+                    #Ok(actualNetEarnings);
                 };
-
-                recordLedger(#settlement({
-                    player = caller;
-                    gameId;
-                    grossEarnings = earnings;
-                    toll = actualToll;
-                    netToPlayer = actualNetEarnings;
-                    potDeduction = actualPotDeduction;
-                    isInsolvent;
-                }));
-
-                if (isInsolvent) {
-                    triggerGameReset("Pot drained (partial payout)");
-                };
-
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                #Ok(actualNetEarnings);
             };
+        } finally {
+            releaseGlobalLock();
+            releaseCallerLock(caller);
         };
     };
 
@@ -1026,53 +984,48 @@ persistent actor class PonziMath(initArgs : {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
-        let balanceOpt : ?Float = switch (principalMapNat.get(backerRepayments, caller)) {
-            case (null) { null };
-            case (?b) { if (b <= 0.0) { null } else { ?b } };
-        };
-        let balance = switch (balanceOpt) {
-            case (null) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err("No repayment balance to claim");
+        try {
+            let balanceOpt : ?Float = switch (principalMapNat.get(backerRepayments, caller)) {
+                case (null) { null };
+                case (?b) { if (b <= 0.0) { null } else { ?b } };
             };
-            case (?b) { b };
-        };
+            let balance = switch (balanceOpt) {
+                case (null) { return #Err("No repayment balance to claim") };
+                case (?b) { b };
+            };
 
-        backerRepayments := principalMapNat.put(backerRepayments, caller, 0.0);
+            backerRepayments := principalMapNat.put(backerRepayments, caller, 0.0);
 
-        let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
-        let transferResult = try {
-            await icpLedger.icrc1_transfer({
-                from_subaccount = null;
-                to = { owner = caller; subaccount = null };
-                amount = balanceE8s;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-        } catch (e) {
-            backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+            let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
+            let transferResult = try {
+                await icpLedger.icrc1_transfer({
+                    from_subaccount = null;
+                    to = { owner = caller; subaccount = null };
+                    amount = balanceE8s;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
+
+            switch (transferResult) {
+                case (#Err(err)) {
+                    backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                    return #Err(transferErrorMessage(err));
+                };
+                case (#Ok(_)) {};
+            };
+
+            recordLedger(#backerRepaymentClaim({ backer = caller; amount = balance }));
+
+            #Ok(balance);
+        } finally {
             releaseGlobalLock();
             releaseCallerLock(caller);
-            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-
-        switch (transferResult) {
-            case (#Err(err)) {
-                backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err(transferErrorMessage(err));
-            };
-            case (#Ok(_)) {};
-        };
-
-        recordLedger(#backerRepaymentClaim({ backer = caller; amount = balance }));
-
-        releaseGlobalLock();
-        releaseCallerLock(caller);
-        #Ok(balance);
     };
 
     // ========================================================================
@@ -1092,42 +1045,42 @@ persistent actor class PonziMath(initArgs : {
         };
 
         acquireGlobalLock();
+        try {
+            let amount = coverChargeBalance;
+            let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
 
-        let amount = coverChargeBalance;
-        let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+            coverChargeBalance := 0;
 
-        coverChargeBalance := 0;
-
-        let transferResult = try {
-            await icpLedger.icrc1_transfer({
-                from_subaccount = null;
-                to = { owner = BACKEND_PRINCIPAL; subaccount = null };
-                amount = transferAmount;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-        } catch (e) {
-            coverChargeBalance := amount;
-            releaseGlobalLock();
-            return #Err("Failed to contact ICP ledger: " # Error.message(e));
-        };
-
-        switch (transferResult) {
-            case (#Err(err)) {
+            let transferResult = try {
+                await icpLedger.icrc1_transfer({
+                    from_subaccount = null;
+                    to = { owner = BACKEND_PRINCIPAL; subaccount = null };
+                    amount = transferAmount;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
                 coverChargeBalance := amount;
-                releaseGlobalLock();
-                return #Err(transferErrorMessage(err));
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
             };
-            case (#Ok(blockIndex)) {
-                recordLedger(#coverChargeSwept({
-                    amountE8s = amount;
-                    toBackend = BACKEND_PRINCIPAL;
-                    blockIndex;
-                }));
-                releaseGlobalLock();
-                #Ok(blockIndex);
+
+            switch (transferResult) {
+                case (#Err(err)) {
+                    coverChargeBalance := amount;
+                    return #Err(transferErrorMessage(err));
+                };
+                case (#Ok(blockIndex)) {
+                    recordLedger(#coverChargeSwept({
+                        amountE8s = amount;
+                        toBackend = BACKEND_PRINCIPAL;
+                        blockIndex;
+                    }));
+                    #Ok(blockIndex);
+                };
             };
+        } finally {
+            releaseGlobalLock();
         };
     };
 
@@ -1341,78 +1294,74 @@ persistent actor class PonziMath(initArgs : {
 
         acquireCallerLock(caller);
         acquireGlobalLock();
+        try {
+            let selfPrincipal = Principal.fromActor(Self);
+            let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
 
-        let selfPrincipal = Principal.fromActor(Self);
-        let amountE8s = Int.abs(Float.toInt(amount * 100_000_000.0));
+            let transferResult = try {
+                await icpLedger.icrc2_transfer_from({
+                    spender_subaccount = null;
+                    from = { owner = caller; subaccount = null };
+                    to = { owner = selfPrincipal; subaccount = null };
+                    amount = amountE8s;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
 
-        let transferResult = try {
-            await icpLedger.icrc2_transfer_from({
-                spender_subaccount = null;
-                from = { owner = caller; subaccount = null };
-                to = { owner = selfPrincipal; subaccount = null };
-                amount = amountE8s;
-                fee = null;
-                memo = null;
-                created_at_time = null;
-            });
-        } catch (e) {
+            switch (transferResult) {
+                case (#Err(err)) { return #Err(transferFromErrorMessage(err)) };
+                case (#Ok(_)) {};
+            };
+
+            let coverCharge = amount * COVER_CHARGE_RATE;
+            let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
+            coverChargeBalance += coverChargeE8s;
+            let netAmount = amount - coverCharge;
+
+            let gameId = nextGameId;
+            nextGameId += 1;
+
+            if (coverChargeE8s > 0) {
+                recordLedger(#coverChargeAccrued({ gameId; player = caller; amountE8s = coverChargeE8s }));
+            };
+
+            let newGame : GameRecord = {
+                id = gameId;
+                player = caller;
+                plan;
+                amount;
+                startTime = startTimeNanos;
+                isCompounding;
+                isActive = true;
+                lastUpdateTime = startTimeNanos;
+                accumulatedEarnings = 0.0;
+                totalWithdrawn = 0.0;
+            };
+            gameRecords := natMap.put(gameRecords, gameId, newGame);
+            platformStats := {
+                platformStats with
+                totalDeposits = platformStats.totalDeposits + amount;
+                activeGames = platformStats.activeGames + 1;
+                potBalance = platformStats.potBalance + netAmount;
+            };
+
+            recordLedger(#backdatedGameCreated({
+                admin = caller;
+                player = caller;
+                gameId;
+                startTime = startTimeNanos;
+                amount;
+            }));
+
+            #Ok(gameId);
+        } finally {
             releaseGlobalLock();
             releaseCallerLock(caller);
-            return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
-
-        switch (transferResult) {
-            case (#Err(err)) {
-                releaseGlobalLock();
-                releaseCallerLock(caller);
-                return #Err(transferFromErrorMessage(err));
-            };
-            case (#Ok(_)) {};
-        };
-
-        let coverCharge = amount * COVER_CHARGE_RATE;
-        let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
-        coverChargeBalance += coverChargeE8s;
-        let netAmount = amount - coverCharge;
-
-        let gameId = nextGameId;
-        nextGameId += 1;
-
-        if (coverChargeE8s > 0) {
-            recordLedger(#coverChargeAccrued({ gameId; player = caller; amountE8s = coverChargeE8s }));
-        };
-
-        let newGame : GameRecord = {
-            id = gameId;
-            player = caller;
-            plan;
-            amount;
-            startTime = startTimeNanos;
-            isCompounding;
-            isActive = true;
-            lastUpdateTime = startTimeNanos;
-            accumulatedEarnings = 0.0;
-            totalWithdrawn = 0.0;
-        };
-        gameRecords := natMap.put(gameRecords, gameId, newGame);
-        platformStats := {
-            platformStats with
-            totalDeposits = platformStats.totalDeposits + amount;
-            activeGames = platformStats.activeGames + 1;
-            potBalance = platformStats.potBalance + netAmount;
-        };
-
-        recordLedger(#backdatedGameCreated({
-            admin = caller;
-            player = caller;
-            gameId;
-            startTime = startTimeNanos;
-            amount;
-        }));
-
-        releaseGlobalLock();
-        releaseCallerLock(caller);
-        #Ok(gameId);
     };
 
     // ========================================================================
