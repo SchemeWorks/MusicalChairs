@@ -704,4 +704,133 @@ persistent actor class PonziMath(initArgs : {
         releaseCallerLock(caller);
         #Ok(blockIndex);
     };
+
+    // ========================================================================
+    // withdrawEarnings — simple-plan payout, applies tiered exit toll
+    // ========================================================================
+
+    public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async { #Ok : Float; #Err : Text } {
+        requireAuthenticated(caller);
+        acquireCallerLock(caller);
+        acquireGlobalLock();
+        switch (natMap.get(gameRecords, gameId)) {
+            case (null) {
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                #Err("Game not found");
+            };
+            case (?game) {
+                if (game.player != caller) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Unauthorized: Only the game owner can withdraw earnings");
+                };
+                if (game.isCompounding) {
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Cannot withdraw from compounding games");
+                };
+
+                let earnings = await calculateEarnings(game);
+                let exitToll = calculateExitToll(game, earnings);
+                let netEarnings = roundToEightDecimals(earnings - exitToll);
+
+                let elapsedDays = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000) / 86400.0;
+                let closePosition = elapsedDays >= 21.0;
+
+                let originalGame = game;
+                let originalStats = platformStats;
+                let originalRepayments = backerRepayments;
+                let originalSeedReserve = roundSeedReserve;
+
+                let pot = platformStats.potBalance;
+                let isInsolvent = earnings > pot;
+
+                if (isInsolvent and pot <= 0.0) {
+                    triggerGameReset("Insufficient funds for payout (pot empty)");
+                    releaseGlobalLock();
+                    releaseCallerLock(caller);
+                    return #Err("Game reset: pot is empty");
+                };
+
+                let scaleFactor = if (isInsolvent) { pot / earnings } else { 1.0 };
+                let actualNetEarnings = roundToEightDecimals(netEarnings * scaleFactor);
+                let actualToll = exitToll * scaleFactor;
+                let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
+
+                distributeExitToll(actualToll);
+
+                let willClose = closePosition or isInsolvent;
+                let updatedGame : GameRecord = {
+                    game with
+                    accumulatedEarnings = 0.0;
+                    lastUpdateTime = Time.now();
+                    totalWithdrawn = game.totalWithdrawn + actualNetEarnings;
+                    isActive = if (willClose) false else game.isActive;
+                };
+                gameRecords := natMap.put(gameRecords, gameId, updatedGame);
+                platformStats := {
+                    platformStats with
+                    totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
+                    potBalance = platformStats.potBalance - actualPotDeduction;
+                    activeGames =
+                        if (willClose and platformStats.activeGames > 0) {
+                            platformStats.activeGames - 1
+                        } else { platformStats.activeGames };
+                };
+
+                let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
+                if (netEarningsE8s > 0) {
+                    let transferResult = try {
+                        await icpLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = { owner = caller; subaccount = null };
+                            amount = netEarningsE8s;
+                            fee = null;
+                            memo = null;
+                            created_at_time = null;
+                        });
+                    } catch (e) {
+                        gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                        platformStats := originalStats;
+                        backerRepayments := originalRepayments;
+                        roundSeedReserve := originalSeedReserve;
+                        releaseGlobalLock();
+                        releaseCallerLock(caller);
+                        return #Err("Failed to contact ICP ledger: " # Error.message(e));
+                    };
+                    switch (transferResult) {
+                        case (#Err(err)) {
+                            gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                            platformStats := originalStats;
+                            backerRepayments := originalRepayments;
+                            roundSeedReserve := originalSeedReserve;
+                            releaseGlobalLock();
+                            releaseCallerLock(caller);
+                            return #Err(transferErrorMessage(err));
+                        };
+                        case (#Ok(_)) {};
+                    };
+                };
+
+                recordLedger(#withdrawal({
+                    player = caller;
+                    gameId;
+                    grossEarnings = earnings;
+                    toll = actualToll;
+                    netToPlayer = actualNetEarnings;
+                    potDeduction = actualPotDeduction;
+                    isInsolvent;
+                }));
+
+                if (isInsolvent) {
+                    triggerGameReset("Pot drained (partial payout)");
+                };
+
+                releaseGlobalLock();
+                releaseCallerLock(caller);
+                #Ok(actualNetEarnings);
+            };
+        };
+    };
 };
