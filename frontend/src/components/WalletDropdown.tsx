@@ -3,7 +3,7 @@ import { Principal } from '@dfinity/principal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '../hooks/useWallet';
 import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
-import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, useWithdrawCoverCharges, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
+import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
@@ -159,11 +159,13 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   // principal matches COVER_CHARGE_RECIPIENT (backend enforces independently).
   const isAdmin = isCoverChargeAdmin(principal);
   const { data: coverChargeData, isLoading: coverChargeLoading } = useGetCoverChargeBalance();
-  const payManagementMutation = useWithdrawCoverCharges();
+  const { data: backendBalanceE8s } = useBackendICPBalance();
+  const payManagementMutation = usePayManagement();
   const [payManagementError, setPayManagementError] = useState('');
 
   const handlePayManagement = async () => {
     setPayManagementError('');
+    if (!principal) { setPayManagementError('Not authenticated'); return; }
     const bucketE8s = coverChargeData?.e8s ?? 0n;
     // Transfer fee is absorbed by the bucket; need more than the fee to proceed.
     if (bucketE8s <= ICP_TRANSFER_FEE) {
@@ -171,7 +173,8 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
       return;
     }
     try {
-      await payManagementMutation.mutateAsync(bucketE8s);
+      // Pay to the admin's own principal by default
+      await payManagementMutation.mutateAsync({ to: Principal.fromText(principal), amountE8s: bucketE8s });
     } catch (err: any) {
       setPayManagementError(err?.message || 'Pay Management failed');
     }
@@ -295,11 +298,11 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             so it never mingles with the player-facing ICP balance above. */}
         {isAdmin && (
           <div className="mc-card p-3 mb-2 border border-amber-500/30 bg-amber-500/5">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between mb-2">
               <div>
                 <div className="mc-label flex items-center gap-1.5">
                   <Briefcase className="h-3 w-3 mc-text-gold" />
-                  Front-End Load
+                  Front-End Load (ponzi_math)
                 </div>
                 <div className="text-lg font-bold mc-text-gold">
                   {coverChargeLoading ? '...' : coverChargeData ? formatICP(coverChargeData.icp) : '—'} ICP
@@ -320,6 +323,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                   <>Pay Management</>
                 )}
               </button>
+            </div>
+            <div className="text-xs mc-text-muted border-t border-amber-500/20 pt-2">
+              <span className="mc-label">Backend ICP ready: </span>
+              <span className="mc-text-gold font-bold">
+                {backendBalanceE8s !== undefined ? formatICP(Number(backendBalanceE8s) / 100_000_000) : '—'} ICP
+              </span>
             </div>
             {payManagementError && (
               <div className="mc-status-red p-2 text-xs text-center mt-2">{payManagementError}</div>
