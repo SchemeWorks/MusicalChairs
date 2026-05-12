@@ -64,6 +64,23 @@ persistent actor class PonziMath(initArgs : {
         #seriesB;
     };
 
+    public type BackerKey = (Principal, BackerType);
+
+    func backerKeyCompare(a : BackerKey, b : BackerKey) : { #less; #equal; #greater } {
+        switch (Principal.compare(a.0, b.0)) {
+            case (#less) #less;
+            case (#greater) #greater;
+            case (#equal) {
+                switch (a.1, b.1) {
+                    case (#seriesA, #seriesA) #equal;
+                    case (#seriesB, #seriesB) #equal;
+                    case (#seriesA, #seriesB) #less;
+                    case (#seriesB, #seriesA) #greater;
+                };
+            };
+        };
+    };
+
     public type BackerPosition = {
         owner : Principal;
         amount : Float;
@@ -154,6 +171,7 @@ persistent actor class PonziMath(initArgs : {
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMapNat = OrderedMap.Make<Principal>(Principal.compare);
     transient let intMap = OrderedMap.Make<Int>(Int.compare);
+    transient let backerKeyMap = OrderedMap.Make<BackerKey>(backerKeyCompare);
 
     var gameRecords = natMap.empty<GameRecord>();
     var nextGameId : Nat = 0;
