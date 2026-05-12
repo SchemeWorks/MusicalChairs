@@ -1099,4 +1099,188 @@ persistent actor class PonziMath(initArgs : {
             };
         };
     };
+
+    // ========================================================================
+    // Public queries — platform state
+    // ========================================================================
+
+    public query func getPlatformStats() : async PlatformStats {
+        {
+            platformStats with
+            daysActive = Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
+        };
+    };
+
+    public query func getAllGames() : async [GameRecord] {
+        Iter.toArray(natMap.vals(gameRecords));
+    };
+
+    public query func getAllActiveGames() : async [GameRecord] {
+        var active = List.nil<GameRecord>();
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) { active := List.push(g, active) };
+        };
+        List.toArray(active);
+    };
+
+    public query ({ caller }) func getUserGames() : async [GameRecord] {
+        var games = List.nil<GameRecord>();
+        for (g in natMap.vals(gameRecords)) {
+            if (g.player == caller) { games := List.push(g, games) };
+        };
+        List.toArray(games);
+    };
+
+    public query func getUserGamesFor(user : Principal) : async [GameRecord] {
+        var games = List.nil<GameRecord>();
+        for (g in natMap.vals(gameRecords)) {
+            if (g.player == user) { games := List.push(g, games) };
+        };
+        List.toArray(games);
+    };
+
+    public query func getGameById(gameId : Nat) : async ?GameRecord {
+        natMap.get(gameRecords, gameId);
+    };
+
+    public query func getActiveGameCount() : async Nat {
+        var count = 0;
+        for (g in natMap.vals(gameRecords)) { if (g.isActive) { count += 1 } };
+        count;
+    };
+
+    public query func getAvailableBalance() : async Float {
+        platformStats.potBalance;
+    };
+
+    public query func getTotalDeposits() : async Float {
+        platformStats.totalDeposits;
+    };
+
+    public query func getTotalWithdrawals() : async Float {
+        platformStats.totalWithdrawals;
+    };
+
+    public query func getDaysActive() : async Nat {
+        Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
+    };
+
+    public query func getMaxDepositLimit() : async Float {
+        Float.max(platformStats.potBalance * 0.2, 5.0);
+    };
+
+    public query ({ caller }) func checkDepositRateLimit() : async Bool {
+        let currentHour = Time.now() / 3600000000000;
+        switch (principalMapNat.get(depositTimestamps, caller)) {
+            case (null) { true };
+            case (?ts) {
+                let filtered = List.filter<Int>(ts, func(t) { currentHour - t < 1 });
+                List.size(filtered) < 3;
+            };
+        };
+    };
+
+    public query func getRoundSeedReserve() : async Float {
+        roundSeedReserve;
+    };
+
+    public query func getGameResetHistory() : async [GameResetRecord] {
+        Iter.toArray(intMap.vals(gameResetHistory));
+    };
+
+    // ========================================================================
+    // Public queries — backer state
+    // ========================================================================
+
+    public query func getBackerPositions() : async [BackerPosition] {
+        Iter.toArray(principalMapNat.vals(backerPositions));
+    };
+
+    public query ({ caller }) func getBackerRepaymentBalance() : async Float {
+        switch (principalMapNat.get(backerRepayments, caller)) {
+            case (null) { 0.0 };
+            case (?b) { b };
+        };
+    };
+
+    public query func getBackerRepaymentBalanceFor(user : Principal) : async Float {
+        switch (principalMapNat.get(backerRepayments, user)) {
+            case (null) { 0.0 };
+            case (?b) { b };
+        };
+    };
+
+    public query func getAllBackerRepayments() : async [(Principal, Float)] {
+        Iter.toArray(principalMapNat.entries(backerRepayments));
+    };
+
+    public query func getTotalBackerDebt() : async Float {
+        var total = 0.0;
+        for (b in principalMapNat.vals(backerPositions)) { total += b.entitlement };
+        total;
+    };
+
+    public query func getOldestSeriesABacker() : async ?BackerPosition {
+        var oldest : ?BackerPosition = null;
+        var oldestTime : Int = 0;
+        for (b in principalMapNat.vals(backerPositions)) {
+            if (b.backerType == #seriesA) {
+                switch (b.firstDepositDate) {
+                    case (null) {};
+                    case (?date) {
+                        if (oldest == null or date < oldestTime) {
+                            oldest := ?b;
+                            oldestTime := date;
+                        };
+                    };
+                };
+            };
+        };
+        oldest;
+    };
+
+    // ========================================================================
+    // Public queries — cover charge, general ledger, canister balance
+    // ========================================================================
+
+    public query func getCoverChargeBalance() : async Nat {
+        coverChargeBalance;
+    };
+
+    public query func getGeneralLedger() : async [GeneralLedgerEntry] {
+        Iter.toArray(natMap.vals(generalLedger));
+    };
+
+    public query func getGeneralLedgerStats() : async {
+        totalInflows : Float;
+        totalOutflows : Float;
+        netFlow : Float;
+        entryCount : Nat;
+    } {
+        var inflows = 0.0;
+        var outflows = 0.0;
+        var count = 0;
+        for (entry in natMap.vals(generalLedger)) {
+            count += 1;
+            switch (entry.event) {
+                case (#deposit(d)) { inflows += d.gross };
+                case (#backerDeposit(b)) { inflows += b.amount };
+                case (#withdrawal(w)) { outflows += w.netToPlayer + w.toll };
+                case (#settlement(s)) { outflows += s.netToPlayer + s.toll };
+                case (#backerRepaymentClaim(c)) { outflows += c.amount };
+                case (#coverChargeSwept(s)) {
+                    outflows += Float.fromInt(s.amountE8s) / 100_000_000.0;
+                };
+                case (_) {};
+            };
+        };
+        { totalInflows = inflows; totalOutflows = outflows; netFlow = inflows - outflows; entryCount = count };
+    };
+
+    public shared func getCanisterICPBalance() : async Nat {
+        let selfPrincipal = Principal.fromActor(Self);
+        try {
+            await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
+        } catch (_) { 0 };
+    };
 };
