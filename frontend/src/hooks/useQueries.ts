@@ -8,13 +8,13 @@ import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
-import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
+import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 
 // ponzi_math canister ID (matches the constant in usePonziMathActor.ts)
-const PONZI_MATH_CANISTER_ID = 'REPLACE_WITH_PONZI_MATH_CANISTER_ID';
+const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
 
 // Anonymous ledger actor for balance queries. icrc1_balance_of is a public
 // query — no identity needed. Cached at module scope so all callers share
@@ -138,7 +138,7 @@ export const useGetHouseRepaymentBalance = useGetBackerRepaymentBalance;
 export function useGetAllBackerRepayments() {
   const actor = useReadPonziMath();
 
-  return useQuery<Array<[Principal, number]>>({
+  return useQuery<Array<[BackerKey, number]>>({
     queryKey: ['allBackerRepayments'],
     queryFn: async () => actor.getAllBackerRepayments(),
     refetchInterval: 5000,

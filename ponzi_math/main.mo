@@ -2,6 +2,7 @@ import Principal "mo:base/Principal";
 import OrderedMap "mo:base/OrderedMap";
 import Time "mo:base/Time";
 import Nat "mo:base/Nat";
+import Nat8 "mo:base/Nat8";
 import Nat64 "mo:base/Nat64";
 import Float "mo:base/Float";
 import Int "mo:base/Int";
@@ -14,7 +15,9 @@ import Error "mo:base/Error";
 
 import Ledger "ledger";
 import Icrc21 "icrc21";
+import Migration "migration";
 
+(with migration = Migration.run)
 persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
     testAdmin : Principal;
@@ -22,6 +25,7 @@ persistent actor class PonziMath(initArgs : {
     transient let BACKEND_PRINCIPAL : Principal = initArgs.backendPrincipal;
     transient let TEST_ADMIN : Principal = initArgs.testAdmin;
     transient let icpLedger : Ledger.LedgerActor = actor(Ledger.ICP_LEDGER_CANISTER_ID);
+    transient let ic : actor { raw_rand : () -> async Blob } = actor "aaaaa-aa";
 
     // ========================================================================
     // Public types
@@ -62,6 +66,23 @@ persistent actor class PonziMath(initArgs : {
     public type BackerType = {
         #seriesA;
         #seriesB;
+    };
+
+    public type BackerKey = (Principal, BackerType);
+
+    func backerKeyCompare(a : BackerKey, b : BackerKey) : { #less; #equal; #greater } {
+        switch (Principal.compare(a.0, b.0)) {
+            case (#less) #less;
+            case (#greater) #greater;
+            case (#equal) {
+                switch (a.1, b.1) {
+                    case (#seriesA, #seriesA) #equal;
+                    case (#seriesB, #seriesB) #equal;
+                    case (#seriesA, #seriesB) #less;
+                    case (#seriesB, #seriesA) #greater;
+                };
+            };
+        };
     };
 
     public type BackerPosition = {
@@ -145,6 +166,11 @@ persistent actor class PonziMath(initArgs : {
             startTime : Int;
             amount : Float;
         };
+        #seriesBPromotion : {
+            owner : Principal;
+            underwater : Float;
+            entitlement : Float;
+        };
     };
 
     // ========================================================================
@@ -154,6 +180,7 @@ persistent actor class PonziMath(initArgs : {
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMapNat = OrderedMap.Make<Principal>(Principal.compare);
     transient let intMap = OrderedMap.Make<Int>(Int.compare);
+    transient let backerKeyMap = OrderedMap.Make<BackerKey>(backerKeyCompare);
 
     var gameRecords = natMap.empty<GameRecord>();
     var nextGameId : Nat = 0;
@@ -169,8 +196,8 @@ persistent actor class PonziMath(initArgs : {
     var gameResetHistory = intMap.empty<GameResetRecord>();
     var roundSeedReserve : Float = 0.0;
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
-    var backerPositions = principalMapNat.empty<BackerPosition>();
-    var backerRepayments = principalMapNat.empty<Float>();
+    var backerPositions = backerKeyMap.empty<BackerPosition>();
+    var backerRepayments = backerKeyMap.empty<Float>();
     var coverChargeBalance : Nat = 0;
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
@@ -323,12 +350,12 @@ persistent actor class PonziMath(initArgs : {
     // Backer repayment crediting + 35/25/40 exit-toll distribution
     // ========================================================================
 
-    func creditBackerRepayment(backer : Principal, amount : Float) {
-        let current = switch (principalMapNat.get(backerRepayments, backer)) {
+    func creditBackerRepayment(key : BackerKey, amount : Float) {
+        let current = switch (backerKeyMap.get(backerRepayments, key)) {
             case (null) { 0.0 };
             case (?existing) { existing };
         };
-        backerRepayments := principalMapNat.put(backerRepayments, backer, current + amount);
+        backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
     };
 
     // 50% of the toll seeds the next round (routed to roundSeedReserve, OUT of
@@ -338,7 +365,7 @@ persistent actor class PonziMath(initArgs : {
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
 
-        let allBackers = Iter.toArray(principalMapNat.vals(backerPositions));
+        let allBackers = Iter.toArray(backerKeyMap.vals(backerPositions));
         if (allBackers.size() == 0) {
             // No backers yet — backer half also flows to seed reserve (not pot).
             roundSeedReserve += backerRepaymentAmount;
@@ -395,19 +422,19 @@ persistent actor class PonziMath(initArgs : {
             };
         switch (oldestBacker) {
             case (null) {};
-            case (?b) { creditBackerRepayment(b.owner, toOldest) };
+            case (?b) { creditBackerRepayment((b.owner, b.backerType), toOldest) };
         };
 
         var toOthers : Float = 0.0;
         if (otherSeriesA.size() > 0) {
             let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
             toOthers := perBacker * Float.fromInt(otherSeriesA.size());
-            for (b in otherSeriesA.vals()) { creditBackerRepayment(b.owner, perBacker) };
+            for (b in otherSeriesA.vals()) { creditBackerRepayment((b.owner, b.backerType), perBacker) };
         };
 
         let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
         let toAll = perAll * Float.fromInt(allBackers.size());
-        for (b in allBackers.vals()) { creditBackerRepayment(b.owner, perAll) };
+        for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
 
         recordLedger(#tollDistribution({
             tollAmount;
@@ -416,6 +443,112 @@ persistent actor class PonziMath(initArgs : {
             toOtherSeriesA = toOthers;
             toAllBackers = toAll;
         }));
+    };
+
+    // ========================================================================
+    // Series B promotion: pick a random underwater player at round-reset time
+    // and grant them a Series B backer position with entitlement
+    // (amount - totalWithdrawn) * 1.16.
+    // ========================================================================
+
+    // Pick a Series B promotion candidate from the current round's losers.
+    // Eligibility (phase 1): underwater players who currently have ZERO entries
+    // in backerPositions. If none qualify (phase 2 — every underwater player
+    // already has a position), fall back to all underwater players. Uses
+    // raw_rand for selection — caller must be in an async update context.
+    // Returns null if no one is underwater.
+    func selectPromotionCandidate() : async ?{ owner : Principal; underwater : Float } {
+        var underwaterByPlayer = principalMapNat.empty<Float>();
+        for (g in natMap.vals(gameRecords)) {
+            if (g.isActive) {
+                let loss = g.amount - g.totalWithdrawn;
+                if (loss > 0.0) {
+                    let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
+                        case (null) { 0.0 };
+                        case (?v) { v };
+                    };
+                    underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
+                };
+            };
+        };
+
+        let allLosers = Iter.toArray(principalMapNat.entries(underwaterByPlayer));
+        if (allLosers.size() == 0) { return null };
+
+        let withoutBacker = List.toArray(
+            List.filter(
+                List.fromArray(allLosers),
+                func((p, _) : (Principal, Float)) : Bool {
+                    let aHas = switch (backerKeyMap.get(backerPositions, (p, #seriesA))) {
+                        case (null) { false };
+                        case (?_) { true };
+                    };
+                    let bHas = switch (backerKeyMap.get(backerPositions, (p, #seriesB))) {
+                        case (null) { false };
+                        case (?_) { true };
+                    };
+                    not aHas and not bHas;
+                },
+            )
+        );
+
+        let pool = if (withoutBacker.size() > 0) { withoutBacker } else { allLosers };
+
+        let entropy = await ic.raw_rand();
+        let bytes = Blob.toArray(entropy);
+        var seed : Nat = 0;
+        var i = 0;
+        while (i < 8 and i < bytes.size()) {
+            seed := seed * 256 + Nat8.toNat(bytes[i]);
+            i += 1;
+        };
+        let idx = seed % pool.size();
+        let (chosen, loss) = pool[idx];
+        ?{ owner = chosen; underwater = loss };
+    };
+
+    // Apply a Series B promotion. If the player already has a Series B
+    // position, merge: sum amount and entitlement. Otherwise create a new
+    // Series B row alongside any existing Series A.
+    func applySeriesBPromotion(owner : Principal, underwater : Float) {
+        let entitlement = underwater * 1.16;
+        let now = Time.now();
+        let key : BackerKey = (owner, #seriesB);
+        switch (backerKeyMap.get(backerPositions, key)) {
+            case (null) {
+                let fresh : BackerPosition = {
+                    owner;
+                    amount = underwater;
+                    entitlement;
+                    startTime = now;
+                    isActive = true;
+                    backerType = #seriesB;
+                    firstDepositDate = ?now;
+                };
+                backerPositions := backerKeyMap.put(backerPositions, key, fresh);
+            };
+            case (?existing) {
+                let merged : BackerPosition = {
+                    existing with
+                    amount = existing.amount + underwater;
+                    entitlement = existing.entitlement + entitlement;
+                };
+                backerPositions := backerKeyMap.put(backerPositions, key, merged);
+            };
+        };
+
+        recordLedger(#seriesBPromotion({ owner; underwater; entitlement }));
+    };
+
+    // Async wrapper that performs the Series B promotion (if any eligible
+    // candidate exists) before zeroing the round state. Used by all four
+    // pot-empty paths in withdrawEarnings and settleCompoundingGame.
+    func promoteAndReset(reason : Text) : async () {
+        switch (await selectPromotionCandidate()) {
+            case (?c) { applySeriesBPromotion(c.owner, c.underwater) };
+            case (null) { /* nobody underwater — straight reset */ };
+        };
+        triggerGameReset(reason);
     };
 
     // ========================================================================
@@ -682,7 +815,7 @@ persistent actor class PonziMath(initArgs : {
 
             let entitlement = amount * 1.24; // Series A 24% bonus
 
-            switch (principalMapNat.get(backerPositions, caller)) {
+            switch (backerKeyMap.get(backerPositions, (caller, #seriesA))) {
                 case (null) {
                     let newBacker : BackerPosition = {
                         owner = caller;
@@ -693,7 +826,7 @@ persistent actor class PonziMath(initArgs : {
                         backerType = #seriesA;
                         firstDepositDate = ?Time.now();
                     };
-                    backerPositions := principalMapNat.put(backerPositions, caller, newBacker);
+                    backerPositions := backerKeyMap.put(backerPositions, (caller, #seriesA), newBacker);
                 };
                 case (?existing) {
                     let updated : BackerPosition = {
@@ -701,7 +834,7 @@ persistent actor class PonziMath(initArgs : {
                         amount = existing.amount + amount;
                         entitlement = existing.entitlement + entitlement;
                     };
-                    backerPositions := principalMapNat.put(backerPositions, caller, updated);
+                    backerPositions := backerKeyMap.put(backerPositions, (caller, #seriesA), updated);
                 };
             };
 
@@ -757,7 +890,7 @@ persistent actor class PonziMath(initArgs : {
                     let isInsolvent = earnings > pot;
 
                     if (isInsolvent and pot <= 0.0) {
-                        triggerGameReset("Insufficient funds for payout (pot empty)");
+                        await promoteAndReset("Insufficient funds for payout (pot empty)");
                         return #Err("Game reset: pot is empty");
                     };
 
@@ -828,7 +961,7 @@ persistent actor class PonziMath(initArgs : {
                     }));
 
                     if (isInsolvent) {
-                        triggerGameReset("Pot drained (partial payout)");
+                        await promoteAndReset("Pot drained (partial payout)");
                     };
 
                     #Ok(actualNetEarnings);
@@ -897,7 +1030,7 @@ persistent actor class PonziMath(initArgs : {
                     let isInsolvent = earnings > pot;
 
                     if (isInsolvent and pot <= 0.0) {
-                        triggerGameReset("Insufficient funds for compounding game settlement (pot empty)");
+                        await promoteAndReset("Insufficient funds for compounding game settlement (pot empty)");
                         return #Err("Game reset: pot is empty");
                     };
 
@@ -964,7 +1097,7 @@ persistent actor class PonziMath(initArgs : {
                     }));
 
                     if (isInsolvent) {
-                        triggerGameReset("Pot drained (partial payout)");
+                        await promoteAndReset("Pot drained (partial payout)");
                     };
 
                     #Ok(actualNetEarnings);
@@ -985,16 +1118,18 @@ persistent actor class PonziMath(initArgs : {
         acquireCallerLock(caller);
         acquireGlobalLock();
         try {
-            let balanceOpt : ?Float = switch (principalMapNat.get(backerRepayments, caller)) {
-                case (null) { null };
-                case (?b) { if (b <= 0.0) { null } else { ?b } };
-            };
-            let balance = switch (balanceOpt) {
-                case (null) { return #Err("No repayment balance to claim") };
+            let aBalance = switch (backerKeyMap.get(backerRepayments, (caller, #seriesA))) {
+                case (null) { 0.0 };
                 case (?b) { b };
             };
-
-            backerRepayments := principalMapNat.put(backerRepayments, caller, 0.0);
+            let bBalance = switch (backerKeyMap.get(backerRepayments, (caller, #seriesB))) {
+                case (null) { 0.0 };
+                case (?b) { b };
+            };
+            let balance = aBalance + bBalance;
+            if (balance <= 0.0) { return #Err("No repayment balance to claim") };
+            backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
+            backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
 
             let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
             let transferResult = try {
@@ -1007,13 +1142,15 @@ persistent actor class PonziMath(initArgs : {
                     created_at_time = null;
                 });
             } catch (e) {
-                backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
                 return #Err("Failed to contact ICP ledger: " # Error.message(e));
             };
 
             switch (transferResult) {
                 case (#Err(err)) {
-                    backerRepayments := principalMapNat.put(backerRepayments, caller, balance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
                     return #Err(transferErrorMessage(err));
                 };
                 case (#Ok(_)) {};
@@ -1177,37 +1314,47 @@ persistent actor class PonziMath(initArgs : {
     // ========================================================================
 
     public query func getBackerPositions() : async [BackerPosition] {
-        Iter.toArray(principalMapNat.vals(backerPositions));
+        Iter.toArray(backerKeyMap.vals(backerPositions));
     };
 
     public query ({ caller }) func getBackerRepaymentBalance() : async Float {
-        switch (principalMapNat.get(backerRepayments, caller)) {
+        let a = switch (backerKeyMap.get(backerRepayments, (caller, #seriesA))) {
             case (null) { 0.0 };
             case (?b) { b };
         };
+        let b = switch (backerKeyMap.get(backerRepayments, (caller, #seriesB))) {
+            case (null) { 0.0 };
+            case (?v) { v };
+        };
+        a + b;
     };
 
     public query func getBackerRepaymentBalanceFor(user : Principal) : async Float {
-        switch (principalMapNat.get(backerRepayments, user)) {
+        let a = switch (backerKeyMap.get(backerRepayments, (user, #seriesA))) {
             case (null) { 0.0 };
             case (?b) { b };
         };
+        let b = switch (backerKeyMap.get(backerRepayments, (user, #seriesB))) {
+            case (null) { 0.0 };
+            case (?v) { v };
+        };
+        a + b;
     };
 
-    public query func getAllBackerRepayments() : async [(Principal, Float)] {
-        Iter.toArray(principalMapNat.entries(backerRepayments));
+    public query func getAllBackerRepayments() : async [(BackerKey, Float)] {
+        Iter.toArray(backerKeyMap.entries(backerRepayments));
     };
 
     public query func getTotalBackerDebt() : async Float {
         var total = 0.0;
-        for (b in principalMapNat.vals(backerPositions)) { total += b.entitlement };
+        for (b in backerKeyMap.vals(backerPositions)) { total += b.entitlement };
         total;
     };
 
     public query func getOldestSeriesABacker() : async ?BackerPosition {
         var oldest : ?BackerPosition = null;
         var oldestTime : Int = 0;
-        for (b in principalMapNat.vals(backerPositions)) {
+        for (b in backerKeyMap.vals(backerPositions)) {
             if (b.backerType == #seriesA) {
                 switch (b.firstDepositDate) {
                     case (null) {};
@@ -1269,12 +1416,12 @@ persistent actor class PonziMath(initArgs : {
     };
 
     // ========================================================================
-    // PRE-BLACKHOLE TEST HATCH — DELETE THIS ENTIRE BLOCK BEFORE BLACKHOLING.
-    // Gated on caller == TEST_ADMIN (init arg).
-    // Same flow as createGame but with a caller-specified startTime, enabling
-    // tests of matured-position payouts.
+    // PRE-BLACKHOLE TEST HATCHES — DELETE THIS ENTIRE BLOCK BEFORE BLACKHOLING.
+    // All methods below are gated on caller == TEST_ADMIN (init arg).
     // ========================================================================
 
+    // createBackdatedGame — same flow as createGame but with a caller-specified
+    // startTime, enabling tests of matured-position payouts.
     public shared ({ caller }) func createBackdatedGame(
         plan : GamePlan,
         amount : Float,
@@ -1362,6 +1509,64 @@ persistent actor class PonziMath(initArgs : {
             releaseGlobalLock();
             releaseCallerLock(caller);
         };
+    };
+
+    // adminMergeBackerPosition — merge `from`'s backer position into `to`.
+    // Sums amount + entitlement, keeps the earlier startTime / firstDepositDate,
+    // also moves any accumulated backerRepayments. Used to consolidate smoke-test
+    // backer positions left over from pre-cutover.
+    public shared ({ caller }) func adminMergeBackerPosition(
+        from : Principal,
+        to : Principal,
+    ) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (from == to) { return #Err("from and to must differ") };
+
+        let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
+            case (null) { return #Err("from principal has no backer position") };
+            case (?p) { p };
+        };
+
+        switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
+            case (null) {
+                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                    fromPos with owner = to;
+                });
+            };
+            case (?toPos) {
+                let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
+                let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
+                    case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
+                    case (?d, null) { ?d };
+                    case (null, ?d) { ?d };
+                    case (null, null) { null };
+                };
+                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                    toPos with
+                    amount = toPos.amount + fromPos.amount;
+                    entitlement = toPos.entitlement + fromPos.entitlement;
+                    startTime = mergedStart;
+                    firstDepositDate = mergedFirst;
+                });
+            };
+        };
+
+        backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
+
+        let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
+            case (null) { 0.0 };
+            case (?r) { r };
+        };
+        if (fromRepay > 0.0) {
+            let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
+                case (null) { 0.0 };
+                case (?r) { r };
+            };
+            backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
+        };
+        backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
+
+        #Ok;
     };
 
     // ========================================================================

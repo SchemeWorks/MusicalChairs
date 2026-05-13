@@ -20,6 +20,7 @@ export const idlFactory = ({ IDL }) => {
     'seriesA' : IDL.Null,
     'seriesB' : IDL.Null,
   });
+  const BackerKey = IDL.Tuple(IDL.Principal, BackerType);
   const BackerPosition = IDL.Record({
     'startTime' : IDL.Int,
     'firstDepositDate' : IDL.Opt(IDL.Int),
@@ -44,6 +45,11 @@ export const idlFactory = ({ IDL }) => {
     'gameReset' : IDL.Record({
       'reason' : IDL.Text,
       'seedReserveCarried' : IDL.Float64,
+    }),
+    'seriesBPromotion' : IDL.Record({
+      'owner' : IDL.Principal,
+      'underwater' : IDL.Float64,
+      'entitlement' : IDL.Float64,
     }),
     'deposit' : IDL.Record({
       'netToPot' : IDL.Float64,
@@ -162,6 +168,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'adminMergeBackerPosition' : IDL.Func(
+        [IDL.Principal, IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'calculateCompounded30DayEarnings' : IDL.Func(
         [GameRecord],
         [IDL.Float64],
@@ -194,7 +205,7 @@ export const idlFactory = ({ IDL }) => {
     'getAllActiveGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),
     'getAllBackerRepayments' : IDL.Func(
         [],
-        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Float64))],
+        [IDL.Vec(IDL.Tuple(BackerKey, IDL.Float64))],
         ['query'],
       ),
     'getAllGames' : IDL.Func([], [IDL.Vec(GameRecord)], ['query']),

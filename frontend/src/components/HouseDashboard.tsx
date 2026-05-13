@@ -267,8 +267,11 @@ function BackerPositions() {
     }
   };
 
-  const repaidByOwner = new Map<string, number>(
-    repaymentEntries.map(([p, v]) => [p.toString(), v])
+  const backerKeyId = (principal: string, type: { seriesA?: null; seriesB?: null }) =>
+    `${principal}-${'seriesA' in type ? 'A' : 'B'}`;
+
+  const repaidByKey = new Map<string, number>(
+    repaymentEntries.map(([[p, t], v]) => [backerKeyId(p.toString(), t), v])
   );
 
   if (error) {
@@ -293,7 +296,7 @@ function BackerPositions() {
   const totalHouseMoney = backers.reduce((s, d) => s + (d.amount || 0), 0);
   const totalEntitlement = backers.reduce((s, d) => s + (d.entitlement || 0), 0);
   const totalRepaid = backers.reduce(
-    (s, d) => s + (repaidByOwner.get(d.owner.toString()) || 0),
+    (s, d) => s + (repaidByKey.get(backerKeyId(d.owner.toString(), d.backerType)) || 0),
     0,
   );
   const outstandingDebt = Math.max(0, totalEntitlement - totalRepaid);
@@ -320,16 +323,12 @@ function BackerPositions() {
         </div>
       </div>
 
-      {/* Info card */}
-      <BackerInfoCard />
-      <div className="mc-border-subtle border-t my-6" />
-
       {/* Backer list */}
       {backers.length > 0 ? (
         <div className="space-y-3">
           <h3 className="font-display text-base mc-text-primary text-center">Current Backers</h3>
           {backers.map(backer => {
-            const repaid = repaidByOwner.get(backer.owner.toString()) || 0;
+            const repaid = repaidByKey.get(backerKeyId(backer.owner.toString(), backer.backerType)) || 0;
             const repayPct = backer.entitlement > 0
               ? (repaid / backer.entitlement) * 100
               : 0;
@@ -338,7 +337,7 @@ function BackerPositions() {
 
             return (
               <div
-                key={backer.owner.toString()}
+                key={backerKeyId(backer.owner.toString(), backer.backerType)}
                 className={`mc-card p-5 ${isSeriesA ? 'mc-accent-green' : 'mc-accent-gold'}`}
               >
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
@@ -410,6 +409,10 @@ function BackerPositions() {
           <p className="text-sm mc-text-dim">Fund the project above to become the first Series A backer.</p>
         </div>
       )}
+
+      <div className="mc-border-subtle border-t my-6" />
+      {/* Info card */}
+      <BackerInfoCard />
 
     </div>
   );

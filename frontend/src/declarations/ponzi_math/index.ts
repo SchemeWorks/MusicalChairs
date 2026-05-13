@@ -10,6 +10,7 @@ export type {
   PlatformStats,
   GameResetRecord,
   BackerPosition,
+  BackerKey,
   GeneralLedgerEntry,
   GeneralLedgerEvent,
   ConsentInfo,
