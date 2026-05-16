@@ -121,6 +121,7 @@ export const idlFactory = ({ IDL }) => {
         ],
         ['query'],
       ),
+    'getOrCreateReferralCode' : IDL.Func([], [IDL.Text], []),
     'getPpBurnedFor' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getRecentShenanigans' : IDL.Func(
         [],
@@ -162,6 +163,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'resetShenaniganConfig' : IDL.Func([IDL.Nat], [], []),
+    'resolveReferralCode' : IDL.Func(
+        [IDL.Text],
+        [IDL.Opt(IDL.Principal)],
+        ['query'],
+      ),
     'resumeObserver' : IDL.Func([], [], []),
     'rotateAdmin' : IDL.Func([IDL.Principal], [], []),
     'runObserverOnce' : IDL.Func([], [], []),

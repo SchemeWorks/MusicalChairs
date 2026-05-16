@@ -7,6 +7,7 @@ import Int "mo:base/Int";
 import Iter "mo:base/Iter";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
+import Nat32 "mo:base/Nat32";
 import Nat64 "mo:base/Nat64";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
@@ -178,6 +179,7 @@ persistent actor Self {
 
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
+    transient let textMap = OrderedMap.Make<Text>(Text.compare);
 
     // Spell configs — PRESERVED across migration (admin-tunable spell definitions)
     var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
@@ -212,6 +214,12 @@ persistent actor Self {
     // mints; reads feed getReferralStats. Starts empty on first upgrade
     // (we don't backfill from historic ledger memos).
     var referralEarnings = principalMap.empty<ReferralEarnings>();
+
+    // Bidirectional map of short referral codes ↔ principals. Codes are
+    // assigned lazily on first call to getOrCreateReferralCode and never
+    // change. URLs ship as `?ref=<code>` instead of the 53-char principal.
+    var referralCodeToPrincipal = textMap.empty<Principal>();
+    var principalToReferralCode = principalMap.empty<Text>();
 
     // Mint + economy configuration (mutable, admin-tunable)
     var mintConfig : MintConfig = {
@@ -343,6 +351,68 @@ persistent actor Self {
             l2Units = earnings.l2Units;
             l3Units = earnings.l3Units;
         };
+    };
+
+    // Base62 alphabet — 0-9, a-z, A-Z. Used for short referral codes.
+    transient let BASE62_CHARS : [Char] = [
+        '0','1','2','3','4','5','6','7','8','9',
+        'a','b','c','d','e','f','g','h','i','j',
+        'k','l','m','n','o','p','q','r','s','t',
+        'u','v','w','x','y','z',
+        'A','B','C','D','E','F','G','H','I','J',
+        'K','L','M','N','O','P','Q','R','S','T',
+        'U','V','W','X','Y','Z',
+    ];
+    transient let REFERRAL_CODE_LEN : Nat = 6;
+
+    func natToBase62(input : Nat, length : Nat) : Text {
+        var modulus : Nat = 1;
+        var i : Nat = 0;
+        while (i < length) { modulus *= 62; i += 1 };
+        var current = input % modulus;
+        var result : Text = "";
+        var j : Nat = 0;
+        while (j < length) {
+            result := Text.fromChar(BASE62_CHARS[current % 62]) # result;
+            current /= 62;
+            j += 1;
+        };
+        result;
+    };
+
+    /// Issue (or return existing) short referral code for the caller.
+    /// Deterministic on the principal + time-derived nonce; retries on the
+    /// astronomically-unlikely collision. Codes are stable once assigned.
+    public shared ({ caller }) func getOrCreateReferralCode() : async Text {
+        if (Principal.isAnonymous(caller)) {
+            Debug.trap("Anonymous principal not allowed");
+        };
+        switch (principalMap.get(principalToReferralCode, caller)) {
+            case (?existing) { return existing };
+            case null {};
+        };
+        let pHash : Nat = Nat32.toNat(Principal.hash(caller));
+        let tHash : Nat = Int.abs(Time.now());
+        var attempt : Nat = 0;
+        loop {
+            let seed : Nat = pHash + tHash + attempt;
+            let candidate = natToBase62(seed, REFERRAL_CODE_LEN);
+            switch (textMap.get(referralCodeToPrincipal, candidate)) {
+                case (?_) { attempt += 1 };
+                case null {
+                    referralCodeToPrincipal := textMap.put(referralCodeToPrincipal, candidate, caller);
+                    principalToReferralCode := principalMap.put(principalToReferralCode, caller, candidate);
+                    return candidate;
+                };
+            };
+        };
+    };
+
+    /// Look up the principal a short referral code resolves to. Returns null
+    /// for unknown codes. Used by the frontend to translate `?ref=<code>`
+    /// into the principal we register against the downline chain.
+    public query func resolveReferralCode(code : Text) : async ?Principal {
+        textMap.get(referralCodeToPrincipal, code);
     };
 
     func bumpReferralEarnings(upline : Principal, level : Nat, units : Nat) {

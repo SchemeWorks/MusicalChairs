@@ -124,6 +124,11 @@ export interface _SERVICE {
       'backerSeenCount' : bigint,
     }
   >,
+  /**
+   * / Issue (or return existing) short referral code for the caller. Codes
+   * / are 6-char base62, assigned lazily, stable forever once issued.
+   */
+  'getOrCreateReferralCode' : ActorMethod<[], string>,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
   /**
@@ -163,6 +168,11 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'resetShenaniganConfig' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Look up the principal a short referral code resolves to. Returns null
+   * / for unknown codes.
+   */
+  'resolveReferralCode' : ActorMethod<[string], [] | [Principal]>,
   'resumeObserver' : ActorMethod<[], undefined>,
   'rotateAdmin' : ActorMethod<[Principal], undefined>,
   /**

@@ -23,7 +23,6 @@ import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 import { captureReferrerFromUrl, getStoredReferrer } from './lib/referral';
-import { Principal } from '@dfinity/principal';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
 
@@ -323,12 +322,7 @@ export default function App() {
     if (!stored) return;
     if (principal && stored === principal) return; // self-referral — skip
     hasRegisteredReferralRef.current = true;
-    try {
-      const referrerPrincipal = Principal.fromText(stored);
-      registerReferral.mutate(referrerPrincipal);
-    } catch {
-      // Malformed principal in localStorage — ignore
-    }
+    registerReferral.mutate(stored);
   }, [isAuthenticated, principal]);
 
   // Scroll-triggered animation refs
