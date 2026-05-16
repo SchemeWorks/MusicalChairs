@@ -54,6 +54,32 @@ export function useGetCallerUserProfile() {
   };
 }
 
+export function useGetUserNames(principals: string[]) {
+  const actor = useReadActor();
+  const key = [...new Set(principals)].sort().join(',');
+
+  return useQuery<Map<string, string>>({
+    queryKey: ['userNames', key],
+    queryFn: async () => {
+      const unique = [...new Set(principals)];
+      const entries = await Promise.all(
+        unique.map(async (p) => {
+          try {
+            const result = await actor.getUserProfile(Principal.fromText(p));
+            const name = result[0]?.name?.trim();
+            return [p, name && name.length > 0 ? name : ''] as const;
+          } catch {
+            return [p, ''] as const;
+          }
+        }),
+      );
+      return new Map(entries);
+    },
+    enabled: principals.length > 0,
+    staleTime: 60_000,
+  });
+}
+
 export function useSaveUserProfile() {
   const { actor } = useActor();
 

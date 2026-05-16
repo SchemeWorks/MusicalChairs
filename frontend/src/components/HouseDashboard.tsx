@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useWallet } from '../hooks/useWallet';
-import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment } from '../hooks/useQueries';
+import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment, useGetUserNames } from '../hooks/useQueries';
 import type { GeneralLedgerEntry } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
@@ -257,6 +257,8 @@ function BackerPositions() {
   const { data: backerPositions = [], isLoading, error, refetch } = useGetBackerPositions();
   const { data: repaymentEntries = [] } = useGetAllBackerRepayments();
   const claimRepayment = useClaimDealerRepayment();
+  const rawBackers = Array.isArray(backerPositions) ? backerPositions : [];
+  const { data: nameByPrincipal } = useGetUserNames(rawBackers.map(b => b.owner.toString()));
 
   const handleClaim = async (amount: number) => {
     try {
@@ -285,7 +287,12 @@ function BackerPositions() {
 
   if (isLoading) return <LoadingSpinner />;
 
-  const backers = Array.isArray(backerPositions) ? backerPositions : [];
+  const backers = [...rawBackers].sort((a, b) => {
+    const aIsA = 'seriesA' in a.backerType;
+    const bIsA = 'seriesA' in b.backerType;
+    if (aIsA !== bIsA) return aIsA ? -1 : 1;
+    return Number(a.startTime - b.startTime);
+  });
 
   const fmtDate = (ts: bigint) => {
     try {
@@ -350,7 +357,12 @@ function BackerPositions() {
                     </div>
                     <div>
                       <div className="font-bold mc-text-primary">
-                        {backer.owner.toString() === principal ? 'My Equity' : 'Anonymous Backer'}
+                        {(() => {
+                          const owner = backer.owner.toString();
+                          if (owner === principal) return 'My Equity';
+                          const name = nameByPrincipal?.get(owner);
+                          return name && name.length > 0 ? name : 'Anonymous Backer';
+                        })()}
                       </div>
                       <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
                         isSeriesA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'
