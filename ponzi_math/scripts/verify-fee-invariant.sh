@@ -19,6 +19,17 @@ set -euo pipefail
 NETWORK="${1:-local}"
 TOLERANCE_E8S=10
 
+# Ensure a parsed value is a number; otherwise abort with a clear message.
+ensure_numeric() {
+    local label="$1"
+    local value="$2"
+    if [[ ! "$value" =~ ^-?[0-9]+(\.[0-9]+)?$ ]]; then
+        echo "ERROR: failed to parse ${label} from dfx output (got: '${value}')" >&2
+        echo "This usually means the canister isn't deployed, the local replica isn't running, or dfx output formatting changed." >&2
+        exit 2
+    fi
+}
+
 # Extract a Float from a Candid response like "(0.96 : float64)" -> "0.96"
 parse_float() {
     sed -E 's/.*\(([0-9.eE+-]+) : float64\).*/\1/'
@@ -30,17 +41,25 @@ parse_nat() {
 }
 
 pot=$(dfx canister call --network "$NETWORK" ponzi_math getPlatformStats \
-    | grep -oE 'potBalance = [0-9.eE+-]+' | awk '{print $3}')
-seed=$(dfx canister call --network "$NETWORK" ponzi_math getRoundSeedReserve | parse_float)
+    | grep -oE 'potBalance = [0-9.eE+-]+' | awk '{print $3}' \
+    | awk '{ printf "%.18f\n", $1+0 }')
+ensure_numeric "potBalance" "$pot"
+seed=$(dfx canister call --network "$NETWORK" ponzi_math getRoundSeedReserve | parse_float \
+    | awk '{ printf "%.18f\n", $1+0 }')
+ensure_numeric "roundSeedReserve" "$seed"
 cover=$(dfx canister call --network "$NETWORK" ponzi_math getCoverChargeBalance | parse_nat)
+ensure_numeric "coverChargeBalance" "$cover"
 actual=$(dfx canister call --network "$NETWORK" ponzi_math getCanisterICPBalance | parse_nat)
+ensure_numeric "actual ICP balance" "$actual"
 
 # Sum backer repayments. Output is a vec of records; pull out every "<float> : float64"
 # value and sum them.
 repayments=$(dfx canister call --network "$NETWORK" ponzi_math getAllBackerRepayments \
     | grep -oE '[0-9.eE+-]+ : float64' \
     | awk '{print $1}' \
-    | awk 'BEGIN{s=0} {s+=$1} END{printf "%.8f\n", s+0}')
+    | awk '{ printf "%.18f\n", $1+0 }' \
+    | awk 'BEGIN{s=0} {s+=$1} END{printf "%.18f\n", s+0}')
+ensure_numeric "sum(backerRepayments)" "$repayments"
 
 # Compute internal accounting in e8s. bc handles the Float arithmetic precisely
 # enough; we then floor each Float→e8s conversion before summing to mirror
