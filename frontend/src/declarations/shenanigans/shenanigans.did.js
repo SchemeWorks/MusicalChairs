@@ -68,6 +68,14 @@ export const idlFactory = ({ IDL }) => {
     'totalSpent' : IDL.Float64,
     'badOutcomes' : IDL.Nat,
   });
+  const ReferralStats = IDL.Record({
+    'l1Count' : IDL.Nat,
+    'l1Units' : IDL.Nat,
+    'l2Count' : IDL.Nat,
+    'l2Units' : IDL.Nat,
+    'l3Count' : IDL.Nat,
+    'l3Units' : IDL.Nat,
+  });
   return IDL.Service({
     'adminMint' : IDL.Func(
         [IDL.Principal, IDL.Nat],
@@ -117,6 +125,11 @@ export const idlFactory = ({ IDL }) => {
     'getRecentShenanigans' : IDL.Func(
         [],
         [IDL.Vec(ShenaniganRecord)],
+        ['query'],
+      ),
+    'getReferralStats' : IDL.Func(
+        [IDL.Principal],
+        [ReferralStats],
         ['query'],
       ),
     'getReferrer' : IDL.Func(

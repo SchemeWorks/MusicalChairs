@@ -268,7 +268,7 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
             </div>
           </div>
           <p className="text-xs mc-text-muted text-center italic font-accent">
-            We could have hidden the pyramid mechanics, but where's the fun in that?
+            Your downline. Compounding while you sleep.
           </p>
         </div>
     </div>
