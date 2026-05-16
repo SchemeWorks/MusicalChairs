@@ -32,12 +32,12 @@ ensure_numeric() {
 
 # Extract a Float from a Candid response like "(0.96 : float64)" -> "0.96"
 parse_float() {
-    sed -E 's/.*\(([0-9.eE+-]+) : float64\).*/\1/'
+    sed -nE 's/.*\(([0-9.eE+-]+) : float64\).*/\1/p'
 }
 
 # Extract a Nat from "(96000000 : nat)" -> "96000000"
 parse_nat() {
-    sed -E 's/.*\(([0-9_]+)[[:space:]]*:[[:space:]]*nat\).*/\1/' | tr -d '_'
+    sed -nE 's/.*\(([0-9_]+)[[:space:]]*:[[:space:]]*nat\).*/\1/p' | tr -d '_'
 }
 
 pot=$(dfx canister call --network "$NETWORK" ponzi_math getPlatformStats \
@@ -66,6 +66,12 @@ ensure_numeric "sum(backerRepayments)" "$repayments"
 # Motoko's Int.abs(Float.toInt(x * 1e8)) behavior.
 internal_e8s=$(echo "scale=0; (${pot} * 100000000) / 1 + (${seed} * 100000000) / 1 + (${repayments} * 100000000) / 1 + ${cover}" | bc)
 
+# Format display vars to 8 decimals (canister-native precision) for human readability,
+# while keeping full precision in the computation above.
+pot_display=$(awk -v v="$pot" 'BEGIN{printf "%.8f", v+0}')
+seed_display=$(awk -v v="$seed" 'BEGIN{printf "%.8f", v+0}')
+repayments_display=$(awk -v v="$repayments" 'BEGIN{printf "%.8f", v+0}')
+
 diff_e8s=$(echo "${actual} - ${internal_e8s}" | bc)
 # Absolute value for the tolerance check
 abs_diff=$(echo "if (${diff_e8s} < 0) -1 * (${diff_e8s}) else ${diff_e8s}" | bc)
@@ -73,9 +79,9 @@ abs_diff=$(echo "if (${diff_e8s} < 0) -1 * (${diff_e8s}) else ${diff_e8s}" | bc)
 printf "Network:               %s\n" "$NETWORK"
 printf "Actual ICP (e8s):      %s\n" "$actual"
 printf "Internal sum (e8s):    %s\n" "$internal_e8s"
-printf "  potBalance:          %s ICP\n" "$pot"
-printf "  roundSeedReserve:    %s ICP\n" "$seed"
-printf "  sum(backerRepayments): %s ICP\n" "$repayments"
+printf "  potBalance:          %s ICP\n" "$pot_display"
+printf "  roundSeedReserve:    %s ICP\n" "$seed_display"
+printf "  sum(backerRepayments): %s ICP\n" "$repayments_display"
 printf "  coverChargeBalance:  %s e8s\n" "$cover"
 printf "Diff (actual - internal): %s e8s\n" "$diff_e8s"
 printf "Tolerance:             ±%s e8s\n" "$TOLERANCE_E8S"
