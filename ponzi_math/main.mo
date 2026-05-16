@@ -973,12 +973,13 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (netEarningsE8s > 0) {
+                    if (netEarningsE8s > Ledger.ICP_TRANSFER_FEE) {
+                        let transferAmount : Nat = netEarningsE8s - Ledger.ICP_TRANSFER_FEE;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
-                                amount = netEarningsE8s;
+                                amount = transferAmount;
                                 fee = null;
                                 memo = null;
                                 created_at_time = null;
