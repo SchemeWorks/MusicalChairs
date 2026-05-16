@@ -188,15 +188,33 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
           );
         })()}
 
-        {/* Spend PP bridge CTA */}
+        {/* Spend PP bridge CTA — outline pill, mirrors the Wallet button's
+            shape but in purple to match the MLM section. */}
         {(ponziData?.totalPoints || 0) >= 100 && onTabChange && (
-          <button
-            onClick={() => onTabChange('shenanigans')}
-            className="mc-btn-secondary flex items-center gap-2 mx-auto mt-4 text-xs"
-          >
-            <Dice5 className="h-4 w-4 mc-text-purple" />
-            Spend your PP on Shenanigans →
-          </button>
+          <div className="flex justify-center mt-6">
+            <button
+              onClick={() => onTabChange('shenanigans')}
+              className="group inline-flex items-center gap-2 px-5 py-2 rounded-full font-bold text-sm transition-all hover:scale-[1.03]"
+              style={{
+                background: 'rgba(0, 0, 0, 0.6)',
+                color: 'var(--mc-purple)',
+                border: '1px solid var(--mc-purple)',
+                boxShadow: '0 0 10px rgba(168, 85, 247, 0.35)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 20px rgba(168, 85, 247, 0.55)';
+                e.currentTarget.style.background = 'rgba(168, 85, 247, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 0 10px rgba(168, 85, 247, 0.35)';
+                e.currentTarget.style.background = 'rgba(0, 0, 0, 0.6)';
+              }}
+            >
+              <Dice5 className="h-4 w-4" />
+              <span>Spend your PP on Shenanigans</span>
+              <span aria-hidden className="group-hover:translate-x-0.5 transition-transform">→</span>
+            </button>
+          </div>
         )}
       </div>
 
