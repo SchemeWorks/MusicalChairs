@@ -12,6 +12,7 @@ import WalletDropdown from './components/WalletDropdown';
 import LogoutButton from './components/LogoutButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
+import CharlesGodView from './components/CharlesGodView';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
@@ -289,6 +290,7 @@ export default function App() {
   const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [adminPanelTab, setAdminPanelTab] = useState<'godView' | 'tuning'>('godView');
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
@@ -700,13 +702,39 @@ export default function App() {
                 </div>
               }>
                 <div className="max-w-7xl mx-auto px-4 py-8">
-                  <button
-                    onClick={() => setShowAdminPanel(false)}
-                    className="mc-btn-secondary flex items-center gap-2 px-4 py-2 text-xs rounded-lg mb-6"
-                  >
-                    &larr; Leave Charles's Office
-                  </button>
-                  <ShenanigansAdminPanel />
+                  <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
+                    <button
+                      onClick={() => setShowAdminPanel(false)}
+                      className="mc-btn-secondary flex items-center gap-2 px-4 py-2 text-xs rounded-lg"
+                    >
+                      &larr; Leave Charles's Office
+                    </button>
+
+                    <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1 gap-1">
+                      <button
+                        onClick={() => setAdminPanelTab('godView')}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          adminPanelTab === 'godView'
+                            ? 'bg-[var(--mc-gold)]/20 mc-text-gold border border-[var(--mc-gold)]/40'
+                            : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                        }`}
+                      >
+                        God View
+                      </button>
+                      <button
+                        onClick={() => setAdminPanelTab('tuning')}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          adminPanelTab === 'tuning'
+                            ? 'bg-[var(--mc-purple)]/30 mc-text-primary border border-[var(--mc-purple)]/40'
+                            : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                        }`}
+                      >
+                        Tuning
+                      </button>
+                    </div>
+                  </div>
+
+                  {adminPanelTab === 'godView' ? <CharlesGodView /> : <ShenanigansAdminPanel />}
                 </div>
               </ErrorBoundary>
             ) : (
