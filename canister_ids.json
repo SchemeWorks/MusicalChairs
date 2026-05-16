@@ -1,0 +1,20 @@
+{
+  "backend": {
+    "ic": "5zxxg-tyaaa-aaaac-qeckq-cai"
+  },
+  "frontend": {
+    "ic": "5qu42-fqaaa-aaaac-qecla-cai"
+  },
+  "pp_assets": {
+    "ic": "4236a-haaaa-aaaac-qecma-cai"
+  },
+  "pp_ledger": {
+    "ic": "5xv2o-iiaaa-aaaac-qeclq-cai"
+  },
+  "shenanigans": {
+    "ic": "j56tm-oaaaa-aaaac-qf34q-cai"
+  },
+  "ponzi_math": {
+    "ic": "guy42-yqaaa-aaaaj-qr5pq-cai"
+  }
+}
