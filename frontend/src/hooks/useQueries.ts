@@ -918,25 +918,48 @@ function getGamePlanString(plan: GamePlan): string {
   return '21-day-simple';
 }
 
-// MLM stats — backend no longer tracks per-tier referral PP earnings (that work
-// moved to shenanigans' mint pipeline, which doesn't yet expose a per-user
-// breakdown). Return a zeroed shape so existing consumers compile; wire up a
-// shenanigans-side query later if we want the breakdown back.
+// MLM stats — read from shenanigans, which holds the referral chain and
+// accumulates per-tier PP earned by each upline. Falls back to zeros if the
+// canister build pre-dates getReferralStats so the page still renders.
 export function useGetReferralStats() {
   const { principal } = useWallet();
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
   return useQuery({
     queryKey: ['mlmStats', principal],
-    queryFn: async () => ({
-      level1Count: 0,
-      level2Count: 0,
-      level3Count: 0,
-      level1Points: 0,
-      level2Points: 0,
-      level3Points: 0,
-      totalEarnings: 0,
-      referralLink: buildReferralLink(principal),
-    }),
-    enabled: !!principal,
+    queryFn: async () => {
+      const empty = {
+        level1Count: 0,
+        level2Count: 0,
+        level3Count: 0,
+        level1Points: 0,
+        level2Points: 0,
+        level3Points: 0,
+        totalEarnings: 0,
+        referralLink: buildReferralLink(principal),
+      };
+      if (!actor || !principal) return empty;
+      try {
+        const stats = await actor.getReferralStats(Principal.fromText(principal));
+        const l1Points = ppUnitsToWhole(stats.l1Units);
+        const l2Points = ppUnitsToWhole(stats.l2Units);
+        const l3Points = ppUnitsToWhole(stats.l3Units);
+        return {
+          level1Count: Number(stats.l1Count),
+          level2Count: Number(stats.l2Count),
+          level3Count: Number(stats.l3Count),
+          level1Points: l1Points,
+          level2Points: l2Points,
+          level3Points: l3Points,
+          totalEarnings: l1Points + l2Points + l3Points,
+          referralLink: buildReferralLink(principal),
+        };
+      } catch (err) {
+        console.warn('getReferralStats unavailable; showing zeros until backend deploys', err);
+        return empty;
+      }
+    },
+    enabled: !!principal && !!actor && !actorFetching,
+    refetchInterval: 10000,
   });
 }
 

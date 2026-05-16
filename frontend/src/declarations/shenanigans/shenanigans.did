@@ -65,7 +65,16 @@ type MintConfig =
    referralL3Bps: nat;
    simple21DayPpPerIcp: nat;
  };
-type CashOutEntry = 
+type ReferralStats =
+ record {
+   l1Count: nat;
+   l1Units: nat;
+   l2Count: nat;
+   l2Units: nat;
+   l3Count: nat;
+   l3Units: nat;
+ };
+type CashOutEntry =
  record {
    amount: nat;
    cancelled: bool;
@@ -113,6 +122,10 @@ service : {
     }) query;
   getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
+  /// Per-tier downline counts and cumulative PP earnings for `user`.
+  /// Counts are computed by a single pass over the referral chain map;
+  /// earnings come from the local accumulator.
+  getReferralStats: (user: principal) -> (ReferralStats) query;
   /// One-hop lookup — returns the user's immediate referrer (L1) or null.
   getReferrer: (user: principal) -> (opt principal) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;

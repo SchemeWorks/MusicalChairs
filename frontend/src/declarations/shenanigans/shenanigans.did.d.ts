@@ -56,6 +56,14 @@ export interface ShenaniganStats {
   'totalSpent' : number,
   'badOutcomes' : bigint,
 }
+export interface ReferralStats {
+  'l1Count' : bigint,
+  'l1Units' : bigint,
+  'l2Count' : bigint,
+  'l2Units' : bigint,
+  'l3Count' : bigint,
+  'l3Units' : bigint,
+}
 export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'goldenName' : null } |
   { 'whaleRebalance' : null } |
@@ -118,6 +126,12 @@ export interface _SERVICE {
   >,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
+  /**
+   * / Per-tier downline counts and cumulative PP earnings for `user`.
+   * / Counts are computed by a single pass over the referral chain map;
+   * / earnings come from the local accumulator.
+   */
+  'getReferralStats' : ActorMethod<[Principal], ReferralStats>,
   /**
    * / One-hop lookup — returns the user's immediate referrer (L1) or null.
    */

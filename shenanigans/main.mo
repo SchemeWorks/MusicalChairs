@@ -112,6 +112,26 @@ persistent actor Self {
     /// on deltas when backers top up.
     public type BackerSeen = Float;
 
+    /// Cumulative referral PP minted to a user from each downline level.
+    /// Stored in PP-units (same scale as ledger balances).
+    public type ReferralEarnings = {
+        l1Units : Nat;
+        l2Units : Nat;
+        l3Units : Nat;
+    };
+
+    /// Per-tier downline counts and cumulative PP earnings for a user.
+    /// Counts derive from a single pass over referralChain; earnings come
+    /// from the local accumulator updated inside cascadeReferralMint.
+    public type ReferralStats = {
+        l1Count : Nat;
+        l2Count : Nat;
+        l3Count : Nat;
+        l1Units : Nat;
+        l2Units : Nat;
+        l3Units : Nat;
+    };
+
     // ================================================================
     // ponzi_math canister interface (query-only; observer polls)
     // ================================================================
@@ -186,6 +206,12 @@ persistent actor Self {
     // Maps user → who referred them. First-wins, one-time, immutable per user.
     // Referrals are PP-economy metadata; not money math.
     var referralChain = principalMap.empty<Principal>();
+
+    // Cumulative referral PP minted to each upline user, broken out per
+    // downline tier. Incremented inside cascadeReferralMint on successful
+    // mints; reads feed getReferralStats. Starts empty on first upgrade
+    // (we don't backfill from historic ledger memos).
+    var referralEarnings = principalMap.empty<ReferralEarnings>();
 
     // Mint + economy configuration (mutable, admin-tunable)
     var mintConfig : MintConfig = {
@@ -273,6 +299,64 @@ persistent actor Self {
     /// One-hop lookup — returns the user's immediate referrer (L1) or null.
     public query func getReferrer(user : Principal) : async ?Principal {
         principalMap.get(referralChain, user);
+    };
+
+    /// Per-tier downline counts and cumulative PP earnings for `user`.
+    /// Counts are computed by a single pass over the referral chain map;
+    /// earnings come from the local accumulator.
+    public query func getReferralStats(user : Principal) : async ReferralStats {
+        var l1 : Nat = 0;
+        var l2 : Nat = 0;
+        var l3 : Nat = 0;
+        for ((_, l1Ref) in principalMap.entries(referralChain)) {
+            if (Principal.equal(l1Ref, user)) {
+                l1 += 1;
+            } else {
+                switch (principalMap.get(referralChain, l1Ref)) {
+                    case (?l2Ref) {
+                        if (Principal.equal(l2Ref, user)) {
+                            l2 += 1;
+                        } else {
+                            switch (principalMap.get(referralChain, l2Ref)) {
+                                case (?l3Ref) {
+                                    if (Principal.equal(l3Ref, user)) {
+                                        l3 += 1;
+                                    };
+                                };
+                                case null {};
+                            };
+                        };
+                    };
+                    case null {};
+                };
+            };
+        };
+        let earnings = switch (principalMap.get(referralEarnings, user)) {
+            case (?e) { e };
+            case null { { l1Units = 0; l2Units = 0; l3Units = 0 } };
+        };
+        {
+            l1Count = l1;
+            l2Count = l2;
+            l3Count = l3;
+            l1Units = earnings.l1Units;
+            l2Units = earnings.l2Units;
+            l3Units = earnings.l3Units;
+        };
+    };
+
+    func bumpReferralEarnings(upline : Principal, level : Nat, units : Nat) {
+        if (units == 0) return;
+        let current : ReferralEarnings = switch (principalMap.get(referralEarnings, upline)) {
+            case (?e) { e };
+            case null { { l1Units = 0; l2Units = 0; l3Units = 0 } };
+        };
+        let updated : ReferralEarnings = switch (level) {
+            case 1 { { current with l1Units = current.l1Units + units } };
+            case 2 { { current with l2Units = current.l2Units + units } };
+            case _ { { current with l3Units = current.l3Units + units } };
+        };
+        referralEarnings := principalMap.put(referralEarnings, upline, updated);
     };
 
     func requireAdmin(caller : Principal) {
@@ -693,6 +777,9 @@ persistent actor Self {
     /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
     /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
     /// Lookups are local — referralChain lives in this canister.
+    /// Successful mints (and ledger-duplicate replays, which mintInternal
+    /// promotes to #Ok) bump the per-upline earnings accumulator so
+    /// getReferralStats has a cheap read.
     func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
         if (baseUnits == 0) return;
         let l1Maybe = principalMap.get(referralChain, originUser);
@@ -700,19 +787,28 @@ persistent actor Self {
             case (null) {};
             case (?l1) {
                 let l1Units = baseUnits * mintConfig.referralL1Bps / 10_000;
-                let _ = await mintInternal(l1, l1Units, "referral-L1-" # eventId);
+                switch (await mintInternal(l1, l1Units, "referral-L1-" # eventId)) {
+                    case (#Ok(_)) { bumpReferralEarnings(l1, 1, l1Units) };
+                    case (#Err(_)) {};
+                };
                 let l2Maybe = principalMap.get(referralChain, l1);
                 switch (l2Maybe) {
                     case (null) {};
                     case (?l2) {
                         let l2Units = baseUnits * mintConfig.referralL2Bps / 10_000;
-                        let _ = await mintInternal(l2, l2Units, "referral-L2-" # eventId);
+                        switch (await mintInternal(l2, l2Units, "referral-L2-" # eventId)) {
+                            case (#Ok(_)) { bumpReferralEarnings(l2, 2, l2Units) };
+                            case (#Err(_)) {};
+                        };
                         let l3Maybe = principalMap.get(referralChain, l2);
                         switch (l3Maybe) {
                             case (null) {};
                             case (?l3) {
                                 let l3Units = baseUnits * mintConfig.referralL3Bps / 10_000;
-                                let _ = await mintInternal(l3, l3Units, "referral-L3-" # eventId);
+                                switch (await mintInternal(l3, l3Units, "referral-L3-" # eventId)) {
+                                    case (#Ok(_)) { bumpReferralEarnings(l3, 3, l3Units) };
+                                    case (#Err(_)) {};
+                                };
                             };
                         };
                     };
