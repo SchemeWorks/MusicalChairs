@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useAddBackerMoney, useICPBalance } from '../hooks/useQueries';
+import { useAddBackerMoney, useICPBalance, useGetMintConfig } from '../hooks/useQueries';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import BackerMoneyToast from './BackerMoneyToast';
@@ -7,15 +7,16 @@ import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { UPSTREAM_BACKER_BONUS } from '../lib/gameConstants';
 
-const PP_PER_ICP = 4000;
-
 export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
   const [inputError, setInputError] = useState('');
   const [showToast, setShowToast] = useState(false);
   const [toastData, setToastData] = useState<{ amount: number; ponziPoints: number } | null>(null);
   const { data: icpBalance } = useICPBalance();
+  const { data: mintConfig } = useGetMintConfig();
   const addBackerMoneyMutation = useAddBackerMoney();
+
+  const ppPerIcp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
 
   const walletBalance = icpBalance ?? 0;
   // Spendable = balance minus TWO ledger fees (icrc2_approve + icrc2_transfer_from).
@@ -47,7 +48,7 @@ export default function AddBackerMoney() {
     try {
       await addBackerMoneyMutation.mutateAsync(depositAmount);
       triggerConfetti();
-      setToastData({ amount: depositAmount, ponziPoints: depositAmount * PP_PER_ICP });
+      setToastData({ amount: depositAmount, ponziPoints: depositAmount * ppPerIcp });
       setShowToast(true);
       setAmount('');
       setInputError('');
@@ -62,7 +63,7 @@ export default function AddBackerMoney() {
   // Seed round has no fees — net deposit equals gross.
   const netDeposit = depositAmount;
   const expectedReturn = depositAmount * (1 + UPSTREAM_BACKER_BONUS);
-  const ponziPoints = depositAmount * PP_PER_ICP;
+  const ponziPoints = depositAmount * ppPerIcp;
 
   return (
     <>
@@ -125,7 +126,7 @@ export default function AddBackerMoney() {
           )}
 
           <div className="space-y-1">
-            <p className="text-xs mc-text-green font-bold">Series A backers get a guaranteed* 24% return on their capital + 4,000 PP per ICP.</p>
+            <p className="text-xs mc-text-green font-bold">Series A backers get a guaranteed* 24% return on their capital + {ppPerIcp.toLocaleString()} PP per ICP.</p>
             <p className="text-xs mc-text-muted italic">*(Returns not guaranteed)</p>
           </div>
         </div>
@@ -147,7 +148,7 @@ export default function AddBackerMoney() {
                   <div className="text-right">
                     <div className="mc-label">Ponzi Points</div>
                     <div className="text-xl font-bold mc-text-purple mc-glow-purple">{Math.round(ponziPoints).toLocaleString()}</div>
-                    <div className="text-xs mc-text-purple opacity-70">4,000 / ICP</div>
+                    <div className="text-xs mc-text-purple opacity-70">{ppPerIcp.toLocaleString()} / ICP</div>
                   </div>
                 </div>
                 <div className="border-t border-white/10 pt-3 space-y-1.5">

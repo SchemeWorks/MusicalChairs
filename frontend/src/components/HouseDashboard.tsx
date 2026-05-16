@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useWallet } from '../hooks/useWallet';
-import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment, useGetUserNames } from '../hooks/useQueries';
+import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment, useGetUserNames, useGetMintConfig } from '../hooks/useQueries';
 import type { GeneralLedgerEntry } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
@@ -49,6 +49,8 @@ function TabControl({ activeTab, onTabChange, backerCount, ledgerCount }: {
    Backer Info (How Backer Positions Work)
    ================================================================ */
 function BackerInfoCard() {
+  const { data: mintConfig } = useGetMintConfig();
+  const ppPerIcp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
   const sections = [
     {
       icon: <Info className="h-5 w-5 mc-text-cyan" />,
@@ -94,7 +96,7 @@ function BackerInfoCard() {
       content: (
         <div className="text-xs mc-text-dim space-y-1">
           <p>Repayment depends on platform activity. More investors = faster repayment.
-          You also earn <strong className="mc-text-purple">4,000 Ponzi Points per ICP</strong> deposited.</p>
+          You also earn <strong className="mc-text-purple">{ppPerIcp.toLocaleString()} Ponzi Points per ICP</strong> deposited.</p>
           <p className="font-accent italic mc-text-muted">Management reserves the right to a modest operational fee on every deposit.</p>
         </div>
       ),

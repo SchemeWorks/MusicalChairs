@@ -376,8 +376,7 @@ export function useAddBackerMoney() {
         return {
           success: true,
           amount,
-          expectedReturn: amount * 1.12,
-          ponziPoints: amount * 4000, // 4000 points per ICP for backer money
+          expectedReturn: amount * 1.24,
           timestamp: new Date()
         };
       } catch (error: any) {

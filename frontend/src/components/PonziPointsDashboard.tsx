@@ -1,9 +1,10 @@
 import React from 'react';
-import { useGetPonziPoints } from '../hooks/useQueries';
+import { useGetPonziPoints, useGetMintConfig } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 
 export default function PonziPointsDashboard() {
   const { data: ponziData, isLoading, error } = useGetPonziPoints();
+  const { data: mintConfig } = useGetMintConfig();
 
   if (isLoading) return <LoadingSpinner />;
 
@@ -18,6 +19,11 @@ export default function PonziPointsDashboard() {
   const totalPoints = ponziData?.totalPoints || 0;
   const chipPoints = ponziData?.chipPoints || 0;
   const walletPoints = ponziData?.walletPoints || 0;
+
+  const simplePp = mintConfig ? Number(mintConfig.simple21DayPpPerIcp) : 0;
+  const comp15Pp = mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : 0;
+  const comp30Pp = mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0;
+  const backerPp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
 
   return (
     <div className="space-y-6">
@@ -53,9 +59,9 @@ export default function PonziPointsDashboard() {
       <div className="mc-card p-5">
         <h3 className="font-display text-base mc-text-primary mb-3">How to Earn</h3>
         <div className="text-sm mc-text-dim space-y-2 leading-relaxed">
-          <p><span className="mc-text-green font-bold">Deposits:</span> 1,000 PP per ICP (Simple), 2,000 PP (15-day), 3,000 PP (30-day)</p>
+          <p><span className="mc-text-green font-bold">Deposits:</span> {simplePp.toLocaleString()} PP per ICP (Simple), {comp15Pp.toLocaleString()} PP (15-day), {comp30Pp.toLocaleString()} PP (30-day)</p>
           <p><span className="mc-text-cyan font-bold">Referrals:</span> Earn PP when your downline earns PP</p>
-          <p><span className="mc-text-gold font-bold">Seed Round:</span> 4,000 PP per ICP deposited as a backer</p>
+          <p><span className="mc-text-gold font-bold">Seed Round:</span> {backerPp.toLocaleString()} PP per ICP deposited as a backer</p>
           <p><span className="mc-text-pink font-bold">Spend:</span> Burn PP on Shenanigans for chaos and glory</p>
         </div>
       </div>
