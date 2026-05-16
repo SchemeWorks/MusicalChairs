@@ -120,6 +120,9 @@ service : {
       intervalSeconds: nat;
       running: bool;
     }) query;
+  /// Issue (or return existing) short referral code for the caller. Codes
+  /// are 6-char base62, assigned lazily, stable forever once issued.
+  getOrCreateReferralCode: () -> (text);
   getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
   /// Per-tier downline counts and cumulative PP earnings for `user`.
@@ -152,6 +155,9 @@ service : {
                                            Ok: nat;
                                          });
   resetShenaniganConfig: (id: nat) -> ();
+  /// Look up the principal a short referral code resolves to. Returns null
+  /// for unknown codes.
+  resolveReferralCode: (code: text) -> (opt principal) query;
   resumeObserver: () -> ();
   rotateAdmin: (newAdmin: principal) -> ();
   /// Manual one-shot observer tick (admin debug).

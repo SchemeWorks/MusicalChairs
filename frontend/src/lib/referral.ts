@@ -1,11 +1,9 @@
-import { Principal } from '@dfinity/principal';
-
 const REF_KEY = 'mc_referrer';
 
-// Read `?ref=<principal>` from the URL once on app load and stash it in
-// localStorage so it survives the auth round-trip. First referrer wins (we
-// only set if nothing's stored yet); the backend also enforces this rule
-// inside registerReferral.
+// Read `?ref=<code-or-principal>` from the URL once on app load and stash it
+// in localStorage so it survives the auth round-trip. The token can be either
+// a short 6-char referral code (current format) or a full principal (legacy
+// links). First referrer wins on the frontend AND on the canister.
 export function captureReferrerFromUrl(): void {
   if (typeof window === 'undefined') return;
   try {
@@ -13,10 +11,10 @@ export function captureReferrerFromUrl(): void {
     const ref = params.get('ref');
     if (!ref) return;
     if (localStorage.getItem(REF_KEY)) return;
-    Principal.fromText(ref); // validates it parses
+    if (!/^[A-Za-z0-9-]{1,128}$/.test(ref)) return;
     localStorage.setItem(REF_KEY, ref);
   } catch {
-    // Malformed principal — ignore so the user can still use the app
+    // localStorage unavailable (private mode quota etc.) — ignore
   }
 }
 
@@ -28,7 +26,7 @@ export function getStoredReferrer(): string | null {
   }
 }
 
-export function buildReferralLink(principal: string | null | undefined): string {
-  if (!principal) return 'https://musicalchairs.fun/';
-  return `https://musicalchairs.fun/?ref=${principal}`;
+export function buildReferralLink(token: string | null | undefined): string {
+  if (!token) return 'https://musicalchairs.fun/';
+  return `https://musicalchairs.fun/?ref=${token}`;
 }

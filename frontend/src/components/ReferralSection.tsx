@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useGetReferralStats, useGetPonziPoints } from '../hooks/useQueries';
+import { useGetReferralStats, useGetPonziPoints, useGetMyReferralCode } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import { Copy, Check, Share2, ExternalLink, Award, Download, Dice5, Globe } from 'lucide-react';
 import type { TabType } from '../App';
@@ -17,8 +17,9 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
   const qrRef = useRef<HTMLCanvasElement>(null);
   const { data: referralStats, isLoading, error } = useGetReferralStats();
   const { data: ponziData } = useGetPonziPoints();
+  const { data: referralCodeData } = useGetMyReferralCode();
 
-  const referralLink = referralStats?.referralLink || 'https://musicalchairs.fun/';
+  const referralLink = referralCodeData?.link || referralStats?.referralLink || 'https://musicalchairs.fun/';
 
   const copyToClipboard = async () => {
     try {

@@ -1629,15 +1629,45 @@ export function useGetProfileFor(principalText: string | undefined) {
 }
 
 // Register referral — one-shot per session when the user becomes authenticated.
-// Calls shenanigans.registerReferral(referrer). First-wins; idempotent.
+// Accepts either a short referral code (current format) or a full principal
+// (legacy links). Resolves to a principal then calls shenanigans.registerReferral.
+// First-wins on the canister side.
 export function useRegisterReferral() {
   const { actor } = useShenaniganActor();
 
   return useMutation({
-    mutationFn: async (referrer: Principal) => {
+    mutationFn: async (token: string) => {
       if (!actor) throw new Error('Shenanigans actor not available');
-      await actor.registerReferral(referrer);
+      let principal: Principal;
+      try {
+        principal = Principal.fromText(token);
+      } catch {
+        const resolved = await actor.resolveReferralCode(token);
+        if (resolved.length === 0) {
+          throw new Error('Unknown referral code');
+        }
+        principal = resolved[0];
+      }
+      await actor.registerReferral(principal);
     },
     // No cache invalidation needed — this is a fire-and-forget registration
+  });
+}
+
+// Issue (or fetch existing) the caller's short referral code, then build the
+// share URL. One round-trip per session; cached by React Query keyed on
+// principal. The canister hands back the same code forever once issued.
+export function useGetMyReferralCode() {
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['myReferralCode', principal],
+    queryFn: async () => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      const code = await actor.getOrCreateReferralCode();
+      return { code, link: buildReferralLink(code) };
+    },
+    enabled: !!principal && !!actor && !actorFetching,
+    staleTime: Infinity,
   });
 }
