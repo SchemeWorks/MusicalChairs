@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useCreateGame, useICPBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints } from '../hooks/useQueries';
+import { useCreateGame, useICPBalance, useGetMaxDepositLimit, useCheckDepositRateLimit, calculateSimpleROI, calculateCompoundingROI, getDailyRate, getPlanDays, calculatePonziPoints, ppRateForPlan, useGetMintConfig, PpRates } from '../hooks/useQueries';
 import { useCountUp } from '../hooks/useCountUp';
 import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
@@ -72,6 +72,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
   const { data: icpBalance } = useICPBalance();
   const { data: maxDepositLimit } = useGetMaxDepositLimit();
   const { data: canDeposit } = useCheckDepositRateLimit();
+  const { data: mintConfig } = useGetMintConfig();
+
+  const ppRates: PpRates = {
+    simple21Day: mintConfig ? Number(mintConfig.simple21DayPpPerIcp) : 0,
+    comp15Day: mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : 0,
+    comp30Day: mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0,
+  };
   // For Oisy users the rate-limit query is disabled; treat undefined as "allowed"
   // (the backend will enforce rate limits on deposit if exceeded).
   const isRateLimited = walletType === 'oisy' ? false : canDeposit === false;
@@ -113,7 +120,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
       const roi = selectedMode === 'simple'
         ? calculateSimpleROI(net, selectedPlan, days)
         : calculateCompoundingROI(net, selectedPlan, days);
-      setRoiData({ ...roi, ponziPoints: calculatePonziPoints(depositAmount, selectedPlan, selectedMode) });
+      setRoiData({ ...roi, ponziPoints: calculatePonziPoints(depositAmount, selectedPlan, ppRates) });
       const key = `${depositAmount}-${selectedPlan}-${selectedMode}`;
       if (key !== prevRoiKey.current) {
         roiResetToken.current += 1;
@@ -122,7 +129,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     } else {
       setRoiData(null);
     }
-  }, [depositAmount, selectedPlan, selectedMode]);
+  }, [depositAmount, selectedPlan, selectedMode, ppRates.simple21Day, ppRates.comp15Day, ppRates.comp30Day]);
 
   const animatedReturn = useCountUp(roiData?.totalReturn || 0, 800, roiResetToken.current);
   const animatedPP = useCountUp(roiData?.ponziPoints || 0, 800, roiResetToken.current);
@@ -247,7 +254,9 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
             {selectedPlan === '15-day-compounding' ? 'The Executive Package' : "The Chairman's Circle"}
           </span>
           <span className="text-xs mc-text-dim hidden sm:inline">
-            {selectedPlan === '15-day-compounding' ? '15 days · 12%/day · 2x PP' : '30 days · 9%/day · 3x PP'}
+            {selectedPlan === '15-day-compounding'
+              ? `15 days · 12%/day · ${ppRates.comp15Day.toLocaleString()} PP/ICP`
+              : `30 days · 9%/day · ${ppRates.comp30Day.toLocaleString()} PP/ICP`}
           </span>
           <span className="ml-auto text-xs mc-text-muted hover:mc-text-primary transition-colors">Change</span>
         </div>
@@ -276,7 +285,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 21 days of 11% daily returns</li>
                 <li>• Withdraw your earnings anytime</li>
                 <li>• Carried Interest: 7% / 5% / 3% based on timing</li>
-                <li>• Ponzi Points: 1x multiplier</li>
+                <li>• Ponzi Points: {ppRates.simple21Day.toLocaleString()} PP per ICP</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-green opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -297,7 +306,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• Enhanced returns through compounding</li>
                 <li>• Choose 15 or 30-day lockup</li>
                 <li>• Carried Interest: 9% (15-day) or 13% (30-day)</li>
-                <li>• Ponzi Points: 2x–3x multipliers</li>
+                <li>• Ponzi Points: {ppRates.comp15Day.toLocaleString()}–{ppRates.comp30Day.toLocaleString()} PP per ICP</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-purple opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -321,7 +330,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               </p>
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 12% compounding daily for 15 days</li>
-                <li>• 2x Ponzi Points multiplier</li>
+                <li>• {ppRates.comp15Day.toLocaleString()} Ponzi Points per ICP</li>
                 <li>• Funds locked until maturity</li>
                 <li>• Carried Interest: 9% at maturity</li>
               </ul>
@@ -342,7 +351,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               </p>
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 9% compounding daily for 30 days</li>
-                <li>• 3x Ponzi Points multiplier</li>
+                <li>• {ppRates.comp30Day.toLocaleString()} Ponzi Points per ICP</li>
                 <li>• Funds locked until maturity</li>
                 <li>• Carried Interest: 13% at maturity</li>
               </ul>
@@ -464,7 +473,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                               <div className="mc-label">Ponzi Points</div>
                               <div className="text-xl font-bold mc-text-purple mc-glow-purple mc-roi-pop">{Math.round(animatedPP).toLocaleString()}</div>
                               <div className="text-xs mc-text-purple opacity-70">
-                                {selectedMode === 'simple' ? '1x' : selectedPlan === '15-day-compounding' ? '2x' : '3x'} multiplier
+                                {ppRateForPlan(selectedPlan, ppRates).toLocaleString()} / ICP
                               </div>
                             </div>
                           </div>

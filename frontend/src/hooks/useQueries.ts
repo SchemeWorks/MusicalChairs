@@ -1363,25 +1363,24 @@ export function usePendingCashOuts() {
   });
 }
 
-// Ponzi Points calculation utilities
-export function calculatePonziPoints(amount: number, plan: string, mode: 'simple' | 'compounding'): number {
-  const basePoints = amount * 1000; // 1000 points per 1 ICP
-  
-  // Plan multipliers based on new structure
-  let planMultiplier = 1.0;
+// Ponzi Points calculation — uses live PP/ICP rates from shenanigans mintConfig.
+export interface PpRates {
+  simple21Day: number;
+  comp15Day: number;
+  comp30Day: number;
+}
+
+export function ppRateForPlan(plan: string, rates: PpRates): number {
   switch (plan) {
-    case '21-day-simple':
-      planMultiplier = 1.0; // 1x multiplier for simple
-      break;
-    case '15-day-compounding':
-      planMultiplier = 2.0; // 2x multiplier for 15-day compounding
-      break;
-    case '30-day-compounding':
-      planMultiplier = 3.0; // 3x multiplier for 30-day compounding
-      break;
+    case '21-day-simple': return rates.simple21Day;
+    case '15-day-compounding': return rates.comp15Day;
+    case '30-day-compounding': return rates.comp30Day;
+    default: return 0;
   }
-  
-  return basePoints * planMultiplier;
+}
+
+export function calculatePonziPoints(amount: number, plan: string, rates: PpRates): number {
+  return amount * ppRateForPlan(plan, rates);
 }
 
 // Transaction History Query (Mock data until backend is implemented)
