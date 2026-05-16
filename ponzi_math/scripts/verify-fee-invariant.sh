@@ -53,9 +53,10 @@ actual=$(dfx canister call --network "$NETWORK" ponzi_math getCanisterICPBalance
 ensure_numeric "actual ICP balance" "$actual"
 
 # Sum backer repayments. Output is a vec of records; pull out every "<float> : float64"
-# value and sum them.
+# value and sum them. Empty vec is a legitimate state — guard the grep with `|| true`
+# so set -o pipefail doesn't kill us when there's nothing to match.
 repayments=$(dfx canister call --network "$NETWORK" ponzi_math getAllBackerRepayments \
-    | grep -oE '[0-9.eE+-]+ : float64' \
+    | { grep -oE '[0-9.eE+-]+ : float64' || true; } \
     | awk '{print $1}' \
     | awk '{ printf "%.18f\n", $1+0 }' \
     | awk 'BEGIN{s=0} {s+=$1} END{printf "%.18f\n", s+0}')
