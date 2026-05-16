@@ -18,6 +18,8 @@ export type {
   BackerKey,
   GeneralLedgerEntry,
   GeneralLedgerEvent,
+  ActivePlanSnapshot,
+  RoundSummary,
   _SERVICE as PonziMathService,
 } from './declarations/ponzi_math';
 

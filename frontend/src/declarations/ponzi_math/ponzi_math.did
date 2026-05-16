@@ -4,12 +4,27 @@ type StandardRecord =
    name: text;
    url: text;
  };
+type RoundSummary = 
+ record {
+   endReason: opt text;
+   endTime: opt int;
+   eventCount: nat;
+   roundId: nat;
+   seedReserveCarried: float64;
+   startTime: int;
+ };
 type PonziMath = 
  service {
    addBackerMoney: (amount: float64) -> (variant {
                                            Err: text;
                                            Ok: nat;
                                          });
+   adminGetActivePlansSnapshot: () -> (vec ActivePlanSnapshot) query;
+   adminGetCurrentRoundId: () -> (nat) query;
+   adminGetEventsByRound: (roundId: nat) -> (vec GeneralLedgerEntry) query;
+   adminGetEventsForGame: (gameId: nat) -> (vec GeneralLedgerEntry) query;
+   adminGetRoundSummaries: () -> (vec RoundSummary) query;
+   adminIsAdmin: () -> (bool) query;
    adminMergeBackerPosition: (from: principal, to: principal) ->
     (variant {
        Err: text;
@@ -187,6 +202,7 @@ type GeneralLedgerEntry =
  record {
    event: GeneralLedgerEvent;
    id: nat;
+   roundId: nat;
    timestamp: int;
  };
 type GameResetRecord = 
@@ -271,6 +287,17 @@ type BackerKey =
  record {
    principal;
    BackerType;
+ };
+type ActivePlanSnapshot = 
+ record {
+   currentExitToll: float64;
+   currentGrossEarnings: float64;
+   currentNetClaimable: float64;
+   daysElapsed: float64;
+   daysToMaturity: float64;
+   game: GameRecord;
+   isMatured: bool;
+   wouldBeInsolvent: bool;
  };
 service : (initArgs: record {
                        backendPrincipal: principal;
