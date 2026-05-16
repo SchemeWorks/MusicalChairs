@@ -1809,6 +1809,63 @@ persistent actor class PonziMath(initArgs : {
         #Ok;
     };
 
+    // adminSweepUntracked — recover any actual ICP balance that exceeds
+    // internal accounting (potBalance + roundSeedReserve + sum(backerRepayments)
+    // + coverChargeBalance). Sends `actual - internal - fee` to the testAdmin.
+    // Used to reconcile dust left over by operations like
+    // adminClearAllBackerPositions, which zero internal accounting fields
+    // without crediting the corresponding ICP elsewhere. No-op if there is no
+    // positive untracked balance.
+    public shared ({ caller }) func adminSweepUntracked() : async { #Ok : Nat; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        acquireGlobalLock();
+        try {
+            let selfPrincipal = Principal.fromActor(Self);
+            let actual = try {
+                await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
+            } catch (e) {
+                return #Err("Failed to read canister balance: " # Error.message(e));
+            };
+
+            var repaymentSum : Float = 0.0;
+            for ((_, amount) in backerKeyMap.entries(backerRepayments)) {
+                repaymentSum += amount;
+            };
+            let internalFloat = platformStats.potBalance + roundSeedReserve + repaymentSum;
+            let internalE8s = Int.abs(Float.toInt(internalFloat * 100_000_000.0)) + coverChargeBalance;
+
+            if (actual <= internalE8s) {
+                return #Err("No untracked balance to sweep (actual=" # Nat.toText(actual) # " e8s, internal=" # Nat.toText(internalE8s) # " e8s)");
+            };
+            let untracked : Nat = actual - internalE8s;
+
+            if (untracked <= Ledger.ICP_TRANSFER_FEE) {
+                return #Err("Untracked balance below network fee (untracked=" # Nat.toText(untracked) # " e8s)");
+            };
+            let transferAmount : Nat = untracked - Ledger.ICP_TRANSFER_FEE;
+
+            let transferResult = try {
+                await icpLedger.icrc1_transfer({
+                    from_subaccount = null;
+                    to = { owner = caller; subaccount = null };
+                    amount = transferAmount;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
+
+            switch (transferResult) {
+                case (#Err(err)) { #Err(transferErrorMessage(err)) };
+                case (#Ok(blockIndex)) { #Ok(blockIndex) };
+            };
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
     // ========================================================================
     // ICRC-21 consent messages, ICRC-28 trusted origins, ICRC-10 standards
     // ========================================================================
