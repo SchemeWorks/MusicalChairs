@@ -739,9 +739,13 @@ export default function App() {
 
         {/* DocsPage is rendered inline in main content — see showDocsPage conditional above */}
 
-        {/* Toast */}
+        {/* Toast — positioned below the fixed header + status bar so it's
+            always visible regardless of page scroll. Click-to-dismiss only;
+            no auto-dismiss. */}
         <Toaster
-          position="bottom-center"
+          position="top-center"
+          offset={140}
+          closeButton
           toastOptions={{
             style: {
               background: 'var(--mc-felt-raised)',
@@ -753,7 +757,7 @@ export default function App() {
               borderRadius: 'var(--radius-md)',
               boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
             },
-            duration: 4000,
+            duration: Infinity,
           }}
         />
       </div>

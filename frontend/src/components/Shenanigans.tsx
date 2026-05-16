@@ -455,7 +455,7 @@ export default function Shenanigans() {
 
       {/* Outcome toast */}
       {outcomeToast && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
           <div className="mc-toast text-center">
             <div className={`font-display text-xl mb-2 ${
               outcomeToast.outcome === 'success' ? 'mc-text-green' :
@@ -487,7 +487,7 @@ export default function Shenanigans() {
 
       {/* Confirm dialog */}
       {confirmOpen && selectedShenanigan && (
-        <div className="fixed top-8 left-1/2 -translate-x-1/2 z-[9999]">
+        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
           <div className="mc-toast text-center">
             <div className="font-display text-xl mc-text-primary mb-2">
               {selectedShenanigan.icon} Cast {selectedShenanigan.name}?

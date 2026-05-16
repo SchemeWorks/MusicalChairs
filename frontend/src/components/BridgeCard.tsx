@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowDownUp } from 'lucide-react';
 import {
   useGetPonziPoints,
   useAllowance,
@@ -31,12 +30,10 @@ export default function BridgeCard() {
   const hasAllowance =
     !!allowance && allowance.allowance >= wholePpToUnits(amount || MIN_DEPOSIT);
 
-  const flip = () =>
-    setDirection((d) => {
-      const next: Direction = d === 'deposit' ? 'redeem' : 'deposit';
-      setAmount(next === 'deposit' ? MIN_DEPOSIT : 1);
-      return next;
-    });
+  const setDir = (next: Direction) => {
+    setDirection(next);
+    setAmount(next === 'deposit' ? MIN_DEPOSIT : 1);
+  };
 
   const runDeposit = async () => {
     try {
@@ -60,6 +57,8 @@ export default function BridgeCard() {
     }
   };
 
+  const maxValue = direction === 'deposit' ? wallet : position;
+
   return (
     <section className="mc-card p-4">
       {isFirstTime && (
@@ -68,32 +67,48 @@ export default function BridgeCard() {
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm">
-          <span className="mc-text-muted">From</span>{' '}
-          <b>{direction === 'deposit' ? 'Wallet' : 'Position'}</b>
-          <span className="mx-2 mc-text-muted">→</span>
-          <span className="mc-text-muted">To</span>{' '}
-          <b>{direction === 'deposit' ? 'Position' : 'Wallet'}</b>
-        </div>
-        <button
-          onClick={flip}
-          className="mc-btn-secondary px-2 py-1 text-xs flex items-center gap-1"
-          aria-label="Flip direction"
-        >
-          <ArrowDownUp className="h-3 w-3" /> Flip
-        </button>
+      {/* Segmented direction toggle */}
+      <div className="flex rounded-lg bg-white/5 p-0.5 mb-4">
+        {(['deposit', 'redeem'] as const).map((d) => {
+          const active = direction === d;
+          const label = d === 'deposit' ? 'Deposit' : 'Withdraw';
+          const sub = d === 'deposit' ? 'Wallet → Position' : 'Position → Wallet';
+          return (
+            <button
+              key={d}
+              onClick={() => setDir(d)}
+              className={`flex-1 py-2 px-3 rounded-md text-sm font-bold transition-all ${
+                active
+                  ? 'bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30'
+                  : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+              }`}
+            >
+              <div>{label}</div>
+              <div className="text-[10px] mc-text-muted font-normal mt-0.5">{sub}</div>
+            </button>
+          );
+        })}
       </div>
 
-      <input
-        type="number"
-        min={direction === 'deposit' ? MIN_DEPOSIT : 1}
-        max={direction === 'deposit' ? wallet : position}
-        value={amount}
-        onChange={(e) => setAmount(Number(e.target.value))}
-        className="mc-input w-40 mr-2"
-      />
-      <span className="text-sm mc-text-muted">PP</span>
+      {/* Amount input + MAX */}
+      <div className="flex items-center gap-2">
+        <input
+          type="number"
+          min={direction === 'deposit' ? MIN_DEPOSIT : 1}
+          max={maxValue}
+          value={amount}
+          onChange={(e) => setAmount(Number(e.target.value))}
+          className="mc-input flex-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+        />
+        <span className="text-sm mc-text-muted">PP</span>
+        <button
+          onClick={() => setAmount(maxValue)}
+          disabled={maxValue <= 0}
+          className="mc-btn-secondary px-3 py-1.5 text-xs rounded-lg whitespace-nowrap disabled:opacity-50"
+        >
+          MAX
+        </button>
+      </div>
 
       {direction === 'deposit' ? (
         <>

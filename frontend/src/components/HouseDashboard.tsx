@@ -5,6 +5,8 @@ import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, u
 import type { GeneralLedgerEntry } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
+import ClaimRepaymentToast from './ClaimRepaymentToast';
+import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP } from '../lib/formatICP';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
@@ -260,10 +262,13 @@ function BackerPositions() {
   const rawBackers = Array.isArray(backerPositions) ? backerPositions : [];
   const { data: nameByPrincipal } = useGetUserNames(rawBackers.map(b => b.owner.toString()));
 
+  const [claimToast, setClaimToast] = useState<{ amount: number } | null>(null);
+
   const handleClaim = async (amount: number) => {
     try {
       const paid = await claimRepayment.mutateAsync();
-      toast.success(`Claimed ${formatICP(Number(paid))} ICP`);
+      triggerConfetti();
+      setClaimToast({ amount: Number(paid) });
     } catch (err: any) {
       toast.error(err?.message || `Claim failed (had ${formatICP(amount)} ICP claimable)`);
     }
@@ -426,6 +431,12 @@ function BackerPositions() {
       {/* Info card */}
       <BackerInfoCard />
 
+      {claimToast && (
+        <ClaimRepaymentToast
+          amount={claimToast.amount}
+          onClose={() => setClaimToast(null)}
+        />
+      )}
     </div>
   );
 }
