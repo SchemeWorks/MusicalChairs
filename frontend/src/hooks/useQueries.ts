@@ -8,7 +8,7 @@ import { useWallet } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
-import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
+import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ActivePlanSnapshot, RoundSummary, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
@@ -1493,6 +1493,116 @@ export function useBackendICPBalance() {
     },
     enabled: !!actor && !actorFetching && !!principal && isCoverChargeAdmin(principal),
     refetchInterval: 10000,
+  });
+}
+
+// ============================================================================
+// Admin god-view queries — caller-gated by ponzi_math.isAdmin(). Querying with
+// a non-admin identity TRAPS; React Query catches the rejection and surfaces
+// as `error`. The `enabled` guards below restrict client-side requests to
+// Charles principals so non-admin users never see the trap.
+// ============================================================================
+
+// useReadPonziMath() builds an actor with an ANONYMOUS HttpAgent (no identity),
+// so the canister sees Principal.anonymous() as the caller — that fails
+// requireAuthenticated before requireAdmin runs. We need the identity-bearing
+// actor (usePonziMathActor) for admin queries to send the signed envelope.
+
+export function useAdminIsAdmin() {
+  const { actor } = usePonziMathActor();
+  const { principal } = useWallet();
+  return useQuery<boolean>({
+    queryKey: ['adminIsAdmin', principal],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.adminIsAdmin();
+    },
+    enabled: !!actor && !!principal,
+    staleTime: 60_000,
+  });
+}
+
+export function useAdminGetCurrentRoundId(enabled: boolean = true) {
+  const { actor } = usePonziMathActor();
+  return useQuery<bigint>({
+    queryKey: ['adminCurrentRoundId'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.adminGetCurrentRoundId();
+    },
+    enabled: enabled && !!actor,
+    refetchInterval: 10_000,
+  });
+}
+
+export function useAdminGetActivePlansSnapshot(enabled: boolean = true) {
+  const { actor } = usePonziMathActor();
+  return useQuery<ActivePlanSnapshot[]>({
+    queryKey: ['adminActivePlansSnapshot'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.adminGetActivePlansSnapshot();
+    },
+    enabled: enabled && !!actor,
+    refetchInterval: 5_000,
+  });
+}
+
+export function useAdminGetRoundSummaries(enabled: boolean = true) {
+  const { actor } = usePonziMathActor();
+  return useQuery<RoundSummary[]>({
+    queryKey: ['adminRoundSummaries'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.adminGetRoundSummaries();
+    },
+    enabled: enabled && !!actor,
+    refetchInterval: 30_000,
+  });
+}
+
+export function useAdminGetEventsByRound(roundId: bigint | null, enabled: boolean = true) {
+  const { actor } = usePonziMathActor();
+  return useQuery<GeneralLedgerEntry[]>({
+    queryKey: ['adminEventsByRound', roundId?.toString()],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      if (roundId === null) throw new Error('No round selected');
+      return actor.adminGetEventsByRound(roundId);
+    },
+    enabled: enabled && !!actor && roundId !== null,
+    refetchInterval: 5_000,
+  });
+}
+
+export function useAdminGetEventsForGame(gameId: bigint | null) {
+  const { actor } = usePonziMathActor();
+  return useQuery<GeneralLedgerEntry[]>({
+    queryKey: ['adminEventsForGame', gameId?.toString()],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      if (gameId === null) throw new Error('No game selected');
+      return actor.adminGetEventsForGame(gameId);
+    },
+    enabled: !!actor && gameId !== null,
+    staleTime: 10_000,
+  });
+}
+
+// Lookup a single profile by principal text. Used by admin views to resolve
+// game/event owner principals to display names. Backed by getUserProfile on
+// the backend canister, which returns null for unregistered principals.
+export function useGetProfileFor(principalText: string | undefined) {
+  const actor = useReadActor();
+  return useQuery<UserProfile | null>({
+    queryKey: ['profileFor', principalText],
+    queryFn: async () => {
+      if (!principalText) return null;
+      const result = await actor.getUserProfile(Principal.fromText(principalText));
+      return result[0] ?? null;
+    },
+    enabled: !!principalText,
+    staleTime: 5 * 60_000,
   });
 }
 

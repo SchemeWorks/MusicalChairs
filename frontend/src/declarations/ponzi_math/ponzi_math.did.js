@@ -16,23 +16,15 @@ export const idlFactory = ({ IDL }) => {
     'totalWithdrawn' : IDL.Float64,
     'amount' : IDL.Float64,
   });
-  const BackerType = IDL.Variant({
-    'seriesA' : IDL.Null,
-    'seriesB' : IDL.Null,
-  });
-  const BackerKey = IDL.Tuple(IDL.Principal, BackerType);
-  const BackerPosition = IDL.Record({
-    'startTime' : IDL.Int,
-    'firstDepositDate' : IDL.Opt(IDL.Int),
-    'owner' : IDL.Principal,
-    'backerType' : BackerType,
-    'isActive' : IDL.Bool,
-    'amount' : IDL.Float64,
-    'entitlement' : IDL.Float64,
-  });
-  const GameResetRecord = IDL.Record({
-    'resetTime' : IDL.Int,
-    'reason' : IDL.Text,
+  const ActivePlanSnapshot = IDL.Record({
+    'daysToMaturity' : IDL.Float64,
+    'daysElapsed' : IDL.Float64,
+    'currentGrossEarnings' : IDL.Float64,
+    'game' : GameRecord,
+    'currentNetClaimable' : IDL.Float64,
+    'isMatured' : IDL.Bool,
+    'wouldBeInsolvent' : IDL.Bool,
+    'currentExitToll' : IDL.Float64,
   });
   const GeneralLedgerEvent = IDL.Variant({
     'tollDistribution' : IDL.Record({
@@ -108,7 +100,34 @@ export const idlFactory = ({ IDL }) => {
   const GeneralLedgerEntry = IDL.Record({
     'id' : IDL.Nat,
     'event' : GeneralLedgerEvent,
+    'roundId' : IDL.Nat,
     'timestamp' : IDL.Int,
+  });
+  const RoundSummary = IDL.Record({
+    'startTime' : IDL.Int,
+    'endTime' : IDL.Opt(IDL.Int),
+    'endReason' : IDL.Opt(IDL.Text),
+    'roundId' : IDL.Nat,
+    'eventCount' : IDL.Nat,
+    'seedReserveCarried' : IDL.Float64,
+  });
+  const BackerType = IDL.Variant({
+    'seriesA' : IDL.Null,
+    'seriesB' : IDL.Null,
+  });
+  const BackerKey = IDL.Tuple(IDL.Principal, BackerType);
+  const BackerPosition = IDL.Record({
+    'startTime' : IDL.Int,
+    'firstDepositDate' : IDL.Opt(IDL.Int),
+    'owner' : IDL.Principal,
+    'backerType' : BackerType,
+    'isActive' : IDL.Bool,
+    'amount' : IDL.Float64,
+    'entitlement' : IDL.Float64,
+  });
+  const GameResetRecord = IDL.Record({
+    'resetTime' : IDL.Int,
+    'reason' : IDL.Text,
   });
   const PlatformStats = IDL.Record({
     'daysActive' : IDL.Nat,
@@ -168,6 +187,24 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'adminGetActivePlansSnapshot' : IDL.Func(
+        [],
+        [IDL.Vec(ActivePlanSnapshot)],
+        ['query'],
+      ),
+    'adminGetCurrentRoundId' : IDL.Func([], [IDL.Nat], ['query']),
+    'adminGetEventsByRound' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(GeneralLedgerEntry)],
+        ['query'],
+      ),
+    'adminGetEventsForGame' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Vec(GeneralLedgerEntry)],
+        ['query'],
+      ),
+    'adminGetRoundSummaries' : IDL.Func([], [IDL.Vec(RoundSummary)], ['query']),
+    'adminIsAdmin' : IDL.Func([], [IDL.Bool], ['query']),
     'adminMergeBackerPosition' : IDL.Func(
         [IDL.Principal, IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],

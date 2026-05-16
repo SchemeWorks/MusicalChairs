@@ -2,6 +2,16 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface ActivePlanSnapshot {
+  'daysToMaturity' : number,
+  'daysElapsed' : number,
+  'currentGrossEarnings' : number,
+  'game' : GameRecord,
+  'currentNetClaimable' : number,
+  'isMatured' : boolean,
+  'wouldBeInsolvent' : boolean,
+  'currentExitToll' : number,
+}
 export type BackerKey = [Principal, BackerType];
 export interface BackerPosition {
   'startTime' : bigint,
@@ -63,6 +73,7 @@ export interface GameResetRecord { 'resetTime' : bigint, 'reason' : string }
 export interface GeneralLedgerEntry {
   'id' : bigint,
   'event' : GeneralLedgerEvent,
+  'roundId' : bigint,
   'timestamp' : bigint,
 }
 export type GeneralLedgerEvent = {
@@ -165,6 +176,12 @@ export interface PonziMath {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'adminGetActivePlansSnapshot' : ActorMethod<[], Array<ActivePlanSnapshot>>,
+  'adminGetCurrentRoundId' : ActorMethod<[], bigint>,
+  'adminGetEventsByRound' : ActorMethod<[bigint], Array<GeneralLedgerEntry>>,
+  'adminGetEventsForGame' : ActorMethod<[bigint], Array<GeneralLedgerEntry>>,
+  'adminGetRoundSummaries' : ActorMethod<[], Array<RoundSummary>>,
+  'adminIsAdmin' : ActorMethod<[], boolean>,
   'adminMergeBackerPosition' : ActorMethod<
     [Principal, Principal],
     { 'Ok' : null } |
@@ -240,6 +257,14 @@ export interface PonziMath {
     { 'Ok' : number } |
       { 'Err' : string }
   >,
+}
+export interface RoundSummary {
+  'startTime' : bigint,
+  'endTime' : [] | [bigint],
+  'endReason' : [] | [string],
+  'roundId' : bigint,
+  'eventCount' : bigint,
+  'seedReserveCarried' : number,
 }
 export interface StandardRecord { 'url' : string, 'name' : string }
 export interface TrustedOriginsResponse { 'trusted_origins' : Array<string> }

@@ -13,6 +13,8 @@ export type {
   BackerKey,
   GeneralLedgerEntry,
   GeneralLedgerEvent,
+  ActivePlanSnapshot,
+  RoundSummary,
   ConsentInfo,
   ConsentMessage,
   ConsentMessageMetadata,

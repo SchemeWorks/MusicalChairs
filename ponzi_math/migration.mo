@@ -1,70 +1,173 @@
 import OrderedMap "mo:base/OrderedMap";
 import Principal "mo:base/Principal";
+import Nat "mo:base/Nat";
+import Int "mo:base/Int";
+import Iter "mo:base/Iter";
 
 module {
 
-    type BackerType = { #seriesA; #seriesB };
+    // ----------------------------------------------------------------------
+    // Migration: add per-event `roundId` to GeneralLedgerEntry, and bring up
+    // a top-level `currentRoundId` counter.
+    //
+    // Old entries are backfilled by walking gameResetHistory in ascending
+    // time order: an event at timestamp T belongs to round
+    //     1 + #{ resetTime : resetTime < T }
+    // i.e. the gameReset event that ENDS round N is itself recorded under
+    // round N (the round being closed).
+    //
+    // Field semantics per Motoko inline migration:
+    //   - `generalLedger`        : transformed (entry shape changes)
+    //   - `gameResetHistory`     : passed through (identity) — read to compute
+    //                              roundIds, then preserved in the new state
+    //   - `currentRoundId`       : produced from scratch (output-only)
+    //   - Everything else        : carried through by the runtime (not named
+    //                              in either record, so untouched)
+    // ----------------------------------------------------------------------
 
-    type BackerPosition = {
-        owner : Principal;
-        amount : Float;
-        entitlement : Float;
-        startTime : Int;
-        isActive : Bool;
-        backerType : BackerType;
-        firstDepositDate : ?Int;
+    // GeneralLedgerEvent — structurally identical to the live actor's variant.
+    // Inlined here per Motoko migration guidance (don't import from main.mo;
+    // future renames to those types would silently break this migration).
+    type GamePlan = {
+        #simple21Day;
+        #compounding15Day;
+        #compounding30Day;
     };
 
-    type BackerKey = (Principal, BackerType);
-
-    func backerKeyCompare(a : BackerKey, b : BackerKey) : { #less; #equal; #greater } {
-        switch (Principal.compare(a.0, b.0)) {
-            case (#less) #less;
-            case (#greater) #greater;
-            case (#equal) {
-                switch (a.1, b.1) {
-                    case (#seriesA, #seriesA) #equal;
-                    case (#seriesB, #seriesB) #equal;
-                    case (#seriesA, #seriesB) #less;
-                    case (#seriesB, #seriesA) #greater;
-                };
-            };
+    type GeneralLedgerEvent = {
+        #deposit : {
+            player : Principal;
+            gameId : Nat;
+            gross : Float;
+            coverCharge : Float;
+            netToPot : Float;
+            plan : GamePlan;
+            isCompounding : Bool;
+        };
+        #backerDeposit : {
+            backer : Principal;
+            amount : Float;
+            entitlement : Float;
+        };
+        #withdrawal : {
+            player : Principal;
+            gameId : Nat;
+            grossEarnings : Float;
+            toll : Float;
+            netToPlayer : Float;
+            potDeduction : Float;
+            isInsolvent : Bool;
+        };
+        #settlement : {
+            player : Principal;
+            gameId : Nat;
+            grossEarnings : Float;
+            toll : Float;
+            netToPlayer : Float;
+            potDeduction : Float;
+            isInsolvent : Bool;
+        };
+        #tollDistribution : {
+            tollAmount : Float;
+            toSeedReserve : Float;
+            toOldestSeriesA : Float;
+            toOtherSeriesA : Float;
+            toAllBackers : Float;
+        };
+        #backerRepaymentClaim : {
+            backer : Principal;
+            amount : Float;
+        };
+        #coverChargeAccrued : {
+            gameId : Nat;
+            player : Principal;
+            amountE8s : Nat;
+        };
+        #coverChargeSwept : {
+            amountE8s : Nat;
+            toBackend : Principal;
+            blockIndex : Nat;
+        };
+        #gameReset : {
+            reason : Text;
+            seedReserveCarried : Float;
+        };
+        #backdatedGameCreated : {
+            admin : Principal;
+            player : Principal;
+            gameId : Nat;
+            startTime : Int;
+            amount : Float;
+        };
+        #seriesBPromotion : {
+            owner : Principal;
+            underwater : Float;
+            entitlement : Float;
         };
     };
 
-    // Re-key both backer maps from Principal to (Principal, BackerType).
-    // Each old backerPositions entry carries its own backerType field.
-    // Each old backerRepayments entry is re-keyed using the matching
-    // position's type; orphaned entries (repayment with no position) are
-    // dropped — they would never have been paid out anyway.
+    type OldGeneralLedgerEntry = {
+        id : Nat;
+        timestamp : Int;
+        event : GeneralLedgerEvent;
+    };
+
+    type NewGeneralLedgerEntry = {
+        id : Nat;
+        timestamp : Int;
+        roundId : Nat;
+        event : GeneralLedgerEvent;
+    };
+
+    type GameResetRecord = {
+        resetTime : Int;
+        reason : Text;
+    };
+
     public func run(old : {
-        var backerPositions : OrderedMap.Map<Principal, BackerPosition>;
-        var backerRepayments : OrderedMap.Map<Principal, Float>;
+        var generalLedger : OrderedMap.Map<Nat, OldGeneralLedgerEntry>;
+        var gameResetHistory : OrderedMap.Map<Int, GameResetRecord>;
     }) : {
-        var backerPositions : OrderedMap.Map<BackerKey, BackerPosition>;
-        var backerRepayments : OrderedMap.Map<BackerKey, Float>;
+        var generalLedger : OrderedMap.Map<Nat, NewGeneralLedgerEntry>;
+        var gameResetHistory : OrderedMap.Map<Int, GameResetRecord>;
+        var currentRoundId : Nat;
     } {
-        let oldOps = OrderedMap.Make<Principal>(Principal.compare);
-        let newOps = OrderedMap.Make<BackerKey>(backerKeyCompare);
+        let natOps = OrderedMap.Make<Nat>(Nat.compare);
+        let intOps = OrderedMap.Make<Int>(Int.compare);
 
-        var newPositions = newOps.empty<BackerPosition>();
-        for ((p, pos) in oldOps.entries(old.backerPositions)) {
-            newPositions := newOps.put(newPositions, (p, pos.backerType), pos);
-        };
+        // OrderedMap.keys() iterates in key order, so resetTimes is sorted ascending.
+        let resetTimes = Iter.toArray(intOps.keys(old.gameResetHistory));
 
-        var newRepayments = newOps.empty<Float>();
-        for ((p, r) in oldOps.entries(old.backerRepayments)) {
-            switch (oldOps.get(old.backerPositions, p)) {
-                case (?pos) {
-                    newRepayments := newOps.put(newRepayments, (p, pos.backerType), r);
-                };
-                case (null) { /* orphan — drop */ };
+        // Round 1 is the initial round (before any reset). Round (K+1) begins
+        // after the K-th reset fires. A gameReset event at exactly time T
+        // counts as ending round R = 1 + #{rt : rt < T}, so it carries roundId R.
+        func roundIdFor(t : Int) : Nat {
+            var rounds : Nat = 1;
+            for (rt in resetTimes.vals()) {
+                if (rt < t) { rounds += 1 };
             };
+            rounds;
         };
+
+        var newLedger = natOps.empty<NewGeneralLedgerEntry>();
+        for ((id, entry) in natOps.entries(old.generalLedger)) {
+            let migrated : NewGeneralLedgerEntry = {
+                id = entry.id;
+                timestamp = entry.timestamp;
+                roundId = roundIdFor(entry.timestamp);
+                event = entry.event;
+            };
+            newLedger := natOps.put(newLedger, id, migrated);
+        };
+
+        // currentRoundId = total resets + 1 (we're already in the round AFTER
+        // the most recent reset).
+        let nextRound : Nat = resetTimes.size() + 1;
 
         {
-            var backerPositions = newPositions;
-            var backerRepayments = newRepayments;
+            var generalLedger = newLedger;
+            var gameResetHistory = old.gameResetHistory;
+            var currentRoundId = nextRound;
         };
     };
 };

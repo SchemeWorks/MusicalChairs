@@ -98,7 +98,28 @@ persistent actor class PonziMath(initArgs : {
     public type GeneralLedgerEntry = {
         id : Nat;
         timestamp : Int;
+        roundId : Nat;
         event : GeneralLedgerEvent;
+    };
+
+    public type RoundSummary = {
+        roundId : Nat;
+        startTime : Int;          // canister-genesis time for round 1; otherwise prior gameReset.resetTime
+        endTime : ?Int;           // null for the in-flight round; resetTime of the closing gameReset for past rounds
+        endReason : ?Text;        // null for the in-flight round
+        eventCount : Nat;
+        seedReserveCarried : Float; // gameReset.seedReserveCarried for closed rounds; 0.0 for the in-flight round
+    };
+
+    public type ActivePlanSnapshot = {
+        game : GameRecord;
+        currentGrossEarnings : Float;
+        currentExitToll : Float;
+        currentNetClaimable : Float;
+        daysElapsed : Float;
+        daysToMaturity : Float;   // 0.0 once matured
+        isMatured : Bool;
+        wouldBeInsolvent : Bool;  // true if pot < currentGrossEarnings
     };
 
     public type GeneralLedgerEvent = {
@@ -201,6 +222,7 @@ persistent actor class PonziMath(initArgs : {
     var coverChargeBalance : Nat = 0;
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
+    var currentRoundId : Nat = 1;
 
     // Transient concurrency state — resets on upgrade (safe by construction)
     transient var callerLocks = principalMapNat.empty<Bool>();
@@ -243,6 +265,33 @@ persistent actor class PonziMath(initArgs : {
     func requireAuthenticated(caller : Principal) {
         if (Principal.isAnonymous(caller)) {
             Debug.trap("Anonymous principal not allowed");
+        };
+    };
+
+    // Admin allowlist — kept in sync with the frontend CHARLES_PRINCIPALS list
+    // in frontend/src/lib/charles.tsx. These principals can call the admin
+    // god-view queries (adminGetActivePlansSnapshot, adminGetEventsByRound, ...).
+    // Rotation = code redeploy. Caller is verified by the IC request envelope
+    // signature, so this guard is effective even on `query` methods.
+    transient let ADMIN_PRINCIPALS : [Principal] = [
+        Principal.fromText("zs6vm-4yyag-sbw7x-6ipms-h4tmz-ox4pu-mcq3b-thtt4-de25x-wmsh4-rqe"),
+        Principal.fromText("stzp3-bnvwm-zqzjh-o6mv6-ci53m-wj5k6-xyhe7-fnyp2-c64o3-7vokj-bqe"),
+        Principal.fromText("zegjz-jpi6k-qkand-c2bgf-qw6za-xk4si-nz3gx-qzzia-fk6fg-snepb-tae"),
+        Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe"),
+    ];
+
+    func isAdmin(caller : Principal) : Bool {
+        if (caller == TEST_ADMIN) { return true };
+        for (admin in ADMIN_PRINCIPALS.vals()) {
+            if (caller == admin) { return true };
+        };
+        false;
+    };
+
+    func requireAdmin(caller : Principal) {
+        requireAuthenticated(caller);
+        if (not isAdmin(caller)) {
+            Debug.trap("Unauthorized: admin only");
         };
     };
 
@@ -318,6 +367,7 @@ persistent actor class PonziMath(initArgs : {
         let entry : GeneralLedgerEntry = {
             id = nextGeneralLedgerId;
             timestamp = Time.now();
+            roundId = currentRoundId;
             event;
         };
         generalLedger := natMap.put(generalLedger, nextGeneralLedgerId, entry);
@@ -594,6 +644,10 @@ persistent actor class PonziMath(initArgs : {
         // nextGameId is NOT reset — IDs stay monotonic across rounds so the
         // full history of games remains addressable by stable IDs.
         recordLedger(#gameReset({ reason; seedReserveCarried = carried }));
+
+        // The gameReset event above carries the OLD roundId (the round being
+        // ended). Subsequent events fall under the new round.
+        currentRoundId += 1;
     };
 
     // ========================================================================
@@ -1413,6 +1467,174 @@ persistent actor class PonziMath(initArgs : {
         try {
             await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
         } catch (_) { 0 };
+    };
+
+    // ========================================================================
+    // Admin god-view queries — gated by isAdmin(caller). The IC request
+    // envelope is signed by the caller's identity and the replica verifies
+    // the signature even on `query` methods, so this is effective access
+    // control. Responses are NOT certified (single-replica reads) — sufficient
+    // for read-only viewing; an admin wanting paranoia can repeat as update.
+    // ========================================================================
+
+    public query ({ caller }) func adminIsAdmin() : async Bool {
+        isAdmin(caller);
+    };
+
+    public query ({ caller }) func adminGetCurrentRoundId() : async Nat {
+        requireAdmin(caller);
+        currentRoundId;
+    };
+
+    public query ({ caller }) func adminGetEventsByRound(roundId : Nat) : async [GeneralLedgerEntry] {
+        requireAdmin(caller);
+        var matches = List.nil<GeneralLedgerEntry>();
+        // natMap iterates in id (key) order ascending; List.push reverses, so
+        // reverse at the end to recover ascending order.
+        for (entry in natMap.vals(generalLedger)) {
+            if (entry.roundId == roundId) {
+                matches := List.push(entry, matches);
+            };
+        };
+        List.toArray(List.reverse(matches));
+    };
+
+    public query ({ caller }) func adminGetRoundSummaries() : async [RoundSummary] {
+        requireAdmin(caller);
+
+        var counts = natMap.empty<Nat>();
+        var seedCarried = natMap.empty<Float>();
+        var endTimes = natMap.empty<Int>();
+        var endReasons = natMap.empty<Text>();
+
+        for (entry in natMap.vals(generalLedger)) {
+            let prev = switch (natMap.get(counts, entry.roundId)) {
+                case (null) { 0 };
+                case (?n) { n };
+            };
+            counts := natMap.put(counts, entry.roundId, prev + 1);
+            switch (entry.event) {
+                case (#gameReset(r)) {
+                    seedCarried := natMap.put(seedCarried, entry.roundId, r.seedReserveCarried);
+                    endTimes := natMap.put(endTimes, entry.roundId, entry.timestamp);
+                    endReasons := natMap.put(endReasons, entry.roundId, r.reason);
+                };
+                case (_) {};
+            };
+        };
+
+        var resultList = List.nil<RoundSummary>();
+        var r : Nat = 1;
+        while (r <= currentRoundId) {
+            let count = switch (natMap.get(counts, r)) {
+                case (null) { 0 };
+                case (?n) { n };
+            };
+            let end = natMap.get(endTimes, r);
+            let reason = natMap.get(endReasons, r);
+            let seed = switch (natMap.get(seedCarried, r)) {
+                case (null) { 0.0 };
+                case (?v) { v };
+            };
+            // Round 1's startTime is canister genesis (we don't track it
+            // explicitly — frontend can fall back to the earliest event
+            // timestamp for that round). For round N>1, startTime = prior
+            // round's gameReset timestamp.
+            let startT : Int = if (r == 1) { 0 } else {
+                switch (natMap.get(endTimes, r - 1)) {
+                    case (null) { 0 };
+                    case (?t) { t };
+                };
+            };
+            resultList := List.push({
+                roundId = r;
+                startTime = startT;
+                endTime = end;
+                endReason = reason;
+                eventCount = count;
+                seedReserveCarried = seed;
+            } : RoundSummary, resultList);
+            r += 1;
+        };
+        List.toArray(List.reverse(resultList));
+    };
+
+    // Compute the live snapshot for an active game — what they'd get if they
+    // withdrew/settled right now, accounting for pot solvency.
+    func computeActivePlanSnapshot(game : GameRecord, now : Int, pot : Float) : ActivePlanSnapshot {
+        let elapsedSec = Float.fromInt((now - game.startTime) / 1_000_000_000);
+        let daysElapsed = elapsedSec / 86400.0;
+
+        let (maxDays, grossEarnings) : (Float, Float) = if (game.isCompounding) {
+            switch (game.plan) {
+                case (#compounding15Day) {
+                    let d = Float.min(daysElapsed, 15.0);
+                    (15.0, roundToEightDecimals(game.amount * (Float.pow(1.12, d) - 1.0)));
+                };
+                case (#compounding30Day) {
+                    let d = Float.min(daysElapsed, 30.0);
+                    (30.0, roundToEightDecimals(game.amount * (Float.pow(1.09, d) - 1.0)));
+                };
+                case (#simple21Day) { (0.0, 0.0) }; // unreachable — isCompounding implies a compounding plan
+            };
+        } else {
+            // Simple plan — mirror calculateEarnings (11% daily, 21-day cap,
+            // includes already-accumulated earnings on partial withdrawals).
+            let timeAlreadyAccounted = Float.fromInt((game.lastUpdateTime - game.startTime) / 1_000_000_000);
+            let remainingAllowedTime = Float.max(0.0, 21.0 * 86400.0 - timeAlreadyAccounted);
+            let timeSinceLastUpdate = Float.fromInt((now - game.lastUpdateTime) / 1_000_000_000);
+            let timeElapsed = Float.min(timeSinceLastUpdate, remainingAllowedTime);
+            let increment = game.amount * 0.11 * (timeElapsed / 86400.0);
+            (21.0, roundToEightDecimals(game.accumulatedEarnings + increment));
+        };
+
+        let exitToll = calculateExitToll(game, grossEarnings);
+        let netClaimable = roundToEightDecimals(grossEarnings - exitToll);
+        let isMatured = daysElapsed >= maxDays;
+        let daysToMaturity = if (isMatured) { 0.0 } else { maxDays - daysElapsed };
+
+        {
+            game;
+            currentGrossEarnings = grossEarnings;
+            currentExitToll = exitToll;
+            currentNetClaimable = netClaimable;
+            daysElapsed;
+            daysToMaturity;
+            isMatured;
+            wouldBeInsolvent = grossEarnings > pot;
+        };
+    };
+
+    public query ({ caller }) func adminGetActivePlansSnapshot() : async [ActivePlanSnapshot] {
+        requireAdmin(caller);
+        let now = Time.now();
+        let pot = platformStats.potBalance;
+        var snapshots = List.nil<ActivePlanSnapshot>();
+        for (game in natMap.vals(gameRecords)) {
+            if (game.isActive) {
+                snapshots := List.push(computeActivePlanSnapshot(game, now, pot), snapshots);
+            };
+        };
+        List.toArray(List.reverse(snapshots));
+    };
+
+    // Convenience: every event referencing a specific gameId. Used by the
+    // admin god view to show withdrawal/deposit history for one plan.
+    public query ({ caller }) func adminGetEventsForGame(gameId : Nat) : async [GeneralLedgerEntry] {
+        requireAdmin(caller);
+        var matches = List.nil<GeneralLedgerEntry>();
+        for (entry in natMap.vals(generalLedger)) {
+            let belongs = switch (entry.event) {
+                case (#deposit(d)) { d.gameId == gameId };
+                case (#withdrawal(w)) { w.gameId == gameId };
+                case (#settlement(s)) { s.gameId == gameId };
+                case (#coverChargeAccrued(c)) { c.gameId == gameId };
+                case (#backdatedGameCreated(b)) { b.gameId == gameId };
+                case (_) { false };
+            };
+            if (belongs) { matches := List.push(entry, matches) };
+        };
+        List.toArray(List.reverse(matches));
     };
 
     // ========================================================================
