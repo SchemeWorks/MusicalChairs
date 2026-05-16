@@ -15,9 +15,7 @@ import Error "mo:base/Error";
 
 import Ledger "ledger";
 import Icrc21 "icrc21";
-import Migration "migration";
 
-(with migration = Migration.run)
 persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
     testAdmin : Principal;
@@ -1788,6 +1786,18 @@ persistent actor class PonziMath(initArgs : {
         };
         backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
+        #Ok;
+    };
+
+    // adminClearAllBackerPositions — wipes every backer position and every
+    // pending backer repayment balance. Intended for a one-shot "start fresh"
+    // reset when all live positions are admin/test sock puppets. Does NOT
+    // touch platformStats.potBalance — the ICP previously contributed via
+    // addBackerMoney stays in the canister and remains tracked in the pot.
+    public shared ({ caller }) func adminClearAllBackerPositions() : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        backerPositions := backerKeyMap.empty<BackerPosition>();
+        backerRepayments := backerKeyMap.empty<Float>();
         #Ok;
     };
 
