@@ -16,7 +16,6 @@ import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
-import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -24,7 +23,6 @@ import Migration "migration";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
-(with migration = Migration.run)
 persistent actor Self {
 
     // ================================================================
@@ -173,6 +171,17 @@ persistent actor Self {
     var adminPrincipal : ?Principal = null;
     var ponziMathPrincipal : ?Principal = null;
 
+    // Additional principals with admin access. Augments the legacy
+    // adminPrincipal so multiple browser wallets can drive the admin
+    // panel directly. Hard-coded — to add/remove an admin, edit and
+    // redeploy. transient let → no state schema impact, recomputed
+    // on every canister start.
+    transient let extraAdmins : [Principal] = [
+        Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe"),
+        Principal.fromText("stzp3-bnvwm-zqzjh-o6mv6-ci53m-wj5k6-xyhe7-fnyp2-c64o3-7vokj-bqe"),
+        Principal.fromText("zegjz-jpi6k-qkand-c2bgf-qw6za-xk4si-nz3gx-qzzia-fk6fg-snepb-tae"),
+    ];
+
     // Referral chain — moved from backend during the ponzi_math extraction.
     // Maps user → who referred them. First-wins, one-time, immutable per user.
     // Referrals are PP-economy metadata; not money math.
@@ -210,6 +219,22 @@ persistent actor Self {
 
     // PP ledger actor reference
     transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
+
+    // ================================================================
+    // Legacy stable fields — preserved across upgrades so we don't
+    // implicitly discard data still living in the deployed canister.
+    // Not referenced by current code; a future migration should
+    // properly transform or drop these. The literal initializers
+    // below are only used on first deploy — existing values are
+    // preserved across upgrade by orthogonal persistence.
+    // ================================================================
+    let CASCADE_MAX_DEPTH : Nat = 0;
+    var activeDepositors = principalMap.empty<Bool>();
+    var cascadeBps : Nat = 0;
+    var cascadePassthrough : Nat = 0;
+    var charlesPrincipal : Principal = Principal.fromText("aaaaa-aa");
+    var referrerToDownline = principalMap.empty<List.List<Principal>>();
+    var signupGiftPp : Nat = 0;
 
     // ================================================================
     // Initialization
@@ -254,7 +279,11 @@ persistent actor Self {
         switch (adminPrincipal) {
             case (null) { Debug.trap("Not initialized") };
             case (?admin) {
-                if (caller != admin) { Debug.trap("Unauthorized: admin only") };
+                if (caller == admin) return;
+                for (extra in extraAdmins.vals()) {
+                    if (caller == extra) return;
+                };
+                Debug.trap("Unauthorized: admin only");
             };
         };
     };
