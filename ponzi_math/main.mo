@@ -973,12 +973,13 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (netEarningsE8s > 0) {
+                    if (netEarningsE8s > Ledger.ICP_TRANSFER_FEE) {
+                        let transferAmount : Nat = netEarningsE8s - Ledger.ICP_TRANSFER_FEE;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
-                                amount = netEarningsE8s;
+                                amount = transferAmount;
                                 fee = null;
                                 memo = null;
                                 created_at_time = null;
@@ -1109,12 +1110,13 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (payoutE8s > 0) {
+                    if (payoutE8s > Ledger.ICP_TRANSFER_FEE) {
+                        let transferAmount : Nat = payoutE8s - Ledger.ICP_TRANSFER_FEE;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
-                                amount = payoutE8s;
+                                amount = transferAmount;
                                 fee = null;
                                 memo = null;
                                 created_at_time = null;
@@ -1180,15 +1182,21 @@ persistent actor class PonziMath(initArgs : {
             };
             let balance = aBalance + bBalance;
             if (balance <= 0.0) { return #Err("No repayment balance to claim") };
+
+            let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
+            if (balanceE8s <= Ledger.ICP_TRANSFER_FEE) {
+                return #Err("Claimable balance is below the network fee (0.0001 ICP); wait until your balance grows past the fee");
+            };
+            let transferAmount : Nat = balanceE8s - Ledger.ICP_TRANSFER_FEE;
+
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
 
-            let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
             let transferResult = try {
                 await icpLedger.icrc1_transfer({
                     from_subaccount = null;
                     to = { owner = caller; subaccount = null };
-                    amount = balanceE8s;
+                    amount = transferAmount;
                     fee = null;
                     memo = null;
                     created_at_time = null;
