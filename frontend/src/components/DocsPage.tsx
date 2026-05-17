@@ -15,7 +15,7 @@ import {
   PP_PER_ICP_SIMPLE, PP_PER_ICP_COMPOUND_15, PP_PER_ICP_COMPOUND_30, PP_PER_ICP_SEED_ROUND,
   REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE,
   SHENANIGAN_PROTECTION_FLOOR,
-  pct, fmt,
+  pct, pctPrecise, fmt,
 } from '../lib/gameConstants';
 
 interface DocSection {
@@ -151,7 +151,7 @@ const docSections: DocSection[] = [
           headers={['Withdrawal Window', 'Toll']}
           rows={[
             [`Day 0–${EXIT_TOLL_EARLY_DAYS}`, <span className="mc-text-danger font-bold">{pct(EXIT_TOLL_EARLY)}</span>],
-            [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pct(EXIT_TOLL_MID)}</span>],
+            [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pctPrecise(EXIT_TOLL_MID)}</span>],
             [`Day ${EXIT_TOLL_MID_DAYS}+`, <span className="mc-text-green font-bold">{pct(EXIT_TOLL_LATE)}</span>],
           ]}
         />
@@ -296,9 +296,9 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Magic Mirror', '200 PP', 'Shield: blocks one hostile shenanigan', '100%'],
-            ['PP Booster Aura', '300 PP', '+5\u201315% additional PP for rest of round', '100%'],
-            ['Downline Boost', '400 PP', 'Referrals kick up 1.3x PP for rest of round', '100%'],
+            ['Magic Mirror', '200 PP', 'Shield: blocks one hostile shenanigan for 24h', '100%'],
+            ['PP Booster Aura', '300 PP', '+5\u201315% to all your PP mints for 24h', '100%'],
+            ['Downline Boost', '400 PP', 'Your referral cascade pays 1.3x for 24h', '100%'],
           ]}
         />
 
@@ -306,10 +306,26 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Rename Spell', '200 PP', "Change someone's display name for 7 days", '90%'],
+            ['Rename Spell', '200 PP', "Slaps a satirical name on someone for 7 days", '90%'],
             ['Golden Name', '100 PP', 'Gold name on leaderboard for 24 hours', '100%'],
           ]}
         />
+
+        <p className="font-bold text-white mt-6 mb-2">How Spells Resolve</p>
+        <div className="space-y-3">
+          <div className="mc-card p-4">
+            <p className="font-display text-xs text-white mb-1">Rubber-Banding</p>
+            <p>The six aggressive spells (Money Trickster, AOE Skim, Mint Tax Siphon, Downline Heist, Purse Cutter, Whale Rebalance) have their success rate adjusted by up to <span className="mc-text-gold font-bold">\u00b125 percentage points</span> based on caster vs. target PP balance. Small caster targeting a whale? Bonus on top of base odds. Whale picking on a minnow? Penalty \u2014 the punching-down tax. Clamped to a 5\u201395% range so nothing is ever guaranteed or impossible. Buff and cosmetic spells are exempt.</p>
+          </div>
+          <div className="mc-card p-4">
+            <p className="font-display text-xs text-white mb-1">Protection Floor</p>
+            <p>Targets holding under {fmt(SHENANIGAN_PROTECTION_FLOOR)} PP can't be drained, siphoned, or burned. Spells against them still cost the caster \u2014 they just no-op on the victim. The floor doesn't protect against cosmetic spells (Rename) or structural ones (Downline Heist).</p>
+          </div>
+          <div className="mc-card p-4">
+            <p className="font-display text-xs text-white mb-1">Shields</p>
+            <p>Magic Mirror gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker \u2014 they still pay the cost, the shield charge is consumed, no damage lands. AOE Skim and Whale Rebalance respect shields per-target (shielded victims skipped, others still hit). Rename and Downline Heist bypass shields by design.</p>
+          </div>
+        </div>
       </>
     ),
   },

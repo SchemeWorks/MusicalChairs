@@ -147,6 +147,48 @@ persistent actor Self {
         recentSignups : [SignupEntry];  // L1/L2/L3 only; sorted joinedAt desc; capped 20
     };
 
+    /// Active spell-effect state, all keyed by affected principal.
+    /// `expiresAt` is nanoseconds (Time.now() compatible). Entries are
+    /// lazily cleaned — a query returning null/false for an expired entry
+    /// is fine, and writers may overwrite expired entries in place.
+
+    /// Rename Spell — overrides display name for a window.
+    public type DisplayNameOverride = { name : Text; expiresAt : Int };
+
+    /// Mint Tax Siphon — `siphoner` skims `pctTimes100` basis-points-of-100
+    /// from each mint to `target` until `expiresAt` or `siphonedSoFar`
+    /// reaches `capUnits`.
+    public type MintSiphon = {
+        siphoner : Principal;
+        expiresAt : Int;
+        pctTimes100 : Nat;  // e.g. 500 = 5%
+        capUnits : Nat;
+        siphonedSoFar : Nat;
+    };
+
+    /// Magic Mirror — `chargesRemaining` hostile-spell deflections before
+    /// the shield drops. Backfire-mode hostile spells still hit the caster
+    /// regardless.
+    public type ShieldState = { chargesRemaining : Nat; expiresAt : Int };
+
+    /// PP Booster Aura — multiplies observer mints to this user by
+    /// `multiplierBps / 10_000`. e.g. 11_500 = 1.15x.
+    public type MintMultiplier = { multiplierBps : Nat; expiresAt : Int };
+
+    /// Downline Boost — multiplies referral cascade mints whose upline is
+    /// this user (any tier) by `multiplierBps / 10_000`.
+    public type CascadeBoost = { multiplierBps : Nat; expiresAt : Int };
+
+    /// Snapshot of every active spell effect for one user — fed to the UI.
+    public type ActiveSpellEffects = {
+        shield : ?ShieldState;
+        mintMultiplier : ?MintMultiplier;
+        cascadeBoost : ?CascadeBoost;
+        displayName : ?DisplayNameOverride;
+        mintSiphon : ?MintSiphon;
+        golden : Bool;
+    };
+
     // ================================================================
     // ponzi_math canister interface (query-only; observer polls)
     // ================================================================
@@ -302,6 +344,32 @@ persistent actor Self {
     // Leaderboard (local state — not derived from ledger)
     var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
     var spellsCastPerPlayer = principalMap.empty<Nat>(); // successful casts only
+
+    // Active spell-effect state — see type docs above. All empty on first
+    // deploy; orthogonal persistence carries values across upgrades.
+    var customDisplayNames = principalMap.empty<DisplayNameOverride>();
+    var mintSiphons = principalMap.empty<MintSiphon>();
+    var shieldsActive = principalMap.empty<ShieldState>();
+    var mintMultipliers = principalMap.empty<MintMultiplier>();
+    var cascadeBoosts = principalMap.empty<CascadeBoost>();
+    var goldenUntil = principalMap.empty<Int>();
+
+    // Set of principals we've ever minted PP to. Used by AOE Skim and
+    // Whale Rebalance to enumerate possible victims without scanning the
+    // whole ledger. Populated inside mintInternal.
+    var knownPpHolders = principalMap.empty<Bool>();
+
+    // Pool of satirical names Rename Spell pulls from. Keep PG-13.
+    transient let renameNamePool : [Text] = [
+        "Cap Table Casualty",
+        "Series A Lemming",
+        "Unvested Tears",
+        "Dilution Daddy",
+        "Term Sheet Terror",
+        "Burn Rate Brenda",
+        "Down-Round Donnie",
+        "Liquidation Larry",
+    ];
 
     // PP ledger actor reference
     transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
@@ -615,7 +683,7 @@ persistent actor Self {
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
                             let giftEventId = "signup-" # Principal.toText(game.player);
-                            switch (await mintInternal(game.player, giftNet, giftEventId)) {
+                            switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
                                     signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
@@ -628,7 +696,7 @@ persistent actor Self {
                     };
                 };
 
-                let res = await mintInternal(game.player, playerNet, eventId);
+                let res = await mintWithEffects(game.player, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
                         await distributeDeductiveCascade(game.player, cascadeUnits, eventId);
@@ -663,7 +731,7 @@ persistent actor Self {
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
                 let eventId = "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount);
 
-                let res = await mintInternal(backer.owner, playerNet, eventId);
+                let res = await mintWithEffects(backer.owner, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
                         await distributeDeductiveCascade(backer.owner, cascadeUnits, eventId);
@@ -911,7 +979,10 @@ persistent actor Self {
                 created_at_time = ?nowNat64();
             });
             switch (res) {
-                case (#Ok(idx)) { #Ok(idx) };
+                case (#Ok(idx)) {
+                    knownPpHolders := principalMap.put(knownPpHolders, player, true);
+                    #Ok(idx);
+                };
                 case (#Err(#Duplicate { duplicate_of })) { #Ok(duplicate_of) };
                 case (#Err(e)) { #Err(describeTransferErr(e)) };
             };
@@ -990,6 +1061,11 @@ persistent actor Self {
     // upline. Inactive uplines are skipped (flow-around). Cycles detected
     // via visited-set. Residual after depth cap → house.
     //
+    // Per-upline effects honored: applyCascadeBoost multiplies the payout
+    // if the upline has an active Downline Boost. Mints go through
+    // mintWithEffects so PP Booster Aura / Mint Tax Siphon also apply to
+    // the upline's incoming cascade PP.
+    //
     // Caller is responsible for minting the player's NET (base - cascadeUnits)
     // before invoking. This function only handles the cascade share.
     func distributeDeductiveCascade(originUser : Principal, cascadeUnits : Nat, eventId : Text) : async () {
@@ -1017,16 +1093,19 @@ persistent actor Self {
             if (not isActive(next)) { current := next; continue walk };
 
             activeRank += 1;
-            let payout = remaining * mintConfig.cascadePassthroughBps / 10_000;
-            if (payout == 0) { break walk };
+            let basePayout = remaining * mintConfig.cascadePassthroughBps / 10_000;
+            if (basePayout == 0) { break walk };
+            let payout = applyCascadeBoost(next, basePayout);
 
-            switch (await mintInternal(next, payout, "cascade-A" # Nat.toText(activeRank) # "-" # eventId)) {
+            switch (await mintWithEffects(next, payout, "cascade-A" # Nat.toText(activeRank) # "-" # eventId)) {
                 case (#Ok(_)) {
                     // Display buckets are L1/L2/L3 only. activeRank ≥ 4 still
                     // receives the payout via the mint above; we just don't
                     // inflate the L3 bucket with their share.
                     if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
-                    remaining -= payout;
+                    // Decrement remaining by the pre-boost amount so the cascade
+                    // distribution math stays conservative regardless of boosts.
+                    remaining -= basePayout;
                 };
                 case (#Err(_)) {
                     // Mint failed (e.g. ledger TemporarilyUnavailable). Leave
@@ -1040,8 +1119,200 @@ persistent actor Self {
 
         // Residual to house: covers depth cap, cycle break, exhausted chain.
         if (remaining > 0) {
-            let _ = await mintInternal(house(), remaining, "cascade-residual-" # eventId);
+            let _ = await mintWithEffects(house(), remaining, "cascade-residual-" # eventId);
         };
+    };
+
+    /// Returns `units` multiplied by `upline`'s active cascadeBoost, if any.
+    /// Expired entries are treated as absent.
+    func applyCascadeBoost(upline : Principal, units : Nat) : Nat {
+        switch (principalMap.get(cascadeBoosts, upline)) {
+            case (null) { units };
+            case (?boost) {
+                if (Time.now() >= boost.expiresAt) { units }
+                else { units * boost.multiplierBps / 10_000 };
+            };
+        };
+    };
+
+    // ================================================================
+    // Spell effect helpers (Phase E + F)
+    // ================================================================
+
+    /// Inclusive random percentage in [min, max]. Uses Time.now() — same
+    /// pattern as determineOutcome. Not cryptographic.
+    func rollPct(min : Nat, max : Nat) : Nat {
+        if (max <= min) { return min };
+        // Safe: branch above guarantees max > min, so subtraction won't trap.
+        let span : Nat = Nat.sub(max, min) + 1;
+        min + (Int.abs(Time.now()) % span);
+    };
+
+    /// Cap a Nat at `ceiling`.
+    func capAt(value : Nat, ceiling : Nat) : Nat {
+        if (value > ceiling) { ceiling } else { value };
+    };
+
+    /// Returns true if `target` is currently shielded; decrements charges
+    /// and clears the shield if charges hit zero. Expired shields are
+    /// silently cleared.
+    func consumeShieldIfActive(target : Principal) : Bool {
+        switch (principalMap.get(shieldsActive, target)) {
+            case (null) { false };
+            case (?shield) {
+                if (Time.now() >= shield.expiresAt) {
+                    shieldsActive := principalMap.delete(shieldsActive, target);
+                    false;
+                } else if (shield.chargesRemaining == 0) {
+                    shieldsActive := principalMap.delete(shieldsActive, target);
+                    false;
+                } else {
+                    let remaining : Nat = shield.chargesRemaining - 1;
+                    if (remaining == 0) {
+                        shieldsActive := principalMap.delete(shieldsActive, target);
+                    } else {
+                        shieldsActive := principalMap.put(shieldsActive, target, { chargesRemaining = remaining; expiresAt = shield.expiresAt });
+                    };
+                    true;
+                };
+            };
+        };
+    };
+
+    /// Pick a name from `renameNamePool` using Time.now() as the seed.
+    func pickRenameName() : Text {
+        let idx = Int.abs(Time.now()) % renameNamePool.size();
+        renameNamePool[idx];
+    };
+
+    /// Enumerate every known PP holder except `excluded`. Caller-side
+    /// async fetch of balances follows separately.
+    func enumerateHolders(excluded : Principal) : [Principal] {
+        let buf = Array.filter<Principal>(
+            Iter.toArray(principalMap.keys(knownPpHolders)),
+            func(p) = p != excluded,
+        );
+        buf;
+    };
+
+    /// Fetch top-3 PP holders by current chip balance, excluding caster.
+    /// Returns up to 3 (Principal, balance) pairs sorted descending.
+    func top3HoldersByBalance(excluded : Principal) : async [(Principal, Nat)] {
+        let candidates = enumerateHolders(excluded);
+        let buf = Array.init<(Principal, Nat)>(candidates.size(), (excluded, 0));
+        var i = 0;
+        for (p in candidates.vals()) {
+            let bal = await getChipBalance(p);
+            buf[i] := (p, bal);
+            i += 1;
+        };
+        let pairs = Array.freeze(buf);
+        let sorted = Array.sort<(Principal, Nat)>(pairs, func(a, b) = Nat.compare(b.1, a.1));
+        let take = if (sorted.size() < 3) { sorted.size() } else { 3 };
+        Array.subArray(sorted, 0, take);
+    };
+
+    /// Compute the rubber-band success-rate modifier (in percentage points)
+    /// based on caster vs target chip balance. Positive = underdog bonus,
+    /// negative = top-dog penalty, clamped to ±25.
+    func rubberBandMod(casterBal : Nat, targetBal : Nat) : Int {
+        if (targetBal == 0) { return 0 };
+        let ratio = casterBal * 1000 / targetBal;
+        if (ratio < 1000) {
+            let bonus : Int = ((1000 - ratio) * 25) / 1000;
+            if (bonus > 25) { 25 } else { bonus };
+        } else {
+            let penalty : Int = ((ratio - 1000) * 25) / 1000;
+            if (penalty > 25) { -25 } else { -penalty };
+        };
+    };
+
+    /// Roll outcome with rubber-band modifier baked into success odds.
+    /// Clamped to [5, 95]. backfireOdds reads off the configured tail
+    /// unchanged — modifier shifts mass between success and failure only.
+    func determineOutcomeWithMod(shenaniganType : ShenaniganType, modPct : Int) : ShenaniganOutcome {
+        let baseSuccess : Int = switch (shenaniganType) {
+            case (#moneyTrickster) { 60 };
+            case (#aoeSkim) { 40 };
+            case (#renameSpell) { 90 };
+            case (#mintTaxSiphon) { 70 };
+            case (#downlineHeist) { 30 };
+            case (#magicMirror) { 100 };
+            case (#ppBoosterAura) { 100 };
+            case (#purseCutter) { 20 };
+            case (#whaleRebalance) { 50 };
+            case (#downlineBoost) { 100 };
+            case (#goldenName) { 100 };
+        };
+        let baseBackfireTail : Int = switch (shenaniganType) {
+            case (#moneyTrickster) { 85 };
+            case (#aoeSkim) { 80 };
+            case (#renameSpell) { 95 };
+            case (#mintTaxSiphon) { 90 };
+            case (#downlineHeist) { 90 };
+            case (#magicMirror) { 100 };
+            case (#ppBoosterAura) { 100 };
+            case (#purseCutter) { 70 };
+            case (#whaleRebalance) { 80 };
+            case (#downlineBoost) { 100 };
+            case (#goldenName) { 100 };
+        };
+        let adjustedRaw : Int = baseSuccess + modPct;
+        let adjusted : Int = if (adjustedRaw < 5) { 5 } else if (adjustedRaw > 95) { 95 } else { adjustedRaw };
+        let randomValue : Int = Int.abs(Time.now()) % 100;
+        if (randomValue < adjusted) { #success }
+        else if (randomValue < baseBackfireTail) { #fail }
+        else { #backfire };
+    };
+
+    /// Apply mint multiplier + siphon to a player mint. Used by the
+    /// observer for game/backer mints. Cascade and siphoner mints skip
+    /// this wrapper to avoid recursion.
+    func mintWithEffects(player : Principal, baseUnits : Nat, eventId : Text) : async { #Ok : Nat; #Err : Text } {
+        if (baseUnits == 0) { return #Ok(0) };
+        // Apply mint multiplier first (boost amount)
+        let multiplied : Nat = switch (principalMap.get(mintMultipliers, player)) {
+            case (null) { baseUnits };
+            case (?mult) {
+                if (Time.now() >= mult.expiresAt) { baseUnits }
+                else { baseUnits * mult.multiplierBps / 10_000 };
+            };
+        };
+        // Then compute siphon, if any
+        let (toPlayer, siphonTuple) = switch (principalMap.get(mintSiphons, player)) {
+            case (null) { (multiplied, null : ?(Principal, Nat)) };
+            case (?siphon) {
+                if (Time.now() >= siphon.expiresAt) {
+                    mintSiphons := principalMap.delete(mintSiphons, player);
+                    (multiplied, null);
+                } else if (siphon.siphonedSoFar >= siphon.capUnits) {
+                    mintSiphons := principalMap.delete(mintSiphons, player);
+                    (multiplied, null);
+                } else {
+                    let rawSiphon = multiplied * siphon.pctTimes100 / 10_000;
+                    let remainingCap : Nat = siphon.capUnits - siphon.siphonedSoFar;
+                    let take = capAt(rawSiphon, remainingCap);
+                    let newSiphoned = siphon.siphonedSoFar + take;
+                    mintSiphons := principalMap.put(mintSiphons, player, {
+                        siphoner = siphon.siphoner;
+                        expiresAt = siphon.expiresAt;
+                        pctTimes100 = siphon.pctTimes100;
+                        capUnits = siphon.capUnits;
+                        siphonedSoFar = newSiphoned;
+                    });
+                    let remaining : Nat = if (multiplied >= take) { multiplied - take } else { 0 };
+                    (remaining, ?(siphon.siphoner, take));
+                };
+            };
+        };
+        let primary = await mintInternal(player, toPlayer, eventId);
+        switch (siphonTuple) {
+            case (?(siphoner, take)) {
+                let _ = await mintInternal(siphoner, take, "siphon-" # eventId);
+            };
+            case null {};
+        };
+        primary;
     };
 
     // ================================================================
@@ -1057,8 +1328,8 @@ persistent actor Self {
         };
         let costUnits = ppToUnits(Int.abs(Float.toInt(config.cost)));
 
-        let balance = await getChipBalance(caller);
-        if (balance < costUnits) { Debug.trap("Insufficient chips to cast this shenanigan") };
+        let casterBalPre = await getChipBalance(caller);
+        if (casterBalPre < costUnits) { Debug.trap("Insufficient chips to cast this shenanigan") };
 
         let castId = nextShenaniganId;
         let burnMemo = "cast-" # Nat.toText(castId);
@@ -1073,38 +1344,35 @@ persistent actor Self {
         };
         ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + costUnits);
 
-        let outcome = determineOutcome(shenaniganType);
+        // Caster balance after burn — what they have left when effects fire.
+        let casterBal : Nat = if (casterBalPre >= costUnits) { casterBalPre - costUnits : Nat } else { 0 };
+        let targetBal : Nat = switch (target) {
+            case (?t) { await getChipBalance(t) };
+            case null { 0 };
+        };
 
-        if (outcome == #backfire) {
-            switch (shenaniganType) {
-                case (#moneyTrickster) {
-                    switch (target) {
-                        case (null) {};
-                        case (?targetP) {
-                            let casterBal = await getChipBalance(caller);
-                            let pct = 2 + (Int.abs(Time.now()) % 7);
-                            let raw = casterBal * pct / 100;
-                            let capped = if (raw > ppToUnits(250)) { ppToUnits(250) } else { raw };
-                            let _ = await chipTransfer(caller, targetP, capped, "backfire-" # Nat.toText(castId));
-                        };
-                    };
-                };
-                case (#aoeSkim) {
-                    let casterBal = await getChipBalance(caller);
-                    let pct = 1 + (Int.abs(Time.now()) % 3);
-                    let loss = casterBal * pct / 100;
-                    let _ = await burnFrom(caller, loss, "backfire-aoe-" # Nat.toText(castId));
-                };
-                case (#downlineHeist) {
-                    switch (target) {
-                        case (null) {};
-                        case (?t) {
-                            Debug.print("Backfire: " # Principal.toText(caller) # " loses L3 downline to " # Principal.toText(t));
-                        };
-                    };
-                };
-                case (_) {};
+        // Rubber-band only the aggressive spells. Buff/cosmetic and
+        // 100%-success spells get modifier 0 (no-op).
+        let isAggressive = switch (shenaniganType) {
+            case (#moneyTrickster) { true };
+            case (#aoeSkim) { true };
+            case (#mintTaxSiphon) { true };
+            case (#downlineHeist) { true };
+            case (#purseCutter) { true };
+            case (#whaleRebalance) { true };
+            case (_) { false };
+        };
+        let modPct : Int = if (isAggressive) { rubberBandMod(casterBal, targetBal) } else { 0 };
+        let outcome = determineOutcomeWithMod(shenaniganType, modPct);
+
+        switch (outcome) {
+            case (#success) {
+                await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
             };
+            case (#backfire) {
+                await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+            };
+            case (#fail) {};
         };
 
         nextShenaniganId += 1;
@@ -1130,6 +1398,297 @@ persistent actor Self {
         outcome;
     };
 
+    // ================================================================
+    // Spell effect dispatch
+    // ================================================================
+
+    /// Apply each spell's effect on `#success`. Caster balance is post-burn;
+    /// target balance is pre-effect. `castId` feeds memo strings.
+    /// Returns `()`; errors are logged and swallowed so the cast record
+    /// is still written.
+    func applySuccessEffect(
+        shenaniganType : ShenaniganType,
+        caster : Principal,
+        target : ?Principal,
+        _casterBal : Nat,
+        targetBal : Nat,
+        castId : Nat,
+    ) : async () {
+        let memo = "spell-" # Nat.toText(castId);
+        let protectionFloor = ppToUnits(200);
+        let nowTs = Time.now();
+        let oneDayNs : Int = 86_400_000_000_000;
+        let sevenDaysNs : Int = oneDayNs * 7;
+
+        switch (shenaniganType) {
+            case (#moneyTrickster) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        if (consumeShieldIfActive(t)) { return };
+                        if (targetBal < protectionFloor) { return };
+                        let pct = rollPct(2, 8);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(250));
+                        let _ = await chipTransfer(t, caster, amount, memo);
+                    };
+                };
+            };
+            case (#aoeSkim) {
+                let pool = enumerateHolders(caster);
+                for (victim in pool.vals()) {
+                    if (not consumeShieldIfActive(victim)) {
+                        let bal = await getChipBalance(victim);
+                        if (bal >= protectionFloor) {
+                            let pct = rollPct(1, 3);
+                            let amount = capAt(bal * pct / 100, ppToUnits(60));
+                            let _ = await chipTransfer(victim, caster, amount, memo);
+                        };
+                    };
+                };
+            };
+            case (#renameSpell) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        customDisplayNames := principalMap.put(customDisplayNames, t, {
+                            name = pickRenameName();
+                            expiresAt = nowTs + sevenDaysNs;
+                        });
+                    };
+                };
+            };
+            case (#mintTaxSiphon) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        if (consumeShieldIfActive(t)) { return };
+                        if (targetBal < protectionFloor) { return };
+                        mintSiphons := principalMap.put(mintSiphons, t, {
+                            siphoner = caster;
+                            expiresAt = nowTs + sevenDaysNs;
+                            pctTimes100 = 500;
+                            capUnits = ppToUnits(1000);
+                            siphonedSoFar = 0;
+                        });
+                    };
+                };
+            };
+            case (#downlineHeist) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        // Find deepest downline of target — prefer L3, then L2, then L1
+                        let entries = principalMap.entries(referralChain);
+                        var l1Victim : ?Principal = null;
+                        var l2Victim : ?Principal = null;
+                        var l3Victim : ?Principal = null;
+                        for ((user, ref1) in entries) {
+                            if (ref1 == t) {
+                                l1Victim := ?user;
+                            } else {
+                                switch (principalMap.get(referralChain, ref1)) {
+                                    case (?ref2) {
+                                        if (ref2 == t) {
+                                            l2Victim := ?user;
+                                        } else {
+                                            switch (principalMap.get(referralChain, ref2)) {
+                                                case (?ref3) {
+                                                    if (ref3 == t) { l3Victim := ?user };
+                                                };
+                                                case null {};
+                                            };
+                                        };
+                                    };
+                                    case null {};
+                                };
+                            };
+                        };
+                        let victim = switch (l3Victim) {
+                            case (?v) { ?v };
+                            case null { switch (l2Victim) {
+                                case (?v) { ?v };
+                                case null { l1Victim };
+                            } };
+                        };
+                        switch (victim) {
+                            case (null) {};
+                            case (?v) {
+                                if (v != caster) {
+                                    referralChain := principalMap.put(referralChain, v, caster);
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            case (#magicMirror) {
+                shieldsActive := principalMap.put(shieldsActive, caster, {
+                    chargesRemaining = 1;
+                    expiresAt = nowTs + oneDayNs;
+                });
+            };
+            case (#ppBoosterAura) {
+                let pct = rollPct(105, 115);
+                mintMultipliers := principalMap.put(mintMultipliers, caster, {
+                    multiplierBps = pct * 100;
+                    expiresAt = nowTs + oneDayNs;
+                });
+            };
+            case (#purseCutter) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        if (consumeShieldIfActive(t)) { return };
+                        if (targetBal < protectionFloor) { return };
+                        let pct = rollPct(25, 50);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(800));
+                        let _ = await burnFrom(t, amount, memo);
+                    };
+                };
+            };
+            case (#whaleRebalance) {
+                let whales = await top3HoldersByBalance(caster);
+                for ((whale, bal) in whales.vals()) {
+                    if (not consumeShieldIfActive(whale)) {
+                        if (bal >= protectionFloor) {
+                            let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                            let _ = await chipTransfer(whale, caster, amount, memo);
+                        };
+                    };
+                };
+            };
+            case (#downlineBoost) {
+                cascadeBoosts := principalMap.put(cascadeBoosts, caster, {
+                    multiplierBps = 13_000;
+                    expiresAt = nowTs + oneDayNs;
+                });
+            };
+            case (#goldenName) {
+                goldenUntil := principalMap.put(goldenUntil, caster, nowTs + oneDayNs);
+            };
+        };
+    };
+
+    /// Apply each spell's effect on `#backfire`. Mirror image of success —
+    /// the caster pays. Buff/cosmetic spells with 100% success rate cannot
+    /// backfire (they never produce this outcome).
+    func applyBackfireEffect(
+        shenaniganType : ShenaniganType,
+        caster : Principal,
+        target : ?Principal,
+        casterBal : Nat,
+        _targetBal : Nat,
+        castId : Nat,
+    ) : async () {
+        let memo = "backfire-" # Nat.toText(castId);
+        let nowTs = Time.now();
+        let oneDayNs : Int = 86_400_000_000_000;
+        let sevenDaysNs : Int = oneDayNs * 7;
+        let halfWeekNs : Int = oneDayNs * 3;
+
+        switch (shenaniganType) {
+            case (#moneyTrickster) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        let pct = rollPct(2, 8);
+                        let amount = capAt(casterBal * pct / 100, ppToUnits(250));
+                        let _ = await chipTransfer(caster, t, amount, memo);
+                    };
+                };
+            };
+            case (#aoeSkim) {
+                let pct = rollPct(1, 3);
+                let loss = casterBal * pct / 100;
+                let _ = await burnFrom(caster, loss, memo);
+            };
+            case (#renameSpell) {
+                customDisplayNames := principalMap.put(customDisplayNames, caster, {
+                    name = pickRenameName();
+                    expiresAt = nowTs + sevenDaysNs;
+                });
+            };
+            case (#mintTaxSiphon) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        mintSiphons := principalMap.put(mintSiphons, caster, {
+                            siphoner = t;
+                            expiresAt = nowTs + halfWeekNs;
+                            pctTimes100 = 500;
+                            capUnits = ppToUnits(1000);
+                            siphonedSoFar = 0;
+                        });
+                    };
+                };
+            };
+            case (#downlineHeist) {
+                // Caster loses deepest downline to target
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        let entries = principalMap.entries(referralChain);
+                        var l1Victim : ?Principal = null;
+                        var l2Victim : ?Principal = null;
+                        var l3Victim : ?Principal = null;
+                        for ((user, ref1) in entries) {
+                            if (ref1 == caster) {
+                                l1Victim := ?user;
+                            } else {
+                                switch (principalMap.get(referralChain, ref1)) {
+                                    case (?ref2) {
+                                        if (ref2 == caster) {
+                                            l2Victim := ?user;
+                                        } else {
+                                            switch (principalMap.get(referralChain, ref2)) {
+                                                case (?ref3) {
+                                                    if (ref3 == caster) { l3Victim := ?user };
+                                                };
+                                                case null {};
+                                            };
+                                        };
+                                    };
+                                    case null {};
+                                };
+                            };
+                        };
+                        let victim = switch (l3Victim) {
+                            case (?v) { ?v };
+                            case null { switch (l2Victim) {
+                                case (?v) { ?v };
+                                case null { l1Victim };
+                            } };
+                        };
+                        switch (victim) {
+                            case (null) {};
+                            case (?v) {
+                                if (v != t) {
+                                    referralChain := principalMap.put(referralChain, v, t);
+                                };
+                            };
+                        };
+                    };
+                };
+            };
+            case (#purseCutter) {
+                let pct = rollPct(25, 50);
+                let amount = capAt(casterBal * pct / 100, ppToUnits(800));
+                let _ = await burnFrom(caster, amount, memo);
+            };
+            case (#whaleRebalance) {
+                let whales = await top3HoldersByBalance(caster);
+                for ((whale, _) in whales.vals()) {
+                    let amount = capAt(casterBal * 20 / 100, ppToUnits(300));
+                    let _ = await chipTransfer(caster, whale, amount, memo);
+                };
+            };
+            case (#magicMirror) {};
+            case (#ppBoosterAura) {};
+            case (#downlineBoost) {};
+            case (#goldenName) {};
+        };
+    };
+
     func getConfigForType(t : ShenaniganType) : ?ShenaniganConfig {
         let id : Nat = switch (t) {
             case (#moneyTrickster) { 0 };
@@ -1145,23 +1704,6 @@ persistent actor Self {
             case (#goldenName) { 10 };
         };
         natMap.get(shenaniganConfigs, id);
-    };
-
-    func determineOutcome(shenaniganType : ShenaniganType) : ShenaniganOutcome {
-        let randomValue = Int.abs(Time.now()) % 100;
-        switch (shenaniganType) {
-            case (#moneyTrickster) { if (randomValue < 60) #success else if (randomValue < 85) #fail else #backfire };
-            case (#aoeSkim) { if (randomValue < 40) #success else if (randomValue < 80) #fail else #backfire };
-            case (#renameSpell) { if (randomValue < 90) #success else if (randomValue < 95) #fail else #backfire };
-            case (#mintTaxSiphon) { if (randomValue < 70) #success else if (randomValue < 90) #fail else #backfire };
-            case (#downlineHeist) { if (randomValue < 30) #success else if (randomValue < 90) #fail else #backfire };
-            case (#magicMirror) { #success };
-            case (#ppBoosterAura) { #success };
-            case (#purseCutter) { if (randomValue < 20) #success else if (randomValue < 70) #fail else #backfire };
-            case (#whaleRebalance) { if (randomValue < 50) #success else if (randomValue < 80) #fail else #backfire };
-            case (#downlineBoost) { #success };
-            case (#goldenName) { #success };
-        };
     };
 
     func updateShenaniganStats(user : Principal, cost : Float, outcome : ShenaniganOutcome) {
@@ -1204,6 +1746,61 @@ persistent actor Self {
 
     public query func getShenaniganConfigs() : async [ShenaniganConfig] {
         Iter.toArray(natMap.vals(shenaniganConfigs));
+    };
+
+    /// All active spell effects on `user`. Expired entries are filtered
+    /// out of the result but not deleted from state (cleanup happens
+    /// lazily on next write/cast).
+    public query func getActiveSpellEffects(user : Principal) : async ActiveSpellEffects {
+        let now = Time.now();
+        let liveShield = switch (principalMap.get(shieldsActive, user)) {
+            case (?s) { if (now < s.expiresAt and s.chargesRemaining > 0) { ?s } else { null } };
+            case null { null };
+        };
+        let liveMult = switch (principalMap.get(mintMultipliers, user)) {
+            case (?m) { if (now < m.expiresAt) { ?m } else { null } };
+            case null { null };
+        };
+        let liveBoost = switch (principalMap.get(cascadeBoosts, user)) {
+            case (?b) { if (now < b.expiresAt) { ?b } else { null } };
+            case null { null };
+        };
+        let liveName = switch (principalMap.get(customDisplayNames, user)) {
+            case (?d) { if (now < d.expiresAt) { ?d } else { null } };
+            case null { null };
+        };
+        let liveSiphon = switch (principalMap.get(mintSiphons, user)) {
+            case (?s) { if (now < s.expiresAt and s.siphonedSoFar < s.capUnits) { ?s } else { null } };
+            case null { null };
+        };
+        let isGolden = switch (principalMap.get(goldenUntil, user)) {
+            case (?t) { now < t };
+            case null { false };
+        };
+        {
+            shield = liveShield;
+            mintMultiplier = liveMult;
+            cascadeBoost = liveBoost;
+            displayName = liveName;
+            mintSiphon = liveSiphon;
+            golden = isGolden;
+        };
+    };
+
+    /// Currently-golden players. Used by frontend for leaderboard styling.
+    public query func getGoldenPlayers() : async [Principal] {
+        let now = Time.now();
+        let entries = principalMap.entries(goldenUntil);
+        let buf = Array.filter<(Principal, Int)>(Iter.toArray(entries), func(e) = now < e.1);
+        Array.map<(Principal, Int), Principal>(buf, func(e) = e.0);
+    };
+
+    /// Active rename-spell name for `user`, if any. Expired entries return null.
+    public query func getCustomDisplayName(user : Principal) : async ?Text {
+        switch (principalMap.get(customDisplayNames, user)) {
+            case (?d) { if (Time.now() < d.expiresAt) { ?d.name } else { null } };
+            case null { null };
+        };
     };
 
     // ================================================================

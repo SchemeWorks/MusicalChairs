@@ -5,6 +5,16 @@ import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
+import {
+  EXIT_TOLL_EARLY,
+  EXIT_TOLL_MID,
+  EXIT_TOLL_LATE,
+  EXIT_TOLL_EARLY_DAYS,
+  EXIT_TOLL_MID_DAYS,
+  JACKPOT_FEE_RATE_15D,
+  JACKPOT_FEE_RATE_30D,
+  pctPrecise,
+} from '../lib/gameConstants';
 import { Lock, ArrowDownCircle, Rocket, TrendingUp, TrendingDown, Dice5, ChevronDown } from 'lucide-react';
 import type { TabType } from '../App';
 import MobileSheet from './MobileSheet';
@@ -62,12 +72,12 @@ function getExitTollInfo(game: GameRecord) {
   const elapsed = Date.now() - startTime;
   const days = elapsed / 86_400_000;
   if (game.isCompounding) {
-    const fee = 'compounding15Day' in game.plan ? 9 : 13;
+    const fee = 'compounding15Day' in game.plan ? JACKPOT_FEE_RATE_15D * 100 : JACKPOT_FEE_RATE_30D * 100;
     return { currentFee: fee, nextFee: null, timeToNext: null };
   }
-  if (days < 3) return { currentFee: 7, nextFee: 5, timeToNext: (3 * 86_400_000) - elapsed };
-  if (days < 10) return { currentFee: 5, nextFee: 3, timeToNext: (10 * 86_400_000) - elapsed };
-  return { currentFee: 3, nextFee: null, timeToNext: null };
+  if (days < EXIT_TOLL_EARLY_DAYS) return { currentFee: EXIT_TOLL_EARLY * 100, nextFee: EXIT_TOLL_MID * 100, timeToNext: (EXIT_TOLL_EARLY_DAYS * 86_400_000) - elapsed };
+  if (days < EXIT_TOLL_MID_DAYS) return { currentFee: EXIT_TOLL_MID * 100, nextFee: EXIT_TOLL_LATE * 100, timeToNext: (EXIT_TOLL_MID_DAYS * 86_400_000) - elapsed };
+  return { currentFee: EXIT_TOLL_LATE * 100, nextFee: null, timeToNext: null };
 }
 
 function fmtCountdown(ms: number) {
@@ -85,10 +95,13 @@ function getPlanDuration(game: GameRecord): number {
 }
 
 function getTollBadgeClasses(fee: number): string {
-  if (fee <= 3) return 'bg-[var(--mc-neon-green)]/20 mc-text-green';
-  if (fee <= 5) return 'bg-[var(--mc-gold)]/20 mc-text-gold';
-  if (fee <= 7) return 'bg-[var(--mc-danger)]/20 mc-text-danger';
-  return 'bg-[var(--mc-purple)]/20 mc-text-purple'; // compounding (9% or 13%)
+  // Compounding fees get purple regardless of magnitude
+  if (fee === JACKPOT_FEE_RATE_15D * 100 || fee === JACKPOT_FEE_RATE_30D * 100) {
+    return 'bg-[var(--mc-purple)]/20 mc-text-purple';
+  }
+  if (fee <= EXIT_TOLL_LATE * 100) return 'bg-[var(--mc-neon-green)]/20 mc-text-green';
+  if (fee <= EXIT_TOLL_MID * 100) return 'bg-[var(--mc-gold)]/20 mc-text-gold';
+  return 'bg-[var(--mc-danger)]/20 mc-text-danger';
 }
 
 function getPositionUrgency(game: GameRecord): number {
@@ -97,7 +110,7 @@ function getPositionUrgency(game: GameRecord): number {
   const remaining = planDays - days;
   if (game.isCompounding && remaining > 0 && remaining <= 3) return 0; // near unlock → highest
   const tollInfo = getExitTollInfo(game);
-  if (tollInfo.currentFee >= 7) return 1; // high toll
+  if (tollInfo.currentFee >= EXIT_TOLL_EARLY * 100) return 1; // high toll (early simple tier)
   return 2 + days; // everything else by age, oldest first
 }
 
@@ -389,7 +402,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           {feesExpanded && (
             <div className="mt-3 text-sm mc-text-muted space-y-2">
               <p className="font-accent italic">A small reinvestment keeps the engine running — and your returns flowing.</p>
-              <p>Simple positions: 7% carried interest within 3 days, 5% within 10 days, 3% after.</p>
+              <p>Simple positions: {pctPrecise(EXIT_TOLL_EARLY)} carried interest within {EXIT_TOLL_EARLY_DAYS} days, {pctPrecise(EXIT_TOLL_MID)} within {EXIT_TOLL_MID_DAYS} days, {pctPrecise(EXIT_TOLL_LATE)} after.</p>
               <p>Compounding plans: 9% carry (15-day) or 13% carry (30-day) at maturity.</p>
               <p>Your deposit is deployed into the pot to fund interest obligations. Your position is an entitlement to future interest from that pot.</p>
             </div>

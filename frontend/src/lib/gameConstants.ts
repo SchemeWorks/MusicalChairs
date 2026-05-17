@@ -25,11 +25,11 @@ export const DEPOSIT_RATE_LIMIT = 3;                   // positions per hour
 export const COVER_CHARGE_RATE = 0.04;          //  4 %  (routes 100% to Management)
 
 // ── Exit Tolls — Simple ─────────────────────────────────────────────
-export const EXIT_TOLL_EARLY = 0.07;            //  7 % (day 0–3)
-export const EXIT_TOLL_MID = 0.05;              //  5 % (day 3–10)
-export const EXIT_TOLL_LATE = 0.03;             //  3 % (day 10+)
-export const EXIT_TOLL_EARLY_DAYS = 3;
-export const EXIT_TOLL_MID_DAYS = 10;
+export const EXIT_TOLL_EARLY = 0.12;            // 12 %  (week 1: day 0–7)
+export const EXIT_TOLL_MID = 0.075;             //  7.5% (week 2: day 7–14)
+export const EXIT_TOLL_LATE = 0.03;             //  3 %  (week 3: day 14+)
+export const EXIT_TOLL_EARLY_DAYS = 7;
+export const EXIT_TOLL_MID_DAYS = 14;
 
 // ── Exit Tolls — Compounding ────────────────────────────────────────
 export const JACKPOT_FEE_RATE_15D = 0.09;       //  9 % (15-day plan)
@@ -65,6 +65,11 @@ export const SHENANIGAN_PROTECTION_FLOOR = 200; // PP
 /** Format a decimal rate as a percentage string, e.g. 0.11 → "11%" */
 export function pct(rate: number): string {
   return `${Math.round(rate * 100)}%`;
+}
+
+/** Like pct, but preserves up to 1 decimal place. 0.075 → "7.5%", 0.12 → "12%" */
+export function pctPrecise(rate: number): string {
+  return `${Math.round(rate * 1000) / 10}%`;
 }
 
 /** Format a number with commas, e.g. 4000 → "4,000" */
