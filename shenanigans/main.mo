@@ -962,6 +962,61 @@ persistent actor Self {
         };
     };
 
+    // Deductive cascade: 10% off the top (cascadeInitialBps) distributed
+    // up the chain at 50% passthrough (cascadePassthroughBps) per active
+    // upline. Inactive uplines are skipped (flow-around). Cycles detected
+    // via visited-set. Residual after depth cap → house.
+    //
+    // Caller is responsible for minting the player's NET (base - cascadeUnits)
+    // before invoking. This function only handles the cascade share.
+    func distributeDeductiveCascade(originUser : Principal, cascadeUnits : Nat, eventId : Text) : async () {
+        if (cascadeUnits == 0) return;
+
+        var remaining : Nat = cascadeUnits;
+        var visited = principalMap.empty<()>();
+        visited := principalMap.put(visited, originUser, ());
+
+        var depth : Nat = 0;
+        var activeRank : Nat = 0;
+        var current : Principal = originUser;
+
+        label walk loop {
+            if (remaining == 0 or depth >= CASCADE_DEPTH_CAP) { break walk };
+
+            let next = getPayoutTarget(current);
+            switch (principalMap.get(visited, next)) {
+                case (?_) { break walk }; // cycle — bail to residual
+                case (null) {};
+            };
+            visited := principalMap.put(visited, next, ());
+            depth += 1;
+
+            if (not isActive(next)) { current := next; continue walk };
+
+            activeRank += 1;
+            let payout = remaining * mintConfig.cascadePassthroughBps / 10_000;
+            if (payout == 0) { break walk };
+
+            switch (await mintInternal(next, payout, "cascade-A" # Nat.toText(activeRank) # "-" # eventId)) {
+                case (#Ok(_)) {
+                    // Display buckets are L1/L2/L3 only. activeRank ≥ 4 still
+                    // receives the payout via the mint above; we just don't
+                    // inflate the L3 bucket with their share.
+                    if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
+                };
+                case (#Err(_)) {};
+            };
+
+            remaining -= payout;
+            current := next;
+        };
+
+        // Residual to house: covers depth cap, cycle break, exhausted chain.
+        if (remaining > 0) {
+            let _ = await mintInternal(house(), remaining, "cascade-residual-" # eventId);
+        };
+    };
+
     // ================================================================
     // Core Logic
     // ================================================================
