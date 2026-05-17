@@ -128,6 +128,12 @@ persistent actor Self {
         l3Units : Nat;
     };
 
+    public type SignupEntry = {
+        principal : Principal;
+        joinedAt : Int;  // ns since epoch
+        level : Nat;     // 1, 2, or 3 — chain level relative to caller
+    };
+
     /// Per-tier downline counts and cumulative PP earnings for a user.
     /// Counts derive from a single pass over referralChain; earnings come
     /// from the local accumulator updated inside cascadeReferralMint.
@@ -138,6 +144,7 @@ persistent actor Self {
         l1Units : Nat;
         l2Units : Nat;
         l3Units : Nat;
+        recentSignups : [SignupEntry];  // L1/L2/L3 only; sorted joinedAt desc; capped 20
     };
 
     // ================================================================
@@ -346,19 +353,34 @@ persistent actor Self {
         var l1 : Nat = 0;
         var l2 : Nat = 0;
         var l3 : Nat = 0;
-        for ((_, l1Ref) in principalMap.entries(referralChain)) {
+
+        var bufRef : List.List<SignupEntry> = List.nil<SignupEntry>();
+
+        for ((downliner, l1Ref) in principalMap.entries(referralChain)) {
             if (Principal.equal(l1Ref, user)) {
                 l1 += 1;
+                switch (principalMap.get(signupGiftClaimed, downliner)) {
+                    case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 1 }, bufRef) };
+                    case (null) {};
+                };
             } else {
                 switch (principalMap.get(referralChain, l1Ref)) {
                     case (?l2Ref) {
                         if (Principal.equal(l2Ref, user)) {
                             l2 += 1;
+                            switch (principalMap.get(signupGiftClaimed, downliner)) {
+                                case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 2 }, bufRef) };
+                                case (null) {};
+                            };
                         } else {
                             switch (principalMap.get(referralChain, l2Ref)) {
                                 case (?l3Ref) {
                                     if (Principal.equal(l3Ref, user)) {
                                         l3 += 1;
+                                        switch (principalMap.get(signupGiftClaimed, downliner)) {
+                                            case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 3 }, bufRef) };
+                                            case (null) {};
+                                        };
                                     };
                                 };
                                 case null {};
@@ -369,6 +391,11 @@ persistent actor Self {
                 };
             };
         };
+
+        let allSignups = List.toArray(bufRef);
+        let sorted = Array.sort<SignupEntry>(allSignups, func(a, b) = Int.compare(b.joinedAt, a.joinedAt));
+        let capped = if (sorted.size() <= 20) { sorted } else { Array.subArray(sorted, 0, 20) };
+
         let earnings = switch (principalMap.get(referralEarnings, user)) {
             case (?e) { e };
             case null { { l1Units = 0; l2Units = 0; l3Units = 0 } };
@@ -380,6 +407,7 @@ persistent actor Self {
             l1Units = earnings.l1Units;
             l2Units = earnings.l2Units;
             l3Units = earnings.l3Units;
+            recentSignups = capped;
         };
     };
 
