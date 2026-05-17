@@ -374,7 +374,7 @@ persistent actor class PonziMath(initArgs : {
 
     // ========================================================================
     // Exit toll calculation
-    // Simple: 7% (< 3 days), 5% (3-10), 3% (> 10)
+    // Simple: 12% (< 7 days), 7.5% (7-14), 3% (>= 14)
     // Compounding: 9% (15-day plan), 13% (30-day plan)
     // ========================================================================
 
@@ -388,8 +388,8 @@ persistent actor class PonziMath(initArgs : {
         } else {
             let elapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
             let elapsedDays = elapsedSeconds / 86400.0;
-            if (elapsedDays < 3.0) { earnings * 0.07 }
-            else if (elapsedDays < 10.0) { earnings * 0.05 }
+            if (elapsedDays < 7.0) { earnings * 0.12 }
+            else if (elapsedDays < 14.0) { earnings * 0.075 }
             else { earnings * 0.03 };
         };
     };

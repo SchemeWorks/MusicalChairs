@@ -15,7 +15,7 @@ import {
   PP_PER_ICP_SIMPLE, PP_PER_ICP_COMPOUND_15, PP_PER_ICP_COMPOUND_30, PP_PER_ICP_SEED_ROUND,
   REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE,
   SHENANIGAN_PROTECTION_FLOOR,
-  pct, fmt,
+  pct, pctPrecise, fmt,
 } from '../lib/gameConstants';
 
 interface DocSection {
@@ -151,7 +151,7 @@ const docSections: DocSection[] = [
           headers={['Withdrawal Window', 'Toll']}
           rows={[
             [`Day 0–${EXIT_TOLL_EARLY_DAYS}`, <span className="mc-text-danger font-bold">{pct(EXIT_TOLL_EARLY)}</span>],
-            [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pct(EXIT_TOLL_MID)}</span>],
+            [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pctPrecise(EXIT_TOLL_MID)}</span>],
             [`Day ${EXIT_TOLL_MID_DAYS}+`, <span className="mc-text-green font-bold">{pct(EXIT_TOLL_LATE)}</span>],
           ]}
         />
