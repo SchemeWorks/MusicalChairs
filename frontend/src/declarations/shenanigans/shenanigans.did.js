@@ -149,6 +149,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getGoldenPlayers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'getKnownPpHolders' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
     'getMyCashOuts' : IDL.Func([], [IDL.Vec(CashOutEntry)], ['query']),
     'getObserverStatus' : IDL.Func(
