@@ -17,7 +17,6 @@ import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
-import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -25,7 +24,6 @@ import Migration "migration";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
-(with migration = Migration.runV3)
 persistent actor Self {
 
     // ================================================================
@@ -653,6 +651,24 @@ persistent actor Self {
         let interval : Nat = mintConfig.observerIntervalSeconds;
         let tid = Timer.recurringTimer<system>(#seconds(interval), observerTick);
         observerTimerId := ?tid;
+    };
+
+    /// Re-arm the recurring observer timer on every canister upgrade.
+    /// The IC clears all pending timers when a canister is upgraded, so a
+    /// stale `observerTimerId` survives in stable state but points at a timer
+    /// that no longer fires. Without this hook, after every shenanigans
+    /// upgrade `getObserverStatus` reports `running = true` while the timer
+    /// is silently dead — admin has to manually call `resumeObserver` or
+    /// `runObserverOnce` to restart minting. This hook re-registers the
+    /// timer automatically so deposits get processed within
+    /// observerIntervalSeconds of any upgrade. Only fires if the canister
+    /// has already been initialized (adminPrincipal set); fresh deploys
+    /// still go through `initialize`.
+    system func postupgrade() {
+        switch (adminPrincipal) {
+            case (?_) { startObserver<system>() };
+            case (null) {};
+        };
     };
 
     /// One observer pass. Mints PP for new deposits and dealer top-ups.
