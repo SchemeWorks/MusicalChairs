@@ -1377,11 +1377,16 @@ persistent actor Self {
         // 2 & 3. Grandfather signupGiftClaimed + seed lastQualifyingDeposit from games.
         let games = try { await ponziMath.getAllGames() } catch (_) { [] };
         for (game in games.vals()) {
-            // signupGiftClaimed: earliest-wins, so only set if not present.
+            // signupGiftClaimed: take the earliest game.startTime per player so
+            // recentSignups reflects real join times, not the seeding moment.
             switch (principalMap.get(signupGiftClaimed, game.player)) {
-                case (?_) {};
+                case (?existing) {
+                    if (game.startTime < existing) {
+                        signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, game.startTime);
+                    };
+                };
                 case (null) {
-                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, now);
+                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, game.startTime);
                 };
             };
             // lastQualifyingDeposit: any ≥0.1 ICP game qualifies; set to now (conservative).
@@ -1396,10 +1401,19 @@ persistent actor Self {
             if (backer.amount >= 0.1) {
                 lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, now);
                 // Also grandfather signupGiftClaimed for backers without game records.
+                // Prefer firstDepositDate; fall back to backer.startTime.
+                let backerJoinTime : Int = switch (backer.firstDepositDate) {
+                    case (?t) { t };
+                    case (null) { backer.startTime };
+                };
                 switch (principalMap.get(signupGiftClaimed, backer.owner)) {
-                    case (?_) {};
+                    case (?existing) {
+                        if (backerJoinTime < existing) {
+                            signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, backerJoinTime);
+                        };
+                    };
                     case (null) {
-                        signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, now);
+                        signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, backerJoinTime);
                     };
                 };
             };
