@@ -352,13 +352,15 @@ export function useAddBackerMoney() {
 
       try {
         if (walletType === 'oisy') {
-          // Oisy path: ICRC-112 batching (approve + addBackerMoney in one popup)
+          // Oisy path: sequential approve + addBackerMoney (two popups).
+          // batch()/execute() relied on ICRC-112, which no wallet adopted; a recent
+          // Oisy update broke slide-computer's multi-ICRC-49 fallback, surfacing as
+          // "Cannot read properties of undefined (reading '_arr')".
           const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
           const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
           const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
-          signerAgent.batch();
-          const approvePromise = ledgerActor.icrc2_approve({
+          await ledgerActor.icrc2_approve({
             amount: approveAmount,
             spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
             expires_at: [],
@@ -369,11 +371,7 @@ export function useAddBackerMoney() {
             created_at_time: [],
           });
 
-          signerAgent.batch();
-          const addPromise = ponziMathActor.addBackerMoney(amount);
-
-          await signerAgent.execute();
-          const [, addResult] = await Promise.all([approvePromise, addPromise]);
+          const addResult = await ponziMathActor.addBackerMoney(amount);
           if ('Err' in addResult) throw new Error(addResult.Err);
         } else {
           // Standard path: approve then addBackerMoney
@@ -506,16 +504,14 @@ export function useCreateGame() {
 
       let gameId: bigint;
 
-      // Oisy path: ICRC-112 batching (approve + createGame in one popup)
-      // CRITICAL: No await between user click and signerAgent.execute()
+      // Oisy path: sequential approve + createGame (two popups).
+      // See useAddBackerMoney for the full reason batch()/execute() was removed.
       if (walletType === 'oisy') {
         const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
         const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
         const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
-        // Sequence 0: approve
-        signerAgent.batch();
-        const approvePromise = ledgerActor.icrc2_approve({
+        await ledgerActor.icrc2_approve({
           amount: approveAmount,
           spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
           expires_at: [],
@@ -526,13 +522,7 @@ export function useCreateGame() {
           created_at_time: [],
         });
 
-        // Sequence 1: createGame (3 args — no referrer)
-        signerAgent.batch();
-        const gamePromise = ponziMathActor.createGame(plan, amount, isCompounding);
-
-        // Fire single ICRC-112 request — ONE signer popup
-        await signerAgent.execute();
-        const [, gameResult] = await Promise.all([approvePromise, gamePromise]);
+        const gameResult = await ponziMathActor.createGame(plan, amount, isCompounding);
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       } else {
