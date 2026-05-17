@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { GameRecord, GamePlan } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
@@ -258,6 +258,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const { data: games, isLoading, error } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
   const { data: shenaniganConfigs } = useGetShenaniganConfigs();
+  const { data: mintConfig } = useGetMintConfig();
+  const simplePpPerIcp = mintConfig ? Number(mintConfig.simple21DayPpPerIcp) : 0;
+  const comp15PpPerIcp = mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : 0;
+  const comp30PpPerIcp = mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0;
   const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
   const settleMutation = useSettleCompoundingGame();
@@ -437,17 +441,17 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                 <div className="mc-label mb-2">Earn Rates</div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center text-xs">
                   <div className="mc-card p-3">
-                    <div className="mc-text-green font-bold text-sm">1,000</div>
+                    <div className="mc-text-green font-bold text-sm">{simplePpPerIcp.toLocaleString()}</div>
                     <div className="mc-text-muted">PP per ICP</div>
                     <div className="mc-text-dim mt-1">Simple 21-day</div>
                   </div>
                   <div className="mc-card p-3">
-                    <div className="mc-text-purple font-bold text-sm">2,000</div>
+                    <div className="mc-text-purple font-bold text-sm">{comp15PpPerIcp.toLocaleString()}</div>
                     <div className="mc-text-muted">PP per ICP</div>
                     <div className="mc-text-dim mt-1">Compound 15-day</div>
                   </div>
                   <div className="mc-card p-3">
-                    <div className="mc-text-gold font-bold text-sm">3,000</div>
+                    <div className="mc-text-gold font-bold text-sm">{comp30PpPerIcp.toLocaleString()}</div>
                     <div className="mc-text-muted">PP per ICP</div>
                     <div className="mc-text-dim mt-1">Compound 30-day</div>
                   </div>
