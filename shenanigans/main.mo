@@ -256,6 +256,12 @@ persistent actor Self {
     // to every existing player.
     var bootstrapped : Bool = false;
 
+    // Reverse index of referralChain: referrer → List<downliner>. Backfilled
+    // and maintained by seedMigrationV2 + registerReferral. Used by
+    // getReferralStats for O(downline) queries instead of O(N) scans of
+    // referralChain.
+    var referrerToDownline = principalMap.empty<List.List<Principal>>();
+
     // Bidirectional map of short referral codes ↔ principals. Codes are
     // assigned lazily on first call to getOrCreateReferralCode and never
     // change. URLs ship as `?ref=<code>` instead of the 53-char principal.
@@ -299,22 +305,6 @@ persistent actor Self {
 
     // PP ledger actor reference
     transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
-
-    // ================================================================
-    // Legacy stable fields — preserved across upgrades so we don't
-    // implicitly discard data still living in the deployed canister.
-    // Not referenced by current code; a future migration should
-    // properly transform or drop these. The literal initializers
-    // below are only used on first deploy — existing values are
-    // preserved across upgrade by orthogonal persistence.
-    // ================================================================
-    let CASCADE_MAX_DEPTH : Nat = 0;
-    var activeDepositors = principalMap.empty<Bool>();
-    var cascadeBps : Nat = 0;
-    var cascadePassthrough : Nat = 0;
-    var charlesPrincipal : Principal = Principal.fromText("aaaaa-aa");
-    var referrerToDownline = principalMap.empty<List.List<Principal>>();
-    var signupGiftPp : Nat = 0;
 
     // ================================================================
     // Initialization
