@@ -148,6 +148,12 @@ export interface _SERVICE {
    * / Currently-golden players. Used by frontend for leaderboard styling.
    */
   'getGoldenPlayers' : ActorMethod<[], Array<Principal>>,
+  /**
+   * / All principals we've ever minted PP to. Frontend target-pickers can
+   * / use this to populate a candidate list. Updated lazily — entries are
+   * / added in mintInternal and never removed (cheap, bounded by player count).
+   */
+  'getKnownPpHolders' : ActorMethod<[], Array<Principal>>,
   'getMintConfig' : ActorMethod<[], MintConfig>,
   'getMyCashOuts' : ActorMethod<[], Array<CashOutEntry>>,
   /**

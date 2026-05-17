@@ -1159,6 +1159,26 @@ persistent actor Self {
     public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
+        // Reject target-required spells called without one. Without this trap
+        // the success branch would silently no-op and the caster's PP would
+        // burn for no observable effect.
+        let needsTarget = switch (shenaniganType) {
+            case (#moneyTrickster) { true };
+            case (#renameSpell) { true };
+            case (#mintTaxSiphon) { true };
+            case (#downlineHeist) { true };
+            case (#purseCutter) { true };
+            case (_) { false };
+        };
+        if (needsTarget) {
+            switch (target) {
+                case (null) { Debug.trap("This shenanigan requires a target") };
+                case (?t) {
+                    if (t == caller) { Debug.trap("Pick someone other than yourself") };
+                };
+            };
+        };
+
         let config = switch (getConfigForType(shenaniganType)) {
             case (null) { Debug.trap("Unknown shenanigan type") };
             case (?c) { c };
@@ -1638,6 +1658,13 @@ persistent actor Self {
             case (?d) { if (Time.now() < d.expiresAt) { ?d.name } else { null } };
             case null { null };
         };
+    };
+
+    /// All principals we've ever minted PP to. Frontend target-pickers can
+    /// use this to populate a candidate list. Updated lazily — entries are
+    /// added in mintInternal and never removed (cheap, bounded by player count).
+    public query func getKnownPpHolders() : async [Principal] {
+        Iter.toArray(principalMap.keys(knownPpHolders));
     };
 
     // ================================================================
