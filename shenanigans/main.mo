@@ -337,6 +337,25 @@ persistent actor Self {
     transient var observerRunning : Bool = false;
     var observerTimerId : ?Timer.TimerId = null;
 
+    // Per-game mint retry counters. A failed mintWithEffects (#Err) increments;
+    // a successful mint clears the entry. After MAX_MINT_RETRIES consecutive
+    // failures, the observer gives up and advances past the game, recording it
+    // in missedGameMints for admin inspection / manual retry. Transient: on
+    // upgrade the counter resets to 0, which is fine — next tick re-tries.
+    transient var gameMintRetries = natMap.empty<Nat>();
+    transient let MAX_MINT_RETRIES : Nat = 10;  // ~100s @ 10s tick interval
+
+    // Permanently-skipped game ids (cursor advanced past them after exhausting
+    // retries). Stable so admin can see missed mints across upgrades and
+    // manually retry via adminMint. Maps game.id → last error message.
+    var missedGameMints = natMap.empty<Text>();
+
+    // Same pattern for backer-delta mints. Keyed by backer principal because
+    // backer rows don't have an id — backerSeen tracks "amount minted-for so far",
+    // and a failed delta mint blocks the same principal on subsequent ticks.
+    transient var backerMintRetries = principalMap.empty<Nat>();
+    var missedBackerMints = principalMap.empty<Text>();
+
     // Cash-out queue
     var cashOuts = natMap.empty<CashOutEntry>();
     var nextCashOutId : Nat = 0;
@@ -705,11 +724,31 @@ persistent actor Self {
                         if (game.amount >= 0.1) {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, Time.now());
                         };
+                        gameMintRetries := natMap.delete(gameMintRetries, game.id);
                         gameIdCursor := game.id + 1;
                     };
                     case (#Err(msg)) {
-                        Debug.print("Mint failed for " # eventId # ": " # msg);
-                        return;
+                        let attempts = switch (natMap.get(gameMintRetries, game.id)) {
+                            case (?n) { n + 1 };
+                            case (null) { 1 };
+                        };
+                        if (attempts >= MAX_MINT_RETRIES) {
+                            // Exhausted retries — record the miss and advance
+                            // past this game so it doesn't block subsequent ones.
+                            // Admin can call adminMint to compensate the player.
+                            Debug.print("Giving up on " # eventId # " after "
+                                # Nat.toText(attempts) # " attempts: " # msg);
+                            missedGameMints := natMap.put(missedGameMints, game.id, msg);
+                            gameMintRetries := natMap.delete(gameMintRetries, game.id);
+                            gameIdCursor := game.id + 1;
+                            // Fall through — continue to next game in the loop.
+                        } else {
+                            gameMintRetries := natMap.put(gameMintRetries, game.id, attempts);
+                            Debug.print("Mint attempt " # Nat.toText(attempts)
+                                # "/" # Nat.toText(MAX_MINT_RETRIES)
+                                # " failed for " # eventId # ": " # msg);
+                            return;  // Try again on next tick.
+                        };
                     };
                 };
             };
@@ -739,9 +778,29 @@ persistent actor Self {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, Time.now());
                         };
                         backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                        backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
                     };
                     case (#Err(msg)) {
-                        Debug.print("Backer mint failed: " # msg);
+                        let attempts = switch (principalMap.get(backerMintRetries, backer.owner)) {
+                            case (?n) { n + 1 };
+                            case (null) { 1 };
+                        };
+                        if (attempts >= MAX_MINT_RETRIES) {
+                            // Exhausted retries — record the miss and advance
+                            // backerSeen so the same delta isn't retried forever.
+                            Debug.print("Giving up on backer mint for "
+                                # Principal.toText(backer.owner) # " at amount "
+                                # Float.toText(backer.amount) # " after "
+                                # Nat.toText(attempts) # " attempts: " # msg);
+                            missedBackerMints := principalMap.put(missedBackerMints, backer.owner, msg);
+                            backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                            backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                        } else {
+                            backerMintRetries := principalMap.put(backerMintRetries, backer.owner, attempts);
+                            Debug.print("Backer mint attempt " # Nat.toText(attempts)
+                                # "/" # Nat.toText(MAX_MINT_RETRIES)
+                                # " failed for " # eventId # ": " # msg);
+                        };
                     };
                 };
             };
@@ -1322,6 +1381,26 @@ persistent actor Self {
     public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
+        // Reject target-required spells called without one. Without this trap
+        // the success branch would silently no-op and the caster's PP would
+        // burn for no observable effect.
+        let needsTarget = switch (shenaniganType) {
+            case (#moneyTrickster) { true };
+            case (#renameSpell) { true };
+            case (#mintTaxSiphon) { true };
+            case (#downlineHeist) { true };
+            case (#purseCutter) { true };
+            case (_) { false };
+        };
+        if (needsTarget) {
+            switch (target) {
+                case (null) { Debug.trap("This shenanigan requires a target") };
+                case (?t) {
+                    if (t == caller) { Debug.trap("Pick someone other than yourself") };
+                };
+            };
+        };
+
         let config = switch (getConfigForType(shenaniganType)) {
             case (null) { Debug.trap("Unknown shenanigan type") };
             case (?c) { c };
@@ -1803,6 +1882,13 @@ persistent actor Self {
         };
     };
 
+    /// All principals we've ever minted PP to. Frontend target-pickers can
+    /// use this to populate a candidate list. Updated lazily — entries are
+    /// added in mintInternal and never removed (cheap, bounded by player count).
+    public query func getKnownPpHolders() : async [Principal] {
+        Iter.toArray(principalMap.keys(knownPpHolders));
+    };
+
     // ================================================================
     // Leaderboard
     // ================================================================
@@ -1849,13 +1935,40 @@ persistent actor Self {
         gameIdCursor : Nat;
         backerSeenCount : Nat;
         intervalSeconds : Nat;
+        missedGameMintsCount : Nat;
+        missedBackerMintsCount : Nat;
     } {
         {
             running = observerTimerId != null;
             gameIdCursor;
             backerSeenCount = principalMap.size(backerSeen);
             intervalSeconds = mintConfig.observerIntervalSeconds;
+            missedGameMintsCount = natMap.size(missedGameMints);
+            missedBackerMintsCount = principalMap.size(missedBackerMints);
         };
+    };
+
+    /// Games the observer permanently gave up on after MAX_MINT_RETRIES failures.
+    /// Admin can fixup via adminMint and then clearMissedGameMint to dismiss.
+    public query func getMissedGameMints() : async [(Nat, Text)] {
+        Iter.toArray(natMap.entries(missedGameMints));
+    };
+
+    /// Backer principals whose delta mint was permanently skipped.
+    public query func getMissedBackerMints() : async [(Principal, Text)] {
+        Iter.toArray(principalMap.entries(missedBackerMints));
+    };
+
+    /// Dismiss a missed game-mint entry. Use after manually compensating
+    /// the player via adminMint, so the missed-mints list stays clean.
+    public shared ({ caller }) func clearMissedGameMint(gameId : Nat) : async () {
+        requireAdmin(caller);
+        missedGameMints := natMap.delete(missedGameMints, gameId);
+    };
+
+    public shared ({ caller }) func clearMissedBackerMint(owner : Principal) : async () {
+        requireAdmin(caller);
+        missedBackerMints := principalMap.delete(missedBackerMints, owner);
     };
 
     /// Admin-triggered manual PP issuance (direct mint to the player's chip

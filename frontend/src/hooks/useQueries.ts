@@ -691,6 +691,20 @@ export function useGetRecentShenanigans() {
   });
 }
 
+export function useGetKnownPpHolders() {
+  const { actor, isFetching: actorFetching } = useShenaniganActor();
+
+  return useQuery<Principal[]>({
+    queryKey: ['knownPpHolders'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      return actor.getKnownPpHolders();
+    },
+    enabled: !!actor && !actorFetching,
+    staleTime: 30_000,
+  });
+}
+
 export function useCastShenanigan() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();

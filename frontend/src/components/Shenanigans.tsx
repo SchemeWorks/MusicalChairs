@@ -1,9 +1,15 @@
 import React, { useState, useEffect } from 'react';
+import { Principal } from '@dfinity/principal';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType } from '../backend';
 import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy, LayoutGrid, List } from 'lucide-react';
 import HallOfFame from './HallOfFame';
+import TargetPicker from './TargetPicker';
+
+// Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
+// castShenanigan — backend rejects null target for these.
+const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter
 
 const successFlavor = [
   "The fund smiles upon you.",
@@ -30,6 +36,7 @@ const backfireFlavor = [
 ];
 
 interface ShenaniganConfig {
+  id: number;
   type: ShenaniganType;
   name: string;
   icon: React.ReactNode;
@@ -94,7 +101,9 @@ export default function Shenanigans() {
   const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [selectedShenanigan, setSelectedShenanigan] = useState<{ type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
+  const [targetPickerOpen, setTargetPickerOpen] = useState(false);
+  const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
+  const [selectedTarget, setSelectedTarget] = useState<Principal | null>(null);
   const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
@@ -103,7 +112,7 @@ export default function Shenanigans() {
       setAvailableShenanigans(backendConfigs.map(config => {
         const id = Number(config.id);
         return {
-          type: shenaniganTypes[id], name: config.name, icon: shenaniganIcons[id],
+          id, type: shenaniganTypes[id], name: config.name, icon: shenaniganIcons[id],
           cost: config.cost, description: config.description,
           odds: { success: Number(config.successOdds), fail: Number(config.failureOdds), backfire: Number(config.backfireOdds) },
           effects: config.effectValues.join(', '), auraColor: auraColors[id] || auraColors[0],
@@ -128,7 +137,7 @@ export default function Shenanigans() {
     return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
   }, []);
 
-  const handleCastClick = (type: ShenaniganType, cost: number, name: string, icon: React.ReactNode) => {
+  const handleCastClick = (id: number, type: ShenaniganType, cost: number, name: string, icon: React.ReactNode) => {
     if ((ponziData?.totalPoints || 0) < cost) {
       setOutcomeToast({
         name,
@@ -138,8 +147,24 @@ export default function Shenanigans() {
       });
       return;
     }
-    setSelectedShenanigan({ type, name, cost, icon });
+    setSelectedShenanigan({ id, type, name, cost, icon });
+    setSelectedTarget(null);
+    if (TARGETED_SPELL_IDS.has(id)) {
+      setTargetPickerOpen(true);
+    } else {
+      setConfirmOpen(true);
+    }
+  };
+
+  const handleTargetSelected = (target: Principal) => {
+    setSelectedTarget(target);
+    setTargetPickerOpen(false);
     setConfirmOpen(true);
+  };
+
+  const handleTargetCancel = () => {
+    setTargetPickerOpen(false);
+    setSelectedShenanigan(null);
   };
 
   const getFlavorText = (outcome: string) => {
@@ -152,7 +177,7 @@ export default function Shenanigans() {
     setConfirmOpen(false);
     setAnimatingTrick(variantKey(selectedShenanigan.type));
     try {
-      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: null });
+      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
       const outcome = variantKey(rawOutcome);
       setTimeout(() => {
         setOutcomeToast({
@@ -300,7 +325,7 @@ export default function Shenanigans() {
 
                     {/* Cast button */}
                     <button
-                      onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
+                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.cost, trick.name, trick.icon)}
                       disabled={isDisabled}
                       className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
@@ -325,7 +350,7 @@ export default function Shenanigans() {
                     <span className="text-xs mc-text-muted">{trick.cost} PP</span>
                     <span className="text-xs mc-text-dim">{trick.odds.success}% win</span>
                     <button
-                      onClick={() => !isDisabled && handleCastClick(trick.type, trick.cost, trick.name, trick.icon)}
+                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.cost, trick.name, trick.icon)}
                       disabled={isDisabled}
                       className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
@@ -483,6 +508,16 @@ export default function Shenanigans() {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Target picker */}
+      {selectedShenanigan && (
+        <TargetPicker
+          open={targetPickerOpen}
+          spellName={selectedShenanigan.name}
+          onSelect={handleTargetSelected}
+          onCancel={handleTargetCancel}
+        />
       )}
 
       {/* Confirm dialog */}
