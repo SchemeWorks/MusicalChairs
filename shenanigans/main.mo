@@ -955,49 +955,6 @@ persistent actor Self {
         });
     };
 
-    /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
-    /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
-    /// Lookups are local — referralChain lives in this canister.
-    /// Successful mints (and ledger-duplicate replays, which mintInternal
-    /// promotes to #Ok) bump the per-upline earnings accumulator so
-    /// getReferralStats has a cheap read.
-    func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
-        if (baseUnits == 0) return;
-        let l1Maybe = principalMap.get(referralChain, originUser);
-        switch (l1Maybe) {
-            case (null) {};
-            case (?l1) {
-                let l1Units = baseUnits * mintConfig.referralL1Bps / 10_000;
-                switch (await mintInternal(l1, l1Units, "referral-L1-" # eventId)) {
-                    case (#Ok(_)) { bumpReferralEarnings(l1, 1, l1Units) };
-                    case (#Err(_)) {};
-                };
-                let l2Maybe = principalMap.get(referralChain, l1);
-                switch (l2Maybe) {
-                    case (null) {};
-                    case (?l2) {
-                        let l2Units = baseUnits * mintConfig.referralL2Bps / 10_000;
-                        switch (await mintInternal(l2, l2Units, "referral-L2-" # eventId)) {
-                            case (#Ok(_)) { bumpReferralEarnings(l2, 2, l2Units) };
-                            case (#Err(_)) {};
-                        };
-                        let l3Maybe = principalMap.get(referralChain, l2);
-                        switch (l3Maybe) {
-                            case (null) {};
-                            case (?l3) {
-                                let l3Units = baseUnits * mintConfig.referralL3Bps / 10_000;
-                                switch (await mintInternal(l3, l3Units, "referral-L3-" # eventId)) {
-                                    case (#Ok(_)) { bumpReferralEarnings(l3, 3, l3Units) };
-                                    case (#Err(_)) {};
-                                };
-                            };
-                        };
-                    };
-                };
-            };
-        };
-    };
-
     // Deductive cascade: 10% off the top (cascadeInitialBps) distributed
     // up the chain at 50% passthrough (cascadePassthroughBps) per active
     // upline. Inactive uplines are skipped (flow-around). Cycles detected
