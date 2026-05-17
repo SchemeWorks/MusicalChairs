@@ -336,7 +336,15 @@ persistent actor Self {
         if (caller == referrer) { return };
         switch (principalMap.get(referralChain, caller)) {
             case (?_) { /* already set */ };
-            case null { referralChain := principalMap.put(referralChain, caller, referrer) };
+            case null {
+                referralChain := principalMap.put(referralChain, caller, referrer);
+                // Maintain the reverse index so getReferralStats stays O(downline).
+                let existing = switch (principalMap.get(referrerToDownline, referrer)) {
+                    case (?list) { list };
+                    case (null) { List.nil<Principal>() };
+                };
+                referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(caller, existing));
+            };
         };
     };
 
@@ -346,47 +354,37 @@ persistent actor Self {
     };
 
     /// Per-tier downline counts and cumulative PP earnings for `user`.
-    /// Counts are computed by a single pass over the referral chain map;
-    /// earnings come from the local accumulator.
+    /// Walks the referrerToDownline reverse index — O(L1+L2+L3 size) instead
+    /// of O(all referrals). Recent-signup join times come from signupGiftClaimed.
     public query func getReferralStats(user : Principal) : async ReferralStats {
-        var l1 : Nat = 0;
-        var l2 : Nat = 0;
-        var l3 : Nat = 0;
-
+        var l1Count : Nat = 0;
+        var l2Count : Nat = 0;
+        var l3Count : Nat = 0;
         var bufRef : List.List<SignupEntry> = List.nil<SignupEntry>();
 
-        for ((downliner, l1Ref) in principalMap.entries(referralChain)) {
-            if (Principal.equal(l1Ref, user)) {
-                l1 += 1;
-                switch (principalMap.get(signupGiftClaimed, downliner)) {
-                    case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 1 }, bufRef) };
-                    case (null) {};
-                };
-            } else {
-                switch (principalMap.get(referralChain, l1Ref)) {
-                    case (?l2Ref) {
-                        if (Principal.equal(l2Ref, user)) {
-                            l2 += 1;
-                            switch (principalMap.get(signupGiftClaimed, downliner)) {
-                                case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 2 }, bufRef) };
-                                case (null) {};
-                            };
-                        } else {
-                            switch (principalMap.get(referralChain, l2Ref)) {
-                                case (?l3Ref) {
-                                    if (Principal.equal(l3Ref, user)) {
-                                        l3 += 1;
-                                        switch (principalMap.get(signupGiftClaimed, downliner)) {
-                                            case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level = 3 }, bufRef) };
-                                            case (null) {};
-                                        };
-                                    };
-                                };
-                                case null {};
-                            };
-                        };
-                    };
-                    case null {};
+        let downlineOf = func(p : Principal) : List.List<Principal> {
+            switch (principalMap.get(referrerToDownline, p)) {
+                case (?list) { list };
+                case (null) { List.nil<Principal>() };
+            };
+        };
+
+        let pushSignup = func(downliner : Principal, level : Nat) {
+            switch (principalMap.get(signupGiftClaimed, downliner)) {
+                case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level }, bufRef) };
+                case (null) {};
+            };
+        };
+
+        for (l1 in List.toIter(downlineOf(user))) {
+            l1Count += 1;
+            pushSignup(l1, 1);
+            for (l2 in List.toIter(downlineOf(l1))) {
+                l2Count += 1;
+                pushSignup(l2, 2);
+                for (l3 in List.toIter(downlineOf(l2))) {
+                    l3Count += 1;
+                    pushSignup(l3, 3);
                 };
             };
         };
@@ -400,9 +398,9 @@ persistent actor Self {
             case null { { l1Units = 0; l2Units = 0; l3Units = 0 } };
         };
         {
-            l1Count = l1;
-            l2Count = l2;
-            l3Count = l3;
+            l1Count;
+            l2Count;
+            l3Count;
             l1Units = earnings.l1Units;
             l2Units = earnings.l2Units;
             l3Units = earnings.l3Units;
