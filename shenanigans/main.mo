@@ -570,12 +570,20 @@ persistent actor Self {
                     case (#compounding15Day) { mintConfig.compounding15DayPpPerIcp };
                     case (#compounding30Day) { mintConfig.compounding30DayPpPerIcp };
                 };
-                let units = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let baseUnits = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
+                let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
                 let eventId = "game-" # Nat.toText(game.id);
-                let res = await mintInternal(game.player, units, eventId);
+
+                let res = await mintInternal(game.player, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
-                        await cascadeReferralMint(game.player, units, eventId);
+                        await distributeDeductiveCascade(game.player, cascadeUnits, eventId);
+                        // Track qualifying deposit for isActive() — observer is the
+                        // single source of truth for activity timestamps.
+                        if (game.amount >= 0.1) {
+                            lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, Time.now());
+                        };
                         gameIdCursor := game.id + 1;
                     };
                     case (#Err(msg)) {
