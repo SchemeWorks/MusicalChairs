@@ -17,6 +17,37 @@ export const idlFactory = ({ IDL }) => {
     'fail' : IDL.Null,
     'success' : IDL.Null,
   });
+  const MintMultiplier = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'multiplierBps' : IDL.Nat,
+  });
+  const ShieldState = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'chargesRemaining' : IDL.Nat,
+  });
+  const DisplayNameOverride = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'name' : IDL.Text,
+  });
+  const MintSiphon = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'pctTimes100' : IDL.Nat,
+    'siphonedSoFar' : IDL.Nat,
+    'siphoner' : IDL.Principal,
+    'capUnits' : IDL.Nat,
+  });
+  const CascadeBoost = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'multiplierBps' : IDL.Nat,
+  });
+  const ActiveSpellEffects = IDL.Record({
+    'mintMultiplier' : IDL.Opt(MintMultiplier),
+    'shield' : IDL.Opt(ShieldState),
+    'displayName' : IDL.Opt(DisplayNameOverride),
+    'golden' : IDL.Bool,
+    'mintSiphon' : IDL.Opt(MintSiphon),
+    'cascadeBoost' : IDL.Opt(CascadeBoost),
+  });
   const CashOutEntry = IDL.Record({
     'id' : IDL.Nat,
     'cancelled' : IDL.Bool,
@@ -46,6 +77,14 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : IDL.Int,
     'outcome' : ShenaniganOutcome,
   });
+  const ReferralStats = IDL.Record({
+    'l1Count' : IDL.Nat,
+    'l3Units' : IDL.Nat,
+    'l1Units' : IDL.Nat,
+    'l2Count' : IDL.Nat,
+    'l2Units' : IDL.Nat,
+    'l3Count' : IDL.Nat,
+  });
   const ShenaniganConfig = IDL.Record({
     'id' : IDL.Nat,
     'backgroundColor' : IDL.Text,
@@ -67,14 +106,6 @@ export const idlFactory = ({ IDL }) => {
     'goodOutcomes' : IDL.Nat,
     'totalSpent' : IDL.Float64,
     'badOutcomes' : IDL.Nat,
-  });
-  const ReferralStats = IDL.Record({
-    'l1Count' : IDL.Nat,
-    'l1Units' : IDL.Nat,
-    'l2Count' : IDL.Nat,
-    'l2Units' : IDL.Nat,
-    'l3Count' : IDL.Nat,
-    'l3Units' : IDL.Nat,
   });
   return IDL.Service({
     'adminMint' : IDL.Func(
@@ -102,11 +133,22 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'getActiveSpellEffects' : IDL.Func(
+        [IDL.Principal],
+        [ActiveSpellEffects],
+        ['query'],
+      ),
     'getCashOutsFor' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(CashOutEntry)],
         ['query'],
       ),
+    'getCustomDisplayName' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getGoldenPlayers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
     'getMyCashOuts' : IDL.Func([], [IDL.Vec(CashOutEntry)], ['query']),
     'getObserverStatus' : IDL.Func(
@@ -128,11 +170,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(ShenaniganRecord)],
         ['query'],
       ),
-    'getReferralStats' : IDL.Func(
-        [IDL.Principal],
-        [ReferralStats],
-        ['query'],
-      ),
+    'getReferralStats' : IDL.Func([IDL.Principal], [ReferralStats], ['query']),
     'getReferrer' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Principal)],

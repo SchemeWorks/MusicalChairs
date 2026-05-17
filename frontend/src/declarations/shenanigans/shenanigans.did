@@ -1,3 +1,8 @@
+type ShieldState = 
+ record {
+   chargesRemaining: nat;
+   expiresAt: int;
+ };
 type ShenaniganType = 
  variant {
    aoeSkim;
@@ -52,6 +57,28 @@ type ShenaniganConfig =
    name: text;
    successOdds: nat;
  };
+type ReferralStats = 
+ record {
+   l1Count: nat;
+   l1Units: nat;
+   l2Count: nat;
+   l2Units: nat;
+   l3Count: nat;
+   l3Units: nat;
+ };
+type MintSiphon = 
+ record {
+   capUnits: nat;
+   expiresAt: int;
+   pctTimes100: nat;
+   siphonedSoFar: nat;
+   siphoner: principal;
+ };
+type MintMultiplier = 
+ record {
+   expiresAt: int;
+   multiplierBps: nat;
+ };
 type MintConfig = 
  record {
    backerPpPerIcp: nat;
@@ -65,16 +92,12 @@ type MintConfig =
    referralL3Bps: nat;
    simple21DayPpPerIcp: nat;
  };
-type ReferralStats =
+type DisplayNameOverride = 
  record {
-   l1Count: nat;
-   l1Units: nat;
-   l2Count: nat;
-   l2Units: nat;
-   l3Count: nat;
-   l3Units: nat;
+   expiresAt: int;
+   name: text;
  };
-type CashOutEntry =
+type CashOutEntry = 
  record {
    amount: nat;
    cancelled: bool;
@@ -82,6 +105,20 @@ type CashOutEntry =
    claimed: bool;
    id: nat;
    player: principal;
+ };
+type CascadeBoost = 
+ record {
+   expiresAt: int;
+   multiplierBps: nat;
+ };
+type ActiveSpellEffects = 
+ record {
+   cascadeBoost: opt CascadeBoost;
+   displayName: opt DisplayNameOverride;
+   golden: bool;
+   mintMultiplier: opt MintMultiplier;
+   mintSiphon: opt MintSiphon;
+   shield: opt ShieldState;
  };
 service : {
   /// Admin-triggered manual PP issuance (direct mint to the player's chip
@@ -107,8 +144,16 @@ service : {
                                          Err: text;
                                          Ok: nat;
                                        });
+  /// All active spell effects on `user`. Expired entries are filtered
+  /// out of the result but not deleted from state (cleanup happens
+  /// lazily on next write/cast).
+  getActiveSpellEffects: (user: principal) -> (ActiveSpellEffects) query;
   /// Pending and recently claimed cash-outs for a given user.
   getCashOutsFor: (user: principal) -> (vec CashOutEntry) query;
+  /// Active rename-spell name for `user`, if any. Expired entries return null.
+  getCustomDisplayName: (user: principal) -> (opt text) query;
+  /// Currently-golden players. Used by frontend for leaderboard styling.
+  getGoldenPlayers: () -> (vec principal) query;
   getMintConfig: () -> (MintConfig) query;
   getMyCashOuts: () -> (vec CashOutEntry) query;
   /// Current observer state — running/paused, cursor positions, and interval.
@@ -120,8 +165,9 @@ service : {
       intervalSeconds: nat;
       running: bool;
     }) query;
-  /// Issue (or return existing) short referral code for the caller. Codes
-  /// are 6-char base62, assigned lazily, stable forever once issued.
+  /// Issue (or return existing) short referral code for the caller.
+  /// Deterministic on the principal + time-derived nonce; retries on the
+  /// astronomically-unlikely collision. Codes are stable once assigned.
   getOrCreateReferralCode: () -> (text);
   getPpBurnedFor: (user: principal) -> (nat) query;
   getRecentShenanigans: () -> (vec ShenaniganRecord) query;
@@ -156,7 +202,8 @@ service : {
                                          });
   resetShenaniganConfig: (id: nat) -> ();
   /// Look up the principal a short referral code resolves to. Returns null
-  /// for unknown codes.
+  /// for unknown codes. Used by the frontend to translate `?ref=<code>`
+  /// into the principal we register against the downline chain.
   resolveReferralCode: (code: text) -> (opt principal) query;
   resumeObserver: () -> ();
   rotateAdmin: (newAdmin: principal) -> ();
