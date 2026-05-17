@@ -12,6 +12,15 @@ import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, Shena
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
+import {
+  EXIT_TOLL_EARLY,
+  EXIT_TOLL_MID,
+  EXIT_TOLL_LATE,
+  EXIT_TOLL_EARLY_DAYS,
+  EXIT_TOLL_MID_DAYS,
+  JACKPOT_FEE_RATE_15D,
+  JACKPOT_FEE_RATE_30D,
+} from '../lib/gameConstants';
 
 // ponzi_math canister ID (matches the constant in usePonziMathActor.ts)
 const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
@@ -905,18 +914,18 @@ export function calculateExitTollFee(game: GameRecord, earnings: number): number
   const startTime = Number(game.startTime) / 1000000; // Convert nanoseconds to milliseconds
   const elapsedTime = Date.now() - startTime;
   const elapsedDays = elapsedTime / (1000 * 60 * 60 * 24);
-  
+
   if (game.isCompounding) {
-    if ('compounding15Day' in game.plan) return earnings * 0.09;
-    return earnings * 0.13;
+    if ('compounding15Day' in game.plan) return earnings * JACKPOT_FEE_RATE_15D;
+    return earnings * JACKPOT_FEE_RATE_30D;
   } else {
     // Tiered fees for simple mode
-    if (elapsedDays < 3) {
-      return earnings * 0.07; // 7% within 3 days
-    } else if (elapsedDays < 10) {
-      return earnings * 0.05; // 5% within 10 days
+    if (elapsedDays < EXIT_TOLL_EARLY_DAYS) {
+      return earnings * EXIT_TOLL_EARLY;
+    } else if (elapsedDays < EXIT_TOLL_MID_DAYS) {
+      return earnings * EXIT_TOLL_MID;
     } else {
-      return earnings * 0.03; // 3% after 10 days
+      return earnings * EXIT_TOLL_LATE;
     }
   }
 }
@@ -1452,7 +1461,7 @@ export function useGetTransactionHistory() {
           amount: 25,
           date: new Date('2025-01-22'),
           status: 'completed' as const,
-          exitTollFee: 1.75,
+          exitTollFee: 25 * EXIT_TOLL_EARLY,
         },
         {
           id: 'tx_4',
@@ -1487,7 +1496,7 @@ export function useGetTransactionHistory() {
             amount,
             date: new Date(),
             status: 'completed' as const,
-            exitTollFee: amount * 0.07,
+            exitTollFee: amount * EXIT_TOLL_EARLY,
           });
         } else {
           // Add MLM reward transaction

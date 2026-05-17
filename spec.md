@@ -57,7 +57,7 @@ Users can make multiple deposits and choose different plans for each deposit. Fo
 ### Fee System
 - **House Maintenance Fee**: 3% skimmed from every deposit, sent directly to houses' Musical Chairs Wallets as soon as fees are collected
 - **Carried Interest (Withdrawal Fees)**:
-  - Simple plans: 7% if withdrawn within 3 days, 5% if within 10 days, 3% after 10 days
+  - Simple plans: 12% if withdrawn within 7 days, 7.5% if within 14 days, 3% after 14 days
   - Compounding plans: 9% Jackpot Fee on the 15-day plan, 13% Jackpot Fee on the 30-day plan
   - All withdrawal fees sent directly to houses' Musical Chairs Wallets as soon as fees are collected
 - **Updated House Repayment Distribution**: Of the 50% of fees earmarked for house repayment:
@@ -531,7 +531,7 @@ The backend stores:
   - **Bold subheader**: "🎰 The House Always Wins 🎰" displayed above the details
   - **Styled bullet list without emoji icons**: Each line in the bullet list without the previous subtle icons for visual enhancement
   - Fun sub-tagline under the title: "The House Always Wins — but here's how much."
-  - **Updated carried interest rubric**: Small informational section explaining the 3 carried interest tiers for simple positions ("Simple positions will be charged a withdrawal fee of 7% within 3 days of starting the plan, 5% within 10 days, 3% after 10 days"), plus the lines: "Successful compounding plans will be charged a Jackpot Fee on their withdrawal — 9% on the 15-day plan, 13% on the 30-day plan. Compounding plans pay out the compounded interest at maturity."
+  - **Updated carried interest rubric**: Small informational section explaining the 3 carried interest tiers for simple positions ("Simple positions will be charged a withdrawal fee of 12% within 7 days of starting the plan, 7.5% within 14 days, 3% after 14 days"), plus the lines: "Successful compounding plans will be charged a Jackpot Fee on their withdrawal — 9% on the 15-day plan, 13% on the 30-day plan. Compounding plans pay out the compounded interest at maturity."
 - **Vertical stacking with clear spacing**: All three sections stacked vertically within the container with clear vertical spacing so each section is visually distinct but clearly part of the same bubble
 - **Centered content**: All content within the unified container is centered for visual balance
 - **Mobile responsive spacing**: Adjusted mobile and responsive layouts to maintain comfortable spacing and avoid sections stacking too tightly

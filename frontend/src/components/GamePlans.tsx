@@ -284,7 +284,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 21 days of 11% daily returns</li>
                 <li>• Withdraw your earnings anytime</li>
-                <li>• Carried Interest: 7% / 5% / 3% based on timing</li>
+                <li>• Carried Interest: 12% / 7.5% / 3% based on timing</li>
                 <li>• Ponzi Points: {ppRates.simple21Day.toLocaleString()} PP per ICP</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-green opacity-0 group-hover:opacity-100 transition-opacity">
