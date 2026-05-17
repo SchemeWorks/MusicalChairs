@@ -321,7 +321,7 @@ persistent actor Self {
                 if (natMap.size(shenaniganConfigs) == 0) {
                     initializeDefaultShenanigans();
                 };
-                startObserver();
+                startObserver<system>();
             };
             case (?admin) {
                 if (caller != admin) {
@@ -1026,11 +1026,15 @@ persistent actor Self {
                     // receives the payout via the mint above; we just don't
                     // inflate the L3 bucket with their share.
                     if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
+                    remaining -= payout;
                 };
-                case (#Err(_)) {};
+                case (#Err(_)) {
+                    // Mint failed (e.g. ledger TemporarilyUnavailable). Leave
+                    // `remaining` untouched so the failed payout flows into the
+                    // residual sweep instead of vanishing. Conservation holds.
+                };
             };
 
-            remaining -= payout;
             current := next;
         };
 
@@ -1280,14 +1284,11 @@ persistent actor Self {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
     };
-    public shared ({ caller }) func setReferralBps(l1 : Nat, l2 : Nat, l3 : Nat) : async () {
+    /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
+    /// Use setCascadeBps(initial, passthrough) instead.
+    public shared ({ caller }) func setReferralBps(_l1 : Nat, _l2 : Nat, _l3 : Nat) : async () {
         requireAdmin(caller);
-        mintConfig := {
-            mintConfig with
-            referralL1Bps = l1;
-            referralL2Bps = l2;
-            referralL3Bps = l3;
-        };
+        Debug.trap("setReferralBps is deprecated — use setCascadeBps(initial, passthrough) for the deductive cascade");
     };
     public shared ({ caller }) func setMinDepositPp(v : Nat) : async () {
         requireAdmin(caller);
@@ -1301,11 +1302,14 @@ persistent actor Self {
         requireAdmin(caller);
         if (v < 1) { Debug.trap("Interval must be >= 1 second") };
         mintConfig := { mintConfig with observerIntervalSeconds = v };
-        startObserver();
+        startObserver<system>();
     };
 
     public shared ({ caller }) func setHousePrincipal(p : Principal) : async () {
         requireAdmin(caller);
+        if (Principal.isAnonymous(p)) {
+            Debug.trap("housePrincipal cannot be the anonymous principal");
+        };
         housePrincipal := ?p;
     };
 
@@ -1323,6 +1327,9 @@ persistent actor Self {
 
     public shared ({ caller }) func setSignupGiftPp(v : Nat) : async () {
         requireAdmin(caller);
+        if (v > 1_000_000) {
+            Debug.trap("signupGiftPp must be ≤ 1_000_000 whole PP (guard against typo-induced mass mints)");
+        };
         mintConfig := { mintConfig with signupGiftPp = v };
     };
 
@@ -1420,7 +1427,7 @@ persistent actor Self {
 
     public shared ({ caller }) func resumeObserver() : async () {
         requireAdmin(caller);
-        startObserver();
+        startObserver<system>();
     };
 
     /// Manual one-shot observer tick (admin debug).
