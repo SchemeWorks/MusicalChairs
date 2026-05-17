@@ -475,6 +475,35 @@ persistent actor Self {
         };
     };
 
+    // v1: referralChain.get(current) ?? house(). v2 will swap this to
+    // NFT-ownership lookup — keep the function signature stable.
+    func getPayoutTarget(current : Principal) : Principal {
+        switch (principalMap.get(referralChain, current)) {
+            case (?p) { p };
+            case (null) { house() };
+        };
+    };
+
+    // True when the principal meets the configured activity bar.
+    // Hot-path: called once per cascade hop. Reads lastQualifyingDeposit
+    // (populated by observer) — no inter-canister call here.
+    func isActive(p : Principal) : Bool {
+        if (not mintConfig.activityRequiresDeposit) { return true };
+        switch (principalMap.get(lastQualifyingDeposit, p)) {
+            case (null) { false };
+            case (?ts) {
+                switch (mintConfig.activityWindowDays) {
+                    case (null) { true };
+                    case (?days) {
+                        let now = Time.now();
+                        let windowNs : Int = days * 86_400 * 1_000_000_000;
+                        (now - ts) <= windowNs;
+                    };
+                };
+            };
+        };
+    };
+
     func requireAdmin(caller : Principal) {
         switch (adminPrincipal) {
             case (null) { Debug.trap("Not initialized") };
