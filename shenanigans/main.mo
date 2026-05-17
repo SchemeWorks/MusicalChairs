@@ -605,13 +605,18 @@ persistent actor Self {
             };
             if (backer.amount > seen) {
                 let delta : Float = backer.amount - seen;
-                let units = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
-                let eventId = "backer-" # Principal.toText(backer.owner) # "-"
-                    # Float.toText(backer.amount);
-                let res = await mintInternal(backer.owner, units, eventId);
+                let baseUnits = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
+                let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
+                let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
+                let eventId = "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount);
+
+                let res = await mintInternal(backer.owner, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
-                        await cascadeReferralMint(backer.owner, units, eventId);
+                        await distributeDeductiveCascade(backer.owner, cascadeUnits, eventId);
+                        if (delta >= 0.1) {
+                            lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, Time.now());
+                        };
                         backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
                     };
                     case (#Err(msg)) {
