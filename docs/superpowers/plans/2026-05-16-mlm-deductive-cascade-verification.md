@@ -104,15 +104,14 @@ fields in its input record so Motoko's stable-OP machinery drops them cleanly.
 
 Deployed in dependency order: `backend`, `ponzi_math` (with the
 `{ backendPrincipal; testAdmin }` init record), `pp_ledger`, `shenanigans`.
-The `shenanigans` build emitted **M0207 informational warnings** for each
-legacy field consumed by `runV3` — `vipPasses`, `referralBindings`,
-`referralPath`, `referralUnits`, `mintEvents`, `withdrawalEvents`,
-`signupTrack`, `activeDepositors`, `cascadeBps`, `cascadePassthrough`,
-`charlesPrincipal`, `signupGiftPp`. These confirm Migration.runV3 is consuming
-exactly the right legacy fields, so any upgrade from a v0/v1/v2 state would
-drop them cleanly. (On a fresh deploy nothing is dropped because nothing was
-there; the warnings document the schema-shedding behavior.) All deploys
-succeeded.
+The `shenanigans` build emitted exactly **6 M0207 informational warnings**,
+one per legacy field consumed by `runV3`: `CASCADE_MAX_DEPTH`,
+`activeDepositors`, `cascadeBps`, `cascadePassthrough`, `charlesPrincipal`,
+`signupGiftPp`. These confirm Migration.runV3 is consuming exactly the right
+legacy fields, so any upgrade from a state that carried those vars would drop
+them cleanly. (On a fresh `--clean` deploy nothing is dropped because nothing
+was there; the warnings document the schema-shedding behavior available for
+mainnet upgrade.) All deploys succeeded.
 
 Steps re-run on the clean replica:
 
@@ -125,9 +124,13 @@ Steps re-run on the clean replica:
   prior-blocking `Not initialized` trap no longer fires because the actor is in
   a coherent state from the start.
 
-- **Step 5 / I1 (observer-gated-on-bootstrap proxy):** Post-`seedMigrationV2`
-  `getMintConfig` still returns cleanly, consistent with the bootstrap flag
-  being flipped and the observer being allowed to proceed.
+- **Step 5 / I1 (observer gate — validated live on a third fresh replica):**
+  After adding `isBootstrapped : () -> async Bool` for observability, ran the
+  sequence: `initialize` (returns `()`); `isBootstrapped` returns `false`
+  while observer is gated; `runObserverOnce` returns `()` cleanly (no trap,
+  early-return path exercised); `seedMigrationV2` returns `()`;
+  `isBootstrapped` returns `true`. The gate flips exactly when
+  `seedMigrationV2` finishes. Confirmed.
 
 - **Step 6 / I3 (anonymous-principal rejection in `setHousePrincipal`):**
   `setHousePrincipal "(principal \"2vxsx-fae\")"` trapped with
@@ -158,11 +161,18 @@ Steps re-run on the clean replica:
 
 **Not directly testable on this empty corpus:**
 
-- **C1 (conservation invariant):** Would require a real minting scenario where
-  the cascade fans out to a sponsor whose deposit context is incomplete, so
-  that the burn-vs-passthrough accounting could be observed. Not exercised by
-  this smoke test; relies on unit/integration tests and the type-level
-  invariants in `Cascade.allocate`.
+- **C1 (conservation under cascade `#Err`):** Would require simulating a
+  ledger failure mid-cascade to verify the residual sweep catches the
+  unminted amount. Verified by code inspection only:
+  `distributeDeductiveCascade` decrements `remaining` solely inside the
+  `#Ok` arm at [shenanigans/main.mo:1029], so failed inner mints flow into
+  the `cascade-residual-` mint to the house.
+
+- **M1 (earliest game timestamp grandfathering):** The fresh replica had
+  no historic game records to grandfather. Verified by code inspection only:
+  `seedMigrationV2` now reads `game.startTime` (and falls back to
+  `backer.firstDepositDate ?? backer.startTime`) when seeding
+  `signupGiftClaimed` for each player.
 
 All other I/M items required by the rollout plan validated cleanly on the
 fresh replica. The Migration.runV3 fix unblocks future deploys: legacy

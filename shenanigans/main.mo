@@ -1455,6 +1455,10 @@ persistent actor Self {
         await observerTick();
     };
 
+    /// Inspect the bootstrap gate. Useful during deploy to confirm that
+    /// seedMigrationV2 has flipped the flag before player traffic resumes.
+    public query func isBootstrapped() : async Bool { bootstrapped };
+
     // ================================================================
     // Admin Functions
     // ================================================================
