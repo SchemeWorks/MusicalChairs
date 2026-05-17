@@ -575,6 +575,29 @@ persistent actor Self {
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
                 let eventId = "game-" # Nat.toText(game.id);
 
+                // Signup gift — gated on first qualifying game record.
+                // Gift itself goes through the deductive cascade (mint event).
+                if (mintConfig.signupGiftPp > 0) {
+                    switch (principalMap.get(signupGiftClaimed, game.player)) {
+                        case (?_) {}; // already claimed
+                        case (null) {
+                            let giftBase = ppToUnits(mintConfig.signupGiftPp);
+                            let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
+                            let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
+                            let giftEventId = "signup-" # Principal.toText(game.player);
+                            switch (await mintInternal(game.player, giftNet, giftEventId)) {
+                                case (#Ok(_)) {
+                                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                                    await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
+                                };
+                                case (#Err(msg)) {
+                                    Debug.print("Signup-gift mint failed for " # giftEventId # ": " # msg);
+                                };
+                            };
+                        };
+                    };
+                };
+
                 let res = await mintInternal(game.player, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
