@@ -103,12 +103,17 @@ persistent actor Self {
         compounding15DayPpPerIcp : Nat; // initial 2000
         compounding30DayPpPerIcp : Nat; // initial 3000
         backerPpPerIcp : Nat;          // initial 4000
-        referralL1Bps : Nat;           // basis points; initial 800 (= 8%)
-        referralL2Bps : Nat;           // initial 500
-        referralL3Bps : Nat;           // initial 200
+        referralL1Bps : Nat;           // deprecated; unused by deductive cascade
+        referralL2Bps : Nat;           // deprecated; unused by deductive cascade
+        referralL3Bps : Nat;           // deprecated; unused by deductive cascade
         minDepositPp : Nat;            // initial 5000 (whole PP)
         cashOutDelaySeconds : Nat;     // initial 604_800
         observerIntervalSeconds : Nat; // initial 10
+        cascadeInitialBps : Nat;
+        cascadePassthroughBps : Nat;
+        signupGiftPp : Nat;
+        activityRequiresDeposit : Bool;
+        activityWindowDays : ?Nat;
     };
 
     /// Per-backer cumulative ICP seen by the observer. Used to mint only
@@ -235,6 +240,11 @@ persistent actor Self {
         minDepositPp = 5000;
         cashOutDelaySeconds = 604_800;
         observerIntervalSeconds = 10;
+        cascadeInitialBps = 1000;
+        cascadePassthroughBps = 5000;
+        signupGiftPp = 500;
+        activityRequiresDeposit = true;
+        activityWindowDays = null;
     };
 
     // Observer cursors
