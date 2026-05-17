@@ -17,6 +17,7 @@ import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -24,6 +25,7 @@ import Subaccount "Subaccount";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
+(with migration = Migration.runV3)
 persistent actor Self {
 
     // ================================================================
