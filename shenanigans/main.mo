@@ -17,6 +17,7 @@ import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -24,6 +25,7 @@ import Subaccount "Subaccount";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
+(with migration = Migration.runV3)
 persistent actor Self {
 
     // ================================================================
@@ -101,12 +103,17 @@ persistent actor Self {
         compounding15DayPpPerIcp : Nat; // initial 2000
         compounding30DayPpPerIcp : Nat; // initial 3000
         backerPpPerIcp : Nat;          // initial 4000
-        referralL1Bps : Nat;           // basis points; initial 800 (= 8%)
-        referralL2Bps : Nat;           // initial 500
-        referralL3Bps : Nat;           // initial 200
+        referralL1Bps : Nat;           // deprecated; unused by deductive cascade
+        referralL2Bps : Nat;           // deprecated; unused by deductive cascade
+        referralL3Bps : Nat;           // deprecated; unused by deductive cascade
         minDepositPp : Nat;            // initial 5000 (whole PP)
         cashOutDelaySeconds : Nat;     // initial 604_800
         observerIntervalSeconds : Nat; // initial 10
+        cascadeInitialBps : Nat;
+        cascadePassthroughBps : Nat;
+        signupGiftPp : Nat;
+        activityRequiresDeposit : Bool;
+        activityWindowDays : ?Nat;
     };
 
     /// Per-backer cumulative ICP seen by the observer. Used to mint only
@@ -121,9 +128,15 @@ persistent actor Self {
         l3Units : Nat;
     };
 
+    public type SignupEntry = {
+        principal : Principal;
+        joinedAt : Int;  // ns since epoch
+        level : Nat;     // 1, 2, or 3 — chain level relative to caller
+    };
+
     /// Per-tier downline counts and cumulative PP earnings for a user.
     /// Counts derive from a single pass over referralChain; earnings come
-    /// from the local accumulator updated inside cascadeReferralMint.
+    /// from the local accumulator updated inside distributeDeductiveCascade.
     public type ReferralStats = {
         l1Count : Nat;
         l2Count : Nat;
@@ -131,6 +144,7 @@ persistent actor Self {
         l1Units : Nat;
         l2Units : Nat;
         l3Units : Nat;
+        recentSignups : [SignupEntry];  // L1/L2/L3 only; sorted joinedAt desc; capped 20
     };
 
     /// Active spell-effect state, all keyed by affected principal.
@@ -252,10 +266,43 @@ persistent actor Self {
     var referralChain = principalMap.empty<Principal>();
 
     // Cumulative referral PP minted to each upline user, broken out per
-    // downline tier. Incremented inside cascadeReferralMint on successful
-    // mints; reads feed getReferralStats. Starts empty on first upgrade
-    // (we don't backfill from historic ledger memos).
+    // active-rank tier. Incremented inside distributeDeductiveCascade on
+    // successful mints; reads feed getReferralStats. Buckets L1/L2/L3
+    // correspond to the closest, second-closest, third-closest active
+    // upline (not raw chain position) since the cascade flows around
+    // inactive uplines.
     var referralEarnings = principalMap.empty<ReferralEarnings>();
+
+    // ────────────────────────────────────────────────────────────────
+    // Deductive-cascade state (added 2026-05-16)
+    // ────────────────────────────────────────────────────────────────
+
+    // Catch-all upline + residual destination ("Charles"). Initialized
+    // to the deploying admin on first init via seedMigrationV2 when null;
+    // admin can override via setHousePrincipal.
+    var housePrincipal : ?Principal = null;
+
+    // Per-principal signup-gift claim time. Empty = never claimed.
+    // Doubles as the "join time" surfaced via getReferralStats.recentSignups.
+    var signupGiftClaimed = principalMap.empty<Int>();
+
+    // Per-principal time of last qualifying deposit (≥ 0.1 ICP). Drives
+    // isActive() without per-cascade inter-canister calls. Populated by
+    // the observer on every qualifying mint event.
+    var lastQualifyingDeposit = principalMap.empty<Int>();
+
+    // Set to true by seedMigrationV2 once existing players have been
+    // grandfathered into signupGiftClaimed / lastQualifyingDeposit. The
+    // observer refuses to mint until this flips — closes the upgrade-time
+    // race where the first tick would otherwise hand 500 PP signup gifts
+    // to every existing player.
+    var bootstrapped : Bool = false;
+
+    // Reverse index of referralChain: referrer → List<downliner>. Backfilled
+    // and maintained by seedMigrationV2 + registerReferral. Used by
+    // getReferralStats for O(downline) queries instead of O(N) scans of
+    // referralChain.
+    var referrerToDownline = principalMap.empty<List.List<Principal>>();
 
     // Bidirectional map of short referral codes ↔ principals. Codes are
     // assigned lazily on first call to getOrCreateReferralCode and never
@@ -275,6 +322,11 @@ persistent actor Self {
         minDepositPp = 5000;
         cashOutDelaySeconds = 604_800;
         observerIntervalSeconds = 10;
+        cascadeInitialBps = 1000;
+        cascadePassthroughBps = 5000;
+        signupGiftPp = 500;
+        activityRequiresDeposit = true;
+        activityWindowDays = null;
     };
 
     // Observer cursors
@@ -342,22 +394,6 @@ persistent actor Self {
     transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
 
     // ================================================================
-    // Legacy stable fields — preserved across upgrades so we don't
-    // implicitly discard data still living in the deployed canister.
-    // Not referenced by current code; a future migration should
-    // properly transform or drop these. The literal initializers
-    // below are only used on first deploy — existing values are
-    // preserved across upgrade by orthogonal persistence.
-    // ================================================================
-    let CASCADE_MAX_DEPTH : Nat = 0;
-    var activeDepositors = principalMap.empty<Bool>();
-    var cascadeBps : Nat = 0;
-    var cascadePassthrough : Nat = 0;
-    var charlesPrincipal : Principal = Principal.fromText("aaaaa-aa");
-    var referrerToDownline = principalMap.empty<List.List<Principal>>();
-    var signupGiftPp : Nat = 0;
-
-    // ================================================================
     // Initialization
     // ================================================================
 
@@ -369,7 +405,7 @@ persistent actor Self {
                 if (natMap.size(shenaniganConfigs) == 0) {
                     initializeDefaultShenanigans();
                 };
-                startObserver();
+                startObserver<system>();
             };
             case (?admin) {
                 if (caller != admin) {
@@ -387,7 +423,15 @@ persistent actor Self {
         if (caller == referrer) { return };
         switch (principalMap.get(referralChain, caller)) {
             case (?_) { /* already set */ };
-            case null { referralChain := principalMap.put(referralChain, caller, referrer) };
+            case null {
+                referralChain := principalMap.put(referralChain, caller, referrer);
+                // Maintain the reverse index so getReferralStats stays O(downline).
+                let existing = switch (principalMap.get(referrerToDownline, referrer)) {
+                    case (?list) { list };
+                    case (null) { List.nil<Principal>() };
+                };
+                referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(caller, existing));
+            };
         };
     };
 
@@ -397,46 +441,57 @@ persistent actor Self {
     };
 
     /// Per-tier downline counts and cumulative PP earnings for `user`.
-    /// Counts are computed by a single pass over the referral chain map;
-    /// earnings come from the local accumulator.
+    /// Walks the referrerToDownline reverse index — O(L1+L2+L3 size) instead
+    /// of O(all referrals). Recent-signup join times come from signupGiftClaimed.
     public query func getReferralStats(user : Principal) : async ReferralStats {
-        var l1 : Nat = 0;
-        var l2 : Nat = 0;
-        var l3 : Nat = 0;
-        for ((_, l1Ref) in principalMap.entries(referralChain)) {
-            if (Principal.equal(l1Ref, user)) {
-                l1 += 1;
-            } else {
-                switch (principalMap.get(referralChain, l1Ref)) {
-                    case (?l2Ref) {
-                        if (Principal.equal(l2Ref, user)) {
-                            l2 += 1;
-                        } else {
-                            switch (principalMap.get(referralChain, l2Ref)) {
-                                case (?l3Ref) {
-                                    if (Principal.equal(l3Ref, user)) {
-                                        l3 += 1;
-                                    };
-                                };
-                                case null {};
-                            };
-                        };
-                    };
-                    case null {};
+        var l1Count : Nat = 0;
+        var l2Count : Nat = 0;
+        var l3Count : Nat = 0;
+        var bufRef : List.List<SignupEntry> = List.nil<SignupEntry>();
+
+        let downlineOf = func(p : Principal) : List.List<Principal> {
+            switch (principalMap.get(referrerToDownline, p)) {
+                case (?list) { list };
+                case (null) { List.nil<Principal>() };
+            };
+        };
+
+        let pushSignup = func(downliner : Principal, level : Nat) {
+            switch (principalMap.get(signupGiftClaimed, downliner)) {
+                case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level }, bufRef) };
+                case (null) {};
+            };
+        };
+
+        for (l1 in List.toIter(downlineOf(user))) {
+            l1Count += 1;
+            pushSignup(l1, 1);
+            for (l2 in List.toIter(downlineOf(l1))) {
+                l2Count += 1;
+                pushSignup(l2, 2);
+                for (l3 in List.toIter(downlineOf(l2))) {
+                    l3Count += 1;
+                    pushSignup(l3, 3);
                 };
             };
         };
+
+        let allSignups = List.toArray(bufRef);
+        let sorted = Array.sort<SignupEntry>(allSignups, func(a, b) = Int.compare(b.joinedAt, a.joinedAt));
+        let capped = if (sorted.size() <= 20) { sorted } else { Array.subArray(sorted, 0, 20) };
+
         let earnings = switch (principalMap.get(referralEarnings, user)) {
             case (?e) { e };
             case null { { l1Units = 0; l2Units = 0; l3Units = 0 } };
         };
         {
-            l1Count = l1;
-            l2Count = l2;
-            l3Count = l3;
+            l1Count;
+            l2Count;
+            l3Count;
             l1Units = earnings.l1Units;
             l2Units = earnings.l2Units;
             l3Units = earnings.l3Units;
+            recentSignups = capped;
         };
     };
 
@@ -451,6 +506,7 @@ persistent actor Self {
         'U','V','W','X','Y','Z',
     ];
     transient let REFERRAL_CODE_LEN : Nat = 6;
+    transient let CASCADE_DEPTH_CAP : Nat = 10;
 
     func natToBase62(input : Nat, length : Nat) : Text {
         var modulus : Nat = 1;
@@ -516,6 +572,50 @@ persistent actor Self {
         referralEarnings := principalMap.put(referralEarnings, upline, updated);
     };
 
+    // Resolve the house (catch-all) principal. Falls back to admin if
+    // housePrincipal hasn't been seeded yet (defensive — seedMigrationV2
+    // initializes it).
+    func house() : Principal {
+        switch (housePrincipal) {
+            case (?p) { p };
+            case (null) {
+                switch (adminPrincipal) {
+                    case (?p) { p };
+                    case (null) { Debug.trap("housePrincipal not initialized and no admin set") };
+                };
+            };
+        };
+    };
+
+    // v1: referralChain.get(current) ?? house(). v2 will swap this to
+    // NFT-ownership lookup — keep the function signature stable.
+    func getPayoutTarget(current : Principal) : Principal {
+        switch (principalMap.get(referralChain, current)) {
+            case (?p) { p };
+            case (null) { house() };
+        };
+    };
+
+    // True when the principal meets the configured activity bar.
+    // Hot-path: called once per cascade hop. Reads lastQualifyingDeposit
+    // (populated by observer) — no inter-canister call here.
+    func isActive(p : Principal) : Bool {
+        if (not mintConfig.activityRequiresDeposit) { return true };
+        switch (principalMap.get(lastQualifyingDeposit, p)) {
+            case (null) { false };
+            case (?ts) {
+                switch (mintConfig.activityWindowDays) {
+                    case (null) { true };
+                    case (?days) {
+                        let now = Time.now();
+                        let windowNs : Int = days * 86_400 * 1_000_000_000;
+                        (now - ts) <= windowNs;
+                    };
+                };
+            };
+        };
+    };
+
     func requireAdmin(caller : Principal) {
         switch (adminPrincipal) {
             case (null) { Debug.trap("Not initialized") };
@@ -561,6 +661,11 @@ persistent actor Self {
     /// duplicates.
     func observerTick() : async () {
         if (observerRunning) return;
+        // Upgrade-safety: refuse to mint until seedMigrationV2 has
+        // grandfathered existing players. Without this gate, the first
+        // post-upgrade tick would treat every existing player as a brand-
+        // new signup and mint them all the 500 PP gift.
+        if (not bootstrapped) return;
         observerRunning := true;
         try {
             await processNewGames();
@@ -582,12 +687,43 @@ persistent actor Self {
                     case (#compounding15Day) { mintConfig.compounding15DayPpPerIcp };
                     case (#compounding30Day) { mintConfig.compounding30DayPpPerIcp };
                 };
-                let units = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let baseUnits = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
+                let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
                 let eventId = "game-" # Nat.toText(game.id);
-                let res = await mintWithEffects(game.player, units, eventId);
+
+                // Signup gift — gated on first qualifying game record.
+                // Gift itself goes through the deductive cascade (mint event).
+                if (mintConfig.signupGiftPp > 0) {
+                    switch (principalMap.get(signupGiftClaimed, game.player)) {
+                        case (?_) {}; // already claimed
+                        case (null) {
+                            let giftBase = ppToUnits(mintConfig.signupGiftPp);
+                            let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
+                            let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
+                            let giftEventId = "signup-" # Principal.toText(game.player);
+                            switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
+                                case (#Ok(_)) {
+                                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                                    await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
+                                };
+                                case (#Err(msg)) {
+                                    Debug.print("Signup-gift mint failed for " # giftEventId # ": " # msg);
+                                };
+                            };
+                        };
+                    };
+                };
+
+                let res = await mintWithEffects(game.player, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
-                        await cascadeReferralMint(game.player, units, eventId);
+                        await distributeDeductiveCascade(game.player, cascadeUnits, eventId);
+                        // Track qualifying deposit for isActive() — observer is the
+                        // single source of truth for activity timestamps.
+                        if (game.amount >= 0.1) {
+                            lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, Time.now());
+                        };
                         gameMintRetries := natMap.delete(gameMintRetries, game.id);
                         gameIdCursor := game.id + 1;
                     };
@@ -629,13 +765,18 @@ persistent actor Self {
             };
             if (backer.amount > seen) {
                 let delta : Float = backer.amount - seen;
-                let units = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
-                let eventId = "backer-" # Principal.toText(backer.owner) # "-"
-                    # Float.toText(backer.amount);
-                let res = await mintWithEffects(backer.owner, units, eventId);
+                let baseUnits = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
+                let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
+                let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
+                let eventId = "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount);
+
+                let res = await mintWithEffects(backer.owner, playerNet, eventId);
                 switch (res) {
                     case (#Ok(_)) {
-                        await cascadeReferralMint(backer.owner, units, eventId);
+                        await distributeDeductiveCascade(backer.owner, cascadeUnits, eventId);
+                        if (delta >= 0.1) {
+                            lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, Time.now());
+                        };
                         backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
                         backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
                     };
@@ -974,48 +1115,70 @@ persistent actor Self {
         });
     };
 
-    /// For each of L1/L2/L3, mint referral PP-units derived from the base mint.
-    /// Memo tags `referral-LN-<eventId>` so dedup works per-level per-event.
-    /// Lookups are local — referralChain lives in this canister.
-    /// Successful mints (and ledger-duplicate replays, which mintInternal
-    /// promotes to #Ok) bump the per-upline earnings accumulator so
-    /// getReferralStats has a cheap read.
-    /// Honors active `cascadeBoosts` per upline — Downline Boost multiplies
-    /// the cascade mint at that level only (independent per level).
-    func cascadeReferralMint(originUser : Principal, baseUnits : Nat, eventId : Text) : async () {
-        if (baseUnits == 0) return;
-        let l1Maybe = principalMap.get(referralChain, originUser);
-        switch (l1Maybe) {
-            case (null) {};
-            case (?l1) {
-                let l1Units = applyCascadeBoost(l1, baseUnits * mintConfig.referralL1Bps / 10_000);
-                switch (await mintInternal(l1, l1Units, "referral-L1-" # eventId)) {
-                    case (#Ok(_)) { bumpReferralEarnings(l1, 1, l1Units) };
-                    case (#Err(_)) {};
+    // Deductive cascade: 10% off the top (cascadeInitialBps) distributed
+    // up the chain at 50% passthrough (cascadePassthroughBps) per active
+    // upline. Inactive uplines are skipped (flow-around). Cycles detected
+    // via visited-set. Residual after depth cap → house.
+    //
+    // Per-upline effects honored: applyCascadeBoost multiplies the payout
+    // if the upline has an active Downline Boost. Mints go through
+    // mintWithEffects so PP Booster Aura / Mint Tax Siphon also apply to
+    // the upline's incoming cascade PP.
+    //
+    // Caller is responsible for minting the player's NET (base - cascadeUnits)
+    // before invoking. This function only handles the cascade share.
+    func distributeDeductiveCascade(originUser : Principal, cascadeUnits : Nat, eventId : Text) : async () {
+        if (cascadeUnits == 0) return;
+
+        var remaining : Nat = cascadeUnits;
+        var visited = principalMap.empty<()>();
+        visited := principalMap.put(visited, originUser, ());
+
+        var depth : Nat = 0;
+        var activeRank : Nat = 0;
+        var current : Principal = originUser;
+
+        label walk loop {
+            if (remaining == 0 or depth >= CASCADE_DEPTH_CAP) { break walk };
+
+            let next = getPayoutTarget(current);
+            switch (principalMap.get(visited, next)) {
+                case (?_) { break walk }; // cycle — bail to residual
+                case (null) {};
+            };
+            visited := principalMap.put(visited, next, ());
+            depth += 1;
+
+            if (not isActive(next)) { current := next; continue walk };
+
+            activeRank += 1;
+            let basePayout = remaining * mintConfig.cascadePassthroughBps / 10_000;
+            if (basePayout == 0) { break walk };
+            let payout = applyCascadeBoost(next, basePayout);
+
+            switch (await mintWithEffects(next, payout, "cascade-A" # Nat.toText(activeRank) # "-" # eventId)) {
+                case (#Ok(_)) {
+                    // Display buckets are L1/L2/L3 only. activeRank ≥ 4 still
+                    // receives the payout via the mint above; we just don't
+                    // inflate the L3 bucket with their share.
+                    if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
+                    // Decrement remaining by the pre-boost amount so the cascade
+                    // distribution math stays conservative regardless of boosts.
+                    remaining -= basePayout;
                 };
-                let l2Maybe = principalMap.get(referralChain, l1);
-                switch (l2Maybe) {
-                    case (null) {};
-                    case (?l2) {
-                        let l2Units = applyCascadeBoost(l2, baseUnits * mintConfig.referralL2Bps / 10_000);
-                        switch (await mintInternal(l2, l2Units, "referral-L2-" # eventId)) {
-                            case (#Ok(_)) { bumpReferralEarnings(l2, 2, l2Units) };
-                            case (#Err(_)) {};
-                        };
-                        let l3Maybe = principalMap.get(referralChain, l2);
-                        switch (l3Maybe) {
-                            case (null) {};
-                            case (?l3) {
-                                let l3Units = applyCascadeBoost(l3, baseUnits * mintConfig.referralL3Bps / 10_000);
-                                switch (await mintInternal(l3, l3Units, "referral-L3-" # eventId)) {
-                                    case (#Ok(_)) { bumpReferralEarnings(l3, 3, l3Units) };
-                                    case (#Err(_)) {};
-                                };
-                            };
-                        };
-                    };
+                case (#Err(_)) {
+                    // Mint failed (e.g. ledger TemporarilyUnavailable). Leave
+                    // `remaining` untouched so the failed payout flows into the
+                    // residual sweep instead of vanishing. Conservation holds.
                 };
             };
+
+            current := next;
+        };
+
+        // Residual to house: covers depth cap, cycle break, exhausted chain.
+        if (remaining > 0) {
+            let _ = await mintWithEffects(house(), remaining, "cascade-residual-" # eventId);
         };
     };
 
@@ -1831,14 +1994,11 @@ persistent actor Self {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
     };
-    public shared ({ caller }) func setReferralBps(l1 : Nat, l2 : Nat, l3 : Nat) : async () {
+    /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
+    /// Use setCascadeBps(initial, passthrough) instead.
+    public shared ({ caller }) func setReferralBps(_l1 : Nat, _l2 : Nat, _l3 : Nat) : async () {
         requireAdmin(caller);
-        mintConfig := {
-            mintConfig with
-            referralL1Bps = l1;
-            referralL2Bps = l2;
-            referralL3Bps = l3;
-        };
+        Debug.trap("setReferralBps is deprecated — use setCascadeBps(initial, passthrough) for the deductive cascade");
     };
     public shared ({ caller }) func setMinDepositPp(v : Nat) : async () {
         requireAdmin(caller);
@@ -1852,7 +2012,138 @@ persistent actor Self {
         requireAdmin(caller);
         if (v < 1) { Debug.trap("Interval must be >= 1 second") };
         mintConfig := { mintConfig with observerIntervalSeconds = v };
-        startObserver();
+        startObserver<system>();
+    };
+
+    public shared ({ caller }) func setHousePrincipal(p : Principal) : async () {
+        requireAdmin(caller);
+        if (Principal.isAnonymous(p)) {
+            Debug.trap("housePrincipal cannot be the anonymous principal");
+        };
+        housePrincipal := ?p;
+    };
+
+    public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {
+        requireAdmin(caller);
+        if (initial > 10_000 or passthrough > 10_000) {
+            Debug.trap("BPS values must be ≤ 10_000");
+        };
+        mintConfig := {
+            mintConfig with
+            cascadeInitialBps = initial;
+            cascadePassthroughBps = passthrough;
+        };
+    };
+
+    public shared ({ caller }) func setSignupGiftPp(v : Nat) : async () {
+        requireAdmin(caller);
+        if (v > 1_000_000) {
+            Debug.trap("signupGiftPp must be ≤ 1_000_000 whole PP (guard against typo-induced mass mints)");
+        };
+        mintConfig := { mintConfig with signupGiftPp = v };
+    };
+
+    public shared ({ caller }) func setActivityRequiresDeposit(b : Bool) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with activityRequiresDeposit = b };
+    };
+
+    public shared ({ caller }) func setActivityWindowDays(d : ?Nat) : async () {
+        requireAdmin(caller);
+        switch (d) {
+            case (null) {};
+            case (?n) {
+                if (n == 0 or n > 3650) {
+                    Debug.trap("activityWindowDays must be in [1, 3650] or null");
+                };
+            };
+        };
+        mintConfig := { mintConfig with activityWindowDays = d };
+    };
+
+    /// One-shot post-upgrade seeding for the deductive-cascade rollout.
+    ///
+    /// 1. housePrincipal := ?caller if null
+    /// 2. For every player with an existing game record: signupGiftClaimed
+    ///    [player] := earliest game timestamp (prevents retroactive gifts).
+    /// 3. For every player with ≥0.1 ICP cumulative deposit (game or backer):
+    ///    lastQualifyingDeposit[player] := Time.now() (conservative: all
+    ///    existing depositors are treated as just-qualified).
+    /// 4. Backfill referrerToDownline from referralChain.
+    ///
+    /// Idempotent: re-running produces the same end state. Admin-only.
+    public shared ({ caller }) func seedMigrationV2() : async () {
+        requireAdmin(caller);
+
+        // 1. Initialize housePrincipal if needed.
+        switch (housePrincipal) {
+            case (?_) {};
+            case (null) { housePrincipal := ?caller };
+        };
+
+        let ponziMath = getPonziMath();
+        let now = Time.now();
+
+        // 2 & 3. Grandfather signupGiftClaimed + seed lastQualifyingDeposit from games.
+        let games = try { await ponziMath.getAllGames() } catch (_) { [] };
+        for (game in games.vals()) {
+            // signupGiftClaimed: take the earliest game.startTime per player so
+            // recentSignups reflects real join times, not the seeding moment.
+            switch (principalMap.get(signupGiftClaimed, game.player)) {
+                case (?existing) {
+                    if (game.startTime < existing) {
+                        signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, game.startTime);
+                    };
+                };
+                case (null) {
+                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, game.startTime);
+                };
+            };
+            // lastQualifyingDeposit: any ≥0.1 ICP game qualifies; set to now (conservative).
+            if (game.amount >= 0.1) {
+                lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, now);
+            };
+        };
+
+        // 3 (cont). Same for backer positions.
+        let backers = try { await ponziMath.getBackerPositions() } catch (_) { [] };
+        for (backer in backers.vals()) {
+            if (backer.amount >= 0.1) {
+                lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, now);
+                // Also grandfather signupGiftClaimed for backers without game records.
+                // Prefer firstDepositDate; fall back to backer.startTime.
+                let backerJoinTime : Int = switch (backer.firstDepositDate) {
+                    case (?t) { t };
+                    case (null) { backer.startTime };
+                };
+                switch (principalMap.get(signupGiftClaimed, backer.owner)) {
+                    case (?existing) {
+                        if (backerJoinTime < existing) {
+                            signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, backerJoinTime);
+                        };
+                    };
+                    case (null) {
+                        signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, backerJoinTime);
+                    };
+                };
+            };
+        };
+
+        // 4. Backfill referrerToDownline from referralChain.
+        // Reset to empty first to ensure idempotency.
+        referrerToDownline := principalMap.empty<List.List<Principal>>();
+        for ((downliner, referrer) in principalMap.entries(referralChain)) {
+            let existing = switch (principalMap.get(referrerToDownline, referrer)) {
+                case (?list) { list };
+                case (null) { List.nil<Principal>() };
+            };
+            referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(downliner, existing));
+        };
+
+        // 5. Release the observer. From this point onward, processNewGames /
+        // processBackerDeltas will mint for new events; existing players are
+        // already grandfathered above.
+        bootstrapped := true;
     };
 
     public shared ({ caller }) func stopObserver() : async () {
@@ -1865,7 +2156,7 @@ persistent actor Self {
 
     public shared ({ caller }) func resumeObserver() : async () {
         requireAdmin(caller);
-        startObserver();
+        startObserver<system>();
     };
 
     /// Manual one-shot observer tick (admin debug).
@@ -1873,6 +2164,10 @@ persistent actor Self {
         requireAdmin(caller);
         await observerTick();
     };
+
+    /// Inspect the bootstrap gate. Useful during deploy to confirm that
+    /// seedMigrationV2 has flipped the flag before player traffic resumes.
+    public query func isBootstrapped() : async Bool { bootstrapped };
 
     // ================================================================
     // Admin Functions
