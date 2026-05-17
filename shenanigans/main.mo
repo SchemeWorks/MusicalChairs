@@ -249,6 +249,13 @@ persistent actor Self {
     // the observer on every qualifying mint event.
     var lastQualifyingDeposit = principalMap.empty<Int>();
 
+    // Set to true by seedMigrationV2 once existing players have been
+    // grandfathered into signupGiftClaimed / lastQualifyingDeposit. The
+    // observer refuses to mint until this flips — closes the upgrade-time
+    // race where the first tick would otherwise hand 500 PP signup gifts
+    // to every existing player.
+    var bootstrapped : Bool = false;
+
     // Bidirectional map of short referral codes ↔ principals. Codes are
     // assigned lazily on first call to getOrCreateReferralCode and never
     // change. URLs ship as `?ref=<code>` instead of the 53-char principal.
@@ -579,6 +586,11 @@ persistent actor Self {
     /// duplicates.
     func observerTick() : async () {
         if (observerRunning) return;
+        // Upgrade-safety: refuse to mint until seedMigrationV2 has
+        // grandfathered existing players. Without this gate, the first
+        // post-upgrade tick would treat every existing player as a brand-
+        // new signup and mint them all the 500 PP gift.
+        if (not bootstrapped) return;
         observerRunning := true;
         try {
             await processNewGames();
@@ -1415,6 +1427,11 @@ persistent actor Self {
             };
             referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(downliner, existing));
         };
+
+        // 5. Release the observer. From this point onward, processNewGames /
+        // processBackerDeltas will mint for new events; existing players are
+        // already grandfathered above.
+        bootstrapped := true;
     };
 
     public shared ({ caller }) func stopObserver() : async () {
