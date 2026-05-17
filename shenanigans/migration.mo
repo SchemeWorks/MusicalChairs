@@ -66,16 +66,24 @@ module {
     // ================================================================
     // V3 — Deductive cascade rollout
     //
-    // Extends MintConfig with 5 admin-tunable fields:
-    //   cascadeInitialBps       (10% deduction off the top)
-    //   cascadePassthroughBps   (50% kept by each active upline)
-    //   signupGiftPp            (500 PP signup gift; 0 disables)
-    //   activityRequiresDeposit (cascade skips inactive uplines)
-    //   activityWindowDays      (null = lifetime; ?n = last n days)
+    // Two transformations in one migration:
     //
-    // Old MintConfig fields are preserved verbatim. Old referralL[1-3]Bps
-    // remain on the record (deprecated, unused by the new cascade) so the
-    // candid signature stays stable for admin tooling that reads them.
+    // (a) Extends MintConfig with 5 admin-tunable fields:
+    //       cascadeInitialBps       (10% deduction off the top)
+    //       cascadePassthroughBps   (50% kept by each active upline)
+    //       signupGiftPp            (500 PP signup gift; 0 disables)
+    //       activityRequiresDeposit (cascade skips inactive uplines)
+    //       activityWindowDays      (null = lifetime; ?n = last n days)
+    //
+    // (b) Drops legacy unused stable fields that an earlier
+    //     half-finished MLM experiment left on the actor. The deployed
+    //     canister still carries empty/zero values for these — the
+    //     migration explicitly drops them so the new actor's stable
+    //     signature is clean.
+    //
+    // Old referralL[1-3]Bps fields stay on the record (deprecated,
+    // unused by the new cascade) so the candid signature stays stable
+    // for admin tooling that reads them.
     // ================================================================
 
     type V3OldMintConfig = V2NewMintConfig;
@@ -98,7 +106,24 @@ module {
         activityWindowDays : ?Nat;
     };
 
-    public func runV3(old : { var mintConfig : V3OldMintConfig }) : { var mintConfig : V3NewMintConfig } {
+    type ActiveDepositorsLegacy = OrderedMap.Map<Principal, Bool>;
+
+    public func runV3(
+        old : {
+            var mintConfig : V3OldMintConfig;
+            // Legacy fields explicitly named so the migration drops them by
+            // omission from the output record. All carry trivial values on
+            // the deployed canister (zero / empty / anonymous principal).
+            var CASCADE_MAX_DEPTH : Nat;
+            var activeDepositors : ActiveDepositorsLegacy;
+            var cascadeBps : Nat;
+            var cascadePassthrough : Nat;
+            var charlesPrincipal : Principal;
+            var signupGiftPp : Nat;
+        },
+    ) : {
+        var mintConfig : V3NewMintConfig;
+    } {
         let o = old.mintConfig;
         {
             var mintConfig = {
