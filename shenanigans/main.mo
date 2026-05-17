@@ -394,6 +394,7 @@ persistent actor Self {
         'U','V','W','X','Y','Z',
     ];
     transient let REFERRAL_CODE_LEN : Nat = 6;
+    transient let CASCADE_DEPTH_CAP : Nat = 10;
 
     func natToBase62(input : Nat, length : Nat) : Text {
         var modulus : Nat = 1;
@@ -457,6 +458,21 @@ persistent actor Self {
             case _ { { current with l3Units = current.l3Units + units } };
         };
         referralEarnings := principalMap.put(referralEarnings, upline, updated);
+    };
+
+    // Resolve the house (catch-all) principal. Falls back to admin if
+    // housePrincipal hasn't been seeded yet (defensive — seedMigrationV2
+    // initializes it).
+    func house() : Principal {
+        switch (housePrincipal) {
+            case (?p) { p };
+            case (null) {
+                switch (adminPrincipal) {
+                    case (?p) { p };
+                    case (null) { Debug.trap("housePrincipal not initialized and no admin set") };
+                };
+            };
+        };
     };
 
     func requireAdmin(caller : Principal) {
