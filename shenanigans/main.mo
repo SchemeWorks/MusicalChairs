@@ -1274,6 +1274,46 @@ persistent actor Self {
         startObserver();
     };
 
+    public shared ({ caller }) func setHousePrincipal(p : Principal) : async () {
+        requireAdmin(caller);
+        housePrincipal := ?p;
+    };
+
+    public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {
+        requireAdmin(caller);
+        if (initial > 10_000 or passthrough > 10_000) {
+            Debug.trap("BPS values must be ≤ 10_000");
+        };
+        mintConfig := {
+            mintConfig with
+            cascadeInitialBps = initial;
+            cascadePassthroughBps = passthrough;
+        };
+    };
+
+    public shared ({ caller }) func setSignupGiftPp(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with signupGiftPp = v };
+    };
+
+    public shared ({ caller }) func setActivityRequiresDeposit(b : Bool) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with activityRequiresDeposit = b };
+    };
+
+    public shared ({ caller }) func setActivityWindowDays(d : ?Nat) : async () {
+        requireAdmin(caller);
+        switch (d) {
+            case (null) {};
+            case (?n) {
+                if (n == 0 or n > 3650) {
+                    Debug.trap("activityWindowDays must be in [1, 3650] or null");
+                };
+            };
+        };
+        mintConfig := { mintConfig with activityWindowDays = d };
+    };
+
     public shared ({ caller }) func stopObserver() : async () {
         requireAdmin(caller);
         switch (observerTimerId) {
