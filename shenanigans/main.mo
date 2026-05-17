@@ -1342,6 +1342,72 @@ persistent actor Self {
         mintConfig := { mintConfig with activityWindowDays = d };
     };
 
+    /// One-shot post-upgrade seeding for the deductive-cascade rollout.
+    ///
+    /// 1. housePrincipal := ?caller if null
+    /// 2. For every player with an existing game record: signupGiftClaimed
+    ///    [player] := earliest game timestamp (prevents retroactive gifts).
+    /// 3. For every player with ≥0.1 ICP cumulative deposit (game or backer):
+    ///    lastQualifyingDeposit[player] := Time.now() (conservative: all
+    ///    existing depositors are treated as just-qualified).
+    /// 4. Backfill referrerToDownline from referralChain.
+    ///
+    /// Idempotent: re-running produces the same end state. Admin-only.
+    public shared ({ caller }) func seedMigrationV2() : async () {
+        requireAdmin(caller);
+
+        // 1. Initialize housePrincipal if needed.
+        switch (housePrincipal) {
+            case (?_) {};
+            case (null) { housePrincipal := ?caller };
+        };
+
+        let ponziMath = getPonziMath();
+        let now = Time.now();
+
+        // 2 & 3. Grandfather signupGiftClaimed + seed lastQualifyingDeposit from games.
+        let games = try { await ponziMath.getAllGames() } catch (_) { [] };
+        for (game in games.vals()) {
+            // signupGiftClaimed: earliest-wins, so only set if not present.
+            switch (principalMap.get(signupGiftClaimed, game.player)) {
+                case (?_) {};
+                case (null) {
+                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, now);
+                };
+            };
+            // lastQualifyingDeposit: any ≥0.1 ICP game qualifies; set to now (conservative).
+            if (game.amount >= 0.1) {
+                lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, now);
+            };
+        };
+
+        // 3 (cont). Same for backer positions.
+        let backers = try { await ponziMath.getBackerPositions() } catch (_) { [] };
+        for (backer in backers.vals()) {
+            if (backer.amount >= 0.1) {
+                lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, now);
+                // Also grandfather signupGiftClaimed for backers without game records.
+                switch (principalMap.get(signupGiftClaimed, backer.owner)) {
+                    case (?_) {};
+                    case (null) {
+                        signupGiftClaimed := principalMap.put(signupGiftClaimed, backer.owner, now);
+                    };
+                };
+            };
+        };
+
+        // 4. Backfill referrerToDownline from referralChain.
+        // Reset to empty first to ensure idempotency.
+        referrerToDownline := principalMap.empty<List.List<Principal>>();
+        for ((downliner, referrer) in principalMap.entries(referralChain)) {
+            let existing = switch (principalMap.get(referrerToDownline, referrer)) {
+                case (?list) { list };
+                case (null) { List.nil<Principal>() };
+            };
+            referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(downliner, existing));
+        };
+    };
+
     public shared ({ caller }) func stopObserver() : async () {
         requireAdmin(caller);
         switch (observerTimerId) {
