@@ -136,7 +136,7 @@ persistent actor Self {
 
     /// Per-tier downline counts and cumulative PP earnings for a user.
     /// Counts derive from a single pass over referralChain; earnings come
-    /// from the local accumulator updated inside cascadeReferralMint.
+    /// from the local accumulator updated inside distributeDeductiveCascade.
     public type ReferralStats = {
         l1Count : Nat;
         l2Count : Nat;
@@ -224,9 +224,11 @@ persistent actor Self {
     var referralChain = principalMap.empty<Principal>();
 
     // Cumulative referral PP minted to each upline user, broken out per
-    // downline tier. Incremented inside cascadeReferralMint on successful
-    // mints; reads feed getReferralStats. Starts empty on first upgrade
-    // (we don't backfill from historic ledger memos).
+    // active-rank tier. Incremented inside distributeDeductiveCascade on
+    // successful mints; reads feed getReferralStats. Buckets L1/L2/L3
+    // correspond to the closest, second-closest, third-closest active
+    // upline (not raw chain position) since the cascade flows around
+    // inactive uplines.
     var referralEarnings = principalMap.empty<ReferralEarnings>();
 
     // ────────────────────────────────────────────────────────────────
