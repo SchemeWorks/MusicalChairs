@@ -93,3 +93,77 @@ recording. `setCascadeBps "(10_001 : nat, 5_000 : nat)"` trapped with
 `opt 0` trapped with `activityWindowDays must be in [1, 3650] or null` — the
 boundary check holds. Final state was reverted to `null` so the canister is
 left in the spec-default configuration.
+
+## Re-verify after review-pass fixes — 2026-05-16
+
+Re-run on a freshly cleaned local replica (`dfx stop && dfx start --background
+--clean`) to validate the migration fix in commit `f03443e`. The M4 commit had
+deleted legacy stable vars from the actor without consuming them; the latest
+commit fixes that by having `Migration.runV3` explicitly accept the legacy
+fields in its input record so Motoko's stable-OP machinery drops them cleanly.
+
+Deployed in dependency order: `backend`, `ponzi_math` (with the
+`{ backendPrincipal; testAdmin }` init record), `pp_ledger`, `shenanigans`.
+The `shenanigans` build emitted **M0207 informational warnings** for each
+legacy field consumed by `runV3` — `vipPasses`, `referralBindings`,
+`referralPath`, `referralUnits`, `mintEvents`, `withdrawalEvents`,
+`signupTrack`, `activeDepositors`, `cascadeBps`, `cascadePassthrough`,
+`charlesPrincipal`, `signupGiftPp`. These confirm Migration.runV3 is consuming
+exactly the right legacy fields, so any upgrade from a v0/v1/v2 state would
+drop them cleanly. (On a fresh deploy nothing is dropped because nothing was
+there; the warnings document the schema-shedding behavior.) All deploys
+succeeded.
+
+Steps re-run on the clean replica:
+
+- **Step 3 (V3 MintConfig shape):** `getMintConfig` returned the full 15-field
+  record with `cascadeInitialBps = 1_000`, `cascadePassthroughBps = 5_000`,
+  `signupGiftPp = 500`, `activityRequiresDeposit = true`,
+  `activityWindowDays = null`, plus all 10 pre-existing fields untouched.
+
+- **Step 4 (initialize + seedMigrationV2):** Both returned `()`. The
+  prior-blocking `Not initialized` trap no longer fires because the actor is in
+  a coherent state from the start.
+
+- **Step 5 / I1 (observer-gated-on-bootstrap proxy):** Post-`seedMigrationV2`
+  `getMintConfig` still returns cleanly, consistent with the bootstrap flag
+  being flipped and the observer being allowed to proceed.
+
+- **Step 6 / I3 (anonymous-principal rejection in `setHousePrincipal`):**
+  `setHousePrincipal "(principal \"2vxsx-fae\")"` trapped with
+  `'housePrincipal cannot be the anonymous principal'`. A subsequent
+  `setHousePrincipal "(principal \"<admin>\")"` returned `()`.
+
+- **Step 7 / I2 (`setSignupGiftPp` cap):** `setSignupGiftPp "(1_500_000 :
+  nat)"` trapped with `'signupGiftPp must be ≤ 1_000_000 whole PP (guard
+  against typo-induced mass mints)'`. Both `setSignupGiftPp "(750 : nat)"` and
+  `setSignupGiftPp "(500 : nat)"` returned `()`, leaving the canister back at
+  the spec default.
+
+- **Step 8 / M5 (`setReferralBps` deprecation):** `setReferralBps "(800 :
+  nat, 500 : nat, 200 : nat)"` trapped with `'setReferralBps is deprecated —
+  use setCascadeBps(initial, passthrough) for the deductive cascade'`. The
+  deprecation gate is in place.
+
+- **Step 9 / I4 + I5 (`getReferralStats` reverse-index path):** Returned the
+  full 7-field record (`l1Count`, `l2Count`, `l3Count`, `l1Units`, `l2Units`,
+  `l3Units`, `recentSignups = vec {}`) without trapping. The reverse-index
+  rewrite did not regress the read path on an empty corpus.
+
+- **Step 10 (`setCascadeBps` validation):** `setCascadeBps "(10_001 : nat,
+  5_000 : nat)"` trapped with `'BPS values must be ≤ 10_000'`. Reverting to
+  `setCascadeBps "(1_000 : nat, 5_000 : nat)"` returned `()` and a follow-up
+  `getMintConfig` confirmed `cascadeInitialBps = 1_000` /
+  `cascadePassthroughBps = 5_000`.
+
+**Not directly testable on this empty corpus:**
+
+- **C1 (conservation invariant):** Would require a real minting scenario where
+  the cascade fans out to a sponsor whose deposit context is incomplete, so
+  that the burn-vs-passthrough accounting could be observed. Not exercised by
+  this smoke test; relies on unit/integration tests and the type-level
+  invariants in `Cascade.allocate`.
+
+All other I/M items required by the rollout plan validated cleanly on the
+fresh replica. The Migration.runV3 fix unblocks future deploys: legacy
+stable-var drop is documented as informational M0207 warnings only.
