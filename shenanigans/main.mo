@@ -222,6 +222,24 @@ persistent actor Self {
     // (we don't backfill from historic ledger memos).
     var referralEarnings = principalMap.empty<ReferralEarnings>();
 
+    // ────────────────────────────────────────────────────────────────
+    // Deductive-cascade state (added 2026-05-16)
+    // ────────────────────────────────────────────────────────────────
+
+    // Catch-all upline + residual destination ("Charles"). Initialized
+    // to the deploying admin on first init via seedMigrationV2 when null;
+    // admin can override via setHousePrincipal.
+    var housePrincipal : ?Principal = null;
+
+    // Per-principal signup-gift claim time. Empty = never claimed.
+    // Doubles as the "join time" surfaced via getReferralStats.recentSignups.
+    var signupGiftClaimed = principalMap.empty<Int>();
+
+    // Per-principal time of last qualifying deposit (≥ 0.1 ICP). Drives
+    // isActive() without per-cascade inter-canister calls. Populated by
+    // the observer on every qualifying mint event.
+    var lastQualifyingDeposit = principalMap.empty<Int>();
+
     // Bidirectional map of short referral codes ↔ principals. Codes are
     // assigned lazily on first call to getOrCreateReferralCode and never
     // change. URLs ship as `?ref=<code>` instead of the 53-char principal.
