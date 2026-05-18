@@ -28,7 +28,11 @@ export interface ChatItem {
   'reactions' : Array<Reaction>,
 }
 export type ChatItemKind = {
-    'roundResult' : { 'pot' : bigint, 'gameId' : bigint, 'winner' : Principal }
+    'roundResult' : {
+      'winnerPpUnits' : bigint,
+      'gameId' : bigint,
+      'winner' : Principal,
+    }
   } |
   { 'pinUpdate' : { 'body' : string } } |
   { 'userMessage' : { 'body' : string, 'replyTo' : [] | [bigint] } } |
@@ -329,7 +333,11 @@ export interface _SERVICE {
    * / subsequent calls for the same caller are no-ops. Self-referral rejected.
    */
   'registerReferral' : ActorMethod<[Principal], undefined>,
-  'removeReaction' : ActorMethod<[bigint, string], undefined>,
+  'removeReaction' : ActorMethod<
+    [bigint, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'requestCashOut' : ActorMethod<
     [bigint],
     { 'Ok' : bigint } |

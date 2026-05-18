@@ -183,8 +183,8 @@ type ChatItemKind =
              };
    roundResult: record {
                   gameId: nat;
-                  pot: nat;
                   winner: principal;
+                  winnerPpUnits: nat;
                 };
    signup: record {newUser: principal;};
    spellCast: record {castId: nat;};
@@ -350,7 +350,10 @@ service : {
   /// Idempotent referral registration. First call sets the chain entry;
   /// subsequent calls for the same caller are no-ops. Self-referral rejected.
   registerReferral: (referrer: principal) -> ();
-  removeReaction: (itemId: nat, emoji: text) -> ();
+  removeReaction: (itemId: nat, emoji: text) -> (variant {
+                                                   Err: text;
+                                                   Ok;
+                                                 });
   requestCashOut: (amountUnits: nat) -> (variant {
                                            Err: text;
                                            Ok: nat;

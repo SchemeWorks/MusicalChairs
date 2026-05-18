@@ -58,7 +58,7 @@ export const idlFactory = ({ IDL }) => {
   });
   const ChatItemKind = IDL.Variant({
     'roundResult' : IDL.Record({
-      'pot' : IDL.Nat,
+      'winnerPpUnits' : IDL.Nat,
       'gameId' : IDL.Nat,
       'winner' : IDL.Principal,
     }),
@@ -334,7 +334,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'primeObserverCursors' : IDL.Func([], [], []),
     'registerReferral' : IDL.Func([IDL.Principal], [], []),
-    'removeReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
+    'removeReaction' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'requestCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],

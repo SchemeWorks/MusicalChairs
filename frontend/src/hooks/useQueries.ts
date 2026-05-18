@@ -1786,7 +1786,8 @@ export function useRemoveReaction() {
   return useMutation({
     mutationFn: async ({ itemId, emoji }: { itemId: bigint; emoji: string }) => {
       if (!actor) throw new Error('No shenanigans actor');
-      await actor.removeReaction(itemId, emoji);
+      const result = await actor.removeReaction(itemId, emoji);
+      if ('Err' in result) throw new Error(result.Err);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
