@@ -2282,9 +2282,9 @@ persistent actor Self {
         if (updated) { #Ok } else { #Err("No such item") };
     };
 
-    public shared ({ caller }) func removeReaction(itemId : Nat, emoji : Text) : async () {
-        if (Principal.isAnonymous(caller)) { return };
-        let _ = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
+    public shared ({ caller }) func removeReaction(itemId : Nat, emoji : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
             let buf = Buffer.Buffer<Reaction>(item.reactions.size());
             for (r in item.reactions.vals()) {
                 if (r.emoji == emoji) {
@@ -2301,6 +2301,7 @@ persistent actor Self {
             };
             { item with reactions = Buffer.toArray(buf) };
         });
+        if (updated) { #Ok } else { #Err("No such item") };
     };
 
     public shared ({ caller }) func addKarmaReaction(itemId : Nat, emoji : Text, ppToBurn : Nat) : async { #Ok; #Err : Text } {
