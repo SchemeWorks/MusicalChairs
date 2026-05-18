@@ -1468,7 +1468,8 @@ persistent actor class PonziMath(initArgs : {
         { totalInflows = inflows; totalOutflows = outflows; netFlow = inflows - outflows; entryCount = count };
     };
 
-    public shared func getCanisterICPBalance() : async Nat {
+    public shared ({ caller }) func getCanisterICPBalance() : async Nat {
+        requireAdmin(caller);
         let selfPrincipal = Principal.fromActor(Self);
         try {
             await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
