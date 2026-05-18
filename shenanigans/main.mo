@@ -2114,6 +2114,35 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Trollbox public reads
+    // ================================================================
+
+    /// Returns the most-recent chat items newest-first. Capped server-side
+    /// at 100 per call regardless of the caller's requested limit.
+    public query func getRecentChatItems(limit : Nat) : async [ChatItem] {
+        let cap : Nat = if (limit > 100) { 100 } else { limit };
+        let total = chatItems.size();
+        let n : Nat = if (cap > total) { total } else { cap };
+        Array.tabulate<ChatItem>(n, func(i) { chatItems[total - 1 - i] });
+    };
+
+    public query func getCurrentPin() : async ?ChatItem {
+        switch (currentPinId) {
+            case (null) { null };
+            case (?pid) {
+                switch (findChatItemIndex(pid)) {
+                    case (null) { null };
+                    case (?idx) { ?chatItems[idx] };
+                };
+            };
+        };
+    };
+
+    public query func isMuted(user : Principal) : async ?Int {
+        mutedUntilFor(user);
+    };
+
+    // ================================================================
     // Query Functions
     // ================================================================
 
