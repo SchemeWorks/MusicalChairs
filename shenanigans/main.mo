@@ -2282,6 +2282,43 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Trollbox admin
+    // ================================================================
+
+    public shared ({ caller }) func adminSetPin(body : Text) : async Nat {
+        requireAdmin(caller);
+        let cleaned = stripControlChars(body);
+        let id = appendChatItem(caller, #pinUpdate({ body = cleaned }));
+        currentPinId := if (textLength(cleaned) == 0) { null } else { ?id };
+        id;
+    };
+
+    public shared ({ caller }) func adminDeleteChatItem(itemId : Nat) : async () {
+        requireAdmin(caller);
+        let _ = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
+            { item with deleted = true };
+        });
+    };
+
+    public shared ({ caller }) func adminMuteUser(user : Principal, durationSeconds : Nat) : async () {
+        requireAdmin(caller);
+        let now = Time.now();
+        let durNs : Int = durationSeconds * 1_000_000_000;
+        setMutedUntil(user, now + durNs);
+    };
+
+    public shared ({ caller }) func adminUnmute(user : Principal) : async () {
+        requireAdmin(caller);
+        clearMute(user);
+    };
+
+    public shared ({ caller }) func adminPostAsReginald(line : Text) : async Nat {
+        requireAdmin(caller);
+        let cleaned = stripControlChars(line);
+        appendChatItem(caller, #reginald({ line = cleaned; triggerKind = "manual" }));
+    };
+
+    // ================================================================
     // Query Functions
     // ================================================================
 
