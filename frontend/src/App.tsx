@@ -461,7 +461,15 @@ export default function App() {
 
                 {/* Docs — always visible, visually distinct */}
                 <button
-                  onClick={() => { window.location.hash = '#docs'; setShowDocsPage(true); }}
+                  onClick={() => {
+                    if (showDocsPage) {
+                      history.replaceState(null, '', window.location.pathname);
+                      setShowDocsPage(false);
+                    } else {
+                      window.location.hash = '#docs';
+                      setShowDocsPage(true);
+                    }
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
                 >
                   <BookOpen className="h-4 w-4" />
