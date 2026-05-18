@@ -542,7 +542,15 @@ persistent actor class PonziMath(initArgs : {
 
         let pool = if (withoutBacker.size() > 0) { withoutBacker } else { allLosers };
 
-        let entropy = await ic.raw_rand();
+        let entropy = try {
+            await ic.raw_rand();
+        } catch (_) {
+            // raw_rand failure: skip promotion this round. The caller
+            // (promoteAndReset) still fires triggerGameReset on the null
+            // return, so the round closes cleanly and only the Series B
+            // grant is lost.
+            return null;
+        };
         let bytes = Blob.toArray(entropy);
         var seed : Nat = 0;
         var i = 0;
@@ -1872,6 +1880,22 @@ persistent actor class PonziMath(initArgs : {
                 case (#Err(err)) { #Err(transferErrorMessage(err)) };
                 case (#Ok(blockIndex)) { #Ok(blockIndex) };
             };
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    // adminForceReset — manually close the current round. Acquires the global
+    // lock and runs triggerGameReset. Use for stuck-state recovery if a prior
+    // pot-empty path trapped after a successful payout but before the round
+    // closed (e.g., raw_rand failure inside promoteAndReset before Task 4 was
+    // applied, or any future analogous edge case).
+    public shared ({ caller }) func adminForceReset(reason : Text) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        acquireGlobalLock();
+        try {
+            triggerGameReset("admin force-reset: " # reason);
+            #Ok;
         } finally {
             releaseGlobalLock();
         };
