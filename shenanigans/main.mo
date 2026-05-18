@@ -220,6 +220,20 @@ persistent actor Self {
         deleted : Bool;
     };
 
+    public type ChimeSound = {
+        name : Text;
+        bytes : Blob;
+        mimeType : Text;
+        uploadedAt : Int;
+    };
+
+    public type ChimeSoundMeta = {
+        name : Text;
+        mimeType : Text;
+        sizeBytes : Nat;
+        uploadedAt : Int;
+    };
+
     // ================================================================
     // ponzi_math canister interface (query-only; observer polls)
     // ================================================================
@@ -300,6 +314,10 @@ persistent actor Self {
     /// Used by the postChatMessage rate limit.
     var lastChatPostEntries = principalMap.empty<Int>();
     var recentPostCountEntries = principalMap.empty<[Int]>(); // ns timestamps in window
+
+    /// Admin-uploaded @-mention chime pool. Bounded by per-file 200KB cap and
+    /// the chimeSoundCount upper bound below. Keyed by name (case-sensitive).
+    var chimeSoundPool : [ChimeSound] = [];
 
     // Admin state
     var adminPrincipal : ?Principal = null;
@@ -1943,6 +1961,9 @@ persistent actor Self {
     let CHAT_RATE_WINDOW_MAX : Nat = 15;                   // 15 posts / window
     let KARMA_MIN_PP : Nat = 10;
     let KARMA_REGINALD_THRESHOLD_PP : Nat = 100;
+    let CHIME_SOUND_MAX_BYTES : Nat = 200_000;       // 200 KB per file
+    let CHIME_SOUND_MAX_COUNT : Nat = 20;            // up to 20 sounds in the pool
+    let CHIME_SOUND_NAME_MAX_LEN : Nat = 64;
 
     let FREE_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏"];
     let KARMA_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏", "💰", "🚀"];
@@ -2322,6 +2343,20 @@ persistent actor Self {
         #Ok;
     };
 
+    public query func listChimeSounds() : async [ChimeSoundMeta] {
+        Array.tabulate<ChimeSoundMeta>(chimeSoundPool.size(), func(i) {
+            let s = chimeSoundPool[i];
+            { name = s.name; mimeType = s.mimeType; sizeBytes = s.bytes.size(); uploadedAt = s.uploadedAt };
+        });
+    };
+
+    public query func getChimeSound(name : Text) : async ?ChimeSound {
+        for (s in chimeSoundPool.vals()) {
+            if (s.name == name) { return ?s };
+        };
+        null;
+    };
+
     // ================================================================
     // Trollbox admin
     // ================================================================
@@ -2339,6 +2374,49 @@ persistent actor Self {
         let _ = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
             { item with deleted = true };
         });
+    };
+
+    public shared ({ caller }) func adminUploadChimeSound(name : Text, mimeType : Text, bytes : Blob) : async { #Ok; #Err : Text } {
+        requireAdmin(caller);
+        if (name.size() == 0 or name.size() > CHIME_SOUND_NAME_MAX_LEN) {
+            return #Err("Name must be 1-" # Nat.toText(CHIME_SOUND_NAME_MAX_LEN) # " characters");
+        };
+        if (not Text.startsWith(mimeType, #text "audio/")) {
+            return #Err("mimeType must begin with audio/");
+        };
+        if (bytes.size() == 0) { return #Err("Empty file") };
+        if (bytes.size() > CHIME_SOUND_MAX_BYTES) {
+            return #Err("File exceeds " # Nat.toText(CHIME_SOUND_MAX_BYTES) # " bytes");
+        };
+
+        // Upsert by name. If full and not replacing, reject.
+        let buf = Buffer.Buffer<ChimeSound>(chimeSoundPool.size() + 1);
+        var replaced = false;
+        for (s in chimeSoundPool.vals()) {
+            if (s.name == name) {
+                buf.add({ name; bytes; mimeType; uploadedAt = Time.now() });
+                replaced := true;
+            } else {
+                buf.add(s);
+            };
+        };
+        if (not replaced) {
+            if (chimeSoundPool.size() >= CHIME_SOUND_MAX_COUNT) {
+                return #Err("Pool is full (max " # Nat.toText(CHIME_SOUND_MAX_COUNT) # " sounds)");
+            };
+            buf.add({ name; bytes; mimeType; uploadedAt = Time.now() });
+        };
+        chimeSoundPool := Buffer.toArray(buf);
+        #Ok;
+    };
+
+    public shared ({ caller }) func adminDeleteChimeSound(name : Text) : async () {
+        requireAdmin(caller);
+        let buf = Buffer.Buffer<ChimeSound>(chimeSoundPool.size());
+        for (s in chimeSoundPool.vals()) {
+            if (s.name != name) { buf.add(s) };
+        };
+        chimeSoundPool := Buffer.toArray(buf);
     };
 
     public shared ({ caller }) func adminMuteUser(user : Principal, durationSeconds : Nat) : async () {
