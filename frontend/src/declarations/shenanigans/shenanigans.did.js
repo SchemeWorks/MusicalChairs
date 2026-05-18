@@ -56,9 +56,39 @@ export const idlFactory = ({ IDL }) => {
     'claimableAfter' : IDL.Int,
     'amount' : IDL.Nat,
   });
+  const ChatItemKind = IDL.Variant({
+    'roundResult' : IDL.Record({
+      'pot' : IDL.Nat,
+      'gameId' : IDL.Nat,
+      'winner' : IDL.Principal,
+    }),
+    'pinUpdate' : IDL.Record({ 'body' : IDL.Text }),
+    'userMessage' : IDL.Record({
+      'body' : IDL.Text,
+      'replyTo' : IDL.Opt(IDL.Nat),
+    }),
+    'signup' : IDL.Record({ 'newUser' : IDL.Principal }),
+    'rankUp' : IDL.Record({ 'user' : IDL.Principal, 'newRank' : IDL.Text }),
+    'spellCast' : IDL.Record({ 'castId' : IDL.Nat }),
+    'reginald' : IDL.Record({ 'line' : IDL.Text, 'triggerKind' : IDL.Text }),
+  });
+  const Reaction = IDL.Record({
+    'karmaPpBurned' : IDL.Nat,
+    'emoji' : IDL.Text,
+    'reactors' : IDL.Vec(IDL.Principal),
+  });
+  const ChatItem = IDL.Record({
+    'id' : IDL.Nat,
+    'deleted' : IDL.Bool,
+    'kind' : ChatItemKind,
+    'author' : IDL.Principal,
+    'timestamp' : IDL.Int,
+    'reactions' : IDL.Vec(Reaction),
+  });
   const MintConfig = IDL.Record({
     'compounding15DayPpPerIcp' : IDL.Nat,
     'minDepositPp' : IDL.Nat,
+    'cascadeInitialBps' : IDL.Nat,
     'compounding30DayPpPerIcp' : IDL.Nat,
     'referralL1Bps' : IDL.Nat,
     'referralL2Bps' : IDL.Nat,
@@ -66,7 +96,11 @@ export const idlFactory = ({ IDL }) => {
     'observerIntervalSeconds' : IDL.Nat,
     'backerPpPerIcp' : IDL.Nat,
     'cashOutDelaySeconds' : IDL.Nat,
+    'activityWindowDays' : IDL.Opt(IDL.Nat),
+    'activityRequiresDeposit' : IDL.Bool,
+    'signupGiftPp' : IDL.Nat,
     'simple21DayPpPerIcp' : IDL.Nat,
+    'cascadePassthroughBps' : IDL.Nat,
   });
   const ShenaniganRecord = IDL.Record({
     'id' : IDL.Nat,
@@ -85,11 +119,11 @@ export const idlFactory = ({ IDL }) => {
   const ReferralStats = IDL.Record({
     'l1Count' : IDL.Nat,
     'l3Units' : IDL.Nat,
+    'recentSignups' : IDL.Vec(SignupEntry),
     'l1Units' : IDL.Nat,
     'l2Count' : IDL.Nat,
     'l2Units' : IDL.Nat,
     'l3Count' : IDL.Nat,
-    'recentSignups' : IDL.Vec(SignupEntry),
   });
   const ShenaniganConfig = IDL.Record({
     'id' : IDL.Nat,
@@ -113,12 +147,72 @@ export const idlFactory = ({ IDL }) => {
     'totalSpent' : IDL.Float64,
     'badOutcomes' : IDL.Nat,
   });
+  const StandardRecord = IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text });
+  const ConsentMessageMetadata = IDL.Record({
+    'utc_offset_minutes' : IDL.Opt(IDL.Int16),
+    'language' : IDL.Text,
+  });
+  const DeviceSpec = IDL.Variant({
+    'GenericDisplay' : IDL.Null,
+    'LineDisplay' : IDL.Record({
+      'characters_per_line' : IDL.Nat16,
+      'lines_per_page' : IDL.Nat16,
+    }),
+  });
+  const ConsentMessageSpec = IDL.Record({
+    'metadata' : ConsentMessageMetadata,
+    'device_spec' : IDL.Opt(DeviceSpec),
+  });
+  const ConsentMessageRequest = IDL.Record({
+    'arg' : IDL.Vec(IDL.Nat8),
+    'method' : IDL.Text,
+    'user_preferences' : ConsentMessageSpec,
+  });
+  const LineDisplayPage = IDL.Record({ 'lines' : IDL.Vec(IDL.Text) });
+  const ConsentMessage = IDL.Variant({
+    'LineDisplayMessage' : IDL.Record({ 'pages' : IDL.Vec(LineDisplayPage) }),
+    'GenericDisplayMessage' : IDL.Text,
+  });
+  const ConsentInfo = IDL.Record({
+    'metadata' : ConsentMessageMetadata,
+    'consent_message' : ConsentMessage,
+  });
+  const Icrc21Error = IDL.Variant({
+    'GenericError' : IDL.Record({
+      'description' : IDL.Text,
+      'error_code' : IDL.Nat,
+    }),
+    'UnsupportedCanisterCall' : IDL.Record({ 'description' : IDL.Text }),
+    'ConsentMessageUnavailable' : IDL.Record({ 'description' : IDL.Text }),
+  });
+  const ConsentMessageResponse = IDL.Variant({
+    'Ok' : ConsentInfo,
+    'Err' : Icrc21Error,
+  });
+  const TrustedOriginsResponse = IDL.Record({
+    'trusted_origins' : IDL.Vec(IDL.Text),
+  });
   return IDL.Service({
+    'addKarmaReaction' : IDL.Func(
+        [IDL.Nat, IDL.Text, IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'addReaction' : IDL.Func(
+        [IDL.Nat, IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminDeleteChatItem' : IDL.Func([IDL.Nat], [], []),
     'adminMint' : IDL.Func(
         [IDL.Principal, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'adminMuteUser' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
+    'adminPostAsReginald' : IDL.Func([IDL.Text], [IDL.Nat], []),
+    'adminSetPin' : IDL.Func([IDL.Text], [IDL.Nat], []),
+    'adminUnmute' : IDL.Func([IDL.Principal], [], []),
     'cancelCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -134,6 +228,8 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'clearMissedBackerMint' : IDL.Func([IDL.Principal], [], []),
+    'clearMissedGameMint' : IDL.Func([IDL.Nat], [], []),
     'depositChips' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
@@ -149,6 +245,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(CashOutEntry)],
         ['query'],
       ),
+    'getCurrentPin' : IDL.Func([], [IDL.Opt(ChatItem)], ['query']),
     'getCustomDisplayName' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Text)],
@@ -157,12 +254,24 @@ export const idlFactory = ({ IDL }) => {
     'getGoldenPlayers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getKnownPpHolders' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
+    'getMissedBackerMints' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
+        ['query'],
+      ),
+    'getMissedGameMints' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Text))],
+        ['query'],
+      ),
     'getMyCashOuts' : IDL.Func([], [IDL.Vec(CashOutEntry)], ['query']),
     'getObserverStatus' : IDL.Func(
         [],
         [
           IDL.Record({
+            'missedBackerMintsCount' : IDL.Nat,
             'gameIdCursor' : IDL.Nat,
+            'missedGameMintsCount' : IDL.Nat,
             'intervalSeconds' : IDL.Nat,
             'running' : IDL.Bool,
             'backerSeenCount' : IDL.Nat,
@@ -172,6 +281,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getOrCreateReferralCode' : IDL.Func([], [IDL.Text], []),
     'getPpBurnedFor' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
+    'getRecentChatItems' : IDL.Func([IDL.Nat], [IDL.Vec(ChatItem)], ['query']),
     'getRecentShenanigans' : IDL.Func(
         [],
         [IDL.Vec(ShenaniganRecord)],
@@ -199,9 +309,32 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
         ['query'],
       ),
+    'icrc10_supported_standards' : IDL.Func(
+        [],
+        [IDL.Vec(StandardRecord)],
+        ['query'],
+      ),
+    'icrc21_canister_call_consent_message' : IDL.Func(
+        [ConsentMessageRequest],
+        [ConsentMessageResponse],
+        [],
+      ),
+    'icrc28_trusted_origins' : IDL.Func(
+        [],
+        [TrustedOriginsResponse],
+        ['query'],
+      ),
     'initialize' : IDL.Func([IDL.Principal], [], []),
+    'isBootstrapped' : IDL.Func([], [IDL.Bool], ['query']),
+    'isMuted' : IDL.Func([IDL.Principal], [IDL.Opt(IDL.Int)], ['query']),
+    'postChatMessage' : IDL.Func(
+        [IDL.Text, IDL.Opt(IDL.Nat)],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
     'primeObserverCursors' : IDL.Func([], [], []),
     'registerReferral' : IDL.Func([IDL.Principal], [], []),
+    'removeReaction' : IDL.Func([IDL.Nat, IDL.Text], [], []),
     'requestCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
@@ -217,13 +350,19 @@ export const idlFactory = ({ IDL }) => {
     'rotateAdmin' : IDL.Func([IDL.Principal], [], []),
     'runObserverOnce' : IDL.Func([], [], []),
     'saveAllShenaniganConfigs' : IDL.Func([IDL.Vec(ShenaniganConfig)], [], []),
+    'seedMigrationV2' : IDL.Func([], [], []),
+    'setActivityRequiresDeposit' : IDL.Func([IDL.Bool], [], []),
+    'setActivityWindowDays' : IDL.Func([IDL.Opt(IDL.Nat)], [], []),
     'setBackerPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setCascadeBps' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
     'setCashOutDelaySeconds' : IDL.Func([IDL.Nat], [], []),
     'setCompounding15DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setObserverIntervalSeconds' : IDL.Func([IDL.Nat], [], []),
     'setReferralBps' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
+    'setSignupGiftPp' : IDL.Func([IDL.Nat], [], []),
     'setSimple21DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'stopObserver' : IDL.Func([], [], []),
     'updateShenaniganConfig' : IDL.Func([ShenaniganConfig], [], []),

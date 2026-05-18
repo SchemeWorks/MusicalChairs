@@ -19,10 +19,64 @@ export interface CashOutEntry {
   'claimableAfter' : bigint,
   'amount' : bigint,
 }
+export interface ChatItem {
+  'id' : bigint,
+  'deleted' : boolean,
+  'kind' : ChatItemKind,
+  'author' : Principal,
+  'timestamp' : bigint,
+  'reactions' : Array<Reaction>,
+}
+export type ChatItemKind = {
+    'roundResult' : { 'pot' : bigint, 'gameId' : bigint, 'winner' : Principal }
+  } |
+  { 'pinUpdate' : { 'body' : string } } |
+  { 'userMessage' : { 'body' : string, 'replyTo' : [] | [bigint] } } |
+  { 'signup' : { 'newUser' : Principal } } |
+  { 'rankUp' : { 'user' : Principal, 'newRank' : string } } |
+  { 'spellCast' : { 'castId' : bigint } } |
+  { 'reginald' : { 'line' : string, 'triggerKind' : string } };
+export interface ConsentInfo {
+  'metadata' : ConsentMessageMetadata,
+  'consent_message' : ConsentMessage,
+}
+export type ConsentMessage = {
+    'LineDisplayMessage' : { 'pages' : Array<LineDisplayPage> }
+  } |
+  { 'GenericDisplayMessage' : string };
+export interface ConsentMessageMetadata {
+  'utc_offset_minutes' : [] | [number],
+  'language' : string,
+}
+export interface ConsentMessageRequest {
+  'arg' : Uint8Array | number[],
+  'method' : string,
+  'user_preferences' : ConsentMessageSpec,
+}
+export type ConsentMessageResponse = { 'Ok' : ConsentInfo } |
+  { 'Err' : Icrc21Error };
+export interface ConsentMessageSpec {
+  'metadata' : ConsentMessageMetadata,
+  'device_spec' : [] | [DeviceSpec],
+}
+export type DeviceSpec = { 'GenericDisplay' : null } |
+  {
+    'LineDisplay' : {
+      'characters_per_line' : number,
+      'lines_per_page' : number,
+    }
+  };
 export interface DisplayNameOverride { 'expiresAt' : bigint, 'name' : string }
+export type Icrc21Error = {
+    'GenericError' : { 'description' : string, 'error_code' : bigint }
+  } |
+  { 'UnsupportedCanisterCall' : { 'description' : string } } |
+  { 'ConsentMessageUnavailable' : { 'description' : string } };
+export interface LineDisplayPage { 'lines' : Array<string> }
 export interface MintConfig {
   'compounding15DayPpPerIcp' : bigint,
   'minDepositPp' : bigint,
+  'cascadeInitialBps' : bigint,
   'compounding30DayPpPerIcp' : bigint,
   'referralL1Bps' : bigint,
   'referralL2Bps' : bigint,
@@ -30,7 +84,11 @@ export interface MintConfig {
   'observerIntervalSeconds' : bigint,
   'backerPpPerIcp' : bigint,
   'cashOutDelaySeconds' : bigint,
+  'activityWindowDays' : [] | [bigint],
+  'activityRequiresDeposit' : boolean,
+  'signupGiftPp' : bigint,
   'simple21DayPpPerIcp' : bigint,
+  'cascadePassthroughBps' : bigint,
 }
 export interface MintMultiplier {
   'expiresAt' : bigint,
@@ -43,19 +101,19 @@ export interface MintSiphon {
   'siphoner' : Principal,
   'capUnits' : bigint,
 }
-export interface SignupEntry {
-  'principal' : Principal,
-  'joinedAt' : bigint,
-  'level' : bigint,
+export interface Reaction {
+  'karmaPpBurned' : bigint,
+  'emoji' : string,
+  'reactors' : Array<Principal>,
 }
 export interface ReferralStats {
   'l1Count' : bigint,
   'l3Units' : bigint,
+  'recentSignups' : Array<SignupEntry>,
   'l1Units' : bigint,
   'l2Count' : bigint,
   'l2Units' : bigint,
   'l3Count' : bigint,
-  'recentSignups' : Array<SignupEntry>,
 }
 export interface ShenaniganConfig {
   'id' : bigint,
@@ -106,7 +164,25 @@ export interface ShieldState {
   'expiresAt' : bigint,
   'chargesRemaining' : bigint,
 }
+export interface SignupEntry {
+  'principal' : Principal,
+  'joinedAt' : bigint,
+  'level' : bigint,
+}
+export interface StandardRecord { 'url' : string, 'name' : string }
+export interface TrustedOriginsResponse { 'trusted_origins' : Array<string> }
 export interface _SERVICE {
+  'addKarmaReaction' : ActorMethod<
+    [bigint, string, bigint],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'addReaction' : ActorMethod<
+    [bigint, string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'adminDeleteChatItem' : ActorMethod<[bigint], undefined>,
   /**
    * / Admin-triggered manual PP issuance (direct mint to the player's chip
    * / subaccount). Use for fixups, comps, or seeding test accounts.
@@ -116,6 +192,10 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'adminMuteUser' : ActorMethod<[Principal, bigint], undefined>,
+  'adminPostAsReginald' : ActorMethod<[string], bigint>,
+  'adminSetPin' : ActorMethod<[string], bigint>,
+  'adminUnmute' : ActorMethod<[Principal], undefined>,
   'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
@@ -126,6 +206,12 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'clearMissedBackerMint' : ActorMethod<[Principal], undefined>,
+  /**
+   * / Dismiss a missed game-mint entry. Use after manually compensating
+   * / the player via adminMint, so the missed-mints list stays clean.
+   */
+  'clearMissedGameMint' : ActorMethod<[bigint], undefined>,
   /**
    * / Pull `amountUnits` PP-units from the caller's wallet into their
    * / chip subaccount. Caller must have signed icrc2_approve on pp_ledger
@@ -146,6 +232,7 @@ export interface _SERVICE {
    * / Pending and recently claimed cash-outs for a given user.
    */
   'getCashOutsFor' : ActorMethod<[Principal], Array<CashOutEntry>>,
+  'getCurrentPin' : ActorMethod<[], [] | [ChatItem]>,
   /**
    * / Active rename-spell name for `user`, if any. Expired entries return null.
    */
@@ -161,6 +248,15 @@ export interface _SERVICE {
    */
   'getKnownPpHolders' : ActorMethod<[], Array<Principal>>,
   'getMintConfig' : ActorMethod<[], MintConfig>,
+  /**
+   * / Backer principals whose delta mint was permanently skipped.
+   */
+  'getMissedBackerMints' : ActorMethod<[], Array<[Principal, string]>>,
+  /**
+   * / Games the observer permanently gave up on after MAX_MINT_RETRIES failures.
+   * / Admin can fixup via adminMint and then clearMissedGameMint to dismiss.
+   */
+  'getMissedGameMints' : ActorMethod<[], Array<[bigint, string]>>,
   'getMyCashOuts' : ActorMethod<[], Array<CashOutEntry>>,
   /**
    * / Current observer state — running/paused, cursor positions, and interval.
@@ -169,7 +265,9 @@ export interface _SERVICE {
   'getObserverStatus' : ActorMethod<
     [],
     {
+      'missedBackerMintsCount' : bigint,
       'gameIdCursor' : bigint,
+      'missedGameMintsCount' : bigint,
       'intervalSeconds' : bigint,
       'running' : boolean,
       'backerSeenCount' : bigint,
@@ -182,12 +280,12 @@ export interface _SERVICE {
    */
   'getOrCreateReferralCode' : ActorMethod<[], string>,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
-  'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
   /**
-   * / Per-tier downline counts and cumulative PP earnings for `user`.
-   * / Counts are computed by a single pass over the referral chain map;
-   * / earnings come from the local accumulator.
+   * / Returns the most-recent chat items newest-first. Capped server-side
+   * / at 100 per call regardless of the caller's requested limit.
    */
+  'getRecentChatItems' : ActorMethod<[bigint], Array<ChatItem>>,
+  'getRecentShenanigans' : ActorMethod<[], Array<ShenaniganRecord>>,
   'getReferralStats' : ActorMethod<[Principal], ReferralStats>,
   /**
    * / One-hop lookup — returns the user's immediate referrer (L1) or null.
@@ -203,7 +301,24 @@ export interface _SERVICE {
    * / Top-N players by number of spells cast (success + backfire).
    */
   'getTopSpellCasters' : ActorMethod<[bigint], Array<[Principal, bigint]>>,
+  'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
+  'icrc21_canister_call_consent_message' : ActorMethod<
+    [ConsentMessageRequest],
+    ConsentMessageResponse
+  >,
+  'icrc28_trusted_origins' : ActorMethod<[], TrustedOriginsResponse>,
   'initialize' : ActorMethod<[Principal], undefined>,
+  /**
+   * / Inspect the bootstrap gate. Useful during deploy to confirm that
+   * / seedMigrationV2 has flipped the flag before player traffic resumes.
+   */
+  'isBootstrapped' : ActorMethod<[], boolean>,
+  'isMuted' : ActorMethod<[Principal], [] | [bigint]>,
+  'postChatMessage' : ActorMethod<
+    [string, [] | [bigint]],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
   /**
    * / One-shot catch-up primer. Admin only. Call immediately after the
    * / cutover upgrade completes, before unpausing user traffic.
@@ -214,6 +329,7 @@ export interface _SERVICE {
    * / subsequent calls for the same caller are no-ops. Self-referral rejected.
    */
   'registerReferral' : ActorMethod<[Principal], undefined>,
+  'removeReaction' : ActorMethod<[bigint, string], undefined>,
   'requestCashOut' : ActorMethod<
     [bigint],
     { 'Ok' : bigint } |
@@ -236,13 +352,36 @@ export interface _SERVICE {
     [Array<ShenaniganConfig>],
     undefined
   >,
+  /**
+   * / One-shot post-upgrade seeding for the deductive-cascade rollout.
+   * /
+   * / 1. housePrincipal := ?caller if null
+   * / 2. For every player with an existing game record: signupGiftClaimed
+   * /    [player] := earliest game timestamp (prevents retroactive gifts).
+   * / 3. For every player with ≥0.1 ICP cumulative deposit (game or backer):
+   * /    lastQualifyingDeposit[player] := Time.now() (conservative: all
+   * /    existing depositors are treated as just-qualified).
+   * / 4. Backfill referrerToDownline from referralChain.
+   * /
+   * / Idempotent: re-running produces the same end state. Admin-only.
+   */
+  'seedMigrationV2' : ActorMethod<[], undefined>,
+  'setActivityRequiresDeposit' : ActorMethod<[boolean], undefined>,
+  'setActivityWindowDays' : ActorMethod<[[] | [bigint]], undefined>,
   'setBackerPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setCascadeBps' : ActorMethod<[bigint, bigint], undefined>,
   'setCashOutDelaySeconds' : ActorMethod<[bigint], undefined>,
   'setCompounding15DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setCompounding30DayPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Deprecated. The deductive cascade ignores referralL[1-3]Bps.
+   * / Use setCascadeBps(initial, passthrough) instead.
+   */
   'setReferralBps' : ActorMethod<[bigint, bigint, bigint], undefined>,
+  'setSignupGiftPp' : ActorMethod<[bigint], undefined>,
   'setSimple21DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'stopObserver' : ActorMethod<[], undefined>,
   'updateShenaniganConfig' : ActorMethod<[ShenaniganConfig], undefined>,
