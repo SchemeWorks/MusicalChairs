@@ -1,9 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Actor, HttpAgent, ActorSubclass } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { useWallet } from './useWallet';
 import { idlFactory } from '../declarations/pp_ledger';
 import type { _SERVICE } from '../declarations/pp_ledger';
+import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 
 export const PP_LEDGER_CANISTER_ID = '5xv2o-iiaaa-aaaac-qeclq-cai';
 const HOST = 'https://icp0.io';
@@ -23,22 +24,53 @@ export function useReadPpLedger(): ActorSubclass<_SERVICE> {
 }
 
 export function useAuthPpLedger(): ActorSubclass<_SERVICE> | null {
-  const { identity, walletType, isInitializing } = useWallet();
-  return useMemo(() => {
-    if (isInitializing) return null;
-    if (walletType === 'plug' && (window as any).ic?.plug?.agent) {
-      return Actor.createActor<_SERVICE>(idlFactory, {
-        agent: (window as any).ic.plug.agent,
+  const { identity, walletType, isInitializing, principal } = useWallet();
+  const [actor, setActor] = useState<ActorSubclass<_SERVICE> | null>(null);
+
+  useEffect(() => {
+    if (isInitializing) return;
+
+    let cancelled = false;
+
+    (async () => {
+      if (walletType === 'plug' && (window as any).ic?.plug?.agent) {
+        const next = Actor.createActor<_SERVICE>(idlFactory, {
+          agent: (window as any).ic.plug.agent,
+          canisterId: PP_LEDGER_CANISTER_ID,
+        });
+        if (!cancelled) setActor(next);
+        return;
+      }
+
+      if (walletType === 'oisy' && principal) {
+        const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+        const next = createOisyActor(PP_LEDGER_CANISTER_ID, idlFactory, signerAgent);
+        if (!cancelled) setActor(next);
+        return;
+      }
+
+      if (!identity) {
+        if (!cancelled) setActor(null);
+        return;
+      }
+
+      const agent = new HttpAgent({ host: HOST, identity });
+      const next = Actor.createActor<_SERVICE>(idlFactory, {
+        agent,
         canisterId: PP_LEDGER_CANISTER_ID,
       });
-    }
-    if (!identity) return null;
-    const agent = new HttpAgent({ host: HOST, identity });
-    return Actor.createActor<_SERVICE>(idlFactory, {
-      agent,
-      canisterId: PP_LEDGER_CANISTER_ID,
+      if (!cancelled) setActor(next);
+    })().catch((err) => {
+      console.error('Failed to create pp_ledger auth actor:', err);
+      if (!cancelled) setActor(null);
     });
-  }, [identity, walletType, isInitializing]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [identity, walletType, isInitializing, principal]);
+
+  return actor;
 }
 
 /** Build the 32-byte chip subaccount for a principal (mirrors shenanigans/Subaccount.mo). */

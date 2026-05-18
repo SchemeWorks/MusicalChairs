@@ -11,6 +11,7 @@ import { useCallback, useMemo } from 'react';
 import { Actor, HttpAgent, Identity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { useWallet } from './useWallet';
+import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 
 // ============================================================================
 // Constants
@@ -208,7 +209,7 @@ export function useLedger() {
    * Create a ledger actor with the current identity
    */
   const createLedgerActor = useCallback(async () => {
-    if (!identity || !isConnected) {
+    if (!isConnected) {
       throw new Error('Wallet not connected');
     }
 
@@ -221,6 +222,17 @@ export function useLedger() {
         agent: window.ic.plug.agent as any,
         canisterId: ICP_LEDGER_CANISTER_ID,
       });
+    }
+
+    // For Oisy, use the SignerAgent so update calls get signed.
+    if (walletType === 'oisy') {
+      if (!principal) throw new Error('Oisy connected but no principal');
+      const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+      return createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
+    }
+
+    if (!identity) {
+      throw new Error('Wallet not connected');
     }
 
     const agent = await HttpAgent.create({
@@ -237,7 +249,7 @@ export function useLedger() {
       agent,
       canisterId: ICP_LEDGER_CANISTER_ID,
     });
-  }, [identity, isConnected, walletType]);
+  }, [identity, isConnected, walletType, principal]);
 
   /**
    * Get ICP balance for an account

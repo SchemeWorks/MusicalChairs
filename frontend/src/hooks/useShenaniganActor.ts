@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Actor, HttpAgent, ActorSubclass } from '@dfinity/agent';
+import { Principal } from '@dfinity/principal';
 import { useWallet } from './useWallet';
 import { idlFactory } from '../declarations/shenanigans';
 import type { _SERVICE } from '../declarations/shenanigans';
+import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 
 // Shenanigans canister ID - mainnet deployment
 const SHENANIGANS_CANISTER_ID = 'j56tm-oaaaa-aaaac-qf34q-cai';
@@ -17,7 +19,7 @@ interface UseShenaniganActorResult {
 }
 
 export function useShenaniganActor(): UseShenaniganActorResult {
-  const { identity, isInitializing, walletType } = useWallet();
+  const { identity, isInitializing, walletType, principal } = useWallet();
   const [actor, setActor] = useState<ActorSubclass<_SERVICE> | null>(null);
   const [isFetching, setIsFetching] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -45,7 +47,16 @@ export function useShenaniganActor(): UseShenaniganActorResult {
           return;
         }
 
-        // For II/OISY or anonymous, create standard HTTP agent
+        // For Oisy, create actor via SignerAgent so update calls are signed.
+        // Queries are still anonymous via the SignerAgent's internal HttpAgent.
+        if (walletType === 'oisy' && principal) {
+          const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
+          const newActor = createOisyActor(SHENANIGANS_CANISTER_ID, idlFactory, signerAgent);
+          setActor(newActor);
+          return;
+        }
+
+        // For II or anonymous, create standard HTTP agent
         const agent = new HttpAgent({
           host: HOST,
           identity: identity || undefined,
@@ -75,7 +86,7 @@ export function useShenaniganActor(): UseShenaniganActorResult {
     };
 
     createActor();
-  }, [identity, isInitializing, walletType]);
+  }, [identity, isInitializing, walletType, principal]);
 
   return { actor, isFetching, error };
 }

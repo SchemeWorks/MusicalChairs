@@ -6,6 +6,7 @@ import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
+import { oisySigner } from '../lib/oisySigner';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 
 /* ================================================================
@@ -433,7 +434,14 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                     </div>
 
                     <button
-                      onClick={handleCreateGame}
+                      onClick={() => {
+                        // Oisy popup must be opened from inside the click gesture, before
+                        // React Query schedules the mutation microtask. See ProfileSetup.tsx.
+                        if (walletType === 'oisy') {
+                          oisySigner.openChannel();
+                        }
+                        handleCreateGame();
+                      }}
                       disabled={createGameMutation.isPending}
                       className={`w-full py-3 mt-3 text-sm font-bold rounded-xl transition-all mc-btn-primary inline-flex items-center justify-center gap-2 ${
                         hasValidAmount ? 'pulse' : ''

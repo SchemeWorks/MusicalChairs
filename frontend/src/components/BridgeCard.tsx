@@ -9,6 +9,8 @@ import {
   useGetMintConfig,
 } from '../hooks/useQueries';
 import { wholePpToUnits } from '../hooks/usePpLedger';
+import { useWallet } from '../hooks/useWallet';
+import { oisySigner } from '../lib/oisySigner';
 
 type Direction = 'deposit' | 'redeem';
 
@@ -19,6 +21,7 @@ export default function BridgeCard() {
   const approve = useApproveForDeposits();
   const deposit = useDepositChips();
   const request = useRequestCashOut();
+  const { walletType } = useWallet();
 
   const wallet = pp?.walletPoints ?? 0;
   const position = pp?.chipPoints ?? 0;
@@ -127,7 +130,14 @@ export default function BridgeCard() {
           <button
             className="mc-btn mc-btn-primary mt-3"
             disabled={deposit.isPending || approve.isPending || !mintConfig || amount < MIN_DEPOSIT || amount > wallet}
-            onClick={runDeposit}
+            onClick={() => {
+              // Oisy popup must be opened from inside the click gesture, before
+              // React Query schedules the mutation microtask. See ProfileSetup.tsx.
+              if (walletType === 'oisy') {
+                oisySigner.openChannel();
+              }
+              runDeposit();
+            }}
           >
             {hasAllowance ? 'Deposit' : 'Approve & deposit'}
           </button>
@@ -141,7 +151,12 @@ export default function BridgeCard() {
           <button
             className="mc-btn mc-btn-primary mt-3"
             disabled={request.isPending || amount < 1 || amount > position}
-            onClick={runRedeem}
+            onClick={() => {
+              if (walletType === 'oisy') {
+                oisySigner.openChannel();
+              }
+              runRedeem();
+            }}
           >
             Queue redemption
           </button>

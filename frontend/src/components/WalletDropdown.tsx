@@ -5,6 +5,7 @@ import { useWallet } from '../hooks/useWallet';
 import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
 import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
+import { oisySigner } from '../lib/oisySigner';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
 interface WalletDropdownProps {
@@ -278,7 +279,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                   className="mc-input flex-1 h-8 text-xs px-2"
                 />
                 <button
-                  onClick={handleSend}
+                  onClick={() => {
+                    if (walletType === 'oisy') {
+                      oisySigner.openChannel();
+                    }
+                    handleSend();
+                  }}
                   disabled={sendBusy}
                   className="mc-btn-primary px-3 py-1 text-xs flex items-center gap-1 disabled:opacity-50"
                 >
@@ -309,7 +315,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                 </div>
               </div>
               <button
-                onClick={handlePayManagement}
+                onClick={() => {
+                  if (walletType === 'oisy') {
+                    oisySigner.openChannel();
+                  }
+                  handlePayManagement();
+                }}
                 disabled={
                   payManagementMutation.isPending ||
                   !coverChargeData ||
@@ -388,7 +399,12 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
                   className="mc-input flex-1 h-8 text-xs px-2"
                 />
                 <button
-                  onClick={handleSendPp}
+                  onClick={() => {
+                    if (walletType === 'oisy') {
+                      oisySigner.openChannel();
+                    }
+                    handleSendPp();
+                  }}
                   disabled={sendPp.isPending}
                   className="mc-btn-primary px-3 py-1 text-xs flex items-center gap-1 disabled:opacity-50"
                 >

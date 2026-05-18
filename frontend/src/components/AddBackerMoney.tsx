@@ -6,6 +6,8 @@ import BackerMoneyToast from './BackerMoneyToast';
 import { AlertTriangle, TrendingUp } from 'lucide-react';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { UPSTREAM_BACKER_BONUS } from '../lib/gameConstants';
+import { useWallet } from '../hooks/useWallet';
+import { oisySigner } from '../lib/oisySigner';
 
 export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
@@ -15,6 +17,7 @@ export default function AddBackerMoney() {
   const { data: icpBalance } = useICPBalance();
   const { data: mintConfig } = useGetMintConfig();
   const addBackerMoneyMutation = useAddBackerMoney();
+  const { walletType } = useWallet();
 
   const ppPerIcp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
 
@@ -110,7 +113,14 @@ export default function AddBackerMoney() {
           </div>
 
           <button
-            onClick={handleDeposit}
+            onClick={() => {
+              // Oisy popup must be opened from inside the click gesture, before
+              // React Query schedules the mutation microtask. See ProfileSetup.tsx.
+              if (walletType === 'oisy') {
+                oisySigner.openChannel();
+              }
+              handleDeposit();
+            }}
             disabled={!amount || !isAmountValid || addBackerMoneyMutation.isPending || !canInteract || !!inputError}
             className="mc-btn-primary w-full py-2 text-sm font-bold"
           >
