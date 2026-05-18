@@ -40,6 +40,18 @@ export type ChatItemKind = {
   { 'rankUp' : { 'user' : Principal, 'newRank' : string } } |
   { 'spellCast' : { 'castId' : bigint } } |
   { 'reginald' : { 'line' : string, 'triggerKind' : string } };
+export interface ChimeSound {
+  'name' : string,
+  'mimeType' : string,
+  'bytes' : Uint8Array | number[],
+  'uploadedAt' : bigint,
+}
+export interface ChimeSoundMeta {
+  'name' : string,
+  'mimeType' : string,
+  'sizeBytes' : bigint,
+  'uploadedAt' : bigint,
+}
 export interface ConsentInfo {
   'metadata' : ConsentMessageMetadata,
   'consent_message' : ConsentMessage,
@@ -187,6 +199,7 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'adminDeleteChatItem' : ActorMethod<[bigint], undefined>,
+  'adminDeleteChimeSound' : ActorMethod<[string], undefined>,
   /**
    * / Admin-triggered manual PP issuance (direct mint to the player's chip
    * / subaccount). Use for fixups, comps, or seeding test accounts.
@@ -198,8 +211,25 @@ export interface _SERVICE {
   >,
   'adminMuteUser' : ActorMethod<[Principal, bigint], undefined>,
   'adminPostAsReginald' : ActorMethod<[string], bigint>,
+  /**
+   * / One-shot deploy-time backfill: populate previousRankEntries with each
+   * / known principal's current rank. Prevents #rankUp spam after the trollbox
+   * / deploys. Idempotent — safe to call multiple times. Admin-only.
+   */
+  'adminSeedRankCache' : ActorMethod<[], bigint>,
+  /**
+   * / One-shot deploy-time backfill: mark every principal who has ever been
+   * / granted a signup gift as already-announced. Prevents #signup spam after
+   * / the trollbox deploys. Idempotent. Admin-only.
+   */
+  'adminSeedSignupAnnounced' : ActorMethod<[], bigint>,
   'adminSetPin' : ActorMethod<[string], bigint>,
   'adminUnmute' : ActorMethod<[Principal], undefined>,
+  'adminUploadChimeSound' : ActorMethod<
+    [string, string, Uint8Array | number[]],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
@@ -236,6 +266,7 @@ export interface _SERVICE {
    * / Pending and recently claimed cash-outs for a given user.
    */
   'getCashOutsFor' : ActorMethod<[Principal], Array<CashOutEntry>>,
+  'getChimeSound' : ActorMethod<[string], [] | [ChimeSound]>,
   'getCurrentPin' : ActorMethod<[], [] | [ChatItem]>,
   /**
    * / Active rename-spell name for `user`, if any. Expired entries return null.
@@ -318,6 +349,7 @@ export interface _SERVICE {
    */
   'isBootstrapped' : ActorMethod<[], boolean>,
   'isMuted' : ActorMethod<[Principal], [] | [bigint]>,
+  'listChimeSounds' : ActorMethod<[], Array<ChimeSoundMeta>>,
   'postChatMessage' : ActorMethod<
     [string, [] | [bigint]],
     { 'Ok' : bigint } |

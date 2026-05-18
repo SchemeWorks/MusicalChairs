@@ -170,6 +170,20 @@ type ConsentInfo =
    consent_message: ConsentMessage;
    metadata: ConsentMessageMetadata;
  };
+type ChimeSoundMeta = 
+ record {
+   mimeType: text;
+   name: text;
+   sizeBytes: nat;
+   uploadedAt: int;
+ };
+type ChimeSound = 
+ record {
+   bytes: blob;
+   mimeType: text;
+   name: text;
+   uploadedAt: int;
+ };
 type ChatItemKind = 
  variant {
    pinUpdate: record {body: text;};
@@ -236,6 +250,7 @@ service : {
                                                 Ok;
                                               });
   adminDeleteChatItem: (itemId: nat) -> ();
+  adminDeleteChimeSound: (name: text) -> ();
   /// Admin-triggered manual PP issuance (direct mint to the player's chip
   /// subaccount). Use for fixups, comps, or seeding test accounts.
   adminMint: (to: principal, wholePp: nat) -> (variant {
@@ -244,8 +259,21 @@ service : {
                                                });
   adminMuteUser: (user: principal, durationSeconds: nat) -> ();
   adminPostAsReginald: (line: text) -> (nat);
+  /// One-shot deploy-time backfill: populate previousRankEntries with each
+  /// known principal's current rank. Prevents #rankUp spam after the trollbox
+  /// deploys. Idempotent — safe to call multiple times. Admin-only.
+  adminSeedRankCache: () -> (nat);
+  /// One-shot deploy-time backfill: mark every principal who has ever been
+  /// granted a signup gift as already-announced. Prevents #signup spam after
+  /// the trollbox deploys. Idempotent. Admin-only.
+  adminSeedSignupAnnounced: () -> (nat);
   adminSetPin: (body: text) -> (nat);
   adminUnmute: (user: principal) -> ();
+  adminUploadChimeSound: (name: text, mimeType: text, bytes: blob) ->
+   (variant {
+      Err: text;
+      Ok;
+    });
   cancelCashOut: (id: nat) -> (variant {
                                  Err: text;
                                  Ok;
@@ -273,6 +301,7 @@ service : {
   getActiveSpellEffects: (user: principal) -> (ActiveSpellEffects) query;
   /// Pending and recently claimed cash-outs for a given user.
   getCashOutsFor: (user: principal) -> (vec CashOutEntry) query;
+  getChimeSound: (name: text) -> (opt ChimeSound) query;
   getCurrentPin: () -> (opt ChatItem) query;
   /// Active rename-spell name for `user`, if any. Expired entries return null.
   getCustomDisplayName: (user: principal) -> (opt text) query;
@@ -339,6 +368,7 @@ service : {
   /// seedMigrationV2 has flipped the flag before player traffic resumes.
   isBootstrapped: () -> (bool) query;
   isMuted: (user: principal) -> (opt int) query;
+  listChimeSounds: () -> (vec ChimeSoundMeta) query;
   postChatMessage: (body: text, replyTo: opt nat) ->
    (variant {
       Err: text;

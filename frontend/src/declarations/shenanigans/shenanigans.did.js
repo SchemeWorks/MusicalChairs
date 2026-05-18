@@ -56,6 +56,12 @@ export const idlFactory = ({ IDL }) => {
     'claimableAfter' : IDL.Int,
     'amount' : IDL.Nat,
   });
+  const ChimeSound = IDL.Record({
+    'name' : IDL.Text,
+    'mimeType' : IDL.Text,
+    'bytes' : IDL.Vec(IDL.Nat8),
+    'uploadedAt' : IDL.Int,
+  });
   const ChatItemKind = IDL.Variant({
     'roundResult' : IDL.Record({
       'winnerPpUnits' : IDL.Nat,
@@ -192,6 +198,12 @@ export const idlFactory = ({ IDL }) => {
   const TrustedOriginsResponse = IDL.Record({
     'trusted_origins' : IDL.Vec(IDL.Text),
   });
+  const ChimeSoundMeta = IDL.Record({
+    'name' : IDL.Text,
+    'mimeType' : IDL.Text,
+    'sizeBytes' : IDL.Nat,
+    'uploadedAt' : IDL.Int,
+  });
   return IDL.Service({
     'addKarmaReaction' : IDL.Func(
         [IDL.Nat, IDL.Text, IDL.Nat],
@@ -204,6 +216,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminDeleteChatItem' : IDL.Func([IDL.Nat], [], []),
+    'adminDeleteChimeSound' : IDL.Func([IDL.Text], [], []),
     'adminMint' : IDL.Func(
         [IDL.Principal, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
@@ -211,8 +224,15 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminMuteUser' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
     'adminPostAsReginald' : IDL.Func([IDL.Text], [IDL.Nat], []),
+    'adminSeedRankCache' : IDL.Func([], [IDL.Nat], []),
+    'adminSeedSignupAnnounced' : IDL.Func([], [IDL.Nat], []),
     'adminSetPin' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'adminUnmute' : IDL.Func([IDL.Principal], [], []),
+    'adminUploadChimeSound' : IDL.Func(
+        [IDL.Text, IDL.Text, IDL.Vec(IDL.Nat8)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'cancelCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -245,6 +265,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(CashOutEntry)],
         ['query'],
       ),
+    'getChimeSound' : IDL.Func([IDL.Text], [IDL.Opt(ChimeSound)], ['query']),
     'getCurrentPin' : IDL.Func([], [IDL.Opt(ChatItem)], ['query']),
     'getCustomDisplayName' : IDL.Func(
         [IDL.Principal],
@@ -327,6 +348,7 @@ export const idlFactory = ({ IDL }) => {
     'initialize' : IDL.Func([IDL.Principal], [], []),
     'isBootstrapped' : IDL.Func([], [IDL.Bool], ['query']),
     'isMuted' : IDL.Func([IDL.Principal], [IDL.Opt(IDL.Int)], ['query']),
+    'listChimeSounds' : IDL.Func([], [IDL.Vec(ChimeSoundMeta)], ['query']),
     'postChatMessage' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat)],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
