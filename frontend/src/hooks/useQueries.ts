@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useReadActor } from './useReadActor';
-import { useShenaniganActor } from './useShenaniganActor';
+import { useShenaniganActor, useReadShenaniganActor } from './useShenaniganActor';
 import { usePonziMathActor } from './usePonziMathActor';
 import { useReadPonziMath } from './useReadPonziMath';
 import { useWallet } from './useWallet';
@@ -651,46 +651,36 @@ export function useCalculateGameEarnings() {
   });
 }
 
-// Shenanigans Queries — routed to standalone shenanigans canister
+// Shenanigans Queries — routed to standalone shenanigans canister.
+// Read paths use the anonymous read actor so that Oisy users don't get
+// their query refetches upgraded to icrc49 update calls via the signer.
 export function useGetShenaniganStats() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   const { principal } = useWallet();
 
   return useQuery<ShenaniganStats>({
     queryKey: ['shenaniganStats', principal],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getShenaniganStats();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getShenaniganStats(),
     refetchInterval: 5000,
   });
 }
 
 export function useGetRecentShenanigans() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
 
   return useQuery<ShenaniganRecord[]>({
     queryKey: ['recentShenanigans'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getRecentShenanigans();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getRecentShenanigans(),
     refetchInterval: 3000,
   });
 }
 
 export function useGetKnownPpHolders() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
 
   return useQuery<Principal[]>({
     queryKey: ['knownPpHolders'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getKnownPpHolders();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getKnownPpHolders(),
     staleTime: 30_000,
   });
 }
@@ -715,15 +705,11 @@ export function useCastShenanigan() {
 
 // Shenanigans Configuration Queries
 export function useGetShenaniganConfigs() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
 
   return useQuery<ShenaniganConfig[]>({
     queryKey: ['shenaniganConfigs'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getShenaniganConfigs();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getShenaniganConfigs(),
     refetchInterval: 10000,
   });
 }
@@ -936,7 +922,7 @@ function getGamePlanString(plan: GamePlan): string {
 // canister build pre-dates getReferralStats so the page still renders.
 export function useGetReferralStats() {
   const { principal } = useWallet();
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['mlmStats', principal],
     queryFn: async () => {
@@ -950,7 +936,7 @@ export function useGetReferralStats() {
         totalEarnings: 0,
         referralLink: buildReferralLink(principal),
       };
-      if (!actor || !principal) return empty;
+      if (!principal) return empty;
       try {
         const stats = await actor.getReferralStats(Principal.fromText(principal));
         const l1Points = ppUnitsToWhole(stats.l1Units);
@@ -971,7 +957,7 @@ export function useGetReferralStats() {
         return empty;
       }
     },
-    enabled: !!principal && !!actor && !actorFetching,
+    enabled: !!principal,
     refetchInterval: 10000,
   });
 }
@@ -1094,11 +1080,10 @@ export function useGetTopPonziPointsHolders() {
 }
 
 export function useGetTopPonziPointsBurners() {
-  const actor = useShenaniganActor().actor;
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['topPpBurners'],
     queryFn: async () => {
-      if (!actor) return [];
       const burners = await actor.getTopPpBurners(50n);
       return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
@@ -1296,14 +1281,10 @@ export function useCancelCashOut() {
 
 /** Live observer status — running/paused, cursors, interval. */
 export function useGetObserverStatus() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['observerStatus'],
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getObserverStatus();
-    },
-    enabled: !!actor,
+    queryFn: async () => actor.getObserverStatus(),
     refetchInterval: 5000,
   });
 }
@@ -1334,14 +1315,10 @@ export function useResumeObserver() {
 
 /** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
 export function useGetMintConfig() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['mintConfig'],
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getMintConfig();
-    },
-    enabled: !!actor,
+    queryFn: async () => actor.getMintConfig(),
     refetchInterval: 30000,
   });
 }
@@ -1378,13 +1355,15 @@ export const useSetObserverInterval = () =>
   useMintConfigSetter<[bigint]>((a, [v]) => a.setObserverIntervalSeconds(v));
 
 export function usePendingCashOuts() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   const { principal } = useWallet();
   return useQuery({
     queryKey: ['pendingCashOuts', principal],
     queryFn: async () => {
-      if (!actor) return [];
-      const entries = await actor.getMyCashOuts();
+      if (!principal) return [];
+      // Use the explicit-principal query so this stays anonymous on the wire —
+      // otherwise Oisy would upgrade it to an icrc49 update call via the signer.
+      const entries = await actor.getCashOutsFor(Principal.fromText(principal));
       return entries
         .filter((e) => !e.claimed)
         .map((e) => ({
@@ -1394,7 +1373,7 @@ export function usePendingCashOuts() {
           claimed: e.claimed,
         }));
     },
-    enabled: !!actor && !!principal,
+    enabled: !!principal,
     refetchInterval: 10000,
   });
 }
@@ -1646,6 +1625,7 @@ export function useGetProfileFor(principalText: string | undefined) {
 // First-wins on the canister side.
 export function useRegisterReferral() {
   const { actor } = useShenaniganActor();
+  const readActor = useReadShenaniganActor();
 
   return useMutation({
     mutationFn: async (token: string) => {
@@ -1654,7 +1634,9 @@ export function useRegisterReferral() {
       try {
         principal = Principal.fromText(token);
       } catch {
-        const resolved = await actor.resolveReferralCode(token);
+        // Resolve via the anonymous read actor so Oisy doesn't open a signer
+        // popup for what's a public lookup.
+        const resolved = await readActor.resolveReferralCode(token);
         if (resolved.length === 0) {
           throw new Error('Unknown referral code');
         }

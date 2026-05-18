@@ -17,6 +17,7 @@ import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
 import Subaccount "Subaccount";
+import Icrc21 "icrc21";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -2216,5 +2217,26 @@ persistent actor Self {
             };
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
         };
+    };
+
+    // ========================================================================
+    // ICRC-21 consent messages, ICRC-28 trusted origins, ICRC-10 standards.
+    //
+    // Required for Oisy (any ICRC-25 signer wallet) to display a consent
+    // message before signing any update call on this canister. Without these
+    // methods Oisy's icrc49_call_canister fails entirely — it does NOT fall
+    // back to a blind-signing warning for custom canister methods.
+    // ========================================================================
+
+    public shared func icrc21_canister_call_consent_message(request : Icrc21.ConsentMessageRequest) : async Icrc21.ConsentMessageResponse {
+        Icrc21.consentMessage(request);
+    };
+
+    public query func icrc28_trusted_origins() : async Icrc21.TrustedOriginsResponse {
+        Icrc21.trustedOrigins();
+    };
+
+    public query func icrc10_supported_standards() : async [Icrc21.StandardRecord] {
+        Icrc21.supportedStandards();
     };
 };
