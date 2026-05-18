@@ -189,6 +189,35 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Trollbox types
+    // ================================================================
+
+    public type ChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : { castId : Nat };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; pot : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    public type Reaction = {
+        emoji : Text;
+        reactors : [Principal];
+        karmaPpBurned : Nat;
+    };
+
+    public type ChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : ChatItemKind;
+        reactions : [Reaction];
+        deleted : Bool;
+    };
+
+    // ================================================================
     // ponzi_math canister interface (query-only; observer polls)
     // ================================================================
 
