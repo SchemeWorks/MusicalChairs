@@ -2143,6 +2143,42 @@ persistent actor Self {
     };
 
     // ================================================================
+    // Trollbox public writes
+    // ================================================================
+
+    public shared ({ caller }) func postChatMessage(body : Text, replyTo : ?Nat) : async { #Ok : Nat; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+
+        let cleaned = stripControlChars(body);
+        let len = textLength(cleaned);
+        if (len == 0) { return #Err("Message cannot be empty") };
+        if (len > CHAT_MSG_MAX_LEN) { return #Err("Message exceeds 280 characters") };
+
+        switch (mutedUntilFor(caller)) {
+            case (?exp) { return #Err("You are muted until " # Int.toText(exp)) };
+            case (null) {};
+        };
+
+        switch (checkAndRecordRate(caller)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok) {};
+        };
+
+        let id = appendChatItem(caller, #userMessage({ body = cleaned; replyTo }));
+
+        if (containsBuzzword(cleaned)) {
+            switch (Reginald.pickFor("buzzword")) {
+                case (?line) {
+                    let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "buzzword" }));
+                };
+                case (null) {};
+            };
+        };
+
+        #Ok(id);
+    };
+
+    // ================================================================
     // Query Functions
     // ================================================================
 
