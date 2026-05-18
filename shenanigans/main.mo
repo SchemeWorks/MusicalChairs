@@ -2292,6 +2292,7 @@ persistent actor Self {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
         if (not emojiAllowed(emoji, KARMA_EMOJIS)) { return #Err("Emoji not allowed") };
         if (ppToBurn < KARMA_MIN_PP) { return #Err("Minimum 10 PP") };
+        if (findChatItemIndex(itemId) == null) { return #Err("No such item") };
 
         let units = ppToUnits(ppToBurn);
         let burnMemo = "karma-" # Nat.toText(itemId);
