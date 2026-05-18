@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { Principal } from '@dfinity/principal';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
 import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral } from './hooks/useQueries';
@@ -17,6 +18,7 @@ import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
 import DocsPage from './components/DocsPage';
+import { Trollbox } from './components/trollbox';
 import BankPage from './components/BankPage';
 import BankNavLink from './components/BankNavLink';
 import { Footer } from './components/Footer';
@@ -776,6 +778,14 @@ export default function App() {
         </ErrorBoundary>
 
         {/* DocsPage is rendered inline in main content — see showDocsPage conditional above */}
+
+        {/* Trollbox — persistent chat overlay, always mounted */}
+        <Trollbox
+          authenticated={isAuthenticated}
+          principal={principal ? Principal.fromText(principal) : null}
+          currentUserName={userProfile?.name}
+          isAdmin={!!(principal && isCharles(principal))}
+        />
 
         {/* Toast — positioned below the fixed header + status bar so it's
             always visible regardless of page scroll. Click-to-dismiss only;
