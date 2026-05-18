@@ -18,8 +18,16 @@ export default function ReactionPicker({ itemId, onClose }: Props) {
     onClose();
   };
   const handleKarma = async (emoji: string) => {
-    await karmaReact.mutateAsync({ itemId, emoji, ppToBurn: BigInt(karmaAmount) });
-    onClose();
+    const amount = Number.isFinite(karmaAmount) && karmaAmount >= KARMA_MIN_PP
+      ? karmaAmount
+      : KARMA_MIN_PP;
+    try {
+      await karmaReact.mutateAsync({ itemId, emoji, ppToBurn: BigInt(amount) });
+      onClose();
+    } catch (e) {
+      // Let the mutation toast handle it via the hook's error path; just close.
+      onClose();
+    }
   };
 
   return (
@@ -56,7 +64,10 @@ export default function ReactionPicker({ itemId, onClose }: Props) {
             type="number"
             min={KARMA_MIN_PP}
             value={karmaAmount}
-            onChange={(e) => setKarmaAmount(Math.max(KARMA_MIN_PP, Number(e.target.value)))}
+            onChange={(e) => {
+              const n = Number(e.target.value);
+              setKarmaAmount(Number.isFinite(n) ? Math.max(KARMA_MIN_PP, n) : KARMA_MIN_PP);
+            }}
             className="w-20 rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
           />
         </div>
