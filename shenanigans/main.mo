@@ -1538,6 +1538,22 @@ persistent actor Self {
             cost = config.cost;
         };
         shenanigans := natMap.put(shenanigans, castId, newShenanigan);
+
+        let _ = appendChatItem(Principal.fromActor(Self), #spellCast({ castId }));
+
+        if (outcome == #backfire) {
+            // 25% chance: use the low nibble of timestamp as a coarse coin flip.
+            let coin = Int.abs(Time.now()) % 4;
+            if (coin == 0) {
+                switch (Reginald.pickFor("spellBackfire")) {
+                    case (?line) {
+                        let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "spellBackfire" }));
+                    };
+                    case (null) {};
+                };
+            };
+        };
+
         updateShenaniganStats(caller, config.cost, outcome);
         if (outcome == #success or outcome == #backfire) {
             let prior = switch (principalMap.get(spellsCastPerPlayer, caller)) {
