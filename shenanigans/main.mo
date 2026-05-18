@@ -319,6 +319,10 @@ persistent actor Self {
     /// the chimeSoundCount upper bound below. Keyed by name (case-sensitive).
     var chimeSoundPool : [ChimeSound] = [];
 
+    /// Last accepted reaction timestamp per principal. Used by the
+    /// free-reaction min-gap limit. Lazy GC on overwrite.
+    var lastReactionEntries = principalMap.empty<Int>();
+
     // Admin state
     var adminPrincipal : ?Principal = null;
     var ponziMathPrincipal : ?Principal = null;
@@ -1957,6 +1961,7 @@ persistent actor Self {
     let CHAT_BUFFER_CAP : Nat = 500;
     let CHAT_MSG_MAX_LEN : Nat = 280;
     let CHAT_RATE_MIN_GAP_NS : Int = 3_000_000_000;      // 3s between posts
+    let REACTION_MIN_GAP_NS : Int = 250_000_000;  // 250ms between reactions per user
     let CHAT_RATE_WINDOW_NS : Int = 5 * 60 * 1_000_000_000; // 5-min window
     let CHAT_RATE_WINDOW_MAX : Nat = 15;                   // 15 posts / window
     let KARMA_MIN_PP : Nat = 10;
@@ -2150,6 +2155,21 @@ persistent actor Self {
         #Ok;
     };
 
+    /// Returns #Ok if the caller may add/remove a reaction now; updates the
+    /// per-user clock on success. No-op on failure (returns #Err).
+    func checkAndRecordReactionRate(caller : Principal) : { #Ok; #Err : Text } {
+        let now = Time.now();
+        let last : Int = switch (principalMap.get(lastReactionEntries, caller)) {
+            case (?ts) { ts };
+            case (null) { 0 };
+        };
+        if (last != 0 and (now - last) < REACTION_MIN_GAP_NS) {
+            return #Err("Slow down.");
+        };
+        lastReactionEntries := principalMap.put(lastReactionEntries, caller, now);
+        #Ok;
+    };
+
     func containsBuzzword(body : Text) : Bool {
         let lower = Text.map(body, func(c : Char) : Char {
             let code = Char.toNat32(c);
@@ -2241,6 +2261,10 @@ persistent actor Self {
     public shared ({ caller }) func addReaction(itemId : Nat, emoji : Text) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
         if (not emojiAllowed(emoji, FREE_EMOJIS)) { return #Err("Emoji not allowed") };
+        switch (checkAndRecordReactionRate(caller)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok) {};
+        };
 
         let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
             let buf = Buffer.Buffer<Reaction>(item.reactions.size() + 1);
@@ -2270,6 +2294,10 @@ persistent actor Self {
 
     public shared ({ caller }) func removeReaction(itemId : Nat, emoji : Text) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        switch (checkAndRecordReactionRate(caller)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok) {};
+        };
         let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
             let buf = Buffer.Buffer<Reaction>(item.reactions.size());
             for (r in item.reactions.vals()) {
