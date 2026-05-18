@@ -2228,6 +2228,16 @@ persistent actor Self {
         if (len == 0) { return #Err("Message cannot be empty") };
         if (len > CHAT_MSG_MAX_LEN) { return #Err("Message exceeds 280 characters") };
 
+        // Reject whitespace-only messages (parity with frontend trim check).
+        var hasNonWhitespace = false;
+        for (c in cleaned.chars()) {
+            let code = Char.toNat32(c);
+            if (code != 0x20 and code != 0x09 and code != 0x0A and code != 0x0D) {
+                hasNonWhitespace := true;
+            };
+        };
+        if (not hasNonWhitespace) { return #Err("Message cannot be empty") };
+
         switch (mutedUntilFor(caller)) {
             case (?exp) { return #Err("You are muted until " # Int.toText(exp)) };
             case (null) {};
