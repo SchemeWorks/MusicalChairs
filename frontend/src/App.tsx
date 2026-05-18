@@ -449,7 +449,15 @@ export default function App() {
 
               {/* Right controls */}
               <div className="flex items-center gap-2 sm:gap-3">
-                <BankNavLink onClick={() => { window.location.hash = '#bank'; setShowBankPage(true); }} />
+                <BankNavLink onClick={() => {
+                  if (showBankPage) {
+                    history.replaceState(null, '', window.location.pathname);
+                    setShowBankPage(false);
+                  } else {
+                    window.location.hash = '#bank';
+                    setShowBankPage(true);
+                  }
+                }} />
 
                 {/* Docs — always visible, visually distinct */}
                 <button
@@ -522,7 +530,7 @@ export default function App() {
             ) : showBankPage ? (
               /* === BANK PAGE === */
               <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
-                <BankPage />
+                <BankPage onClose={() => { history.replaceState(null, '', window.location.pathname); setShowBankPage(false); }} />
               </div>
             ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
