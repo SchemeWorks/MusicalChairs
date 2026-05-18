@@ -2359,6 +2359,40 @@ persistent actor Self {
         appendChatItem(caller, #reginald({ line = cleaned; triggerKind = "manual" }));
     };
 
+    /// One-shot deploy-time backfill: populate previousRankEntries with each
+    /// known principal's current rank. Prevents #rankUp spam after the trollbox
+    /// deploys. Idempotent — safe to call multiple times. Admin-only.
+    public shared ({ caller }) func adminSeedRankCache() : async Nat {
+        requireAdmin(caller);
+        var count : Nat = 0;
+        for ((p, _) in principalMap.entries(referralChain)) {
+            let stats = computeReferralStats(p);
+            let rank = rankForStats(stats.l1Count, stats.l1Count + stats.l2Count + stats.l3Count);
+            previousRankEntries := principalMap.put(previousRankEntries, p, rank);
+            count += 1;
+        };
+        count;
+    };
+
+    /// One-shot deploy-time backfill: mark every principal who has ever been
+    /// granted a signup gift as already-announced. Prevents #signup spam after
+    /// the trollbox deploys. Idempotent. Admin-only.
+    public shared ({ caller }) func adminSeedSignupAnnounced() : async Nat {
+        requireAdmin(caller);
+        let now = Time.now();
+        var count : Nat = 0;
+        for ((p, _) in principalMap.entries(signupGiftClaimed)) {
+            switch (principalMap.get(signupAnnouncedSet, p)) {
+                case (?_) {};
+                case (null) {
+                    signupAnnouncedSet := principalMap.put(signupAnnouncedSet, p, now);
+                    count += 1;
+                };
+            };
+        };
+        count;
+    };
+
     // ================================================================
     // Query Functions
     // ================================================================
