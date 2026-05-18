@@ -56,7 +56,7 @@ const howItWorks: { step: string; title: string; body: string; color: string; fi
   {
     step: '4',
     title: 'Consolation Prizes',
-    body: `Losers get mostly worthless tokens. Play some games, pull yourself together.`,
+    body: `Losers get mostly worthless tokens. Play some games and pull yourself together.`,
     color: 'purple',
   },
   {
