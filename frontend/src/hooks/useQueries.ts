@@ -11,6 +11,8 @@ import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ActivePlanSnapshot, RoundSummary, ShenaniganConfig, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
+import type { ChatItem } from '../declarations/shenanigans/shenanigans.did';
+import { TROLLBOX_POLL_MS, TROLLBOX_PIN_POLL_MS, TROLLBOX_MUTE_POLL_MS, TROLLBOX_FETCH_LIMIT } from '../components/trollbox/trollboxConstants';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 import {
   EXIT_TOLL_EARLY,
@@ -1704,5 +1706,169 @@ export function useGetUplineChain(maxDepth: number = 3) {
     },
     enabled: !!principal,
     staleTime: 5 * 60_000,
+  });
+}
+
+// ============================================================================
+// Trollbox hooks — chat, reactions, admin moderation
+// ============================================================================
+
+export function useRecentChatItems() {
+  const actor = useReadShenaniganActor();
+  return useQuery<ChatItem[]>({
+    queryKey: ['shenanigans', 'chatItems'],
+    queryFn: async () => actor.getRecentChatItems(BigInt(TROLLBOX_FETCH_LIMIT)),
+    refetchInterval: TROLLBOX_POLL_MS,
+  });
+}
+
+export function useCurrentPin() {
+  const actor = useReadShenaniganActor();
+  return useQuery<ChatItem | null>({
+    queryKey: ['shenanigans', 'currentPin'],
+    queryFn: async () => {
+      const result = await actor.getCurrentPin();
+      return result.length === 0 ? null : result[0];
+    },
+    refetchInterval: TROLLBOX_PIN_POLL_MS,
+  });
+}
+
+export function useIsMuted(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  return useQuery<bigint | null>({
+    queryKey: ['shenanigans', 'isMuted', principal?.toText()],
+    queryFn: async () => {
+      if (!principal) return null;
+      const result = await actor.isMuted(principal);
+      return result.length === 0 ? null : result[0];
+    },
+    refetchInterval: TROLLBOX_MUTE_POLL_MS,
+    enabled: !!principal,
+  });
+}
+
+export function usePostChatMessage() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ body, replyTo }: { body: string; replyTo: bigint | null }) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const reply: [] | [bigint] = replyTo === null ? [] : [replyTo];
+      const result = await actor.postChatMessage(body, reply);
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
+  });
+}
+
+export function useAddReaction() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ itemId, emoji }: { itemId: bigint; emoji: string }) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const result = await actor.addReaction(itemId, emoji);
+      if ('Err' in result) throw new Error(result.Err);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
+  });
+}
+
+export function useRemoveReaction() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ itemId, emoji }: { itemId: bigint; emoji: string }) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      await actor.removeReaction(itemId, emoji);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
+  });
+}
+
+export function useKarmaReact() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ itemId, emoji, ppToBurn }: { itemId: bigint; emoji: string; ppToBurn: bigint }) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      const result = await actor.addKarmaReaction(itemId, emoji, ppToBurn);
+      if ('Err' in result) throw new Error(result.Err);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+      queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
+    },
+  });
+}
+
+export function useAdminSetPin() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (body: string) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.adminSetPin(body);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'currentPin'] });
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
+  });
+}
+
+export function useAdminDeleteChatItem() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (itemId: bigint) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.adminDeleteChatItem(itemId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
+  });
+}
+
+export function useAdminMuteUser() {
+  const { actor } = useShenaniganActor();
+  return useMutation({
+    mutationFn: async ({ user, durationSeconds }: { user: Principal; durationSeconds: bigint }) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.adminMuteUser(user, durationSeconds);
+    },
+  });
+}
+
+export function useAdminUnmute() {
+  const { actor } = useShenaniganActor();
+  return useMutation({
+    mutationFn: async (user: Principal) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.adminUnmute(user);
+    },
+  });
+}
+
+export function useAdminPostAsReginald() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (line: string) => {
+      if (!actor) throw new Error('No shenanigans actor');
+      return actor.adminPostAsReginald(line);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
+    },
   });
 }
