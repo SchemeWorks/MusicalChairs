@@ -16,11 +16,12 @@ interface Props {
 }
 
 export default function TrollboxPanel({ authenticated, principal, currentUserName, isAdmin, onClose }: Props) {
-  const [isMobile, setIsMobile] = React.useState(false);
+  const [isMobile, setIsMobile] = React.useState(() =>
+    typeof window !== 'undefined' && window.innerWidth < MOBILE_BREAKPOINT_PX
+  );
   const [chimeMuted, setChimeMutedState] = React.useState(getChimeMuted());
   React.useEffect(() => {
     const update = () => setIsMobile(window.innerWidth < MOBILE_BREAKPOINT_PX);
-    update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
   }, []);
