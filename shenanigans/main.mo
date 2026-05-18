@@ -778,6 +778,7 @@ persistent actor Self {
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
                                     signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                                    let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
