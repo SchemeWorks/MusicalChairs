@@ -25,7 +25,11 @@ import {
   useAdminUnmute,
   useAdminPostAsReginald,
   useCurrentPin,
+  useListChimeSounds,
+  useAdminUploadChimeSound,
+  useAdminDeleteChimeSound,
 } from '../hooks/useQueries';
+import { useReadShenaniganActor } from '../hooks/useShenaniganActor';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ShenaniganConfig {
@@ -638,6 +642,86 @@ function ObserverStatusSection() {
 /* ================================================================
    Trollbox admin controls — pin, mute, post as Reginald.
    ================================================================ */
+function ChimeSoundsSubsection() {
+  const { data: list = [] } = useListChimeSounds();
+  const upload = useAdminUploadChimeSound();
+  const del = useAdminDeleteChimeSound();
+  const actor = useReadShenaniganActor();
+
+  const [name, setName] = useState('');
+  const [file, setFile] = useState<File | null>(null);
+
+  const handleUpload = async () => {
+    if (!file) return;
+    const finalName = name.trim() || file.name;
+    try {
+      const buf = await file.arrayBuffer();
+      await upload.mutateAsync({ name: finalName, mimeType: file.type || 'audio/mpeg', bytes: new Uint8Array(buf) });
+      toast.success(`Uploaded ${finalName}`);
+      setName('');
+      setFile(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handlePreview = async (n: string) => {
+    if (!actor) return;
+    try {
+      const opt = await actor.getChimeSound(n);
+      if (opt.length === 0) return;
+      const sound = opt[0];
+      const bytes = sound.bytes instanceof Uint8Array
+        ? sound.bytes
+        : new Uint8Array(sound.bytes as ArrayLike<number>);
+      const url = URL.createObjectURL(new Blob([bytes], { type: sound.mimeType }));
+      const audio = new Audio(url);
+      audio.play().finally(() => setTimeout(() => URL.revokeObjectURL(url), 5000));
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-xs text-zinc-400">Chime sounds (pool, random per @-mention)</label>
+      <div className="mt-1 space-y-1">
+        {list.length === 0 && <div className="text-xs text-zinc-500 italic">No sounds uploaded yet.</div>}
+        {list.map((s: any) => (
+          <div key={s.name} className="flex items-center gap-2 text-xs">
+            <span className="flex-1 truncate text-zinc-200">{s.name}</span>
+            <span className="text-zinc-500">{Math.round(Number(s.sizeBytes) / 1024)} KB</span>
+            <button onClick={() => handlePreview(s.name)} className="rounded bg-zinc-700 px-2 py-0.5 text-zinc-200">Play</button>
+            <button onClick={() => del.mutate(s.name)} className="rounded bg-red-500 px-2 py-0.5 text-white">Delete</button>
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <input
+          type="text"
+          placeholder="Name (optional)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="flex-1 min-w-32 rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+        />
+        <input
+          type="file"
+          accept="audio/*"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          className="text-xs text-zinc-300"
+        />
+        <button
+          onClick={handleUpload}
+          disabled={!file || upload.isPending}
+          className="rounded bg-amber-500 px-2 py-1 text-xs text-zinc-900 disabled:opacity-40"
+        >
+          Upload
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function TrollboxAdminSection() {
   const setPin = useAdminSetPin();
   const muteUser = useAdminMuteUser();
@@ -737,6 +821,8 @@ function TrollboxAdminSection() {
             </button>
           </div>
         </div>
+
+        <ChimeSoundsSubsection />
       </div>
     </details>
   );
