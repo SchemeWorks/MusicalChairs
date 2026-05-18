@@ -1464,6 +1464,32 @@ persistent actor class PonziMath(initArgs : {
         Iter.toArray(natMap.vals(generalLedger));
     };
 
+    // Paginated alternative for callers that risk the ~3 MiB query response
+    // cap as the ledger grows. `offset` is the 0-based starting ledger ID;
+    // `limit` caps the entry count returned. `total` reports the full ledger
+    // size so callers can drive a paginator. Past-end requests return an
+    // empty vec but still report `total`.
+    public query func getGeneralLedgerPage(offset : Nat, limit : Nat) : async {
+        entries : [GeneralLedgerEntry];
+        total : Nat;
+    } {
+        let total = nextGeneralLedgerId;
+        if (offset >= total or limit == 0) {
+            return { entries = []; total };
+        };
+        let endId = if (offset + limit > total) { total } else { offset + limit };
+        var result = List.nil<GeneralLedgerEntry>();
+        var id = offset;
+        while (id < endId) {
+            switch (natMap.get(generalLedger, id)) {
+                case (?entry) { result := List.push(entry, result) };
+                case (null) {};
+            };
+            id += 1;
+        };
+        { entries = List.toArray(List.reverse(result)); total };
+    };
+
     public query func getGeneralLedgerStats() : async {
         totalInflows : Float;
         totalOutflows : Float;
