@@ -2,6 +2,15 @@ import type { Principal } from '@dfinity/principal';
 import type { ActorMethod } from '@dfinity/agent';
 import type { IDL } from '@dfinity/candid';
 
+export interface ActiveSpellEffects {
+  'mintMultiplier' : [] | [MintMultiplier],
+  'shield' : [] | [ShieldState],
+  'displayName' : [] | [DisplayNameOverride],
+  'golden' : boolean,
+  'mintSiphon' : [] | [MintSiphon],
+  'cascadeBoost' : [] | [CascadeBoost],
+}
+export interface CascadeBoost { 'expiresAt' : bigint, 'multiplierBps' : bigint }
 export interface CashOutEntry {
   'id' : bigint,
   'cancelled' : boolean,
@@ -10,6 +19,7 @@ export interface CashOutEntry {
   'claimableAfter' : bigint,
   'amount' : bigint,
 }
+export interface DisplayNameOverride { 'expiresAt' : bigint, 'name' : string }
 export interface MintConfig {
   'compounding15DayPpPerIcp' : bigint,
   'minDepositPp' : bigint,
@@ -21,6 +31,25 @@ export interface MintConfig {
   'backerPpPerIcp' : bigint,
   'cashOutDelaySeconds' : bigint,
   'simple21DayPpPerIcp' : bigint,
+}
+export interface MintMultiplier {
+  'expiresAt' : bigint,
+  'multiplierBps' : bigint,
+}
+export interface MintSiphon {
+  'expiresAt' : bigint,
+  'pctTimes100' : bigint,
+  'siphonedSoFar' : bigint,
+  'siphoner' : Principal,
+  'capUnits' : bigint,
+}
+export interface ReferralStats {
+  'l1Count' : bigint,
+  'l3Units' : bigint,
+  'l1Units' : bigint,
+  'l2Count' : bigint,
+  'l2Units' : bigint,
+  'l3Count' : bigint,
 }
 export interface ShenaniganConfig {
   'id' : bigint,
@@ -56,14 +85,6 @@ export interface ShenaniganStats {
   'totalSpent' : number,
   'badOutcomes' : bigint,
 }
-export interface ReferralStats {
-  'l1Count' : bigint,
-  'l1Units' : bigint,
-  'l2Count' : bigint,
-  'l2Units' : bigint,
-  'l3Count' : bigint,
-  'l3Units' : bigint,
-}
 export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'goldenName' : null } |
   { 'whaleRebalance' : null } |
@@ -75,6 +96,10 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'downlineHeist' : null } |
   { 'renameSpell' : null } |
   { 'purseCutter' : null };
+export interface ShieldState {
+  'expiresAt' : bigint,
+  'chargesRemaining' : bigint,
+}
 export interface _SERVICE {
   /**
    * / Admin-triggered manual PP issuance (direct mint to the player's chip
@@ -106,9 +131,29 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   /**
+   * / All active spell effects on `user`. Expired entries are filtered
+   * / out of the result but not deleted from state (cleanup happens
+   * / lazily on next write/cast).
+   */
+  'getActiveSpellEffects' : ActorMethod<[Principal], ActiveSpellEffects>,
+  /**
    * / Pending and recently claimed cash-outs for a given user.
    */
   'getCashOutsFor' : ActorMethod<[Principal], Array<CashOutEntry>>,
+  /**
+   * / Active rename-spell name for `user`, if any. Expired entries return null.
+   */
+  'getCustomDisplayName' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Currently-golden players. Used by frontend for leaderboard styling.
+   */
+  'getGoldenPlayers' : ActorMethod<[], Array<Principal>>,
+  /**
+   * / All principals we've ever minted PP to. Frontend target-pickers can
+   * / use this to populate a candidate list. Updated lazily — entries are
+   * / added in mintInternal and never removed (cheap, bounded by player count).
+   */
+  'getKnownPpHolders' : ActorMethod<[], Array<Principal>>,
   'getMintConfig' : ActorMethod<[], MintConfig>,
   'getMyCashOuts' : ActorMethod<[], Array<CashOutEntry>>,
   /**
@@ -125,8 +170,9 @@ export interface _SERVICE {
     }
   >,
   /**
-   * / Issue (or return existing) short referral code for the caller. Codes
-   * / are 6-char base62, assigned lazily, stable forever once issued.
+   * / Issue (or return existing) short referral code for the caller.
+   * / Deterministic on the principal + time-derived nonce; retries on the
+   * / astronomically-unlikely collision. Codes are stable once assigned.
    */
   'getOrCreateReferralCode' : ActorMethod<[], string>,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
@@ -170,7 +216,8 @@ export interface _SERVICE {
   'resetShenaniganConfig' : ActorMethod<[bigint], undefined>,
   /**
    * / Look up the principal a short referral code resolves to. Returns null
-   * / for unknown codes.
+   * / for unknown codes. Used by the frontend to translate `?ref=<code>`
+   * / into the principal we register against the downline chain.
    */
   'resolveReferralCode' : ActorMethod<[string], [] | [Principal]>,
   'resumeObserver' : ActorMethod<[], undefined>,

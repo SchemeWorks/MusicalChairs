@@ -295,18 +295,16 @@ export function WalletProvider({ children }: WalletProviderProps) {
   };
 
   const connectOisy = async () => {
-    // Use @slide-computer/signer v4 to get Oisy accounts
     const { oisySigner } = await import('../lib/oisySigner');
 
     try {
-      const accounts = await oisySigner.accounts();
+      const accounts = await oisySigner.getAccounts();
 
       if (!accounts || accounts.length === 0) {
         throw new Error('No accounts returned from OISY');
       }
 
       const account = accounts[0];
-      // @slide-computer/signer v4 returns owner as a Principal object
       const principalText = account.owner.toText();
 
       console.log('OISY principal:', principalText);

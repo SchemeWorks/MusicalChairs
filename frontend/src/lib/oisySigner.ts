@@ -1,9 +1,14 @@
-import { Signer } from '@slide-computer/signer';
-import { SignerAgent } from '@slide-computer/signer-agent';
-import { PostMessageTransport } from '@slide-computer/signer-web';
-import { Actor } from '@dfinity/agent';
+import { Signer } from '@icp-sdk/signer';
+import { PostMessageTransport } from '@icp-sdk/signer/web';
+import { SignerAgent } from '@icp-sdk/signer/agent';
+import { Actor } from '@icp-sdk/core/agent';
 import type { Principal } from '@dfinity/principal';
 
+// We migrated from @slide-computer/signer to @icp-sdk/signer (DFINITY's official
+// successor, recommended by Thomas Gladdines after the previous lib stopped working
+// with Oisy). The actor here uses @icp-sdk/core/agent's Actor (not @dfinity/agent's)
+// so the Actor and SignerAgent share the same internal Certificate/polling impl —
+// mixing the two would surface as "Cannot read properties of undefined (reading '_arr')".
 const oisySigner = new Signer({
   transport: new PostMessageTransport({
     url: 'https://oisy.com/sign',
@@ -13,10 +18,6 @@ const oisySigner = new Signer({
 
 let cachedAgent: any = null;
 let cachedPrincipalText: string | null = null;
-// Dedupe concurrent create() calls: slide-computer's SignerAgent has a
-// class-level #isInternalConstructing flag that races when multiple
-// useActor() hooks fire simultaneously — the second create throws
-// "SignerAgent is not constructable".
 let inFlightCreate: Promise<any> | null = null;
 
 export async function getOisySignerAgent(principal: Principal): Promise<any> {
@@ -30,12 +31,9 @@ export async function getOisySignerAgent(principal: Principal): Promise<any> {
     return inFlightCreate;
   }
 
-  // Let SignerAgent create its own internal HttpAgent.
-  // Passing @dfinity/agent's HttpAgent causes rootKey type mismatch
-  // (ArrayBuffer vs Uint8Array) which breaks certificate validation.
   inFlightCreate = (async () => {
     const agent = await SignerAgent.create({
-      signer: oisySigner as any,
+      signer: oisySigner,
       account: principal as any,
     });
     cachedAgent = agent;
@@ -66,13 +64,13 @@ export function clearOisySigner(): void {
   cachedPrincipalText = null;
 }
 
-// Rehydrate an existing Oisy session without triggering the approval popup.
-// Returns the account principal text if the signer's session is still valid, null otherwise.
-// @slide-computer/signer throws "outside of click handler" if no active session
-// exists — we catch that and return null cleanly.
+// Rehydrate an existing Oisy session without prompting. Returns the account
+// principal text if the signer still has an active session, null otherwise.
+// The signer throws "outside of click handler" if no session exists — we
+// catch and return null cleanly.
 export async function restoreOisySession(): Promise<string | null> {
   try {
-    const accounts = await oisySigner.accounts();
+    const accounts = await oisySigner.getAccounts();
     if (!accounts || accounts.length === 0) return null;
     return accounts[0].owner.toText();
   } catch {

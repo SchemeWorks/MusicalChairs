@@ -32,9 +32,6 @@ src/declarations/
 # Testing
 coverage/
 
-# Canister IDs (generated)
-canister_ids.json
-
 # Git worktrees
 .worktrees/
 

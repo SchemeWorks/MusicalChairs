@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useReadActor } from './useReadActor';
-import { useShenaniganActor } from './useShenaniganActor';
+import { useShenaniganActor, useReadShenaniganActor } from './useShenaniganActor';
 import { usePonziMathActor } from './usePonziMathActor';
 import { useReadPonziMath } from './useReadPonziMath';
 import { useWallet } from './useWallet';
@@ -12,6 +12,15 @@ import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, Shena
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
+import {
+  EXIT_TOLL_EARLY,
+  EXIT_TOLL_MID,
+  EXIT_TOLL_LATE,
+  EXIT_TOLL_EARLY_DAYS,
+  EXIT_TOLL_MID_DAYS,
+  JACKPOT_FEE_RATE_15D,
+  JACKPOT_FEE_RATE_30D,
+} from '../lib/gameConstants';
 
 // ponzi_math canister ID (matches the constant in usePonziMathActor.ts)
 const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
@@ -343,13 +352,15 @@ export function useAddBackerMoney() {
 
       try {
         if (walletType === 'oisy') {
-          // Oisy path: ICRC-112 batching (approve + addBackerMoney in one popup)
+          // Oisy path: sequential approve + addBackerMoney (two popups).
+          // batch()/execute() relied on ICRC-112, which no wallet adopted; a recent
+          // Oisy update broke slide-computer's multi-ICRC-49 fallback, surfacing as
+          // "Cannot read properties of undefined (reading '_arr')".
           const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
           const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
           const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
-          signerAgent.batch();
-          const approvePromise = ledgerActor.icrc2_approve({
+          await ledgerActor.icrc2_approve({
             amount: approveAmount,
             spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
             expires_at: [],
@@ -360,11 +371,7 @@ export function useAddBackerMoney() {
             created_at_time: [],
           });
 
-          signerAgent.batch();
-          const addPromise = ponziMathActor.addBackerMoney(amount);
-
-          await signerAgent.execute();
-          const [, addResult] = await Promise.all([approvePromise, addPromise]);
+          const addResult = await ponziMathActor.addBackerMoney(amount);
           if ('Err' in addResult) throw new Error(addResult.Err);
         } else {
           // Standard path: approve then addBackerMoney
@@ -497,16 +504,14 @@ export function useCreateGame() {
 
       let gameId: bigint;
 
-      // Oisy path: ICRC-112 batching (approve + createGame in one popup)
-      // CRITICAL: No await between user click and signerAgent.execute()
+      // Oisy path: sequential approve + createGame (two popups).
+      // See useAddBackerMoney for the full reason batch()/execute() was removed.
       if (walletType === 'oisy') {
         const signerAgent = await getOisySignerAgent(Principal.fromText(principal));
         const ledgerActor = createOisyActor(ICP_LEDGER_CANISTER_ID, icrcLedgerIDL, signerAgent);
         const ponziMathActor = createOisyActor(PONZI_MATH_CANISTER_ID, ponziMathIdlFactory, signerAgent);
 
-        // Sequence 0: approve
-        signerAgent.batch();
-        const approvePromise = ledgerActor.icrc2_approve({
+        await ledgerActor.icrc2_approve({
           amount: approveAmount,
           spender: { owner: Principal.fromText(PONZI_MATH_CANISTER_ID), subaccount: [] },
           expires_at: [],
@@ -517,13 +522,7 @@ export function useCreateGame() {
           created_at_time: [],
         });
 
-        // Sequence 1: createGame (3 args — no referrer)
-        signerAgent.batch();
-        const gamePromise = ponziMathActor.createGame(plan, amount, isCompounding);
-
-        // Fire single ICRC-112 request — ONE signer popup
-        await signerAgent.execute();
-        const [, gameResult] = await Promise.all([approvePromise, gamePromise]);
+        const gameResult = await ponziMathActor.createGame(plan, amount, isCompounding);
         if ('Err' in gameResult) throw new Error(gameResult.Err);
         gameId = gameResult.Ok;
       } else {
@@ -652,33 +651,37 @@ export function useCalculateGameEarnings() {
   });
 }
 
-// Shenanigans Queries — routed to standalone shenanigans canister
+// Shenanigans Queries — routed to standalone shenanigans canister.
+// Read paths use the anonymous read actor so that Oisy users don't get
+// their query refetches upgraded to icrc49 update calls via the signer.
 export function useGetShenaniganStats() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   const { principal } = useWallet();
 
   return useQuery<ShenaniganStats>({
     queryKey: ['shenaniganStats', principal],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getShenaniganStats();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getShenaniganStats(),
     refetchInterval: 5000,
   });
 }
 
 export function useGetRecentShenanigans() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
 
   return useQuery<ShenaniganRecord[]>({
     queryKey: ['recentShenanigans'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getRecentShenanigans();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getRecentShenanigans(),
     refetchInterval: 3000,
+  });
+}
+
+export function useGetKnownPpHolders() {
+  const actor = useReadShenaniganActor();
+
+  return useQuery<Principal[]>({
+    queryKey: ['knownPpHolders'],
+    queryFn: async () => actor.getKnownPpHolders(),
+    staleTime: 30_000,
   });
 }
 
@@ -702,15 +705,11 @@ export function useCastShenanigan() {
 
 // Shenanigans Configuration Queries
 export function useGetShenaniganConfigs() {
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
 
   return useQuery<ShenaniganConfig[]>({
     queryKey: ['shenaniganConfigs'],
-    queryFn: async () => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.getShenaniganConfigs();
-    },
-    enabled: !!actor && !actorFetching,
+    queryFn: async () => actor.getShenaniganConfigs(),
     refetchInterval: 10000,
   });
 }
@@ -891,18 +890,18 @@ export function calculateExitTollFee(game: GameRecord, earnings: number): number
   const startTime = Number(game.startTime) / 1000000; // Convert nanoseconds to milliseconds
   const elapsedTime = Date.now() - startTime;
   const elapsedDays = elapsedTime / (1000 * 60 * 60 * 24);
-  
+
   if (game.isCompounding) {
-    if ('compounding15Day' in game.plan) return earnings * 0.09;
-    return earnings * 0.13;
+    if ('compounding15Day' in game.plan) return earnings * JACKPOT_FEE_RATE_15D;
+    return earnings * JACKPOT_FEE_RATE_30D;
   } else {
     // Tiered fees for simple mode
-    if (elapsedDays < 3) {
-      return earnings * 0.07; // 7% within 3 days
-    } else if (elapsedDays < 10) {
-      return earnings * 0.05; // 5% within 10 days
+    if (elapsedDays < EXIT_TOLL_EARLY_DAYS) {
+      return earnings * EXIT_TOLL_EARLY;
+    } else if (elapsedDays < EXIT_TOLL_MID_DAYS) {
+      return earnings * EXIT_TOLL_MID;
     } else {
-      return earnings * 0.03; // 3% after 10 days
+      return earnings * EXIT_TOLL_LATE;
     }
   }
 }
@@ -923,7 +922,7 @@ function getGamePlanString(plan: GamePlan): string {
 // canister build pre-dates getReferralStats so the page still renders.
 export function useGetReferralStats() {
   const { principal } = useWallet();
-  const { actor, isFetching: actorFetching } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['mlmStats', principal],
     queryFn: async () => {
@@ -937,7 +936,7 @@ export function useGetReferralStats() {
         totalEarnings: 0,
         referralLink: buildReferralLink(principal),
       };
-      if (!actor || !principal) return empty;
+      if (!principal) return empty;
       try {
         const stats = await actor.getReferralStats(Principal.fromText(principal));
         const l1Points = ppUnitsToWhole(stats.l1Units);
@@ -958,7 +957,7 @@ export function useGetReferralStats() {
         return empty;
       }
     },
-    enabled: !!principal && !!actor && !actorFetching,
+    enabled: !!principal,
     refetchInterval: 10000,
   });
 }
@@ -1081,11 +1080,10 @@ export function useGetTopPonziPointsHolders() {
 }
 
 export function useGetTopPonziPointsBurners() {
-  const actor = useShenaniganActor().actor;
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['topPpBurners'],
     queryFn: async () => {
-      if (!actor) return [];
       const burners = await actor.getTopPpBurners(50n);
       return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
@@ -1283,14 +1281,10 @@ export function useCancelCashOut() {
 
 /** Live observer status — running/paused, cursors, interval. */
 export function useGetObserverStatus() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['observerStatus'],
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getObserverStatus();
-    },
-    enabled: !!actor,
+    queryFn: async () => actor.getObserverStatus(),
     refetchInterval: 5000,
   });
 }
@@ -1321,14 +1315,10 @@ export function useResumeObserver() {
 
 /** Current mint config (observer interval, PP rates, referral BPS, cash-out delay). */
 export function useGetMintConfig() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   return useQuery({
     queryKey: ['mintConfig'],
-    queryFn: async () => {
-      if (!actor) return null;
-      return actor.getMintConfig();
-    },
-    enabled: !!actor,
+    queryFn: async () => actor.getMintConfig(),
     refetchInterval: 30000,
   });
 }
@@ -1365,13 +1355,15 @@ export const useSetObserverInterval = () =>
   useMintConfigSetter<[bigint]>((a, [v]) => a.setObserverIntervalSeconds(v));
 
 export function usePendingCashOuts() {
-  const { actor } = useShenaniganActor();
+  const actor = useReadShenaniganActor();
   const { principal } = useWallet();
   return useQuery({
     queryKey: ['pendingCashOuts', principal],
     queryFn: async () => {
-      if (!actor) return [];
-      const entries = await actor.getMyCashOuts();
+      if (!principal) return [];
+      // Use the explicit-principal query so this stays anonymous on the wire —
+      // otherwise Oisy would upgrade it to an icrc49 update call via the signer.
+      const entries = await actor.getCashOutsFor(Principal.fromText(principal));
       return entries
         .filter((e) => !e.claimed)
         .map((e) => ({
@@ -1381,7 +1373,7 @@ export function usePendingCashOuts() {
           claimed: e.claimed,
         }));
     },
-    enabled: !!actor && !!principal,
+    enabled: !!principal,
     refetchInterval: 10000,
   });
 }
@@ -1438,7 +1430,7 @@ export function useGetTransactionHistory() {
           amount: 25,
           date: new Date('2025-01-22'),
           status: 'completed' as const,
-          exitTollFee: 1.75,
+          exitTollFee: 25 * EXIT_TOLL_EARLY,
         },
         {
           id: 'tx_4',
@@ -1473,7 +1465,7 @@ export function useGetTransactionHistory() {
             amount,
             date: new Date(),
             status: 'completed' as const,
-            exitTollFee: amount * 0.07,
+            exitTollFee: amount * EXIT_TOLL_EARLY,
           });
         } else {
           // Add MLM reward transaction
@@ -1633,6 +1625,7 @@ export function useGetProfileFor(principalText: string | undefined) {
 // First-wins on the canister side.
 export function useRegisterReferral() {
   const { actor } = useShenaniganActor();
+  const readActor = useReadShenaniganActor();
 
   return useMutation({
     mutationFn: async (token: string) => {
@@ -1641,7 +1634,9 @@ export function useRegisterReferral() {
       try {
         principal = Principal.fromText(token);
       } catch {
-        const resolved = await actor.resolveReferralCode(token);
+        // Resolve via the anonymous read actor so Oisy doesn't open a signer
+        // popup for what's a public lookup.
+        const resolved = await readActor.resolveReferralCode(token);
         if (resolved.length === 0) {
           throw new Error('Unknown referral code');
         }

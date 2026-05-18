@@ -1,5 +1,6 @@
 import React from 'react';
 import { toast } from 'sonner';
+import { HelpCircle } from 'lucide-react';
 import { useGetPonziPoints, useAllowance, useRevokeAllowance } from '../hooks/useQueries';
 import { ppUnitsToWhole } from '../hooks/usePpLedger';
 
@@ -37,7 +38,16 @@ export default function BankSummary() {
           </div>
         </div>
         <div className="text-right">
-          <div className="mc-label">Allowance</div>
+          <div className="mc-label flex items-center justify-end gap-1">
+            <span>Allowance</span>
+            <span
+              title="The amount of PP the protocol is pre-approved to pull from your Wallet when you deposit. ∞ means you've approved unlimited deposits — convenient, but you can revoke any time. Revoking forces an Approve step on the next deposit."
+              className="cursor-help inline-flex"
+              aria-label="What is Allowance?"
+            >
+              <HelpCircle className="h-3 w-3 mc-text-muted" />
+            </span>
+          </div>
           <div className="text-sm">
             <span className="mc-text-primary">{allowanceDisplay}</span>
             {allowance && allowance.allowance > 0n && (

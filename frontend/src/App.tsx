@@ -50,19 +50,19 @@ const howItWorks: { step: string; title: string; body: string; color: string; fi
   {
     step: '3',
     title: 'The Reset',
-    body: 'Pot empties, round resets, whole thing starts over. You knew this going in.',
+    body: 'Pot empties, round resets, whole thing starts over. This is the product.',
     color: 'danger',
   },
   {
     step: '4',
     title: 'Consolation Prizes',
-    body: `Losers get mostly worthless tokens. Play some games, pull yourself together.`,
+    body: `Losers get mostly worthless tokens. Play some games and pull yourself together.`,
     color: 'purple',
   },
   {
     step: '5',
     title: 'Loyalty Rewards',
-    body: 'Top exit-liquidity providers win an all-expense-paid trip* to Cancun!',
+    body: 'Top exit-liquidity providers win an all-expense-paid* trip to Cancun!',
     color: 'cyan',
     fine: '*Expenses do not include food, transportation, or lodging.',
   },
@@ -449,11 +449,27 @@ export default function App() {
 
               {/* Right controls */}
               <div className="flex items-center gap-2 sm:gap-3">
-                <BankNavLink onClick={() => { window.location.hash = '#bank'; setShowBankPage(true); }} />
+                <BankNavLink onClick={() => {
+                  if (showBankPage) {
+                    history.replaceState(null, '', window.location.pathname);
+                    setShowBankPage(false);
+                  } else {
+                    window.location.hash = '#bank';
+                    setShowBankPage(true);
+                  }
+                }} />
 
                 {/* Docs — always visible, visually distinct */}
                 <button
-                  onClick={() => { window.location.hash = '#docs'; setShowDocsPage(true); }}
+                  onClick={() => {
+                    if (showDocsPage) {
+                      history.replaceState(null, '', window.location.pathname);
+                      setShowDocsPage(false);
+                    } else {
+                      window.location.hash = '#docs';
+                      setShowDocsPage(true);
+                    }
+                  }}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
                 >
                   <BookOpen className="h-4 w-4" />
@@ -522,7 +538,7 @@ export default function App() {
             ) : showBankPage ? (
               /* === BANK PAGE === */
               <div className="max-w-3xl mx-auto px-4 py-8 md:py-12">
-                <BankPage />
+                <BankPage onClose={() => { history.replaceState(null, '', window.location.pathname); setShowBankPage(false); }} />
               </div>
             ) : !isAuthenticated ? (
               /* === SPLASH / LOGIN PAGE === */
@@ -567,7 +583,7 @@ export default function App() {
                     </div>
                     <div className="mc-card mc-accent-danger pt-8 pb-5 px-5 w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        This is literally a Ponzi scheme. The smart money gets in early and gets out earlier.
+                        This is literally a Ponzi scheme. Our growth strategy is your enthusiasm.
                       </p>
                     </div>
                   </div>

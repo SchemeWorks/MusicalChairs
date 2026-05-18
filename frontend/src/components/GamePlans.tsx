@@ -6,6 +6,7 @@ import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
 import { COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
+import { oisySigner } from '../lib/oisySigner';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
 
 /* ================================================================
@@ -284,7 +285,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 21 days of 11% daily returns</li>
                 <li>• Withdraw your earnings anytime</li>
-                <li>• Carried Interest: 7% / 5% / 3% based on timing</li>
+                <li>• Carried Interest: 12% / 7.5% / 3% based on timing</li>
                 <li>• Ponzi Points: {ppRates.simple21Day.toLocaleString()} PP per ICP</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-green opacity-0 group-hover:opacity-100 transition-opacity">
@@ -433,7 +434,14 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                     </div>
 
                     <button
-                      onClick={handleCreateGame}
+                      onClick={() => {
+                        // Oisy popup must be opened from inside the click gesture, before
+                        // React Query schedules the mutation microtask. See ProfileSetup.tsx.
+                        if (walletType === 'oisy') {
+                          oisySigner.openChannel();
+                        }
+                        handleCreateGame();
+                      }}
                       disabled={createGameMutation.isPending}
                       className={`w-full py-3 mt-3 text-sm font-bold rounded-xl transition-all mc-btn-primary inline-flex items-center justify-center gap-2 ${
                         hasValidAmount ? 'pulse' : ''

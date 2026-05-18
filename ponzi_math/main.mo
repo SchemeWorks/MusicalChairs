@@ -15,9 +15,7 @@ import Error "mo:base/Error";
 
 import Ledger "ledger";
 import Icrc21 "icrc21";
-import Migration "migration";
 
-(with migration = Migration.run)
 persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
     testAdmin : Principal;
@@ -376,7 +374,7 @@ persistent actor class PonziMath(initArgs : {
 
     // ========================================================================
     // Exit toll calculation
-    // Simple: 7% (< 3 days), 5% (3-10), 3% (> 10)
+    // Simple: 12% (< 7 days), 7.5% (7-14), 3% (>= 14)
     // Compounding: 9% (15-day plan), 13% (30-day plan)
     // ========================================================================
 
@@ -390,8 +388,8 @@ persistent actor class PonziMath(initArgs : {
         } else {
             let elapsedSeconds = Float.fromInt((Time.now() - game.startTime) / 1_000_000_000);
             let elapsedDays = elapsedSeconds / 86400.0;
-            if (elapsedDays < 3.0) { earnings * 0.07 }
-            else if (elapsedDays < 10.0) { earnings * 0.05 }
+            if (elapsedDays < 7.0) { earnings * 0.12 }
+            else if (elapsedDays < 14.0) { earnings * 0.075 }
             else { earnings * 0.03 };
         };
     };
@@ -975,12 +973,13 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (netEarningsE8s > 0) {
+                    if (netEarningsE8s > Ledger.ICP_TRANSFER_FEE) {
+                        let transferAmount : Nat = netEarningsE8s - Ledger.ICP_TRANSFER_FEE;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
-                                amount = netEarningsE8s;
+                                amount = transferAmount;
                                 fee = null;
                                 memo = null;
                                 created_at_time = null;
@@ -1111,12 +1110,13 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (payoutE8s > 0) {
+                    if (payoutE8s > Ledger.ICP_TRANSFER_FEE) {
+                        let transferAmount : Nat = payoutE8s - Ledger.ICP_TRANSFER_FEE;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
-                                amount = payoutE8s;
+                                amount = transferAmount;
                                 fee = null;
                                 memo = null;
                                 created_at_time = null;
@@ -1182,15 +1182,21 @@ persistent actor class PonziMath(initArgs : {
             };
             let balance = aBalance + bBalance;
             if (balance <= 0.0) { return #Err("No repayment balance to claim") };
+
+            let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
+            if (balanceE8s <= Ledger.ICP_TRANSFER_FEE) {
+                return #Err("Claimable balance is below the network fee (0.0001 ICP); wait until your balance grows past the fee");
+            };
+            let transferAmount : Nat = balanceE8s - Ledger.ICP_TRANSFER_FEE;
+
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
 
-            let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
             let transferResult = try {
                 await icpLedger.icrc1_transfer({
                     from_subaccount = null;
                     to = { owner = caller; subaccount = null };
-                    amount = balanceE8s;
+                    amount = transferAmount;
                     fee = null;
                     memo = null;
                     created_at_time = null;
@@ -1789,6 +1795,75 @@ persistent actor class PonziMath(initArgs : {
         backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
         #Ok;
+    };
+
+    // adminClearAllBackerPositions — wipes every backer position and every
+    // pending backer repayment balance. Intended for a one-shot "start fresh"
+    // reset when all live positions are admin/test sock puppets. Does NOT
+    // touch platformStats.potBalance — the ICP previously contributed via
+    // addBackerMoney stays in the canister and remains tracked in the pot.
+    public shared ({ caller }) func adminClearAllBackerPositions() : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        backerPositions := backerKeyMap.empty<BackerPosition>();
+        backerRepayments := backerKeyMap.empty<Float>();
+        #Ok;
+    };
+
+    // adminSweepUntracked — recover any actual ICP balance that exceeds
+    // internal accounting (potBalance + roundSeedReserve + sum(backerRepayments)
+    // + coverChargeBalance). Sends `actual - internal - fee` to the testAdmin.
+    // Used to reconcile dust left over by operations like
+    // adminClearAllBackerPositions, which zero internal accounting fields
+    // without crediting the corresponding ICP elsewhere. No-op if there is no
+    // positive untracked balance.
+    public shared ({ caller }) func adminSweepUntracked() : async { #Ok : Nat; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        acquireGlobalLock();
+        try {
+            let selfPrincipal = Principal.fromActor(Self);
+            let actual = try {
+                await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
+            } catch (e) {
+                return #Err("Failed to read canister balance: " # Error.message(e));
+            };
+
+            var repaymentSum : Float = 0.0;
+            for ((_, amount) in backerKeyMap.entries(backerRepayments)) {
+                repaymentSum += amount;
+            };
+            let internalFloat = platformStats.potBalance + roundSeedReserve + repaymentSum;
+            let internalE8s = Int.abs(Float.toInt(internalFloat * 100_000_000.0)) + coverChargeBalance;
+
+            if (actual <= internalE8s) {
+                return #Err("No untracked balance to sweep (actual=" # Nat.toText(actual) # " e8s, internal=" # Nat.toText(internalE8s) # " e8s)");
+            };
+            let untracked : Nat = actual - internalE8s;
+
+            if (untracked <= Ledger.ICP_TRANSFER_FEE) {
+                return #Err("Untracked balance below network fee (untracked=" # Nat.toText(untracked) # " e8s)");
+            };
+            let transferAmount : Nat = untracked - Ledger.ICP_TRANSFER_FEE;
+
+            let transferResult = try {
+                await icpLedger.icrc1_transfer({
+                    from_subaccount = null;
+                    to = { owner = caller; subaccount = null };
+                    amount = transferAmount;
+                    fee = null;
+                    memo = null;
+                    created_at_time = null;
+                });
+            } catch (e) {
+                return #Err("Failed to contact ICP ledger: " # Error.message(e));
+            };
+
+            switch (transferResult) {
+                case (#Err(err)) { #Err(transferErrorMessage(err)) };
+                case (#Ok(blockIndex)) { #Ok(blockIndex) };
+            };
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // ========================================================================
