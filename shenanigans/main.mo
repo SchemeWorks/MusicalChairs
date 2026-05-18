@@ -13,6 +13,8 @@ import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Timer "mo:base/Timer";
 import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
+import Char "mo:base/Char";
 import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
@@ -1873,6 +1875,241 @@ persistent actor Self {
             dealerCut = currentStats.dealerCut + (cost * 0.1);
         };
         shenaniganStats := principalMap.put(shenaniganStats, user, updatedStats);
+    };
+
+    // ================================================================
+    // Trollbox helpers
+    // ================================================================
+
+    let CHAT_BUFFER_CAP : Nat = 500;
+    let CHAT_MSG_MAX_LEN : Nat = 280;
+    let CHAT_RATE_MIN_GAP_NS : Int = 3_000_000_000;      // 3s between posts
+    let CHAT_RATE_WINDOW_NS : Int = 5 * 60 * 1_000_000_000; // 5-min window
+    let CHAT_RATE_WINDOW_MAX : Nat = 15;                   // 15 posts / window
+    let KARMA_MIN_PP : Nat = 10;
+    let KARMA_REGINALD_THRESHOLD_PP : Nat = 100;
+
+    let FREE_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏"];
+    let KARMA_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏", "💰", "🚀"];
+
+    let BUZZWORDS : [Text] = ["guaranteed", "no risk", "100%", "pump"];
+
+    func emojiAllowed(emoji : Text, allow : [Text]) : Bool {
+        for (e in allow.vals()) { if (e == emoji) return true };
+        false;
+    };
+
+    /// Append a chat item, assigning id, enforcing the 500-item cap by
+    /// dropping the oldest. Returns the new id.
+    func appendChatItem(author : Principal, kind : ChatItemKind) : Nat {
+        let id = nextChatItemId;
+        nextChatItemId += 1;
+        let item : ChatItem = {
+            id;
+            author;
+            timestamp = Time.now();
+            kind;
+            reactions = [];
+            deleted = false;
+        };
+        let combined = Array.append(chatItems, [item]);
+        let len = combined.size();
+        chatItems := if (len > CHAT_BUFFER_CAP) {
+            Array.tabulate<ChatItem>(
+                CHAT_BUFFER_CAP,
+                func(i) { combined[len - CHAT_BUFFER_CAP + i] }
+            );
+        } else { combined };
+        id;
+    };
+
+    func findChatItemIndex(id : Nat) : ?Nat {
+        var i : Nat = 0;
+        let n = chatItems.size();
+        while (i < n) {
+            if (chatItems[i].id == id) { return ?i };
+            i += 1;
+        };
+        null;
+    };
+
+    func updateChatItem(id : Nat, transform : (ChatItem) -> ChatItem) : Bool {
+        switch (findChatItemIndex(id)) {
+            case (null) { false };
+            case (?idx) {
+                chatItems := Array.tabulate<ChatItem>(
+                    chatItems.size(),
+                    func(i) {
+                        if (i == idx) { transform(chatItems[i]) } else { chatItems[i] };
+                    },
+                );
+                true;
+            };
+        };
+    };
+
+    func mutedUntilFor(p : Principal) : ?Int {
+        for ((u, exp) in mutedUntilEntries.vals()) {
+            if (u == p and exp > Time.now()) { return ?exp };
+        };
+        null;
+    };
+
+    func setMutedUntil(p : Principal, exp : Int) {
+        let now = Time.now();
+        let buf = Buffer.Buffer<(Principal, Int)>(mutedUntilEntries.size() + 1);
+        var replaced = false;
+        for ((u, e) in mutedUntilEntries.vals()) {
+            if (u == p) {
+                buf.add((u, exp));
+                replaced := true;
+            } else if (e > now) {
+                buf.add((u, e));
+            };
+        };
+        if (not replaced) { buf.add((p, exp)) };
+        mutedUntilEntries := Buffer.toArray(buf);
+    };
+
+    func clearMute(p : Principal) {
+        let buf = Buffer.Buffer<(Principal, Int)>(mutedUntilEntries.size());
+        for ((u, e) in mutedUntilEntries.vals()) {
+            if (u != p) { buf.add((u, e)) };
+        };
+        mutedUntilEntries := Buffer.toArray(buf);
+    };
+
+    /// Strip ASCII control characters (0x00-0x1F, 0x7F) except 0x09 (tab)
+    /// and 0x0A (newline). Keep all multibyte UTF-8 as-is.
+    func stripControlChars(s : Text) : Text {
+        let buf = Buffer.Buffer<Char>(s.size());
+        for (c in s.chars()) {
+            let code = Char.toNat32(c);
+            let isCtrl = code < 0x20 and code != 0x09 and code != 0x0A;
+            let isDel = code == 0x7F;
+            if (not isCtrl and not isDel) { buf.add(c) };
+        };
+        Text.fromIter(buf.vals());
+    };
+
+    func textLength(s : Text) : Nat { s.size() };
+
+    /// Returns the canonical rank label for a referral profile. Pure function
+    /// over the thresholds in the spec.
+    func rankForStats(directs : Nat, totalDownline : Nat) : Text {
+        if (directs >= 100 or totalDownline >= 500) { return "Triple-Diamond Founder's Circle" };
+        if (directs >= 60 or totalDownline >= 250) { return "Diamond Director" };
+        if (directs >= 30 or totalDownline >= 100) { return "Regional Director" };
+        if (directs >= 15 or totalDownline >= 40) { return "Senior Advisor" };
+        if (directs >= 5 or totalDownline >= 10) { return "Junior Partner" };
+        if (directs >= 1) { return "Affiliate" };
+        "Cold Lead";
+    };
+
+    /// Numeric rank order for upward-only detection.
+    func rankOrder(rank : Text) : Nat {
+        if (rank == "Cold Lead") { return 0 };
+        if (rank == "Affiliate") { return 1 };
+        if (rank == "Junior Partner") { return 2 };
+        if (rank == "Senior Advisor") { return 3 };
+        if (rank == "Regional Director") { return 4 };
+        if (rank == "Diamond Director") { return 5 };
+        if (rank == "Triple-Diamond Founder's Circle") { return 6 };
+        0;
+    };
+
+    func previousRankFor(p : Principal) : Text {
+        for ((u, r) in previousRankEntries.vals()) {
+            if (u == p) { return r };
+        };
+        "Cold Lead";
+    };
+
+    func setPreviousRank(p : Principal, rank : Text) {
+        let buf = Buffer.Buffer<(Principal, Text)>(previousRankEntries.size() + 1);
+        var replaced = false;
+        for ((u, r) in previousRankEntries.vals()) {
+            if (u == p) {
+                buf.add((u, rank));
+                replaced := true;
+            } else {
+                buf.add((u, r));
+            };
+        };
+        if (not replaced) { buf.add((p, rank)) };
+        previousRankEntries := Buffer.toArray(buf);
+    };
+
+    /// Returns #Ok if caller may post now; updates the rate-limit accounting
+    /// as a side effect on success. Returns #Err with a user-visible message
+    /// on failure (no side effect).
+    func checkAndRecordRate(caller : Principal) : { #Ok; #Err : Text } {
+        let now = Time.now();
+
+        // Per-caller last-post check.
+        var lastPostNs : Int = 0;
+        for ((u, ts) in lastChatPostEntries.vals()) {
+            if (u == caller) { lastPostNs := ts };
+        };
+        if (lastPostNs != 0 and (now - lastPostNs) < CHAT_RATE_MIN_GAP_NS) {
+            return #Err("Slow down.");
+        };
+
+        // Per-caller window check.
+        var windowStamps : [Int] = [];
+        for ((u, stamps) in recentPostCountEntries.vals()) {
+            if (u == caller) { windowStamps := stamps };
+        };
+        let kept = Buffer.Buffer<Int>(windowStamps.size() + 1);
+        for (ts in windowStamps.vals()) {
+            if ((now - ts) <= CHAT_RATE_WINDOW_NS) { kept.add(ts) };
+        };
+        if (kept.size() >= CHAT_RATE_WINDOW_MAX) {
+            return #Err("Slow down.");
+        };
+
+        // Record acceptance.
+        kept.add(now);
+        let lastBuf = Buffer.Buffer<(Principal, Int)>(lastChatPostEntries.size() + 1);
+        var lastReplaced = false;
+        for ((u, ts) in lastChatPostEntries.vals()) {
+            if (u == caller) {
+                lastBuf.add((u, now));
+                lastReplaced := true;
+            } else {
+                lastBuf.add((u, ts));
+            };
+        };
+        if (not lastReplaced) { lastBuf.add((caller, now)) };
+        lastChatPostEntries := Buffer.toArray(lastBuf);
+
+        let winBuf = Buffer.Buffer<(Principal, [Int])>(recentPostCountEntries.size() + 1);
+        var winReplaced = false;
+        for ((u, stamps) in recentPostCountEntries.vals()) {
+            if (u == caller) {
+                winBuf.add((u, Buffer.toArray(kept)));
+                winReplaced := true;
+            } else {
+                winBuf.add((u, stamps));
+            };
+        };
+        if (not winReplaced) { winBuf.add((caller, Buffer.toArray(kept))) };
+        recentPostCountEntries := Buffer.toArray(winBuf);
+
+        #Ok;
+    };
+
+    func containsBuzzword(body : Text) : Bool {
+        let lower = Text.map(body, func(c : Char) : Char {
+            let code = Char.toNat32(c);
+            if (code >= 0x41 and code <= 0x5A) {
+                Char.fromNat32(code + 32);
+            } else { c };
+        });
+        for (kw in BUZZWORDS.vals()) {
+            if (Text.contains(lower, #text kw)) { return true };
+        };
+        false;
     };
 
     // ================================================================
