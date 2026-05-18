@@ -43,6 +43,11 @@ export interface MintSiphon {
   'siphoner' : Principal,
   'capUnits' : bigint,
 }
+export interface SignupEntry {
+  'principal' : Principal,
+  'joinedAt' : bigint,
+  'level' : bigint,
+}
 export interface ReferralStats {
   'l1Count' : bigint,
   'l3Units' : bigint,
@@ -50,6 +55,7 @@ export interface ReferralStats {
   'l2Count' : bigint,
   'l2Units' : bigint,
   'l3Count' : bigint,
+  'recentSignups' : Array<SignupEntry>,
 }
 export interface ShenaniganConfig {
   'id' : bigint,
