@@ -498,7 +498,7 @@ persistent actor Self {
     /// Per-tier downline counts and cumulative PP earnings for `user`.
     /// Walks the referrerToDownline reverse index — O(L1+L2+L3 size) instead
     /// of O(all referrals). Recent-signup join times come from signupGiftClaimed.
-    public query func getReferralStats(user : Principal) : async ReferralStats {
+    func computeReferralStats(user : Principal) : ReferralStats {
         var l1Count : Nat = 0;
         var l2Count : Nat = 0;
         var l3Count : Nat = 0;
@@ -548,6 +548,10 @@ persistent actor Self {
             l3Units = earnings.l3Units;
             recentSignups = capped;
         };
+    };
+
+    public query func getReferralStats(user : Principal) : async ReferralStats {
+        computeReferralStats(user);
     };
 
     // Base62 alphabet — 0-9, a-z, A-Z. Used for short referral codes.
@@ -1236,6 +1240,7 @@ persistent actor Self {
                     // receives the payout via the mint above; we just don't
                     // inflate the L3 bucket with their share.
                     if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
+                    maybeEmitRankUp(next);
                     // Decrement remaining by the pre-boost amount so the cascade
                     // distribution math stays conservative regardless of boosts.
                     remaining -= basePayout;
@@ -2056,6 +2061,27 @@ persistent actor Self {
         };
         if (not replaced) { buf.add((p, rank)) };
         previousRankEntries := Buffer.toArray(buf);
+    };
+
+    /// Compute the recipient's current rank from ReferralStats and emit
+    /// #rankUp if it's strictly higher than the cached previous rank.
+    /// Also fires the rankUp Reginald trigger when crossing into Affiliate+.
+    func maybeEmitRankUp(user : Principal) {
+        let stats = computeReferralStats(user);
+        let newRank = rankForStats(stats.l1Count, stats.l1Count + stats.l2Count + stats.l3Count);
+        let prev = previousRankFor(user);
+        if (rankOrder(newRank) > rankOrder(prev)) {
+            setPreviousRank(user, newRank);
+            let _ = appendChatItem(Principal.fromActor(Self), #rankUp({ user; newRank }));
+            if (rankOrder(newRank) >= 1) {
+                switch (Reginald.pickFor("rankUp")) {
+                    case (?line) {
+                        let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "rankUp" }));
+                    };
+                    case (null) {};
+                };
+            };
+        };
     };
 
     /// Returns #Ok if caller may post now; updates the rate-limit accounting
