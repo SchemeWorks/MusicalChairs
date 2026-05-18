@@ -200,7 +200,7 @@ persistent actor Self {
         #spellCast : { castId : Nat };
         #signup : { newUser : Principal };
         #rankUp : { user : Principal; newRank : Text };
-        #roundResult : { gameId : Nat; winner : Principal; pot : Nat };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
         #reginald : { line : Text; triggerKind : Text };
         #pinUpdate : { body : Text };
     };
@@ -823,7 +823,7 @@ persistent actor Self {
                         let _ = appendChatItem(Principal.fromActor(Self), #roundResult({
                             gameId = game.id;
                             winner = game.player;
-                            pot = playerNet;
+                            winnerPpUnits = playerNet;
                         }));
 
                         let coin = Int.abs(Time.now()) % 7; // ~15%
