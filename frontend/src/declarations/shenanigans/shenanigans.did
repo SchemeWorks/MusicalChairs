@@ -57,7 +57,13 @@ type ShenaniganConfig =
    name: text;
    successOdds: nat;
  };
-type ReferralStats = 
+type SignupEntry =
+ record {
+   joinedAt: int;
+   level: nat;
+   principal: principal;
+ };
+type ReferralStats =
  record {
    l1Count: nat;
    l1Units: nat;
@@ -65,6 +71,7 @@ type ReferralStats =
    l2Units: nat;
    l3Count: nat;
    l3Units: nat;
+   recentSignups: vec SignupEntry;
  };
 type MintSiphon = 
  record {
