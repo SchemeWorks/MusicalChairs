@@ -285,20 +285,21 @@ persistent actor Self {
     var chatItems : [ChatItem] = [];
     var nextChatItemId : Nat = 0;
 
-    /// Per-user mute expirations (ns since epoch). Pruned lazily on read.
-    var mutedUntilEntries : [(Principal, Int)] = [];
+    /// Per-user mute expirations (ns since epoch). Lazily expired on read;
+    /// no GC on write — mutedUntilFor filters stale entries on every lookup.
+    var mutedUntilEntries = principalMap.empty<Int>();
 
     /// Id of the most recent #pinUpdate. null clears the pin in the UI.
     /// May point to an evicted item; getCurrentPin returns null in that case.
     var currentPinId : ?Nat = null;
 
     /// Last-known referral rank per user. Drives #rankUp upward-edge detection.
-    var previousRankEntries : [(Principal, Text)] = [];
+    var previousRankEntries = principalMap.empty<Text>();
 
     /// Per-user last accepted post timestamp + 5-min sliding window count.
     /// Used by the postChatMessage rate limit.
-    var lastChatPostEntries : [(Principal, Int)] = [];
-    var recentPostCountEntries : [(Principal, [Int])] = []; // ns timestamps in window
+    var lastChatPostEntries = principalMap.empty<Int>();
+    var recentPostCountEntries = principalMap.empty<[Int]>(); // ns timestamps in window
 
     // Admin state
     var adminPrincipal : ?Principal = null;
@@ -2002,35 +2003,23 @@ persistent actor Self {
         };
     };
 
+    // Lazily-expired mute lookup. Expired entries are not garbage-collected
+    // on write — setMutedUntil simply overwrites the value, and clearMute
+    // deletes it. Expired entries waste a tiny amount of stable memory but
+    // cause no correctness issues; mutedUntilFor always filters by Time.now().
     func mutedUntilFor(p : Principal) : ?Int {
-        for ((u, exp) in mutedUntilEntries.vals()) {
-            if (u == p and exp > Time.now()) { return ?exp };
+        switch (principalMap.get(mutedUntilEntries, p)) {
+            case (?exp) { if (exp > Time.now()) { ?exp } else { null } };
+            case (null) { null };
         };
-        null;
     };
 
     func setMutedUntil(p : Principal, exp : Int) {
-        let now = Time.now();
-        let buf = Buffer.Buffer<(Principal, Int)>(mutedUntilEntries.size() + 1);
-        var replaced = false;
-        for ((u, e) in mutedUntilEntries.vals()) {
-            if (u == p) {
-                buf.add((u, exp));
-                replaced := true;
-            } else if (e > now) {
-                buf.add((u, e));
-            };
-        };
-        if (not replaced) { buf.add((p, exp)) };
-        mutedUntilEntries := Buffer.toArray(buf);
+        mutedUntilEntries := principalMap.put(mutedUntilEntries, p, exp);
     };
 
     func clearMute(p : Principal) {
-        let buf = Buffer.Buffer<(Principal, Int)>(mutedUntilEntries.size());
-        for ((u, e) in mutedUntilEntries.vals()) {
-            if (u != p) { buf.add((u, e)) };
-        };
-        mutedUntilEntries := Buffer.toArray(buf);
+        mutedUntilEntries := principalMap.delete(mutedUntilEntries, p);
     };
 
     /// Strip ASCII control characters (0x00-0x1F, 0x7F) except 0x09 (tab)
@@ -2073,25 +2062,14 @@ persistent actor Self {
     };
 
     func previousRankFor(p : Principal) : Text {
-        for ((u, r) in previousRankEntries.vals()) {
-            if (u == p) { return r };
+        switch (principalMap.get(previousRankEntries, p)) {
+            case (?r) { r };
+            case (null) { "Cold Lead" };
         };
-        "Cold Lead";
     };
 
     func setPreviousRank(p : Principal, rank : Text) {
-        let buf = Buffer.Buffer<(Principal, Text)>(previousRankEntries.size() + 1);
-        var replaced = false;
-        for ((u, r) in previousRankEntries.vals()) {
-            if (u == p) {
-                buf.add((u, rank));
-                replaced := true;
-            } else {
-                buf.add((u, r));
-            };
-        };
-        if (not replaced) { buf.add((p, rank)) };
-        previousRankEntries := Buffer.toArray(buf);
+        previousRankEntries := principalMap.put(previousRankEntries, p, rank);
     };
 
     /// Compute the recipient's current rank from ReferralStats and emit
@@ -2122,18 +2100,18 @@ persistent actor Self {
         let now = Time.now();
 
         // Per-caller last-post check.
-        var lastPostNs : Int = 0;
-        for ((u, ts) in lastChatPostEntries.vals()) {
-            if (u == caller) { lastPostNs := ts };
+        let lastPostNs : Int = switch (principalMap.get(lastChatPostEntries, caller)) {
+            case (?ts) { ts };
+            case (null) { 0 };
         };
         if (lastPostNs != 0 and (now - lastPostNs) < CHAT_RATE_MIN_GAP_NS) {
             return #Err("Slow down.");
         };
 
-        // Per-caller window check.
-        var windowStamps : [Int] = [];
-        for ((u, stamps) in recentPostCountEntries.vals()) {
-            if (u == caller) { windowStamps := stamps };
+        // Per-caller window check. Prune stale timestamps lazily on read.
+        let windowStamps : [Int] = switch (principalMap.get(recentPostCountEntries, caller)) {
+            case (?stamps) { stamps };
+            case (null) { [] };
         };
         let kept = Buffer.Buffer<Int>(windowStamps.size() + 1);
         for (ts in windowStamps.vals()) {
@@ -2145,31 +2123,8 @@ persistent actor Self {
 
         // Record acceptance.
         kept.add(now);
-        let lastBuf = Buffer.Buffer<(Principal, Int)>(lastChatPostEntries.size() + 1);
-        var lastReplaced = false;
-        for ((u, ts) in lastChatPostEntries.vals()) {
-            if (u == caller) {
-                lastBuf.add((u, now));
-                lastReplaced := true;
-            } else {
-                lastBuf.add((u, ts));
-            };
-        };
-        if (not lastReplaced) { lastBuf.add((caller, now)) };
-        lastChatPostEntries := Buffer.toArray(lastBuf);
-
-        let winBuf = Buffer.Buffer<(Principal, [Int])>(recentPostCountEntries.size() + 1);
-        var winReplaced = false;
-        for ((u, stamps) in recentPostCountEntries.vals()) {
-            if (u == caller) {
-                winBuf.add((u, Buffer.toArray(kept)));
-                winReplaced := true;
-            } else {
-                winBuf.add((u, stamps));
-            };
-        };
-        if (not winReplaced) { winBuf.add((caller, Buffer.toArray(kept))) };
-        recentPostCountEntries := Buffer.toArray(winBuf);
+        lastChatPostEntries := principalMap.put(lastChatPostEntries, caller, now);
+        recentPostCountEntries := principalMap.put(recentPostCountEntries, caller, Buffer.toArray(kept));
 
         #Ok;
     };
