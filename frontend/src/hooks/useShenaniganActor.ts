@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Actor, HttpAgent, ActorSubclass } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { useWallet } from './useWallet';
@@ -16,6 +16,29 @@ interface UseShenaniganActorResult {
   actor: ActorSubclass<_SERVICE> | null;
   isFetching: boolean;
   error: Error | null;
+}
+
+let cachedReadActor: ActorSubclass<_SERVICE> | null = null;
+
+/**
+ * Anonymous read-only actor for shenanigans queries.
+ *
+ * MUST be used for any query hook (getShenaniganStats, getRecentShenanigans,
+ * getReferralStats, etc.). For Oisy users the auth actor (`useShenaniganActor`)
+ * is a SignerAgent that upgrades query calls to update calls via icrc49 —
+ * which (a) opens the Oisy popup and (b) fails entirely until shenanigans
+ * implements ICRC-21. Anonymous queries bypass the signer.
+ */
+export function useReadShenaniganActor(): ActorSubclass<_SERVICE> {
+  return useMemo(() => {
+    if (cachedReadActor) return cachedReadActor;
+    const agent = new HttpAgent({ host: HOST });
+    cachedReadActor = Actor.createActor<_SERVICE>(idlFactory, {
+      agent,
+      canisterId: SHENANIGANS_CANISTER_ID,
+    });
+    return cachedReadActor;
+  }, []);
 }
 
 export function useShenaniganActor(): UseShenaniganActorResult {
