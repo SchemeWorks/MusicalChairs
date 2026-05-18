@@ -775,14 +775,14 @@ persistent actor Self {
                     switch (principalMap.get(signupGiftClaimed, game.player)) {
                         case (?_) {}; // already claimed
                         case (null) {
+                            signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                            let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
                             let giftEventId = "signup-" # Principal.toText(game.player);
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
-                                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
-                                    let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
