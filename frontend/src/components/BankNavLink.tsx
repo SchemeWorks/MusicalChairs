@@ -17,7 +17,7 @@ export default function BankNavLink({ onClick }: BankNavLinkProps) {
   return (
     <button
       onClick={onClick}
-      className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
+      className="relative hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
     >
       <Landmark className="h-4 w-4" />
       <span>Bank</span>
