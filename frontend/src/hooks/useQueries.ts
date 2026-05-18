@@ -935,6 +935,7 @@ export function useGetReferralStats() {
         level3Points: 0,
         totalEarnings: 0,
         referralLink: buildReferralLink(principal),
+        recentSignups: [] as { principal: string; joinedAt: number; level: number }[],
       };
       if (!principal) return empty;
       try {
@@ -942,6 +943,14 @@ export function useGetReferralStats() {
         const l1Points = ppUnitsToWhole(stats.l1Units);
         const l2Points = ppUnitsToWhole(stats.l2Units);
         const l3Points = ppUnitsToWhole(stats.l3Units);
+        // recentSignups may be absent on canister builds that pre-date PR #36;
+        // default to [] so the page renders.
+        const rawSignups = (stats as unknown as { recentSignups?: { principal: Principal; joinedAt: bigint; level: bigint }[] }).recentSignups ?? [];
+        const recentSignups = rawSignups.map((s) => ({
+          principal: s.principal.toText(),
+          joinedAt: Number(s.joinedAt / 1_000_000n), // ns → ms
+          level: Number(s.level),
+        }));
         return {
           level1Count: Number(stats.l1Count),
           level2Count: Number(stats.l2Count),
@@ -951,6 +960,7 @@ export function useGetReferralStats() {
           level3Points: l3Points,
           totalEarnings: l1Points + l2Points + l3Points,
           referralLink: buildReferralLink(principal),
+          recentSignups,
         };
       } catch (err) {
         console.warn('getReferralStats unavailable; showing zeros until backend deploys', err);
@@ -1663,5 +1673,36 @@ export function useGetMyReferralCode() {
     },
     enabled: !!principal && !!actor && !actorFetching,
     staleTime: Infinity,
+  });
+}
+
+// Walk the referral chain upward from the current user — returns the chain
+// from immediate referrer outward (index 0 = L-1, index 1 = L-2, ...). Bounded
+// to 3 hops; stops early at chain root (the house). Each call is a query, so
+// a 3-deep chain is 3 round-trips. Cached aggressively (immutable chain).
+export function useGetUplineChain(maxDepth: number = 3) {
+  const { principal } = useWallet();
+  const actor = useReadShenaniganActor();
+  return useQuery<string[]>({
+    queryKey: ['uplineChain', principal, maxDepth],
+    queryFn: async () => {
+      if (!principal) return [];
+      const chain: string[] = [];
+      let current = Principal.fromText(principal);
+      for (let i = 0; i < maxDepth; i++) {
+        try {
+          const result = await actor.getReferrer(current);
+          if (result.length === 0) break;
+          const referrer = result[0];
+          chain.push(referrer.toText());
+          current = referrer;
+        } catch {
+          break;
+        }
+      }
+      return chain;
+    },
+    enabled: !!principal,
+    staleTime: 5 * 60_000,
   });
 }

@@ -77,6 +77,11 @@ export const idlFactory = ({ IDL }) => {
     'timestamp' : IDL.Int,
     'outcome' : ShenaniganOutcome,
   });
+  const SignupEntry = IDL.Record({
+    'principal' : IDL.Principal,
+    'joinedAt' : IDL.Int,
+    'level' : IDL.Nat,
+  });
   const ReferralStats = IDL.Record({
     'l1Count' : IDL.Nat,
     'l3Units' : IDL.Nat,
@@ -84,6 +89,7 @@ export const idlFactory = ({ IDL }) => {
     'l2Count' : IDL.Nat,
     'l2Units' : IDL.Nat,
     'l3Count' : IDL.Nat,
+    'recentSignups' : IDL.Vec(SignupEntry),
   });
   const ShenaniganConfig = IDL.Record({
     'id' : IDL.Nat,
