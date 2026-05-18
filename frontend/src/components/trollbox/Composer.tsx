@@ -31,7 +31,7 @@ export default function Composer({ authenticated, principal }: Props) {
     );
   }
 
-  const remaining = TROLLBOX_MAX_MESSAGE - body.length;
+  const remaining = TROLLBOX_MAX_MESSAGE - [...body].length;
   const submit = async () => {
     if (!body.trim()) return;
     try {
@@ -53,7 +53,7 @@ export default function Composer({ authenticated, principal }: Props) {
       <div className="flex items-end gap-2">
         <textarea
           value={body}
-          onChange={(e) => setBody(e.target.value.slice(0, TROLLBOX_MAX_MESSAGE))}
+          onChange={(e) => setBody([...e.target.value].slice(0, TROLLBOX_MAX_MESSAGE).join(''))}
           onKeyDown={onKeyDown}
           placeholder="Say something compromising…"
           rows={2}
