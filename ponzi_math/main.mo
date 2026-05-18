@@ -406,9 +406,22 @@ persistent actor class PonziMath(initArgs : {
         backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
     };
 
+    type TollDistributionDetails = {
+        tollAmount : Float;
+        toSeedReserve : Float;
+        toOldestSeriesA : Float;
+        toOtherSeriesA : Float;
+        toAllBackers : Float;
+    };
+
     // 50% of the toll seeds the next round (routed to roundSeedReserve, OUT of
     // the pot). The other 50% credits backer repayment balances via 35/25/40.
-    func distributeExitToll(tollAmount : Float) {
+    //
+    // Returns a TollDistributionDetails describing what was distributed; caller
+    // is responsible for recording the #tollDistribution ledger event AFTER the
+    // payout transfer succeeds. This split prevents a phantom ledger entry when
+    // the transfer fails and the state mutations are rolled back.
+    func distributeExitToll(tollAmount : Float) : TollDistributionDetails {
         let seedAmount = tollAmount * 0.5;
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
@@ -417,14 +430,13 @@ persistent actor class PonziMath(initArgs : {
         if (allBackers.size() == 0) {
             // No backers yet — backer half also flows to seed reserve (not pot).
             roundSeedReserve += backerRepaymentAmount;
-            recordLedger(#tollDistribution({
+            return {
                 tollAmount;
                 toSeedReserve = tollAmount;
                 toOldestSeriesA = 0.0;
                 toOtherSeriesA = 0.0;
                 toAllBackers = 0.0;
-            }));
-            return;
+            };
         };
 
         let seriesABackers = List.toArray(
@@ -484,13 +496,13 @@ persistent actor class PonziMath(initArgs : {
         let toAll = perAll * Float.fromInt(allBackers.size());
         for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
 
-        recordLedger(#tollDistribution({
+        {
             tollAmount;
             toSeedReserve = seedAmount;
             toOldestSeriesA = toOldest;
             toOtherSeriesA = toOthers;
             toAllBackers = toAll;
-        }));
+        };
     };
 
     // ========================================================================
@@ -959,7 +971,7 @@ persistent actor class PonziMath(initArgs : {
                     let actualToll = exitToll * scaleFactor;
                     let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
 
-                    distributeExitToll(actualToll);
+                    let tollDetails = distributeExitToll(actualToll);
 
                     let willClose = closePosition or isInsolvent;
                     let updatedGame : GameRecord = {
@@ -1011,6 +1023,7 @@ persistent actor class PonziMath(initArgs : {
                         };
                     };
 
+                    recordLedger(#tollDistribution(tollDetails));
                     recordLedger(#withdrawal({
                         player = caller;
                         gameId;
@@ -1100,7 +1113,7 @@ persistent actor class PonziMath(initArgs : {
                     let actualToll = exitToll * scaleFactor;
                     let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
 
-                    distributeExitToll(actualToll);
+                    let tollDetails = distributeExitToll(actualToll);
 
                     let settled : GameRecord = {
                         game with
@@ -1148,6 +1161,7 @@ persistent actor class PonziMath(initArgs : {
                         };
                     };
 
+                    recordLedger(#tollDistribution(tollDetails));
                     recordLedger(#settlement({
                         player = caller;
                         gameId;
