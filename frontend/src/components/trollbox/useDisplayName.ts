@@ -4,19 +4,21 @@ import { useReadShenaniganActor } from '../../hooks/useShenaniganActor';
 
 /// Resolve a display name with golden-name override taking precedence over
 /// the user's saved profile name. Falls back to a short principal slug.
-export function useDisplayName(principal: Principal): string {
-  const principalText = principal.toText();
+/// Accepts null so callers can call the hook unconditionally; returns "" when null.
+export function useDisplayName(principal: Principal | null): string {
+  const principalText = principal?.toText() ?? '';
   const actor = useReadShenaniganActor();
   const goldenQuery = useQuery({
     queryKey: ['shenanigans', 'goldenName', principalText],
     queryFn: async () => {
-      if (!actor) return null;
+      if (!actor || !principal) return null;
       const result = await actor.getCustomDisplayName(principal);
       return result.length === 0 ? null : result[0];
     },
     refetchInterval: 30000,
-    enabled: !!actor,
+    enabled: !!actor && !!principal,
   });
   if (goldenQuery.data) return goldenQuery.data;
+  if (!principal) return '';
   return `${principalText.slice(0, 5)}…${principalText.slice(-3)}`;
 }

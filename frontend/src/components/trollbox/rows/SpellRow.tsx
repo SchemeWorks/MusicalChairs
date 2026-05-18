@@ -9,9 +9,11 @@ interface Props {
 
 export default function SpellRow({ item, spellLookup }: Props) {
   if (!('spellCast' in item.kind)) return null;
-  if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
   const castId = item.kind.spellCast.castId;
   const record = spellLookup.get(castId.toString());
+  const userName = useDisplayName(record?.user ?? null);
+
+  if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
   if (!record) {
     return (
       <div className="px-3 py-1 text-xs text-zinc-500">
@@ -19,7 +21,6 @@ export default function SpellRow({ item, spellLookup }: Props) {
       </div>
     );
   }
-  const userName = useDisplayName(record.user);
   const outcomeText = 'success' in record.outcome ? 'landed clean' : 'backfire' in record.outcome ? 'backfired' : 'fizzled';
   const outcomeColor = 'success' in record.outcome ? 'text-emerald-300' : 'backfire' in record.outcome ? 'text-red-400' : 'text-zinc-400';
   return (
