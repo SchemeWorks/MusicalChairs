@@ -10,6 +10,8 @@ interface WalletOption {
   icon: string;
   installed?: boolean;
   installUrl?: string;
+  // Comes-soon wallets render disabled with a tooltip and aren't connectable.
+  comingSoon?: boolean;
 }
 
 interface WalletConnectModalProps {
@@ -27,7 +29,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const walletOptions: WalletOption[] = [
     { type: 'internet-identity', name: 'Internet Identity', description: 'The institutional choice. Clean, native, no questions asked.', icon: '/ii-logo.svg', installed: true },
     { type: 'plug', name: 'Plug Wallet', description: 'For those who like to keep their keys close.', icon: '/plug-logo.svg', installed: isPlugInstalled, installUrl: 'https://plugwallet.ooo/' },
-    { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', installed: true },
+    { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', installed: true, comingSoon: true },
   ];
 
   const handleConnect = async (walletType: WalletType) => {
@@ -69,6 +71,25 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
             const isSelected = selectedWallet === wallet.type;
             const isThisConnecting = isConnecting && isSelected;
             const isNotInstalled = !wallet.installed && wallet.installUrl;
+
+            if (wallet.comingSoon) {
+              return (
+                <div
+                  key={wallet.type}
+                  className="flex items-center gap-3 p-4 rounded-xl mc-card opacity-50 cursor-not-allowed"
+                  title="Coming soon"
+                >
+                  <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain grayscale" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
+                      <span className="text-xs px-2 py-0.5 bg-white/5 mc-text-muted rounded-full">Coming soon</span>
+                    </div>
+                    <p className="text-xs mc-text-muted mt-0.5">{wallet.description}</p>
+                  </div>
+                </div>
+              );
+            }
 
             if (isNotInstalled) {
               return (
