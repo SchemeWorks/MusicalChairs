@@ -804,6 +804,22 @@ persistent actor Self {
                         };
                         gameMintRetries := natMap.delete(gameMintRetries, game.id);
                         gameIdCursor := game.id + 1;
+
+                        let _ = appendChatItem(Principal.fromActor(Self), #roundResult({
+                            gameId = game.id;
+                            winner = game.player;
+                            pot = playerNet;
+                        }));
+
+                        let coin = Int.abs(Time.now()) % 7; // ~15%
+                        if (coin == 0) {
+                            switch (Reginald.pickFor("roundResult")) {
+                                case (?line) {
+                                    let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "roundResult" }));
+                                };
+                                case (null) {};
+                            };
+                        };
                     };
                     case (#Err(msg)) {
                         let attempts = switch (natMap.get(gameMintRetries, game.id)) {
