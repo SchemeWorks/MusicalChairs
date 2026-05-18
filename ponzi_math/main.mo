@@ -722,13 +722,13 @@ persistent actor class PonziMath(initArgs : {
         acquireGlobalLock();
         try {
             let currentTime = Time.now();
-            let currentHour = currentTime / 3600000000000;
+            let oneHourAgo = currentTime - 3_600_000_000_000;
             switch (principalMapNat.get(depositTimestamps, caller)) {
                 case (null) {};
                 case (?timestamps) {
                     let filtered = List.filter<Int>(
                         timestamps,
-                        func(t) { currentHour - t < 1 },
+                        func(t) { t > oneHourAgo },
                     );
                     if (List.size(filtered) >= 3) {
                         return #Err("You can only open 3 positions per hour");
@@ -767,11 +767,11 @@ persistent actor class PonziMath(initArgs : {
 
             switch (principalMapNat.get(depositTimestamps, caller)) {
                 case (null) {
-                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentTime, List.nil()));
                 };
                 case (?timestamps) {
-                    let filtered = List.filter<Int>(timestamps, func(t) { currentHour - t < 1 });
-                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filtered));
+                    let filtered = List.filter<Int>(timestamps, func(t) { t > oneHourAgo });
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentTime, filtered));
                 };
             };
 
@@ -1351,11 +1351,11 @@ persistent actor class PonziMath(initArgs : {
     };
 
     public query ({ caller }) func checkDepositRateLimit() : async Bool {
-        let currentHour = Time.now() / 3600000000000;
+        let oneHourAgo = Time.now() - 3_600_000_000_000;
         switch (principalMapNat.get(depositTimestamps, caller)) {
             case (null) { true };
             case (?ts) {
-                let filtered = List.filter<Int>(ts, func(t) { currentHour - t < 1 });
+                let filtered = List.filter<Int>(ts, func(t) { t > oneHourAgo });
                 List.size(filtered) < 3;
             };
         };
