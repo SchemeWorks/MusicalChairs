@@ -48,6 +48,7 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
             onBlock={handleBlock}
             onReact={(id) => setPicker(id)}
             onDelete={handleDelete}
+            blocked={blocked}
           />
           {picker === item.id && (
             <div className="absolute right-2 top-2 z-10">

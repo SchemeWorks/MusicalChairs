@@ -9,9 +9,10 @@ interface Props {
   onReact?: (itemId: bigint) => void;
   isAdmin?: boolean;
   onDelete?: (itemId: bigint) => void;
+  blocked: string[];
 }
 
-export default function UserMessageRow({ item, currentUserName, onBlock, onReact, isAdmin, onDelete }: Props) {
+export default function UserMessageRow({ item, currentUserName, onBlock, onReact, isAdmin, onDelete, blocked }: Props) {
   const kind = item.kind;
   if (!('userMessage' in kind)) return null;
   const { body } = kind.userMessage;
@@ -33,7 +34,7 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
           <span className="text-xs text-zinc-500">{formatTimestamp(item.timestamp)}</span>
         </div>
         <div className="text-sm text-zinc-300 break-words whitespace-pre-wrap">{renderBodyWithMentions(body)}</div>
-        <ReactionsRow item={item} onReact={onReact} />
+        <ReactionsRow item={item} onReact={onReact} blocked={blocked} />
       </div>
       {(onBlock || (isAdmin && onDelete)) && (
         <RowMenu
@@ -59,19 +60,23 @@ function renderBodyWithMentions(body: string): React.ReactNode {
   );
 }
 
-function ReactionsRow({ item, onReact }: { item: ChatItem; onReact?: (id: bigint) => void }) {
+function ReactionsRow({ item, onReact, blocked }: { item: ChatItem; onReact?: (id: bigint) => void; blocked: string[] }) {
   if (item.reactions.length === 0) return null;
   return (
     <div className="mt-1 flex flex-wrap gap-1">
-      {item.reactions.map((r, i) => (
-        <button
-          key={i}
-          onClick={() => onReact?.(item.id)}
-          className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-700"
-        >
-          {r.emoji} {r.reactors.length}{r.karmaPpBurned > 0n ? ` 💰${formatKarma(r.karmaPpBurned)}` : ''}
-        </button>
-      ))}
+      {item.reactions.map((r, i) => {
+        const visibleReactors = r.reactors.filter(p => !blocked.includes(p.toText()));
+        if (visibleReactors.length === 0 && r.karmaPpBurned === 0n) return null;
+        return (
+          <button
+            key={i}
+            onClick={() => onReact?.(item.id)}
+            className="rounded-full bg-zinc-800 px-2 py-0.5 text-xs text-zinc-300 hover:bg-zinc-700"
+          >
+            {r.emoji} {visibleReactors.length}{r.karmaPpBurned > 0n ? ` 💰${formatKarma(r.karmaPpBurned)}` : ''}
+          </button>
+        );
+      })}
     </div>
   );
 }

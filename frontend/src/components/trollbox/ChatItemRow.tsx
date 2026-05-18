@@ -15,6 +15,7 @@ interface Props {
   onBlock: (principalText: string) => void;
   onReact: (itemId: bigint) => void;
   onDelete: (itemId: bigint) => void;
+  blocked: string[];
 }
 
 export default function ChatItemRow(props: Props) {
