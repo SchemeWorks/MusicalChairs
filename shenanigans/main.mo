@@ -2229,6 +2229,58 @@ persistent actor Self {
         });
     };
 
+    public shared ({ caller }) func addKarmaReaction(itemId : Nat, emoji : Text, ppToBurn : Nat) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        if (not emojiAllowed(emoji, KARMA_EMOJIS)) { return #Err("Emoji not allowed") };
+        if (ppToBurn < KARMA_MIN_PP) { return #Err("Minimum 10 PP") };
+
+        let units = ppToUnits(ppToBurn);
+        let burnMemo = "karma-" # Nat.toText(itemId);
+        switch (await burnFrom(caller, units, burnMemo)) {
+            case (#Err(msg)) { return #Err("Burn failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
+            let buf = Buffer.Buffer<Reaction>(item.reactions.size() + 1);
+            var matched = false;
+            for (r in item.reactions.vals()) {
+                if (r.emoji == emoji) {
+                    matched := true;
+                    var has = false;
+                    for (p in r.reactors.vals()) { if (p == caller) { has := true } };
+                    let reactors = if (has) { r.reactors } else { Array.append(r.reactors, [caller]) };
+                    buf.add({ emoji = r.emoji; reactors; karmaPpBurned = r.karmaPpBurned + units });
+                } else {
+                    buf.add(r);
+                };
+            };
+            if (not matched) {
+                buf.add({ emoji; reactors = [caller]; karmaPpBurned = units });
+            };
+            { item with reactions = Buffer.toArray(buf) };
+        });
+
+        if (not updated) { return #Err("No such item") };
+
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + units);
+
+        if (ppToBurn >= KARMA_REGINALD_THRESHOLD_PP) {
+            switch (Reginald.pickFor("karma")) {
+                case (?line) {
+                    let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "karma" }));
+                };
+                case (null) {};
+            };
+        };
+
+        #Ok;
+    };
+
     // ================================================================
     // Query Functions
     // ================================================================
