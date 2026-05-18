@@ -341,6 +341,11 @@ persistent actor Self {
     // Doubles as the "join time" surfaced via getReferralStats.recentSignups.
     var signupGiftClaimed = principalMap.empty<Int>();
 
+    // Per-principal first-seen timestamp for #signup chat announcements.
+    // Written independently of signupGiftPp so the announcement fires even
+    // when the gift is disabled (signupGiftPp = 0).
+    var signupAnnouncedSet = principalMap.empty<Int>();  // principal -> first-seen ns
+
     // Per-principal time of last qualifying deposit (≥ 0.1 ICP). Drives
     // isActive() without per-cascade inter-canister calls. Populated by
     // the observer on every qualifying mint event.
@@ -769,6 +774,17 @@ persistent actor Self {
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
                 let eventId = "game-" # Nat.toText(game.id);
 
+                // Announce signup in chat unconditionally on first observation —
+                // independent of whether the gift is enabled. This ensures the
+                // #signup item fires even when signupGiftPp = 0.
+                switch (principalMap.get(signupAnnouncedSet, game.player)) {
+                    case (?_) {};
+                    case (null) {
+                        signupAnnouncedSet := principalMap.put(signupAnnouncedSet, game.player, Time.now());
+                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
+                    };
+                };
+
                 // Signup gift — gated on first qualifying game record.
                 // Gift itself goes through the deductive cascade (mint event).
                 if (mintConfig.signupGiftPp > 0) {
@@ -776,7 +792,6 @@ persistent actor Self {
                         case (?_) {}; // already claimed
                         case (null) {
                             signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
-                            let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
