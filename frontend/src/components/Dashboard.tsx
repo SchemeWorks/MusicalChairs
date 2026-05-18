@@ -10,7 +10,6 @@ import type { TabType } from '../App';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import OnboardingTour from './OnboardingTour';
 import { useWallet } from '../hooks/useWallet';
-import { isCharles } from '../lib/charles';
 
 function ShenanigansComingSoon() {
   return (
@@ -107,7 +106,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
   const [isMobile, setIsMobile] = useState(false);
   const queryClient = useQueryClient();
   const { principal } = useWallet();
-  const shenanigansEnabled = !!principal && isCharles(principal);
+  const shenanigansEnabled = !!principal;
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 769);
