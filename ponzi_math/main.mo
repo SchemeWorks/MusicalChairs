@@ -406,9 +406,22 @@ persistent actor class PonziMath(initArgs : {
         backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
     };
 
+    type TollDistributionDetails = {
+        tollAmount : Float;
+        toSeedReserve : Float;
+        toOldestSeriesA : Float;
+        toOtherSeriesA : Float;
+        toAllBackers : Float;
+    };
+
     // 50% of the toll seeds the next round (routed to roundSeedReserve, OUT of
     // the pot). The other 50% credits backer repayment balances via 35/25/40.
-    func distributeExitToll(tollAmount : Float) {
+    //
+    // Returns a TollDistributionDetails describing what was distributed; caller
+    // is responsible for recording the #tollDistribution ledger event AFTER the
+    // payout transfer succeeds. This split prevents a phantom ledger entry when
+    // the transfer fails and the state mutations are rolled back.
+    func distributeExitToll(tollAmount : Float) : TollDistributionDetails {
         let seedAmount = tollAmount * 0.5;
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
@@ -417,14 +430,13 @@ persistent actor class PonziMath(initArgs : {
         if (allBackers.size() == 0) {
             // No backers yet — backer half also flows to seed reserve (not pot).
             roundSeedReserve += backerRepaymentAmount;
-            recordLedger(#tollDistribution({
+            return {
                 tollAmount;
                 toSeedReserve = tollAmount;
                 toOldestSeriesA = 0.0;
                 toOtherSeriesA = 0.0;
                 toAllBackers = 0.0;
-            }));
-            return;
+            };
         };
 
         let seriesABackers = List.toArray(
@@ -484,13 +496,13 @@ persistent actor class PonziMath(initArgs : {
         let toAll = perAll * Float.fromInt(allBackers.size());
         for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
 
-        recordLedger(#tollDistribution({
+        {
             tollAmount;
             toSeedReserve = seedAmount;
             toOldestSeriesA = toOldest;
             toOtherSeriesA = toOthers;
             toAllBackers = toAll;
-        }));
+        };
     };
 
     // ========================================================================
@@ -542,7 +554,15 @@ persistent actor class PonziMath(initArgs : {
 
         let pool = if (withoutBacker.size() > 0) { withoutBacker } else { allLosers };
 
-        let entropy = await ic.raw_rand();
+        let entropy = try {
+            await ic.raw_rand();
+        } catch (_) {
+            // raw_rand failure: skip promotion this round. The caller
+            // (promoteAndReset) still fires triggerGameReset on the null
+            // return, so the round closes cleanly and only the Series B
+            // grant is lost.
+            return null;
+        };
         let bytes = Blob.toArray(entropy);
         var seed : Nat = 0;
         var i = 0;
@@ -722,13 +742,13 @@ persistent actor class PonziMath(initArgs : {
         acquireGlobalLock();
         try {
             let currentTime = Time.now();
-            let currentHour = currentTime / 3600000000000;
+            let oneHourAgo = currentTime - 3_600_000_000_000;
             switch (principalMapNat.get(depositTimestamps, caller)) {
                 case (null) {};
                 case (?timestamps) {
                     let filtered = List.filter<Int>(
                         timestamps,
-                        func(t) { currentHour - t < 1 },
+                        func(t) { t > oneHourAgo },
                     );
                     if (List.size(filtered) >= 3) {
                         return #Err("You can only open 3 positions per hour");
@@ -767,11 +787,11 @@ persistent actor class PonziMath(initArgs : {
 
             switch (principalMapNat.get(depositTimestamps, caller)) {
                 case (null) {
-                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, List.nil()));
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentTime, List.nil()));
                 };
                 case (?timestamps) {
-                    let filtered = List.filter<Int>(timestamps, func(t) { currentHour - t < 1 });
-                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentHour, filtered));
+                    let filtered = List.filter<Int>(timestamps, func(t) { t > oneHourAgo });
+                    depositTimestamps := principalMapNat.put(depositTimestamps, caller, List.push(currentTime, filtered));
                 };
             };
 
@@ -951,7 +971,7 @@ persistent actor class PonziMath(initArgs : {
                     let actualToll = exitToll * scaleFactor;
                     let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
 
-                    distributeExitToll(actualToll);
+                    let tollDetails = distributeExitToll(actualToll);
 
                     let willClose = closePosition or isInsolvent;
                     let updatedGame : GameRecord = {
@@ -1003,6 +1023,7 @@ persistent actor class PonziMath(initArgs : {
                         };
                     };
 
+                    recordLedger(#tollDistribution(tollDetails));
                     recordLedger(#withdrawal({
                         player = caller;
                         gameId;
@@ -1092,7 +1113,7 @@ persistent actor class PonziMath(initArgs : {
                     let actualToll = exitToll * scaleFactor;
                     let actualPotDeduction = if (isInsolvent) { pot } else { earnings };
 
-                    distributeExitToll(actualToll);
+                    let tollDetails = distributeExitToll(actualToll);
 
                     let settled : GameRecord = {
                         game with
@@ -1140,6 +1161,7 @@ persistent actor class PonziMath(initArgs : {
                         };
                     };
 
+                    recordLedger(#tollDistribution(tollDetails));
                     recordLedger(#settlement({
                         player = caller;
                         gameId;
@@ -1351,11 +1373,11 @@ persistent actor class PonziMath(initArgs : {
     };
 
     public query ({ caller }) func checkDepositRateLimit() : async Bool {
-        let currentHour = Time.now() / 3600000000000;
+        let oneHourAgo = Time.now() - 3_600_000_000_000;
         switch (principalMapNat.get(depositTimestamps, caller)) {
             case (null) { true };
             case (?ts) {
-                let filtered = List.filter<Int>(ts, func(t) { currentHour - t < 1 });
+                let filtered = List.filter<Int>(ts, func(t) { t > oneHourAgo });
                 List.size(filtered) < 3;
             };
         };
@@ -1442,6 +1464,32 @@ persistent actor class PonziMath(initArgs : {
         Iter.toArray(natMap.vals(generalLedger));
     };
 
+    // Paginated alternative for callers that risk the ~3 MiB query response
+    // cap as the ledger grows. `offset` is the 0-based starting ledger ID;
+    // `limit` caps the entry count returned. `total` reports the full ledger
+    // size so callers can drive a paginator. Past-end requests return an
+    // empty vec but still report `total`.
+    public query func getGeneralLedgerPage(offset : Nat, limit : Nat) : async {
+        entries : [GeneralLedgerEntry];
+        total : Nat;
+    } {
+        let total = nextGeneralLedgerId;
+        if (offset >= total or limit == 0) {
+            return { entries = []; total };
+        };
+        let endId = if (offset + limit > total) { total } else { offset + limit };
+        var result = List.nil<GeneralLedgerEntry>();
+        var id = offset;
+        while (id < endId) {
+            switch (natMap.get(generalLedger, id)) {
+                case (?entry) { result := List.push(entry, result) };
+                case (null) {};
+            };
+            id += 1;
+        };
+        { entries = List.toArray(List.reverse(result)); total };
+    };
+
     public query func getGeneralLedgerStats() : async {
         totalInflows : Float;
         totalOutflows : Float;
@@ -1468,7 +1516,8 @@ persistent actor class PonziMath(initArgs : {
         { totalInflows = inflows; totalOutflows = outflows; netFlow = inflows - outflows; entryCount = count };
     };
 
-    public shared func getCanisterICPBalance() : async Nat {
+    public shared ({ caller }) func getCanisterICPBalance() : async Nat {
+        requireAdmin(caller);
         let selfPrincipal = Principal.fromActor(Self);
         try {
             await icpLedger.icrc1_balance_of({ owner = selfPrincipal; subaccount = null });
@@ -1750,51 +1799,56 @@ persistent actor class PonziMath(initArgs : {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
         if (from == to) { return #Err("from and to must differ") };
 
-        let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
-            case (null) { return #Err("from principal has no backer position") };
-            case (?p) { p };
-        };
-
-        switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
-            case (null) {
-                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
-                    fromPos with owner = to;
-                });
+        acquireGlobalLock();
+        try {
+            let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
+                case (null) { return #Err("from principal has no backer position") };
+                case (?p) { p };
             };
-            case (?toPos) {
-                let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
-                let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
-                    case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
-                    case (?d, null) { ?d };
-                    case (null, ?d) { ?d };
-                    case (null, null) { null };
+
+            switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
+                case (null) {
+                    backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                        fromPos with owner = to;
+                    });
                 };
-                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
-                    toPos with
-                    amount = toPos.amount + fromPos.amount;
-                    entitlement = toPos.entitlement + fromPos.entitlement;
-                    startTime = mergedStart;
-                    firstDepositDate = mergedFirst;
-                });
+                case (?toPos) {
+                    let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
+                    let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
+                        case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
+                        case (?d, null) { ?d };
+                        case (null, ?d) { ?d };
+                        case (null, null) { null };
+                    };
+                    backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                        toPos with
+                        amount = toPos.amount + fromPos.amount;
+                        entitlement = toPos.entitlement + fromPos.entitlement;
+                        startTime = mergedStart;
+                        firstDepositDate = mergedFirst;
+                    });
+                };
             };
-        };
 
-        backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
+            backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
 
-        let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
-            case (null) { 0.0 };
-            case (?r) { r };
-        };
-        if (fromRepay > 0.0) {
-            let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
+            let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
                 case (null) { 0.0 };
                 case (?r) { r };
             };
-            backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
-        };
-        backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
+            if (fromRepay > 0.0) {
+                let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
+                    case (null) { 0.0 };
+                    case (?r) { r };
+                };
+                backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
+            };
+            backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
-        #Ok;
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // adminClearAllBackerPositions — wipes every backer position and every
@@ -1804,9 +1858,14 @@ persistent actor class PonziMath(initArgs : {
     // addBackerMoney stays in the canister and remains tracked in the pot.
     public shared ({ caller }) func adminClearAllBackerPositions() : async { #Ok; #Err : Text } {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
-        backerPositions := backerKeyMap.empty<BackerPosition>();
-        backerRepayments := backerKeyMap.empty<Float>();
-        #Ok;
+        acquireGlobalLock();
+        try {
+            backerPositions := backerKeyMap.empty<BackerPosition>();
+            backerRepayments := backerKeyMap.empty<Float>();
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // adminSweepUntracked — recover any actual ICP balance that exceeds
@@ -1861,6 +1920,22 @@ persistent actor class PonziMath(initArgs : {
                 case (#Err(err)) { #Err(transferErrorMessage(err)) };
                 case (#Ok(blockIndex)) { #Ok(blockIndex) };
             };
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    // adminForceReset — manually close the current round. Acquires the global
+    // lock and runs triggerGameReset. Use for stuck-state recovery if a prior
+    // pot-empty path trapped after a successful payout but before the round
+    // closed (e.g., raw_rand failure inside promoteAndReset before Task 4 was
+    // applied, or any future analogous edge case).
+    public shared ({ caller }) func adminForceReset(reason : Text) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        acquireGlobalLock();
+        try {
+            triggerGameReset("admin force-reset: " # reason);
+            #Ok;
         } finally {
             releaseGlobalLock();
         };
