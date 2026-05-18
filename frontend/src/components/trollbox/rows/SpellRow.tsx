@@ -8,11 +8,11 @@ interface Props {
 }
 
 export default function SpellRow({ item, spellLookup }: Props) {
-  if (!('spellCast' in item.kind)) return null;
-  const castId = item.kind.spellCast.castId;
-  const record = spellLookup.get(castId.toString());
+  const castId = 'spellCast' in item.kind ? item.kind.spellCast.castId : null;
+  const record = castId !== null ? spellLookup.get(castId.toString()) : undefined;
   const userName = useDisplayName(record?.user ?? null);
 
+  if (!('spellCast' in item.kind)) return null;
   if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
   if (!record) {
     return (
