@@ -1873,3 +1873,56 @@ export function useAdminPostAsReginald() {
     },
   });
 }
+
+export function useListChimeSounds() {
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'chimeSounds'],
+    queryFn: async () => actor.listChimeSounds(),
+    refetchInterval: 60_000,
+    enabled: !!actor,
+  });
+}
+
+export function useGetChimeSound(name: string | null) {
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'chimeSound', name],
+    queryFn: async () => {
+      if (!name) return null;
+      const result = await actor.getChimeSound(name);
+      return result.length === 0 ? null : result[0];
+    },
+    enabled: !!actor && !!name,
+    staleTime: 60 * 60_000, // Bytes don't change without an admin upload; cache aggressively.
+  });
+}
+
+export function useAdminUploadChimeSound() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, mimeType, bytes }: { name: string; mimeType: string; bytes: Uint8Array | number[] }) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      const result = await actor.adminUploadChimeSound(name, mimeType, bytes);
+      if ('Err' in result) throw new Error(result.Err);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chimeSounds'] });
+    },
+  });
+}
+
+export function useAdminDeleteChimeSound() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      await actor.adminDeleteChimeSound(name);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chimeSounds'] });
+    },
+  });
+}
