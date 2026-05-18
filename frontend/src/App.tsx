@@ -50,7 +50,7 @@ const howItWorks: { step: string; title: string; body: string; color: string; fi
   {
     step: '3',
     title: 'The Reset',
-    body: 'Pot empties, round resets, whole thing starts over. You knew this going in.',
+    body: 'Pot empties, round resets, whole thing starts over. This is the product.',
     color: 'danger',
   },
   {
