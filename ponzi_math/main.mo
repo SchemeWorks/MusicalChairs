@@ -1751,51 +1751,56 @@ persistent actor class PonziMath(initArgs : {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
         if (from == to) { return #Err("from and to must differ") };
 
-        let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
-            case (null) { return #Err("from principal has no backer position") };
-            case (?p) { p };
-        };
-
-        switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
-            case (null) {
-                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
-                    fromPos with owner = to;
-                });
+        acquireGlobalLock();
+        try {
+            let fromPos = switch (backerKeyMap.get(backerPositions, (from, #seriesA))) {
+                case (null) { return #Err("from principal has no backer position") };
+                case (?p) { p };
             };
-            case (?toPos) {
-                let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
-                let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
-                    case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
-                    case (?d, null) { ?d };
-                    case (null, ?d) { ?d };
-                    case (null, null) { null };
+
+            switch (backerKeyMap.get(backerPositions, (to, #seriesA))) {
+                case (null) {
+                    backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                        fromPos with owner = to;
+                    });
                 };
-                backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
-                    toPos with
-                    amount = toPos.amount + fromPos.amount;
-                    entitlement = toPos.entitlement + fromPos.entitlement;
-                    startTime = mergedStart;
-                    firstDepositDate = mergedFirst;
-                });
+                case (?toPos) {
+                    let mergedStart = if (toPos.startTime <= fromPos.startTime) { toPos.startTime } else { fromPos.startTime };
+                    let mergedFirst = switch (toPos.firstDepositDate, fromPos.firstDepositDate) {
+                        case (?d1, ?d2) { if (d1 <= d2) { ?d1 } else { ?d2 } };
+                        case (?d, null) { ?d };
+                        case (null, ?d) { ?d };
+                        case (null, null) { null };
+                    };
+                    backerPositions := backerKeyMap.put(backerPositions, (to, #seriesA), {
+                        toPos with
+                        amount = toPos.amount + fromPos.amount;
+                        entitlement = toPos.entitlement + fromPos.entitlement;
+                        startTime = mergedStart;
+                        firstDepositDate = mergedFirst;
+                    });
+                };
             };
-        };
 
-        backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
+            backerPositions := backerKeyMap.delete(backerPositions, (from, #seriesA));
 
-        let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
-            case (null) { 0.0 };
-            case (?r) { r };
-        };
-        if (fromRepay > 0.0) {
-            let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
+            let fromRepay = switch (backerKeyMap.get(backerRepayments, (from, #seriesA))) {
                 case (null) { 0.0 };
                 case (?r) { r };
             };
-            backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
-        };
-        backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
+            if (fromRepay > 0.0) {
+                let toRepay = switch (backerKeyMap.get(backerRepayments, (to, #seriesA))) {
+                    case (null) { 0.0 };
+                    case (?r) { r };
+                };
+                backerRepayments := backerKeyMap.put(backerRepayments, (to, #seriesA), toRepay + fromRepay);
+            };
+            backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
-        #Ok;
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // adminClearAllBackerPositions — wipes every backer position and every
@@ -1805,9 +1810,14 @@ persistent actor class PonziMath(initArgs : {
     // addBackerMoney stays in the canister and remains tracked in the pot.
     public shared ({ caller }) func adminClearAllBackerPositions() : async { #Ok; #Err : Text } {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
-        backerPositions := backerKeyMap.empty<BackerPosition>();
-        backerRepayments := backerKeyMap.empty<Float>();
-        #Ok;
+        acquireGlobalLock();
+        try {
+            backerPositions := backerKeyMap.empty<BackerPosition>();
+            backerRepayments := backerKeyMap.empty<Float>();
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // adminSweepUntracked — recover any actual ICP balance that exceeds
