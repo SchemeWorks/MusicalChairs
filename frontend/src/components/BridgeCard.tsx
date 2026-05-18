@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   useGetPonziPoints,
@@ -6,25 +6,33 @@ import {
   useApproveForDeposits,
   useDepositChips,
   useRequestCashOut,
+  useGetMintConfig,
 } from '../hooks/useQueries';
 import { wholePpToUnits } from '../hooks/usePpLedger';
 
 type Direction = 'deposit' | 'redeem';
 
-const MIN_DEPOSIT = 5000;
-
 export default function BridgeCard() {
   const { data: pp } = useGetPonziPoints();
   const { data: allowance } = useAllowance();
+  const { data: mintConfig } = useGetMintConfig();
   const approve = useApproveForDeposits();
   const deposit = useDepositChips();
   const request = useRequestCashOut();
 
   const wallet = pp?.walletPoints ?? 0;
   const position = pp?.chipPoints ?? 0;
+  const MIN_DEPOSIT = mintConfig ? Number(mintConfig.minDepositPp) : 0;
 
   const [direction, setDirection] = useState<Direction>('deposit');
-  const [amount, setAmount] = useState<number>(MIN_DEPOSIT);
+  const [amount, setAmount] = useState<number>(0);
+  const [amountTouched, setAmountTouched] = useState(false);
+
+  useEffect(() => {
+    if (!amountTouched && direction === 'deposit' && MIN_DEPOSIT > 0) {
+      setAmount(MIN_DEPOSIT);
+    }
+  }, [MIN_DEPOSIT, direction, amountTouched]);
 
   const isFirstTime = position === 0 && direction === 'deposit';
   const hasAllowance =
@@ -97,7 +105,7 @@ export default function BridgeCard() {
           min={direction === 'deposit' ? MIN_DEPOSIT : 1}
           max={maxValue}
           value={amount}
-          onChange={(e) => setAmount(Number(e.target.value))}
+          onChange={(e) => { setAmount(Number(e.target.value)); setAmountTouched(true); }}
           className="mc-input flex-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="text-sm mc-text-muted">PP</span>
@@ -118,7 +126,7 @@ export default function BridgeCard() {
           </p>
           <button
             className="mc-btn mc-btn-primary mt-3"
-            disabled={deposit.isPending || approve.isPending || amount < MIN_DEPOSIT || amount > wallet}
+            disabled={deposit.isPending || approve.isPending || !mintConfig || amount < MIN_DEPOSIT || amount > wallet}
             onClick={runDeposit}
           >
             {hasAllowance ? 'Deposit' : 'Approve & deposit'}
