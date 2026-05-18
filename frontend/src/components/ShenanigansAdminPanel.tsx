@@ -691,13 +691,27 @@ function TrollboxAdminSection() {
               <option value={315360000}>~forever</option>
             </select>
             <button
-              onClick={() => muteUser.mutate({ user: Principal.fromText(muteText), durationSeconds: BigInt(muteDuration) })}
+              onClick={() => {
+                try {
+                  const p = Principal.fromText(muteText);
+                  muteUser.mutate({ user: p, durationSeconds: BigInt(muteDuration) });
+                } catch (e) {
+                  toast.error(`Invalid principal: ${(e as Error).message}`);
+                }
+              }}
               className="rounded bg-red-500 px-2 py-1 text-xs text-white"
             >
               Mute
             </button>
             <button
-              onClick={() => unmute.mutate(Principal.fromText(muteText))}
+              onClick={() => {
+                try {
+                  const p = Principal.fromText(muteText);
+                  unmute.mutate(p);
+                } catch (e) {
+                  toast.error(`Invalid principal: ${(e as Error).message}`);
+                }
+              }}
               className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200"
             >
               Unmute
