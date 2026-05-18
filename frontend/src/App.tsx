@@ -567,7 +567,7 @@ export default function App() {
                     </div>
                     <div className="mc-card mc-accent-danger pt-8 pb-5 px-5 w-full flex-1">
                       <p className="text-sm mc-text-dim leading-relaxed">
-                        This is literally a Ponzi scheme. The smart money gets in early and gets out earlier.
+                        This is literally a Ponzi scheme. Our growth strategy is your enthusiasm.
                       </p>
                     </div>
                   </div>
