@@ -18,6 +18,7 @@ import Char "mo:base/Char";
 import Text "mo:base/Text";
 
 import PpLedger "PpLedger";
+import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
 
