@@ -36,3 +36,11 @@ export const removeBlocked = (principalText: string) =>
 
 export const getChimeMuted = (): boolean => safeRead(KEY_CHIME_MUTED) === 'true';
 export const setChimeMuted = (v: boolean) => safeWrite(KEY_CHIME_MUTED, String(v));
+
+export function subscribeBlocked(cb: (list: string[]) => void): () => void {
+  const handler = (e: StorageEvent) => {
+    if (e.key === KEY_BLOCKED) cb(getBlocked());
+  };
+  window.addEventListener('storage', handler);
+  return () => window.removeEventListener('storage', handler);
+}

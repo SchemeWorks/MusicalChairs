@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { ShenaniganRecord } from '../../declarations/shenanigans/shenanigans.did';
 import ChatItemRow from './ChatItemRow';
 import ReactionPicker from './ReactionPicker';
 import { useRecentChatItems, useGetRecentShenanigans, useAdminDeleteChatItem } from '../../hooks/useQueries';
-import { getBlocked, addBlocked } from './trollboxState';
+import { getBlocked, addBlocked, subscribeBlocked } from './trollboxState';
 
 interface Props {
   currentUserName?: string;
@@ -16,6 +16,11 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
   const adminDelete = useAdminDeleteChatItem();
   const [picker, setPicker] = useState<bigint | null>(null);
   const [blocked, setBlockedLocal] = useState<string[]>(() => getBlocked());
+
+  useEffect(() => {
+    const unsub = subscribeBlocked((list) => setBlockedLocal(list));
+    return unsub;
+  }, []);
 
   const spellLookup = React.useMemo(() => {
     const m = new Map<string, ShenaniganRecord>();
