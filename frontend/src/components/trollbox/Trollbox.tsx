@@ -4,7 +4,8 @@ import TrollboxFab from './TrollboxFab';
 import TrollboxPanel from './TrollboxPanel';
 import { getOpen, setOpen, getLastSeenId, setLastSeenId, getChimeMuted } from './trollboxState';
 import { CHIME_DEBOUNCE_MS } from './trollboxConstants';
-import { useRecentChatItems } from '../../hooks/useQueries';
+import { useRecentChatItems, useListChimeSounds } from '../../hooks/useQueries';
+import { useReadShenaniganActor } from '../../hooks/useShenaniganActor';
 
 interface Props {
   authenticated: boolean;
@@ -16,12 +17,15 @@ interface Props {
 export default function Trollbox({ authenticated, principal, currentUserName, isAdmin }: Props) {
   const [open, setOpenState] = useState<boolean>(() => getOpen());
   const { data: items = [] } = useRecentChatItems();
+  const { data: chimeList = [] } = useListChimeSounds();
+  const actor = useReadShenaniganActor();
 
   const topId = items.length > 0 ? items[0].id : 0n;
   const [lastSeen, setLastSeen] = useState<bigint>(() => getLastSeenId());
   const lastChimeRef = useRef<number>(0);
   const seenIdsRef = useRef<Set<string>>(new Set());
   const seededRef = useRef<boolean>(false);
+  const audioCacheRef = useRef<Map<string, HTMLAudioElement | null>>(new Map());
 
   const unread = React.useMemo(() => {
     let count = 0;
@@ -38,6 +42,48 @@ export default function Trollbox({ authenticated, principal, currentUserName, is
       setLastSeenId(topId);
     }
   }, [open, topId, lastSeen]);
+
+  // Sync audio cache with the chime list. Drop removed sounds; fetch new ones lazily.
+  useEffect(() => {
+    if (!actor) return;
+    const desired = new Set(chimeList.map((m: any) => m.name as string));
+    // Drop removed
+    for (const name of Array.from(audioCacheRef.current.keys())) {
+      if (!desired.has(name)) {
+        const a = audioCacheRef.current.get(name);
+        if (a) {
+          try { URL.revokeObjectURL(a.src); } catch { /* ignore */ }
+        }
+        audioCacheRef.current.delete(name);
+      }
+    }
+    // Fetch new
+    for (const meta of chimeList) {
+      if (audioCacheRef.current.has(meta.name)) continue;
+      // Mark a placeholder to avoid double-fetch races.
+      audioCacheRef.current.set(meta.name, null);
+      (async () => {
+        try {
+          const opt = await actor.getChimeSound(meta.name);
+          if (opt.length === 0) {
+            audioCacheRef.current.delete(meta.name);
+            return;
+          }
+          const sound = opt[0];
+          const bytes = sound.bytes instanceof Uint8Array
+            ? sound.bytes
+            : new Uint8Array(sound.bytes as ArrayLike<number>);
+          const blob = new Blob([bytes], { type: sound.mimeType });
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          audio.preload = 'auto';
+          audioCacheRef.current.set(meta.name, audio);
+        } catch {
+          audioCacheRef.current.delete(meta.name);
+        }
+      })();
+    }
+  }, [chimeList, actor]);
 
   // @-mention chime — only fires for NEW items observed while the panel is
   // closed and the user is authenticated. On the first listen tick after a
@@ -71,7 +117,19 @@ export default function Trollbox({ authenticated, principal, currentUserName, is
       const now = Date.now();
       if (now - lastChimeRef.current >= CHIME_DEBOUNCE_MS) {
         lastChimeRef.current = now;
-        try { new Audio('/trollbox-mention.mp3').play(); } catch { /* ignore */ }
+        // Prefer the uploaded pool; fall back to the static path.
+        const available = Array.from(audioCacheRef.current.entries())
+          .filter(([_, a]) => !!a)
+          .map(([_, a]) => a as HTMLAudioElement);
+        try {
+          if (available.length > 0) {
+            const pick = available[Math.floor(Math.random() * available.length)];
+            const cloned = pick.cloneNode() as HTMLAudioElement;
+            cloned.play();
+          } else {
+            new Audio('/trollbox-mention.mp3').play();
+          }
+        } catch { /* ignore */ }
       }
     }
   }, [items, open, currentUserName]);
