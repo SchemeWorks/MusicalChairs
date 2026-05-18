@@ -62,7 +62,7 @@ const howItWorks: { step: string; title: string; body: string; color: string; fi
   {
     step: '5',
     title: 'Loyalty Rewards',
-    body: 'Top exit-liquidity providers win an all-expense-paid trip* to Cancun!',
+    body: 'Top exit-liquidity providers win an all-expense-paid* trip to Cancun!',
     color: 'cyan',
     fine: '*Expenses do not include food, transportation, or lodging.',
   },
