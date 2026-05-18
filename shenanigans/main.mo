@@ -2178,6 +2178,57 @@ persistent actor Self {
         #Ok(id);
     };
 
+    public shared ({ caller }) func addReaction(itemId : Nat, emoji : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        if (not emojiAllowed(emoji, FREE_EMOJIS)) { return #Err("Emoji not allowed") };
+
+        let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
+            let buf = Buffer.Buffer<Reaction>(item.reactions.size() + 1);
+            var matched = false;
+            for (r in item.reactions.vals()) {
+                if (r.emoji == emoji) {
+                    matched := true;
+                    var has = false;
+                    for (p in r.reactors.vals()) { if (p == caller) { has := true } };
+                    if (has) {
+                        buf.add(r);
+                    } else {
+                        let reactors = Array.append(r.reactors, [caller]);
+                        buf.add({ emoji = r.emoji; reactors; karmaPpBurned = r.karmaPpBurned });
+                    };
+                } else {
+                    buf.add(r);
+                };
+            };
+            if (not matched) {
+                buf.add({ emoji; reactors = [caller]; karmaPpBurned = 0 });
+            };
+            { item with reactions = Buffer.toArray(buf) };
+        });
+        if (updated) { #Ok } else { #Err("No such item") };
+    };
+
+    public shared ({ caller }) func removeReaction(itemId : Nat, emoji : Text) : async () {
+        if (Principal.isAnonymous(caller)) { return };
+        let _ = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
+            let buf = Buffer.Buffer<Reaction>(item.reactions.size());
+            for (r in item.reactions.vals()) {
+                if (r.emoji == emoji) {
+                    let kept = Buffer.Buffer<Principal>(r.reactors.size());
+                    for (p in r.reactors.vals()) {
+                        if (p != caller) { kept.add(p) };
+                    };
+                    if (kept.size() > 0 or r.karmaPpBurned > 0) {
+                        buf.add({ emoji = r.emoji; reactors = Buffer.toArray(kept); karmaPpBurned = r.karmaPpBurned });
+                    };
+                } else {
+                    buf.add(r);
+                };
+            };
+            { item with reactions = Buffer.toArray(buf) };
+        });
+    };
+
     // ================================================================
     // Query Functions
     // ================================================================
