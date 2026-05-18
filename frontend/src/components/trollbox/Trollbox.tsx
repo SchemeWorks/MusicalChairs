@@ -21,6 +21,7 @@ export default function Trollbox({ authenticated, principal, currentUserName, is
   const [lastSeen, setLastSeen] = useState<bigint>(() => getLastSeenId());
   const lastChimeRef = useRef<number>(0);
   const seenIdsRef = useRef<Set<string>>(new Set());
+  const seededRef = useRef<boolean>(false);
 
   const unread = React.useMemo(() => {
     let count = 0;
@@ -38,9 +39,23 @@ export default function Trollbox({ authenticated, principal, currentUserName, is
     }
   }, [open, topId, lastSeen]);
 
-  // @-mention chime — lives here because the panel doesn't render when closed.
+  // @-mention chime — only fires for NEW items observed while the panel is
+  // closed and the user is authenticated. On the first listen tick after a
+  // listen-start transition (panel-close or auth-arrive), seed the seen set
+  // from current items without firing — those are historical, not "new."
   useEffect(() => {
-    if (open || !currentUserName) return;
+    if (open || !currentUserName) {
+      // Not listening — clear the seed flag so a future listen-start path seeds again.
+      seededRef.current = false;
+      return;
+    }
+    if (!seededRef.current) {
+      for (const item of items) {
+        seenIdsRef.current.add(item.id.toString());
+      }
+      seededRef.current = true;
+      return;
+    }
     if (getChimeMuted()) return;
     const needle = `@${currentUserName}`;
     let triggered = false;
