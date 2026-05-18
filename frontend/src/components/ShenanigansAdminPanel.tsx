@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Principal } from '@dfinity/principal';
 import { toast } from 'sonner';
 import { Save, RotateCcw, AlertTriangle, CheckCircle, Info, ChevronRight, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, SlidersHorizontal } from 'lucide-react';
 import { CharlesIcon } from '../lib/charles';
@@ -19,6 +20,11 @@ import {
   useGetObserverStatus,
   useStopObserver,
   useResumeObserver,
+  useAdminSetPin,
+  useAdminMuteUser,
+  useAdminUnmute,
+  useAdminPostAsReginald,
+  useCurrentPin,
 } from '../hooks/useQueries';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -453,6 +459,8 @@ export default function ShenanigansAdminPanel() {
         <Save className="h-5 w-5" />
         {saveAllConfigs.isPending ? 'Saving All...' : 'Save All Changes'}
       </button>
+
+      <TrollboxAdminSection />
     </div>
   );
 }
@@ -624,5 +632,98 @@ function ObserverStatusSection() {
         <button className="mc-btn mc-btn-primary" disabled={running} onClick={handleResume}>Resume</button>
       </div>
     </div>
+  );
+}
+
+/* ================================================================
+   Trollbox admin controls — pin, mute, post as Reginald.
+   ================================================================ */
+function TrollboxAdminSection() {
+  const setPin = useAdminSetPin();
+  const muteUser = useAdminMuteUser();
+  const unmute = useAdminUnmute();
+  const postReg = useAdminPostAsReginald();
+  const { data: pin } = useCurrentPin();
+  const [pinDraft, setPinDraft] = useState('');
+  const [muteText, setMuteText] = useState('');
+  const [muteDuration, setMuteDuration] = useState(3600);
+  const [regDraft, setRegDraft] = useState('');
+
+  useEffect(() => {
+    if (pin && 'pinUpdate' in pin.kind) setPinDraft(pin.kind.pinUpdate.body);
+  }, [pin]);
+
+  return (
+    <details className="mt-4 rounded border border-zinc-800 p-3">
+      <summary className="cursor-pointer text-sm font-medium text-zinc-200">Trollbox</summary>
+      <div className="mt-3 space-y-3">
+        <div>
+          <label className="block text-xs text-zinc-400">Pinned announcement</label>
+          <textarea
+            value={pinDraft}
+            onChange={(e) => setPinDraft(e.target.value.slice(0, 500))}
+            rows={2}
+            className="mt-1 w-full rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+          />
+          <div className="mt-1 flex gap-2">
+            <button onClick={() => setPin.mutate(pinDraft)} className="rounded bg-amber-500 px-2 py-1 text-xs text-zinc-900">Save pin</button>
+            <button onClick={() => { setPinDraft(''); setPin.mutate(''); }} className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200">Clear</button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-zinc-400">Mute user (principal)</label>
+          <div className="mt-1 flex gap-2">
+            <input
+              value={muteText}
+              onChange={(e) => setMuteText(e.target.value)}
+              placeholder="principal text"
+              className="flex-1 rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+            />
+            <select
+              value={muteDuration}
+              onChange={(e) => setMuteDuration(Number(e.target.value))}
+              className="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+            >
+              <option value={3600}>1h</option>
+              <option value={86400}>24h</option>
+              <option value={604800}>7d</option>
+              <option value={315360000}>~forever</option>
+            </select>
+            <button
+              onClick={() => muteUser.mutate({ user: Principal.fromText(muteText), durationSeconds: BigInt(muteDuration) })}
+              className="rounded bg-red-500 px-2 py-1 text-xs text-white"
+            >
+              Mute
+            </button>
+            <button
+              onClick={() => unmute.mutate(Principal.fromText(muteText))}
+              className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200"
+            >
+              Unmute
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs text-zinc-400">Post as Reginald</label>
+          <textarea
+            value={regDraft}
+            onChange={(e) => setRegDraft(e.target.value.slice(0, 280))}
+            rows={2}
+            className="mt-1 w-full rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+          />
+          <div className="mt-1">
+            <button
+              onClick={() => { postReg.mutate(regDraft); setRegDraft(''); }}
+              disabled={!regDraft.trim()}
+              className="rounded bg-amber-500 px-2 py-1 text-xs text-zinc-900 disabled:opacity-40"
+            >
+              Post
+            </button>
+          </div>
+        </div>
+      </div>
+    </details>
   );
 }
