@@ -279,23 +279,23 @@ persistent actor Self {
 
     /// Unified chat + system-event ring buffer. Bounded to last 500 entries.
     /// Newest items have the highest id. Stored in insertion order.
-    stable var chatItems : [ChatItem] = [];
-    stable var nextChatItemId : Nat = 0;
+    var chatItems : [ChatItem] = [];
+    var nextChatItemId : Nat = 0;
 
     /// Per-user mute expirations (ns since epoch). Pruned lazily on read.
-    stable var mutedUntilEntries : [(Principal, Int)] = [];
+    var mutedUntilEntries : [(Principal, Int)] = [];
 
     /// Id of the most recent #pinUpdate. null clears the pin in the UI.
     /// May point to an evicted item; getCurrentPin returns null in that case.
-    stable var currentPinId : ?Nat = null;
+    var currentPinId : ?Nat = null;
 
     /// Last-known referral rank per user. Drives #rankUp upward-edge detection.
-    stable var previousRankEntries : [(Principal, Text)] = [];
+    var previousRankEntries : [(Principal, Text)] = [];
 
     /// Per-user last accepted post timestamp + 5-min sliding window count.
     /// Used by the postChatMessage rate limit.
-    stable var lastChatPostEntries : [(Principal, Int)] = [];
-    stable var recentPostCountEntries : [(Principal, [Int])] = []; // ns timestamps in window
+    var lastChatPostEntries : [(Principal, Int)] = [];
+    var recentPostCountEntries : [(Principal, [Int])] = []; // ns timestamps in window
 
     // Admin state
     var adminPrincipal : ?Principal = null;
