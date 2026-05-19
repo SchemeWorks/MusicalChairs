@@ -48,6 +48,29 @@ const ICP_LEDGER_CANISTER_ID = 'ryjl3-tyaaa-aaaaa-aaaba-cai';
 // Your backend canister ID (for ICRC-2 approvals)
 const BACKEND_CANISTER_ID = '5zxxg-tyaaa-aaaac-qeckq-cai';
 
+// Mainnet IDs for the other dapp canisters Plug must be able to call.
+// Duplicated string-literally here (rather than imported) to keep the
+// whitelist isolated to one file — these IDs are stable and only ever
+// change when the canister is reinstalled, which is essentially never.
+// Canonical definitions live in useShenaniganActor.ts, usePonziMathActor.ts,
+// and usePpLedger.ts respectively.
+const SHENANIGANS_CANISTER_ID = 'j56tm-oaaaa-aaaac-qf34q-cai';
+const PONZI_MATH_CANISTER_ID = 'guy42-yqaaa-aaaaj-qr5pq-cai';
+const PP_LEDGER_CANISTER_ID = '5xv2o-iiaaa-aaaac-qeclq-cai';
+
+// Plug rejects update calls to canisters that aren't in the whitelist
+// it was connected with. ALL canisters this dapp talks to via update
+// calls must be listed here. Missing entries cause silent registerReferral
+// / deposit / spell failures — see PR that added shenanigans+ponzi_math
+// after a referral-chain bug on Plug.
+const PLUG_WHITELIST = [
+  BACKEND_CANISTER_ID,
+  ICP_LEDGER_CANISTER_ID,
+  SHENANIGANS_CANISTER_ID,
+  PONZI_MATH_CANISTER_ID,
+  PP_LEDGER_CANISTER_ID,
+];
+
 // Host configuration - detect based on URL
 const IS_LOCAL = typeof window !== 'undefined' && window.location.hostname === 'localhost';
 const IC_HOST = IS_LOCAL ? 'http://localhost:4943' : 'https://icp0.io';
@@ -182,7 +205,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         // Create agent if not exists
         if (!window.ic.plug.agent) {
           await window.ic.plug.createAgent({
-            whitelist: [BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID],
+            whitelist: PLUG_WHITELIST,
             host: IC_HOST,
           });
         }
@@ -234,10 +257,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
       throw new Error('Plug wallet is not installed. Please install the Plug browser extension.');
     }
 
-    const whitelist = [BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID];
-
     const connected = await window.ic.plug.requestConnect({
-      whitelist,
+      whitelist: PLUG_WHITELIST,
       host: IC_HOST,
       timeout: 50000,
     });
@@ -247,7 +268,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
 
     // Create agent for the whitelisted canisters
-    await window.ic.plug.createAgent({ whitelist, host: IC_HOST });
+    await window.ic.plug.createAgent({ whitelist: PLUG_WHITELIST, host: IC_HOST });
 
     if (!window.ic.plug.principalId) {
       throw new Error('Failed to get principal from Plug');
