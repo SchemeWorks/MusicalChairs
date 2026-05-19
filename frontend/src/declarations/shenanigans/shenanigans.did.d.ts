@@ -198,6 +198,10 @@ export interface _SERVICE {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  /**
+   * / Admin-only: remove the override entirely, restoring the hardcoded default.
+   */
+  'adminClearFlavorPool' : ActorMethod<[string], undefined>,
   'adminDeleteChatItem' : ActorMethod<[bigint], undefined>,
   'adminDeleteChimeSound' : ActorMethod<[string], undefined>,
   /**
@@ -223,6 +227,12 @@ export interface _SERVICE {
    * / the trollbox deploys. Idempotent. Admin-only.
    */
   'adminSeedSignupAnnounced' : ActorMethod<[], bigint>,
+  /**
+   * / Admin-only: replace a flavor pool's override. Pass an empty list to
+   * / explicitly disable a Reginald trigger or empty the rename pool.
+   * / To restore defaults, call adminClearFlavorPool instead.
+   */
+  'adminSetFlavorPool' : ActorMethod<[string, Array<string>], undefined>,
   'adminSetPin' : ActorMethod<[string], bigint>,
   'adminUnmute' : ActorMethod<[Principal], undefined>,
   'adminUploadChimeSound' : ActorMethod<
@@ -272,6 +282,12 @@ export interface _SERVICE {
    * / Active rename-spell name for `user`, if any. Expired entries return null.
    */
   'getCustomDisplayName' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Returns the hardcoded default lines for a known pool name. Useful for
+   * / the admin UI to show "this is what defaults look like" without
+   * / duplicating the lists in the frontend.
+   */
+  'getFlavorPoolDefaults' : ActorMethod<[string], Array<string>>,
   /**
    * / Currently-golden players. Used by frontend for leaderboard styling.
    */
@@ -350,6 +366,7 @@ export interface _SERVICE {
   'isBootstrapped' : ActorMethod<[], boolean>,
   'isMuted' : ActorMethod<[Principal], [] | [bigint]>,
   'listChimeSounds' : ActorMethod<[], Array<ChimeSoundMeta>>,
+  'listFlavorPools' : ActorMethod<[], Array<[string, Array<string>]>>,
   'postChatMessage' : ActorMethod<
     [string, [] | [bigint]],
     { 'Ok' : bigint } |

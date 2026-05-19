@@ -249,6 +249,8 @@ service : {
                                                 Err: text;
                                                 Ok;
                                               });
+  /// Admin-only: remove the override entirely, restoring the hardcoded default.
+  adminClearFlavorPool: (name: text) -> ();
   adminDeleteChatItem: (itemId: nat) -> ();
   adminDeleteChimeSound: (name: text) -> ();
   /// Admin-triggered manual PP issuance (direct mint to the player's chip
@@ -267,6 +269,10 @@ service : {
   /// granted a signup gift as already-announced. Prevents #signup spam after
   /// the trollbox deploys. Idempotent. Admin-only.
   adminSeedSignupAnnounced: () -> (nat);
+  /// Admin-only: replace a flavor pool's override. Pass an empty list to
+  /// explicitly disable a Reginald trigger or empty the rename pool.
+  /// To restore defaults, call adminClearFlavorPool instead.
+  adminSetFlavorPool: (name: text, lines: vec text) -> ();
   adminSetPin: (body: text) -> (nat);
   adminUnmute: (user: principal) -> ();
   adminUploadChimeSound: (name: text, mimeType: text, bytes: blob) ->
@@ -305,6 +311,10 @@ service : {
   getCurrentPin: () -> (opt ChatItem) query;
   /// Active rename-spell name for `user`, if any. Expired entries return null.
   getCustomDisplayName: (user: principal) -> (opt text) query;
+  /// Returns the hardcoded default lines for a known pool name. Useful for
+  /// the admin UI to show "this is what defaults look like" without
+  /// duplicating the lists in the frontend.
+  getFlavorPoolDefaults: (name: text) -> (vec text) query;
   /// Currently-golden players. Used by frontend for leaderboard styling.
   getGoldenPlayers: () -> (vec principal) query;
   /// All principals we've ever minted PP to. Frontend target-pickers can
@@ -369,6 +379,10 @@ service : {
   isBootstrapped: () -> (bool) query;
   isMuted: (user: principal) -> (opt int) query;
   listChimeSounds: () -> (vec ChimeSoundMeta) query;
+  listFlavorPools: () -> (vec record {
+                                text;
+                                vec text;
+                              }) query;
   postChatMessage: (body: text, replyTo: opt nat) ->
    (variant {
       Err: text;

@@ -215,6 +215,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'adminClearFlavorPool' : IDL.Func([IDL.Text], [], []),
     'adminDeleteChatItem' : IDL.Func([IDL.Nat], [], []),
     'adminDeleteChimeSound' : IDL.Func([IDL.Text], [], []),
     'adminMint' : IDL.Func(
@@ -226,6 +227,7 @@ export const idlFactory = ({ IDL }) => {
     'adminPostAsReginald' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'adminSeedRankCache' : IDL.Func([], [IDL.Nat], []),
     'adminSeedSignupAnnounced' : IDL.Func([], [IDL.Nat], []),
+    'adminSetFlavorPool' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [], []),
     'adminSetPin' : IDL.Func([IDL.Text], [IDL.Nat], []),
     'adminUnmute' : IDL.Func([IDL.Principal], [], []),
     'adminUploadChimeSound' : IDL.Func(
@@ -270,6 +272,11 @@ export const idlFactory = ({ IDL }) => {
     'getCustomDisplayName' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getFlavorPoolDefaults' : IDL.Func(
+        [IDL.Text],
+        [IDL.Vec(IDL.Text)],
         ['query'],
       ),
     'getGoldenPlayers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
@@ -349,6 +356,11 @@ export const idlFactory = ({ IDL }) => {
     'isBootstrapped' : IDL.Func([], [IDL.Bool], ['query']),
     'isMuted' : IDL.Func([IDL.Principal], [IDL.Opt(IDL.Int)], ['query']),
     'listChimeSounds' : IDL.Func([], [IDL.Vec(ChimeSoundMeta)], ['query']),
+    'listFlavorPools' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Text, IDL.Vec(IDL.Text)))],
+        ['query'],
+      ),
     'postChatMessage' : IDL.Func(
         [IDL.Text, IDL.Opt(IDL.Nat)],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
