@@ -22,6 +22,7 @@ import { Trollbox } from './components/trollbox';
 import BankPage from './components/BankPage';
 import BankNavLink from './components/BankNavLink';
 import { Footer } from './components/Footer';
+import BetaBadge from './components/BetaBadge';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 import { captureReferrerFromUrl } from './lib/referral';
@@ -401,16 +402,22 @@ export default function App() {
           <div className="px-4 sm:px-6 lg:px-8">
             <div className="flex items-center h-16 md:h-20">
 
-              {/* Logo */}
-              <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity shrink-0">
-                <span className="mc-logo text-xl md:text-2xl leading-none whitespace-nowrap">
-                  <span className="hidden md:inline">Musical Chairs</span>
-                  <span className="md:hidden">MC</span>
-                </span>
-                <span className="mc-tagline text-sm md:text-base leading-none">
-                  It's a Ponzi!
-                </span>
-              </button>
+              {/* Logo + Beta tag */}
+              <div className="flex items-start gap-2 shrink-0">
+                <button onClick={() => { setShowAdminPanel(false); window.scrollTo(0, 0); }} className="flex flex-col text-left hover:opacity-80 transition-opacity">
+                  <span className="mc-logo text-xl md:text-2xl leading-none whitespace-nowrap">
+                    <span className="hidden md:inline">Musical Chairs</span>
+                    <span className="md:hidden">MC</span>
+                  </span>
+                  <span className="mc-tagline text-sm md:text-base leading-none">
+                    It's a Ponzi!
+                  </span>
+                </button>
+                <BetaBadge />
+              </div>
+
+              {/* Spacer left of tabs — centers tabs between logo and right controls */}
+              <div className="flex-1" />
 
               {/* Desktop header tabs — only when on dashboard */}
               {showDashboard && !showAdminPanel && (
