@@ -5,7 +5,7 @@ import { useDisplayName } from '../useDisplayName';
 interface Props {
   item: ChatItem;
   currentUserName?: string;
-  onBlock?: (principalText: string) => void;
+  onBlock?: (principalText: string, displayName: string) => void;
   onReact?: (itemId: bigint) => void;
   isAdmin?: boolean;
   onDelete?: (itemId: bigint) => void;
@@ -36,9 +36,10 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
         <div className="text-sm text-zinc-300 break-words whitespace-pre-wrap">{renderBodyWithMentions(body)}</div>
         <ReactionsRow item={item} onReact={onReact} blocked={blocked} />
       </div>
-      {(onBlock || (isAdmin && onDelete)) && (
+      {(onReact || onBlock || (isAdmin && onDelete)) && (
         <RowMenu
-          onBlock={onBlock ? () => onBlock(item.author.toText()) : undefined}
+          onReact={onReact ? () => onReact(item.id) : undefined}
+          onBlock={onBlock ? () => onBlock(item.author.toText(), authorName) : undefined}
           onDelete={isAdmin && onDelete ? () => onDelete(item.id) : undefined}
         />
       )}
@@ -87,9 +88,10 @@ function formatKarma(units: bigint): string {
   return pp.toString();
 }
 
-function RowMenu({ onBlock, onDelete }: { onBlock?: () => void; onDelete?: () => void }) {
+function RowMenu({ onReact, onBlock, onDelete }: { onReact?: () => void; onBlock?: () => void; onDelete?: () => void }) {
   return (
-    <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
+    <div className="opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex flex-col gap-1">
+      {onReact && <button onClick={onReact} aria-label="React" className="text-xs text-zinc-500 hover:text-zinc-200">😊+</button>}
       {onBlock && <button onClick={onBlock} className="text-xs text-zinc-500 hover:text-zinc-200">block</button>}
       {onDelete && <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300">🗑️</button>}
     </div>

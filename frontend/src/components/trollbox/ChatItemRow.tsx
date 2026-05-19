@@ -12,7 +12,7 @@ interface Props {
   currentUserName?: string;
   spellLookup: Map<string, ShenaniganRecord>;
   isAdmin: boolean;
-  onBlock: (principalText: string) => void;
+  onBlock: (principalText: string, displayName: string) => void;
   onReact: (itemId: bigint) => void;
   onDelete: (itemId: bigint) => void;
   blocked: string[];

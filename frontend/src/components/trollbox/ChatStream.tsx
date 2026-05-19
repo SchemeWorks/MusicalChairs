@@ -33,7 +33,11 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
     return true;
   });
 
-  const handleBlock = (principalText: string) => {
+  const handleBlock = (principalText: string, displayName: string) => {
+    const ok = window.confirm(
+      `Block ${displayName}?\n\nTheir messages and reactions will be hidden from you. You can unblock them from the Trollbox header (Blocked users).`
+    );
+    if (!ok) return;
     addBlocked(principalText);
     setBlockedLocal(getBlocked());
   };
