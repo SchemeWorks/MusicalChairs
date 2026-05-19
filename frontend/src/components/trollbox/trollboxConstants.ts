@@ -4,8 +4,16 @@ export const TROLLBOX_MUTE_POLL_MS = 60000;
 export const TROLLBOX_MAX_MESSAGE = 280;
 export const TROLLBOX_FETCH_LIMIT = 100;
 
-export const FREE_EMOJIS = ['👍', '😂', '🔥', '💀', '🎯', '🙏'] as const;
-export const KARMA_EMOJIS = ['👍', '😂', '🔥', '💀', '🎯', '🙏', '💰', '🚀'] as const;
+export const FREE_EMOJIS = ['👍', '👎', '✅', '❓', '👀'] as const;
+export const KARMA_EMOJIS = [
+  '🔥', '🚀', '💀', '🤣', '😂', '💰', '🎯', '🙏', '💎', '🤡',
+  '🐂', '🐻', '⚰️', '🍾', '🥂', '📈', '📉', '💸', '💩', '🫡',
+  '😎', '🥹', '🫠', '🚨', '🤝',
+] as const;
+
+export const KARMA_SPLIT_RECIPIENT_PCT = 40;
+export const KARMA_SPLIT_BURN_PCT = 50;
+export const KARMA_SPLIT_MGMT_PCT = 10;
 
 export const KARMA_MIN_PP = 10;
 

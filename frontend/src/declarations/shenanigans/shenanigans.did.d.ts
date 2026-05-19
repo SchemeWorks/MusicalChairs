@@ -300,6 +300,7 @@ export interface _SERVICE {
    * / Currently-golden players. Used by frontend for leaderboard styling.
    */
   'getGoldenPlayers' : ActorMethod<[], Array<Principal>>,
+  'getKarmaReceived' : ActorMethod<[Principal], bigint>,
   /**
    * / All principals we've ever minted PP to. Frontend target-pickers can
    * / use this to populate a candidate list. Updated lazily — entries are
