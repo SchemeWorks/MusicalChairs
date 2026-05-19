@@ -1851,8 +1851,19 @@ persistent actor Self {
                 };
             };
             case (#magicMirror) {
+                // Stack charges if an active shield already exists. Cap at 3
+                // so castLimit=2 can be raised without runaway shielding.
+                // Expiry always refreshes to now+1d on each cast.
+                let priorCharges : Nat = switch (principalMap.get(shieldsActive, caster)) {
+                    case (null) { 0 };
+                    case (?s) {
+                        if (Time.now() >= s.expiresAt) { 0 }
+                        else { s.chargesRemaining };
+                    };
+                };
+                let newCharges : Nat = if (priorCharges + 1 > 3) { 3 } else { priorCharges + 1 };
                 shieldsActive := principalMap.put(shieldsActive, caster, {
-                    chargesRemaining = 1;
+                    chargesRemaining = newCharges;
                     expiresAt = nowTs + oneDayNs;
                 });
             };
