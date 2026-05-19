@@ -251,6 +251,12 @@ service : {
                                               });
   /// Admin-only: remove the override entirely, restoring the hardcoded default.
   adminClearFlavorPool: (name: text) -> ();
+  /// Admin-only: scrub `user`'s referralChain entry and the reverse-index
+  /// edge. Used to clean up bad mappings created before the
+  /// `isAdminPrincipal` guard landed in registerReferral (e.g. Charles
+  /// auto-registered against someone else's `?ref=` code). No-op if `user`
+  /// has no entry. Returns the principal that was removed, or null.
+  adminClearReferrer: (user: principal) -> (opt principal);
   adminDeleteChatItem: (itemId: nat) -> ();
   adminDeleteChimeSound: (name: text) -> ();
   /// Admin-triggered manual PP issuance (direct mint to the player's chip
@@ -393,6 +399,10 @@ service : {
   primeObserverCursors: () -> ();
   /// Idempotent referral registration. First call sets the chain entry;
   /// subsequent calls for the same caller are no-ops. Self-referral rejected.
+  /// Admin principals (adminPrincipal + extraAdmins) are silently rejected:
+  /// Charles sits at the top of the chain by design and must never be
+  /// registered as someone else's downline, even if a stale `?ref=` survives
+  /// in localStorage from earlier testing.
   registerReferral: (referrer: principal) -> ();
   removeReaction: (itemId: nat, emoji: text) -> (variant {
                                                    Err: text;

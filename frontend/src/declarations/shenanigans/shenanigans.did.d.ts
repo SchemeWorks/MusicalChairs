@@ -202,6 +202,14 @@ export interface _SERVICE {
    * / Admin-only: remove the override entirely, restoring the hardcoded default.
    */
   'adminClearFlavorPool' : ActorMethod<[string], undefined>,
+  /**
+   * / Admin-only: scrub `user`'s referralChain entry and the reverse-index
+   * / edge. Used to clean up bad mappings created before the
+   * / `isAdminPrincipal` guard landed in registerReferral (e.g. Charles
+   * / auto-registered against someone else's `?ref=` code). No-op if `user`
+   * / has no entry. Returns the principal that was removed, or null.
+   */
+  'adminClearReferrer' : ActorMethod<[Principal], [] | [Principal]>,
   'adminDeleteChatItem' : ActorMethod<[bigint], undefined>,
   'adminDeleteChimeSound' : ActorMethod<[string], undefined>,
   /**
@@ -380,6 +388,10 @@ export interface _SERVICE {
   /**
    * / Idempotent referral registration. First call sets the chain entry;
    * / subsequent calls for the same caller are no-ops. Self-referral rejected.
+   * / Admin principals (adminPrincipal + extraAdmins) are silently rejected:
+   * / Charles sits at the top of the chain by design and must never be
+   * / registered as someone else's downline, even if a stale `?ref=` survives
+   * / in localStorage from earlier testing.
    */
   'registerReferral' : ActorMethod<[Principal], undefined>,
   'removeReaction' : ActorMethod<
