@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Principal } from '@dfinity/principal';
-import { Eye, ChevronDown, ChevronRight, History, Activity, Clock, Skull, TrendingUp, Hourglass, AlertTriangle } from 'lucide-react';
+import { Eye, ChevronDown, ChevronRight, History, Activity, Clock, Skull, TrendingUp, Hourglass, AlertTriangle, Users, Search, Copy, ArrowUp, ArrowDown } from 'lucide-react';
 import {
   useAdminIsAdmin,
   useAdminGetCurrentRoundId,
@@ -8,6 +8,7 @@ import {
   useAdminGetRoundSummaries,
   useAdminGetEventsByRound,
   useAdminGetEventsForGame,
+  useGetAllGames,
   useGetProfileFor,
 } from '../hooks/useQueries';
 import type { ActivePlanSnapshot, GameRecord, GamePlan, GeneralLedgerEntry, GeneralLedgerEvent, RoundSummary } from '../backend';
@@ -441,11 +442,12 @@ function RoundBrowser({ summaries, currentRoundId }: { summaries: RoundSummary[]
 
 export default function CharlesGodView() {
   const { data: isAdmin, isLoading: adminLoading } = useAdminIsAdmin();
-  const [activeTab, setActiveTab] = useState<'live' | 'rounds'>('live');
+  const [activeTab, setActiveTab] = useState<'live' | 'rounds' | 'roster'>('live');
 
   const { data: snapshots = [], isLoading: snapsLoading, error: snapsErr } = useAdminGetActivePlansSnapshot(isAdmin === true);
   const { data: currentRoundId } = useAdminGetCurrentRoundId(isAdmin === true);
   const { data: summaries = [] } = useAdminGetRoundSummaries(isAdmin === true);
+  const { data: allGames = [], isLoading: rosterLoading, error: rosterErr } = useGetAllGames(isAdmin === true);
 
   if (adminLoading) {
     return <div className="flex justify-center py-12"><LoadingSpinner /></div>;
@@ -487,7 +489,7 @@ export default function CharlesGodView() {
 
       {/* Tab bar */}
       <div className="inline-flex rounded-full bg-white/5 border border-white/10 p-1 gap-1">
-        {(['live', 'rounds'] as const).map(t => (
+        {(['live', 'rounds', 'roster'] as const).map(t => (
           <button
             key={t}
             onClick={() => setActiveTab(t)}
@@ -499,8 +501,10 @@ export default function CharlesGodView() {
           >
             {t === 'live' ? (
               <><Activity className="h-3.5 w-3.5 inline mr-1.5" /> In-Flight ({snapshots.length})</>
-            ) : (
+            ) : t === 'rounds' ? (
               <><History className="h-3.5 w-3.5 inline mr-1.5" /> Round Log</>
+            ) : (
+              <><Users className="h-3.5 w-3.5 inline mr-1.5" /> Roster</>
             )}
           </button>
         ))}
@@ -515,12 +519,257 @@ export default function CharlesGodView() {
         ) : (
           <ActivePlansTable snapshots={snapshots} />
         )
-      ) : (
+      ) : activeTab === 'rounds' ? (
         currentRoundId !== undefined && (
           <RoundBrowser summaries={summaries} currentRoundId={currentRoundId} />
         )
+      ) : (
+        rosterLoading ? (
+          <div className="flex justify-center py-12"><LoadingSpinner /></div>
+        ) : rosterErr ? (
+          <div className="text-center py-8 mc-text-danger text-sm">Failed to load: {String(rosterErr)}</div>
+        ) : (
+          <RosterTable games={allGames} />
+        )
       )}
     </div>
+  );
+}
+
+/* ================================================================
+   Roster — one row per unique player, sortable + filterable
+   ================================================================ */
+
+type RosterRow = {
+  principal: Principal;
+  principalText: string;
+  gamesCount: number;
+  activeGamesCount: number;
+  totalDeposited: number;
+  totalWithdrawn: number;
+  net: number; // totalWithdrawn - totalDeposited (negative = still in the hole)
+  firstSeenNs: bigint;
+  lastActivityNs: bigint;
+};
+
+type SortKey =
+  | 'principal'
+  | 'games'
+  | 'active'
+  | 'deposited'
+  | 'withdrawn'
+  | 'net'
+  | 'firstSeen'
+  | 'lastActivity';
+type SortDir = 'asc' | 'desc';
+
+// Natural direction for a fresh column click: desc for "more is interesting",
+// asc for text. Matches what a spreadsheet user would expect.
+const NATURAL_DIR: Record<SortKey, SortDir> = {
+  principal: 'asc',
+  games: 'desc',
+  active: 'desc',
+  deposited: 'desc',
+  withdrawn: 'desc',
+  net: 'desc',
+  firstSeen: 'desc', // newest first
+  lastActivity: 'desc', // most recent first
+};
+
+function aggregateRoster(games: GameRecord[]): RosterRow[] {
+  const byPrincipal = new Map<string, RosterRow>();
+  for (const g of games) {
+    const key = g.player.toString();
+    let row = byPrincipal.get(key);
+    if (!row) {
+      row = {
+        principal: g.player,
+        principalText: key,
+        gamesCount: 0,
+        activeGamesCount: 0,
+        totalDeposited: 0,
+        totalWithdrawn: 0,
+        net: 0,
+        firstSeenNs: g.startTime,
+        lastActivityNs: g.lastUpdateTime,
+      };
+      byPrincipal.set(key, row);
+    }
+    row.gamesCount += 1;
+    if (g.isActive) row.activeGamesCount += 1;
+    row.totalDeposited += g.amount;
+    row.totalWithdrawn += g.totalWithdrawn;
+    if (g.startTime < row.firstSeenNs) row.firstSeenNs = g.startTime;
+    if (g.lastUpdateTime > row.lastActivityNs) row.lastActivityNs = g.lastUpdateTime;
+  }
+  // Finalize net after all sums settled
+  for (const row of byPrincipal.values()) {
+    row.net = row.totalWithdrawn - row.totalDeposited;
+  }
+  return Array.from(byPrincipal.values());
+}
+
+function compareRows(a: RosterRow, b: RosterRow, key: SortKey, dir: SortDir): number {
+  const sign = dir === 'asc' ? 1 : -1;
+  switch (key) {
+    case 'principal':
+      return sign * a.principalText.localeCompare(b.principalText);
+    case 'games':
+      return sign * (a.gamesCount - b.gamesCount);
+    case 'active':
+      return sign * (a.activeGamesCount - b.activeGamesCount);
+    case 'deposited':
+      return sign * (a.totalDeposited - b.totalDeposited);
+    case 'withdrawn':
+      return sign * (a.totalWithdrawn - b.totalWithdrawn);
+    case 'net':
+      return sign * (a.net - b.net);
+    case 'firstSeen':
+      return sign * Number(a.firstSeenNs - b.firstSeenNs);
+    case 'lastActivity':
+      return sign * Number(a.lastActivityNs - b.lastActivityNs);
+  }
+}
+
+function RosterTable({ games }: { games: GameRecord[] }) {
+  const [sortKey, setSortKey] = useState<SortKey>('lastActivity');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [filter, setFilter] = useState('');
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const rows = useMemo(() => aggregateRoster(games), [games]);
+
+  const filteredSorted = useMemo(() => {
+    const q = filter.trim().toLowerCase();
+    const filtered = q ? rows.filter(r => r.principalText.toLowerCase().includes(q)) : rows;
+    return [...filtered].sort((a, b) => compareRows(a, b, sortKey, sortDir));
+  }, [rows, filter, sortKey, sortDir]);
+
+  const onHeaderClick = (key: SortKey) => {
+    if (sortKey === key) {
+      setSortDir(d => (d === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortKey(key);
+      setSortDir(NATURAL_DIR[key]);
+    }
+  };
+
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(text);
+      setTimeout(() => setCopied(c => (c === text ? null : c)), 1200);
+    } catch {
+      // clipboard may be unavailable (insecure context) — no-op
+    }
+  };
+
+  if (rows.length === 0) {
+    return (
+      <div className="text-center py-12 mc-text-muted text-sm">
+        No players yet. The fund awaits its first sucker.
+      </div>
+    );
+  }
+
+  // Aggregate caveat: anyone who created a profile but never deposited
+  // doesn't appear in getAllGames(). Surface that so Charles knows.
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="mc-text-muted text-xs">
+          {filteredSorted.length} of {rows.length} player{rows.length === 1 ? '' : 's'} who&apos;ve placed at least one game.
+        </div>
+        <div className="relative">
+          <Search className="h-3.5 w-3.5 mc-text-muted absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input
+            type="text"
+            value={filter}
+            onChange={e => setFilter(e.target.value)}
+            placeholder="Filter by principal…"
+            className="bg-white/5 border border-white/10 rounded-lg pl-8 pr-3 py-1.5 text-xs mc-text-primary placeholder:mc-text-muted focus:outline-none focus:border-white/20 w-64"
+          />
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[10px] uppercase tracking-wider mc-text-muted border-b border-white/10">
+              <th className="text-left py-2 px-2 font-normal">Player</th>
+              <SortableHeader label="Principal" k="principal" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="left" />
+              <SortableHeader label="Games" k="games" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="Active" k="active" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="Deposited" k="deposited" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="Withdrawn" k="withdrawn" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="Net" k="net" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="First seen" k="firstSeen" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+              <SortableHeader label="Last activity" k="lastActivity" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
+            </tr>
+          </thead>
+          <tbody>
+            {filteredSorted.map(row => (
+              <tr key={row.principalText} className="border-b border-white/5 hover:bg-white/[0.03] transition-colors">
+                <td className="py-2 px-2">
+                  <OwnerLabel principal={row.principal} />
+                </td>
+                <td className="py-2 px-2">
+                  <button
+                    onClick={() => copy(row.principalText)}
+                    className="font-mono text-[11px] mc-text-dim hover:mc-text-primary inline-flex items-center gap-1.5 group"
+                    title="Click to copy full principal"
+                  >
+                    <span>{truncPrincipal(row.principalText)}</span>
+                    {copied === row.principalText ? (
+                      <span className="mc-text-green text-[10px]">copied</span>
+                    ) : (
+                      <Copy className="h-3 w-3 opacity-40 group-hover:opacity-100" />
+                    )}
+                  </button>
+                </td>
+                <td className="py-2 px-2 text-right font-mono mc-text-primary">{row.gamesCount}</td>
+                <td className="py-2 px-2 text-right font-mono">
+                  <span className={row.activeGamesCount > 0 ? 'mc-text-green' : 'mc-text-muted'}>
+                    {row.activeGamesCount}
+                  </span>
+                </td>
+                <td className="py-2 px-2 text-right font-mono mc-text-primary">{formatICP(row.totalDeposited)}</td>
+                <td className="py-2 px-2 text-right font-mono mc-text-gold">{formatICP(row.totalWithdrawn)}</td>
+                <td className={`py-2 px-2 text-right font-mono ${row.net >= 0 ? 'mc-text-green' : 'mc-text-danger'}`}>
+                  {row.net >= 0 ? '+' : ''}{formatICP(row.net)}
+                </td>
+                <td className="py-2 px-2 text-right mc-text-dim">{formatTime(row.firstSeenNs)}</td>
+                <td className="py-2 px-2 text-right mc-text-dim">{formatTime(row.lastActivityNs)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SortableHeader({
+  label, k, sortKey, sortDir, onClick, align,
+}: {
+  label: string;
+  k: SortKey;
+  sortKey: SortKey;
+  sortDir: SortDir;
+  onClick: (k: SortKey) => void;
+  align: 'left' | 'right';
+}) {
+  const active = sortKey === k;
+  return (
+    <th className={`py-2 px-2 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
+      <button
+        onClick={() => onClick(k)}
+        className={`inline-flex items-center gap-1 hover:mc-text-primary transition-colors ${active ? 'mc-text-primary' : ''}`}
+      >
+        <span>{label}</span>
+        {active && (sortDir === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)}
+      </button>
+    </th>
   );
 }
 

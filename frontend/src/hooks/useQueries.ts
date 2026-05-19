@@ -1617,6 +1617,22 @@ export function useAdminGetEventsByRound(roundId: bigint | null, enabled: boolea
   });
 }
 
+// Every game ever played, across all players. Used by the Charles
+// roster view to derive the per-user activity rollup. Admin-only in
+// practice (gated by the calling view), but the query itself is open.
+export function useGetAllGames(enabled: boolean = true) {
+  const { actor } = usePonziMathActor();
+  return useQuery<GameRecord[]>({
+    queryKey: ['allGames'],
+    queryFn: async () => {
+      if (!actor) throw new Error('Actor not available');
+      return actor.getAllGames();
+    },
+    enabled: enabled && !!actor,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useAdminGetEventsForGame(gameId: bigint | null) {
   const { actor } = usePonziMathActor();
   return useQuery<GeneralLedgerEntry[]>({
