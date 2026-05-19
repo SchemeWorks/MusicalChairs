@@ -2007,8 +2007,16 @@ persistent actor Self {
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
                 for ((whale, _) in whales.vals()) {
-                    let amount = capAt(casterBal * 20 / 100, ppToUnits(300));
-                    let _ = await chipTransfer(caster, whale, amount, memo);
+                    // Re-read caster balance per iteration so successive
+                    // payouts are bounded by what's actually left, not the
+                    // initial snapshot. With three whales and stale balance
+                    // a caster could lose up to 60%; per-iteration caps it
+                    // at ~49% (0.2 + 0.16 + 0.128).
+                    let liveBal = await getChipBalance(caster);
+                    let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
+                    if (amount > 0) {
+                        let _ = await chipTransfer(caster, whale, amount, memo);
+                    };
                 };
             };
             case (#magicMirror) {};
