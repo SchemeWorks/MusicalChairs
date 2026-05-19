@@ -28,7 +28,12 @@ import {
   useListChimeSounds,
   useAdminUploadChimeSound,
   useAdminDeleteChimeSound,
+  useListFlavorPools,
+  useGetFlavorPoolDefaults,
+  useAdminSetFlavorPool,
+  useAdminClearFlavorPool,
 } from '../hooks/useQueries';
+import { SPELL_FLAVOR_DEFAULTS, type SpellFlavorKey } from './trollbox/spellFlavorDefaults';
 import { useReadShenaniganActor } from '../hooks/useShenaniganActor';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -465,6 +470,7 @@ export default function ShenanigansAdminPanel() {
       </button>
 
       <TrollboxAdminSection />
+      <FlavorPoolsSection />
     </div>
   );
 }
@@ -823,6 +829,116 @@ function TrollboxAdminSection() {
         </div>
 
         <ChimeSoundsSubsection />
+      </div>
+    </details>
+  );
+}
+
+/* ================================================================
+   Flavor pools admin section — editable text pools for Reginald
+   lines, rename spell names, and spell-cast quotes.
+   ================================================================ */
+
+const FLAVOR_POOLS: Array<{ key: string; label: string; description: string; frontendOnly?: boolean }> = [
+  { key: 'renameNamePool', label: 'Rename spell name pool', description: 'Names picked at random when a player gets renamed by the spell.' },
+  { key: 'reginald.spellBackfire', label: 'Reginald: spell backfire', description: 'Fires ~25% of the time after a backfired shenanigan.' },
+  { key: 'reginald.rankUp', label: 'Reginald: rank-up', description: 'Fires after every promotion to Affiliate or higher.' },
+  { key: 'reginald.roundResult', label: 'Reginald: round result', description: 'Fires ~15% of the time after a round resolves.' },
+  { key: 'reginald.buzzword', label: 'Reginald: buzzword', description: 'Fires when a chat message contains "guaranteed", "no risk", "100%", or "pump".' },
+  { key: 'reginald.karma', label: 'Reginald: karma burn', description: 'Fires after a karma reaction of ≥100 PP.' },
+  { key: 'spellFlavor.success', label: 'Spell-cast: success flavor', description: 'Quote shown after a successful spell cast.', frontendOnly: true },
+  { key: 'spellFlavor.fail', label: 'Spell-cast: fail flavor', description: 'Quote shown after a fizzled spell cast.', frontendOnly: true },
+  { key: 'spellFlavor.backfire', label: 'Spell-cast: backfire flavor', description: 'Quote shown after a backfired spell cast.', frontendOnly: true },
+];
+
+function FlavorPoolEditor({ pool }: { pool: typeof FLAVOR_POOLS[number] }) {
+  const { data: overrides = [] } = useListFlavorPools();
+  const { data: backendDefaults = [] } = useGetFlavorPoolDefaults(pool.frontendOnly ? null : pool.key);
+  const setPool = useAdminSetFlavorPool();
+  const clearPool = useAdminClearFlavorPool();
+
+  const override = overrides.find(([n]) => n === pool.key);
+  const defaults = pool.frontendOnly
+    ? (SPELL_FLAVOR_DEFAULTS[pool.key as SpellFlavorKey] ?? [])
+    : backendDefaults;
+  const effective = override ? override[1] : defaults;
+  const isOverridden = !!override;
+
+  const [draft, setDraft] = useState<string>(effective.join('\n'));
+  const [editing, setEditing] = useState(false);
+
+  useEffect(() => {
+    if (!editing) setDraft(effective.join('\n'));
+  }, [effective.join('\n'), editing]);
+
+  const handleSave = async () => {
+    const lines = draft.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+    try {
+      await setPool.mutateAsync({ name: pool.key, lines });
+      toast.success(`Saved ${pool.label}`);
+      setEditing(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  const handleReset = async () => {
+    try {
+      await clearPool.mutateAsync(pool.key);
+      toast.success(`Reverted ${pool.label} to defaults`);
+      setEditing(false);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="rounded border border-zinc-800 p-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <div>
+          <span className="text-sm font-medium text-zinc-200">{pool.label}</span>
+          <span className={`ml-2 rounded px-1.5 py-0.5 text-[10px] ${isOverridden ? 'bg-amber-500/20 text-amber-300' : 'bg-zinc-700 text-zinc-400'}`}>
+            {isOverridden ? 'Customized' : 'Default'}
+          </span>
+        </div>
+        <span className="text-[10px] text-zinc-500">{effective.length} line{effective.length === 1 ? '' : 's'}</span>
+      </div>
+      <p className="mt-1 text-[11px] text-zinc-500">{pool.description}</p>
+      <textarea
+        value={draft}
+        onChange={(e) => { setEditing(true); setDraft(e.target.value); }}
+        rows={Math.max(3, Math.min(10, effective.length + 1))}
+        spellCheck={false}
+        className="mt-2 w-full resize-y rounded bg-zinc-800 px-2 py-1 font-mono text-xs text-zinc-100"
+      />
+      <div className="mt-1 flex gap-2">
+        <button
+          onClick={handleSave}
+          disabled={!editing || setPool.isPending}
+          className="rounded bg-amber-500 px-2 py-1 text-xs text-zinc-900 disabled:opacity-40"
+        >
+          Save
+        </button>
+        <button
+          onClick={handleReset}
+          disabled={!isOverridden || clearPool.isPending}
+          className="rounded bg-zinc-700 px-2 py-1 text-xs text-zinc-200 disabled:opacity-40"
+        >
+          Reset to defaults
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function FlavorPoolsSection() {
+  return (
+    <details className="mt-4 rounded border border-zinc-800 p-3">
+      <summary className="cursor-pointer text-sm font-medium text-zinc-200">Flavor pools</summary>
+      <div className="mt-3 space-y-3">
+        {FLAVOR_POOLS.map((p) => (
+          <FlavorPoolEditor key={p.key} pool={p} />
+        ))}
       </div>
     </details>
   );
