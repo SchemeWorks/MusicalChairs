@@ -80,7 +80,7 @@ function LiveFeedRow({
   spellIcon: React.ReactNode;
 }) {
   const casterName = useDisplayName(record.user);
-  const target = record.target.length > 0 ? record.target[0] : null;
+  const target = record.target[0] ?? null;
   const targetName = useDisplayName(target);
   const outcomeKey = variantKey(record.outcome);
   const outcomeColor =
