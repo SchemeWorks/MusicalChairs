@@ -1926,3 +1926,54 @@ export function useAdminDeleteChimeSound() {
     },
   });
 }
+
+export function useListFlavorPools() {
+  const actor = useReadShenaniganActor();
+  return useQuery<Array<[string, string[]]>>({
+    queryKey: ['shenanigans', 'flavorPools'],
+    queryFn: async () => actor.listFlavorPools() as Promise<Array<[string, string[]]>>,
+    refetchInterval: 30_000,
+    enabled: !!actor,
+  });
+}
+
+export function useGetFlavorPoolDefaults(name: string | null) {
+  const actor = useReadShenaniganActor();
+  return useQuery<string[]>({
+    queryKey: ['shenanigans', 'flavorPoolDefaults', name],
+    queryFn: async () => {
+      if (!name) return [];
+      return actor.getFlavorPoolDefaults(name);
+    },
+    enabled: !!actor && !!name,
+    staleTime: Infinity,  // Defaults are part of canister code; never change between deploys.
+  });
+}
+
+export function useAdminSetFlavorPool() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ name, lines }: { name: string; lines: string[] }) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      await actor.adminSetFlavorPool(name, lines);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'flavorPools'] });
+    },
+  });
+}
+
+export function useAdminClearFlavorPool() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      await actor.adminClearFlavorPool(name);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'flavorPools'] });
+    },
+  });
+}
