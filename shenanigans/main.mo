@@ -453,6 +453,9 @@ persistent actor Self {
     // Leaderboard (local state — not derived from ledger)
     var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
     var spellsCastPerPlayer = principalMap.empty<Nat>(); // successful casts only
+    // Cumulative PP units received via karma reactions (the 40% recipient cut).
+    // Prestige stat — surfaced in Hall of Fame.
+    var karmaReceivedPerPlayer = principalMap.empty<Nat>();
 
     // Active spell-effect state — see type docs above. All empty on first
     // deploy; orthogonal persistence carries values across upgrades.
@@ -2046,8 +2049,15 @@ persistent actor Self {
     let CHIME_SOUND_MAX_COUNT : Nat = 20;            // up to 20 sounds in the pool
     let CHIME_SOUND_NAME_MAX_LEN : Nat = 64;
 
-    let FREE_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏"];
-    let KARMA_EMOJIS : [Text] = ["👍", "😂", "🔥", "💀", "🎯", "🙏", "💰", "🚀"];
+    // Free emojis = boring, utilitarian acknowledgements. Karma emojis =
+    // expressive flair, gated behind a PP burn + recipient payout.
+    // Lists are disjoint: 👍 etc. are free-only, 🔥/🚀/etc. are karma-only.
+    let FREE_EMOJIS : [Text] = ["👍", "👎", "✅", "❓", "👀"];
+    let KARMA_EMOJIS : [Text] = [
+        "🔥", "🚀", "💀", "🤣", "😂", "💰", "🎯", "🙏", "💎", "🤡",
+        "🐂", "🐻", "⚰️", "🍾", "🥂", "📈", "📉", "💸", "💩", "🫡",
+        "😎", "🥹", "🫠", "🚨", "🤝"
+    ];
 
     let BUZZWORDS : [Text] = ["guaranteed", "no risk", "100%", "pump"];
 
@@ -2394,28 +2404,71 @@ persistent actor Self {
         if (updated) { #Ok } else { #Err("No such item") };
     };
 
+    // Karma reaction with 40/50/10 split:
+    //   40% → message author (recipient payout)
+    //   50% → burn (transfer to minting account)
+    //   10% → house principal (Management's cut)
+    // Self-karma is blocked. Canister-authored messages (e.g. Reginald) route
+    // the 40% to house as well — tipping Management for the snark.
     public shared ({ caller }) func addKarmaReaction(itemId : Nat, emoji : Text, ppToBurn : Nat) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
         if (not emojiAllowed(emoji, KARMA_EMOJIS)) { return #Err("Emoji not allowed") };
         if (ppToBurn < KARMA_MIN_PP) { return #Err("Minimum 10 PP") };
-        if (findChatItemIndex(itemId) == null) { return #Err("No such item") };
+
+        let idx = switch (findChatItemIndex(itemId)) {
+            case (null) { return #Err("No such item") };
+            case (?i) { i };
+        };
+        let item = chatItems[idx];
+        if (item.author == caller) { return #Err("Can't karma your own message") };
 
         let units = ppToUnits(ppToBurn);
-        let burnMemo = "karma-" # Nat.toText(itemId);
-        switch (await burnFrom(caller, units, burnMemo)) {
+        let burnUnits = units * 50 / 100;
+        let mgmtUnits = units * 10 / 100;
+        let recipientUnits : Nat = units - burnUnits - mgmtUnits;
+
+        // Pre-check balance to avoid partial-spend on failure mid-sequence.
+        let balance = await getChipBalance(caller);
+        if (balance < units) {
+            return #Err("Insufficient PP: need " # Nat.toText(ppToBurn) # ", have " # Nat.toText(balance / PpLedger.PP_UNIT_SCALE));
+        };
+
+        // Recipient: canister-authored items route to house (Management).
+        let recipient = if (item.author == Principal.fromActor(Self)) { house() } else { item.author };
+
+        // 1. Burn (50%).
+        let burnMemo = "karma-burn-" # Nat.toText(itemId);
+        switch (await burnFrom(caller, burnUnits, burnMemo)) {
             case (#Err(msg)) { return #Err("Burn failed: " # msg) };
             case (#Ok(_)) {};
         };
 
-        let updated = updateChatItem(itemId, func(item : ChatItem) : ChatItem {
-            let buf = Buffer.Buffer<Reaction>(item.reactions.size() + 1);
+        // 2. Pay recipient (40%).
+        let payMemo = "karma-pay-" # Nat.toText(itemId);
+        switch (await chipTransfer(caller, recipient, recipientUnits, payMemo)) {
+            case (#Err(msg)) { return #Err("Recipient pay failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        // 3. Management cut (10%).
+        let mgmtMemo = "karma-mgmt-" # Nat.toText(itemId);
+        switch (await chipTransfer(caller, house(), mgmtUnits, mgmtMemo)) {
+            case (#Err(msg)) { return #Err("Management cut failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        let updated = updateChatItem(itemId, func(it : ChatItem) : ChatItem {
+            let buf = Buffer.Buffer<Reaction>(it.reactions.size() + 1);
             var matched = false;
-            for (r in item.reactions.vals()) {
+            for (r in it.reactions.vals()) {
                 if (r.emoji == emoji) {
                     matched := true;
                     var has = false;
                     for (p in r.reactors.vals()) { if (p == caller) { has := true } };
                     let reactors = if (has) { r.reactors } else { Array.append(r.reactors, [caller]) };
+                    // karmaPpBurned tracks total karma value SPENT on this
+                    // reaction (display signal for prestige). The actual burn
+                    // is 50%; the rest flows to recipient + management.
                     buf.add({ emoji = r.emoji; reactors; karmaPpBurned = r.karmaPpBurned + units });
                 } else {
                     buf.add(r);
@@ -2424,7 +2477,7 @@ persistent actor Self {
             if (not matched) {
                 buf.add({ emoji; reactors = [caller]; karmaPpBurned = units });
             };
-            { item with reactions = Buffer.toArray(buf) };
+            { it with reactions = Buffer.toArray(buf) };
         });
 
         if (not updated) { return #Err("No such item") };
@@ -2433,7 +2486,13 @@ persistent actor Self {
             case (null) { 0 };
             case (?n) { n };
         };
-        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + units);
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + burnUnits);
+
+        let priorRecv = switch (principalMap.get(karmaReceivedPerPlayer, recipient)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
+        karmaReceivedPerPlayer := principalMap.put(karmaReceivedPerPlayer, recipient, priorRecv + recipientUnits);
 
         if (ppToBurn >= KARMA_REGINALD_THRESHOLD_PP) {
             switch (reginaldPickFor("karma")) {
@@ -2445,6 +2504,13 @@ persistent actor Self {
         };
 
         #Ok;
+    };
+
+    public query func getKarmaReceived(p : Principal) : async Nat {
+        switch (principalMap.get(karmaReceivedPerPlayer, p)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
     };
 
     public query func listChimeSounds() : async [ChimeSoundMeta] {

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Medal, Trophy, Target, Gem, Shield } from 'lucide-react';
-import { useGetTopPonziPointsBurners, useGetPonziPoints } from '../hooks/useQueries';
+import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
+import { useGetTopPonziPointsBurners, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import LoadingSpinner from './LoadingSpinner';
 
@@ -61,6 +61,8 @@ export default function HallOfFame() {
   const { data: burnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
   const { data: ponziData } = useGetPonziPoints();
   const { principal } = useWallet();
+  const { data: karmaUnits } = useGetKarmaReceived(principal ?? undefined);
+  const karmaPp = karmaUnits ? Number(karmaUnits / 100_000_000n) : 0;
 
   if (burnersLoading) return <LoadingSpinner />;
 
@@ -174,6 +176,21 @@ export default function HallOfFame() {
         </div>
         <div className="text-right">
           <div className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()}</div>
+          <div className="text-xs mc-text-muted">PP</div>
+        </div>
+      </div>
+
+      {/* Karma received — prestige stat from trollbox karma reactions */}
+      <div className="mc-card p-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Heart className="h-5 w-5 mc-text-pink" />
+          <div>
+            <span className="text-xs mc-label">Karma Received</span>
+            <div className="text-xs mc-text-muted">PP tipped to you via 🔥 / 🚀 / 💀 reactions</div>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="text-lg font-bold mc-text-cyan">{karmaPp.toLocaleString()}</div>
           <div className="text-xs mc-text-muted">PP</div>
         </div>
       </div>

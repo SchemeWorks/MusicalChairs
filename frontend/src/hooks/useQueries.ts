@@ -1867,7 +1867,21 @@ export function useKarmaReact() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
       queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'karmaReceived'] });
     },
+  });
+}
+
+export function useGetKarmaReceived(principalText?: string) {
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'karmaReceived', principalText],
+    queryFn: async () => {
+      if (!actor || !principalText) return 0n;
+      return actor.getKarmaReceived(Principal.fromText(principalText));
+    },
+    enabled: !!actor && !!principalText,
+    refetchInterval: 15000,
   });
 }
 

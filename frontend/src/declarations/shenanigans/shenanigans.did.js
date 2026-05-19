@@ -285,6 +285,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getGoldenPlayers' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
+    'getKarmaReceived' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getKnownPpHolders' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
     'getMissedBackerMints' : IDL.Func(

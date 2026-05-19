@@ -5,7 +5,7 @@ import { useDisplayName } from '../useDisplayName';
 interface Props {
   item: ChatItem;
   currentUserName?: string;
-  onBlock?: (principalText: string) => void;
+  onBlock?: (principalText: string, displayName: string) => void;
   onReact?: (itemId: bigint) => void;
   isAdmin?: boolean;
   onDelete?: (itemId: bigint) => void;
@@ -24,7 +24,7 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
   }
 
   return (
-    <div className={`flex gap-2 px-3 py-2 ${mentioned ? 'border-l-2 border-amber-400' : ''}`}>
+    <div className={`relative flex gap-2 px-3 py-2 ${mentioned ? 'border-l-2 border-amber-400' : ''}`}>
       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200 shrink-0">
         {authorName.charAt(0).toUpperCase()}
       </div>
@@ -36,9 +36,10 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
         <div className="text-sm text-zinc-300 break-words whitespace-pre-wrap">{renderBodyWithMentions(body)}</div>
         <ReactionsRow item={item} onReact={onReact} blocked={blocked} />
       </div>
-      {(onBlock || (isAdmin && onDelete)) && (
+      {(onReact || onBlock || (isAdmin && onDelete)) && (
         <RowMenu
-          onBlock={onBlock ? () => onBlock(item.author.toText()) : undefined}
+          onReact={onReact ? () => onReact(item.id) : undefined}
+          onBlock={onBlock ? () => onBlock(item.author.toText(), authorName) : undefined}
           onDelete={isAdmin && onDelete ? () => onDelete(item.id) : undefined}
         />
       )}
@@ -87,11 +88,62 @@ function formatKarma(units: bigint): string {
   return pp.toString();
 }
 
-function RowMenu({ onBlock, onDelete }: { onBlock?: () => void; onDelete?: () => void }) {
+function RowMenu({ onReact, onBlock, onDelete }: { onReact?: () => void; onBlock?: () => void; onDelete?: () => void }) {
+  const [overflowOpen, setOverflowOpen] = React.useState(false);
+  const hasOverflow = !!onBlock || !!onDelete;
+
+  React.useEffect(() => {
+    if (!overflowOpen) return;
+    const close = () => setOverflowOpen(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [overflowOpen]);
+
   return (
-    <div className="opacity-0 group-hover:opacity-100 flex flex-col gap-1">
-      {onBlock && <button onClick={onBlock} className="text-xs text-zinc-500 hover:text-zinc-200">block</button>}
-      {onDelete && <button onClick={onDelete} className="text-xs text-red-400 hover:text-red-300">🗑️</button>}
+    <div className="absolute right-2 top-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 flex items-center gap-1 rounded-md border border-zinc-800 bg-zinc-900/90 px-1 py-0.5 shadow-sm">
+      {onReact && (
+        <button
+          onClick={onReact}
+          aria-label="React"
+          className="rounded px-1 text-sm hover:bg-zinc-800"
+        >
+          😊
+        </button>
+      )}
+      {hasOverflow && (
+        <div className="relative">
+          <button
+            onClick={(e) => { e.stopPropagation(); setOverflowOpen((v) => !v); }}
+            aria-label="More actions"
+            className="rounded px-1 text-sm text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+          >
+            ⋯
+          </button>
+          {overflowOpen && (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="absolute right-0 top-6 z-10 flex w-28 flex-col rounded-md border border-zinc-700 bg-zinc-900 py-1 shadow-lg"
+            >
+              {onBlock && (
+                <button
+                  onClick={() => { setOverflowOpen(false); onBlock(); }}
+                  className="px-2 py-1 text-left text-xs text-zinc-300 hover:bg-zinc-800"
+                >
+                  Block user
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  onClick={() => { setOverflowOpen(false); onDelete(); }}
+                  className="px-2 py-1 text-left text-xs text-red-400 hover:bg-zinc-800"
+                >
+                  Delete (admin)
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

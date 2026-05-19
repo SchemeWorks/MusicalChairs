@@ -323,6 +323,7 @@ service : {
   getFlavorPoolDefaults: (name: text) -> (vec text) query;
   /// Currently-golden players. Used by frontend for leaderboard styling.
   getGoldenPlayers: () -> (vec principal) query;
+  getKarmaReceived: (p: principal) -> (nat) query;
   /// All principals we've ever minted PP to. Frontend target-pickers can
   /// use this to populate a candidate list. Updated lazily — entries are
   /// added in mintInternal and never removed (cheap, bounded by player count).
