@@ -1,43 +1,74 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from '@/components/ui/tooltip';
 import { KeyRound, ShieldAlert, ExternalLink } from 'lucide-react';
 
 const CANISTERS: { name: string; id: string; note: string }[] = [
   { name: 'backend',      id: '5zxxg-tyaaa-aaaac-qeckq-cai', note: 'The pot, the rules, the math.' },
   { name: 'shenanigans',  id: 'j56tm-oaaaa-aaaac-qf34q-cai', note: 'Referrals, Ponzi Points spend.' },
   { name: 'pp_ledger',    id: '5xv2o-iiaaa-aaaac-qeclq-cai', note: 'Ponzi Points ICRC ledger.' },
-  { name: 'ponzi_math',   id: 'guy42-yqaaa-aaaaj-qr5pq-cai', note: 'Projections engine. To be black-holed.' },
+  { name: 'ponzi_math',   id: 'guy42-yqaaa-aaaaj-qr5pq-cai', note: 'Math canister. To be black-holed.' },
   { name: 'frontend',     id: '5qu42-fqaaa-aaaac-qecla-cai', note: 'This site, served on-chain.' },
 ];
 
 export default function BetaBadge() {
   const [open, setOpen] = useState(false);
+  const [hintOpen, setHintOpen] = useState(false);
+  const closeTimerRef = useRef<number | undefined>(undefined);
+
+  const showHint = () => {
+    if (closeTimerRef.current) {
+      window.clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = undefined;
+    }
+    setHintOpen(true);
+  };
+  const hideHintSoon = () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = window.setTimeout(() => setHintOpen(false), 120);
+  };
+  const openModal = () => {
+    if (closeTimerRef.current) window.clearTimeout(closeTimerRef.current);
+    setHintOpen(false);
+    setOpen(true);
+  };
 
   return (
     <>
-      <TooltipProvider delayDuration={150}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={() => setOpen(true)}
-              className="mc-beta-chip"
-              aria-label="Beta disclosure — read the risk factors"
-            >
-              BETA
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" align="start" className="mc-beta-tooltip">
+      <div
+        className="relative inline-block"
+        onMouseEnter={showHint}
+        onMouseLeave={hideHintSoon}
+        onFocus={showHint}
+        onBlur={hideHintSoon}
+      >
+        <button
+          type="button"
+          onClick={openModal}
+          className="mc-beta-chip"
+          aria-label="Beta disclosure — read the risk factors"
+          aria-haspopup="dialog"
+        >
+          BETA
+        </button>
+
+        {hintOpen && (
+          <button
+            type="button"
+            onClick={openModal}
+            onMouseEnter={showHint}
+            onMouseLeave={hideHintSoon}
+            className="mc-beta-hint"
+            aria-label="Open beta disclosure"
+          >
             <div className="font-display text-[11px] mc-text-gold tracking-wider">
               We could rug you.
             </div>
             <div className="text-[11px] mc-text-dim mt-0.5">
-              (We won't. Click for the full disclosure.)
+              (We won't.) <span className="mc-text-gold">Read more &rarr;</span>
             </div>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+          </button>
+        )}
+      </div>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="mc-dialog mc-beta-dialog max-w-xl max-h-[90vh] overflow-y-auto">
@@ -53,7 +84,7 @@ export default function BetaBadge() {
                 Beta Software, Founder Keys
               </DialogTitle>
               <DialogDescription className="mc-text-dim text-sm mt-2 leading-relaxed">
-                We're not immutable yet. Here's exactly what that means before you deposit a single satoshi.
+                We're not immutable yet. Here's exactly what that means before you make a deposit.
               </DialogDescription>
             </div>
 
@@ -64,7 +95,7 @@ export default function BetaBadge() {
               <p className="text-sm mc-text-dim leading-relaxed">
                 Doors just opened. The economy is still being tuned, edges still being filed. Expect
                 occasional downtime while we ship upgrades, numbers that may shift if we discover
-                something broken, and the general jankiness of a product still finding its sea legs.
+                something broken, and general jankiness.
               </p>
             </section>
 
@@ -82,7 +113,6 @@ export default function BetaBadge() {
               <ul className="text-sm mc-text-dim space-y-1 mt-2 ml-4 list-disc marker:mc-text-purple">
                 <li>Drain the pot</li>
                 <li>Change rules mid-round</li>
-                <li>Mint Ponzi Points out of thin air</li>
                 <li>Tune fees to whatever number we feel like</li>
                 <li>Pause withdrawals</li>
                 <li>Upgrade the contracts to do something completely different</li>
@@ -101,15 +131,15 @@ export default function BetaBadge() {
                 Two paths.
               </p>
               <p className="text-sm mc-text-dim leading-relaxed">
-                <span className="mc-text-primary font-semibold">ponzi_math</span> (the projections engine) gets
+                <span className="mc-text-primary font-semibold">ponzi_math</span> gets
                 {' '}<span className="mc-text-gold font-semibold">black-holed</span> once we're confident in
                 the numbers — permanently immutable, no upgrade path, no admin keys. The math becomes
                 trustless.
               </p>
               <p className="text-sm mc-text-dim leading-relaxed">
-                The game canisters stay <span className="mc-text-primary font-semibold">dev-controlled</span>.
-                New mechanics, balance tweaks, more shenanigans — freezing them would freeze the product.
-                For those, you're trusting the dev to be a good actor. Not just through testing. Indefinitely.
+                The game canisters stay <span className="mc-text-primary font-semibold">dev-controlled</span> —
+                we've got more mechanics, balance tweaks, and shenanigans to ship, and freezing them would
+                freeze the product.
               </p>
               <p className="text-sm mc-text-dim leading-relaxed pt-1">
                 Size your deposits accordingly.
