@@ -275,6 +275,14 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   /**
+   * / Read the caller's (or any principal's) active Magic Mirror shield, if any.
+   * / Returns null when no shield is active or it has expired.
+   */
+  'getActiveShield' : ActorMethod<
+    [Principal],
+    [] | [{ 'expiresAt' : bigint, 'chargesRemaining' : bigint }]
+  >,
+  /**
    * / All active spell effects on `user`. Expired entries are filtered
    * / out of the result but not deleted from state (cleanup happens
    * / lazily on next write/cast).
