@@ -18,6 +18,8 @@
 
 **Naming guard:** Per [CLAUDE.md](CLAUDE.md), `exitToll` and `coverCharge` identifiers are NOT renamed. This plan introduces no new abbreviations of `carriedInterest` or `frontEndLoad`.
 
+**Line numbers are advisory.** Every `Read [file.ext:N]` reference in this plan was captured before any phase landed. As earlier-phase commits insert/remove lines, later phases' references drift. Implementers should treat line numbers as a hint and locate the actual target block by `old_string` matching or `grep` for unique anchor text. The `old_string` blocks in each Edit step are the source of truth — they are intentionally written to match the file state at the START of the relevant phase.
+
 ---
 
 ## Open design decisions
@@ -714,10 +716,13 @@ For **Magic Mirror** success (no delta, no target):
             };
 ```
 
-`new_string`:
+`new_string` (preserve the Phase 1 cap-3 comment, append the return record):
 
 ```motoko
             case (#magicMirror) {
+                // Stack charges if an active shield already exists. Cap at 3
+                // so castLimit=2 can be raised without runaway shielding.
+                // Expiry always refreshes to now+1d on each cast.
                 let priorCharges : Nat = switch (principalMap.get(shieldsActive, caster)) {
                     case (null) { 0 };
                     case (?s) {
@@ -792,12 +797,17 @@ Worked example — Purse Cutter backfire:
 
 Worked example — Whale Rebalance backfire (combining Phase 1 fresh-balance fix + delta accumulation):
 
-`old_string` (post-Phase-1):
+`old_string` (post-Phase-1 — must include the comment block Phase 1 committed):
 
 ```motoko
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
                 for ((whale, _) in whales.vals()) {
+                    // Re-read caster balance per iteration so successive
+                    // payouts are bounded by what's actually left, not the
+                    // initial snapshot. With three whales and stale balance
+                    // a caster could lose up to 60%; per-iteration caps it
+                    // at ~49% (0.2 + 0.16 + 0.128).
                     let liveBal = await getChipBalance(caster);
                     let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
                     if (amount > 0) {
@@ -807,7 +817,7 @@ Worked example — Whale Rebalance backfire (combining Phase 1 fresh-balance fix
             };
 ```
 
-`new_string`:
+`new_string` (preserve the Phase 1 comment, wrap the transfer call to accumulate delta + victim count):
 
 ```motoko
             case (#whaleRebalance) {
@@ -815,6 +825,11 @@ Worked example — Whale Rebalance backfire (combining Phase 1 fresh-balance fix
                 var total : Nat = 0;
                 var victims : Nat = 0;
                 for ((whale, _) in whales.vals()) {
+                    // Re-read caster balance per iteration so successive
+                    // payouts are bounded by what's actually left, not the
+                    // initial snapshot. With three whales and stale balance
+                    // a caster could lose up to 60%; per-iteration caps it
+                    // at ~49% (0.2 + 0.16 + 0.128).
                     let liveBal = await getChipBalance(caster);
                     let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
                     if (amount > 0) {
