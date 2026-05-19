@@ -24,7 +24,7 @@ import BankNavLink from './components/BankNavLink';
 import { Footer } from './components/Footer';
 import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
-import { captureReferrerFromUrl, getStoredReferrer } from './lib/referral';
+import { captureReferrerFromUrl } from './lib/referral';
 
 export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
 
@@ -313,19 +313,10 @@ export default function App() {
   // Capture `?ref=<principal>` from the landing URL once. First referrer wins.
   useEffect(() => { captureReferrerFromUrl(); }, []);
 
-  // Register referral with shenanigans once per session after authentication.
-  // Uses the stored referrer from localStorage (captured above). First-wins on
-  // the canister side; idempotent and safe to call on every login.
-  const registerReferral = useRegisterReferral();
-  const hasRegisteredReferralRef = React.useRef(false);
-  useEffect(() => {
-    if (!isAuthenticated || hasRegisteredReferralRef.current) return;
-    const stored = getStoredReferrer();
-    if (!stored) return;
-    if (principal && stored === principal) return; // self-referral — skip
-    hasRegisteredReferralRef.current = true;
-    registerReferral.mutate(stored);
-  }, [isAuthenticated, principal]);
+  // Register the captured referrer with shenanigans. The hook self-drives:
+  // it waits for both the wallet AND the shenanigans actor to be ready
+  // before firing, so the auto-register doesn't race the async actor setup.
+  useRegisterReferral();
 
   // Scroll-triggered animation refs
   const cardsRef = useRef<HTMLDivElement>(null);
