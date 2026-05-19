@@ -2702,6 +2702,21 @@ persistent actor Self {
         };
     };
 
+    /// Read the caller's (or any principal's) active Magic Mirror shield, if any.
+    /// Returns null when no shield is active or it has expired.
+    public query func getActiveShield(p : Principal) : async ?{
+        chargesRemaining : Nat;
+        expiresAt : Int;
+    } {
+        switch (principalMap.get(shieldsActive, p)) {
+            case (null) { null };
+            case (?s) {
+                if (Time.now() >= s.expiresAt) { null }
+                else { ?{ chargesRemaining = s.chargesRemaining; expiresAt = s.expiresAt } };
+            };
+        };
+    };
+
     /// Currently-golden players. Used by frontend for leaderboard styling.
     public query func getGoldenPlayers() : async [Principal] {
         let now = Time.now();

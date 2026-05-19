@@ -307,6 +307,13 @@ service : {
                                          Err: text;
                                          Ok: nat;
                                        });
+  /// Read the caller's (or any principal's) active Magic Mirror shield, if any.
+  /// Returns null when no shield is active or it has expired.
+  getActiveShield: (p: principal) ->
+   (opt record {
+          chargesRemaining: nat;
+          expiresAt: int;
+        }) query;
   /// All active spell effects on `user`. Expired entries are filtered
   /// out of the result but not deleted from state (cleanup happens
   /// lazily on next write/cast).
