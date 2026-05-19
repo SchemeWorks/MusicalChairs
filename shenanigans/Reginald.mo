@@ -7,7 +7,7 @@ import Int "mo:base/Int";
 import Time "mo:base/Time";
 
 module {
-    let spellBackfire : [Text] = [
+    public let spellBackfire : [Text] = [
         "Compliance notes: market forces are not your friends.",
         "Filing this one under \"learning experience\" for our records.",
         "Our adjusters have been alerted. Please remain calm.",
@@ -15,7 +15,7 @@ module {
         "This is, statistically, what we'd call a self-inflicted loss event.",
     ];
 
-    let rankUp : [Text] = [
+    public let rankUp : [Text] = [
         "Congratulations. Please review the Form 1099 obligations applicable to your new tier.",
         "I have prepared a fresh non-disclosure for your signature.",
         "Welcome to the next tier. Past performance is not indicative of future results.",
@@ -23,25 +23,39 @@ module {
         "Your new title comes with a strictly metaphorical pay raise.",
     ];
 
-    let roundResult : [Text] = [
+    public let roundResult : [Text] = [
         "This outcome is not indicative of future performance.",
         "We hope you enjoyed your round. We retain all marketing rights.",
         "A reminder that participation is voluntary and irreversible.",
     ];
 
-    let buzzword : [Text] = [
+    public let buzzword : [Text] = [
         "Compliance flag: please refrain from forward-looking statements.",
         "Friendly reminder that nothing in this chat is investment advice.",
         "Our legal department wishes to disassociate from that sentence.",
         "Please attach a disclaimer to that thought.",
     ];
 
-    let karma : [Text] = [
+    public let karma : [Text] = [
         "A generous contribution. The Foundation appreciates your appreciation.",
         "Your gratitude has been registered for tax purposes.",
         "Karma is processed in 4-7 business days.",
         "We have, on your behalf, set fire to a small portion of your net worth.",
     ];
+
+    /// Returns the hardcoded default pool for the given trigger name, or []
+    /// for unknown triggers. Used by main.mo to seed effectivePool fallbacks
+    /// and to answer adminGetFlavorPoolDefaults queries.
+    public func defaults(triggerKind : Text) : [Text] {
+        switch (triggerKind) {
+            case ("spellBackfire") { spellBackfire };
+            case ("rankUp") { rankUp };
+            case ("roundResult") { roundResult };
+            case ("buzzword") { buzzword };
+            case ("karma") { karma };
+            case (_) { [] };
+        };
+    };
 
     /// Pseudo-random index selector seeded on Time.now(). Adequate for flavor.
     func pickIndex(size : Nat) : Nat {

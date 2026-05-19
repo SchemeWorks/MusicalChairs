@@ -323,6 +323,13 @@ persistent actor Self {
     /// free-reaction min-gap limit. Lazy GC on overwrite.
     var lastReactionEntries = principalMap.empty<Int>();
 
+    /// Admin-overridable flavor pools, keyed by canonical pool name.
+    /// Empty pool means "admin explicitly set an empty list" — downstream
+    /// behavior treats that as "this trigger never fires" (which is desired:
+    /// admin can disable a specific Reginald category). To revert to the
+    /// hardcoded default, admin clears the override entirely.
+    var flavorPoolOverrides : [(Text, [Text])] = [];
+
     // Admin state
     var adminPrincipal : ?Principal = null;
     var ponziMathPrincipal : ?Principal = null;
@@ -851,7 +858,7 @@ persistent actor Self {
 
                         let coin = Int.abs(Time.now()) % 7; // ~15%
                         if (coin == 0) {
-                            switch (Reginald.pickFor("roundResult")) {
+                            switch (reginaldPickFor("roundResult")) {
                                 case (?line) {
                                     let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "roundResult" }));
                                 };
@@ -1371,10 +1378,14 @@ persistent actor Self {
         };
     };
 
-    /// Pick a name from `renameNamePool` using Time.now() as the seed.
+    /// Pick a name from the rename pool (or the admin override) using Time.now()
+    /// as the seed. Returns "Anonymous Investor" when the effective pool is empty
+    /// (admin disabled it) so the rename spell still completes its mechanical
+    /// effect rather than requiring callers to handle an option type.
     func pickRenameName() : Text {
-        let idx = Int.abs(Time.now()) % renameNamePool.size();
-        renameNamePool[idx];
+        let pool = effectivePool("renameNamePool", renameNamePool);
+        if (pool.size() == 0) { return "Anonymous Investor" };
+        pool[Int.abs(Time.now()) % pool.size()];
     };
 
     /// Enumerate every known PP holder except `excluded`. Caller-side
@@ -1605,7 +1616,7 @@ persistent actor Self {
             // 25% chance: use the low nibble of timestamp as a coarse coin flip.
             let coin = Int.abs(Time.now()) % 4;
             if (coin == 0) {
-                switch (Reginald.pickFor("spellBackfire")) {
+                switch (reginaldPickFor("spellBackfire")) {
                     case (?line) {
                         let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "spellBackfire" }));
                     };
@@ -1958,6 +1969,25 @@ persistent actor Self {
     // Trollbox helpers
     // ================================================================
 
+    /// Returns the override for poolName if one exists, else the supplied defaults.
+    /// Note: an EMPTY override is honored — caller decides what empty means.
+    func effectivePool(poolName : Text, defaultLines : [Text]) : [Text] {
+        for ((name, lines) in flavorPoolOverrides.vals()) {
+            if (name == poolName) { return lines };
+        };
+        defaultLines;
+    };
+
+    /// Pick a Reginald line for the given trigger, respecting any admin override.
+    /// Returns null if the effective pool is empty (admin disabled it) or unknown.
+    func reginaldPickFor(triggerKind : Text) : ?Text {
+        let defaultLines = Reginald.defaults(triggerKind);
+        let poolName = "reginald." # triggerKind;
+        let pool = effectivePool(poolName, defaultLines);
+        if (pool.size() == 0) { return null };
+        ?pool[Int.abs(Time.now()) % pool.size()];
+    };
+
     let CHAT_BUFFER_CAP : Nat = 500;
     let CHAT_MSG_MAX_LEN : Nat = 280;
     let CHAT_RATE_MIN_GAP_NS : Int = 3_000_000_000;      // 3s between posts
@@ -2109,7 +2139,7 @@ persistent actor Self {
             setPreviousRank(user, newRank);
             let _ = appendChatItem(Principal.fromActor(Self), #rankUp({ user; newRank }));
             if (rankOrder(newRank) >= 1) {
-                switch (Reginald.pickFor("rankUp")) {
+                switch (reginaldPickFor("rankUp")) {
                     case (?line) {
                         let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "rankUp" }));
                     };
@@ -2247,7 +2277,7 @@ persistent actor Self {
         let id = appendChatItem(caller, #userMessage({ body = cleaned; replyTo }));
 
         if (containsBuzzword(cleaned)) {
-            switch (Reginald.pickFor("buzzword")) {
+            switch (reginaldPickFor("buzzword")) {
                 case (?line) {
                     let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "buzzword" }));
                 };
@@ -2360,7 +2390,7 @@ persistent actor Self {
         ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + units);
 
         if (ppToBurn >= KARMA_REGINALD_THRESHOLD_PP) {
-            switch (Reginald.pickFor("karma")) {
+            switch (reginaldPickFor("karma")) {
                 case (?line) {
                     let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "karma" }));
                 };
@@ -2894,6 +2924,51 @@ persistent actor Self {
             };
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
         };
+    };
+
+    /// Admin-only: replace a flavor pool's override. Pass an empty list to
+    /// explicitly disable a Reginald trigger or empty the rename pool.
+    /// To restore defaults, call adminClearFlavorPool instead.
+    public shared ({ caller }) func adminSetFlavorPool(name : Text, lines : [Text]) : async () {
+        requireAdmin(caller);
+        let buf = Buffer.Buffer<(Text, [Text])>(flavorPoolOverrides.size() + 1);
+        var replaced = false;
+        for ((n, l) in flavorPoolOverrides.vals()) {
+            if (n == name) {
+                buf.add((name, lines));
+                replaced := true;
+            } else {
+                buf.add((n, l));
+            };
+        };
+        if (not replaced) { buf.add((name, lines)) };
+        flavorPoolOverrides := Buffer.toArray(buf);
+    };
+
+    /// Admin-only: remove the override entirely, restoring the hardcoded default.
+    public shared ({ caller }) func adminClearFlavorPool(name : Text) : async () {
+        requireAdmin(caller);
+        let buf = Buffer.Buffer<(Text, [Text])>(flavorPoolOverrides.size());
+        for ((n, l) in flavorPoolOverrides.vals()) {
+            if (n != name) { buf.add((n, l)) };
+        };
+        flavorPoolOverrides := Buffer.toArray(buf);
+    };
+
+    public query func listFlavorPools() : async [(Text, [Text])] {
+        flavorPoolOverrides;
+    };
+
+    /// Returns the hardcoded default lines for a known pool name. Useful for
+    /// the admin UI to show "this is what defaults look like" without
+    /// duplicating the lists in the frontend.
+    public query func getFlavorPoolDefaults(name : Text) : async [Text] {
+        if (name == "renameNamePool") { return renameNamePool };
+        if (Text.startsWith(name, #text "reginald.")) {
+            let trigger = Text.trimStart(name, #text "reginald.");
+            return Reginald.defaults(trigger);
+        };
+        []; // Unknown pool — frontend uses its own defaults for spellFlavor.* etc.
     };
 
     // ========================================================================
