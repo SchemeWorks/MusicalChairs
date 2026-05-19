@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { useActor } from './useActor';
 import { useReadActor } from './useReadActor';
 import { useShenaniganActor, useReadShenaniganActor } from './useShenaniganActor';
@@ -1712,6 +1713,22 @@ async function ensureReferralRegistered(
     await authActor.registerReferral(referrerPrincipal);
   } catch (err) {
     console.error('[referral] register failed:', err);
+    // Surface the failure so users don't end up silently orphaned from their
+    // sponsor (the original bug: Plug whitelist excluded shenanigans, so
+    // registerReferral threw, caught here, and the user had no idea).
+    // sessionStorage flag prevents spamming if the effect re-runs.
+    try {
+      if (!sessionStorage.getItem('mc_referral_failure_notified')) {
+        sessionStorage.setItem('mc_referral_failure_notified', '1');
+        toast.error(
+          "Couldn't link you to your sponsor — try disconnecting and reconnecting your wallet.",
+          { duration: 10_000 },
+        );
+      }
+    } catch {
+      // sessionStorage unavailable — toast either way is fine, but skip to
+      // keep this from throwing inside an already-failing path.
+    }
   }
 }
 
