@@ -409,7 +409,7 @@ export default function Shenanigans() {
               </div>
               <div className="flex items-start gap-2">
                 <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Cooldowns</strong> — 2-min global, 3-min per-target, 24-hr protection after negative effects</span>
+                <span><strong className="mc-text-primary">Cooldowns</strong> — 2-min global cooldown, 3-min per-target cooldown</span>
               </div>
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-3 w-3 mc-text-gold mt-0.5 flex-shrink-0" />
