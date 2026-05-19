@@ -15,6 +15,7 @@ import { Actor, HttpAgent } from '@dfinity/agent';
 import type { ChatItem } from '../declarations/shenanigans/shenanigans.did';
 import { TROLLBOX_POLL_MS, TROLLBOX_PIN_POLL_MS, TROLLBOX_MUTE_POLL_MS, TROLLBOX_FETCH_LIMIT } from '../components/trollbox/trollboxConstants';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
+import { isCharles } from '../lib/charles';
 import {
   EXIT_TOLL_EARLY,
   EXIT_TOLL_MID,
@@ -1669,6 +1670,9 @@ async function ensureReferralRegistered(
 ): Promise<void> {
   const stored = getStoredReferrer();
   if (!stored || stored === principal) return;
+  // Charles is the top of the chain by design — never register him as someone
+  // else's downline, even if a stale ?ref= code is sitting in localStorage.
+  if (isCharles(principal)) return;
 
   try {
     // Skip if already registered — avoids redundant update calls (and an

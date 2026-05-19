@@ -508,9 +508,14 @@ persistent actor Self {
 
     /// Idempotent referral registration. First call sets the chain entry;
     /// subsequent calls for the same caller are no-ops. Self-referral rejected.
+    /// Admin principals (adminPrincipal + extraAdmins) are silently rejected:
+    /// Charles sits at the top of the chain by design and must never be
+    /// registered as someone else's downline, even if a stale `?ref=` survives
+    /// in localStorage from earlier testing.
     public shared ({ caller }) func registerReferral(referrer : Principal) : async () {
         if (Principal.isAnonymous(caller)) { Debug.trap("Anonymous principal not allowed") };
         if (caller == referrer) { return };
+        if (isAdminPrincipal(caller)) { return };
         switch (principalMap.get(referralChain, caller)) {
             case (?_) { /* already set */ };
             case null {
@@ -528,6 +533,33 @@ persistent actor Self {
     /// One-hop lookup — returns the user's immediate referrer (L1) or null.
     public query func getReferrer(user : Principal) : async ?Principal {
         principalMap.get(referralChain, user);
+    };
+
+    /// Admin-only: scrub `user`'s referralChain entry and the reverse-index
+    /// edge. Used to clean up bad mappings created before the
+    /// `isAdminPrincipal` guard landed in registerReferral (e.g. Charles
+    /// auto-registered against someone else's `?ref=` code). No-op if `user`
+    /// has no entry. Returns the principal that was removed, or null.
+    public shared ({ caller }) func adminClearReferrer(user : Principal) : async ?Principal {
+        requireAdmin(caller);
+        switch (principalMap.get(referralChain, user)) {
+            case (null) { null };
+            case (?referrer) {
+                referralChain := principalMap.delete(referralChain, user);
+                // Rebuild the reverse-index list for `referrer` without `user`.
+                switch (principalMap.get(referrerToDownline, referrer)) {
+                    case (null) {};
+                    case (?downliners) {
+                        let filtered = List.filter<Principal>(
+                            downliners,
+                            func(p) { p != user },
+                        );
+                        referrerToDownline := principalMap.put(referrerToDownline, referrer, filtered);
+                    };
+                };
+                ?referrer;
+            };
+        };
     };
 
     /// Per-tier downline counts and cumulative PP earnings for `user`.
@@ -721,6 +753,20 @@ persistent actor Self {
                 Debug.trap("Unauthorized: admin only");
             };
         };
+    };
+
+    // Non-trapping admin predicate — for guards that should silently no-op
+    // (e.g. blocking admin/Charles from being registered as someone's downline)
+    // rather than trap. Matches `requireAdmin`'s membership rules.
+    func isAdminPrincipal(p : Principal) : Bool {
+        switch (adminPrincipal) {
+            case (?admin) { if (p == admin) return true };
+            case (null) {};
+        };
+        for (extra in extraAdmins.vals()) {
+            if (p == extra) return true;
+        };
+        false;
     };
 
     public shared ({ caller }) func rotateAdmin(newAdmin : Principal) : async () {

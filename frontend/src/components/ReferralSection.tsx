@@ -6,6 +6,8 @@ import {
   useGetUplineChain,
   useGetUserNames,
 } from '../hooks/useQueries';
+import { useWallet } from '../hooks/useWallet';
+import { isCharles } from '../lib/charles';
 import LoadingSpinner from './LoadingSpinner';
 import { Copy, Check, Share2, ExternalLink, Award, Download, Dice5, Globe } from 'lucide-react';
 import type { TabType } from '../App';
@@ -74,7 +76,11 @@ export default function ReferralSection({ onTabChange }: ReferralSectionProps) {
 
   const referralLink = referralCodeData?.link || referralStats?.referralLink || 'https://musicalchairs.fun/';
 
-  const sponsor = uplineChain?.[0];
+  // Charles sits at the top of the system by definition — never show a sponsor
+  // above him, even if a stale referralChain entry exists from earlier testing.
+  const { principal } = useWallet();
+  const viewerIsCharles = !!principal && isCharles(principal);
+  const sponsor = viewerIsCharles ? undefined : uplineChain?.[0];
 
   // Collect every principal we want a name for (sponsor + downline).
   const allPrincipals = useMemo(() => {

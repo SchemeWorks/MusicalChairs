@@ -216,6 +216,11 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'adminClearFlavorPool' : IDL.Func([IDL.Text], [], []),
+    'adminClearReferrer' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Principal)],
+        [],
+      ),
     'adminDeleteChatItem' : IDL.Func([IDL.Nat], [], []),
     'adminDeleteChimeSound' : IDL.Func([IDL.Text], [], []),
     'adminMint' : IDL.Func(
