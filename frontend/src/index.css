@@ -1149,6 +1149,75 @@
   }
 
   /* ================================================================
+     BETA BADGE — Header chip + Risk Factors modal
+     Small gold pill that sits as a "tag" on the brand. Click for the
+     full founder-keys disclosure.
+     ================================================================ */
+
+  .mc-beta-chip {
+    font-family: 'Bungee', cursive;
+    font-size: 0.625rem;
+    letter-spacing: 0.18em;
+    line-height: 1;
+    padding: 5px 9px 4px;
+    color: var(--mc-gold);
+    background: rgba(255, 215, 0, 0.08);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    border-radius: var(--radius-pill);
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    user-select: none;
+  }
+  .mc-beta-chip:hover {
+    background: rgba(255, 215, 0, 0.14);
+    border-color: rgba(255, 215, 0, 0.6);
+    box-shadow: 0 0 14px rgba(255, 215, 0, 0.18);
+  }
+  .mc-beta-chip:focus-visible {
+    outline: none;
+    border-color: var(--mc-gold);
+    box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.35);
+  }
+  .mc-beta-chip:active { transform: translateY(1px); }
+
+  .mc-beta-tooltip {
+    background: var(--mc-felt-raised) !important;
+    border: 1px solid rgba(255, 215, 0, 0.35) !important;
+    color: var(--mc-white) !important;
+    border-radius: var(--radius-md) !important;
+    padding: 8px 12px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6) !important;
+    max-width: 220px;
+  }
+
+  .mc-beta-dialog {
+    border-color: rgba(255, 215, 0, 0.25) !important;
+  }
+
+  .mc-beta-canisters {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .mc-beta-canister-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(168, 85, 247, 0.15);
+    border-radius: var(--radius-md);
+    transition: border-color 0.15s ease, background 0.15s ease;
+    text-decoration: none;
+  }
+  .mc-beta-canister-row:hover {
+    border-color: rgba(255, 215, 0, 0.35);
+    background: rgba(0, 0, 0, 0.35);
+  }
+
+  /* ================================================================
      SPLASH PAGE ENHANCEMENTS
      ================================================================ */
 
