@@ -461,7 +461,9 @@ persistent actor Self {
 
     // Leaderboard (local state — not derived from ledger)
     var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
-    var spellsCastPerPlayer = principalMap.empty<Nat>(); // successful casts only
+    // spellsCastPerPlayer: cumulative count of #success OR #backfire casts.
+    // #fail outcomes are not counted because they had no observable effect.
+    var spellsCastPerPlayer = principalMap.empty<Nat>();
     // Cumulative PP units received via karma reactions (the 40% recipient cut).
     // Prestige stat — surfaced in Hall of Fame.
     var karmaReceivedPerPlayer = principalMap.empty<Nat>();
