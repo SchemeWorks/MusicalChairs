@@ -13,8 +13,8 @@ interface TourStep {
 const TOUR_STEPS: TourStep[] = [
   { tab: 'profitCenter', title: 'Profit Center', desc: 'Track your positions and see your P/L.', icon: <DollarSign className="h-5 w-5 mc-text-green" />, targetSelector: '[data-tour-id="tab-profitCenter"]' },
   { tab: 'invest', title: '\u201CInvest\u201D', desc: 'Choose a plan and deposit ICP to start earning.', icon: <Rocket className="h-5 w-5 mc-text-purple" />, targetSelector: '[data-tour-id="tab-invest"]' },
-  { tab: 'seedRound', title: 'Seed Round', desc: 'Back the house as a dealer. Earn 12%.', icon: <Landmark className="h-5 w-5 mc-text-gold" />, targetSelector: '[data-tour-id="tab-seedRound"]' },
-  { tab: 'mlm', title: 'MLM', desc: 'Recruit friends. Three-level pyramid. Charles approves.', icon: <Users className="h-5 w-5 mc-text-cyan" />, targetSelector: '[data-tour-id="tab-mlm"]' },
+  { tab: 'seedRound', title: 'Seed Round', desc: 'Angel-invest in the next round. Earn 24%.', icon: <Landmark className="h-5 w-5 mc-text-gold" />, targetSelector: '[data-tour-id="tab-seedRound"]' },
+  { tab: 'mlm', title: 'MLM', desc: 'Build a downline. Three tiers of rev share. Synergy guaranteed.', icon: <Users className="h-5 w-5 mc-text-cyan" />, targetSelector: '[data-tour-id="tab-mlm"]' },
   { tab: 'shenanigans', title: 'Shenanigans', desc: 'Spend Ponzi Points on cosmetic chaos.', icon: <Dice5 className="h-5 w-5 mc-text-green" />, targetSelector: '[data-tour-id="tab-shenanigans"]' },
 ];
 
