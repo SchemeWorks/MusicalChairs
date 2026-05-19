@@ -355,9 +355,10 @@ export default function App() {
     return () => window.removeEventListener('mc:open-docs', handler);
   }, []);
 
-  // Navigating to a tab always dismisses full-page overlays (docs / bank page).
+  // Navigating to a tab always dismisses full-page overlays (docs / bank / admin).
   const goToTab = (tab: TabType) => {
     setActiveTab(tab);
+    if (showAdminPanel) setShowAdminPanel(false);
     if (showDocsPage || showBankPage) {
       history.replaceState(null, '', window.location.pathname);
       setShowDocsPage(false);
@@ -419,8 +420,9 @@ export default function App() {
               {/* Spacer left of tabs — centers tabs between logo and right controls */}
               <div className="flex-1" />
 
-              {/* Desktop header tabs — only when on dashboard */}
-              {showDashboard && !showAdminPanel && (
+              {/* Desktop header tabs — visible whenever the user is signed in,
+                  including from Charles's Office (clicking a tab exits the office). */}
+              {showDashboard && (
                 <nav className="mc-header-tabs">
                   {headerNavItems.map(item => {
                     const isActive = activeTab === item.id;
@@ -484,7 +486,17 @@ export default function App() {
                     {/* Charles's Office — locked to Charles principals */}
                     {principal && isCharles(principal) && (
                       <button
-                        onClick={() => setShowAdminPanel(!showAdminPanel)}
+                        onClick={() => {
+                          const next = !showAdminPanel;
+                          setShowAdminPanel(next);
+                          // Opening the office dismisses any full-page overlay
+                          // so the office actually becomes visible.
+                          if (next && (showDocsPage || showBankPage)) {
+                            history.replaceState(null, '', window.location.pathname);
+                            setShowDocsPage(false);
+                            setShowBankPage(false);
+                          }
+                        }}
                         className={`mc-btn-secondary flex items-center gap-2 px-3 py-2 text-xs rounded-lg ${
                           showAdminPanel ? 'border-yellow-500/50 text-yellow-400' : 'mc-text-gold'
                         }`}
