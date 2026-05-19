@@ -46,10 +46,28 @@ function PersonNode({
   const theme = TIER_THEME[tier];
   const label = displayFor(principal, nameMap);
   const pad = size === 'md' ? 'px-3 py-1.5' : 'px-2.5 py-1';
+  const [justCopied, setJustCopied] = useState(false);
+
+  // Click-to-copy lets the referrer grab a fresh signup's principal the
+  // moment it shows up — the main reason to look at this list is "send
+  // my friend some ICP," and reading a tooltip character-by-character
+  // was the friction point.
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(principal);
+      setJustCopied(true);
+      setTimeout(() => setJustCopied(false), 1200);
+    } catch {
+      // Clipboard may be unavailable (insecure context); fail silently.
+    }
+  };
+
   return (
-    <div
-      title={principal}
-      className={`inline-flex items-center gap-1.5 rounded-full ${pad} text-xs font-bold whitespace-nowrap`}
+    <button
+      type="button"
+      onClick={handleCopy}
+      title={justCopied ? 'Copied' : `Click to copy principal\n${principal}`}
+      className={`inline-flex items-center gap-1.5 rounded-full ${pad} text-xs font-bold whitespace-nowrap hover:brightness-125 active:scale-95 transition`}
       style={{
         background: theme.bg,
         border: `1px solid ${theme.ring}`,
@@ -60,8 +78,9 @@ function PersonNode({
         className="inline-block rounded-full"
         style={{ width: 6, height: 6, background: theme.text, boxShadow: `0 0 6px ${theme.ring}` }}
       />
-      <span className="truncate max-w-[120px]">{label}</span>
-    </div>
+      <span className="truncate max-w-[120px]">{justCopied ? 'copied' : label}</span>
+      {justCopied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3 opacity-50" />}
+    </button>
   );
 }
 
