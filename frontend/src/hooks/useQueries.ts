@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useActor } from './useActor';
 import { useReadActor } from './useReadActor';
@@ -338,6 +339,8 @@ export const useWithdrawCoverCharges = usePayManagement;
 // Add Backer Money Mutation — regular users become Series A backers
 export function useAddBackerMoney() {
   const { actor } = usePonziMathActor();
+  const { actor: shenActor } = useShenaniganActor();
+  const shenReadActor = useReadShenaniganActor();
   const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
   const ledger = useLedger();
@@ -351,6 +354,13 @@ export function useAddBackerMoney() {
 
       const amountE8s = BigInt(Math.round(amount * 100_000_000));
       const approveAmount = amountE8s + 20_000n; // extra for fees
+
+      // Register the referral chain on shenanigans BEFORE depositing so the
+      // observer's cascade finds the chain set when it processes the new
+      // backer entry. See ensureReferralRegistered for context.
+      if (shenActor) {
+        await ensureReferralRegistered(shenActor, shenReadActor, principal);
+      }
 
       try {
         if (walletType === 'oisy') {
@@ -470,6 +480,8 @@ export function useGetUserGames() {
 
 export function useCreateGame() {
   const { actor } = usePonziMathActor();
+  const { actor: shenActor } = useShenaniganActor();
+  const shenReadActor = useReadShenaniganActor();
   const { principal, walletType } = useWallet();
   const queryClient = useQueryClient();
   const ledger = useLedger();
@@ -498,11 +510,15 @@ export function useCreateGame() {
       const approveAmount = amountE8s + 20_000n; // extra for fees
       const isCompounding = mode === 'compounding';
 
-      // Capture referrer from localStorage — used by Task 38 (useRegisterReferral).
-      // ponzi_math.createGame no longer takes a referrer arg; registration happens
-      // separately via shenanigans.registerReferral on first auth.
-      // We still call getStoredReferrer() here to confirm it exists (noop otherwise).
-      getStoredReferrer();
+      // Synchronously register the referral chain on shenanigans BEFORE
+      // creating the game. The shenanigans observer reads referralChain at
+      // mint time; if the chain isn't set yet when it sees the new game,
+      // the 500 PP signup-gift cascade goes to "house" instead of up to
+      // the upline. Awaiting here closes the race window. Idempotent and
+      // skips with a query if already registered, so it's safe and cheap.
+      if (shenActor) {
+        await ensureReferralRegistered(shenActor, shenReadActor, principal);
+      }
 
       let gameId: bigint;
 
@@ -1631,33 +1647,73 @@ export function useGetProfileFor(principalText: string | undefined) {
   });
 }
 
-// Register referral — one-shot per session when the user becomes authenticated.
-// Accepts either a short referral code (current format) or a full principal
-// (legacy links). Resolves to a principal then calls shenanigans.registerReferral.
-// First-wins on the canister side.
+// Best-effort: register the stored referrer with shenanigans for `principal`.
+// Idempotent on the canister side (first-wins) and short-circuits with a
+// query if the chain entry already exists, so it's safe and cheap to call
+// repeatedly. Swallows errors and logs them — callers should never have
+// their flow blocked by a referral failure.
+//
+// Used by both the auto-register hook (fires on auth) AND the deposit flow
+// (awaited before createGame). Awaiting before createGame is load-bearing:
+// the shenanigans observer reads referralChain at the moment it mints the
+// signup gift, so the chain MUST be set on-canister before the new game
+// becomes visible to the observer, or the gift cascade goes to "house"
+// instead of up the chain.
+async function ensureReferralRegistered(
+  authActor: { registerReferral: (p: Principal) => Promise<undefined> },
+  readActor: {
+    getReferrer: (p: Principal) => Promise<[] | [Principal]>;
+    resolveReferralCode: (code: string) => Promise<[] | [Principal]>;
+  },
+  principal: string,
+): Promise<void> {
+  const stored = getStoredReferrer();
+  if (!stored || stored === principal) return;
+
+  try {
+    // Skip if already registered — avoids redundant update calls (and an
+    // unnecessary Oisy popup on every deposit).
+    const existing = await readActor.getReferrer(Principal.fromText(principal));
+    if (existing.length > 0) return;
+
+    let referrerPrincipal: Principal;
+    try {
+      referrerPrincipal = Principal.fromText(stored);
+    } catch {
+      // Resolve via the anonymous read actor so Oisy doesn't open a signer
+      // popup for what's a public lookup.
+      const resolved = await readActor.resolveReferralCode(stored);
+      if (resolved.length === 0) {
+        console.warn('[referral] Unknown code, skipping registration:', stored);
+        return;
+      }
+      referrerPrincipal = resolved[0];
+    }
+    await authActor.registerReferral(referrerPrincipal);
+  } catch (err) {
+    console.error('[referral] register failed:', err);
+  }
+}
+
+// Auto-register on auth — fires once when the wallet and shenanigans auth
+// actor are both ready. The actor-readiness gate is load-bearing: without
+// it, the effect would race the async actor creation in useShenaniganActor
+// and fire while `actor` is still null. The deposit flow also calls
+// ensureReferralRegistered to close the remaining race against the
+// shenanigans observer (see useCreateGame).
 export function useRegisterReferral() {
   const { actor } = useShenaniganActor();
   const readActor = useReadShenaniganActor();
+  const { isConnected, principal } = useWallet();
+  const hasRegisteredRef = useRef(false);
 
-  return useMutation({
-    mutationFn: async (token: string) => {
-      if (!actor) throw new Error('Shenanigans actor not available');
-      let principal: Principal;
-      try {
-        principal = Principal.fromText(token);
-      } catch {
-        // Resolve via the anonymous read actor so Oisy doesn't open a signer
-        // popup for what's a public lookup.
-        const resolved = await readActor.resolveReferralCode(token);
-        if (resolved.length === 0) {
-          throw new Error('Unknown referral code');
-        }
-        principal = resolved[0];
-      }
-      await actor.registerReferral(principal);
-    },
-    // No cache invalidation needed — this is a fire-and-forget registration
-  });
+  useEffect(() => {
+    if (!isConnected || !actor || !principal || hasRegisteredRef.current) return;
+    hasRegisteredRef.current = true;
+    ensureReferralRegistered(actor, readActor, principal).catch(() => {
+      hasRegisteredRef.current = false; // allow retry on next deps change
+    });
+  }, [isConnected, principal, actor, readActor]);
 }
 
 // Issue (or fetch existing) the caller's short referral code, then build the
