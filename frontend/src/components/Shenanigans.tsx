@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType } from '../backend';
 import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy, LayoutGrid, List } from 'lucide-react';
@@ -11,29 +12,6 @@ import TargetPicker from './TargetPicker';
 // castShenanigan — backend rejects null target for these.
 const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter
 
-const successFlavor = [
-  "The fund smiles upon you.",
-  "Clean hit. Charles would be proud.",
-  "Flawless execution. You're a natural.",
-  "They never saw it coming.",
-  "That's how it's done in this business.",
-];
-
-const failFlavor = [
-  "The universe said no.",
-  "Not your day. It happens to everyone. Mostly to you.",
-  "Swing and a miss. The PP is still gone, though.",
-  "Nothing happened. Except you're poorer now.",
-  "Better luck next time. Or not. Who knows.",
-];
-
-const backfireFlavor = [
-  "Oh no. It hit you instead.",
-  "Karma works fast around here.",
-  "You played yourself. Literally.",
-  "That's what they call a learning experience.",
-  "Charles is laughing somewhere.",
-];
 
 interface ShenaniganConfig {
   id: number;
@@ -97,6 +75,9 @@ export default function Shenanigans() {
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const castShenanigan = useCastShenanigan();
+  const successFlavor = useSpellFlavorPool('spellFlavor.success');
+  const failFlavor = useSpellFlavorPool('spellFlavor.fail');
+  const backfireFlavor = useSpellFlavorPool('spellFlavor.backfire');
   const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'compact'>('cards');
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
