@@ -3,10 +3,11 @@ import { Principal } from '@dfinity/principal';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
-import { ShenaniganType } from '../backend';
+import { ShenaniganType, ShenaniganRecord } from '../backend';
 import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy, LayoutGrid, List } from 'lucide-react';
 import HallOfFame from './HallOfFame';
 import TargetPicker from './TargetPicker';
+import { useDisplayName } from './trollbox/useDisplayName';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
@@ -68,6 +69,40 @@ function getShenaniganCategory(idx: number): FilterCategory {
 // Variant tags are objects like { success: null }; extract the single key.
 const variantKey = (v: unknown): string =>
   v && typeof v === 'object' ? Object.keys(v as Record<string, unknown>)[0] ?? '' : '';
+
+function LiveFeedRow({
+  record,
+  spellName,
+  spellIcon,
+}: {
+  record: ShenaniganRecord;
+  spellName: string;
+  spellIcon: React.ReactNode;
+}) {
+  const casterName = useDisplayName(record.user);
+  const target = record.target.length > 0 ? record.target[0] : null;
+  const targetName = useDisplayName(target);
+  const outcomeKey = variantKey(record.outcome);
+  const outcomeColor =
+    outcomeKey === 'success' ? 'mc-text-green' :
+    outcomeKey === 'fail' ? 'mc-text-danger' :
+    'mc-text-purple';
+  return (
+    <div className="mc-card p-2 text-xs space-y-1">
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
+        <span className={`font-bold flex-shrink-0 ${outcomeColor}`}>{outcomeKey.toUpperCase()}</span>
+      </div>
+      <div className="mc-text-dim flex items-center gap-1 min-w-0">
+        <span className="flex-shrink-0">{spellIcon}</span>
+        <span className="truncate">{spellName}</span>
+        {target ? (
+          <span className="mc-text-muted truncate"> → {targetName}</span>
+        ) : null}
+      </div>
+    </div>
+  );
+}
 
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
@@ -408,24 +443,17 @@ export default function Shenanigans() {
             <h3 className="font-display text-base mc-text-primary mb-3">Live Feed</h3>
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {recentShenanigans && recentShenanigans.length > 0 ? (
-                recentShenanigans.slice(0, 20).map(s => (
-                  <div key={s.id.toString()} className="mc-card p-2 flex items-center justify-between text-xs">
-                    <span className="font-bold mc-text-primary">
-                      {availableShenanigans.find(a => a.type === s.shenaniganType)?.name || 'Unknown'}{' '}
-                      {availableShenanigans.find(a => a.type === s.shenaniganType)?.icon}
-                    </span>
-                    {(() => {
-                      const outcomeKey = variantKey(s.outcome);
-                      return (
-                        <span className={`font-bold ${
-                          outcomeKey === 'success' ? 'mc-text-green' : outcomeKey === 'fail' ? 'mc-text-danger' : 'mc-text-purple'
-                        }`}>
-                          {outcomeKey.toUpperCase()}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                ))
+                recentShenanigans.slice(0, 20).map(s => {
+                  const config = availableShenanigans.find(a => variantKey(a.type) === variantKey(s.shenaniganType));
+                  return (
+                    <LiveFeedRow
+                      key={s.id.toString()}
+                      record={s}
+                      spellName={config?.name ?? 'Unknown'}
+                      spellIcon={config?.icon ?? null}
+                    />
+                  );
+                })
               ) : (
                 <p className="text-center mc-text-muted text-sm py-4">No shenanigans cast yet. Be the first!</p>
               )}
