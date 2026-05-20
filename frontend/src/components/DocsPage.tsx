@@ -17,6 +17,8 @@ import {
   SHENANIGAN_PROTECTION_FLOOR,
   pct, pctPrecise, fmt,
 } from '../lib/gameConstants';
+import { useGetMintConfig, useGetShenaniganConfigs } from '../hooks/useQueries';
+import type { MintConfig, ShenaniganConfig } from '../declarations/shenanigans/shenanigans.did';
 
 interface DocSection {
   id: string;
@@ -74,7 +76,27 @@ function DocTable({ headers, rows }: { headers: string[]; rows: (string | React.
 }
 
 /* ── Section data ── */
-const docSections: DocSection[] = [
+function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganConfigs: ShenaniganConfig[] | undefined): DocSection[] {
+  // Live PP rates from canister config; fall back to gameConstants while loading.
+  const ppSimple = mintConfig ? Number(mintConfig.simple21DayPpPerIcp) : PP_PER_ICP_SIMPLE;
+  const ppComp15 = mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : PP_PER_ICP_COMPOUND_15;
+  const ppComp30 = mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : PP_PER_ICP_COMPOUND_30;
+  const ppBacker = mintConfig ? Number(mintConfig.backerPpPerIcp) : PP_PER_ICP_SEED_ROUND;
+
+  // Live shenanigan stats by ID; fall back to spec defaults while loading.
+  const sh = (id: number) => shenaniganConfigs?.find(s => Number(s.id) === id);
+  const shCost = (id: number, fallback: number) => {
+    const c = sh(id)?.cost;
+    return typeof c === 'number' ? c : fallback;
+  };
+  const shOdds = (id: number, fallback: number) => {
+    const o = sh(id)?.successOdds;
+    return o !== undefined ? Number(o) : fallback;
+  };
+  const ppCost = (id: number, fallback: number) => `${fmt(Math.round(shCost(id, fallback)))} PP`;
+  const ppOdds = (id: number, fallback: number) => `${shOdds(id, fallback)}%`;
+
+  return [
   {
     id: 'overview',
     title: 'What Is Musical Chairs?',
@@ -82,9 +104,8 @@ const docSections: DocSection[] = [
     icon: <Dices className="h-5 w-5 mc-text-green" />,
     content: (
       <>
-        <p>Musical Chairs is a transparent Ponzi scheme on the Internet Computer. New deposits fund existing players' returns. When deposits slow and the pot drains, the game resets and anyone still holding a position takes a total loss.</p>
-        <p>Every mechanic described in these docs is exactly what happens on-chain. There are no hidden fees, no backdoors, no "trust us" moments. The code is the product, and the product is openly a Ponzi scheme.</p>
-        <p className="mc-text-muted">The point is transparency. Most DeFi protocols work this way but obscure it behind jargon. We just say it out loud.</p>
+        <p>Musical Chairs is a transparent Ponzi scheme on the Internet Computer. New deposits fund existing players' returns. When deposits slow and the pot drains, the music stops, the chairs reset, and anyone still holding a position takes a total loss.</p>
+        <p>Every mechanic described in these docs is exactly what happens on-chain. There are no hidden fees, no backdoors, no "trust us" moments. The code is the product. The prospectus is the product.</p>
       </>
     ),
   },
@@ -98,9 +119,9 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Plan', 'Daily Rate', 'Duration', 'Lockup', 'PP Earned']}
           rows={[
-            [<span className="mc-text-green font-bold">Simple {PLAN_DAYS_SIMPLE}-Day</span>, pct(DAILY_RATE_SIMPLE), `${PLAN_DAYS_SIMPLE} days`, 'None — withdraw anytime', `${fmt(PP_PER_ICP_SIMPLE)} PP / ICP`],
-            [<span className="mc-text-purple font-bold">Compounding {PLAN_DAYS_COMPOUND_15}-Day</span>, pct(DAILY_RATE_COMPOUND_15), `${PLAN_DAYS_COMPOUND_15} days`, 'Full lockup', `${fmt(PP_PER_ICP_COMPOUND_15)} PP / ICP`],
-            [<span className="mc-text-gold font-bold">Compounding {PLAN_DAYS_COMPOUND_30}-Day</span>, pct(DAILY_RATE_COMPOUND_30), `${PLAN_DAYS_COMPOUND_30} days`, 'Full lockup', `${fmt(PP_PER_ICP_COMPOUND_30)} PP / ICP`],
+            [<span className="mc-text-green font-bold">Simple {PLAN_DAYS_SIMPLE}-Day</span>, pct(DAILY_RATE_SIMPLE), `${PLAN_DAYS_SIMPLE} days`, 'None — withdraw anytime', `${fmt(ppSimple)} PP / ICP`],
+            [<span className="mc-text-purple font-bold">Compounding {PLAN_DAYS_COMPOUND_15}-Day</span>, pct(DAILY_RATE_COMPOUND_15), `${PLAN_DAYS_COMPOUND_15} days`, 'Full lockup', `${fmt(ppComp15)} PP / ICP`],
+            [<span className="mc-text-gold font-bold">Compounding {PLAN_DAYS_COMPOUND_30}-Day</span>, pct(DAILY_RATE_COMPOUND_30), `${PLAN_DAYS_COMPOUND_30} days`, 'Full lockup', `${fmt(ppComp30)} PP / ICP`],
           ]}
         />
         <div className="mt-4 space-y-2">
@@ -148,7 +169,7 @@ const docSections: DocSection[] = [
 
         <p className="font-bold text-white mb-2 mt-6">Exit — Simple Positions</p>
         <DocTable
-          headers={['Withdrawal Window', 'Toll']}
+          headers={['Withdrawal Window', 'Carried Interest']}
           rows={[
             [`Day 0–${EXIT_TOLL_EARLY_DAYS}`, <span className="mc-text-danger font-bold">{pct(EXIT_TOLL_EARLY)}</span>],
             [`Day ${EXIT_TOLL_EARLY_DAYS}–${EXIT_TOLL_MID_DAYS}`, <span className="mc-text-gold font-bold">{pctPrecise(EXIT_TOLL_MID)}</span>],
@@ -184,7 +205,7 @@ const docSections: DocSection[] = [
           <p><strong className="text-white">Deposit:</strong> Minimum {MIN_DEPOSIT_ICP} ICP. Your deposit goes directly into the pot.</p>
           <p><strong className="text-white">Entitlement (Series A):</strong> You're owed {pct(1 + UPSTREAM_BACKER_BONUS)} of your deposit (original + {pct(UPSTREAM_BACKER_BONUS)} bonus).</p>
           <p><strong className="text-white">Repayment:</strong> Comes from the backer share ({pct(FEE_BACKER_SHARE)}) of carried interest on every player withdrawal.</p>
-          <p><strong className="text-white">PP earned:</strong> {fmt(PP_PER_ICP_SEED_ROUND)} Ponzi Points per ICP deposited.</p>
+          <p><strong className="text-white">PP earned:</strong> {fmt(ppBacker)} Ponzi Points per ICP deposited.</p>
         </div>
 
         <p className="font-bold text-white mt-4 mb-2">Fee Distribution</p>
@@ -208,21 +229,20 @@ const docSections: DocSection[] = [
   {
     id: 'referrals',
     title: 'The Pyramid (MLM)',
-    subtitle: 'Three-level referral system. Yes, we called it a pyramid.',
+    subtitle: 'Three-tier downline. Override commissions at every level.',
     icon: <Users className="h-5 w-5 mc-text-cyan" />,
     content: (
       <>
-        <p>Share your referral link and earn Ponzi Points from your downline's activity. Three levels deep, paid in PP — never ICP.</p>
+        <p>Share your referral link and recruit a downline. Every time anyone in your downline earns Ponzi Points from a deposit, <strong className="text-white">10% is split off the top</strong> and cascades up their referral chain — with 50% passthrough at every active tier. Paid in PP, never ICP.</p>
         <DocTable
-          headers={['Level', 'Relationship', 'Your Cut']}
+          headers={['Level', 'Relationship', 'Your Take (% of base mint)']}
           rows={[
-            [<span className="mc-text-green font-bold">L1</span>, 'Direct referrals', <span className="mc-text-green font-bold">{pct(REFERRAL_L1_RATE)}</span>],
-            [<span className="mc-text-purple font-bold">L2</span>, 'Their referrals', <span className="mc-text-purple font-bold">{pct(REFERRAL_L2_RATE)}</span>],
-            [<span className="mc-text-gold font-bold">L3</span>, "Their referrals' referrals", <span className="mc-text-gold font-bold">{pct(REFERRAL_L3_RATE)}</span>],
+            [<span className="mc-text-green font-bold">L1</span>, 'Direct referrals', <span className="mc-text-green font-bold">5%</span>],
+            [<span className="mc-text-purple font-bold">L2</span>, 'Their referrals', <span className="mc-text-purple font-bold">2.5%</span>],
+            [<span className="mc-text-gold font-bold">L3</span>, "Their referrals' referrals", <span className="mc-text-gold font-bold">1.25%</span>],
           ]}
         />
-        <p className="mt-4">When someone in your downline earns PP (from deposits, gameplay, etc.), you automatically receive a percentage of those PP earnings at each level of the chain.</p>
-        <p className="mc-text-muted">Yes, it's a pyramid. We're not pretending otherwise.</p>
+        <p className="mt-4">Worked example: your direct recruit earns 100 PP from a deposit. <strong className="text-white">10 PP comes off the top</strong> before they ever see it — they receive 90 PP. You (L1) get half of the 10, so <strong className="text-white">5 PP</strong>. The other 5 PP keeps cascading: your upline (their L2) gets 2.5 PP, their upline (L3) gets 1.25 PP, and so on. Inactive uplines are skipped; the chain compacts around them. Anything left over after the chain runs out goes to the house.</p>
       </>
     ),
   },
@@ -233,15 +253,12 @@ const docSections: DocSection[] = [
     icon: <Flame className="h-5 w-5 mc-text-danger" />,
     content: (
       <>
-        <p>When the pot can't cover a payout, the game resets. This is the core Ponzi mechanic.</p>
+        <p>When the pot can't cover a payout, the music stops and the chairs reset. This is the core Musical Chairs mechanic — a Ponzi just collapses and walks away; we recapitalize and start the next round.</p>
         <div className="space-y-2 mt-3">
           <p><strong className="mc-text-danger">All active positions are liquidated.</strong> Total loss for anyone still holding.</p>
           <p><strong className="mc-text-danger">All pending payouts are voided.</strong> Accrued but unwithdrawn earnings disappear.</p>
           <p><strong className="mc-text-gold">A random unprofitable player becomes a Series B Backer.</strong> Their entitlement equals their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
           <p><strong className="mc-text-green">A new round begins.</strong> Fresh pot, clean slate, same rules.</p>
-        </div>
-        <div className="mc-card p-4 mt-4 mc-accent-danger">
-          <p className="text-xs"><strong className="text-white">The signal:</strong> Watch the pot balance. When deposits slow and the pot starts draining faster than it fills, a reset is coming. The only question is whether you withdraw in time.</p>
         </div>
       </>
     ),
@@ -259,10 +276,10 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Activity', 'PP Earned']}
           rows={[
-            [`Simple ${PLAN_DAYS_SIMPLE}-Day deposit`, `${fmt(PP_PER_ICP_SIMPLE)} PP per ICP`],
-            [`Compounding ${PLAN_DAYS_COMPOUND_15}-Day deposit`, `${fmt(PP_PER_ICP_COMPOUND_15)} PP per ICP`],
-            [`Compounding ${PLAN_DAYS_COMPOUND_30}-Day deposit`, `${fmt(PP_PER_ICP_COMPOUND_30)} PP per ICP`],
-            ['Seed Round deposit', `${fmt(PP_PER_ICP_SEED_ROUND)} PP per ICP`],
+            [`Simple ${PLAN_DAYS_SIMPLE}-Day deposit`, `${fmt(ppSimple)} PP per ICP`],
+            [`Compounding ${PLAN_DAYS_COMPOUND_15}-Day deposit`, `${fmt(ppComp15)} PP per ICP`],
+            [`Compounding ${PLAN_DAYS_COMPOUND_30}-Day deposit`, `${fmt(ppComp30)} PP per ICP`],
+            ['Seed Round deposit', `${fmt(ppBacker)} PP per ICP`],
             ['Referral activity', 'Based on downline PP earnings'],
           ]}
         />
@@ -283,12 +300,12 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Money Trickster', '120 PP', "Steal 2\u20138% of target's PP (max 250)", '60%'],
-            ['AOE Skim', '600 PP', 'Siphon 1\u20133% from every player (max 60/ea)', '40%'],
-            ['Mint Tax Siphon', '1,200 PP', "Skim 5% of target's new PP for 7 days (max 1,000)", '70%'],
-            ['Downline Heist', '500 PP', "Steal a referral from someone's downline", '30%'],
-            ['Purse Cutter', '900 PP', 'Target loses 25\u201350% PP (max 800)', '20%'],
-            ['Whale Rebalance', '800 PP', 'Take 20% from top 3 PP holders (max 300/whale)', '50%'],
+            ['Money Trickster', ppCost(0, 120), "Steal 2\u20138% of target's PP (max 250)", ppOdds(0, 60)],
+            ['AOE Skim', ppCost(1, 600), 'Siphon 1\u20133% from every player (max 60/ea)', ppOdds(1, 40)],
+            ['Mint Tax Siphon', ppCost(3, 1200), "Skim 5% of target's new PP for 7 days (max 1,000)", ppOdds(3, 70)],
+            ['Downline Heist', ppCost(4, 500), "Steal a referral from someone's downline", ppOdds(4, 30)],
+            ['Purse Cutter', ppCost(7, 900), 'Target loses 25\u201350% PP (max 800)', ppOdds(7, 20)],
+            ['Whale Rebalance', ppCost(8, 800), 'Take 20% from top 3 PP holders (max 300/whale)', ppOdds(8, 50)],
           ]}
         />
 
@@ -296,9 +313,9 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Magic Mirror', '200 PP', 'Shield: blocks one hostile shenanigan for 24h', '100%'],
-            ['PP Booster Aura', '300 PP', '+5\u201315% to all your PP mints for 24h', '100%'],
-            ['Downline Boost', '400 PP', 'Your referral cascade pays 1.3x for 24h', '100%'],
+            ['Magic Mirror', ppCost(5, 200), 'Shield: blocks one hostile shenanigan for 24h', ppOdds(5, 100)],
+            ['PP Booster Aura', ppCost(6, 300), '+5\u201315% to all your PP mints for 24h', ppOdds(6, 100)],
+            ['Downline Boost', ppCost(9, 400), 'Your referral cascade pays 1.3x for 24h', ppOdds(9, 100)],
           ]}
         />
 
@@ -306,8 +323,8 @@ const docSections: DocSection[] = [
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Rename Spell', '200 PP', "Slaps a satirical name on someone for 7 days", '90%'],
-            ['Golden Name', '100 PP', 'Gold name on leaderboard for 24 hours', '100%'],
+            ['Rename Spell', ppCost(2, 200), "Slaps a satirical name on someone for 7 days", ppOdds(2, 90)],
+            ['Golden Name', ppCost(10, 100), 'Gold name on leaderboard for 24 hours', ppOdds(10, 100)],
           ]}
         />
 
@@ -378,7 +395,7 @@ const docSections: DocSection[] = [
             ['Emergency Equity Conversion', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
             ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and backer stakes. Can only be spent on Shenanigans.'],
             ['Shenanigans', "Cosmetic game actions cast using PP. Range from stealing other players' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP."],
-            ['Downline', `Players referred by you (L1), or referred by your referrals (L2, L3). You earn PP from their activity (${pct(REFERRAL_L1_RATE)}/${pct(REFERRAL_L2_RATE)}/${pct(REFERRAL_L3_RATE)} of their PP earnings).`],
+            ['Downline', `Players referred by you (L1), or referred by your referrals (L2, L3). When they earn PP from a deposit, 10% is split off the top and cascades up the chain — you receive 5% as L1, 2.5% as L2, 1.25% as L3.`],
             ['Round', 'A full game cycle, from pot creation to reset. When the pot empties, the round ends and a new one begins.'],
             ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug/OISY).'],
           ].map(([term, def]) => (
@@ -391,7 +408,8 @@ const docSections: DocSection[] = [
       </>
     ),
   },
-];
+  ];
+}
 
 /* ── Main Component ── */
 interface DocsPageProps {
@@ -400,6 +418,9 @@ interface DocsPageProps {
 
 export default function DocsPage({ onBack }: DocsPageProps) {
   const [openSections, setOpenSections] = useState<Set<string>>(new Set());
+  const { data: mintConfig } = useGetMintConfig();
+  const { data: shenaniganConfigs } = useGetShenaniganConfigs();
+  const docSections = buildDocSections(mintConfig, shenaniganConfigs);
 
   // Open + scroll to a section when the hash matches #docs-<sectionId>
   useEffect(() => {
