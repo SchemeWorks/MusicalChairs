@@ -54,24 +54,26 @@ function DocAccordion({ section, isOpen, onToggle }: { section: DocSection; isOp
 /* ── Inline table helper ── */
 function DocTable({ headers, rows }: { headers: string[]; rows: (string | React.ReactNode)[][] }) {
   return (
-    <table className="w-full text-sm mt-2">
-      <thead>
-        <tr className="border-b border-white/10">
-          {headers.map((h, i) => (
-            <th key={i} className={`py-2 mc-text-muted font-normal ${i === headers.length - 1 ? 'text-right' : 'text-left'}`}>{h}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className="mc-text-dim">
-        {rows.map((row, i) => (
-          <tr key={i} className="border-b border-white/5">
-            {row.map((cell, j) => (
-              <td key={j} className={`py-2 ${j === row.length - 1 ? 'text-right' : ''}`}>{cell}</td>
+    <div className="overflow-x-auto -mx-1 mt-2">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="border-b border-white/10">
+            {headers.map((h, i) => (
+              <th key={i} className={`py-2 px-1 mc-text-muted font-normal ${i === headers.length - 1 ? 'text-right' : 'text-left'}`}>{h}</th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody className="mc-text-dim">
+          {rows.map((row, i) => (
+            <tr key={i} className="border-b border-white/5">
+              {row.map((cell, j) => (
+                <td key={j} className={`py-2 px-1 align-top ${j === row.length - 1 ? 'text-right' : ''}`}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -119,9 +121,9 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <DocTable
           headers={['Plan', 'Daily Rate', 'Duration', 'Lockup', 'PP Earned']}
           rows={[
-            [<span className="mc-text-green font-bold">Simple {PLAN_DAYS_SIMPLE}-Day</span>, pct(DAILY_RATE_SIMPLE), `${PLAN_DAYS_SIMPLE} days`, 'None — withdraw anytime', `${fmt(ppSimple)} PP / ICP`],
-            [<span className="mc-text-purple font-bold">Compounding {PLAN_DAYS_COMPOUND_15}-Day</span>, pct(DAILY_RATE_COMPOUND_15), `${PLAN_DAYS_COMPOUND_15} days`, 'Full lockup', `${fmt(ppComp15)} PP / ICP`],
-            [<span className="mc-text-gold font-bold">Compounding {PLAN_DAYS_COMPOUND_30}-Day</span>, pct(DAILY_RATE_COMPOUND_30), `${PLAN_DAYS_COMPOUND_30} days`, 'Full lockup', `${fmt(ppComp30)} PP / ICP`],
+            [<span className="mc-text-green font-bold">Simple {PLAN_DAYS_SIMPLE}-Day</span>, pct(DAILY_RATE_SIMPLE), `${PLAN_DAYS_SIMPLE} days`, 'Anytime', `${fmt(ppSimple)} / ICP`],
+            [<span className="mc-text-purple font-bold">Compounding {PLAN_DAYS_COMPOUND_15}-Day</span>, pct(DAILY_RATE_COMPOUND_15), `${PLAN_DAYS_COMPOUND_15} days`, 'Locked', `${fmt(ppComp15)} / ICP`],
+            [<span className="mc-text-gold font-bold">Compounding {PLAN_DAYS_COMPOUND_30}-Day</span>, pct(DAILY_RATE_COMPOUND_30), `${PLAN_DAYS_COMPOUND_30} days`, 'Locked', `${fmt(ppComp30)} / ICP`],
           ]}
         />
         <div className="mt-4 space-y-2">
@@ -212,16 +214,16 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <DocTable
           headers={['Share', 'Recipient']}
           rows={[
-            [<span className="mc-text-gold font-bold">{pct(BACKER_OLDEST_UPSTREAM_SHARE)}</span>, 'Oldest upstream backer'],
-            [<span className="mc-text-purple font-bold">{pct(BACKER_OTHER_UPSTREAM_SHARE)}</span>, 'Split among other upstream backers'],
+            [<span className="mc-text-gold font-bold">{pct(BACKER_OLDEST_UPSTREAM_SHARE)}</span>, 'Oldest Series A backer'],
+            [<span className="mc-text-purple font-bold">{pct(BACKER_OTHER_UPSTREAM_SHARE)}</span>, 'Split among other Series A backers'],
             [<span className="mc-text-cyan font-bold">{pct(BACKER_ALL_SHARE)}</span>, 'Split among all backers'],
           ]}
         />
 
         <p className="font-bold text-white mt-4 mb-2">Backer Types</p>
         <div className="space-y-2">
-          <p><strong className="mc-text-green">Series A (Upstream):</strong> Created by voluntarily depositing into the Seed Round. {pct(UPSTREAM_BACKER_BONUS)} bonus on your stake.</p>
-          <p><strong className="mc-text-danger">Series B (Downstream):</strong> Created automatically during an Emergency Equity Conversion — a random unprofitable player gets converted into a backer with an entitlement matching their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
+          <p><strong className="mc-text-green">Series A:</strong> Created by voluntarily depositing into the Seed Round. {pct(UPSTREAM_BACKER_BONUS)} bonus on your stake.</p>
+          <p><strong className="mc-text-danger">Series B:</strong> Created automatically during an Emergency Equity Conversion — a random unprofitable player gets converted into a backer with an entitlement matching their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
         </div>
       </>
     ),
@@ -229,20 +231,12 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
   {
     id: 'referrals',
     title: 'The Pyramid (MLM)',
-    subtitle: 'Three-tier downline. Override commissions at every level.',
+    subtitle: 'Refer someone, take a cut of everything they earn.',
     icon: <Users className="h-5 w-5 mc-text-cyan" />,
     content: (
       <>
-        <p>Share your referral link and recruit a downline. Every time anyone in your downline earns Ponzi Points from a deposit, <strong className="text-white">10% is split off the top</strong> and cascades up their referral chain — with 50% passthrough at every active tier. Paid in PP, never ICP.</p>
-        <DocTable
-          headers={['Level', 'Relationship', 'Your Take (% of base mint)']}
-          rows={[
-            [<span className="mc-text-green font-bold">L1</span>, 'Direct referrals', <span className="mc-text-green font-bold">5%</span>],
-            [<span className="mc-text-purple font-bold">L2</span>, 'Their referrals', <span className="mc-text-purple font-bold">2.5%</span>],
-            [<span className="mc-text-gold font-bold">L3</span>, "Their referrals' referrals", <span className="mc-text-gold font-bold">1.25%</span>],
-          ]}
-        />
-        <p className="mt-4">Worked example: your direct recruit earns 100 PP from a deposit. <strong className="text-white">10 PP comes off the top</strong> before they ever see it — they receive 90 PP. You (L1) get half of the 10, so <strong className="text-white">5 PP</strong>. The other 5 PP keeps cascading: your upline (their L2) gets 2.5 PP, their upline (L3) gets 1.25 PP, and so on. Inactive uplines are skipped; the chain compacts around them. Anything left over after the chain runs out goes to the house.</p>
+        <p>Share your referral link and recruit a downline. <strong className="text-white">You take 10% of every Ponzi Point they earn</strong> — from their deposits, from their own referrals, from any game activity. Doesn't matter where the PP came from. Paid in PP, never ICP.</p>
+        <p>And whoever referred <em>you</em> takes 10% of yours, same way. They keep half of what they collect from you; the other half cascades up to whoever referred <em>them</em>. Same split at every tier, all the way up the chain.</p>
       </>
     ),
   },
@@ -300,11 +294,11 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            ['Money Trickster', ppCost(0, 120), "Steal 2\u20138% of target's PP (max 250)", ppOdds(0, 60)],
-            ['AOE Skim', ppCost(1, 600), 'Siphon 1\u20133% from every player (max 60/ea)', ppOdds(1, 40)],
+            ['Money Trickster', ppCost(0, 120), "Steal 2–8% of target's PP (max 250)", ppOdds(0, 60)],
+            ['AOE Skim', ppCost(1, 600), 'Siphon 1–3% from every player (max 60/ea)', ppOdds(1, 40)],
             ['Mint Tax Siphon', ppCost(3, 1200), "Skim 5% of target's new PP for 7 days (max 1,000)", ppOdds(3, 70)],
             ['Downline Heist', ppCost(4, 500), "Steal a referral from someone's downline", ppOdds(4, 30)],
-            ['Purse Cutter', ppCost(7, 900), 'Target loses 25\u201350% PP (max 800)', ppOdds(7, 20)],
+            ['Purse Cutter', ppCost(7, 900), 'Target loses 25–50% PP (max 800)', ppOdds(7, 20)],
             ['Whale Rebalance', ppCost(8, 800), 'Take 20% from top 3 PP holders (max 300/whale)', ppOdds(8, 50)],
           ]}
         />
@@ -314,7 +308,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
             ['Magic Mirror', ppCost(5, 200), 'Shield: blocks one hostile shenanigan for 24h', ppOdds(5, 100)],
-            ['PP Booster Aura', ppCost(6, 300), '+5\u201315% to all your PP mints for 24h', ppOdds(6, 100)],
+            ['PP Booster Aura', ppCost(6, 300), '+5–15% to all your PP mints for 24h', ppOdds(6, 100)],
             ['Downline Boost', ppCost(9, 400), 'Your referral cascade pays 1.3x for 24h', ppOdds(9, 100)],
           ]}
         />
@@ -331,16 +325,8 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <p className="font-bold text-white mt-6 mb-2">How Spells Resolve</p>
         <div className="space-y-3">
           <div className="mc-card p-4">
-            <p className="font-display text-xs text-white mb-1">Rubber-Banding</p>
-            <p>The six aggressive spells (Money Trickster, AOE Skim, Mint Tax Siphon, Downline Heist, Purse Cutter, Whale Rebalance) have their success rate adjusted by up to <span className="mc-text-gold font-bold">\u00b125 percentage points</span> based on caster vs. target PP balance. Small caster targeting a whale? Bonus on top of base odds. Whale picking on a minnow? Penalty \u2014 the punching-down tax. Clamped to a 5\u201395% range so nothing is ever guaranteed or impossible. Buff and cosmetic spells are exempt.</p>
-          </div>
-          <div className="mc-card p-4">
-            <p className="font-display text-xs text-white mb-1">Protection Floor</p>
-            <p>Targets holding under {fmt(SHENANIGAN_PROTECTION_FLOOR)} PP can't be drained, siphoned, or burned. Spells against them still cost the caster \u2014 they just no-op on the victim. The floor doesn't protect against cosmetic spells (Rename) or structural ones (Downline Heist).</p>
-          </div>
-          <div className="mc-card p-4">
             <p className="font-display text-xs text-white mb-1">Shields</p>
-            <p>Magic Mirror gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker \u2014 they still pay the cost, the shield charge is consumed, no damage lands. AOE Skim and Whale Rebalance respect shields per-target (shielded victims skipped, others still hit). Rename and Downline Heist bypass shields by design.</p>
+            <p>Magic Mirror gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker — they still pay the cost, the shield charge is consumed, no damage lands. AOE Skim and Whale Rebalance respect shields per-target (shielded victims skipped, others still hit). Rename and Downline Heist bypass shields by design.</p>
           </div>
         </div>
       </>
@@ -353,7 +339,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
     icon: <Shield className="h-5 w-5 mc-text-gold" />,
     content: (
       <>
-        <p>Musical Chairs supports three wallet types. All have full access to every game feature.</p>
+        <p>Musical Chairs supports Internet Identity and Plug. Both have full access to every game feature. OISY support is coming soon.</p>
 
         <div className="space-y-3 mt-3">
           <div className="mc-card p-4">
@@ -364,13 +350,13 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
             <p className="font-display text-sm text-white mb-1">Plug Wallet</p>
             <p>Browser extension wallet. Transactions go through Plug's approval flow. Requires the extension to be installed.</p>
           </div>
-          <div className="mc-card p-4">
-            <p className="font-display text-sm text-white mb-1">OISY Wallet</p>
+          <div className="mc-card p-4 opacity-50">
+            <p className="font-display text-sm text-white mb-1">OISY Wallet <span className="text-xs mc-text-muted font-normal">(coming soon)</span></p>
             <p>Multi-chain wallet built on Internet Identity. No extension needed — authenticates through II under the hood.</p>
           </div>
         </div>
 
-        <p className="mt-4 mc-text-muted">All three wallets use the same flow: you approve an ICRC-2 allowance, the backend pulls the exact amount needed for the action, and payouts are sent back to your wallet via ICRC-1 transfer.</p>
+        <p className="mt-4 mc-text-muted">Both wallets use the same flow: you approve an ICRC-2 allowance, the backend pulls the exact amount needed for the action, and payouts are sent back to your wallet via ICRC-1 transfer.</p>
       </>
     ),
   },
@@ -389,15 +375,15 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
             ['Carried Interest (Simple)', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
             ['Carried Interest (Compounding)', `The fee charged on Compounding position payouts at maturity — ${pct(JACKPOT_FEE_RATE_15D)} on the ${PLAN_DAYS_COMPOUND_15}-day plan, ${pct(JACKPOT_FEE_RATE_30D)} on the ${PLAN_DAYS_COMPOUND_30}-day plan.`],
             ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from carried interest.`],
-            ['Series A Backer (Upstream)', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
-            ['Series B Backer (Downstream)', `A backer created automatically during an Emergency Equity Conversion from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
+            ['Series A Backer', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
+            ['Series B Backer', `A backer created automatically during an Emergency Equity Conversion from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
             ['Entitlement', `The total amount a backer is owed: their original deposit plus their bonus (${pct(UPSTREAM_BACKER_BONUS)} for Series A, ${pct(DOWNSTREAM_BACKER_BONUS)} for Series B).`],
             ['Emergency Equity Conversion', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
             ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and backer stakes. Can only be spent on Shenanigans.'],
             ['Shenanigans', "Cosmetic game actions cast using PP. Range from stealing other players' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP."],
-            ['Downline', `Players referred by you (L1), or referred by your referrals (L2, L3). When they earn PP from a deposit, 10% is split off the top and cascades up the chain — you receive 5% as L1, 2.5% as L2, 1.25% as L3.`],
+            ['Downline', `Anyone you referred (or anyone they referred, recursively). You collect 10% of every PP they earn, half kept and half cascading further up the chain.`],
             ['Round', 'A full game cycle, from pot creation to reset. When the pot empties, the round ends and a new one begins.'],
-            ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug/OISY).'],
+            ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug).'],
           ].map(([term, def]) => (
             <div key={term as string}>
               <span className="font-bold text-white">{term}</span>
