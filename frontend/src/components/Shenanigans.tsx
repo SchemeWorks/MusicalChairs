@@ -55,6 +55,22 @@ const auraColors: Record<number, string> = {
   10: 'rgba(245, 158, 11, 0.3)',
 };
 
+// User-facing copy describing what happens to the caster on backfire.
+// Keep in sync with applyBackfireEffect in shenanigans/main.mo.
+const backfireDescriptions: Record<number, string> = {
+  0: 'You pay the target 2-8% of your PP (max 250).',   // moneyTrickster
+  1: 'You burn 1-3% of your own PP.',                    // aoeSkim
+  2: 'You get renamed for 7 days.',                      // renameSpell
+  3: 'The target siphons 5% of your mints for 3 days (cap 1000 PP).', // mintTaxSiphon
+  4: 'You lose your deepest downline to the target.',    // downlineHeist
+  5: 'Cannot backfire.',                                 // magicMirror
+  6: 'Cannot backfire.',                                 // ppBoosterAura
+  7: 'You burn 25-50% of your own PP (max 800).',        // purseCutter
+  8: 'You pay each of the top 3 whales (caps at ~49% loss).', // whaleRebalance
+  9: 'Cannot backfire.',                                 // downlineBoost
+  10: 'Cannot backfire.',                                // goldenName
+};
+
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
 
 const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
@@ -321,8 +337,11 @@ export default function Shenanigans() {
                     <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
 
                     {/* Mechanical effect */}
-                    <div className="text-xs mc-text-muted mt-1 italic mb-3">
+                    <div className="text-xs mc-text-muted mt-1 italic mb-1">
                       Effect: {trick.effects || 'see docs'}
+                    </div>
+                    <div className="text-xs mc-text-danger/80 italic mb-3">
+                      Backfire: {backfireDescriptions[trick.id] ?? 'see docs'}
                     </div>
 
                     {/* Odds bar */}
