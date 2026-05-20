@@ -67,7 +67,9 @@ type ShenaniganConfig =
    backgroundColor: text;
    castLimit: nat;
    cooldown: nat;
-   cost: float64;
+   costBackfire: float64;
+   costFailure: float64;
+   costSuccess: float64;
    description: text;
    duration: nat;
    effectValues: vec float64;
