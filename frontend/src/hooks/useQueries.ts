@@ -724,6 +724,69 @@ export function useCastShenanigan() {
   });
 }
 
+export function useSetPendingRenameName() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      const result = await actor.setPendingRenameName(name);
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
+      // Invalidate the display-name cache for ALL principals so the target's
+      // newly-chosen name surfaces immediately in the trollbox, live feed,
+      // and target picker. useDisplayName keys on ['shenanigans','goldenName',
+      // principalText], so a partial invalidation by exact key would miss it.
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'goldenName'] });
+      // Also drop the per-caller pending-rename query so the mount-time
+      // check doesn't keep reopening the modal.
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });
+    },
+  });
+}
+
+/// Polls the per-caller pending-rename slot. Returns null when no slot is
+/// active. Used by the Shenanigans component on mount so a caster who cast
+/// Rename and navigated away can resume picking the name within 5 minutes.
+export function useGetPendingRenameForCaller() {
+  const { actor } = useShenaniganActor();
+  const { principal } = useWallet();
+
+  return useQuery<{ target: Principal; expiresAt: bigint } | null>({
+    queryKey: ['shenanigans', 'pendingRename', principal],
+    queryFn: async () => {
+      if (!actor) return null;
+      const result = await actor.getPendingRenameForCaller();
+      if (result.length === 0) return null;
+      return result[0] ?? null;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
+/// Explicitly cancels the caller's pending-rename slot. Called from the
+/// "Skip" button on the rename modal so the slot doesn't dangle and
+/// re-trigger the mount-time prompt. Idempotent.
+export function useCancelPendingRename() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      await actor.cancelPendingRename();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });
+    },
+  });
+}
+
 // Shenanigans Configuration Queries
 export function useGetShenaniganConfigs() {
   const actor = useReadShenaniganActor();

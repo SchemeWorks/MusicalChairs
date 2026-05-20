@@ -48,6 +48,13 @@ type ShenaniganRecord =
    timestamp: int;
    user: principal;
  };
+type ShenaniganOutcomeDetail = 
+ record {
+   affectedCount: nat;
+   affectedTarget: opt principal;
+   outcome: ShenaniganOutcome;
+   ppDeltaCaster: int;
+ };
 type ShenaniganOutcome = 
  variant {
    backfire;
@@ -290,8 +297,14 @@ service : {
                                  Err: text;
                                  Ok;
                                });
+  /// Caller explicitly cancels their pending-rename slot. Idempotent —
+  /// safe to call when no slot exists. Used by the "Skip" button on the
+  /// rename modal so the slot doesn't dangle and re-trigger the
+  /// mount-time prompt. The cast cost is already burned and is not
+  /// refunded.
+  cancelPendingRename: () -> ();
   castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
-   (ShenaniganOutcome);
+   (ShenaniganOutcomeDetail);
   claimCashOut: (id: nat) -> (variant {
                                 Err: text;
                                 Ok: nat;
@@ -363,6 +376,13 @@ service : {
   /// Deterministic on the principal + time-derived nonce; retries on the
   /// astronomically-unlikely collision. Codes are stable once assigned.
   getOrCreateReferralCode: () -> (text);
+  /// Returns the active pending-rename slot for the caller, if any.
+  /// Drives the frontend modal that prompts for a name post-success.
+  getPendingRenameForCaller: () ->
+   (opt record {
+          expiresAt: int;
+          target: principal;
+        }) query;
   getPpBurnedFor: (user: principal) -> (nat) query;
   /// Returns the most-recent chat items newest-first. Capped server-side
   /// at 100 per call regardless of the caller's requested limit.
@@ -452,6 +472,13 @@ service : {
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
   setObserverIntervalSeconds: (v: nat) -> ();
+  /// Caller commits a chosen name for their most recent successful Rename
+  /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
+  /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+  setPendingRenameName: (name: text) -> (variant {
+                                           Err: text;
+                                           Ok;
+                                         });
   /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
   /// Use setCascadeBps(initial, passthrough) instead.
   setReferralBps: (_l1: nat, _l2: nat, _l3: nat) -> ();

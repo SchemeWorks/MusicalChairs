@@ -54,6 +54,20 @@ persistent actor Self {
         #backfire;
     };
 
+    /// Detailed cast outcome. `ppDeltaCaster` is the net PP unit change for
+    /// the caster *excluding* the spell cost burn — negative means the caster
+    /// also paid the backfire penalty; positive means they net-gained from
+    /// theft. `affectedTarget` is the specific principal hit (Money Trickster,
+    /// Purse Cutter, etc.) or null for self-buffs / fails. `affectedCount`
+    /// counts how many distinct victims were touched (AoE Skim and Whale
+    /// Rebalance set this > 1).
+    public type ShenaniganOutcomeDetail = {
+        outcome : ShenaniganOutcome;
+        ppDeltaCaster : Int;
+        affectedTarget : ?Principal;
+        affectedCount : Nat;
+    };
+
     public type ShenaniganRecord = {
         id : Nat;
         user : Principal;
@@ -476,6 +490,13 @@ persistent actor Self {
     var mintMultipliers = principalMap.empty<MintMultiplier>();
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
+
+    // When Rename Spell lands on #success, the new name is NOT applied
+    // immediately. Instead the caster gets a 5-minute window to pick a
+    // name via setPendingRenameName. If the window lapses, the slot
+    // simply expires (no automatic fallback rename — the cast cost is
+    // already burned).
+    var pendingRenames = principalMap.empty<{ target : Principal; expiresAt : Int }>();
 
     // Set of principals we've ever minted PP to. Used by AOE Skim and
     // Whale Rebalance to enumerate possible victims without scanning the
@@ -1480,6 +1501,89 @@ persistent actor Self {
         pool[Int.abs(Time.now()) % pool.size()];
     };
 
+    /// Validate + sanitize a player-chosen rename. Rules:
+    ///  - Trim leading/trailing spaces
+    ///  - 1 to 32 chars after trim
+    ///  - Allowed: a-z A-Z 0-9 space - _
+    func sanitizeRenameName(raw : Text) : { #Ok : Text; #Err : Text } {
+        let trimmed = Text.trim(raw, #char ' ');
+        if (Text.size(trimmed) == 0) { return #Err("Name cannot be empty") };
+        if (Text.size(trimmed) > 32) { return #Err("Name too long (max 32 chars)") };
+        for (c in trimmed.chars()) {
+            let ok =
+                (c >= 'a' and c <= 'z') or
+                (c >= 'A' and c <= 'Z') or
+                (c >= '0' and c <= '9') or
+                c == ' ' or c == '-' or c == '_';
+            if (not ok) { return #Err("Invalid character in name") };
+        };
+        #Ok(trimmed);
+    };
+
+    /// Lazy cleanup: drop every pendingRenames entry whose expiresAt has
+    /// already passed. Called on the warm path of setPendingRenameName so
+    /// the map doesn't accumulate stubs from casters who never commit.
+    func sweepExpiredPendingRenames() {
+        let now = Time.now();
+        for ((p, slot) in principalMap.entries(pendingRenames)) {
+            if (now >= slot.expiresAt) {
+                pendingRenames := principalMap.delete(pendingRenames, p);
+            };
+        };
+    };
+
+    /// Caller commits a chosen name for their most recent successful Rename
+    /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
+    /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+    public shared ({ caller }) func setPendingRenameName(name : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        sweepExpiredPendingRenames();
+        let slot = switch (principalMap.get(pendingRenames, caller)) {
+            case (null) { return #Err("No pending rename") };
+            case (?s) { s };
+        };
+        if (Time.now() >= slot.expiresAt) {
+            pendingRenames := principalMap.delete(pendingRenames, caller);
+            return #Err("Pending rename expired");
+        };
+        switch (sanitizeRenameName(name)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok(text)) {
+                let sevenDaysNs : Int = 86_400_000_000_000 * 7;
+                customDisplayNames := principalMap.put(customDisplayNames, slot.target, {
+                    name = text;
+                    expiresAt = Time.now() + sevenDaysNs;
+                });
+                pendingRenames := principalMap.delete(pendingRenames, caller);
+                return #Ok;
+            };
+        };
+    };
+
+    /// Returns the active pending-rename slot for the caller, if any.
+    /// Drives the frontend modal that prompts for a name post-success.
+    public query ({ caller }) func getPendingRenameForCaller() : async ?{
+        target : Principal;
+        expiresAt : Int;
+    } {
+        switch (principalMap.get(pendingRenames, caller)) {
+            case (null) { null };
+            case (?s) {
+                if (Time.now() >= s.expiresAt) { null }
+                else { ?s };
+            };
+        };
+    };
+
+    /// Caller explicitly cancels their pending-rename slot. Idempotent —
+    /// safe to call when no slot exists. Used by the "Skip" button on the
+    /// rename modal so the slot doesn't dangle and re-trigger the
+    /// mount-time prompt. The cast cost is already burned and is not
+    /// refunded.
+    public shared ({ caller }) func cancelPendingRename() : async () {
+        pendingRenames := principalMap.delete(pendingRenames, caller);
+    };
+
     /// Enumerate every known PP holder except `excluded`. Caller-side
     /// async fetch of balances follows separately.
     func enumerateHolders(excluded : Principal) : [Principal] {
@@ -1614,7 +1718,7 @@ persistent actor Self {
     // Core Logic
     // ================================================================
 
-    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
+    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
         // Reject target-required spells called without one. Without this trap
@@ -1680,14 +1784,16 @@ persistent actor Self {
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBal, targetBal) } else { 0 };
         let outcome = determineOutcomeWithMod(shenaniganType, modPct);
 
-        switch (outcome) {
+        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } = switch (outcome) {
             case (#success) {
                 await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
             };
             case (#backfire) {
                 await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
             };
-            case (#fail) {};
+            case (#fail) {
+                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
         };
 
         nextShenaniganId += 1;
@@ -1726,7 +1832,12 @@ persistent actor Self {
             spellsCastPerPlayer := principalMap.put(spellsCastPerPlayer, caller, prior + 1);
         };
 
-        outcome;
+        {
+            outcome;
+            ppDeltaCaster = detail.ppDeltaCaster;
+            affectedTarget = detail.affectedTarget;
+            affectedCount = detail.affectedCount;
+        };
     };
 
     // ================================================================
@@ -1744,9 +1855,8 @@ persistent actor Self {
         _casterBal : Nat,
         targetBal : Nat,
         castId : Nat,
-    ) : async () {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } {
         let memo = "spell-" # Nat.toText(castId);
-        let protectionFloor = ppToUnits(200);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
         let sevenDaysNs : Int = oneDayNs * 7;
@@ -1754,46 +1864,92 @@ persistent actor Self {
         switch (shenaniganType) {
             case (#moneyTrickster) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         let pct = rollPct(2, 8);
                         let amount = capAt(targetBal * pct / 100, ppToUnits(250));
-                        let _ = await chipTransfer(t, caster, amount, memo);
+                        switch (await chipTransfer(t, caster, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#aoeSkim) {
                 let pool = enumerateHolders(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
-                        if (bal >= protectionFloor) {
-                            let pct = rollPct(1, 3);
-                            let amount = capAt(bal * pct / 100, ppToUnits(60));
-                            let _ = await chipTransfer(victim, caster, amount, memo);
+                        let pct = rollPct(1, 3);
+                        let amount = capAt(bal * pct / 100, ppToUnits(60));
+                        if (amount > 0) {
+                            switch (await chipTransfer(victim, caster, amount, memo)) {
+                                case (#Ok(_)) {
+                                    total += amount;
+                                    victims += 1;
+                                };
+                                case (#Err(_)) {};
+                            };
                         };
                     };
                 };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#renameSpell) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        customDisplayNames := principalMap.put(customDisplayNames, t, {
-                            name = pickRenameName();
-                            expiresAt = nowTs + sevenDaysNs;
+                        // If the caster already has an active pending-rename
+                        // slot, auto-commit the previous target with a random
+                        // name from the pool before stashing the new slot.
+                        // Otherwise the prior cast's rename would be silently
+                        // overwritten and lost.
+                        switch (principalMap.get(pendingRenames, caster)) {
+                            case (?prior) {
+                                if (Time.now() < prior.expiresAt) {
+                                    customDisplayNames := principalMap.put(customDisplayNames, prior.target, {
+                                        name = pickRenameName();
+                                        expiresAt = nowTs + sevenDaysNs;
+                                    });
+                                };
+                            };
+                            case null {};
+                        };
+                        // Stash a pending-rename slot. Caster has 5 minutes
+                        // via setPendingRenameName to choose a name. If the
+                        // window lapses the slot simply expires; the cast
+                        // cost is already burned.
+                        let fiveMinNs : Int = 300_000_000_000;
+                        pendingRenames := principalMap.put(pendingRenames, caster, {
+                            target = t;
+                            expiresAt = nowTs + fiveMinNs;
                         });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         mintSiphons := principalMap.put(mintSiphons, t, {
                             siphoner = caster;
                             expiresAt = nowTs + sevenDaysNs;
@@ -1801,12 +1957,15 @@ persistent actor Self {
                             capUnits = ppToUnits(1000);
                             siphonedSoFar = 0;
                         });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
             case (#downlineHeist) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         // Find deepest downline of target — prefer L3, then L2, then L1
                         let entries = principalMap.entries(referralChain);
@@ -1842,11 +2001,15 @@ persistent actor Self {
                             } };
                         };
                         switch (victim) {
-                            case (null) {};
+                            case (null) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
                             case (?v) {
                                 if (v != caster) {
                                     referralChain := principalMap.put(referralChain, v, caster);
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                                 };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                             };
                         };
                     };
@@ -1868,6 +2031,7 @@ persistent actor Self {
                     chargesRemaining = newCharges;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#ppBoosterAura) {
                 let pct = rollPct(105, 115);
@@ -1875,38 +2039,60 @@ persistent actor Self {
                     multiplierBps = pct * 100;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#purseCutter) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         let pct = rollPct(25, 50);
                         let amount = capAt(targetBal * pct / 100, ppToUnits(800));
-                        let _ = await burnFrom(t, amount, memo);
+                        switch (await burnFrom(t, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for ((whale, bal) in whales.vals()) {
                     if (not consumeShieldIfActive(whale)) {
-                        if (bal >= protectionFloor) {
-                            let amount = capAt(bal * 20 / 100, ppToUnits(300));
-                            let _ = await chipTransfer(whale, caster, amount, memo);
+                        let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                        if (amount > 0) {
+                            switch (await chipTransfer(whale, caster, amount, memo)) {
+                                case (#Ok(_)) {
+                                    total += amount;
+                                    victims += 1;
+                                };
+                                case (#Err(_)) {};
+                            };
                         };
                     };
                 };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#downlineBoost) {
                 cascadeBoosts := principalMap.put(cascadeBoosts, caster, {
                     multiplierBps = 13_000;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#goldenName) {
                 goldenUntil := principalMap.put(goldenUntil, caster, nowTs + oneDayNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
         };
     };
@@ -1921,7 +2107,7 @@ persistent actor Self {
         casterBal : Nat,
         _targetBal : Nat,
         castId : Nat,
-    ) : async () {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } {
         let memo = "backfire-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
@@ -1931,28 +2117,47 @@ persistent actor Self {
         switch (shenaniganType) {
             case (#moneyTrickster) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         let pct = rollPct(2, 8);
                         let amount = capAt(casterBal * pct / 100, ppToUnits(250));
-                        let _ = await chipTransfer(caster, t, amount, memo);
+                        switch (await chipTransfer(caster, t, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#aoeSkim) {
                 let pct = rollPct(1, 3);
                 let loss = casterBal * pct / 100;
-                let _ = await burnFrom(caster, loss, memo);
+                switch (await burnFrom(caster, loss, memo)) {
+                    case (#Ok(_)) {
+                        return { ppDeltaCaster = -loss; affectedTarget = null; affectedCount = 0 };
+                    };
+                    case (#Err(_)) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
+                };
             };
             case (#renameSpell) {
                 customDisplayNames := principalMap.put(customDisplayNames, caster, {
                     name = pickRenameName();
                     expiresAt = nowTs + sevenDaysNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         mintSiphons := principalMap.put(mintSiphons, caster, {
                             siphoner = t;
@@ -1961,13 +2166,20 @@ persistent actor Self {
                             capUnits = ppToUnits(1000);
                             siphonedSoFar = 0;
                         });
+                        // Target IS affected — they become the siphoner of
+                        // caster's mints for 3 days. Mirror the success
+                        // branch's affectedCount = 1 so the UI doesn't say
+                        // "no observable effect."
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
             case (#downlineHeist) {
                 // Caster loses deepest downline to target
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         let entries = principalMap.entries(referralChain);
                         var l1Victim : ?Principal = null;
@@ -2002,11 +2214,15 @@ persistent actor Self {
                             } };
                         };
                         switch (victim) {
-                            case (null) {};
+                            case (null) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
                             case (?v) {
                                 if (v != t) {
                                     referralChain := principalMap.put(referralChain, v, t);
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                                 };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                             };
                         };
                     };
@@ -2015,10 +2231,19 @@ persistent actor Self {
             case (#purseCutter) {
                 let pct = rollPct(25, 50);
                 let amount = capAt(casterBal * pct / 100, ppToUnits(800));
-                let _ = await burnFrom(caster, amount, memo);
+                switch (await burnFrom(caster, amount, memo)) {
+                    case (#Ok(_)) {
+                        return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0 };
+                    };
+                    case (#Err(_)) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
+                };
             };
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for ((whale, _) in whales.vals()) {
                     // Re-read caster balance per iteration so successive
                     // payouts are bounded by what's actually left, not the
@@ -2028,14 +2253,29 @@ persistent actor Self {
                     let liveBal = await getChipBalance(caster);
                     let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
                     if (amount > 0) {
-                        let _ = await chipTransfer(caster, whale, amount, memo);
+                        switch (await chipTransfer(caster, whale, amount, memo)) {
+                            case (#Ok(_)) {
+                                total += amount;
+                                victims += 1;
+                            };
+                            case (#Err(_)) {};
+                        };
                     };
                 };
+                return { ppDeltaCaster = -total; affectedTarget = null; affectedCount = victims };
             };
-            case (#magicMirror) {};
-            case (#ppBoosterAura) {};
-            case (#downlineBoost) {};
-            case (#goldenName) {};
+            case (#magicMirror) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#ppBoosterAura) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#downlineBoost) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#goldenName) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
         };
     };
 

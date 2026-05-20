@@ -57,9 +57,6 @@ export const REFERRAL_L1_RATE = 0.08;           //  8 % of referred's PP earning
 export const REFERRAL_L2_RATE = 0.05;           //  5 %
 export const REFERRAL_L3_RATE = 0.02;           //  2 %
 
-// ── Shenanigan Protection Floor ─────────────────────────────────────
-export const SHENANIGAN_PROTECTION_FLOOR = 200; // PP
-
 // ── Helpers ─────────────────────────────────────────────────────────
 
 /** Format a decimal rate as a percentage string, e.g. 0.11 → "11%" */

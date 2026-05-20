@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename } from '../hooks/useQueries';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -55,6 +55,22 @@ const auraColors: Record<number, string> = {
   10: 'rgba(245, 158, 11, 0.3)',
 };
 
+// User-facing copy describing what happens to the caster on backfire.
+// Keep in sync with applyBackfireEffect in shenanigans/main.mo.
+const backfireDescriptions: Record<number, string> = {
+  0: 'You pay the target 2-8% of your PP (max 250).',   // moneyTrickster
+  1: 'You burn 1-3% of your own PP.',                    // aoeSkim
+  2: 'You get renamed for 7 days.',                      // renameSpell
+  3: 'The target siphons 5% of your mints for 3 days (cap 1000 PP).', // mintTaxSiphon
+  4: 'You lose your deepest downline to the target.',    // downlineHeist
+  5: 'Cannot backfire.',                                 // magicMirror
+  6: 'Cannot backfire.',                                 // ppBoosterAura
+  7: 'You burn 25-50% of your own PP (max 800).',        // purseCutter
+  8: 'You pay each of the top 3 whales (caps at ~49% loss).', // whaleRebalance
+  9: 'Cannot backfire.',                                 // downlineBoost
+  10: 'Cannot backfire.',                                // goldenName
+};
+
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
 
 const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
@@ -104,6 +120,12 @@ function LiveFeedRow({
   );
 }
 
+function OutcomeTargetName({ principalText }: { principalText: string }) {
+  const principal = Principal.fromText(principalText);
+  const name = useDisplayName(principal);
+  return <>{name || 'them'}</>;
+}
+
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
@@ -120,8 +142,31 @@ export default function Shenanigans() {
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<Principal | null>(null);
-  const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
+  const [outcomeToast, setOutcomeToast] = useState<{
+    name: string;
+    outcome: string;
+    flavor: string;
+    cost: number;
+    spellId?: number;                  // 0-10 per shenaniganTypes; drives per-spell copy
+    ppDelta?: number;                  // PP units / 10^8 — display-ready number
+    targetPrincipalText?: string | null;
+    affectedCount?: number;
+  } | null>(null);
+  const [renamePrompt, setRenamePrompt] = useState<{ targetPrincipal: string } | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const setRenameName = useSetPendingRenameName();
+  const cancelRenameName = useCancelPendingRename();
+  const { data: pendingRename } = useGetPendingRenameForCaller();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
+
+  // If the user cast Rename, navigated away, then came back within 5 minutes,
+  // reopen the modal so they can still pick the name. Only triggers when the
+  // backend reports a non-null pending slot AND no modal is currently open.
+  useEffect(() => {
+    if (pendingRename && !renamePrompt) {
+      setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
+    }
+  }, [pendingRename, renamePrompt]);
 
   useEffect(() => {
     if (backendConfigs) {
@@ -193,15 +238,30 @@ export default function Shenanigans() {
     setConfirmOpen(false);
     setAnimatingTrick(variantKey(selectedShenanigan.type));
     try {
-      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
-      const outcome = variantKey(rawOutcome);
+      const detail = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
+      const outcome = variantKey(detail.outcome);
       setTimeout(() => {
-        setOutcomeToast({
-          name: selectedShenanigan.name,
-          outcome,
-          flavor: getFlavorText(outcome),
-          cost: selectedShenanigan.cost,
-        });
+        const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
+        const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
+          ? detail.affectedTarget[0]?.toText() ?? null
+          : null;
+        if (isRenameSuccess && targetPrincipalText) {
+          // Skip the success toast — the rename modal IS the success
+          // affirmation, and otherwise the toast would sit hidden behind
+          // the rename modal's backdrop.
+          setRenamePrompt({ targetPrincipal: targetPrincipalText });
+        } else {
+          setOutcomeToast({
+            name: selectedShenanigan.name,
+            outcome,
+            flavor: getFlavorText(outcome),
+            cost: selectedShenanigan.cost,
+            spellId: selectedShenanigan.id,
+            ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
+            targetPrincipalText,
+            affectedCount: Number(detail.affectedCount),
+          });
+        }
         setAnimatingTrick(null);
       }, 1500);
     } catch (error: any) {
@@ -321,8 +381,11 @@ export default function Shenanigans() {
                     <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
 
                     {/* Mechanical effect */}
-                    <div className="text-xs mc-text-muted mt-1 italic mb-3">
+                    <div className="text-xs mc-text-muted mt-1 italic mb-1">
                       Effect: {trick.effects || 'see docs'}
+                    </div>
+                    <div className="text-xs mc-text-danger/80 italic mb-3">
+                      Backfire: {backfireDescriptions[trick.id] ?? 'see docs'}
                     </div>
 
                     {/* Odds bar */}
@@ -405,7 +468,7 @@ export default function Shenanigans() {
               </div>
               <div className="flex items-start gap-2">
                 <Shield className="h-3 w-3 mc-text-green mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Loss Protection</strong> — Targets under 200 PP protected; no one goes below 0</span>
+                <span><strong className="mc-text-primary">Zero Floor</strong> — No player goes below 0 PP</span>
               </div>
               <div className="flex items-start gap-2">
                 <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />
@@ -489,34 +552,163 @@ export default function Shenanigans() {
 
       {/* Outcome toast */}
       {outcomeToast && (
-        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
-          <div className="mc-toast text-center">
-            <div className={`font-display text-xl mb-2 ${
-              outcomeToast.outcome === 'success' ? 'mc-text-green' :
-              outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
-              outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
-              'mc-text-danger'
-            }`}>
-              {outcomeToast.outcome === 'success' ? 'Success!' :
-               outcomeToast.outcome === 'fail' ? 'Failed.' :
-               outcomeToast.outcome === 'backfire' ? 'Backfire!' :
-               'Error'}
+        <>
+          <div className="mc-modal-backdrop" onClick={() => setOutcomeToast(null)} aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center">
+              <div className={`font-display text-xl mb-2 ${
+                outcomeToast.outcome === 'success' ? 'mc-text-green' :
+                outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
+                outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
+                'mc-text-danger'
+              }`}>
+                {outcomeToast.outcome === 'success' ? 'Success!' :
+                 outcomeToast.outcome === 'fail' ? 'Failed.' :
+                 outcomeToast.outcome === 'backfire' ? 'Backfire!' :
+                 'Error'}
+              </div>
+              <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
+              <p className="font-accent text-xs mc-text-dim italic mb-2">
+                {outcomeToast.flavor}
+              </p>
+              {(() => {
+                const d = outcomeToast.ppDelta ?? 0;
+                const cnt = outcomeToast.affectedCount ?? 0;
+                const id = outcomeToast.spellId;
+                const target = outcomeToast.targetPrincipalText
+                  ? <OutcomeTargetName principalText={outcomeToast.targetPrincipalText} />
+                  : 'them';
+                // Per-spell IDs (mirror shenaniganTypes array order in main.mo):
+                // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
+                // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
+                // 8 whaleRebalance, 9 downlineBoost, 10 goldenName
+
+                if (outcomeToast.outcome === 'success') {
+                  // Numeric wins first (Money Trickster, AoE Skim, Whale Rebalance theft).
+                  if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
+                  if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
+                  // Spells with no PP delta — explain what actually happened.
+                  switch (id) {
+                    case 3: // mintTaxSiphon
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">{target} is now siphoned. You'll skim 5% of their next 1000 PP minted (over 7 days).</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. No siphon.</p>;
+                    case 4: // downlineHeist
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole a downline member from {target}.</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} had no downline to steal.</p>;
+                    case 5: // magicMirror
+                      return <p className="text-xs mc-text-green mb-3">Shield up. Next hostile spell aimed at you gets blocked.</p>;
+                    case 6: // ppBoosterAura
+                      return <p className="text-xs mc-text-green mb-3">PP booster active for the rest of the round.</p>;
+                    case 7: // purseCutter
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Burned {target}'s PP.</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. Purse intact.</p>;
+                    case 9: // downlineBoost
+                      return <p className="text-xs mc-text-green mb-3">Your referral cascade pays 1.3× for 24 hours.</p>;
+                    case 10: // goldenName
+                      return <p className="text-xs mc-text-green mb-3">You're golden — name glows on the leaderboard.</p>;
+                    case 0: // moneyTrickster — no theft, shielded target (success path)
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. No PP stolen.</p>;
+                    case 1: // aoeSkim — all victims shielded
+                    case 8: // whaleRebalance — all whales shielded
+                      return <p className="text-xs mc-text-green mb-3">Every target was shielded. Nothing skimmed.</p>;
+                    default:
+                      return <p className="text-xs mc-text-green mb-3">It worked.</p>;
+                  }
+                }
+
+                if (outcomeToast.outcome === 'backfire') {
+                  // Numeric losses first.
+                  if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
+                  if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
+                  if (d < 0 && cnt === 0) return <p className="text-xs mc-text-purple mb-3">You burned {Math.abs(Math.round(d))} PP.</p>;
+                  // State-change backfires with no PP delta — name them.
+                  switch (id) {
+                    case 2: // renameSpell backfire — caster gets renamed
+                      return <p className="text-xs mc-text-purple mb-3">You got renamed for 7 days.</p>;
+                    case 3: // mintTaxSiphon backfire — target becomes the siphoner
+                      return <p className="text-xs mc-text-purple mb-3">{target} now siphons 5% of YOUR mints for 3 days.</p>;
+                    case 4: // downlineHeist backfire — caster loses a downline
+                      if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} stole a downline member from you.</p>;
+                      return <p className="text-xs mc-text-purple mb-3">Backfired — but you had no downline to lose.</p>;
+                    default:
+                      return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
+                  }
+                }
+
+                if (outcomeToast.outcome === 'fail') {
+                  return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
+                }
+                return null;
+              })()}
+              {outcomeToast.cost > 0 && (
+                <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
+              )}
+              <button
+                onClick={() => setOutcomeToast(null)}
+                className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+              >
+                Noted
+              </button>
             </div>
-            <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
-            <p className="font-accent text-xs mc-text-dim italic mb-3">
-              {outcomeToast.flavor}
-            </p>
-            {outcomeToast.cost > 0 && (
-              <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
-            )}
-            <button
-              onClick={() => setOutcomeToast(null)}
-              className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
-            >
-              Noted
-            </button>
           </div>
-        </div>
+        </>
+      )}
+
+      {/* Rename Spell — name picker modal */}
+      {renamePrompt && (
+        <>
+          <div className="mc-modal-backdrop" aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center max-w-sm">
+              <div className="font-display text-xl mc-text-primary mb-2">
+                Name them.
+              </div>
+              <p className="text-sm mc-text-dim mb-3">
+                You have 5 minutes. 1-32 characters. Letters, numbers, space, dash, underscore.
+              </p>
+              <input
+                type="text"
+                value={renameInput}
+                onChange={(e) => setRenameInput(e.target.value)}
+                maxLength={32}
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm mc-text-primary mb-3"
+                placeholder="e.g., Liquidation Larry"
+              />
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={async () => {
+                    setRenamePrompt(null);
+                    setRenameInput('');
+                    // Tell the backend to clear the slot so it doesn't
+                    // re-trigger the mount-time prompt. Best-effort —
+                    // ignore network errors; the slot lapses in 5 min anyway.
+                    try { await cancelRenameName.mutateAsync(); } catch {}
+                  }}
+                  disabled={cancelRenameName.isPending}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+                >
+                  Skip (no rename)
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await setRenameName.mutateAsync(renameInput);
+                      setRenamePrompt(null);
+                      setRenameInput('');
+                    } catch (e: any) {
+                      alert(e.message || 'Rename failed');
+                    }
+                  }}
+                  disabled={renameInput.trim().length === 0 || setRenameName.isPending}
+                  className="mc-btn-primary px-5 py-2 rounded-full text-sm"
+                >
+                  {setRenameName.isPending ? 'Committing…' : 'Lock it in'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
       )}
 
       {/* Target picker */}
@@ -531,21 +723,24 @@ export default function Shenanigans() {
 
       {/* Confirm dialog */}
       {confirmOpen && selectedShenanigan && (
-        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
-          <div className="mc-toast text-center">
-            <div className="font-display text-xl mc-text-primary mb-2">
-              {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
-            </div>
-            <p className="text-sm mc-text-dim mb-1">
-              This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
-            </p>
-            <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
-              <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
+        <>
+          <div className="mc-modal-backdrop" onClick={() => setConfirmOpen(false)} aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center">
+              <div className="font-display text-xl mc-text-primary mb-2">
+                {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
+              </div>
+              <p className="text-sm mc-text-dim mb-1">
+                This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
+              </p>
+              <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
+              <div className="flex gap-3 justify-center">
+                <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
+                <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );

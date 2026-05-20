@@ -148,6 +148,12 @@ export interface ShenaniganConfig {
 export type ShenaniganOutcome = { 'backfire' : null } |
   { 'fail' : null } |
   { 'success' : null };
+export interface ShenaniganOutcomeDetail {
+  'affectedTarget' : [] | [Principal],
+  'affectedCount' : bigint,
+  'outcome' : ShenaniganOutcome,
+  'ppDeltaCaster' : bigint,
+}
 export interface ShenaniganRecord {
   'id' : bigint,
   'shenaniganType' : ShenaniganType,
@@ -249,9 +255,17 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
+  /**
+   * / Caller explicitly cancels their pending-rename slot. Idempotent —
+   * / safe to call when no slot exists. Used by the "Skip" button on the
+   * / rename modal so the slot doesn't dangle and re-trigger the
+   * / mount-time prompt. The cast cost is already burned and is not
+   * / refunded.
+   */
+  'cancelPendingRename' : ActorMethod<[], undefined>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
-    ShenaniganOutcome
+    ShenaniganOutcomeDetail
   >,
   'claimCashOut' : ActorMethod<
     [bigint],
@@ -347,6 +361,14 @@ export interface _SERVICE {
    * / astronomically-unlikely collision. Codes are stable once assigned.
    */
   'getOrCreateReferralCode' : ActorMethod<[], string>,
+  /**
+   * / Returns the active pending-rename slot for the caller, if any.
+   * / Drives the frontend modal that prompts for a name post-success.
+   */
+  'getPendingRenameForCaller' : ActorMethod<
+    [],
+    [] | [{ 'expiresAt' : bigint, 'target' : Principal }]
+  >,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   /**
    * / Returns the most-recent chat items newest-first. Capped server-side
@@ -454,6 +476,16 @@ export interface _SERVICE {
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Caller commits a chosen name for their most recent successful Rename
+   * / Spell. Must be called within 5 minutes of the cast. Name is sanitized:
+   * / trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+   */
+  'setPendingRenameName' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   /**
    * / Deprecated. The deductive cascade ignores referralL[1-3]Bps.
    * / Use setCascadeBps(initial, passthrough) instead.
