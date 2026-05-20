@@ -394,6 +394,15 @@ persistent actor Self {
     // referralChain.
     var referrerToDownline = principalMap.empty<List.List<Principal>>();
 
+    // Per-principal timestamp of when registerReferral first wrote the
+    // user's referralChain entry. Used as the authoritative "joined" time
+    // for getReferralStats.recentSignups, falling back to signupAnnouncedSet
+    // / signupGiftClaimed for users who joined before this map existed
+    // (those upgrade-time entries gracefully degrade to whichever earlier
+    // timestamp was captured). Lets users who registered via ?ref= but
+    // haven't deposited yet still show up in their upline's MLM view.
+    var referralChainJoinedAt = principalMap.empty<Int>();
+
     // Bidirectional map of short referral codes ↔ principals. Codes are
     // assigned lazily on first call to getOrCreateReferralCode and never
     // change. URLs ship as `?ref=<code>` instead of the 53-char principal.
@@ -529,6 +538,12 @@ persistent actor Self {
                     case (null) { List.nil<Principal>() };
                 };
                 referrerToDownline := principalMap.put(referrerToDownline, referrer, List.push(caller, existing));
+                // Capture the join time so the user appears in their upline's
+                // recentSignups immediately, even before they deposit. Without
+                // this, pushSignup falls back to signupAnnouncedSet (set on
+                // first qualifying deposit) and the user is invisible to the
+                // upline until then.
+                referralChainJoinedAt := principalMap.put(referralChainJoinedAt, caller, Time.now());
             };
         };
     };
@@ -581,11 +596,37 @@ persistent actor Self {
             };
         };
 
-        let pushSignup = func(downliner : Principal, level : Nat) {
-            switch (principalMap.get(signupGiftClaimed, downliner)) {
-                case (?ts) { bufRef := List.push({ principal = downliner; joinedAt = ts; level }, bufRef) };
-                case (null) {};
+        // Resolve a join timestamp for a downliner using the best available
+        // signal. Preference order:
+        //   1. referralChainJoinedAt — set the moment registerReferral lands.
+        //      Accurate to the actual moment they joined the chain.
+        //   2. signupAnnouncedSet — set on first observed game. Earlier
+        //      cohorts who joined before referralChainJoinedAt existed.
+        //   3. signupGiftClaimed — set on first signup gift mint (only when
+        //      signupGiftPp > 0). Older fallback still.
+        //   4. 0 — sentinel for "joined but no timestamp recorded anywhere".
+        //      Surfaces them in recentSignups (sorted to the bottom) so the
+        //      upline can at least see they exist.
+        let resolveJoinedAt = func(p : Principal) : Int {
+            switch (principalMap.get(referralChainJoinedAt, p)) {
+                case (?t) { t };
+                case (null) {
+                    switch (principalMap.get(signupAnnouncedSet, p)) {
+                        case (?t) { t };
+                        case (null) {
+                            switch (principalMap.get(signupGiftClaimed, p)) {
+                                case (?t) { t };
+                                case (null) { 0 };
+                            };
+                        };
+                    };
+                };
             };
+        };
+
+        let pushSignup = func(downliner : Principal, level : Nat) {
+            let ts = resolveJoinedAt(downliner);
+            bufRef := List.push({ principal = downliner; joinedAt = ts; level }, bufRef);
         };
 
         for (l1 in List.toIter(downlineOf(user))) {
