@@ -461,7 +461,9 @@ persistent actor Self {
 
     // Leaderboard (local state — not derived from ledger)
     var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
-    var spellsCastPerPlayer = principalMap.empty<Nat>(); // successful casts only
+    // spellsCastPerPlayer: cumulative count of #success OR #backfire casts.
+    // #fail outcomes are not counted because they had no observable effect.
+    var spellsCastPerPlayer = principalMap.empty<Nat>();
     // Cumulative PP units received via karma reactions (the 40% recipient cut).
     // Prestige stat — surfaced in Hall of Fame.
     var karmaReceivedPerPlayer = principalMap.empty<Nat>();
@@ -1851,8 +1853,19 @@ persistent actor Self {
                 };
             };
             case (#magicMirror) {
+                // Stack charges if an active shield already exists. Cap at 3
+                // so castLimit=2 can be raised without runaway shielding.
+                // Expiry always refreshes to now+1d on each cast.
+                let priorCharges : Nat = switch (principalMap.get(shieldsActive, caster)) {
+                    case (null) { 0 };
+                    case (?s) {
+                        if (Time.now() >= s.expiresAt) { 0 }
+                        else { s.chargesRemaining };
+                    };
+                };
+                let newCharges : Nat = if (priorCharges + 1 > 3) { 3 } else { priorCharges + 1 };
                 shieldsActive := principalMap.put(shieldsActive, caster, {
-                    chargesRemaining = 1;
+                    chargesRemaining = newCharges;
                     expiresAt = nowTs + oneDayNs;
                 });
             };
@@ -2007,8 +2020,16 @@ persistent actor Self {
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
                 for ((whale, _) in whales.vals()) {
-                    let amount = capAt(casterBal * 20 / 100, ppToUnits(300));
-                    let _ = await chipTransfer(caster, whale, amount, memo);
+                    // Re-read caster balance per iteration so successive
+                    // payouts are bounded by what's actually left, not the
+                    // initial snapshot. With three whales and stale balance
+                    // a caster could lose up to 60%; per-iteration caps it
+                    // at ~49% (0.2 + 0.16 + 0.128).
+                    let liveBal = await getChipBalance(caster);
+                    let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
+                    if (amount > 0) {
+                        let _ = await chipTransfer(caster, whale, amount, memo);
+                    };
                 };
             };
             case (#magicMirror) {};
@@ -2740,6 +2761,21 @@ persistent actor Self {
             displayName = liveName;
             mintSiphon = liveSiphon;
             golden = isGolden;
+        };
+    };
+
+    /// Read the caller's (or any principal's) active Magic Mirror shield, if any.
+    /// Returns null when no shield is active or it has expired.
+    public query func getActiveShield(p : Principal) : async ?{
+        chargesRemaining : Nat;
+        expiresAt : Int;
+    } {
+        switch (principalMap.get(shieldsActive, p)) {
+            case (null) { null };
+            case (?s) {
+                if (Time.now() >= s.expiresAt) { null }
+                else { ?{ chargesRemaining = s.chargesRemaining; expiresAt = s.expiresAt } };
+            };
         };
     };
 

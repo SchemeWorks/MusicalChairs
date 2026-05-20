@@ -262,6 +262,15 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'getActiveShield' : IDL.Func(
+        [IDL.Principal],
+        [
+          IDL.Opt(
+            IDL.Record({ 'expiresAt' : IDL.Int, 'chargesRemaining' : IDL.Nat })
+          ),
+        ],
+        ['query'],
+      ),
     'getActiveSpellEffects' : IDL.Func(
         [IDL.Principal],
         [ActiveSpellEffects],
