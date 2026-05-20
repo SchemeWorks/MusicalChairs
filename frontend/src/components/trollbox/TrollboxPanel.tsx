@@ -27,6 +27,21 @@ export default function TrollboxPanel({ authenticated, principal, currentUserNam
     return () => window.removeEventListener('resize', update);
   }, []);
 
+  // Lock body scroll while the full-screen mobile panel is mounted so swipes
+  // can't bleed through to the dashboard underneath. Desktop panel floats over
+  // content and doesn't need the lock.
+  React.useEffect(() => {
+    if (!isMobile) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, [isMobile]);
+
   const toggleChime = () => {
     const next = !chimeMuted;
     setChimeMuted(next);

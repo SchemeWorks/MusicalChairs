@@ -46,7 +46,7 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 overflow-y-auto overscroll-contain">
       {[...visible].reverse().map((item) => (
         <div key={item.id.toString()} className="group relative">
           <ChatItemRow
