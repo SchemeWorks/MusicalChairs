@@ -773,6 +773,21 @@
     to { opacity: 1; transform: translateY(0) scale(1); }
   }
 
+  .mc-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    z-index: 9998;
+    animation: mc-backdrop-fade 160ms ease-out;
+  }
+
+  @keyframes mc-backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   .mc-toast-accent {
     background: linear-gradient(135deg, var(--mc-gold), var(--mc-orange));
     -webkit-background-clip: text;

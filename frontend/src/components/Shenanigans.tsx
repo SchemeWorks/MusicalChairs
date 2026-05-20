@@ -489,34 +489,37 @@ export default function Shenanigans() {
 
       {/* Outcome toast */}
       {outcomeToast && (
-        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
-          <div className="mc-toast text-center">
-            <div className={`font-display text-xl mb-2 ${
-              outcomeToast.outcome === 'success' ? 'mc-text-green' :
-              outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
-              outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
-              'mc-text-danger'
-            }`}>
-              {outcomeToast.outcome === 'success' ? 'Success!' :
-               outcomeToast.outcome === 'fail' ? 'Failed.' :
-               outcomeToast.outcome === 'backfire' ? 'Backfire!' :
-               'Error'}
+        <>
+          <div className="mc-modal-backdrop" onClick={() => setOutcomeToast(null)} aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center">
+              <div className={`font-display text-xl mb-2 ${
+                outcomeToast.outcome === 'success' ? 'mc-text-green' :
+                outcomeToast.outcome === 'fail' ? 'mc-text-danger' :
+                outcomeToast.outcome === 'backfire' ? 'mc-text-purple' :
+                'mc-text-danger'
+              }`}>
+                {outcomeToast.outcome === 'success' ? 'Success!' :
+                 outcomeToast.outcome === 'fail' ? 'Failed.' :
+                 outcomeToast.outcome === 'backfire' ? 'Backfire!' :
+                 'Error'}
+              </div>
+              <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
+              <p className="font-accent text-xs mc-text-dim italic mb-3">
+                {outcomeToast.flavor}
+              </p>
+              {outcomeToast.cost > 0 && (
+                <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
+              )}
+              <button
+                onClick={() => setOutcomeToast(null)}
+                className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+              >
+                Noted
+              </button>
             </div>
-            <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
-            <p className="font-accent text-xs mc-text-dim italic mb-3">
-              {outcomeToast.flavor}
-            </p>
-            {outcomeToast.cost > 0 && (
-              <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
-            )}
-            <button
-              onClick={() => setOutcomeToast(null)}
-              className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
-            >
-              Noted
-            </button>
           </div>
-        </div>
+        </>
       )}
 
       {/* Target picker */}
@@ -531,21 +534,24 @@ export default function Shenanigans() {
 
       {/* Confirm dialog */}
       {confirmOpen && selectedShenanigan && (
-        <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]">
-          <div className="mc-toast text-center">
-            <div className="font-display text-xl mc-text-primary mb-2">
-              {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
-            </div>
-            <p className="text-sm mc-text-dim mb-1">
-              This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
-            </p>
-            <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
-            <div className="flex gap-3 justify-center">
-              <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
-              <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
+        <>
+          <div className="mc-modal-backdrop" onClick={() => setConfirmOpen(false)} aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center">
+              <div className="font-display text-xl mc-text-primary mb-2">
+                {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
+              </div>
+              <p className="text-sm mc-text-dim mb-1">
+                This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
+              </p>
+              <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
+              <div className="flex gap-3 justify-center">
+                <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
+                <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
+              </div>
             </div>
           </div>
-        </div>
+        </>
       )}
     </div>
   );
