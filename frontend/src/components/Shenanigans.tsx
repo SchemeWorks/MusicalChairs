@@ -120,6 +120,12 @@ function LiveFeedRow({
   );
 }
 
+function OutcomeTargetName({ principalText }: { principalText: string }) {
+  const principal = Principal.fromText(principalText);
+  const name = useDisplayName(principal);
+  return <>{name || 'them'}</>;
+}
+
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
@@ -136,7 +142,15 @@ export default function Shenanigans() {
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<Principal | null>(null);
-  const [outcomeToast, setOutcomeToast] = useState<{ name: string; outcome: string; flavor: string; cost: number } | null>(null);
+  const [outcomeToast, setOutcomeToast] = useState<{
+    name: string;
+    outcome: string;
+    flavor: string;
+    cost: number;
+    ppDelta?: number;                  // PP units / 10^8 — display-ready number
+    targetPrincipalText?: string | null;
+    affectedCount?: number;
+  } | null>(null);
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
   useEffect(() => {
@@ -217,6 +231,11 @@ export default function Shenanigans() {
           outcome,
           flavor: getFlavorText(outcome),
           cost: selectedShenanigan.cost,
+          ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
+          targetPrincipalText: detail.affectedTarget && detail.affectedTarget.length > 0
+            ? detail.affectedTarget[0]?.toText() ?? null
+            : null,
+          affectedCount: Number(detail.affectedCount),
         });
         setAnimatingTrick(null);
       }, 1500);
@@ -524,9 +543,33 @@ export default function Shenanigans() {
                  'Error'}
               </div>
               <p className="font-bold text-sm mc-text-primary mb-1">{outcomeToast.name}</p>
-              <p className="font-accent text-xs mc-text-dim italic mb-3">
+              <p className="font-accent text-xs mc-text-dim italic mb-2">
                 {outcomeToast.flavor}
               </p>
+              {(() => {
+                const d = outcomeToast.ppDelta ?? 0;
+                const cnt = outcomeToast.affectedCount ?? 0;
+                const target = outcomeToast.targetPrincipalText
+                  ? <OutcomeTargetName principalText={outcomeToast.targetPrincipalText} />
+                  : 'them';
+                if (outcomeToast.outcome === 'success') {
+                  if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
+                  if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
+                  if (d === 0 && cnt >= 1) return <p className="text-xs mc-text-green mb-3">It worked.</p>;
+                  if (d === 0 && cnt === 0) return <p className="text-xs mc-text-green mb-3">It worked.</p>;
+                  return null;
+                }
+                if (outcomeToast.outcome === 'backfire') {
+                  if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
+                  if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
+                  if (d < 0 && cnt === 0) return <p className="text-xs mc-text-purple mb-3">You burned {Math.abs(Math.round(d))} PP.</p>;
+                  return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
+                }
+                if (outcomeToast.outcome === 'fail') {
+                  return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
+                }
+                return null;
+              })()}
               {outcomeToast.cost > 0 && (
                 <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
               )}
