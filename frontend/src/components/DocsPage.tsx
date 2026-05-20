@@ -85,9 +85,11 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
   const ppBacker = mintConfig ? Number(mintConfig.backerPpPerIcp) : PP_PER_ICP_SEED_ROUND;
 
   // Live shenanigan stats by ID; fall back to spec defaults while loading.
+  // The displayed cost is the costSuccess (the upfront commitment); the
+  // per-outcome split is shown on the spell card itself in the game UI.
   const sh = (id: number) => shenaniganConfigs?.find(s => Number(s.id) === id);
   const shCost = (id: number, fallback: number) => {
-    const c = sh(id)?.cost;
+    const c = sh(id)?.costSuccess;
     return typeof c === 'number' ? c : fallback;
   };
   const shOdds = (id: number, fallback: number) => {

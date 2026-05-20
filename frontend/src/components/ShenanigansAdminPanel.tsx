@@ -41,7 +41,9 @@ interface ShenaniganConfig {
   id: number;
   name: string;
   description: string;
-  cost: number;
+  costSuccess: number;
+  costFailure: number;
+  costBackfire: number;
   successOdds: number;
   failureOdds: number;
   backfireOdds: number;
@@ -127,7 +129,9 @@ export default function ShenanigansAdminPanel() {
         id: Number(config.id),
         name: config.name,
         description: config.description,
-        cost: config.cost,
+        costSuccess: config.costSuccess,
+        costFailure: config.costFailure,
+        costBackfire: config.costBackfire,
         successOdds: Number(config.successOdds),
         failureOdds: Number(config.failureOdds),
         backfireOdds: Number(config.backfireOdds),
@@ -153,13 +157,17 @@ export default function ShenanigansAdminPanel() {
     if (!selectedShenanigan) return;
     const oddsSum = selectedShenanigan.successOdds + selectedShenanigan.failureOdds + selectedShenanigan.backfireOdds;
     if (oddsSum !== 100) { toast.error('Odds must sum to 100%'); return; }
-    if (selectedShenanigan.cost < 0 || selectedShenanigan.cooldown < 0 || selectedShenanigan.duration < 0 || selectedShenanigan.castLimit < 0) {
+    if (selectedShenanigan.costSuccess < 0 || selectedShenanigan.costFailure < 0 || selectedShenanigan.costBackfire < 0
+        || selectedShenanigan.cooldown < 0 || selectedShenanigan.duration < 0 || selectedShenanigan.castLimit < 0) {
       toast.error('Numeric values cannot be negative'); return;
     }
     try {
       await updateConfig.mutateAsync({
         id: BigInt(selectedShenanigan.id), name: selectedShenanigan.name,
-        description: selectedShenanigan.description, cost: selectedShenanigan.cost,
+        description: selectedShenanigan.description,
+        costSuccess: selectedShenanigan.costSuccess,
+        costFailure: selectedShenanigan.costFailure,
+        costBackfire: selectedShenanigan.costBackfire,
         successOdds: BigInt(selectedShenanigan.successOdds), failureOdds: BigInt(selectedShenanigan.failureOdds),
         backfireOdds: BigInt(selectedShenanigan.backfireOdds), duration: BigInt(selectedShenanigan.duration),
         cooldown: BigInt(selectedShenanigan.cooldown), effectValues: selectedShenanigan.effectValues,
@@ -169,7 +177,10 @@ export default function ShenanigansAdminPanel() {
       window.dispatchEvent(new CustomEvent('shenaniganUpdated', {
         detail: {
           id: selectedShenanigan.id, name: selectedShenanigan.name, icon: shenaniganIcons[selectedShenanigan.id],
-          description: selectedShenanigan.description, cost: selectedShenanigan.cost,
+          description: selectedShenanigan.description,
+          costSuccess: selectedShenanigan.costSuccess,
+          costFailure: selectedShenanigan.costFailure,
+          costBackfire: selectedShenanigan.costBackfire,
           successOdds: selectedShenanigan.successOdds, failOdds: selectedShenanigan.failureOdds,
           backfireOdds: selectedShenanigan.backfireOdds, effectValues: selectedShenanigan.effectValues.join(', '),
         }
@@ -196,13 +207,15 @@ export default function ShenanigansAdminPanel() {
     for (const shen of shenanigans) {
       const oddsSum = shen.successOdds + shen.failureOdds + shen.backfireOdds;
       if (oddsSum !== 100) { toast.error(`${shen.name}: Odds must sum to 100%`); return; }
-      if (shen.cost < 0 || shen.cooldown < 0 || shen.duration < 0 || shen.castLimit < 0) {
+      if (shen.costSuccess < 0 || shen.costFailure < 0 || shen.costBackfire < 0
+          || shen.cooldown < 0 || shen.duration < 0 || shen.castLimit < 0) {
         toast.error(`${shen.name}: Numeric values cannot be negative`); return;
       }
     }
     try {
       await saveAllConfigs.mutateAsync(shenanigans.map(shen => ({
-        id: BigInt(shen.id), name: shen.name, description: shen.description, cost: shen.cost,
+        id: BigInt(shen.id), name: shen.name, description: shen.description,
+        costSuccess: shen.costSuccess, costFailure: shen.costFailure, costBackfire: shen.costBackfire,
         successOdds: BigInt(shen.successOdds), failureOdds: BigInt(shen.failureOdds),
         backfireOdds: BigInt(shen.backfireOdds), duration: BigInt(shen.duration),
         cooldown: BigInt(shen.cooldown), effectValues: shen.effectValues,
@@ -212,7 +225,8 @@ export default function ShenanigansAdminPanel() {
         window.dispatchEvent(new CustomEvent('shenaniganUpdated', {
           detail: {
             id: shen.id, name: shen.name, icon: shenaniganIcons[shen.id],
-            description: shen.description, cost: shen.cost,
+            description: shen.description,
+            costSuccess: shen.costSuccess, costFailure: shen.costFailure, costBackfire: shen.costBackfire,
             successOdds: shen.successOdds, failOdds: shen.failureOdds,
             backfireOdds: shen.backfireOdds, effectValues: shen.effectValues.join(', '),
           }
@@ -313,7 +327,7 @@ export default function ShenanigansAdminPanel() {
                             {shen.name}
                           </div>
                           <div className="text-[11px] mc-text-muted">
-                            {shen.cost} PP · {shen.successOdds}/{shen.failureOdds}/{shen.backfireOdds}
+                            {shen.costSuccess}/{shen.costFailure}/{shen.costBackfire} PP · {shen.successOdds}/{shen.failureOdds}/{shen.backfireOdds}
                           </div>
                         </div>
                       </div>
@@ -350,16 +364,33 @@ export default function ShenanigansAdminPanel() {
               <div className="p-5 space-y-5" >
 
                 {/* Identity section */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4">
                   <AdminInput label="Name" value={selectedShenanigan.name}
                     onChange={v => updateField('name', v)} />
-                  <AdminInput label="Cost (PP)" type="number" value={selectedShenanigan.cost}
-                    onChange={v => updateField('cost', Math.max(0, parseFloat(v) || 0))} min="0"
-                    hint="Higher cost = fewer casts = less chaos" />
                 </div>
 
                 <AdminInput label="Description" value={selectedShenanigan.description}
                   onChange={v => updateField('description', v)} rows={2} />
+
+                {/* Per-outcome cost block. Pre-cast gate is costSuccess (the
+                    minimum the caster commits to paying). If the rolled
+                    outcome charges more than they have, they zero out. */}
+                <div>
+                  <div className="text-xs font-bold uppercase tracking-wider text-white/50 mb-2">
+                    Caster Cost (PP) by Outcome
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <AdminInput label="On Success" type="number" value={selectedShenanigan.costSuccess}
+                      onChange={v => updateField('costSuccess', Math.max(0, parseFloat(v) || 0))} min="0"
+                      hint="0 = free on success (aggressive spells)" />
+                    <AdminInput label="On Failure" type="number" value={selectedShenanigan.costFailure}
+                      onChange={v => updateField('costFailure', Math.max(0, parseFloat(v) || 0))} min="0"
+                      hint="Paid when nothing happens" />
+                    <AdminInput label="On Backfire" type="number" value={selectedShenanigan.costBackfire}
+                      onChange={v => updateField('costBackfire', Math.max(0, parseFloat(v) || 0))} min="0"
+                      hint="Paid when it blows up — if broke, they zero out" />
+                  </div>
+                </div>
 
                 {/* Divider */}
                 <div className="border-t border-white/5" />

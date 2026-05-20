@@ -19,7 +19,9 @@ interface ShenaniganConfig {
   type: ShenaniganType;
   name: string;
   icon: React.ReactNode;
-  cost: number;
+  costSuccess: number;
+  costFailure: number;
+  costBackfire: number;
   description: string;
   odds: { success: number; fail: number; backfire: number };
   effects: string;
@@ -140,7 +142,7 @@ export default function Shenanigans() {
   const [animatingTrick, setAnimatingTrick] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
-  const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; cost: number; icon: React.ReactNode } | null>(null);
+  const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; costSuccess: number; costFailure: number; costBackfire: number; icon: React.ReactNode } | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<Principal | null>(null);
   const [outcomeToast, setOutcomeToast] = useState<{
     name: string;
@@ -174,7 +176,10 @@ export default function Shenanigans() {
         const id = Number(config.id);
         return {
           id, type: shenaniganTypes[id], name: config.name, icon: shenaniganIcons[id],
-          cost: config.cost, description: config.description,
+          costSuccess: config.costSuccess,
+          costFailure: config.costFailure,
+          costBackfire: config.costBackfire,
+          description: config.description,
           odds: { success: Number(config.successOdds), fail: Number(config.failureOdds), backfire: Number(config.backfireOdds) },
           effects: config.effectValues.join(', '), auraColor: auraColors[id] || auraColors[0],
         };
@@ -188,7 +193,9 @@ export default function Shenanigans() {
       const u = event.detail;
       setAvailableShenanigans(prev => prev.map(s => {
         if (shenaniganTypes.indexOf(s.type) === u.id) {
-          return { ...s, name: u.name, icon: u.icon, cost: u.cost, description: u.description,
+          return { ...s, name: u.name, icon: u.icon,
+            costSuccess: u.costSuccess, costFailure: u.costFailure, costBackfire: u.costBackfire,
+            description: u.description,
             odds: { success: u.successOdds, fail: u.failOdds, backfire: u.backfireOdds }, effects: u.effectValues };
         }
         return s;
@@ -198,17 +205,28 @@ export default function Shenanigans() {
     return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
   }, []);
 
-  const handleCastClick = (id: number, type: ShenaniganType, cost: number, name: string, icon: React.ReactNode) => {
-    if ((ponziData?.totalPoints || 0) < cost) {
+  const handleCastClick = (
+    id: number,
+    type: ShenaniganType,
+    costSuccess: number,
+    costFailure: number,
+    costBackfire: number,
+    name: string,
+    icon: React.ReactNode,
+  ) => {
+    // Pre-cast gate = costSuccess (the minimum the caster commits to paying).
+    // A worse outcome may charge more; if they can't afford it the backend
+    // clamps the burn to balance and zeros them out — no trap.
+    if ((ponziData?.totalPoints || 0) < costSuccess) {
       setOutcomeToast({
         name,
         outcome: 'error',
-        flavor: `Insufficient PP. Need ${cost}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`,
+        flavor: `Insufficient PP. Need ${costSuccess}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`,
         cost: 0,
       });
       return;
     }
-    setSelectedShenanigan({ id, type, name, cost, icon });
+    setSelectedShenanigan({ id, type, name, costSuccess, costFailure, costBackfire, icon });
     setSelectedTarget(null);
     if (TARGETED_SPELL_IDS.has(id)) {
       setTargetPickerOpen(true);
@@ -251,11 +269,19 @@ export default function Shenanigans() {
           // the rename modal's backdrop.
           setRenamePrompt({ targetPrincipal: targetPrincipalText });
         } else {
+          // Pick the cost matching the rolled outcome. (If the caster's
+          // balance was below this, the backend clamped to balance — the
+          // toast still reports the nominal cost for the outcome; the
+          // actual debited amount is whatever they had.)
+          const costForOutcome =
+            outcome === 'success' ? selectedShenanigan.costSuccess
+            : outcome === 'fail' ? selectedShenanigan.costFailure
+            : selectedShenanigan.costBackfire;
           setOutcomeToast({
             name: selectedShenanigan.name,
             outcome,
             flavor: getFlavorText(outcome),
-            cost: selectedShenanigan.cost,
+            cost: costForOutcome,
             spellId: selectedShenanigan.id,
             ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
             targetPrincipalText,
@@ -269,7 +295,9 @@ export default function Shenanigans() {
         name: selectedShenanigan.name,
         outcome: 'error',
         flavor: error.message || 'Something went wrong. The PP is still gone.',
-        cost: selectedShenanigan.cost,
+        // Cost on error path is unknown (trap before outcome roll) — show
+        // the upfront commitment so the toast still has a number.
+        cost: selectedShenanigan.costSuccess,
       });
       setAnimatingTrick(null);
     }
@@ -348,7 +376,7 @@ export default function Shenanigans() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
               {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
                 const trickKey = variantKey(trick.type);
-                const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey;
                 return (
                   <div
                     key={`shenanigan-${idx}`}
@@ -369,11 +397,15 @@ export default function Shenanigans() {
                       {trick.icon}
                     </div>
 
-                    {/* Title + cost */}
+                    {/* Title + per-outcome costs (success/fail/backfire). Pre-cast
+                        gate is costSuccess — the upfront commitment. */}
                     <h3 className="font-display text-sm mc-text-primary text-center mb-1">{trick.name}</h3>
                     <div className="text-center mb-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple">
-                        {trick.cost} PP
+                      <span
+                        className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple"
+                        title="Cost on success / failure / backfire"
+                      >
+                        {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
                       </span>
                     </div>
 
@@ -402,9 +434,12 @@ export default function Shenanigans() {
                       </div>
                     </div>
 
-                    {/* Cast button */}
+                    {/* Cast button — gate is costSuccess (the upfront
+                        commitment). A worse outcome may charge up to
+                        costBackfire; if balance is short the backend clamps
+                        the burn and zeros the caster. */}
                     <button
-                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.cost, trick.name, trick.icon)}
+                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.costSuccess, trick.costFailure, trick.costBackfire, trick.name, trick.icon)}
                       disabled={isDisabled}
                       className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
@@ -412,7 +447,7 @@ export default function Shenanigans() {
                     >
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
-                      ) : userPoints < trick.cost ? `Need ${trick.cost} PP` : `Cast (${trick.cost} PP)`}
+                      ) : userPoints < trick.costSuccess ? `Need ${trick.costSuccess} PP` : `Cast (${trick.costSuccess} PP)`}
                     </button>
                   </div>
                 );
@@ -422,14 +457,16 @@ export default function Shenanigans() {
             <div className="divide-y mc-border-subtle">
               {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
                 const trickKey = variantKey(trick.type);
-                const isDisabled = castShenanigan.isPending || userPoints < trick.cost || animatingTrick === trickKey;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey;
                 return (
                   <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
                     <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
-                    <span className="text-xs mc-text-muted">{trick.cost} PP</span>
+                    <span className="text-xs mc-text-muted" title="Cost on success / failure / backfire">
+                      {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
+                    </span>
                     <span className="text-xs mc-text-dim">{trick.odds.success}% win</span>
                     <button
-                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.cost, trick.name, trick.icon)}
+                      onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.costSuccess, trick.costFailure, trick.costBackfire, trick.name, trick.icon)}
                       disabled={isDisabled}
                       className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
@@ -731,9 +768,11 @@ export default function Shenanigans() {
                 {selectedShenanigan.icon} Cast {selectedShenanigan.name}?
               </div>
               <p className="text-sm mc-text-dim mb-1">
-                This costs <span className="mc-toast-accent">{selectedShenanigan.cost} PP</span>
+                Costs <span className="mc-toast-accent">{selectedShenanigan.costSuccess} PP</span> on success,{' '}
+                <span className="mc-toast-accent">{selectedShenanigan.costFailure} PP</span> on failure,{' '}
+                <span className="mc-toast-accent">{selectedShenanigan.costBackfire} PP</span> on backfire.
               </p>
-              <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds.</p>
+              <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds. (If a backfire exceeds your balance, you zero out.)</p>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
                 <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>

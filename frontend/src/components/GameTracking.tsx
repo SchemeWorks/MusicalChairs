@@ -475,13 +475,15 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                 </div>
               )}
 
-              {/* Spending suggestions */}
+              {/* Spending suggestions — affordability uses costSuccess
+                  (the upfront commitment). A worse outcome may charge more
+                  but the backend clamps to balance if they're short. */}
               {(() => {
                 const pp = ponziData?.totalPoints || 0;
                 if (pp < 100 || !shenaniganConfigs) return null;
                 const affordable = shenaniganConfigs
-                  .filter(c => Number(c.cost) <= pp)
-                  .sort((a, b) => Number(a.cost) - Number(b.cost))
+                  .filter(c => Number(c.costSuccess) <= pp)
+                  .sort((a, b) => Number(a.costSuccess) - Number(b.costSuccess))
                   .slice(0, 3);
                 if (affordable.length === 0) return null;
                 return (
@@ -490,7 +492,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                     <div className="flex flex-wrap gap-2">
                       {affordable.map(s => (
                         <span key={s.name} className="text-xs mc-card px-2 py-1">
-                          {s.name} <span className="mc-text-purple">({Number(s.cost).toLocaleString()} PP)</span>
+                          {s.name} <span className="mc-text-purple">({Number(s.costSuccess).toLocaleString()} PP)</span>
                         </span>
                       ))}
                     </div>

@@ -1,5 +1,6 @@
 import OrderedMap "mo:base/OrderedMap";
 import Principal "mo:base/Principal";
+import Nat "mo:base/Nat";
 
 module {
 
@@ -144,5 +145,82 @@ module {
                 activityWindowDays = null;       // lifetime
             };
         };
+    };
+
+    // ================================================================
+    // V4 — Per-outcome shenanigan costs
+    //
+    // Splits the single `cost` field on each ShenaniganConfig into three
+    // outcome-specific fields. Migration policy: map the old single cost
+    // to all three new fields so no spell's economics change implicitly —
+    // admin retunes per-outcome from the admin panel after the upgrade.
+    //
+    // Only `shenaniganConfigs` is named in the domain/codomain; every
+    // other stable field on the actor (player principals, balances,
+    // referral chain, etc.) flows through unchanged because its type is
+    // unchanged.
+    // ================================================================
+
+    type V4OldShenaniganConfig = {
+        id : Nat;
+        name : Text;
+        description : Text;
+        cost : Float;
+        successOdds : Nat;
+        failureOdds : Nat;
+        backfireOdds : Nat;
+        duration : Nat;
+        cooldown : Nat;
+        effectValues : [Float];
+        castLimit : Nat;
+        backgroundColor : Text;
+    };
+
+    type V4NewShenaniganConfig = {
+        id : Nat;
+        name : Text;
+        description : Text;
+        costSuccess : Float;
+        costFailure : Float;
+        costBackfire : Float;
+        successOdds : Nat;
+        failureOdds : Nat;
+        backfireOdds : Nat;
+        duration : Nat;
+        cooldown : Nat;
+        effectValues : [Float];
+        castLimit : Nat;
+        backgroundColor : Text;
+    };
+
+    type V4OldConfigMap = OrderedMap.Map<Nat, V4OldShenaniganConfig>;
+    type V4NewConfigMap = OrderedMap.Map<Nat, V4NewShenaniganConfig>;
+
+    public func runV4(
+        old : { var shenaniganConfigs : V4OldConfigMap }
+    ) : { var shenaniganConfigs : V4NewConfigMap } {
+        let natMap = OrderedMap.Make<Nat>(Nat.compare);
+        let migrated = natMap.map<V4OldShenaniganConfig, V4NewShenaniganConfig>(
+            old.shenaniganConfigs,
+            func(_id : Nat, c : V4OldShenaniganConfig) : V4NewShenaniganConfig {
+                {
+                    id = c.id;
+                    name = c.name;
+                    description = c.description;
+                    costSuccess = c.cost;
+                    costFailure = c.cost;
+                    costBackfire = c.cost;
+                    successOdds = c.successOdds;
+                    failureOdds = c.failureOdds;
+                    backfireOdds = c.backfireOdds;
+                    duration = c.duration;
+                    cooldown = c.cooldown;
+                    effectValues = c.effectValues;
+                    castLimit = c.castLimit;
+                    backgroundColor = c.backgroundColor;
+                };
+            },
+        );
+        { var shenaniganConfigs = migrated };
     };
 };
