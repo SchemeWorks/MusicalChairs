@@ -54,6 +54,20 @@ persistent actor Self {
         #backfire;
     };
 
+    /// Detailed cast outcome. `ppDeltaCaster` is the net PP unit change for
+    /// the caster *excluding* the spell cost burn — negative means the caster
+    /// also paid the backfire penalty; positive means they net-gained from
+    /// theft. `affectedTarget` is the specific principal hit (Money Trickster,
+    /// Purse Cutter, etc.) or null for self-buffs / fails. `affectedCount`
+    /// counts how many distinct victims were touched (AoE Skim and Whale
+    /// Rebalance set this > 1).
+    public type ShenaniganOutcomeDetail = {
+        outcome : ShenaniganOutcome;
+        ppDeltaCaster : Int;
+        affectedTarget : ?Principal;
+        affectedCount : Nat;
+    };
+
     public type ShenaniganRecord = {
         id : Nat;
         user : Principal;
