@@ -1696,10 +1696,11 @@ persistent actor Self {
 
         switch (outcome) {
             case (#success) {
-                await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                // Discard the detail record here; Task 10 will surface it.
+                ignore (await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId));
             };
             case (#backfire) {
-                await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                ignore (await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId));
             };
             case (#fail) {};
         };
@@ -1758,7 +1759,7 @@ persistent actor Self {
         _casterBal : Nat,
         targetBal : Nat,
         castId : Nat,
-    ) : async () {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } {
         let memo = "spell-" # Nat.toText(castId);
         let protectionFloor = ppToUnits(200);
         let nowTs = Time.now();
@@ -1768,46 +1769,77 @@ persistent actor Self {
         switch (shenaniganType) {
             case (#moneyTrickster) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
+                        if (targetBal < protectionFloor) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         let pct = rollPct(2, 8);
                         let amount = capAt(targetBal * pct / 100, ppToUnits(250));
-                        let _ = await chipTransfer(t, caster, amount, memo);
+                        switch (await chipTransfer(t, caster, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#aoeSkim) {
                 let pool = enumerateHolders(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
                         if (bal >= protectionFloor) {
                             let pct = rollPct(1, 3);
                             let amount = capAt(bal * pct / 100, ppToUnits(60));
-                            let _ = await chipTransfer(victim, caster, amount, memo);
+                            switch (await chipTransfer(victim, caster, amount, memo)) {
+                                case (#Ok(_)) {
+                                    total += amount;
+                                    victims += 1;
+                                };
+                                case (#Err(_)) {};
+                            };
                         };
                     };
                 };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#renameSpell) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         customDisplayNames := principalMap.put(customDisplayNames, t, {
                             name = pickRenameName();
                             expiresAt = nowTs + sevenDaysNs;
                         });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
+                        if (targetBal < protectionFloor) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         mintSiphons := principalMap.put(mintSiphons, t, {
                             siphoner = caster;
                             expiresAt = nowTs + sevenDaysNs;
@@ -1815,12 +1847,15 @@ persistent actor Self {
                             capUnits = ppToUnits(1000);
                             siphonedSoFar = 0;
                         });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
             case (#downlineHeist) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         // Find deepest downline of target — prefer L3, then L2, then L1
                         let entries = principalMap.entries(referralChain);
@@ -1856,11 +1891,15 @@ persistent actor Self {
                             } };
                         };
                         switch (victim) {
-                            case (null) {};
+                            case (null) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
                             case (?v) {
                                 if (v != caster) {
                                     referralChain := principalMap.put(referralChain, v, caster);
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                                 };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                             };
                         };
                     };
@@ -1882,6 +1921,7 @@ persistent actor Self {
                     chargesRemaining = newCharges;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#ppBoosterAura) {
                 let pct = rollPct(105, 115);
@@ -1889,38 +1929,63 @@ persistent actor Self {
                     multiplierBps = pct * 100;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#purseCutter) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
-                        if (consumeShieldIfActive(t)) { return };
-                        if (targetBal < protectionFloor) { return };
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
+                        if (targetBal < protectionFloor) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        };
                         let pct = rollPct(25, 50);
                         let amount = capAt(targetBal * pct / 100, ppToUnits(800));
-                        let _ = await burnFrom(t, amount, memo);
+                        switch (await burnFrom(t, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for ((whale, bal) in whales.vals()) {
                     if (not consumeShieldIfActive(whale)) {
                         if (bal >= protectionFloor) {
                             let amount = capAt(bal * 20 / 100, ppToUnits(300));
-                            let _ = await chipTransfer(whale, caster, amount, memo);
+                            switch (await chipTransfer(whale, caster, amount, memo)) {
+                                case (#Ok(_)) {
+                                    total += amount;
+                                    victims += 1;
+                                };
+                                case (#Err(_)) {};
+                            };
                         };
                     };
                 };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#downlineBoost) {
                 cascadeBoosts := principalMap.put(cascadeBoosts, caster, {
                     multiplierBps = 13_000;
                     expiresAt = nowTs + oneDayNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#goldenName) {
                 goldenUntil := principalMap.put(goldenUntil, caster, nowTs + oneDayNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
         };
     };
@@ -1935,7 +2000,7 @@ persistent actor Self {
         casterBal : Nat,
         _targetBal : Nat,
         castId : Nat,
-    ) : async () {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } {
         let memo = "backfire-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
@@ -1945,28 +2010,47 @@ persistent actor Self {
         switch (shenaniganType) {
             case (#moneyTrickster) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         let pct = rollPct(2, 8);
                         let amount = capAt(casterBal * pct / 100, ppToUnits(250));
-                        let _ = await chipTransfer(caster, t, amount, memo);
+                        switch (await chipTransfer(caster, t, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1 };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
+                        };
                     };
                 };
             };
             case (#aoeSkim) {
                 let pct = rollPct(1, 3);
                 let loss = casterBal * pct / 100;
-                let _ = await burnFrom(caster, loss, memo);
+                switch (await burnFrom(caster, loss, memo)) {
+                    case (#Ok(_)) {
+                        return { ppDeltaCaster = -loss; affectedTarget = null; affectedCount = 0 };
+                    };
+                    case (#Err(_)) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
+                };
             };
             case (#renameSpell) {
                 customDisplayNames := principalMap.put(customDisplayNames, caster, {
                     name = pickRenameName();
                     expiresAt = nowTs + sevenDaysNs;
                 });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         mintSiphons := principalMap.put(mintSiphons, caster, {
                             siphoner = t;
@@ -1975,13 +2059,16 @@ persistent actor Self {
                             capUnits = ppToUnits(1000);
                             siphonedSoFar = 0;
                         });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                     };
                 };
             };
             case (#downlineHeist) {
                 // Caster loses deepest downline to target
                 switch (target) {
-                    case (null) {};
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
                     case (?t) {
                         let entries = principalMap.entries(referralChain);
                         var l1Victim : ?Principal = null;
@@ -2016,11 +2103,15 @@ persistent actor Self {
                             } };
                         };
                         switch (victim) {
-                            case (null) {};
+                            case (null) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                            };
                             case (?v) {
                                 if (v != t) {
                                     referralChain := principalMap.put(referralChain, v, t);
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                                 };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                             };
                         };
                     };
@@ -2029,10 +2120,19 @@ persistent actor Self {
             case (#purseCutter) {
                 let pct = rollPct(25, 50);
                 let amount = capAt(casterBal * pct / 100, ppToUnits(800));
-                let _ = await burnFrom(caster, amount, memo);
+                switch (await burnFrom(caster, amount, memo)) {
+                    case (#Ok(_)) {
+                        return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0 };
+                    };
+                    case (#Err(_)) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+                    };
+                };
             };
             case (#whaleRebalance) {
                 let whales = await top3HoldersByBalance(caster);
+                var total : Nat = 0;
+                var victims : Nat = 0;
                 for ((whale, _) in whales.vals()) {
                     // Re-read caster balance per iteration so successive
                     // payouts are bounded by what's actually left, not the
@@ -2042,14 +2142,29 @@ persistent actor Self {
                     let liveBal = await getChipBalance(caster);
                     let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
                     if (amount > 0) {
-                        let _ = await chipTransfer(caster, whale, amount, memo);
+                        switch (await chipTransfer(caster, whale, amount, memo)) {
+                            case (#Ok(_)) {
+                                total += amount;
+                                victims += 1;
+                            };
+                            case (#Err(_)) {};
+                        };
                     };
                 };
+                return { ppDeltaCaster = -total; affectedTarget = null; affectedCount = victims };
             };
-            case (#magicMirror) {};
-            case (#ppBoosterAura) {};
-            case (#downlineBoost) {};
-            case (#goldenName) {};
+            case (#magicMirror) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#ppBoosterAura) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#downlineBoost) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
+            case (#goldenName) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
         };
     };
 
