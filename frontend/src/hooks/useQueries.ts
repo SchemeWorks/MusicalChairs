@@ -6,7 +6,8 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor, useReadShenaniganActor } from './useShenaniganActor';
 import { usePonziMathActor } from './usePonziMathActor';
 import { useReadPonziMath } from './useReadPonziMath';
-import { useWallet } from './useWallet';
+import { useWallet, PLUG_WHITELIST, IC_HOST } from './useWallet';
+import type { WalletType } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
@@ -361,7 +362,7 @@ export function useAddBackerMoney() {
       // observer's cascade finds the chain set when it processes the new
       // backer entry. See ensureReferralRegistered for context.
       if (shenActor) {
-        await ensureReferralRegistered(shenActor, shenReadActor, principal);
+        await ensureReferralRegistered(shenActor, shenReadActor, principal, walletType);
       }
 
       try {
@@ -519,7 +520,7 @@ export function useCreateGame() {
       // the upline. Awaiting here closes the race window. Idempotent and
       // skips with a query if already registered, so it's safe and cheap.
       if (shenActor) {
-        await ensureReferralRegistered(shenActor, shenReadActor, principal);
+        await ensureReferralRegistered(shenActor, shenReadActor, principal, walletType);
       }
 
       let gameId: bigint;
@@ -1684,6 +1685,7 @@ async function ensureReferralRegistered(
     resolveReferralCode: (code: string) => Promise<[] | [Principal]>;
   },
   principal: string,
+  walletType: WalletType,
 ): Promise<void> {
   const stored = getStoredReferrer();
   if (!stored || stored === principal) return;
@@ -1718,17 +1720,58 @@ async function ensureReferralRegistered(
     // registerReferral threw, caught here, and the user had no idea).
     // sessionStorage flag prevents spamming if the effect re-runs.
     try {
-      if (!sessionStorage.getItem('mc_referral_failure_notified')) {
-        sessionStorage.setItem('mc_referral_failure_notified', '1');
-        toast.error(
-          "Couldn't link you to your sponsor — try disconnecting and reconnecting your wallet.",
-          { duration: 10_000 },
-        );
-      }
+      if (sessionStorage.getItem('mc_referral_failure_notified')) return;
+      sessionStorage.setItem('mc_referral_failure_notified', '1');
     } catch {
-      // sessionStorage unavailable — toast either way is fine, but skip to
-      // keep this from throwing inside an already-failing path.
+      // sessionStorage unavailable — fall through, the toast itself is
+      // self-dismissing so worst case is a duplicate during the same load.
     }
+
+    // For Plug users the most common cause is a stale extension-side
+    // whitelist (the dapp added new canisters, but Plug remembers the
+    // narrower set the user originally approved). Surface an inline
+    // "Reconnect" action that forces a fresh requestConnect with the
+    // current whitelist — Plug will prompt the user to approve the new
+    // canisters, after which a reload re-issues registerReferral cleanly.
+    if (walletType === 'plug' && typeof window !== 'undefined' && (window as any).ic?.plug) {
+      toast.error("Couldn't link you to your sponsor.", {
+        description: 'Your wallet needs to re-approve a few canisters this site uses.',
+        duration: 20_000,
+        action: {
+          label: 'Reconnect Plug',
+          onClick: async () => {
+            try {
+              const plug = (window as any).ic.plug;
+              // Disconnect first so requestConnect treats this as a fresh
+              // connect — Plug otherwise short-circuits when the site is
+              // already trusted and skips the approval popup.
+              try { await plug.disconnect(); } catch { /* ok */ }
+              const ok = await plug.requestConnect({
+                whitelist: PLUG_WHITELIST,
+                host: IC_HOST,
+                timeout: 50_000,
+              });
+              if (ok) {
+                // Clear the one-shot flag so the next page load can re-fire
+                // the toast if the retry somehow fails.
+                try { sessionStorage.removeItem('mc_referral_failure_notified'); } catch {}
+                window.location.reload();
+              }
+            } catch (e) {
+              console.error('[referral] manual Plug reconnect failed:', e);
+            }
+          },
+        },
+      });
+      return;
+    }
+
+    // II / Oisy / other — the failure is something else (network, canister
+    // error). Generic toast that still tells the user to try reconnecting.
+    toast.error(
+      "Couldn't link you to your sponsor — try disconnecting and reconnecting your wallet.",
+      { duration: 10_000 },
+    );
   }
 }
 
@@ -1741,16 +1784,16 @@ async function ensureReferralRegistered(
 export function useRegisterReferral() {
   const { actor } = useShenaniganActor();
   const readActor = useReadShenaniganActor();
-  const { isConnected, principal } = useWallet();
+  const { isConnected, principal, walletType } = useWallet();
   const hasRegisteredRef = useRef(false);
 
   useEffect(() => {
     if (!isConnected || !actor || !principal || hasRegisteredRef.current) return;
     hasRegisteredRef.current = true;
-    ensureReferralRegistered(actor, readActor, principal).catch(() => {
+    ensureReferralRegistered(actor, readActor, principal, walletType).catch(() => {
       hasRegisteredRef.current = false; // allow retry on next deps change
     });
-  }, [isConnected, principal, actor, readActor]);
+  }, [isConnected, principal, actor, readActor, walletType]);
 }
 
 // Issue (or fetch existing) the caller's short referral code, then build the

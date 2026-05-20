@@ -63,7 +63,11 @@ const PP_LEDGER_CANISTER_ID = '5xv2o-iiaaa-aaaac-qeclq-cai';
 // calls must be listed here. Missing entries cause silent registerReferral
 // / deposit / spell failures — see PR that added shenanigans+ponzi_math
 // after a referral-chain bug on Plug.
-const PLUG_WHITELIST = [
+//
+// Exported so failure-recovery paths (e.g. the registerReferral fail toast
+// in useQueries.ts) can re-issue requestConnect with the exact same set
+// when Plug's extension authorization is stale.
+export const PLUG_WHITELIST = [
   BACKEND_CANISTER_ID,
   ICP_LEDGER_CANISTER_ID,
   SHENANIGANS_CANISTER_ID,
@@ -73,7 +77,7 @@ const PLUG_WHITELIST = [
 
 // Host configuration - detect based on URL
 const IS_LOCAL = typeof window !== 'undefined' && window.location.hostname === 'localhost';
-const IC_HOST = IS_LOCAL ? 'http://localhost:4943' : 'https://icp0.io';
+export const IC_HOST = IS_LOCAL ? 'http://localhost:4943' : 'https://icp0.io';
 
 // ============================================================================
 // Plug Wallet Types (from window.ic.plug)
