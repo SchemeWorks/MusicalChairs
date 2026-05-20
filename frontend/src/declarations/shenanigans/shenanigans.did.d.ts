@@ -255,6 +255,14 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
+  /**
+   * / Caller explicitly cancels their pending-rename slot. Idempotent —
+   * / safe to call when no slot exists. Used by the "Skip" button on the
+   * / rename modal so the slot doesn't dangle and re-trigger the
+   * / mount-time prompt. The cast cost is already burned and is not
+   * / refunded.
+   */
+  'cancelPendingRename' : ActorMethod<[], undefined>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
     ShenaniganOutcomeDetail

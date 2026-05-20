@@ -251,6 +251,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'cancelPendingRename' : IDL.Func([], [], []),
     'castShenanigan' : IDL.Func(
         [ShenaniganType, IDL.Opt(IDL.Principal)],
         [ShenaniganOutcomeDetail],

@@ -1520,11 +1520,24 @@ persistent actor Self {
         #Ok(trimmed);
     };
 
+    /// Lazy cleanup: drop every pendingRenames entry whose expiresAt has
+    /// already passed. Called on the warm path of setPendingRenameName so
+    /// the map doesn't accumulate stubs from casters who never commit.
+    func sweepExpiredPendingRenames() {
+        let now = Time.now();
+        for ((p, slot) in principalMap.entries(pendingRenames)) {
+            if (now >= slot.expiresAt) {
+                pendingRenames := principalMap.delete(pendingRenames, p);
+            };
+        };
+    };
+
     /// Caller commits a chosen name for their most recent successful Rename
     /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
     /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
     public shared ({ caller }) func setPendingRenameName(name : Text) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        sweepExpiredPendingRenames();
         let slot = switch (principalMap.get(pendingRenames, caller)) {
             case (null) { return #Err("No pending rename") };
             case (?s) { s };
@@ -1560,6 +1573,15 @@ persistent actor Self {
                 else { ?s };
             };
         };
+    };
+
+    /// Caller explicitly cancels their pending-rename slot. Idempotent —
+    /// safe to call when no slot exists. Used by the "Skip" button on the
+    /// rename modal so the slot doesn't dangle and re-trigger the
+    /// mount-time prompt. The cast cost is already burned and is not
+    /// refunded.
+    public shared ({ caller }) func cancelPendingRename() : async () {
+        pendingRenames := principalMap.delete(pendingRenames, caller);
     };
 
     /// Enumerate every known PP holder except `excluded`. Caller-side
@@ -1890,6 +1912,22 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
+                        // If the caster already has an active pending-rename
+                        // slot, auto-commit the previous target with a random
+                        // name from the pool before stashing the new slot.
+                        // Otherwise the prior cast's rename would be silently
+                        // overwritten and lost.
+                        switch (principalMap.get(pendingRenames, caster)) {
+                            case (?prior) {
+                                if (Time.now() < prior.expiresAt) {
+                                    customDisplayNames := principalMap.put(customDisplayNames, prior.target, {
+                                        name = pickRenameName();
+                                        expiresAt = nowTs + sevenDaysNs;
+                                    });
+                                };
+                            };
+                            case null {};
+                        };
                         // Stash a pending-rename slot. Caster has 5 minutes
                         // via setPendingRenameName to choose a name. If the
                         // window lapses the slot simply expires; the cast

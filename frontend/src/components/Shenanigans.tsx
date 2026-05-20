@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename } from '../hooks/useQueries';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -155,7 +155,18 @@ export default function Shenanigans() {
   const [renamePrompt, setRenamePrompt] = useState<{ targetPrincipal: string } | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const setRenameName = useSetPendingRenameName();
+  const cancelRenameName = useCancelPendingRename();
+  const { data: pendingRename } = useGetPendingRenameForCaller();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
+
+  // If the user cast Rename, navigated away, then came back within 5 minutes,
+  // reopen the modal so they can still pick the name. Only triggers when the
+  // backend reports a non-null pending slot AND no modal is currently open.
+  useEffect(() => {
+    if (pendingRename && !renamePrompt) {
+      setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
+    }
+  }, [pendingRename, renamePrompt]);
 
   useEffect(() => {
     if (backendConfigs) {
@@ -666,7 +677,15 @@ export default function Shenanigans() {
               />
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => { setRenamePrompt(null); setRenameInput(''); }}
+                  onClick={async () => {
+                    setRenamePrompt(null);
+                    setRenameInput('');
+                    // Tell the backend to clear the slot so it doesn't
+                    // re-trigger the mount-time prompt. Best-effort —
+                    // ignore network errors; the slot lapses in 5 min anyway.
+                    try { await cancelRenameName.mutateAsync(); } catch {}
+                  }}
+                  disabled={cancelRenameName.isPending}
                   className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
                 >
                   Skip (no rename)
