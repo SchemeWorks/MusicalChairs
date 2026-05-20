@@ -57,7 +57,7 @@ export default function Composer({ authenticated, principal }: Props) {
           onKeyDown={onKeyDown}
           placeholder="Say something compromising…"
           rows={2}
-          className="flex-1 resize-none rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40"
+          className="flex-1 resize-none rounded bg-zinc-800 px-2 py-1 text-base md:text-sm text-zinc-100 placeholder:text-zinc-500 focus:outline-none focus:ring-1 focus:ring-amber-400/40"
         />
         <button
           onClick={submit}

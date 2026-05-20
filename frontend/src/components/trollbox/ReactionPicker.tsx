@@ -90,7 +90,7 @@ export default function ReactionPicker({ itemId, onClose }: Props) {
                 const n = Number(e.target.value);
                 setKarmaAmount(Number.isFinite(n) ? Math.max(KARMA_MIN_PP, n) : KARMA_MIN_PP);
               }}
-              className="w-20 rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-100"
+              className="w-20 rounded bg-zinc-800 px-2 py-1 text-base md:text-sm text-zinc-100"
             />
             <span className="text-zinc-500">(min {KARMA_MIN_PP})</span>
           </div>
