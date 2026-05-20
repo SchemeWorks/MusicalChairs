@@ -21,6 +21,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -28,6 +29,11 @@ import Icrc21 "icrc21";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
+// V4 migration: splits ShenaniganConfig.cost into costSuccess/costFailure/
+// costBackfire. Maps each old single value to all three new fields. Remove
+// the (with migration = ...) attachment after the V4 upgrade has been
+// deployed to mainnet (any redeploy after that will fresh-install seed).
+(with migration = Migration.runV4)
 persistent actor Self {
 
     // ================================================================
@@ -91,7 +97,9 @@ persistent actor Self {
         id : Nat;
         name : Text;
         description : Text;
-        cost : Float;
+        costSuccess : Float;
+        costFailure : Float;
+        costBackfire : Float;
         successOdds : Nat;
         failureOdds : Nat;
         backfireOdds : Nat;
@@ -1235,18 +1243,23 @@ persistent actor Self {
     // ================================================================
 
     func initializeDefaultShenanigans() {
+        // Defaults reproduce the legacy single-cost behavior: all three
+        // outcome costs are set equal to the previous single value. Admin
+        // tunes per-outcome from the admin panel. The per-outcome split is
+        // what makes the "aggressive spell, free on success" pattern
+        // possible (set costSuccess = 0 in admin and leave the rest).
         let defaultConfigs : [ShenaniganConfig] = [
-            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; cost = 120.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
-            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; cost = 600.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
-            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; cost = 200.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 0; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
-            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; cost = 1200.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 0; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
-            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; cost = 500.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 0; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
-            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; cost = 200.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
-            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; cost = 300.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
-            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; cost = 900.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 0; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
-            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; cost = 800.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
-            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; cost = 400.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
-            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard (24h or 7d) \u{2014} the only clout that matters."; cost = 100.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 0; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
+            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; costSuccess = 120.0; costFailure = 120.0; costBackfire = 120.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
+            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; costSuccess = 600.0; costFailure = 600.0; costBackfire = 600.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
+            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; costSuccess = 200.0; costFailure = 200.0; costBackfire = 200.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 0; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
+            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; costSuccess = 1200.0; costFailure = 1200.0; costBackfire = 1200.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 0; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
+            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; costSuccess = 500.0; costFailure = 500.0; costBackfire = 500.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 0; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
+            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; costSuccess = 200.0; costFailure = 200.0; costBackfire = 200.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
+            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; costSuccess = 300.0; costFailure = 300.0; costBackfire = 300.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
+            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; costSuccess = 900.0; costFailure = 900.0; costBackfire = 900.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 0; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
+            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; costSuccess = 800.0; costFailure = 800.0; costBackfire = 800.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
+            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; costSuccess = 400.0; costFailure = 400.0; costBackfire = 400.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
+            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard (24h or 7d) \u{2014} the only clout that matters."; costSuccess = 100.0; costFailure = 100.0; costBackfire = 100.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 0; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -1745,33 +1758,29 @@ persistent actor Self {
             case (null) { Debug.trap("Unknown shenanigan type") };
             case (?c) { c };
         };
-        let costUnits = ppToUnits(Int.abs(Float.toInt(config.cost)));
+        let costSuccessUnits = ppToUnits(Int.abs(Float.toInt(config.costSuccess)));
+        let costFailureUnits = ppToUnits(Int.abs(Float.toInt(config.costFailure)));
+        let costBackfireUnits = ppToUnits(Int.abs(Float.toInt(config.costBackfire)));
 
         let casterBalPre = await getChipBalance(caller);
-        if (casterBalPre < costUnits) { Debug.trap("Insufficient chips to cast this shenanigan") };
+        // Pre-cast gate is the *minimum* the caster commits to paying — i.e.
+        // costSuccess. They might roll a worse outcome and owe more than
+        // they have; in that case the burn below clamps to their balance and
+        // they zero out (no trap, no debt — debt is a follow-up feature).
+        if (casterBalPre < costSuccessUnits) {
+            Debug.trap("Insufficient chips to cast this shenanigan");
+        };
 
         let castId = nextShenaniganId;
-        let burnMemo = "cast-" # Nat.toText(castId);
-        switch (await burnFrom(caller, costUnits, burnMemo)) {
-            case (#Err(msg)) { Debug.trap("Burn failed: " # msg) };
-            case (#Ok(_)) {};
-        };
 
-        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) {
-            case (null) { 0 };
-            case (?n) { n };
-        };
-        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + costUnits);
-
-        // Caster balance after burn — what they have left when effects fire.
-        let casterBal : Nat = if (casterBalPre >= costUnits) { casterBalPre - costUnits : Nat } else { 0 };
-        let targetBal : Nat = switch (target) {
+        // Roll the outcome BEFORE burning — the cost charged depends on the
+        // outcome rolled, so we have to know the outcome first. Rubber-band
+        // modifier still applies to aggressive spells; buff/cosmetic and
+        // 100%-success spells get modifier 0 (no-op).
+        let targetBalForRoll : Nat = switch (target) {
             case (?t) { await getChipBalance(t) };
             case null { 0 };
         };
-
-        // Rubber-band only the aggressive spells. Buff/cosmetic and
-        // 100%-success spells get modifier 0 (no-op).
         let isAggressive = switch (shenaniganType) {
             case (#moneyTrickster) { true };
             case (#aoeSkim) { true };
@@ -1781,8 +1790,41 @@ persistent actor Self {
             case (#whaleRebalance) { true };
             case (_) { false };
         };
-        let modPct : Int = if (isAggressive) { rubberBandMod(casterBal, targetBal) } else { 0 };
+        let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
         let outcome = determineOutcomeWithMod(shenaniganType, modPct);
+
+        // Determine the cost this outcome charges, then clamp to balance so
+        // an unaffordable backfire/failure just zeros the caster instead of
+        // trapping mid-cast. (When debt is added in a follow-up phase, the
+        // shortfall will be written here instead of vanishing.)
+        let costForOutcomeUnits = switch (outcome) {
+            case (#success) { costSuccessUnits };
+            case (#fail) { costFailureUnits };
+            case (#backfire) { costBackfireUnits };
+        };
+        let actualBurnedUnits : Nat = if (costForOutcomeUnits <= casterBalPre) {
+            costForOutcomeUnits
+        } else {
+            casterBalPre
+        };
+
+        if (actualBurnedUnits > 0) {
+            let burnMemo = "cast-" # Nat.toText(castId);
+            switch (await burnFrom(caller, actualBurnedUnits, burnMemo)) {
+                case (#Err(msg)) { Debug.trap("Burn failed: " # msg) };
+                case (#Ok(_)) {};
+            };
+        };
+
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) {
+            case (null) { 0 };
+            case (?n) { n };
+        };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + actualBurnedUnits);
+
+        // Caster balance after burn — what they have left when effects fire.
+        let casterBal : Nat = casterBalPre - actualBurnedUnits;
+        let targetBal : Nat = targetBalForRoll;
 
         let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } = switch (outcome) {
             case (#success) {
@@ -1797,6 +1839,9 @@ persistent actor Self {
         };
 
         nextShenaniganId += 1;
+        // Record the actual amount paid (after clamp), not the nominal
+        // config cost — keeps stats and history honest about what was burned.
+        let actualCostFloat = Float.fromInt(actualBurnedUnits) / Float.fromInt(PpLedger.PP_UNIT_SCALE);
         let newShenanigan : ShenaniganRecord = {
             id = castId;
             user = caller;
@@ -1804,7 +1849,7 @@ persistent actor Self {
             target;
             outcome;
             timestamp = Time.now();
-            cost = config.cost;
+            cost = actualCostFloat;
         };
         shenanigans := natMap.put(shenanigans, castId, newShenanigan);
 
@@ -1823,7 +1868,7 @@ persistent actor Self {
             };
         };
 
-        updateShenaniganStats(caller, config.cost, outcome);
+        updateShenaniganStats(caller, actualCostFloat, outcome);
         if (outcome == #success or outcome == #backfire) {
             let prior = switch (principalMap.get(spellsCastPerPlayer, caller)) {
                 case (null) { 0 };
@@ -3331,8 +3376,9 @@ persistent actor Self {
         if (config.successOdds + config.failureOdds + config.backfireOdds != 100) {
             Debug.trap("Success, failure, and backfire odds must sum to 100");
         };
-        if (config.cost < 0.0 or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
-            Debug.trap("Cost, duration, cooldown, and cast limit must be non-negative");
+        if (config.costSuccess < 0.0 or config.costFailure < 0.0 or config.costBackfire < 0.0
+            or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
+            Debug.trap("Costs, duration, cooldown, and cast limit must be non-negative");
         };
         shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
     };
@@ -3348,8 +3394,9 @@ persistent actor Self {
             if (config.successOdds + config.failureOdds + config.backfireOdds != 100) {
                 Debug.trap("Success, failure, and backfire odds must sum to 100");
             };
-            if (config.cost < 0.0 or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
-                Debug.trap("Cost, duration, cooldown, and cast limit must be non-negative");
+            if (config.costSuccess < 0.0 or config.costFailure < 0.0 or config.costBackfire < 0.0
+                or config.duration < 0 or config.cooldown < 0 or config.castLimit < 0) {
+                Debug.trap("Costs, duration, cooldown, and cast limit must be non-negative");
             };
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
         };
