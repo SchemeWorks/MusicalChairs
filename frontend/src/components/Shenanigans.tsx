@@ -229,22 +229,25 @@ export default function Shenanigans() {
       const detail = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
       const outcome = variantKey(detail.outcome);
       setTimeout(() => {
-        setOutcomeToast({
-          name: selectedShenanigan.name,
-          outcome,
-          flavor: getFlavorText(outcome),
-          cost: selectedShenanigan.cost,
-          ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
-          targetPrincipalText: detail.affectedTarget && detail.affectedTarget.length > 0
-            ? detail.affectedTarget[0]?.toText() ?? null
-            : null,
-          affectedCount: Number(detail.affectedCount),
-        });
-        if (outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */) {
-          const tp = detail.affectedTarget && detail.affectedTarget.length > 0
-            ? detail.affectedTarget[0]?.toText() ?? null
-            : null;
-          if (tp) setRenamePrompt({ targetPrincipal: tp });
+        const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
+        const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
+          ? detail.affectedTarget[0]?.toText() ?? null
+          : null;
+        if (isRenameSuccess && targetPrincipalText) {
+          // Skip the success toast — the rename modal IS the success
+          // affirmation, and otherwise the toast would sit hidden behind
+          // the rename modal's backdrop.
+          setRenamePrompt({ targetPrincipal: targetPrincipalText });
+        } else {
+          setOutcomeToast({
+            name: selectedShenanigan.name,
+            outcome,
+            flavor: getFlavorText(outcome),
+            cost: selectedShenanigan.cost,
+            ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
+            targetPrincipalText,
+            affectedCount: Number(detail.affectedCount),
+          });
         }
         setAnimatingTrick(null);
       }, 1500);

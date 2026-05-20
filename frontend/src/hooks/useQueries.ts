@@ -737,6 +737,11 @@ export function useSetPendingRenameName() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
+      // Invalidate the display-name cache for ALL principals so the target's
+      // newly-chosen name surfaces immediately in the trollbox, live feed,
+      // and target picker. useDisplayName keys on ['shenanigans','goldenName',
+      // principalText], so a partial invalidation by exact key would miss it.
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'goldenName'] });
     },
   });
 }

@@ -2138,7 +2138,11 @@ persistent actor Self {
                             capUnits = ppToUnits(1000);
                             siphonedSoFar = 0;
                         });
-                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
+                        // Target IS affected — they become the siphoner of
+                        // caster's mints for 3 days. Mirror the success
+                        // branch's affectedCount = 1 so the UI doesn't say
+                        // "no observable effect."
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
                 };
             };
