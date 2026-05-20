@@ -455,7 +455,7 @@ export default function Shenanigans() {
               </div>
               <div className="flex items-start gap-2">
                 <Shield className="h-3 w-3 mc-text-green mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Loss Protection</strong> — Targets under 200 PP protected; no one goes below 0</span>
+                <span><strong className="mc-text-primary">Zero Floor</strong> — No player goes below 0 PP</span>
               </div>
               <div className="flex items-start gap-2">
                 <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />

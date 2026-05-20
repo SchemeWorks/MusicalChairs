@@ -14,7 +14,6 @@ import {
   UPSTREAM_BACKER_BONUS, DOWNSTREAM_BACKER_BONUS,
   PP_PER_ICP_SIMPLE, PP_PER_ICP_COMPOUND_15, PP_PER_ICP_COMPOUND_30, PP_PER_ICP_SEED_ROUND,
   REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE,
-  SHENANIGAN_PROTECTION_FLOOR,
   pct, pctPrecise, fmt,
 } from '../lib/gameConstants';
 import { useGetMintConfig, useGetShenaniganConfigs } from '../hooks/useQueries';
@@ -288,7 +287,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
     icon: <Dice5 className="h-5 w-5 mc-text-green" />,
     content: (
       <>
-        <p>11 shenanigans across three categories. All cost PP. All can backfire. Players under {fmt(SHENANIGAN_PROTECTION_FLOOR)} PP are protected from negative effects.</p>
+        <p>11 shenanigans across three categories. All cost PP. All can backfire. Anyone holding PP is a valid target — no balance floor protection.</p>
 
         <p className="font-bold mc-text-danger mt-4 mb-2">Offense</p>
         <DocTable

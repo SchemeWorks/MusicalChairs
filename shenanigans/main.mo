@@ -1835,7 +1835,6 @@ persistent actor Self {
         castId : Nat,
     ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } {
         let memo = "spell-" # Nat.toText(castId);
-        let protectionFloor = ppToUnits(200);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
         let sevenDaysNs : Int = oneDayNs * 7;
@@ -1848,9 +1847,6 @@ persistent actor Self {
                     };
                     case (?t) {
                         if (consumeShieldIfActive(t)) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
-                        };
-                        if (targetBal < protectionFloor) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
                         let pct = rollPct(2, 8);
@@ -1873,9 +1869,9 @@ persistent actor Self {
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
-                        if (bal >= protectionFloor) {
-                            let pct = rollPct(1, 3);
-                            let amount = capAt(bal * pct / 100, ppToUnits(60));
+                        let pct = rollPct(1, 3);
+                        let amount = capAt(bal * pct / 100, ppToUnits(60));
+                        if (amount > 0) {
                             switch (await chipTransfer(victim, caster, amount, memo)) {
                                 case (#Ok(_)) {
                                     total += amount;
@@ -1914,9 +1910,6 @@ persistent actor Self {
                     };
                     case (?t) {
                         if (consumeShieldIfActive(t)) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
-                        };
-                        if (targetBal < protectionFloor) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
                         mintSiphons := principalMap.put(mintSiphons, t, {
@@ -2019,9 +2012,6 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
-                        if (targetBal < protectionFloor) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
-                        };
                         let pct = rollPct(25, 50);
                         let amount = capAt(targetBal * pct / 100, ppToUnits(800));
                         switch (await burnFrom(t, amount, memo)) {
@@ -2041,8 +2031,8 @@ persistent actor Self {
                 var victims : Nat = 0;
                 for ((whale, bal) in whales.vals()) {
                     if (not consumeShieldIfActive(whale)) {
-                        if (bal >= protectionFloor) {
-                            let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                        let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                        if (amount > 0) {
                             switch (await chipTransfer(whale, caster, amount, memo)) {
                                 case (#Ok(_)) {
                                     total += amount;
