@@ -147,6 +147,7 @@ export default function Shenanigans() {
     outcome: string;
     flavor: string;
     cost: number;
+    spellId?: number;                  // 0-10 per shenaniganTypes; drives per-spell copy
     ppDelta?: number;                  // PP units / 10^8 — display-ready number
     targetPrincipalText?: string | null;
     affectedCount?: number;
@@ -244,6 +245,7 @@ export default function Shenanigans() {
             outcome,
             flavor: getFlavorText(outcome),
             cost: selectedShenanigan.cost,
+            spellId: selectedShenanigan.id,
             ppDelta: Number(detail.ppDeltaCaster) / 100_000_000,
             targetPrincipalText,
             affectedCount: Number(detail.affectedCount),
@@ -561,22 +563,67 @@ export default function Shenanigans() {
               {(() => {
                 const d = outcomeToast.ppDelta ?? 0;
                 const cnt = outcomeToast.affectedCount ?? 0;
+                const id = outcomeToast.spellId;
                 const target = outcomeToast.targetPrincipalText
                   ? <OutcomeTargetName principalText={outcomeToast.targetPrincipalText} />
                   : 'them';
+                // Per-spell IDs (mirror shenaniganTypes array order in main.mo):
+                // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
+                // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
+                // 8 whaleRebalance, 9 downlineBoost, 10 goldenName
+
                 if (outcomeToast.outcome === 'success') {
+                  // Numeric wins first (Money Trickster, AoE Skim, Whale Rebalance theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
                   if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
-                  if (d === 0 && cnt >= 1) return <p className="text-xs mc-text-green mb-3">It worked.</p>;
-                  if (d === 0 && cnt === 0) return <p className="text-xs mc-text-green mb-3">It worked.</p>;
-                  return null;
+                  // Spells with no PP delta — explain what actually happened.
+                  switch (id) {
+                    case 3: // mintTaxSiphon
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">{target} is now siphoned. You'll skim 5% of their next 1000 PP minted (over 7 days).</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. No siphon.</p>;
+                    case 4: // downlineHeist
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole a downline member from {target}.</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} had no downline to steal.</p>;
+                    case 5: // magicMirror
+                      return <p className="text-xs mc-text-green mb-3">Shield up. Next hostile spell aimed at you gets blocked.</p>;
+                    case 6: // ppBoosterAura
+                      return <p className="text-xs mc-text-green mb-3">PP booster active for the rest of the round.</p>;
+                    case 7: // purseCutter
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Burned {target}'s PP.</p>;
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. Purse intact.</p>;
+                    case 9: // downlineBoost
+                      return <p className="text-xs mc-text-green mb-3">Your referral cascade pays 1.3× for 24 hours.</p>;
+                    case 10: // goldenName
+                      return <p className="text-xs mc-text-green mb-3">You're golden — name glows on the leaderboard.</p>;
+                    case 0: // moneyTrickster — no theft, shielded target (success path)
+                      return <p className="text-xs mc-text-green mb-3">{target} was shielded. No PP stolen.</p>;
+                    case 1: // aoeSkim — all victims shielded
+                    case 8: // whaleRebalance — all whales shielded
+                      return <p className="text-xs mc-text-green mb-3">Every target was shielded. Nothing skimmed.</p>;
+                    default:
+                      return <p className="text-xs mc-text-green mb-3">It worked.</p>;
+                  }
                 }
+
                 if (outcomeToast.outcome === 'backfire') {
+                  // Numeric losses first.
                   if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
                   if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
                   if (d < 0 && cnt === 0) return <p className="text-xs mc-text-purple mb-3">You burned {Math.abs(Math.round(d))} PP.</p>;
-                  return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
+                  // State-change backfires with no PP delta — name them.
+                  switch (id) {
+                    case 2: // renameSpell backfire — caster gets renamed
+                      return <p className="text-xs mc-text-purple mb-3">You got renamed for 7 days.</p>;
+                    case 3: // mintTaxSiphon backfire — target becomes the siphoner
+                      return <p className="text-xs mc-text-purple mb-3">{target} now siphons 5% of YOUR mints for 3 days.</p>;
+                    case 4: // downlineHeist backfire — caster loses a downline
+                      if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} stole a downline member from you.</p>;
+                      return <p className="text-xs mc-text-purple mb-3">Backfired — but you had no downline to lose.</p>;
+                    default:
+                      return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
+                  }
                 }
+
                 if (outcomeToast.outcome === 'fail') {
                   return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
                 }
