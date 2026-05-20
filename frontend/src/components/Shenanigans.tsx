@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName } from '../hooks/useQueries';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -151,6 +151,9 @@ export default function Shenanigans() {
     targetPrincipalText?: string | null;
     affectedCount?: number;
   } | null>(null);
+  const [renamePrompt, setRenamePrompt] = useState<{ targetPrincipal: string } | null>(null);
+  const [renameInput, setRenameInput] = useState('');
+  const setRenameName = useSetPendingRenameName();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
   useEffect(() => {
@@ -237,6 +240,12 @@ export default function Shenanigans() {
             : null,
           affectedCount: Number(detail.affectedCount),
         });
+        if (outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */) {
+          const tp = detail.affectedTarget && detail.affectedTarget.length > 0
+            ? detail.affectedTarget[0]?.toText() ?? null
+            : null;
+          if (tp) setRenamePrompt({ targetPrincipal: tp });
+        }
         setAnimatingTrick(null);
       }, 1500);
     } catch (error: any) {
@@ -579,6 +588,55 @@ export default function Shenanigans() {
               >
                 Noted
               </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Rename Spell — name picker modal */}
+      {renamePrompt && (
+        <>
+          <div className="mc-modal-backdrop" aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center max-w-sm">
+              <div className="font-display text-xl mc-text-primary mb-2">
+                Name them.
+              </div>
+              <p className="text-sm mc-text-dim mb-3">
+                You have 5 minutes. 1-32 characters. Letters, numbers, space, dash, underscore.
+              </p>
+              <input
+                type="text"
+                value={renameInput}
+                onChange={(e) => setRenameInput(e.target.value)}
+                maxLength={32}
+                autoFocus
+                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm mc-text-primary mb-3"
+                placeholder="e.g., Liquidation Larry"
+              />
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => { setRenamePrompt(null); setRenameInput(''); }}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+                >
+                  Skip (no rename)
+                </button>
+                <button
+                  onClick={async () => {
+                    try {
+                      await setRenameName.mutateAsync(renameInput);
+                      setRenamePrompt(null);
+                      setRenameInput('');
+                    } catch (e: any) {
+                      alert(e.message || 'Rename failed');
+                    }
+                  }}
+                  disabled={renameInput.trim().length === 0 || setRenameName.isPending}
+                  className="mc-btn-primary px-5 py-2 rounded-full text-sm"
+                >
+                  {setRenameName.isPending ? 'Committing…' : 'Lock it in'}
+                </button>
+              </div>
             </div>
           </div>
         </>

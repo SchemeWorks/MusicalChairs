@@ -724,6 +724,23 @@ export function useCastShenanigan() {
   });
 }
 
+export function useSetPendingRenameName() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (name: string) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      const result = await actor.setPendingRenameName(name);
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
+    },
+  });
+}
+
 // Shenanigans Configuration Queries
 export function useGetShenaniganConfigs() {
   const actor = useReadShenaniganActor();
