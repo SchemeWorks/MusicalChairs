@@ -353,6 +353,14 @@ export interface _SERVICE {
    * / astronomically-unlikely collision. Codes are stable once assigned.
    */
   'getOrCreateReferralCode' : ActorMethod<[], string>,
+  /**
+   * / Returns the active pending-rename slot for the caller, if any.
+   * / Drives the frontend modal that prompts for a name post-success.
+   */
+  'getPendingRenameForCaller' : ActorMethod<
+    [],
+    [] | [{ 'expiresAt' : bigint, 'target' : Principal }]
+  >,
   'getPpBurnedFor' : ActorMethod<[Principal], bigint>,
   /**
    * / Returns the most-recent chat items newest-first. Capped server-side
@@ -460,6 +468,16 @@ export interface _SERVICE {
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Caller commits a chosen name for their most recent successful Rename
+   * / Spell. Must be called within 5 minutes of the cast. Name is sanitized:
+   * / trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+   */
+  'setPendingRenameName' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   /**
    * / Deprecated. The deductive cascade ignores referralL[1-3]Bps.
    * / Use setCascadeBps(initial, passthrough) instead.

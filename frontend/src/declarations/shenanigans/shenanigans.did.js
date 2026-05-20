@@ -329,6 +329,15 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getOrCreateReferralCode' : IDL.Func([], [IDL.Text], []),
+    'getPendingRenameForCaller' : IDL.Func(
+        [],
+        [
+          IDL.Opt(
+            IDL.Record({ 'expiresAt' : IDL.Int, 'target' : IDL.Principal })
+          ),
+        ],
+        ['query'],
+      ),
     'getPpBurnedFor' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getRecentChatItems' : IDL.Func([IDL.Nat], [IDL.Vec(ChatItem)], ['query']),
     'getRecentShenanigans' : IDL.Func(
@@ -420,6 +429,11 @@ export const idlFactory = ({ IDL }) => {
     'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setObserverIntervalSeconds' : IDL.Func([IDL.Nat], [], []),
+    'setPendingRenameName' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'setReferralBps' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
     'setSignupGiftPp' : IDL.Func([IDL.Nat], [], []),
     'setSimple21DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),

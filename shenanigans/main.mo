@@ -491,6 +491,13 @@ persistent actor Self {
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
 
+    // When Rename Spell lands on #success, the new name is NOT applied
+    // immediately. Instead the caster gets a 5-minute window to pick a
+    // name via setPendingRenameName. If the window lapses, the slot
+    // simply expires (no automatic fallback rename — the cast cost is
+    // already burned).
+    var pendingRenames = principalMap.empty<{ target : Principal; expiresAt : Int }>();
+
     // Set of principals we've ever minted PP to. Used by AOE Skim and
     // Whale Rebalance to enumerate possible victims without scanning the
     // whole ledger. Populated inside mintInternal.
@@ -1494,6 +1501,67 @@ persistent actor Self {
         pool[Int.abs(Time.now()) % pool.size()];
     };
 
+    /// Validate + sanitize a player-chosen rename. Rules:
+    ///  - Trim leading/trailing spaces
+    ///  - 1 to 32 chars after trim
+    ///  - Allowed: a-z A-Z 0-9 space - _
+    func sanitizeRenameName(raw : Text) : { #Ok : Text; #Err : Text } {
+        let trimmed = Text.trim(raw, #char ' ');
+        if (Text.size(trimmed) == 0) { return #Err("Name cannot be empty") };
+        if (Text.size(trimmed) > 32) { return #Err("Name too long (max 32 chars)") };
+        for (c in trimmed.chars()) {
+            let ok =
+                (c >= 'a' and c <= 'z') or
+                (c >= 'A' and c <= 'Z') or
+                (c >= '0' and c <= '9') or
+                c == ' ' or c == '-' or c == '_';
+            if (not ok) { return #Err("Invalid character in name") };
+        };
+        #Ok(trimmed);
+    };
+
+    /// Caller commits a chosen name for their most recent successful Rename
+    /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
+    /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+    public shared ({ caller }) func setPendingRenameName(name : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        let slot = switch (principalMap.get(pendingRenames, caller)) {
+            case (null) { return #Err("No pending rename") };
+            case (?s) { s };
+        };
+        if (Time.now() >= slot.expiresAt) {
+            pendingRenames := principalMap.delete(pendingRenames, caller);
+            return #Err("Pending rename expired");
+        };
+        switch (sanitizeRenameName(name)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok(text)) {
+                let sevenDaysNs : Int = 86_400_000_000_000 * 7;
+                customDisplayNames := principalMap.put(customDisplayNames, slot.target, {
+                    name = text;
+                    expiresAt = Time.now() + sevenDaysNs;
+                });
+                pendingRenames := principalMap.delete(pendingRenames, caller);
+                return #Ok;
+            };
+        };
+    };
+
+    /// Returns the active pending-rename slot for the caller, if any.
+    /// Drives the frontend modal that prompts for a name post-success.
+    public query ({ caller }) func getPendingRenameForCaller() : async ?{
+        target : Principal;
+        expiresAt : Int;
+    } {
+        switch (principalMap.get(pendingRenames, caller)) {
+            case (null) { null };
+            case (?s) {
+                if (Time.now() >= s.expiresAt) { null }
+                else { ?s };
+            };
+        };
+    };
+
     /// Enumerate every known PP holder except `excluded`. Caller-side
     /// async fetch of balances follows separately.
     func enumerateHolders(excluded : Principal) : [Principal] {
@@ -1826,9 +1894,14 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
-                        customDisplayNames := principalMap.put(customDisplayNames, t, {
-                            name = pickRenameName();
-                            expiresAt = nowTs + sevenDaysNs;
+                        // Stash a pending-rename slot. Caster has 5 minutes
+                        // via setPendingRenameName to choose a name. If the
+                        // window lapses the slot simply expires; the cast
+                        // cost is already burned.
+                        let fiveMinNs : Int = 300_000_000_000;
+                        pendingRenames := principalMap.put(pendingRenames, caster, {
+                            target = t;
+                            expiresAt = nowTs + fiveMinNs;
                         });
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
                     };
