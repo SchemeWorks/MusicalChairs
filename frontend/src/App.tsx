@@ -461,7 +461,7 @@ export default function App() {
                   }
                 }} />
 
-                {/* Docs — always visible, visually distinct */}
+                {/* Docs — icon-only on mobile, full label on desktop */}
                 <button
                   onClick={() => {
                     if (showDocsPage) {
@@ -472,10 +472,12 @@ export default function App() {
                       setShowDocsPage(true);
                     }
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
+                  aria-label="Docs"
+                  title="Docs"
+                  className="flex items-center gap-1.5 px-2 py-1.5 sm:px-3 rounded-lg text-xs font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/10 hover:border-white/20"
                 >
                   <BookOpen className="h-4 w-4" />
-                  <span>Docs</span>
+                  <span className="hidden sm:inline">Docs</span>
                 </button>
 
                 {/* Separator dot */}
@@ -530,7 +532,7 @@ export default function App() {
         {showDashboard && <GameStatusBar onNavigate={goToTab} />}
 
         {/* Main Content */}
-        <main className={`flex-1 flex flex-col ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)]' : 'pt-16 md:pt-20'}`}>
+        <main className={`flex-1 flex flex-col ${showDashboard ? 'pt-[calc(4rem+44px)] md:pt-[calc(5rem+44px)] pb-16 md:pb-0' : 'pt-16 md:pt-20'}`}>
           <div className="flex-1">
           <ErrorBoundary fallback={
             <div className="text-center py-16 px-4">

@@ -25,17 +25,17 @@ export default function BlockedUsersMenu() {
         onClick={() => setOpen((v) => !v)}
         aria-label={`Blocked users (${blocked.length})`}
         title={`Blocked users (${blocked.length})`}
-        className="relative text-zinc-500 hover:text-zinc-200"
+        className="relative flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
       >
-        <UserX className="h-4 w-4" />
+        <UserX className="h-5 w-5" />
         {blocked.length > 0 && (
-          <span className="absolute -top-1 -right-1 rounded-full bg-amber-500 px-1 text-[10px] font-medium leading-none text-zinc-950">
+          <span className="absolute top-0 right-0 rounded-full bg-amber-500 px-1 text-[10px] font-medium leading-none text-zinc-950">
             {blocked.length}
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute right-0 top-6 z-20 w-64 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
+        <div className="absolute right-0 top-10 z-20 w-64 rounded-lg border border-zinc-700 bg-zinc-900 p-2 shadow-xl">
           <div className="mb-1 px-1 text-xs font-medium text-zinc-400">Blocked users</div>
           {blocked.length === 0 ? (
             <div className="px-1 py-2 text-xs text-zinc-500">No one is blocked.</div>

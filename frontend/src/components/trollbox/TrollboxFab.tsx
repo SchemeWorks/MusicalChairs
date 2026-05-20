@@ -11,7 +11,7 @@ export default function TrollboxFab({ unread, onClick }: Props) {
     <button
       onClick={onClick}
       aria-label="Open chat"
-      className="fixed bottom-4 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-zinc-900 shadow-lg hover:bg-amber-400"
+      className="fixed bottom-20 right-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-zinc-900 shadow-lg hover:bg-amber-400 md:bottom-4"
     >
       <MessageCircle className="h-6 w-6" />
       {unread > 0 && (

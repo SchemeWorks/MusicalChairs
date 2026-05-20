@@ -44,13 +44,21 @@ export default function TrollboxPanel({ authenticated, principal, currentUserNam
     <div className={containerClass} style={containerStyle}>
       <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
         <div className="text-sm font-medium text-zinc-200">Trollbox</div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
           <BlockedUsersMenu />
-          <button onClick={toggleChime} aria-label={chimeMuted ? 'Unmute mentions' : 'Mute mentions'} className="text-zinc-500 hover:text-zinc-200">
-            {chimeMuted ? <BellOff className="h-4 w-4" /> : <Bell className="h-4 w-4" />}
+          <button
+            onClick={toggleChime}
+            aria-label={chimeMuted ? 'Unmute mentions' : 'Mute mentions'}
+            className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            {chimeMuted ? <BellOff className="h-5 w-5" /> : <Bell className="h-5 w-5" />}
           </button>
-          <button onClick={onClose} aria-label="Close chat" className="text-zinc-500 hover:text-zinc-200">
-            <X className="h-4 w-4" />
+          <button
+            onClick={onClose}
+            aria-label="Close chat"
+            className="flex h-8 w-8 items-center justify-center rounded text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100"
+          >
+            <X className="h-5 w-5" />
           </button>
         </div>
       </div>
