@@ -48,6 +48,13 @@ type ShenaniganRecord =
    timestamp: int;
    user: principal;
  };
+type ShenaniganOutcomeDetail = 
+ record {
+   affectedCount: nat;
+   affectedTarget: opt principal;
+   outcome: ShenaniganOutcome;
+   ppDeltaCaster: int;
+ };
 type ShenaniganOutcome = 
  variant {
    backfire;
@@ -291,7 +298,7 @@ service : {
                                  Ok;
                                });
   castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
-   (ShenaniganOutcome);
+   (ShenaniganOutcomeDetail);
   claimCashOut: (id: nat) -> (variant {
                                 Err: text;
                                 Ok: nat;

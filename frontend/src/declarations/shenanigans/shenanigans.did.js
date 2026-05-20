@@ -17,6 +17,12 @@ export const idlFactory = ({ IDL }) => {
     'fail' : IDL.Null,
     'success' : IDL.Null,
   });
+  const ShenaniganOutcomeDetail = IDL.Record({
+    'affectedTarget' : IDL.Opt(IDL.Principal),
+    'affectedCount' : IDL.Nat,
+    'outcome' : ShenaniganOutcome,
+    'ppDeltaCaster' : IDL.Int,
+  });
   const MintMultiplier = IDL.Record({
     'expiresAt' : IDL.Int,
     'multiplierBps' : IDL.Nat,
@@ -247,7 +253,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'castShenanigan' : IDL.Func(
         [ShenaniganType, IDL.Opt(IDL.Principal)],
-        [ShenaniganOutcome],
+        [ShenaniganOutcomeDetail],
         [],
       ),
     'claimCashOut' : IDL.Func(

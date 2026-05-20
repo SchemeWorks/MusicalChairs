@@ -1628,7 +1628,7 @@ persistent actor Self {
     // Core Logic
     // ================================================================
 
-    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcome {
+    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
         // Reject target-required spells called without one. Without this trap
@@ -1694,15 +1694,16 @@ persistent actor Self {
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBal, targetBal) } else { 0 };
         let outcome = determineOutcomeWithMod(shenaniganType, modPct);
 
-        switch (outcome) {
+        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } = switch (outcome) {
             case (#success) {
-                // Discard the detail record here; Task 10 will surface it.
-                ignore (await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId));
+                await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
             };
             case (#backfire) {
-                ignore (await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId));
+                await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
             };
-            case (#fail) {};
+            case (#fail) {
+                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
+            };
         };
 
         nextShenaniganId += 1;
@@ -1741,7 +1742,12 @@ persistent actor Self {
             spellsCastPerPlayer := principalMap.put(spellsCastPerPlayer, caller, prior + 1);
         };
 
-        outcome;
+        {
+            outcome;
+            ppDeltaCaster = detail.ppDeltaCaster;
+            affectedTarget = detail.affectedTarget;
+            affectedCount = detail.affectedCount;
+        };
     };
 
     // ================================================================

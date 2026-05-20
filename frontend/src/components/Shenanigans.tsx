@@ -193,8 +193,8 @@ export default function Shenanigans() {
     setConfirmOpen(false);
     setAnimatingTrick(variantKey(selectedShenanigan.type));
     try {
-      const rawOutcome = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
-      const outcome = variantKey(rawOutcome);
+      const detail = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
+      const outcome = variantKey(detail.outcome);
       setTimeout(() => {
         setOutcomeToast({
           name: selectedShenanigan.name,

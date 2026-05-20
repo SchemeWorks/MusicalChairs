@@ -148,6 +148,12 @@ export interface ShenaniganConfig {
 export type ShenaniganOutcome = { 'backfire' : null } |
   { 'fail' : null } |
   { 'success' : null };
+export interface ShenaniganOutcomeDetail {
+  'affectedTarget' : [] | [Principal],
+  'affectedCount' : bigint,
+  'outcome' : ShenaniganOutcome,
+  'ppDeltaCaster' : bigint,
+}
 export interface ShenaniganRecord {
   'id' : bigint,
   'shenaniganType' : ShenaniganType,
@@ -251,7 +257,7 @@ export interface _SERVICE {
   'cancelCashOut' : ActorMethod<[bigint], { 'Ok' : null } | { 'Err' : string }>,
   'castShenanigan' : ActorMethod<
     [ShenaniganType, [] | [Principal]],
-    ShenaniganOutcome
+    ShenaniganOutcomeDetail
   >,
   'claimCashOut' : ActorMethod<
     [bigint],
