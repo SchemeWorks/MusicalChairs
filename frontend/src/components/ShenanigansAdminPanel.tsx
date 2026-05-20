@@ -117,6 +117,9 @@ export default function ShenanigansAdminPanel() {
 
   const [shenanigans, setShenanigans] = useState<ShenaniganConfig[]>([]);
   const [selectedShenanigan, setSelectedShenanigan] = useState<ShenaniganConfig | null>(null);
+  // Raw text buffer for the Effect Values input so mid-edit states (empty
+  // entries, trailing commas) don't get clobbered by the array round-trip.
+  const [effectValuesDraft, setEffectValuesDraft] = useState<string>('');
 
   useEffect(() => {
     if (backendConfigs) {
@@ -137,7 +140,10 @@ export default function ShenanigansAdminPanel() {
       setShenanigans(mappedConfigs);
       if (selectedShenanigan) {
         const updated = mappedConfigs.find(c => c.id === selectedShenanigan.id);
-        if (updated) setSelectedShenanigan(updated);
+        if (updated) {
+          setSelectedShenanigan(updated);
+          setEffectValuesDraft(updated.effectValues.join(', '));
+        }
       }
     }
   }, [backendConfigs]);
@@ -290,7 +296,7 @@ export default function ShenanigansAdminPanel() {
                 return (
                   <button
                     key={shen.id}
-                    onClick={() => setSelectedShenanigan(shen)}
+                    onClick={() => { setSelectedShenanigan(shen); setEffectValuesDraft(shen.effectValues.join(', ')); }}
                     className={`w-full text-left p-3 rounded-lg border transition-all group ${
                       isActive
                         ? 'border-[var(--mc-purple)]/50 bg-[var(--mc-purple)]/10 shadow-[0_0_15px_rgba(168,85,247,0.15)]'
@@ -405,10 +411,15 @@ export default function ShenanigansAdminPanel() {
 
                 {/* Effects section */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <AdminInput label="Effect Values" value={selectedShenanigan.effectValues.join(', ')}
+                  <AdminInput label="Effect Values" value={effectValuesDraft}
                     onChange={v => {
-                      const values = v.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-                      updateField('effectValues', values);
+                      setEffectValuesDraft(v);
+                      // Only commit fully-valid lists to the array; allow
+                      // empty entries and trailing commas during editing.
+                      const parts = v.split(',').map(s => s.trim());
+                      if (parts.every(s => s !== '' && !isNaN(parseFloat(s)))) {
+                        updateField('effectValues', parts.map(s => parseFloat(s)));
+                      }
                     }}
                     placeholder="e.g., 2.0, 8.0, 250.0" hint="Comma-separated. What the shenanigan actually does." />
                   <AdminInput label="Cast Limit" type="number" value={selectedShenanigan.castLimit}

@@ -171,7 +171,7 @@ Users can make multiple deposits and choose different plans for each deposit. Fo
 - **Strict Guardrails**: All shenanigans effects are limited to Ponzi Points and cosmetic features only - never affecting ICP, pot size, dealer selection, payout math, or round structure
 - **Protection System**: Targets under specified Ponzi Points thresholds are protected from loss effects; no player can go below 0 Ponzi Points
 - **Anti-Self-Targeting**: Block self-targeting across wallets/devices using device fingerprint/session tracking
-- **Magic Mirror Defense**: Players can own up to 2 Magic Mirrors that block one hostile shenanigan each
+- **Poison Pill Defense**: Players can own up to 2 Poison Pills that block one hostile shenanigan each
 - **Cooldown System**: 
   - Hostile casts: 2-minute global cooldown per caster
   - 3-minute per-target cooldown
@@ -198,27 +198,27 @@ Users can make multiple deposits and choose different plans for each deposit. Fo
 ### Specific Shenanigans Catalog
 The system includes exactly 11 shenanigans with specific effects and rules:
 
-- **Money Trickster**: Single target shenanigan costing 120 PP with odds 60/25/15 (success/fail/backfire). Steals 2–8% of target's Ponzi Points (weighted 3–5%), maximum 250 PP stolen, requires target to have minimum 400 PP. Magic Mirror blocks this effect.
+- **MEV Attack**: Single target shenanigan costing 120 PP with odds 60/25/15 (success/fail/backfire). Steals 2–8% of target's Ponzi Points (weighted 3–5%), maximum 250 PP stolen, requires target to have minimum 400 PP. Poison Pill blocks this effect.
 
-- **AOE Skim**: Targets all other players, costs 600 PP with odds 40/40/20. Siphons 1–3% from each player (weighted 1%:70%, 2%:25%, 3%:5%), maximum 60 PP per player, protects players below 300 PP. Limited to one cast per round. Magic Mirrors block individually per player.
+- **Contagion**: Targets all other players, costs 600 PP with odds 40/40/20. Siphons 1–3% from each player (weighted 1%:70%, 2%:25%, 3%:5%), maximum 60 PP per player, protects players below 300 PP. Limited to one cast per round. Poison Pills block individually per player.
 
-- **Rename Spell**: Cosmetic effect costing 200 PP with odds 90/5/5. Changes target's display name for 7 days (subject to PG filter/approval). On backfire, changes caster's name for 24 hours. Magic Mirror blocks this effect.
+- **Cease & Desist**: Cosmetic effect costing 200 PP with odds 90/5/5. Changes target's display name for 7 days (subject to PG filter/approval). On backfire, changes caster's name for 24 hours. Poison Pill blocks this effect.
 
-- **Mint Tax Siphon**: Costs 1200 PP with odds 70/20/10. Skims 5% of target's new Ponzi Points for 7 days (maximum 1000 PP total). Magic Mirror blocks. On backfire, caster donates 2% of their new Ponzi Points for 24 hours (maximum 200 PP).
+- **Trailing Commission**: Costs 1200 PP with odds 70/20/10. Skims 5% of target's new Ponzi Points for 7 days (maximum 1000 PP total). Poison Pill blocks. On backfire, caster donates 2% of their new Ponzi Points for 24 hours (maximum 200 PP).
 
-- **Downline Heist**: Costs 500 PP with variable odds based on target's downline (L3:30/L2:20/L1:10/fail:30/backfire:10). Steals one downline member (favoring L3 members). On backfire, one of caster's L3 members defects to target. Limited to one success per round. Magic Mirror blocks.
+- **Crossline Poach**: Costs 500 PP with variable odds based on target's downline (L3:30/L2:20/L1:10/fail:30/backfire:10). Steals one downline member (favoring L3 members). On backfire, one of caster's L3 members defects to target. Limited to one success per round. Poison Pill blocks.
 
-- **Magic Mirror**: Defensive item costing 200 PP with odds 100/0/0. Equips a shield that blocks one hostile shenanigan. Players can stack up to 2 mirrors. Shows mirror icon and count in UI.
+- **Poison Pill**: Defensive item costing 200 PP with odds 100/0/0. Equips a shield that blocks one hostile shenanigan. Players can stack up to 2 mirrors. Shows mirror icon and count in UI.
 
-- **PP Booster Aura**: Costs 300 PP with odds 100/0/0. For the rest of the round, player earns +5–15% additional Ponzi Points (weighted 7–10%). Mints from round budget and pauses if budget is empty. Limited to one per player. Shows up-arrow badge in UI.
+- **Yield Boost**: Costs 300 PP with odds 100/0/0. For the rest of the round, player earns +5–15% additional Ponzi Points (weighted 7–10%). Mints from round budget and pauses if budget is empty. Limited to one per player. Shows up-arrow badge in UI.
 
-- **Purse Cutter**: Single target costing 900 PP with odds 20/50/30. Target loses 25–50% of their Ponzi Points (weighted 30–35%). Lost points are redistributed to all other players except caster and target. Requires target to have minimum 1000 PP and more than caster. Maximum loss of 800 PP. Magic Mirror blocks.
+- **Bridge Exploit**: Single target costing 900 PP with odds 20/50/30. Target loses 25–50% of their Ponzi Points (weighted 30–35%). Lost points are redistributed to all other players except caster and target. Requires target to have minimum 1000 PP and more than caster. Maximum loss of 800 PP. Poison Pill blocks.
 
-- **Whale Rebalance**: Targets top 3 Ponzi Points holders, costs 800 PP with odds 50/30/20. Takes 20% from each top 3 holder (maximum 300 PP per whale), only if they have above 500 PP. Redistributes to all other players. On backfire, caster donates 10% to all players. Magic Mirrors block per whale individually.
+- **Wealth Tax**: Targets top 3 Ponzi Points holders, costs 800 PP with odds 50/30/20. Takes 20% from each top 3 holder (maximum 300 PP per whale), only if they have above 500 PP. Redistributes to all other players. On backfire, caster donates 10% to all players. Poison Pills block per whale individually.
 
-- **Downline Boost**: Costs 400 PP with odds 100/0/0. For the rest of the round, downline referrals kick up 1.3x Ponzi Points to the caster. Only one boost active at a time per player.
+- **Override Bonus**: Costs 400 PP with odds 100/0/0. For the rest of the round, downline referrals kick up 1.3x Ponzi Points to the caster. Only one boost active at a time per player.
 
-- **Golden Name**: Cosmetic effect with two options: 100 PP for 24 hours or 400 PP for 7 days, both with odds 100/0/0. Gives golden name styling on leaderboards and throughout the UI. Limited to one slot per player.
+- **Whitelisted**: Cosmetic effect with two options: 100 PP for 24 hours or 400 PP for 7 days, both with odds 100/0/0. Gives golden name styling on leaderboards and throughout the UI. Limited to one slot per player.
 
 ### Admin Dashboard System
 - **Authentication**: Admin access restricted to the specific principal `s4pq6-pomas-5qmdu-jw7n4-woskx-ijcqr-yph6i-uqi4k-5kaog-vv6us-qqe` without password requirement
@@ -357,7 +357,7 @@ The backend stores:
   - **Admin configuration storage**: Versioned settings for all shenanigan parameters, odds, caps, and global controls with real-time editing capability
   - **Event logging**: Comprehensive audit trail of all Ponzi Points-affecting events with human-readable and machine data
   - **Active effects tracking**: Temporary effects with start/end times, scope, and pause conditions
-  - **Downline data**: Three-level referral arrays (L1, L2, L3) for each player supporting Downline Heist functionality
+  - **Downline data**: Three-level referral arrays (L1, L2, L3) for each player supporting Crossline Poach functionality
   - **Cosmetic effects tracking**: Golden name durations, rename spell effects, and other cosmetic modifications
 - **Dealer entry management system**: Backend logic that checks for existing dealer entries by principal when users deposit house money; if found, increases their total entitlement by the deposit amount plus 12%, otherwise creates a new Upstream Dealer entry with their name from user profile and first deposit date
 - **Real-time dealer list management**: Backend system that maintains and updates the complete list of all dealers with their actual names, dealer types, and provides immediate updates after house money deposits
@@ -784,17 +784,17 @@ The backend stores:
   - **Reduced subtitle opacity**: Subtitle opacity reduced for better visual hierarchy
   - **Redesigned Shenanigans cards with enhanced readability and no effect values**: Each shenanigan styled as individual cards with thematic gradient backgrounds and enhanced readability features, featuring:
     - **Soft, colorful gradient backgrounds with readability overlay**: Each card has its own thematic gradient with a subtle semi-transparent dark overlay (rgba(0,0,0,0.08–0.12)) behind all text areas for maximum readability:
-      - **Money Trickster**: #ffd75a → #ffb673 (golden yellow to warm orange) with dark overlay
-      - **AOE Skim**: #8ed4ff → #b8f5ff (sky blue to light cyan) with dark overlay
-      - **Rename Spell**: #ff9ff3 → #f368e0 (bright pink to magenta) with dark overlay
-      - **Mint Tax Siphon**: #a78bfa → #c084fc (purple to light purple) with dark overlay
-      - **Downline Heist**: #34d399 → #6ee7b7 (emerald to light green) with dark overlay
-      - **Magic Mirror**: #fbbf24 → #fcd34d (amber to yellow) with dark overlay
-      - **PP Booster Aura**: #60a5fa → #93c5fd (blue to light blue) with dark overlay
-      - **Purse Cutter**: #f87171 → #fca5a5 (red to light red) with dark overlay
-      - **Whale Rebalance**: #a855f7 → #c084fc (violet to light purple) with dark overlay
-      - **Downline Boost**: #10b981 → #34d399 (teal to emerald) with dark overlay
-      - **Golden Name**: #f59e0b → #fbbf24 (orange to amber) with dark overlay
+      - **MEV Attack**: #ffd75a → #ffb673 (golden yellow to warm orange) with dark overlay
+      - **Contagion**: #8ed4ff → #b8f5ff (sky blue to light cyan) with dark overlay
+      - **Cease & Desist**: #ff9ff3 → #f368e0 (bright pink to magenta) with dark overlay
+      - **Trailing Commission**: #a78bfa → #c084fc (purple to light purple) with dark overlay
+      - **Crossline Poach**: #34d399 → #6ee7b7 (emerald to light green) with dark overlay
+      - **Poison Pill**: #fbbf24 → #fcd34d (amber to yellow) with dark overlay
+      - **Yield Boost**: #60a5fa → #93c5fd (blue to light blue) with dark overlay
+      - **Bridge Exploit**: #f87171 → #fca5a5 (red to light red) with dark overlay
+      - **Wealth Tax**: #a855f7 → #c084fc (violet to light purple) with dark overlay
+      - **Override Bonus**: #10b981 → #34d399 (teal to emerald) with dark overlay
+      - **Whitelisted**: #f59e0b → #fbbf24 (orange to amber) with dark overlay
     - **Enhanced text readability with improved odds display**: All text (titles, descriptions, odds, labels) displayed in pure white or very light lavender with improved readability for odds text:
       - **Improved odds text readability**: Odds text enhanced with a slightly darker text shadow or subtle dark overlay behind the odds text for better readability, especially on gold, light blue, pink, and green backgrounds
       - **Clean, readable odds styling**: Odds text styled to ensure clear readability on every card background while maintaining the design's visual consistency
@@ -812,17 +812,17 @@ The backend stores:
     - **Real-time updates from admin changes**: Shenanigan cards automatically update their displayed information (name, description, cost, odds, etc.) when changes are made in the admin panel without requiring a page reload
   - **Lively, candy-like, casino-inspired aesthetic**: Overall design feels vibrant and premium with cards that stand out from the background while maintaining unified look and maximum text readability
   - **Comprehensive Shenanigans Shop** displaying the specific 11 shenanigans with the enhanced readability card design and no effect values:
-    - **Money Trickster**: Single target, 120 PP, odds 60/25/15, basic description without specific percentages or amounts
-    - **AOE Skim**: All other players, 600 PP, odds 40/40/20, basic description without specific percentages or amounts
-    - **Rename Spell**: Cosmetic, 200 PP, odds 90/5/5, basic description without specific durations or details
-    - **Mint Tax Siphon**: 1200 PP, odds 70/20/10, basic description without specific percentages or amounts
-    - **Downline Heist**: 500 PP, variable odds, basic description without specific percentages or amounts
-    - **Magic Mirror**: Defense, 200 PP, odds 100/0/0, basic description without specific limits or details
-    - **PP Booster Aura**: 300 PP, odds 100/0/0, basic description without specific percentages or amounts
-    - **Purse Cutter**: Single target, 900 PP, odds 20/50/30, basic description without specific percentages or amounts
-    - **Whale Rebalance**: Top 3, 800 PP, odds 50/30/20, basic description without specific percentages or amounts
-    - **Downline Boost**: 400 PP, odds 100/0/0, basic description without specific multipliers or details
-    - **Golden Name**: Cosmetic, 100 PP (24h) or 400 PP (7d), odds 100/0/0, basic description without specific durations
+    - **MEV Attack**: Single target, 120 PP, odds 60/25/15, basic description without specific percentages or amounts
+    - **Contagion**: All other players, 600 PP, odds 40/40/20, basic description without specific percentages or amounts
+    - **Cease & Desist**: Cosmetic, 200 PP, odds 90/5/5, basic description without specific durations or details
+    - **Trailing Commission**: 1200 PP, odds 70/20/10, basic description without specific percentages or amounts
+    - **Crossline Poach**: 500 PP, variable odds, basic description without specific percentages or amounts
+    - **Poison Pill**: Defense, 200 PP, odds 100/0/0, basic description without specific limits or details
+    - **Yield Boost**: 300 PP, odds 100/0/0, basic description without specific percentages or amounts
+    - **Bridge Exploit**: Single target, 900 PP, odds 20/50/30, basic description without specific percentages or amounts
+    - **Wealth Tax**: Top 3, 800 PP, odds 50/30/20, basic description without specific percentages or amounts
+    - **Override Bonus**: 400 PP, odds 100/0/0, basic description without specific multipliers or details
+    - **Whitelisted**: Cosmetic, 100 PP (24h) or 400 PP (7d), odds 100/0/0, basic description without specific durations
   - **Eligibility and cooldown enforcement**: Buttons disabled when ineligible or on cooldown
   - **Confirmation modals**: Multi-target confirmation dialogs for complex shenanigans
 - **All other content positioned below the shop**: Stats, guardrails, and informational sections positioned below the shop grid, featuring:
@@ -863,17 +863,17 @@ The backend stores:
   - **Clean, scrollable layout**: Grid or list display of all shenanigans with compact form layouts
   - **Individual shenanigan editing cards with distinct visual separation**: Each shenanigan displayed as a card with unique background colors and editable fields for all parameters:
     - **Unique background colors for each shenanigan**: Each shenanigan edit form has a distinct, subtle background color that provides clear visual separation from the page background and other shenanigan forms:
-      - **Money Trickster**: Soft golden yellow background (#fff9e6)
-      - **AOE Skim**: Light sky blue background (#e6f7ff)
-      - **Rename Spell**: Pale pink background (#ffe6f7)
-      - **Mint Tax Siphon**: Light purple background (#f3e6ff)
-      - **Downline Heist**: Soft mint green background (#e6fff2)
-      - **Magic Mirror**: Warm amber background (#fff4e6)
-      - **PP Booster Aura**: Light blue background (#e6f2ff)
-      - **Purse Cutter**: Soft coral background (#ffe6e6)
-      - **Whale Rebalance**: Lavender background (#f0e6ff)
-      - **Downline Boost**: Pale teal background (#e6fffa)
-      - **Golden Name**: Light orange background (#fff0e6)
+      - **MEV Attack**: Soft golden yellow background (#fff9e6)
+      - **Contagion**: Light sky blue background (#e6f7ff)
+      - **Cease & Desist**: Pale pink background (#ffe6f7)
+      - **Trailing Commission**: Light purple background (#f3e6ff)
+      - **Crossline Poach**: Soft mint green background (#e6fff2)
+      - **Poison Pill**: Warm amber background (#fff4e6)
+      - **Yield Boost**: Light blue background (#e6f2ff)
+      - **Bridge Exploit**: Soft coral background (#ffe6e6)
+      - **Wealth Tax**: Lavender background (#f0e6ff)
+      - **Override Bonus**: Pale teal background (#e6fffa)
+      - **Whitelisted**: Light orange background (#fff0e6)
     - **High contrast text and labels**: All form fields, labels, and text have high contrast against their respective background colors for optimal readability
     - **Clear visual boundaries**: Each edit form is visually separated from the page background and other shenanigan forms through distinct background colors and subtle borders
     - **Name**: Text field for shenanigan name
@@ -1062,12 +1062,12 @@ The backend stores:
   - **Server-side RNG**: Cryptographically secure random number generation seeded with round_id and entropy for auditable, unpredictable results
   - **Protection enforcement**: Backend validation ensuring targets under specified PP thresholds are protected from loss effects and no player can go below 0 PP
   - **Anti-self-targeting**: Device fingerprinting and session tracking to prevent self-targeting across wallets/devices
-  - **Magic Mirror system**: Backend logic for mirror ownership (up to 2 per player), blocking hostile shenanigans, and mirror consumption
+  - **Poison Pill system**: Backend logic for mirror ownership (up to 2 per player), blocking hostile shenanigans, and mirror consumption
   - **Cooldown management**: Enforcement of 2-minute global cooldown per caster, 3-minute per-target cooldown, and 24-hour protection after negative effects
   - **Round budget enforcement**: Per-round Ponzi Points budget system (default 2000) with remaining budget tracking
   - **Event logging**: Comprehensive audit trail of all Ponzi Points-affecting events with timestamp, round_id, item_id, caster_id, target_ids, outcome, pp_deltas, and notes
   - **Active effects management**: Temporary effects with start/end times, scope, and pause conditions when budget is empty
-  - **Downline management**: Three-level referral arrays (L1, L2, L3) supporting atomic updates for Downline Heist functionality
+  - **Downline management**: Three-level referral arrays (L1, L2, L3) supporting atomic updates for Crossline Poach functionality
   - **Specific shenanigan logic**: Implementation of all 11 specific shenanigans with their exact rules, odds, costs, and effects
   - **Admin configuration**: Versioned settings storage with rollback capability and real-time updates
   - **Strict guardrail enforcement**: Backend validation ensuring shenanigans never affect ICP, pot size, dealer selection, payout math, or round structure
