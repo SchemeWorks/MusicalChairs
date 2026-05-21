@@ -2235,7 +2235,12 @@ persistent actor Self {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#goldenName) {
-                goldenUntil := principalMap.put(goldenUntil, caster, nowTs + oneDayNs);
+                // Gold-name window comes from config.duration (hours).
+                // config.effectValues = [24, 168] is reserved for a future
+                // weighted-roll mechanic (short vs. long buff); ignored for
+                // now per TUNING_NOTES.md.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                goldenUntil := principalMap.put(goldenUntil, caster, nowTs + durationNs);
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
         };
