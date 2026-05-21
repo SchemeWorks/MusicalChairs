@@ -187,23 +187,11 @@ export default function Shenanigans() {
     }
   }, [backendConfigs]);
 
-  // Listen for admin panel live updates
-  useEffect(() => {
-    const handler = (event: CustomEvent) => {
-      const u = event.detail;
-      setAvailableShenanigans(prev => prev.map(s => {
-        if (shenaniganTypes.indexOf(s.type) === u.id) {
-          return { ...s, name: u.name, icon: u.icon,
-            costSuccess: u.costSuccess, costFailure: u.costFailure, costBackfire: u.costBackfire,
-            description: u.description,
-            odds: { success: u.successOdds, fail: u.failOdds, backfire: u.backfireOdds }, effects: u.effectValues };
-        }
-        return s;
-      }));
-    };
-    window.addEventListener('shenaniganUpdated', handler as EventListener);
-    return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
-  }, []);
+  // Admin-panel saves flow through React Query invalidation in the mutation
+  // hooks → useGetShenaniganConfigs refetches → the useEffect above rebuilds
+  // availableShenanigans with the fresh data. No CustomEvent shuttle needed
+  // (the previous version overwrote unlisted fields with undefined, which
+  // would have broken any new schema field added later).
 
   const handleCastClick = (
     id: number,

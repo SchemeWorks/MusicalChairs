@@ -174,17 +174,9 @@ export default function ShenanigansAdminPanel() {
         castLimit: BigInt(selectedShenanigan.castLimit), backgroundColor: selectedShenanigan.backgroundColor,
       });
       setShenanigans(prev => prev.map(s => s.id === selectedShenanigan.id ? selectedShenanigan : s));
-      window.dispatchEvent(new CustomEvent('shenaniganUpdated', {
-        detail: {
-          id: selectedShenanigan.id, name: selectedShenanigan.name, icon: shenaniganIcons[selectedShenanigan.id],
-          description: selectedShenanigan.description,
-          costSuccess: selectedShenanigan.costSuccess,
-          costFailure: selectedShenanigan.costFailure,
-          costBackfire: selectedShenanigan.costBackfire,
-          successOdds: selectedShenanigan.successOdds, failOdds: selectedShenanigan.failureOdds,
-          backfireOdds: selectedShenanigan.backfireOdds, effectValues: selectedShenanigan.effectValues.join(', '),
-        }
-      }));
+      // React Query invalidation in the mutation hook fans the fresh data
+      // out to every consumer of useGetShenaniganConfigs (player spell
+      // cards, docs page, etc.) — no CustomEvent shuttle needed.
       toast.success(`${selectedShenanigan.name} saved`);
     } catch (error: any) {
       toast.error(`Save failed: ${error.message || 'Unknown error'}`);
@@ -221,17 +213,7 @@ export default function ShenanigansAdminPanel() {
         cooldown: BigInt(shen.cooldown), effectValues: shen.effectValues,
         castLimit: BigInt(shen.castLimit), backgroundColor: shen.backgroundColor,
       })));
-      shenanigans.forEach(shen => {
-        window.dispatchEvent(new CustomEvent('shenaniganUpdated', {
-          detail: {
-            id: shen.id, name: shen.name, icon: shenaniganIcons[shen.id],
-            description: shen.description,
-            costSuccess: shen.costSuccess, costFailure: shen.costFailure, costBackfire: shen.costBackfire,
-            successOdds: shen.successOdds, failOdds: shen.failureOdds,
-            backfireOdds: shen.backfireOdds, effectValues: shen.effectValues.join(', '),
-          }
-        }));
-      });
+      // React Query invalidation propagates to consumers (see handleSaveShenanigan).
       toast.success('All shenanigans saved');
     } catch (error: any) {
       toast.error(`Save all failed: ${error.message || 'Unknown error'}`);
