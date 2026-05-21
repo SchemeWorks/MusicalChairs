@@ -2222,8 +2222,14 @@ persistent actor Self {
                 return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#downlineBoost) {
+                // effectValues schema: [multiplier]. Stored as a Float
+                // (e.g. 1.3 = 1.3x downline kick-up) so admin can tune
+                // sub-integer steps. Convert to bps for the cascade-boost
+                // record (1.3 → 13_000).
+                let multiplier = effectFloatOr(config.effectValues, 0, 1.3);
+                let multiplierBps : Nat = Int.abs(Float.toInt(multiplier * 10_000.0));
                 cascadeBoosts := principalMap.put(cascadeBoosts, caster, {
-                    multiplierBps = 13_000;
+                    multiplierBps;
                     expiresAt = nowTs + oneDayNs;
                 });
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
