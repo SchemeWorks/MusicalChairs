@@ -2181,8 +2181,12 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
-                        let pct = rollPct(25, 50);
-                        let amount = capAt(targetBal * pct / 100, ppToUnits(800));
+                        // effectValues schema: [pctMin, pctMax, capWholePp].
+                        let pctMin = effectNatOr(config.effectValues, 0, 25);
+                        let pctMax = effectNatOr(config.effectValues, 1, 50);
+                        let cap = effectNatOr(config.effectValues, 2, 800);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await burnFrom(t, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
@@ -2375,8 +2379,11 @@ persistent actor Self {
                 };
             };
             case (#purseCutter) {
-                let pct = rollPct(25, 50);
-                let amount = capAt(casterBal * pct / 100, ppToUnits(800));
+                let pctMin = effectNatOr(config.effectValues, 0, 25);
+                let pctMax = effectNatOr(config.effectValues, 1, 50);
+                let cap = effectNatOr(config.effectValues, 2, 800);
+                let pct = rollPct(pctMin, pctMax);
+                let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                 switch (await burnFrom(caster, amount, memo)) {
                     case (#Ok(_)) {
                         return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0 };
