@@ -1279,18 +1279,16 @@ persistent actor Self {
         // load-bearing gate is `cooldown` (in hours), enforced ONLY on
         // success: failures and backfires let the player keep pulling the
         // lever. Success → locked out of that spell for cooldown hours.
-        // Defaults are literal text (no {N} placeholders) because the
-        // backend currently HARDCODES all spell mechanics — effectValues
-        // and duration in config are display-only metadata that the
-        // success/backfire handlers ignore. Templating against
-        // effectValues would let admin edit the *description* without
-        // changing the *mechanic*, which is misleading.
         //
-        // The renderTemplate helper + backfireDescription field still
-        // exist for the future state where backend reads from config.
-        // Admin can opt-in to templating in the meantime by editing
-        // descriptions with {N} placeholders — but right now the result
-        // would be "description claims X, mechanic does Y."
+        // Description strings are LITERAL — they bake the spell's seed
+        // numbers in prose. The backend now reads `effectValues` and
+        // `duration` at runtime (see determineOutcomeWithMod,
+        // applySuccessEffect, applyBackfireEffect), so admin tuning of
+        // those fields takes effect on the next deploy. That means
+        // descriptions can drift if admin tunes effectValues without
+        // updating copy. Either retype the description on each tune, or
+        // switch to `{0}/{1}/{dur_h}/{dur_d}` placeholders — see
+        // renderTemplate in the frontend.
         let defaultConfigs : [ShenaniganConfig] = [
             { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; backfireDescription = ?"You pay the target 2\u{2013}8% of your PP (max 250)."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
             { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; backfireDescription = ?"You burn 1\u{2013}3% of your own PP."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
