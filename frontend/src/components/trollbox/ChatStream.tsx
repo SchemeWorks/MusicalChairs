@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
-import type { ShenaniganRecord } from '../../declarations/shenanigans/shenanigans.did';
 import ChatItemRow from './ChatItemRow';
 import ReactionPicker from './ReactionPicker';
-import { useRecentChatItems, useGetRecentShenanigans, useAdminDeleteChatItem } from '../../hooks/useQueries';
+import { useRecentChatItems, useAdminDeleteChatItem } from '../../hooks/useQueries';
 import { getBlocked, addBlocked, subscribeBlocked } from './trollboxState';
 
 const STICK_TO_BOTTOM_THRESHOLD_PX = 64;
@@ -14,7 +13,6 @@ interface Props {
 
 export default function ChatStream({ currentUserName, isAdmin }: Props) {
   const { data: items = [] } = useRecentChatItems();
-  const { data: spells = [] } = useGetRecentShenanigans();
   const adminDelete = useAdminDeleteChatItem();
   const [picker, setPicker] = useState<bigint | null>(null);
   const [blocked, setBlockedLocal] = useState<string[]>(() => getBlocked());
@@ -24,11 +22,9 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
     return unsub;
   }, []);
 
-  const spellLookup = React.useMemo(() => {
-    const m = new Map<string, ShenaniganRecord>();
-    for (const r of spells) m.set(r.id.toString(), r);
-    return m;
-  }, [spells]);
+  // Spell-cast chat items now embed caster/spell/target/outcome inline, so the
+  // join against useGetRecentShenanigans was removed — SpellRow renders from
+  // item.kind.spellCast directly. The Live Feed still uses that query.
 
   const visible = items.filter((item) => {
     if ('userMessage' in item.kind && blocked.includes(item.author.toText())) return false;
@@ -77,7 +73,6 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
           <ChatItemRow
             item={item}
             currentUserName={currentUserName}
-            spellLookup={spellLookup}
             isAdmin={isAdmin}
             onBlock={handleBlock}
             onReact={(id) => setPicker(id)}

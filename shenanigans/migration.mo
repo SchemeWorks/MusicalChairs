@@ -1,6 +1,7 @@
 import OrderedMap "mo:base/OrderedMap";
 import Principal "mo:base/Principal";
 import Nat "mo:base/Nat";
+import Buffer "mo:base/Buffer";
 
 module {
 
@@ -285,5 +286,168 @@ module {
             },
         );
         { var shenaniganConfigs = migrated };
+    };
+
+    // ================================================================
+    // V6 — Embed spell-cast metadata in #spellCast chat items
+    //
+    // Previously the #spellCast variant carried only { castId : Nat }, so the
+    // trollbox had to join against the shenanigans map to render the caster
+    // name, spell type, target, and outcome. getRecentShenanigans is capped at
+    // a small number of records, so most chat items couldn't find their record
+    // and degraded to an anonymous "Someone cast a spell." fallback. This
+    // migration enriches each historical #spellCast chat item with the fields
+    // looked up from the shenanigans map. New casts emit the enriched form
+    // directly (see main.mo cast site).
+    //
+    // The shenanigans map carries through unchanged but is referenced in the
+    // input so the migration can read it. If a record is missing for a given
+    // castId (shouldn't happen — shenanigans are never pruned — but defensive
+    // against past data quirks), the chat item is dropped. currentPinId and
+    // findChatItemIndex tolerate missing ids, so dropping is safe.
+    // ================================================================
+
+    type V6ShenaniganType = {
+        #moneyTrickster;
+        #aoeSkim;
+        #renameSpell;
+        #mintTaxSiphon;
+        #downlineHeist;
+        #magicMirror;
+        #ppBoosterAura;
+        #purseCutter;
+        #whaleRebalance;
+        #downlineBoost;
+        #goldenName;
+    };
+
+    type V6ShenaniganOutcome = {
+        #success;
+        #fail;
+        #backfire;
+    };
+
+    type V6ShenaniganRecord = {
+        id : Nat;
+        user : Principal;
+        shenaniganType : V6ShenaniganType;
+        target : ?Principal;
+        outcome : V6ShenaniganOutcome;
+        timestamp : Int;
+        cost : Float;
+    };
+
+    type V6Reaction = {
+        emoji : Text;
+        reactors : [Principal];
+        karmaPpBurned : Nat;
+    };
+
+    type V6OldChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : { castId : Nat };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    type V6NewChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : V6ShenaniganType;
+            target : ?Principal;
+            outcome : V6ShenaniganOutcome;
+        };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    type V6OldChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V6OldChatItemKind;
+        reactions : [V6Reaction];
+        deleted : Bool;
+    };
+
+    type V6NewChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V6NewChatItemKind;
+        reactions : [V6Reaction];
+        deleted : Bool;
+    };
+
+    type V6ShenaniganMap = OrderedMap.Map<Nat, V6ShenaniganRecord>;
+
+    public func runV6(
+        old : {
+            var chatItems : [V6OldChatItem];
+            var shenanigans : V6ShenaniganMap;
+        }
+    ) : {
+        var chatItems : [V6NewChatItem];
+        var shenanigans : V6ShenaniganMap;
+    } {
+        let natMap = OrderedMap.Make<Nat>(Nat.compare);
+        let migrated = Buffer.Buffer<V6NewChatItem>(old.chatItems.size());
+        for (item in old.chatItems.vals()) {
+            let newKind : ?V6NewChatItemKind = switch (item.kind) {
+                case (#spellCast({ castId })) {
+                    switch (natMap.get(old.shenanigans, castId)) {
+                        case (?record) {
+                            ?#spellCast({
+                                castId;
+                                caster = record.user;
+                                shenaniganType = record.shenaniganType;
+                                target = record.target;
+                                outcome = record.outcome;
+                            });
+                        };
+                        case (null) {
+                            // No record for this castId — drop the chat item.
+                            // Shenanigans are never pruned by the runtime, so
+                            // hitting this branch indicates either pre-existing
+                            // data corruption or a future cast path that side-
+                            // stepped record insertion. Either way, the item is
+                            // unrenderable, so drop rather than carry orphans.
+                            null;
+                        };
+                    };
+                };
+                case (#userMessage(x)) { ?#userMessage(x) };
+                case (#signup(x)) { ?#signup(x) };
+                case (#rankUp(x)) { ?#rankUp(x) };
+                case (#roundResult(x)) { ?#roundResult(x) };
+                case (#reginald(x)) { ?#reginald(x) };
+                case (#pinUpdate(x)) { ?#pinUpdate(x) };
+            };
+            switch (newKind) {
+                case (?k) {
+                    migrated.add({
+                        id = item.id;
+                        author = item.author;
+                        timestamp = item.timestamp;
+                        kind = k;
+                        reactions = item.reactions;
+                        deleted = item.deleted;
+                    });
+                };
+                case (null) {};  // drop
+            };
+        };
+        {
+            var chatItems = Buffer.toArray(migrated);
+            var shenanigans = old.shenanigans;
+        };
     };
 };

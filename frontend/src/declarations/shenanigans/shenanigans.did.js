@@ -88,7 +88,13 @@ export const idlFactory = ({ IDL }) => {
     }),
     'signup' : IDL.Record({ 'newUser' : IDL.Principal }),
     'rankUp' : IDL.Record({ 'user' : IDL.Principal, 'newRank' : IDL.Text }),
-    'spellCast' : IDL.Record({ 'castId' : IDL.Nat }),
+    'spellCast' : IDL.Record({
+      'shenaniganType' : ShenaniganType,
+      'target' : IDL.Opt(IDL.Principal),
+      'castId' : IDL.Nat,
+      'caster' : IDL.Principal,
+      'outcome' : ShenaniganOutcome,
+    }),
     'reginald' : IDL.Record({ 'line' : IDL.Text, 'triggerKind' : IDL.Text }),
   });
   const Reaction = IDL.Record({

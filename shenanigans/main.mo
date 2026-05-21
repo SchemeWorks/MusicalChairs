@@ -28,6 +28,10 @@ import Icrc21 "icrc21";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
+// Migration V6 (embed spell-cast metadata in #spellCast chat items) was
+// applied 2026-05-21. See migration.mo for the historical migration record
+// and Migration.runV6.
+
 persistent actor Self {
 
     // ================================================================
@@ -235,7 +239,20 @@ persistent actor Self {
 
     public type ChatItemKind = {
         #userMessage : { body : Text; replyTo : ?Nat };
-        #spellCast : { castId : Nat };
+        // Spell-cast events embed all rendering data inline so the trollbox
+        // doesn't have to join against the shenanigans map (which is bounded
+        // by getRecentShenanigans's cap). Previously this carried only
+        // `castId`, which forced a lookup that missed for any cast outside
+        // that cap and rendered as anonymous "Someone cast a spell." rows.
+        // The `castId` is retained as a foreign key for future deep-links /
+        // moderation lookups.
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : ShenaniganType;
+            target : ?Principal;
+            outcome : ShenaniganOutcome;
+        };
         #signup : { newUser : Principal };
         #rankUp : { user : Principal; newRank : Text };
         #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
@@ -1907,7 +1924,16 @@ persistent actor Self {
         };
         shenanigans := natMap.put(shenanigans, castId, newShenanigan);
 
-        let _ = appendChatItem(Principal.fromActor(Self), #spellCast({ castId }));
+        let _ = appendChatItem(
+            Principal.fromActor(Self),
+            #spellCast({
+                castId;
+                caster = caller;
+                shenaniganType;
+                target;
+                outcome;
+            })
+        );
 
         if (outcome == #backfire) {
             // 25% chance: use the low nibble of timestamp as a coarse coin flip.
@@ -3177,10 +3203,19 @@ persistent actor Self {
     };
 
     public query func getRecentShenanigans() : async [ShenaniganRecord] {
-        let allShenanigans = Iter.toArray(natMap.vals(shenanigans));
-        let sorted = List.fromArray(allShenanigans);
-        let recent = List.take(sorted, 12);
-        List.toArray(recent);
+        // Newest-first. natMap iterates ascending by key (castId), so entriesRev
+        // gives newest-first; we take 20 to cover the Live Feed slice. (The old
+        // implementation used List.take on ascending order — which returned the
+        // OLDEST 12 records despite the function's name. With the new self-
+        // contained #spellCast chat items the trollbox no longer joins against
+        // this query, but the Live Feed still does, so correctness matters.)
+        let cap : Nat = 20;
+        let buf = Buffer.Buffer<ShenaniganRecord>(cap);
+        label takeLoop for ((_, record) in natMap.entriesRev(shenanigans)) {
+            if (buf.size() >= cap) break takeLoop;
+            buf.add(record);
+        };
+        Buffer.toArray(buf);
     };
 
     public query func getShenaniganConfigs() : async [ShenaniganConfig] {

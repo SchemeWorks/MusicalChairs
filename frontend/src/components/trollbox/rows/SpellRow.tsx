@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ChatItem, ShenaniganRecord } from '../../../declarations/shenanigans/shenanigans.did';
+import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
 import { useDisplayName } from '../useDisplayName';
 import { useGetShenaniganConfigs } from '../../../hooks/useQueries';
 
@@ -16,29 +16,25 @@ const variantKey = (v: unknown): string =>
 
 interface Props {
   item: ChatItem;
-  spellLookup: Map<string, ShenaniganRecord>;
 }
 
-export default function SpellRow({ item, spellLookup }: Props) {
-  const castId = 'spellCast' in item.kind ? item.kind.spellCast.castId : null;
-  const record = castId !== null ? spellLookup.get(castId.toString()) : undefined;
-  const userName = useDisplayName(record?.user ?? null);
-  const target = record?.target?.[0] ?? null;
+// Spell-cast chat items embed caster/spell/target/outcome inline (see the
+// #spellCast variant in shenanigans/main.mo). No lookup needed — render
+// straight from the chat item. The spell *name* still comes from the
+// admin-editable ShenaniganConfig so renames flow through retroactively.
+export default function SpellRow({ item }: Props) {
+  if (!('spellCast' in item.kind)) return null;
+  const cast = item.kind.spellCast;
+  const userName = useDisplayName(cast.caster);
+  const target = cast.target?.[0] ?? null;
   const targetName = useDisplayName(target);
   const { data: configs = [] } = useGetShenaniganConfigs();
 
-  if (!('spellCast' in item.kind)) return null;
   if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
-  if (!record) {
-    return (
-      <div className="px-3 py-1 text-xs text-zinc-500">
-        ✨ Someone cast a spell.
-      </div>
-    );
-  }
-  const outcomeText = 'success' in record.outcome ? 'landed clean' : 'backfire' in record.outcome ? 'backfired' : 'fizzled';
-  const outcomeColor = 'success' in record.outcome ? 'text-emerald-300' : 'backfire' in record.outcome ? 'text-red-400' : 'text-zinc-400';
-  const variantId = SHEN_VARIANT_ORDER.indexOf(variantKey(record.shenaniganType) as typeof SHEN_VARIANT_ORDER[number]);
+
+  const outcomeText = 'success' in cast.outcome ? 'landed clean' : 'backfire' in cast.outcome ? 'backfired' : 'fizzled';
+  const outcomeColor = 'success' in cast.outcome ? 'text-emerald-300' : 'backfire' in cast.outcome ? 'text-red-400' : 'text-zinc-400';
+  const variantId = SHEN_VARIANT_ORDER.indexOf(variantKey(cast.shenaniganType) as typeof SHEN_VARIANT_ORDER[number]);
   const spellName = configs.find(c => Number(c.id) === variantId)?.name ?? 'a spell';
   return (
     <div className="px-3 py-1 text-xs">

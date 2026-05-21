@@ -1,5 +1,5 @@
 import React from 'react';
-import type { ChatItem, ShenaniganRecord } from '../../declarations/shenanigans/shenanigans.did';
+import type { ChatItem } from '../../declarations/shenanigans/shenanigans.did';
 import UserMessageRow from './rows/UserMessageRow';
 import SpellRow from './rows/SpellRow';
 import SignupRow from './rows/SignupRow';
@@ -10,7 +10,6 @@ import ReginaldRow from './rows/ReginaldRow';
 interface Props {
   item: ChatItem;
   currentUserName?: string;
-  spellLookup: Map<string, ShenaniganRecord>;
   isAdmin: boolean;
   onBlock: (principalText: string, displayName: string) => void;
   onReact: (itemId: bigint) => void;
@@ -21,7 +20,7 @@ interface Props {
 export default function ChatItemRow(props: Props) {
   const { item } = props;
   if ('userMessage' in item.kind) return <UserMessageRow {...props} />;
-  if ('spellCast' in item.kind) return <SpellRow item={item} spellLookup={props.spellLookup} />;
+  if ('spellCast' in item.kind) return <SpellRow item={item} />;
   if ('signup' in item.kind) return <SignupRow item={item} />;
   if ('rankUp' in item.kind) return <RankUpRow item={item} />;
   if ('roundResult' in item.kind) return <RoundResultRow item={item} />;

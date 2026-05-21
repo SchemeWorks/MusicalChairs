@@ -38,7 +38,15 @@ export type ChatItemKind = {
   { 'userMessage' : { 'body' : string, 'replyTo' : [] | [bigint] } } |
   { 'signup' : { 'newUser' : Principal } } |
   { 'rankUp' : { 'user' : Principal, 'newRank' : string } } |
-  { 'spellCast' : { 'castId' : bigint } } |
+  {
+    'spellCast' : {
+      'shenaniganType' : ShenaniganType,
+      'target' : [] | [Principal],
+      'castId' : bigint,
+      'caster' : Principal,
+      'outcome' : ShenaniganOutcome,
+    }
+  } |
   { 'reginald' : { 'line' : string, 'triggerKind' : string } };
 export interface ChimeSound {
   'name' : string,

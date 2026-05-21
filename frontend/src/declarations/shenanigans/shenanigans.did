@@ -219,7 +219,14 @@ type ChatItemKind =
                   winnerPpUnits: nat;
                 };
    signup: record {newUser: principal;};
-   spellCast: record {castId: nat;};
+   spellCast:
+    record {
+      castId: nat;
+      caster: principal;
+      outcome: ShenaniganOutcome;
+      shenaniganType: ShenaniganType;
+      target: opt principal;
+    };
    userMessage: record {
                   body: text;
                   replyTo: opt nat;
