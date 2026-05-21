@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import type { ShenaniganRecord } from '../../declarations/shenanigans/shenanigans.did';
 import ChatItemRow from './ChatItemRow';
 import ReactionPicker from './ReactionPicker';
 import { useRecentChatItems, useGetRecentShenanigans, useAdminDeleteChatItem } from '../../hooks/useQueries';
 import { getBlocked, addBlocked, subscribeBlocked } from './trollboxState';
+
+const STICK_TO_BOTTOM_THRESHOLD_PX = 64;
 
 interface Props {
   currentUserName?: string;
@@ -33,6 +35,25 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
     return true;
   });
 
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  // Default true so the first non-empty render snaps to the newest message.
+  const stickToBottomRef = useRef(true);
+
+  const handleScroll = () => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    stickToBottomRef.current = distanceFromBottom < STICK_TO_BOTTOM_THRESHOLD_PX;
+  };
+
+  useLayoutEffect(() => {
+    const el = scrollerRef.current;
+    if (!el) return;
+    if (stickToBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    }
+  }, [visible.length]);
+
   const handleBlock = (principalText: string, displayName: string) => {
     const ok = window.confirm(
       `Block ${displayName}?\n\nTheir messages and reactions will be hidden from you. You can unblock them from the Trollbox header (Blocked users).`
@@ -46,7 +67,11 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
   };
 
   return (
-    <div className="flex-1 overflow-y-auto overscroll-contain">
+    <div
+      ref={scrollerRef}
+      onScroll={handleScroll}
+      className="flex-1 overflow-y-auto overscroll-contain"
+    >
       {[...visible].reverse().map((item) => (
         <div key={item.id.toString()} className="group relative">
           <ChatItemRow
