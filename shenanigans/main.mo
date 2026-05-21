@@ -1521,6 +1521,25 @@ persistent actor Self {
         if (value > ceiling) { ceiling } else { value };
     };
 
+    /// Read a Nat from a Float effectValues[i], falling back to `fallback`
+    /// when the array is shorter than expected (admin saved a malformed
+    /// config) or the value is negative. Truncates fractional Floats —
+    /// use `effectFloatOr` directly for multipliers like 1.3 that need
+    /// to participate in further math before being cast to Nat.
+    func effectNatOr(values : [Float], i : Nat, fallback : Nat) : Nat {
+        if (i >= values.size()) { return fallback };
+        let f = values[i];
+        if (f < 0.0) { return fallback };
+        Int.abs(Float.toInt(f));
+    };
+
+    /// Float counterpart to `effectNatOr`. Used by Override Bonus's
+    /// multiplier (1.3 → 13_000 bps) and any future spell that needs the
+    /// fractional part preserved before integer conversion.
+    func effectFloatOr(values : [Float], i : Nat, fallback : Float) : Float {
+        if (i >= values.size()) { fallback } else { values[i] }
+    };
+
     /// Returns true if `target` is currently shielded; decrements charges
     /// and clears the shield if charges hit zero. Expired shields are
     /// silently cleared.
@@ -1860,10 +1879,10 @@ persistent actor Self {
 
         let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } = switch (outcome) {
             case (#success) {
-                await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#backfire) {
-                await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#fail) {
                 { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
@@ -1933,6 +1952,7 @@ persistent actor Self {
     /// is still written.
     func applySuccessEffect(
         shenaniganType : ShenaniganType,
+        config : ShenaniganConfig,
         caster : Principal,
         target : ?Principal,
         _casterBal : Nat,
@@ -1954,8 +1974,13 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
-                        let pct = rollPct(2, 8);
-                        let amount = capAt(targetBal * pct / 100, ppToUnits(250));
+                        // effectValues schema: [pctMin, pctMax, capWholePp].
+                        // Defaults match the original hardcoded 2/8/250.
+                        let pctMin = effectNatOr(config.effectValues, 0, 2);
+                        let pctMax = effectNatOr(config.effectValues, 1, 8);
+                        let cap = effectNatOr(config.effectValues, 2, 250);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(t, caster, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1 };
@@ -2185,6 +2210,7 @@ persistent actor Self {
     /// backfire (they never produce this outcome).
     func applyBackfireEffect(
         shenaniganType : ShenaniganType,
+        config : ShenaniganConfig,
         caster : Principal,
         target : ?Principal,
         casterBal : Nat,
@@ -2204,8 +2230,11 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
-                        let pct = rollPct(2, 8);
-                        let amount = capAt(casterBal * pct / 100, ppToUnits(250));
+                        let pctMin = effectNatOr(config.effectValues, 0, 2);
+                        let pctMax = effectNatOr(config.effectValues, 1, 8);
+                        let cap = effectNatOr(config.effectValues, 2, 250);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(caster, t, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1 };
