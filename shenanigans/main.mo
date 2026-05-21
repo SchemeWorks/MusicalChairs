@@ -1683,35 +1683,13 @@ persistent actor Self {
     };
 
     /// Roll outcome with rubber-band modifier baked into success odds.
-    /// Clamped to [5, 95]. backfireOdds reads off the configured tail
-    /// unchanged — modifier shifts mass between success and failure only.
-    func determineOutcomeWithMod(shenaniganType : ShenaniganType, modPct : Int) : ShenaniganOutcome {
-        let baseSuccess : Int = switch (shenaniganType) {
-            case (#moneyTrickster) { 60 };
-            case (#aoeSkim) { 40 };
-            case (#renameSpell) { 90 };
-            case (#mintTaxSiphon) { 70 };
-            case (#downlineHeist) { 30 };
-            case (#magicMirror) { 100 };
-            case (#ppBoosterAura) { 100 };
-            case (#purseCutter) { 20 };
-            case (#whaleRebalance) { 50 };
-            case (#downlineBoost) { 100 };
-            case (#goldenName) { 100 };
-        };
-        let baseBackfireTail : Int = switch (shenaniganType) {
-            case (#moneyTrickster) { 85 };
-            case (#aoeSkim) { 80 };
-            case (#renameSpell) { 95 };
-            case (#mintTaxSiphon) { 90 };
-            case (#downlineHeist) { 90 };
-            case (#magicMirror) { 100 };
-            case (#ppBoosterAura) { 100 };
-            case (#purseCutter) { 70 };
-            case (#whaleRebalance) { 80 };
-            case (#downlineBoost) { 100 };
-            case (#goldenName) { 100 };
-        };
+    /// Clamped to [5, 95]. The fail/backfire split reads off the configured
+    /// tail unchanged — the modifier shifts mass between success and failure
+    /// only. Odds come straight from the admin-editable ShenaniganConfig;
+    /// see initializeDefaultShenanigans for the seed values.
+    func determineOutcomeWithMod(config : ShenaniganConfig, modPct : Int) : ShenaniganOutcome {
+        let baseSuccess : Int = config.successOdds;
+        let baseBackfireTail : Int = config.successOdds + config.failureOdds;
         let adjustedRaw : Int = baseSuccess + modPct;
         let adjusted : Int = if (adjustedRaw < 5) { 5 } else if (adjustedRaw > 95) { 95 } else { adjustedRaw };
         let randomValue : Int = Int.abs(Time.now()) % 100;
@@ -1845,7 +1823,7 @@ persistent actor Self {
             case (_) { false };
         };
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
-        let outcome = determineOutcomeWithMod(shenaniganType, modPct);
+        let outcome = determineOutcomeWithMod(config, modPct);
 
         // Determine the cost this outcome charges, then clamp to balance so
         // an unaffordable backfire/failure just zeros the caster instead of
@@ -3310,7 +3288,7 @@ persistent actor Self {
     /// subaccount). Use for fixups, comps, or seeding test accounts.
     public shared ({ caller }) func adminMint(to : Principal, wholePp : Nat) : async { #Ok : Nat; #Err : Text } {
         requireAdmin(caller);
-        await mintInternal(to, ppToUnits(wholePp), "admin-mint-" # Principal.toText(to));
+        await mintInternal(to, ppToUnits(wholePp), "admin-mint");
     };
 
     public shared ({ caller }) func setSimple21DayPpPerIcp(v : Nat) : async () {
