@@ -6,7 +6,7 @@ import { renderTemplate } from '../lib/renderTemplate';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
-import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, RefreshCw, Trophy, LayoutGrid, List } from 'lucide-react';
+import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, Trophy, LayoutGrid, List } from 'lucide-react';
 import HallOfFame from './HallOfFame';
 import TargetPicker from './TargetPicker';
 import { useDisplayName } from './trollbox/useDisplayName';
@@ -571,16 +571,6 @@ export default function Shenanigans() {
           <h2 className="font-display text-lg mc-text-primary">Hall of Fame</h2>
         </div>
         <HallOfFame />
-      </div>
-
-      {/* Trollbox teaser — coming soon */}
-      <div className="mc-card mc-accent-cyan p-5 text-center">
-        <div className="flex items-center justify-center gap-2 mb-2">
-          <RefreshCw className="h-4 w-4 mc-text-cyan animate-spin" style={{ animationDuration: '3s' }} />
-          <span className="font-display text-sm mc-text-cyan">Trollbox</span>
-        </div>
-        <p className="text-xs mc-text-dim">Live chat where everyone can trash-talk, flex, and watch the chaos unfold in real time.</p>
-        <p className="text-xs mc-text-muted mt-1 font-accent italic">Coming soon.</p>
       </div>
 
       {/* Footer */}

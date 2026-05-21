@@ -1197,9 +1197,11 @@ export function useGetTopPonziPointsBurners() {
     queryKey: ['topPpBurners'],
     queryFn: async () => {
       const burners = await actor.getTopPpBurners(50n);
+      // No `name` field: display names are resolved per-row via useDisplayName
+      // at render time (so golden-name spells take precedence over saved profile
+      // names and update in real time).
       return burners.map(([principal, unitsBig], index) => ({
         rank: index + 1,
-        name: `User ${principal.toString().slice(-8)}`,
         ponziPointsBurned: Number(unitsBig / 100_000_000n),
         principal: principal.toString(),
       }));

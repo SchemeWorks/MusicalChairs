@@ -1,14 +1,61 @@
 import React from 'react';
 import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
+import { Principal } from '@dfinity/principal';
 import { useGetTopPonziPointsBurners, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
+import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
 import LoadingSpinner from './LoadingSpinner';
 
 interface HallOfFameEntry {
   rank: number;
-  name: string;
   ponziPointsBurned?: number;
   principal: string;
+}
+
+// Each row resolves its own name + golden status via cached per-principal
+// queries, so the leaderboard shows real display names (golden-name spell
+// takes precedence over saved profile names). Rendered inside a component
+// so the hooks are called once per row, not in a loop in the parent.
+function PodiumSlot({
+  entry,
+  rank,
+}: {
+  entry: HallOfFameEntry;
+  rank: 1 | 2 | 3;
+}) {
+  const principal = React.useMemo(() => Principal.fromText(entry.principal), [entry.principal]);
+  const name = useDisplayName(principal);
+  const isGolden = useIsGolden(principal);
+
+  const heights = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
+  const medals = {
+    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Medal className="h-3.5 w-3.5 mc-text-gold" /> },
+    2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-3 w-3 text-gray-300" /> },
+    3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-3 w-3 text-amber-500" /> },
+  };
+  const m = medals[rank];
+  const h = heights[rank];
+
+  // Whitelisted (golden-name) takes precedence over the rank-medal text color,
+  // since the spell is specifically about flexing your name in gold.
+  const nameClass = isGolden ? 'mc-text-gold mc-glow-gold' : 'mc-text-primary';
+  const displayName = name || '…';
+
+  return (
+    <div className="flex flex-col items-center" style={{ minWidth: '90px' }}>
+      <div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5 relative`} style={{ boxShadow: m.glow }}>
+        <span className={`font-display text-sm ${isGolden ? 'mc-text-gold' : m.text}`}>{displayName.charAt(0).toUpperCase() || '?'}</span>
+        <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
+          {m.icon}
+        </div>
+      </div>
+      <span className={`text-xs font-bold truncate max-w-[80px] text-center ${nameClass}`}>{displayName}</span>
+      <span className="text-xs font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</span>
+      <div className={`${h} w-full mt-2 rounded-t-lg ${m.bg} border-t border-x ${m.border} flex items-start justify-center pt-2`}>
+        <span className={`font-display text-sm ${m.text}`}>#{rank}</span>
+      </div>
+    </div>
+  );
 }
 
 function Podium({ entries }: { entries: HallOfFameEntry[] }) {
@@ -22,37 +69,73 @@ function Podium({ entries }: { entries: HallOfFameEntry[] }) {
     ? [top3[1], top3[0]]
     : [top3[0]];
 
-  const heights = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
-  const medals = {
-    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Medal className="h-3.5 w-3.5 mc-text-gold" /> },
-    2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-3 w-3 text-gray-300" /> },
-    3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-3 w-3 text-amber-500" /> },
-  };
-
   return (
     <div className={`flex items-end justify-center gap-2 mb-6`} style={{ minHeight: '140px' }}>
-      {podiumOrder.map(entry => {
-        const rank = entry.rank as 1 | 2 | 3;
-        const m = medals[rank];
-        const h = heights[rank];
-        return (
-          <div key={entry.rank} className="flex flex-col items-center" style={{ minWidth: '90px' }}>
-            {/* Avatar initial + medal badge */}
-            <div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5 relative`} style={{ boxShadow: m.glow }}>
-              <span className={`font-display text-sm ${m.text}`}>{entry.name.charAt(0).toUpperCase()}</span>
-              <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
-                {m.icon}
-              </div>
-            </div>
-            <span className="text-xs font-bold mc-text-primary truncate max-w-[80px] text-center">{entry.name}</span>
-            <span className="text-xs font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</span>
-            {/* Podium block */}
-            <div className={`${h} w-full mt-2 rounded-t-lg ${m.bg} border-t border-x ${m.border} flex items-start justify-center pt-2`}>
-              <span className={`font-display text-sm ${m.text}`}>#{rank}</span>
-            </div>
-          </div>
-        );
-      })}
+      {podiumOrder.map(entry => (
+        <PodiumSlot key={entry.rank} entry={entry} rank={entry.rank as 1 | 2 | 3} />
+      ))}
+    </div>
+  );
+}
+
+function LeaderboardRow({
+  entry,
+  isUser,
+}: {
+  entry: HallOfFameEntry;
+  isUser: boolean;
+}) {
+  const principal = React.useMemo(() => Principal.fromText(entry.principal), [entry.principal]);
+  const name = useDisplayName(principal);
+  const isGolden = useIsGolden(principal);
+
+  const getRankStyle = (rank: number) => {
+    switch (rank) {
+      case 1: return { card: 'mc-rank-gold', icon: <Medal className="h-5 w-5 mc-text-gold" />, label: 'Gold' };
+      case 2: return { card: 'mc-rank-silver', icon: <Medal className="h-5 w-5 text-gray-300" />, label: 'Silver' };
+      case 3: return { card: 'mc-rank-bronze', icon: <Medal className="h-5 w-5 text-amber-600" />, label: 'Bronze' };
+      default: return { card: 'mc-rank-default', icon: <Medal className="h-5 w-5 mc-text-purple" />, label: `#${rank}` };
+    }
+  };
+
+  const style = getRankStyle(entry.rank);
+  const isTop3 = entry.rank <= 3;
+  const displayName = name || '…';
+  // Golden-name spell wins over the rank-based color, and over the "(you)" cyan.
+  const nameClass = isGolden
+    ? 'mc-text-gold mc-glow-gold'
+    : isUser
+      ? 'mc-text-cyan'
+      : 'mc-text-primary';
+
+  return (
+    <div
+      className={`${style.card} p-3 flex items-center justify-between transition-all ${
+        isTop3 ? 'ring-1 ring-white/10' : ''
+      } ${isUser ? 'ring-2 ring-purple-500/40' : ''}`}
+      style={isTop3 ? {
+        boxShadow: entry.rank === 1
+          ? '0 0 12px rgba(255, 215, 0, 0.15)'
+          : entry.rank === 2
+            ? '0 0 10px rgba(192, 192, 192, 0.12)'
+            : '0 0 10px rgba(205, 127, 50, 0.12)'
+      } : undefined}
+    >
+      <div className="flex items-center gap-3">
+        <span className="flex items-center">{style.icon}</span>
+        <div>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
+            isTop3 ? 'bg-white/10' : 'bg-[var(--mc-purple)]/10'
+          } mc-text-dim`}>{style.label}</span>
+          <span className={`font-bold text-sm ml-2 ${nameClass}`}>
+            {displayName}{isUser ? ' (you)' : ''}
+          </span>
+        </div>
+      </div>
+      <div className="text-right">
+        <div className="text-lg font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</div>
+        <div className="text-xs mc-text-muted">Burned</div>
+      </div>
     </div>
   );
 }
@@ -79,52 +162,6 @@ export default function HallOfFame() {
   const userPrincipal = principal || '';
   const userBurnerRank = burnersData?.findIndex(e => e.principal === userPrincipal);
   const userPoints = ponziData?.totalPoints || 0;
-
-  const getRankStyle = (rank: number) => {
-    switch (rank) {
-      case 1: return { card: 'mc-rank-gold', icon: <Medal className="h-5 w-5 mc-text-gold" />, label: 'Gold' };
-      case 2: return { card: 'mc-rank-silver', icon: <Medal className="h-5 w-5 text-gray-300" />, label: 'Silver' };
-      case 3: return { card: 'mc-rank-bronze', icon: <Medal className="h-5 w-5 text-amber-600" />, label: 'Bronze' };
-      default: return { card: 'mc-rank-default', icon: <Medal className="h-5 w-5 mc-text-purple" />, label: `#${rank}` };
-    }
-  };
-
-  const renderEntry = (entry: HallOfFameEntry) => {
-    const style = getRankStyle(entry.rank);
-    const isTop3 = entry.rank <= 3;
-    const isUser = entry.principal === userPrincipal;
-    return (
-      <div
-        key={`b-${entry.rank}`}
-        className={`${style.card} p-3 flex items-center justify-between transition-all ${
-          isTop3 ? 'ring-1 ring-white/10' : ''
-        } ${isUser ? 'ring-2 ring-purple-500/40' : ''}`}
-        style={isTop3 ? {
-          boxShadow: entry.rank === 1
-            ? '0 0 12px rgba(255, 215, 0, 0.15)'
-            : entry.rank === 2
-              ? '0 0 10px rgba(192, 192, 192, 0.12)'
-              : '0 0 10px rgba(205, 127, 50, 0.12)'
-        } : undefined}
-      >
-        <div className="flex items-center gap-3">
-          <span className="flex items-center">{style.icon}</span>
-          <div>
-            <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
-              isTop3 ? 'bg-white/10' : 'bg-[var(--mc-purple)]/10'
-            } mc-text-dim`}>{style.label}</span>
-            <span className={`font-bold text-sm ml-2 ${isUser ? 'mc-text-cyan' : 'mc-text-primary'}`}>
-              {entry.name}{isUser ? ' (you)' : ''}
-            </span>
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-lg font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</div>
-          <div className="text-xs mc-text-muted">Burned</div>
-        </div>
-      </div>
-    );
-  };
 
   if (!hasData) {
     return (
@@ -206,7 +243,15 @@ export default function HallOfFame() {
         )}
         <div className="space-y-2 max-h-96 overflow-y-auto">
           {burnersData && burnersData.length > 0
-            ? burnersData.slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0).map(renderEntry)
+            ? burnersData
+                .slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0)
+                .map(entry => (
+                  <LeaderboardRow
+                    key={`b-${entry.rank}`}
+                    entry={entry}
+                    isUser={entry.principal === userPrincipal}
+                  />
+                ))
             : <p className="text-sm mc-text-dim text-center py-4">No Diamond Tier members yet</p>}
         </div>
       </div>
