@@ -1843,6 +1843,10 @@ persistent actor Self {
         };
 
         let castId = nextShenaniganId;
+        // Reserve the castId atomically before any `await` yields. Two
+        // concurrent casts must not both read the same id and then have one
+        // overwrite the other's record (lost cast, duplicate trollbox row).
+        nextShenaniganId += 1;
 
         // Roll the outcome BEFORE burning — the cost charged depends on the
         // outcome rolled, so we have to know the outcome first. Rubber-band
@@ -1909,7 +1913,6 @@ persistent actor Self {
             };
         };
 
-        nextShenaniganId += 1;
         // Record the actual amount paid (after clamp), not the nominal
         // config cost — keeps stats and history honest about what was burned.
         let actualCostFloat = Float.fromInt(actualBurnedUnits) / Float.fromInt(PpLedger.PP_UNIT_SCALE);
