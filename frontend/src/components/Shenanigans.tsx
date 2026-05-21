@@ -522,8 +522,11 @@ export default function Shenanigans() {
         {/* Right column (desktop): Stats + Live Feed — sticky */}
         <div className="mc-shenanigans-sidebar">
           <div className="mc-card-elevated">
-            {/* Current round stats */}
-            <h3 className="font-display text-base mc-text-primary mb-4">Current Round Stats</h3>
+            {/* Per-viewer lifetime cast totals from getShenaniganStats. Despite
+                the historical "current round" framing this is NOT round-scoped
+                and NOT global — it's just the logged-in user's own running
+                tally across every cast they've ever made. */}
+            <h3 className="font-display text-base mc-text-primary mb-4">Your Track Record</h3>
             <div className="grid grid-cols-3 gap-3 mb-6">
               {[
                 { label: 'PP Spent', value: stats?.totalSpent?.toLocaleString() || '0', color: 'mc-text-cyan' },
