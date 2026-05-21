@@ -87,6 +87,20 @@ persistent actor Self {
         dealerCut : Float;
     };
 
+    /// Per-spell lifetime aggregate, keyed by spell id. Updated on every
+    /// completed cast (after the burn). Used to answer "which spells get
+    /// cast, which succeed, which never get used" without paying O(N)
+    /// to iterate the cast-history map. `totalCostPaid` is the sum of
+    /// actual burned PP-units (post-clamp), matching how
+    /// updateShenaniganStats and ppBurnedPerPlayer account.
+    public type SpellTally = {
+        totalCast : Nat;        // successes + failures + backfires
+        successes : Nat;
+        failures : Nat;
+        backfires : Nat;
+        totalCostPaidUnits : Nat;
+    };
+
     public type ShenaniganConfig = {
         id : Nat;
         name : Text;
@@ -300,6 +314,12 @@ persistent actor Self {
 
     // Spell configs — PRESERVED across migration (admin-tunable spell definitions)
     var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
+
+    // Per-spell lifetime aggregates. Keyed by spell id (0-10). Updated on
+    // every completed cast in castShenanigan. Survives upgrades since
+    // it's a regular stable variable. Initialized lazily — entries appear
+    // on first cast of a given spell.
+    var spellTallies = natMap.empty<SpellTally>();
 
     // Per-(player, spell) success cooldown expiry timestamps (ns since
     // Unix epoch). Populated when a cast lands #success; consulted by
@@ -1883,6 +1903,7 @@ persistent actor Self {
         };
 
         updateShenaniganStats(caller, actualCostFloat, outcome);
+        updateSpellTally(config.id, outcome, actualBurnedUnits);
         if (outcome == #success and config.cooldown > 0) {
             let cooldownNs : Int = Int.abs(config.cooldown) * 3600 * 1_000_000_000;
             setCooldownExpiry(caller, config.id, Time.now() + cooldownNs);
@@ -2416,6 +2437,23 @@ persistent actor Self {
             dealerCut = currentStats.dealerCut + (cost * 0.1);
         };
         shenaniganStats := principalMap.put(shenaniganStats, user, updatedStats);
+    };
+
+    /// Per-spell tally bump. Called on every completed cast (after the
+    /// burn). Lazy-initializes the entry on first cast.
+    func updateSpellTally(spellId : Nat, outcome : ShenaniganOutcome, costPaidUnits : Nat) {
+        let current : SpellTally = switch (natMap.get(spellTallies, spellId)) {
+            case (null) { { totalCast = 0; successes = 0; failures = 0; backfires = 0; totalCostPaidUnits = 0 } };
+            case (?t) { t };
+        };
+        let updated : SpellTally = {
+            totalCast = current.totalCast + 1;
+            successes = current.successes + (if (outcome == #success) 1 else 0);
+            failures = current.failures + (if (outcome == #fail) 1 else 0);
+            backfires = current.backfires + (if (outcome == #backfire) 1 else 0);
+            totalCostPaidUnits = current.totalCostPaidUnits + costPaidUnits;
+        };
+        spellTallies := natMap.put(spellTallies, spellId, updated);
     };
 
     // ================================================================
@@ -3067,6 +3105,16 @@ persistent actor Self {
         Iter.toArray(natMap.vals(shenaniganConfigs));
     };
 
+    /// Per-spell lifetime tallies. Returns one (spellId, tally) pair per
+    /// spell that's ever been cast. Spells that have never been cast
+    /// don't appear in the result — combine with getShenaniganConfigs
+    /// on the read side to enumerate the full 11-spell list with zeros
+    /// where appropriate. Use to answer "which spells get cast, which
+    /// succeed, which never get used."
+    public query func getSpellTallies() : async [(Nat, SpellTally)] {
+        Iter.toArray(natMap.entries(spellTallies));
+    };
+
     /// Per-(player, spell) live cooldowns for the spell-card UI. Returns
     /// (spellId, expiresAtNs) pairs for every spell currently on cooldown
     /// for the player. Spells not on cooldown are omitted. Frontend
@@ -3439,6 +3487,37 @@ persistent actor Self {
     // ================================================================
     // Admin Functions
     // ================================================================
+
+    /// Admin-only: rebuild spellTallies by replaying every entry in the
+    /// shenanigans cast-history map. Idempotent — zeros the map then
+    /// re-walks history. Useful for backfilling tallies after deploy so
+    /// admin gets data from day one, not just from the upgrade onward.
+    /// Returns the resulting tallies.
+    public shared ({ caller }) func adminBackfillSpellTallies() : async [(Nat, SpellTally)] {
+        requireAdmin(caller);
+        spellTallies := natMap.empty<SpellTally>();
+        for ((_, record) in natMap.entries(shenanigans)) {
+            let id : Nat = switch (record.shenaniganType) {
+                case (#moneyTrickster) { 0 };
+                case (#aoeSkim) { 1 };
+                case (#renameSpell) { 2 };
+                case (#mintTaxSiphon) { 3 };
+                case (#downlineHeist) { 4 };
+                case (#magicMirror) { 5 };
+                case (#ppBoosterAura) { 6 };
+                case (#purseCutter) { 7 };
+                case (#whaleRebalance) { 8 };
+                case (#downlineBoost) { 9 };
+                case (#goldenName) { 10 };
+            };
+            // record.cost is in whole-PP Float; convert back to units. ppToUnits
+            // takes Nat so floor — safe because the backend wrote whole-PP
+            // values into cost via Float.fromInt(units) / PP_UNIT_SCALE.
+            let costUnits = ppToUnits(Int.abs(Float.toInt(record.cost)));
+            updateSpellTally(id, record.outcome, costUnits);
+        };
+        Iter.toArray(natMap.entries(spellTallies));
+    };
 
     public shared ({ caller }) func updateShenaniganConfig(config : ShenaniganConfig) : async () {
         requireAdmin(caller);

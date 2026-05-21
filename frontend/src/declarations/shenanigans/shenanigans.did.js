@@ -1,4 +1,11 @@
 export const idlFactory = ({ IDL }) => {
+  const SpellTally = IDL.Record({
+    'failures' : IDL.Nat,
+    'successes' : IDL.Nat,
+    'backfires' : IDL.Nat,
+    'totalCast' : IDL.Nat,
+    'totalCostPaidUnits' : IDL.Nat,
+  });
   const ShenaniganType = IDL.Variant({
     'ppBoosterAura' : IDL.Null,
     'goldenName' : IDL.Null,
@@ -223,6 +230,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'adminBackfillSpellTallies' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, SpellTally))],
+        [],
+      ),
     'adminClearFlavorPool' : IDL.Func([IDL.Text], [], []),
     'adminClearReferrer' : IDL.Func(
         [IDL.Principal],
@@ -363,6 +375,11 @@ export const idlFactory = ({ IDL }) => {
     'getSpellCooldowns' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Int))],
+        ['query'],
+      ),
+    'getSpellTallies' : IDL.Func(
+        [],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, SpellTally))],
         ['query'],
       ),
     'getTopPpBurners' : IDL.Func(

@@ -193,6 +193,13 @@ export interface SignupEntry {
   'joinedAt' : bigint,
   'level' : bigint,
 }
+export interface SpellTally {
+  'failures' : bigint,
+  'successes' : bigint,
+  'backfires' : bigint,
+  'totalCast' : bigint,
+  'totalCostPaidUnits' : bigint,
+}
 export interface StandardRecord { 'url' : string, 'name' : string }
 export interface TrustedOriginsResponse { 'trusted_origins' : Array<string> }
 export interface _SERVICE {
@@ -206,6 +213,14 @@ export interface _SERVICE {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  /**
+   * / Admin-only: rebuild spellTallies by replaying every entry in the
+   * / shenanigans cast-history map. Idempotent — zeros the map then
+   * / re-walks history. Useful for backfilling tallies after deploy so
+   * / admin gets data from day one, not just from the upgrade onward.
+   * / Returns the resulting tallies.
+   */
+  'adminBackfillSpellTallies' : ActorMethod<[], Array<[bigint, SpellTally]>>,
   /**
    * / Admin-only: remove the override entirely, restoring the hardcoded default.
    */
@@ -392,6 +407,15 @@ export interface _SERVICE {
    * / computes "X minutes left" client-side.
    */
   'getSpellCooldowns' : ActorMethod<[Principal], Array<[bigint, bigint]>>,
+  /**
+   * / Per-spell lifetime tallies. Returns one (spellId, tally) pair per
+   * / spell that's ever been cast. Spells that have never been cast
+   * / don't appear in the result — combine with getShenaniganConfigs
+   * / on the read side to enumerate the full 11-spell list with zeros
+   * / where appropriate. Use to answer "which spells get cast, which
+   * / succeed, which never get used."
+   */
+  'getSpellTallies' : ActorMethod<[], Array<[bigint, SpellTally]>>,
   /**
    * / Top-N players by cumulative PP burned. Returns (principal, PP-units).
    */
