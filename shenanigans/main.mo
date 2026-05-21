@@ -2156,7 +2156,16 @@ persistent actor Self {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#ppBoosterAura) {
-                let pct = rollPct(105, 115);
+                // effectValues schema: [boostPctMin, boostPctMax]. Stored
+                // as the *boost above 100%* (e.g. [5, 15] = +5–15%) — the
+                // 100 baseline gets added here to produce the bps. Cannot
+                // backfire (100% success spell); duration window stays at
+                // the hardcoded 24h because config.duration = 0 means
+                // "rest of round" in this slot, which the runtime still
+                // approximates with a fixed 24h ceiling.
+                let boostMin = effectNatOr(config.effectValues, 0, 5);
+                let boostMax = effectNatOr(config.effectValues, 1, 15);
+                let pct = rollPct(100 + boostMin, 100 + boostMax);
                 mintMultipliers := principalMap.put(mintMultipliers, caster, {
                     multiplierBps = pct * 100;
                     expiresAt = nowTs + oneDayNs;
