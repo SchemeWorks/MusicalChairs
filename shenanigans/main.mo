@@ -2199,12 +2199,15 @@ persistent actor Self {
                 };
             };
             case (#whaleRebalance) {
+                // effectValues schema: [pct, capWholePpPerWhale].
+                let pct = effectNatOr(config.effectValues, 0, 20);
+                let cap = effectNatOr(config.effectValues, 1, 300);
                 let whales = await top3HoldersByBalance(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
                 for ((whale, bal) in whales.vals()) {
                     if (not consumeShieldIfActive(whale)) {
-                        let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                        let amount = capAt(bal * pct / 100, ppToUnits(cap));
                         if (amount > 0) {
                             switch (await chipTransfer(whale, caster, amount, memo)) {
                                 case (#Ok(_)) {
@@ -2394,6 +2397,8 @@ persistent actor Self {
                 };
             };
             case (#whaleRebalance) {
+                let pct = effectNatOr(config.effectValues, 0, 20);
+                let cap = effectNatOr(config.effectValues, 1, 300);
                 let whales = await top3HoldersByBalance(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
@@ -2401,10 +2406,10 @@ persistent actor Self {
                     // Re-read caster balance per iteration so successive
                     // payouts are bounded by what's actually left, not the
                     // initial snapshot. With three whales and stale balance
-                    // a caster could lose up to 60%; per-iteration caps it
-                    // at ~49% (0.2 + 0.16 + 0.128).
+                    // a caster could lose up to 3*pct%; per-iteration caps
+                    // it via the compound floor (at pct=20 → ~49%).
                     let liveBal = await getChipBalance(caster);
-                    let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
+                    let amount = capAt(liveBal * pct / 100, ppToUnits(cap));
                     if (amount > 0) {
                         switch (await chipTransfer(caster, whale, amount, memo)) {
                             case (#Ok(_)) {
