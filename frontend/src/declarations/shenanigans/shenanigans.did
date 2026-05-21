@@ -71,6 +71,7 @@ type ShenaniganOutcome =
  };
 type ShenaniganConfig = 
  record {
+   backfireDescription: opt text;
    backfireOdds: nat;
    backgroundColor: text;
    castLimit: nat;
