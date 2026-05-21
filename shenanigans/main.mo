@@ -21,6 +21,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -28,6 +29,10 @@ import Icrc21 "icrc21";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
+// V5 migration: adds optional backfireDescription field to ShenaniganConfig.
+// Remove this attachment in a follow-up commit after the upgrade has been
+// deployed to mainnet (same pattern as V4 — see PR #78).
+(with migration = Migration.runV5)
 persistent actor Self {
 
     // ================================================================
