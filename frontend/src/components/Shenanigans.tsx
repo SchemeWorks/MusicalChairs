@@ -641,14 +641,6 @@ export default function Shenanigans() {
                 const target = outcomeToast.targetPrincipalText
                   ? <OutcomeTargetName principalText={outcomeToast.targetPrincipalText} />
                   : 'them';
-                // Look up the live spell config for templating numbers
-                // (effectValues / durationHours) into outcome copy. Falls
-                // back to a hardcoded effectValues array if the config
-                // isn't yet loaded — toast won't render zeros, just
-                // skipped placeholders.
-                const spell = availableShenanigans.find(s => s.id === id);
-                const ev = spell?.effectValues ?? [];
-                const durH = spell?.durationHours ?? 0;
                 // Per-spell IDs (mirror shenaniganTypes array order in main.mo):
                 // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
                 // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
@@ -661,7 +653,7 @@ export default function Shenanigans() {
                   // Spells with no PP delta — explain what actually happened.
                   switch (id) {
                     case 3: // mintTaxSiphon
-                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">{target} is now siphoned. {renderTemplate("You'll skim {0}% of their next {1} PP minted (over {dur_d} days).", ev, durH)}</p>;
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">{target} is now siphoned. You'll skim 5% of their next 1000 PP minted (over 7 days).</p>;
                       return <p className="text-xs mc-text-green mb-3">{target} was shielded. No siphon.</p>;
                     case 4: // downlineHeist
                       if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole a downline member from {target}.</p>;
@@ -674,7 +666,7 @@ export default function Shenanigans() {
                       if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Burned {target}'s PP.</p>;
                       return <p className="text-xs mc-text-green mb-3">{target} was shielded. Purse intact.</p>;
                     case 9: // downlineBoost
-                      return <p className="text-xs mc-text-green mb-3">{renderTemplate("Your referral cascade pays {0}× for the rest of the round.", ev, durH)}</p>;
+                      return <p className="text-xs mc-text-green mb-3">Your referral cascade pays 1.3× for the rest of the round.</p>;
                     case 10: // goldenName
                       return <p className="text-xs mc-text-green mb-3">You're golden — name glows on the leaderboard.</p>;
                     case 0: // moneyTrickster — no theft, shielded target (success path)
@@ -695,9 +687,9 @@ export default function Shenanigans() {
                   // State-change backfires with no PP delta — name them.
                   switch (id) {
                     case 2: // renameSpell backfire — caster gets renamed
-                      return <p className="text-xs mc-text-purple mb-3">{renderTemplate("You got renamed for {0} days.", ev, durH)}</p>;
+                      return <p className="text-xs mc-text-purple mb-3">You got renamed for 7 days.</p>;
                     case 3: // mintTaxSiphon backfire — target becomes the siphoner
-                      return <p className="text-xs mc-text-purple mb-3">{target} {renderTemplate("now siphons {0}% of YOUR mints for 3 days.", ev, durH)}</p>;
+                      return <p className="text-xs mc-text-purple mb-3">{target} now siphons 5% of YOUR mints for 3 days.</p>;
                     case 4: // downlineHeist backfire — caster loses a downline
                       if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} stole a downline member from you.</p>;
                       return <p className="text-xs mc-text-purple mb-3">Backfired — but you had no downline to lose.</p>;
