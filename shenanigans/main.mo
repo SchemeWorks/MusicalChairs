@@ -21,7 +21,6 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
-import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -29,11 +28,6 @@ import Migration "migration";
 // migration to keep that scope tight. See
 // docs/superpowers/specs/2026-05-11-ponzi-math-extraction-design.md.
 
-// V4 migration: splits ShenaniganConfig.cost into costSuccess/costFailure/
-// costBackfire. Maps each old single value to all three new fields. Remove
-// the (with migration = ...) attachment after the V4 upgrade has been
-// deployed to mainnet (any redeploy after that will fresh-install seed).
-(with migration = Migration.runV4)
 persistent actor Self {
 
     // ================================================================
