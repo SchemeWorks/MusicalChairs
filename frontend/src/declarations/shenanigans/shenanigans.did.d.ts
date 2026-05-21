@@ -386,6 +386,13 @@ export interface _SERVICE {
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
   'getShenaniganStats' : ActorMethod<[], ShenaniganStats>,
   /**
+   * / Per-(player, spell) live cooldowns for the spell-card UI. Returns
+   * / (spellId, expiresAtNs) pairs for every spell currently on cooldown
+   * / for the player. Spells not on cooldown are omitted. Frontend
+   * / computes "X minutes left" client-side.
+   */
+  'getSpellCooldowns' : ActorMethod<[Principal], Array<[bigint, bigint]>>,
+  /**
    * / Top-N players by cumulative PP burned. Returns (principal, PP-units).
    */
   'getTopPpBurners' : ActorMethod<[bigint], Array<[Principal, bigint]>>,

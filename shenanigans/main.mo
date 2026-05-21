@@ -301,6 +301,14 @@ persistent actor Self {
     // Spell configs — PRESERVED across migration (admin-tunable spell definitions)
     var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
 
+    // Per-(player, spell) success cooldown expiry timestamps (ns since
+    // Unix epoch). Populated when a cast lands #success; consulted by
+    // castShenanigan as a pre-cast gate. Failures and backfires DO NOT
+    // populate this map — the design is "keep pulling the lever until
+    // success, then you're locked out for cooldown hours." Entries are
+    // lazily pruned in setCooldownExpiry after expiry — no background sweep.
+    var spellCooldowns = principalMap.empty<[(Nat, Int)]>();
+
     // Spell cast history — reset at migration; bounded to last 500 entries
     var shenanigans = natMap.empty<ShenaniganRecord>();
     var shenaniganStats = principalMap.empty<ShenaniganStats>();
@@ -1237,23 +1245,24 @@ persistent actor Self {
     // ================================================================
 
     func initializeDefaultShenanigans() {
-        // Defaults reproduce the legacy single-cost behavior: all three
-        // outcome costs are set equal to the previous single value. Admin
-        // tunes per-outcome from the admin panel. The per-outcome split is
-        // what makes the "aggressive spell, free on success" pattern
-        // possible (set costSuccess = 0 in admin and leave the rest).
+        // Engagement-tier defaults: cost is a chip-clipping admission, not
+        // an economic stake. All three outcome costs equal — admin keeps
+        // the per-outcome power-tool but defaults don't lean on it. The
+        // load-bearing gate is `cooldown` (in hours), enforced ONLY on
+        // success: failures and backfires let the player keep pulling the
+        // lever. Success → locked out of that spell for cooldown hours.
         let defaultConfigs : [ShenaniganConfig] = [
-            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; costSuccess = 120.0; costFailure = 120.0; costBackfire = 120.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
-            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; costSuccess = 600.0; costFailure = 600.0; costBackfire = 600.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
-            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; costSuccess = 200.0; costFailure = 200.0; costBackfire = 200.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 0; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
-            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; costSuccess = 1200.0; costFailure = 1200.0; costBackfire = 1200.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 0; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
-            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; costSuccess = 500.0; costFailure = 500.0; costBackfire = 500.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 0; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
-            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; costSuccess = 200.0; costFailure = 200.0; costBackfire = 200.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
-            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; costSuccess = 300.0; costFailure = 300.0; costBackfire = 300.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
-            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; costSuccess = 900.0; costFailure = 900.0; costBackfire = 900.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 0; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
-            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; costSuccess = 800.0; costFailure = 800.0; costBackfire = 800.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 0; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
-            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; costSuccess = 400.0; costFailure = 400.0; costBackfire = 400.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 0; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
-            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard (24h or 7d) \u{2014} the only clout that matters."; costSuccess = 100.0; costFailure = 100.0; costBackfire = 100.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 0; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
+            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
+            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
+            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 24; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
+            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 24; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
+            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 8; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
+            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 6; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
+            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
+            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 8; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
+            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
+            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
+            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard (24h or 7d) \u{2014} the only clout that matters."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -1752,6 +1761,17 @@ persistent actor Self {
             case (null) { Debug.trap("Unknown shenanigan type") };
             case (?c) { c };
         };
+
+        // Cooldown gate: a successful cast locks the player out of this
+        // spell for config.cooldown hours. Failures and backfires don't
+        // lock — slot-machine "keep pulling the lever until you hit."
+        // cooldown == 0 in config means no lockout ever.
+        let cooldownExpiry = getCooldownExpiry(caller, config.id);
+        if (cooldownExpiry > Time.now()) {
+            let secondsLeft = (cooldownExpiry - Time.now()) / 1_000_000_000;
+            Debug.trap("On cooldown — try again in " # Int.toText(secondsLeft) # "s");
+        };
+
         let costSuccessUnits = ppToUnits(Int.abs(Float.toInt(config.costSuccess)));
         let costFailureUnits = ppToUnits(Int.abs(Float.toInt(config.costFailure)));
         let costBackfireUnits = ppToUnits(Int.abs(Float.toInt(config.costBackfire)));
@@ -1863,6 +1883,11 @@ persistent actor Self {
         };
 
         updateShenaniganStats(caller, actualCostFloat, outcome);
+        if (outcome == #success and config.cooldown > 0) {
+            let cooldownNs : Int = Int.abs(config.cooldown) * 3600 * 1_000_000_000;
+            setCooldownExpiry(caller, config.id, Time.now() + cooldownNs);
+        };
+
         if (outcome == #success or outcome == #backfire) {
             let prior = switch (principalMap.get(spellsCastPerPlayer, caller)) {
                 case (null) { 0 };
@@ -2316,6 +2341,44 @@ persistent actor Self {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
         };
+    };
+
+    /// Return the cooldown expiry timestamp (ns since epoch) for
+    /// (player, spell), or 0 if no live cooldown is recorded. 0 is a
+    /// safe sentinel because real cooldowns are always in the future
+    /// relative to Time.now().
+    func getCooldownExpiry(player : Principal, spellId : Nat) : Int {
+        let entries = switch (principalMap.get(spellCooldowns, player)) {
+            case (null) { return 0 };
+            case (?xs) { xs };
+        };
+        for ((id, expires) in entries.vals()) {
+            if (id == spellId) { return expires };
+        };
+        0;
+    };
+
+    /// Replace (or add) the cooldown expiry for (player, spell). Prunes
+    /// expired entries for OTHER spells while we're traversing — keeps
+    /// the per-player array bounded as cooldowns lapse.
+    func setCooldownExpiry(player : Principal, spellId : Nat, expiresAt : Int) {
+        let now = Time.now();
+        let prior = switch (principalMap.get(spellCooldowns, player)) {
+            case (null) { [] };
+            case (?xs) { xs };
+        };
+        let buf = Buffer.Buffer<(Nat, Int)>(prior.size() + 1);
+        var replaced = false;
+        for ((id, expires) in prior.vals()) {
+            if (id == spellId) {
+                buf.add((id, expiresAt));
+                replaced := true;
+            } else if (expires > now) {
+                buf.add((id, expires));
+            };
+        };
+        if (not replaced) { buf.add((spellId, expiresAt)) };
+        spellCooldowns := principalMap.put(spellCooldowns, player, Buffer.toArray(buf));
     };
 
     func getConfigForType(t : ShenaniganType) : ?ShenaniganConfig {
@@ -3002,6 +3065,18 @@ persistent actor Self {
 
     public query func getShenaniganConfigs() : async [ShenaniganConfig] {
         Iter.toArray(natMap.vals(shenaniganConfigs));
+    };
+
+    /// Per-(player, spell) live cooldowns for the spell-card UI. Returns
+    /// (spellId, expiresAtNs) pairs for every spell currently on cooldown
+    /// for the player. Spells not on cooldown are omitted. Frontend
+    /// computes "X minutes left" client-side.
+    public query func getSpellCooldowns(player : Principal) : async [(Nat, Int)] {
+        let now = Time.now();
+        switch (principalMap.get(spellCooldowns, player)) {
+            case (null) { [] };
+            case (?xs) { Array.filter<(Nat, Int)>(xs, func((_, expires)) = expires > now) };
+        };
     };
 
     /// All active spell effects on `user`. Expired entries are filtered

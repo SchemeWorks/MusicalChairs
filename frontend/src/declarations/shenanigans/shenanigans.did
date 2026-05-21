@@ -395,6 +395,14 @@ service : {
   getReferrer: (user: principal) -> (opt principal) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
   getShenaniganStats: () -> (ShenaniganStats) query;
+  /// Per-(player, spell) live cooldowns for the spell-card UI. Returns
+  /// (spellId, expiresAtNs) pairs for every spell currently on cooldown
+  /// for the player. Spells not on cooldown are omitted. Frontend
+  /// computes "X minutes left" client-side.
+  getSpellCooldowns: (player: principal) -> (vec record {
+                                                   nat;
+                                                   int;
+                                                 }) query;
   /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
   getTopPpBurners: (limit: nat) -> (vec record {
                                           principal;

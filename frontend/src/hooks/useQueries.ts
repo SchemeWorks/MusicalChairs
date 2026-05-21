@@ -798,6 +798,24 @@ export function useGetShenaniganConfigs() {
   });
 }
 
+/// Per-(player, spell) live cooldowns. Returns (spellId, expiresAtNs)
+/// pairs for spells the player is currently locked out of. Refreshes
+/// every 30s so the card UI shows a roughly-current countdown without
+/// over-polling.
+export function useGetSpellCooldowns() {
+  const actor = useReadShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery<Array<[bigint, bigint]>>({
+    queryKey: ['spellCooldowns', principal],
+    queryFn: async () => {
+      if (!actor || !principal) return [];
+      return await actor.getSpellCooldowns(Principal.fromText(principal));
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useUpdateShenaniganConfig() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();

@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns } from '../hooks/useQueries';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -133,7 +134,9 @@ export default function Shenanigans() {
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
+  const { data: cooldownsRaw } = useGetSpellCooldowns();
   const castShenanigan = useCastShenanigan();
+  const queryClient = useQueryClient();
   const successFlavor = useSpellFlavorPool('spellFlavor.success');
   const failFlavor = useSpellFlavorPool('spellFlavor.fail');
   const backfireFlavor = useSpellFlavorPool('spellFlavor.backfire');
@@ -187,23 +190,22 @@ export default function Shenanigans() {
     }
   }, [backendConfigs]);
 
-  // Listen for admin panel live updates
-  useEffect(() => {
-    const handler = (event: CustomEvent) => {
-      const u = event.detail;
-      setAvailableShenanigans(prev => prev.map(s => {
-        if (shenaniganTypes.indexOf(s.type) === u.id) {
-          return { ...s, name: u.name, icon: u.icon,
-            costSuccess: u.costSuccess, costFailure: u.costFailure, costBackfire: u.costBackfire,
-            description: u.description,
-            odds: { success: u.successOdds, fail: u.failOdds, backfire: u.backfireOdds }, effects: u.effectValues };
-        }
-        return s;
-      }));
-    };
-    window.addEventListener('shenaniganUpdated', handler as EventListener);
-    return () => window.removeEventListener('shenaniganUpdated', handler as EventListener);
-  }, []);
+  // Admin-panel saves flow through React Query invalidation in the mutation
+  // hooks → useGetShenaniganConfigs refetches → the useEffect above rebuilds
+  // availableShenanigans with the fresh data. No CustomEvent shuttle needed
+  // (the previous version overwrote unlisted fields with undefined, which
+  // would have broken any new schema field added later).
+
+  // Map spell id → expiry timestamp (ms since epoch). Spells not on
+  // cooldown are absent. Memoized so card render doesn't churn on
+  // unrelated state updates.
+  const cooldownExpiresAt = useMemo(() => {
+    const m = new Map<number, number>();
+    (cooldownsRaw ?? []).forEach(([id, expiresNs]) => {
+      m.set(Number(id), Number(expiresNs) / 1_000_000); // ns → ms
+    });
+    return m;
+  }, [cooldownsRaw]);
 
   const handleCastClick = (
     id: number,
@@ -258,6 +260,12 @@ export default function Shenanigans() {
     try {
       const detail = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
       const outcome = variantKey(detail.outcome);
+      // A success just set a cooldown on the backend — refresh the
+      // cooldown query so the spell card flips to "Cooldown — Xm" without
+      // waiting for the 30s poll.
+      if (outcome === 'success') {
+        queryClient.invalidateQueries({ queryKey: ['spellCooldowns'] });
+      }
       setTimeout(() => {
         const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
         const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
@@ -376,7 +384,10 @@ export default function Shenanigans() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mc-stagger">
               {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
                 const trickKey = variantKey(trick.type);
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey;
+                const cooldownExpiresMs = cooldownExpiresAt.get(trick.id) ?? 0;
+                const onCooldown = cooldownExpiresMs > Date.now();
+                const minutesLeft = onCooldown ? Math.ceil((cooldownExpiresMs - Date.now()) / 60_000) : 0;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown;
                 return (
                   <div
                     key={`shenanigan-${idx}`}
@@ -447,7 +458,9 @@ export default function Shenanigans() {
                     >
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
-                      ) : userPoints < trick.costSuccess ? `Need ${trick.costSuccess} PP` : `Cast (${trick.costSuccess} PP)`}
+                      ) : onCooldown ? `Cooldown — ${minutesLeft}m`
+                        : userPoints < trick.costSuccess ? `Need ${trick.costSuccess} PP`
+                        : `Cast (${trick.costSuccess} PP)`}
                     </button>
                   </div>
                 );
@@ -457,7 +470,10 @@ export default function Shenanigans() {
             <div className="divide-y mc-border-subtle">
               {availableShenanigans.filter((_, idx) => filterCategory === 'all' || getShenaniganCategory(idx) === filterCategory).map((trick, idx) => {
                 const trickKey = variantKey(trick.type);
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey;
+                const cooldownExpiresMs = cooldownExpiresAt.get(trick.id) ?? 0;
+                const onCooldown = cooldownExpiresMs > Date.now();
+                const minutesLeft = onCooldown ? Math.ceil((cooldownExpiresMs - Date.now()) / 60_000) : 0;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown;
                 return (
                   <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
                     <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
@@ -474,7 +490,7 @@ export default function Shenanigans() {
                     >
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-1">🎲</span>Casting…</>
-                      ) : 'Cast'}
+                      ) : onCooldown ? `${minutesLeft}m` : 'Cast'}
                     </button>
                   </div>
                 );
@@ -504,16 +520,12 @@ export default function Shenanigans() {
                 <span><strong className="mc-text-primary">PP & Cosmetics Only</strong> — Never affects ICP, pot, backer selection, or payout math</span>
               </div>
               <div className="flex items-start gap-2">
-                <Shield className="h-3 w-3 mc-text-green mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Zero Floor</strong> — No player goes below 0 PP</span>
-              </div>
-              <div className="flex items-start gap-2">
                 <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Cooldowns</strong> — 2-min global cooldown, 3-min per-target cooldown</span>
+                <span><strong className="mc-text-primary">Cooldowns</strong> — A successful cast locks that spell out for hours. Failures and backfires? Try again immediately.</span>
               </div>
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-3 w-3 mc-text-gold mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">No Refunds</strong> — All shenanigans are final</span>
+                <span><strong className="mc-text-primary">No Refunds</strong> — Every cast burns PP, win or lose.</span>
               </div>
             </div>
           </div>
@@ -524,12 +536,11 @@ export default function Shenanigans() {
           <div className="mc-card-elevated">
             {/* Current round stats */}
             <h3 className="font-display text-base mc-text-primary mb-4">Current Round Stats</h3>
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-3 gap-3 mb-6">
               {[
                 { label: 'PP Spent', value: stats?.totalSpent?.toLocaleString() || '0', color: 'mc-text-cyan' },
                 { label: 'Total Cast', value: stats?.totalCast?.toString() || '0', color: 'mc-text-green' },
                 { label: 'Outcomes', value: `${stats?.goodOutcomes || 0}/${stats?.badOutcomes || 0}/${stats?.backfires || 0}`, sub: 'good/bad/backfire', color: 'mc-text-purple' },
-                { label: 'VC Royalties', value: stats?.dealerCut?.toLocaleString() || '0', color: 'mc-text-gold' },
               ].map(s => (
                 <div key={s.label} className="mc-card p-3 text-center">
                   <div className="mc-label mb-1">{s.label}</div>
