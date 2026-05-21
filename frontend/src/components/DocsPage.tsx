@@ -17,6 +17,7 @@ import {
   pct, pctPrecise, fmt,
 } from '../lib/gameConstants';
 import { useGetMintConfig, useGetShenaniganConfigs } from '../hooks/useQueries';
+import { renderTemplate } from '../lib/renderTemplate';
 import type { MintConfig, ShenaniganConfig } from '../declarations/shenanigans/shenanigans.did';
 
 interface DocSection {
@@ -98,9 +99,15 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
   };
   // Name + description pulled live so admin edits land here too (cards
   // already use the live config). Fallbacks render during the brief
-  // window between mount and the first query response.
+  // window between mount and the first query response. Descriptions
+  // run through renderTemplate so {0}, {1}, {dur_d}, etc. substitute
+  // against effectValues + duration.
   const shName = (id: number, fallback: string) => sh(id)?.name ?? fallback;
-  const shDesc = (id: number, fallback: string) => sh(id)?.description ?? fallback;
+  const shDesc = (id: number, fallback: string) => {
+    const cfg = sh(id);
+    if (!cfg) return fallback;
+    return renderTemplate(cfg.description, cfg.effectValues, Number(cfg.duration));
+  };
   const ppCost = (id: number, fallback: number) => `${fmt(Math.round(shCost(id, fallback)))} PP`;
   const ppOdds = (id: number, fallback: number) => `${shOdds(id, fallback)}%`;
 
@@ -300,9 +307,9 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <DocTable
           headers={['Shenanigan', 'Cost', 'Effect', 'Success']}
           rows={[
-            [shName(0, 'MEV Attack'), ppCost(0, 10), shDesc(0, "Sandwich-attacks the target for 2–8% of their Ponzi Points (max 250 PP)."), ppOdds(0, 60)],
+            [shName(0, 'MEV Attack'), ppCost(0, 10), shDesc(0, 'Sandwich-attacks the target for 2–8% of their Ponzi Points (max 250 PP).'), ppOdds(0, 60)],
             [shName(1, 'Contagion'), ppCost(1, 20), shDesc(1, 'Losses get socialized — every player surrenders 1–3% (max 60 PP each).'), ppOdds(1, 40)],
-            [shName(3, 'Trailing Commission'), ppCost(3, 15), shDesc(3, "Skims 5% of target's new PP for 7 days (max 1000 PP)."), ppOdds(3, 70)],
+            [shName(3, 'Trailing Commission'), ppCost(3, 15), shDesc(3, 'Skims 5% of target\'s new PP for 7 days (max 1000 PP).'), ppOdds(3, 70)],
             [shName(4, 'Crossline Poach'), ppCost(4, 15), shDesc(4, 'Poach one member from target\'s downline (favors L3).'), ppOdds(4, 30)],
             [shName(7, 'Bridge Exploit'), ppCost(7, 15), shDesc(7, 'Target loses 25–50% of their PP (max 800 PP).'), ppOdds(7, 20)],
             [shName(8, 'Wealth Tax'), ppCost(8, 20), shDesc(8, 'A socialist mayor takes office — 20% from the top 3 PP holders (max 300 PP/whale).'), ppOdds(8, 50)],

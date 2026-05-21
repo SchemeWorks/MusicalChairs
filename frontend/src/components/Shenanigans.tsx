@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns } from '../hooks/useQueries';
+import { renderTemplate } from '../lib/renderTemplate';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -24,6 +25,12 @@ interface ShenaniganConfig {
   costFailure: number;
   costBackfire: number;
   description: string;
+  /// Admin-editable backfire copy (templated). Null = use hardcoded fallback.
+  backfireDescription: string | null;
+  /// Raw effect values used by the templater (numeric percentages, caps, etc.).
+  effectValues: number[];
+  /// Duration in hours for templating {dur_h}/{dur_d} placeholders.
+  durationHours: number;
   odds: { success: number; fail: number; backfire: number };
   effects: string;
   auraColor: string;
@@ -183,6 +190,9 @@ export default function Shenanigans() {
           costFailure: config.costFailure,
           costBackfire: config.costBackfire,
           description: config.description,
+          backfireDescription: config.backfireDescription.length > 0 ? (config.backfireDescription[0] ?? null) : null,
+          effectValues: config.effectValues,
+          durationHours: Number(config.duration),
           odds: { success: Number(config.successOdds), fail: Number(config.failureOdds), backfire: Number(config.backfireOdds) },
           effects: config.effectValues.join(', '), auraColor: auraColors[id] || auraColors[0],
         };
@@ -420,15 +430,20 @@ export default function Shenanigans() {
                       </span>
                     </div>
 
-                    {/* Description */}
-                    <p className="text-xs mc-text-dim leading-relaxed mb-3">{trick.description}</p>
+                    {/* Description (rendered through templater so admin
+                        edits to effectValues flow into the copy). */}
+                    <p className="text-xs mc-text-dim leading-relaxed mb-3">
+                      {renderTemplate(trick.description, trick.effectValues, trick.durationHours)}
+                    </p>
 
                     {/* Mechanical effect */}
                     <div className="text-xs mc-text-muted mt-1 italic mb-1">
                       Effect: {trick.effects || 'see docs'}
                     </div>
                     <div className="text-xs mc-text-danger/80 italic mb-3">
-                      Backfire: {backfireDescriptions[trick.id] ?? 'see docs'}
+                      Backfire: {trick.backfireDescription
+                        ? renderTemplate(trick.backfireDescription, trick.effectValues, trick.durationHours)
+                        : (backfireDescriptions[trick.id] ?? 'see docs')}
                     </div>
 
                     {/* Odds bar */}
@@ -651,7 +666,7 @@ export default function Shenanigans() {
                       if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Burned {target}'s PP.</p>;
                       return <p className="text-xs mc-text-green mb-3">{target} was shielded. Purse intact.</p>;
                     case 9: // downlineBoost
-                      return <p className="text-xs mc-text-green mb-3">Your referral cascade pays 1.3× for 24 hours.</p>;
+                      return <p className="text-xs mc-text-green mb-3">Your referral cascade pays 1.3× for the rest of the round.</p>;
                     case 10: // goldenName
                       return <p className="text-xs mc-text-green mb-3">You're golden — name glows on the leaderboard.</p>;
                     case 0: // moneyTrickster — no theft, shielded target (success path)

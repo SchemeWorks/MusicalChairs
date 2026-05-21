@@ -149,6 +149,7 @@ export const idlFactory = ({ IDL }) => {
     'backgroundColor' : IDL.Text,
     'duration' : IDL.Nat,
     'costBackfire' : IDL.Float64,
+    'backfireDescription' : IDL.Opt(IDL.Text),
     'successOdds' : IDL.Nat,
     'name' : IDL.Text,
     'backfireOdds' : IDL.Nat,

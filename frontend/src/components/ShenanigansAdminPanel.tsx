@@ -41,6 +41,10 @@ interface ShenaniganConfig {
   id: number;
   name: string;
   description: string;
+  /// Null = frontend falls back to hardcoded backfire flavor map.
+  /// Set a string here to override + admin-control the backfire copy.
+  /// Supports {0}, {1}, ... placeholders against effectValues.
+  backfireDescription: string | null;
   costSuccess: number;
   costFailure: number;
   costBackfire: number;
@@ -129,6 +133,7 @@ export default function ShenanigansAdminPanel() {
         id: Number(config.id),
         name: config.name,
         description: config.description,
+        backfireDescription: config.backfireDescription.length > 0 ? (config.backfireDescription[0] ?? null) : null,
         costSuccess: config.costSuccess,
         costFailure: config.costFailure,
         costBackfire: config.costBackfire,
@@ -165,6 +170,7 @@ export default function ShenanigansAdminPanel() {
       await updateConfig.mutateAsync({
         id: BigInt(selectedShenanigan.id), name: selectedShenanigan.name,
         description: selectedShenanigan.description,
+        backfireDescription: selectedShenanigan.backfireDescription ? [selectedShenanigan.backfireDescription] : [],
         costSuccess: selectedShenanigan.costSuccess,
         costFailure: selectedShenanigan.costFailure,
         costBackfire: selectedShenanigan.costBackfire,
@@ -207,6 +213,7 @@ export default function ShenanigansAdminPanel() {
     try {
       await saveAllConfigs.mutateAsync(shenanigans.map(shen => ({
         id: BigInt(shen.id), name: shen.name, description: shen.description,
+        backfireDescription: shen.backfireDescription ? [shen.backfireDescription] as [string] : [] as [],
         costSuccess: shen.costSuccess, costFailure: shen.costFailure, costBackfire: shen.costBackfire,
         successOdds: BigInt(shen.successOdds), failureOdds: BigInt(shen.failureOdds),
         backfireOdds: BigInt(shen.backfireOdds), duration: BigInt(shen.duration),
@@ -352,7 +359,15 @@ export default function ShenanigansAdminPanel() {
                 </div>
 
                 <AdminInput label="Description" value={selectedShenanigan.description}
-                  onChange={v => updateField('description', v)} rows={2} />
+                  onChange={v => updateField('description', v)} rows={2}
+                  hint="Supports {0}, {1}, ... placeholders against Effect Values, plus {dur_h} and {dur_d}. Card + docs render through the templater." />
+
+                <AdminInput
+                  label="Backfire Description"
+                  value={selectedShenanigan.backfireDescription ?? ''}
+                  onChange={v => updateField('backfireDescription', v.length === 0 ? null : v)}
+                  rows={2}
+                  hint="Shown on the card's backfire line. Leave blank to fall back to the hardcoded default for this spell. Same placeholders as Description." />
 
                 {/* Per-outcome cost block. Pre-cast gate is costSuccess (the
                     minimum the caster commits to paying). If the rolled

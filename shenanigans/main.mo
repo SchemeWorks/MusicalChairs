@@ -105,6 +105,14 @@ persistent actor Self {
         id : Nat;
         name : Text;
         description : Text;
+        // Optional admin-editable backfire-side blurb. When non-null, the
+        // frontend renders this instead of the hardcoded backfire flavor
+        // map. Both `description` and `backfireDescription` support {0},
+        // {1}, ... placeholders against `effectValues` and {dur_h}/{dur_d}
+        // placeholders against `duration`. Null leaves the frontend on
+        // its hardcoded fallback for that spell. Optional avoids a stable
+        // migration on existing canisters.
+        backfireDescription : ?Text;
         costSuccess : Float;
         costFailure : Float;
         costBackfire : Float;
@@ -1271,18 +1279,30 @@ persistent actor Self {
         // load-bearing gate is `cooldown` (in hours), enforced ONLY on
         // success: failures and backfires let the player keep pulling the
         // lever. Success → locked out of that spell for cooldown hours.
+        // Defaults are literal text (no {N} placeholders) because the
+        // backend currently HARDCODES all spell mechanics — effectValues
+        // and duration in config are display-only metadata that the
+        // success/backfire handlers ignore. Templating against
+        // effectValues would let admin edit the *description* without
+        // changing the *mechanic*, which is misleading.
+        //
+        // The renderTemplate helper + backfireDescription field still
+        // exist for the future state where backend reads from config.
+        // Admin can opt-in to templating in the meantime by editing
+        // descriptions with {N} placeholders — but right now the result
+        // would be "description claims X, mechanic does Y."
         let defaultConfigs : [ShenaniganConfig] = [
-            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
-            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
-            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 24; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
-            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 24; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
-            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 8; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
-            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 6; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
-            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
-            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 8; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
-            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
-            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
-            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard (24h or 7d) \u{2014} the only clout that matters."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
+            { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; backfireDescription = ?"You pay the target 2\u{2013}8% of your PP (max 250)."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
+            { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; backfireDescription = ?"You burn 1\u{2013}3% of your own PP."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
+            { id = 2; name = "Cease & Desist"; description = "Target is forced to change their display name for 7 days."; backfireDescription = ?"You get renamed for 7 days."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 90; failureOdds = 5; backfireOdds = 5; duration = 168; cooldown = 24; effectValues = [7.0]; castLimit = 0; backgroundColor = "#ffe6f7" },
+            { id = 3; name = "Trailing Commission"; description = "Skims 5% of target's new PP for 7 days (max 1000 PP)."; backfireDescription = ?"The target siphons 5% of YOUR mints for 3 days (cap 1000 PP)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 168; cooldown = 24; effectValues = [5.0, 1000.0]; castLimit = 0; backgroundColor = "#f3e6ff" },
+            { id = 4; name = "Crossline Poach"; description = "Poach one member from target's downline (favors L3)."; backfireDescription = ?"You lose your deepest downline to the target."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 30; failureOdds = 60; backfireOdds = 10; duration = 0; cooldown = 8; effectValues = []; castLimit = 1; backgroundColor = "#e6fff2" },
+            { id = 5; name = "Poison Pill"; description = "Defensive measure \u{2014} blocks one hostile shenanigan."; backfireDescription = ?"Cannot backfire."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 6; effectValues = []; castLimit = 2; backgroundColor = "#fff4e6" },
+            { id = 6; name = "Yield Boost"; description = "Earn +5\u{2013}15% additional PP for the rest of the round."; backfireDescription = ?"Cannot backfire."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [5.0, 15.0]; castLimit = 1; backgroundColor = "#e6f2ff" },
+            { id = 7; name = "Bridge Exploit"; description = "Target loses 25\u{2013}50% of their PP (max 800 PP)."; backfireDescription = ?"You burn 25\u{2013}50% of your own PP (max 800)."; costSuccess = 15.0; costFailure = 15.0; costBackfire = 15.0; successOdds = 20; failureOdds = 50; backfireOdds = 30; duration = 0; cooldown = 8; effectValues = [25.0, 50.0, 800.0]; castLimit = 0; backgroundColor = "#ffe6e6" },
+            { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; backfireDescription = ?"You pay each of the top 3 whales (caps at ~49% loss)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
+            { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; backfireDescription = ?"Cannot backfire."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
+            { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard for 24 hours \u{2014} the only clout that matters."; backfireDescription = ?"Cannot backfire."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);

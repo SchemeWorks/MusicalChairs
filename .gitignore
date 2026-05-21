@@ -37,3 +37,7 @@ coverage/
 
 # Per-session debug snapshots from .claude/mc-snapshot.sh
 .claude/snapshots/
+
+# Claude worktrees (each is its own git checkout — never commit as a submodule)
+.claude/worktrees/
+.claire/

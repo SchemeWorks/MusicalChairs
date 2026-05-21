@@ -136,6 +136,7 @@ export interface ShenaniganConfig {
   'backgroundColor' : string,
   'duration' : bigint,
   'costBackfire' : number,
+  'backfireDescription' : [] | [string],
   'successOdds' : bigint,
   'name' : string,
   'backfireOdds' : bigint,
