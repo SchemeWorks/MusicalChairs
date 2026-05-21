@@ -208,7 +208,11 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
 
   const handleSaveName = async () => {
     if (newName.trim() && newName.trim() !== userName) {
-      try { await saveProfileMutation.mutateAsync({ name: newName.trim() }); setIsEditingName(false); }
+      try {
+        await saveProfileMutation.mutateAsync({ name: newName.trim() });
+        await queryClient.invalidateQueries({ queryKey: ['currentUserProfile'] });
+        setIsEditingName(false);
+      }
       catch (e) { console.error('Name save failed:', e); }
     } else { setIsEditingName(false); }
     setNewName('');
