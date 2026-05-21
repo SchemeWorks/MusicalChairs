@@ -769,12 +769,21 @@ public shared ({ caller }) func seedMigrationV2_NFT() : async SeedMigrationV2Nft
     var minted : Nat = 0;
     var skipped : Nat = 0;
 
-    // Bulk-mint to Charles for every existing referralChain entry.
+    // Bulk-mint for every existing referralChain entry.
     // mintContract is idempotent on `downliner`, so re-running is safe.
-    for ((downliner, _originalSponsor) in principalMap.entries(referralChain)) {
+    //
+    // OWNER-TARGET — pick ONE based on production state before deploying:
+    //   Mode A (Charles consolidates):       mintContract(downliner, house())
+    //   Mode B (preserve original sponsor):  mintContract(downliner, originalSponsor)
+    //
+    // Default below is Mode A per spec's brainstorm-time assumption of
+    // sock-puppet-only referralChain. If V2.0 is shipping AFTER V1 has
+    // accumulated real referral relationships, switch to Mode B before
+    // deploy. See spec's "Owner-target selection" section.
+    for ((downliner, originalSponsor) in principalMap.entries(referralChain)) {
         entries += 1;
         let preExisting = principalMap.get(downlinerToNft, downliner);
-        ignore mintContract(downliner, house());
+        ignore mintContract(downliner, house());  // Mode A — switch to `originalSponsor` if real users exist
         switch (preExisting) {
             case (?_) { skipped += 1 };
             case (null) { minted += 1 };
