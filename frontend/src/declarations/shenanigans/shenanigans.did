@@ -4,6 +4,14 @@ type StandardRecord =
    name: text;
    url: text;
  };
+type SpellTally = 
+ record {
+   backfires: nat;
+   failures: nat;
+   successes: nat;
+   totalCast: nat;
+   totalCostPaidUnits: nat;
+ };
 type SignupEntry = 
  record {
    joinedAt: int;
@@ -258,6 +266,15 @@ service : {
                                                 Err: text;
                                                 Ok;
                                               });
+  /// Admin-only: rebuild spellTallies by replaying every entry in the
+  /// shenanigans cast-history map. Idempotent — zeros the map then
+  /// re-walks history. Useful for backfilling tallies after deploy so
+  /// admin gets data from day one, not just from the upgrade onward.
+  /// Returns the resulting tallies.
+  adminBackfillSpellTallies: () -> (vec record {
+                                          nat;
+                                          SpellTally;
+                                        });
   /// Admin-only: remove the override entirely, restoring the hardcoded default.
   adminClearFlavorPool: (name: text) -> ();
   /// Admin-only: scrub `user`'s referralChain entry and the reverse-index
@@ -403,6 +420,16 @@ service : {
                                                    nat;
                                                    int;
                                                  }) query;
+  /// Per-spell lifetime tallies. Returns one (spellId, tally) pair per
+  /// spell that's ever been cast. Spells that have never been cast
+  /// don't appear in the result — combine with getShenaniganConfigs
+  /// on the read side to enumerate the full 11-spell list with zeros
+  /// where appropriate. Use to answer "which spells get cast, which
+  /// succeed, which never get used."
+  getSpellTallies: () -> (vec record {
+                                nat;
+                                SpellTally;
+                              }) query;
   /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
   getTopPpBurners: (limit: nat) -> (vec record {
                                           principal;
