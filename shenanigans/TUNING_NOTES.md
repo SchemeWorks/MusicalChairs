@@ -705,8 +705,115 @@ With the full tuning pass complete, the roster now has a clear structural imbala
 - ✅ **Wire admin odds + effectValues to runtime** — RESOLVED via PR #88 on 2026-05-21. See the ✅ RESOLVED section above for the final scope and the new pre-deploy blocker it exposed.
 - ⏸ **Resolve silent backfires for Whitelisted and Override Bonus.** Both now roll backfires under live odds (15% and 10% respectively) but the handlers are no-op stubs. Either drop backfire odds to 0 in admin (Path A, 30 sec) or build Blacklisted + Override Reversal (Path B, half-day session). Block any deploy until this is resolved.
 - ⏸ **Implement the "24h or 7d roll" for Whitelisted** (or remove the effectValues hint that suggests it). Duration is now wired to `config.duration` (24h), but `effectValues = [24, 168]` still implies an unimplemented two-value roll mechanic. Either ship the weighted roll (e.g., 80% short, 20% long) or trim effectValues to a single value and update the [DocsPage.tsx:334](../frontend/src/components/DocsPage.tsx) fallback string `"(24h or 7d)"` to match.
-- ⏸ **Description templating discipline.** All 11 spell descriptions hardcode their numbers (e.g., "max 800 PP"). The templater supports `{0}`, `{1}`, `{2}`, `{dur_h}`, `{dur_d}` placeholders but no description uses them. Means admin effectValues edits silently desync from the spell-card copy. Migration is mechanical and low-risk; do it next time a spell description gets touched.
+- ⏸ **Admin UX cleanup — gray out dead fields + universal templating.** Promoted to a dedicated plan section below (see "## Plan: admin UX cleanup"). Combines what was previously two separate deferred bullets (description templating discipline + per-spell field gating) plus the silent-backfire-trap save-blocker.
 - ⏸ **Backfire mechanics: Blacklisted + Override Reversal.** Per the idea backlog entries for Whitelisted (#10) and Override Bonus (#9). These are the Path B resolution to the silent-backfire blocker above.
 - ⏸ **Wire `castLimit` enforcement.** Field exists, admin edits work, value validates non-negative, but it's not checked anywhere in the cast pipeline. Cooldown is the de facto recast gate today.
 - ⏸ **Free-backfire-cost audit.** New pattern from this tuning pass: when a backfire effect itself is brutal (Wealth Tax compound drain, Bridge Exploit burn), `costBackfire = 0` avoids double-tap. MEV Attack, Contagion still charge full cost on backfire — worth deciding whether to apply the pattern.
-- ⏸ **Bridge Exploit description literals.** Says "max 800 PP" but effectValues is configured [25, 50, 1600]. Now that wiring is live, the cap actually fires at 1600. Either hardcode "1600" in the description or migrate to `{2}` placeholder.
+
+---
+
+## Plan: admin UX cleanup — honest fields + universal templating (deferred, 2026-05-21)
+
+Two related fixes to make the admin UI consistent with runtime behavior and the displayed copy self-syncing with numeric config. Captured after Charles tried to shorten Cease & Desist's rename to "2 days" by editing the description text + effectValues[0] but didn't change `config.duration` (the actual lever) — illustrating exactly the desync problem this plan solves.
+
+### Problem statement
+
+Today, admin can edit fields that have no runtime effect, and descriptions hardcode numbers that drift from config. Three concrete examples:
+
+1. **Cease & Desist effectValues is decorative.** Only `config.duration` drives the rename mechanic ([main.mo:2037](main.mo:2037)). Editing effectValues[0] from 7 to 2 changes nothing.
+2. **Bridge Exploit description says "max 800 PP" while effectValues[2] = 1600.** Post-wiring the actual cap is 1600. Description lies.
+3. **Wealth Tax description says "max 300 PP/whale" while effectValues[1] = 900.** Same story.
+
+Charles can edit copy without realizing it doesn't change the mechanic, OR change the mechanic without remembering to update the copy. Three places to keep in sync (description, backfire description, numeric config) and no enforcement.
+
+### Part 1 — Field-state metadata: gray out / disable / warn
+
+Per-spell-type metadata mapping that drives admin field rendering. For each field, mark as `wired`, `decorative`, or `unwired-stub`:
+
+| Spell | duration | effectValues[0,1,2] | castLimit | backfire-handler |
+|---|---|---|---|---|
+| MEV Attack | decorative (instant) | wired [pctMin, pctMax, cap] | decorative (not enforced) | implemented |
+| Contagion | decorative | wired [pctMin, pctMax, cap] | decorative | implemented |
+| Cease & Desist | wired (rename duration) | decorative | decorative | implemented |
+| Trailing Commission | wired (success siphon) | wired [pct, cap] | decorative | implemented (backfire duration hardcoded `halfWeekNs` — separate issue) |
+| Crossline Poach | decorative | n/a (empty) | decorative | implemented |
+| Poison Pill | decorative | n/a | decorative | **unwired-stub** |
+| Yield Boost | decorative | wired [boostMin, boostMax] | decorative | **unwired-stub** |
+| Bridge Exploit | decorative | wired [pctMin, pctMax, cap] | decorative | implemented |
+| Wealth Tax | decorative | wired [pct, cap] | decorative | implemented |
+| Override Bonus | decorative | wired [multiplier] | decorative | **unwired-stub** |
+| Whitelisted | wired (gild duration) | decorative | decorative | **unwired-stub** |
+
+**Admin UI rendering rules:**
+- **Decorative fields:** render at ~40% opacity with hover tooltip *"Not used by this spell."* Save still works but the field's value is documented as having no effect.
+- **Unwired-stub backfire handlers:** if `backfireOdds > 0`, show a red warning *"⚠️ Backfire has no mechanic. Players will pay PP and see 'BACKFIRED' with no effect. Set this to 0 or implement the handler first."* **Block save** until backfire = 0 or the handler is implemented and the metadata flips to `implemented`. This kills the silent-backfire trap class permanently.
+- **castLimit:** gray out everywhere with tooltip *"Not enforced yet. Cooldown is the real recast gate."* Or hide entirely until enforcement lands.
+
+The metadata mapping lives in [ShenaniganAdminPanel.tsx](../frontend/src/components/ShenanigansAdminPanel.tsx) alongside the field render logic. Comments reference main.mo line numbers so the next time a handler is rewired, the source-of-truth pointer is obvious.
+
+### Part 2 — Universal description templating
+
+The templater already supports `{0}`, `{1}`, `{2}` (effectValues indices), `{dur_h}` (duration hours), and `{dur_d}` (duration / 24, days). It's wired into [DocsPage.tsx](../frontend/src/components/DocsPage.tsx) and the spell cards via `renderTemplate` calls. **No description currently uses any placeholder** — every description hardcodes numbers.
+
+**Migration table** (proposed copy for each of the 11 spells):
+
+| Spell | New description | New backfire |
+|---|---|---|
+| MEV Attack | `"Sandwich-attacks the target for {0}–{1}% of their Ponzi Points (max {2} PP)."` | `"You pay the target {0}–{1}% of your PP (max {2})."` |
+| Contagion | `"Losses get socialized — every player surrenders {0}–{1}% (max {2} PP each)."` | `"You burn {0}–{1}% of your own PP."` |
+| Cease & Desist | `"Target is forced to change their display name for {dur_d} days."` | `"You get renamed for {dur_d} days."` |
+| Trailing Commission | `"Skims {0}% of target's new PP for {dur_d} days (max {1} PP)."` | `"The target siphons {0}% of YOUR mints for 3 days (cap {1} PP)."` (3 days is the hardcoded `halfWeekNs` — separate fix to templatize) |
+| Crossline Poach | unchanged (no numbers) | unchanged (no numbers) |
+| Poison Pill | unchanged (no numbers) | `"Cannot backfire."` (replace when backfire mechanic ships) |
+| Yield Boost | `"Earn +{0}–{1}% additional PP for the rest of the round."` | `"Cannot backfire."` |
+| Bridge Exploit | `"Target loses {0}–{1}% of their PP (max {2} PP)."` | `"A token you're holding was using the bridge."` (typo fix folded in) |
+| Wealth Tax | `"A socialist mayor takes office — {0}% from the top 3 PP holders (max {1} PP/whale)."` | existing satirical text — no numbers to template |
+| Override Bonus | `"Your downline kicks up {0}x PP for the rest of the round."` | n/a (no backfire mechanic yet) |
+| Whitelisted | `"Gold name on the leaderboard for {dur_h} hours — the only clout that matters."` | n/a (no backfire mechanic yet) |
+
+After migration, editing any numeric config in admin auto-updates everywhere descriptions render:
+- Admin preview pane (live as you type)
+- Spell card on Shenanigans tab (already live-pulls config per PR #81)
+- Docs page (already live-pulls per PR #81)
+- Cast outcome toasts — **needs verification.** Likely still uses hardcoded text in [Shenanigans.tsx](../frontend/src/components/Shenanigans.tsx) toast component. May need a small fix to pass templated description into the toast.
+
+### Single source of truth (target state)
+
+After both parts ship:
+- All numbers live in numeric config (`effectValues`, `duration`, `cooldown`, costs).
+- All copy lives in `description` + `backfireDescription` with placeholders.
+- Admin edits to numeric config propagate automatically to all rendered copy.
+- Dead fields are visually marked.
+- Silent-no-op traps become impossible (UI blocks the misconfiguration).
+
+### Acceptance criteria
+
+- [ ] Per-spell field metadata mapping exists and drives admin field opacity
+- [ ] Decorative fields render at reduced opacity with explanatory tooltip
+- [ ] Save is blocked when `backfireOdds > 0` on an unwired-stub backfire handler
+- [ ] All 11 descriptions migrated to placeholders (or explicitly marked no-number-needed)
+- [ ] All 11 backfire descriptions same treatment
+- [ ] Bridge Exploit "A the token" typo fixed in the templated copy
+- [ ] Bridge Exploit description shows live cap (1600 PP, not 800) by templating against effectValues[2]
+- [ ] Wealth Tax description shows live cap (900 PP/whale, not 300) by templating against effectValues[1]
+- [ ] Cease & Desist description shows live duration via `{dur_d}` (so changing duration → 48h auto-updates "for 2 days")
+- [ ] Whitelisted description shows live duration via `{dur_h}` or `{dur_d}`
+- [ ] Admin preview pane shows the templated result so edits are visible before save
+- [ ] Cast outcome toasts confirmed to use templated descriptions (verify; fix if not)
+
+### Out of scope (separate work)
+
+- Wiring castLimit enforcement (the field becomes a real gate, not just decorative)
+- Building backfire mechanics for Whitelisted / Override Bonus / Poison Pill (separate spec — see Blacklisted / Override Reversal in the per-spell idea backlogs above)
+- Templating the Trailing Commission backfire duration (currently hardcoded `halfWeekNs`; would need a new effectValues slot or a `backfireDuration` config field)
+- Adding a `lockoutOnFail` flag (cooldown-on-any-outcome — separate cross-cutting decision)
+
+### Estimated effort
+
+Half-day total:
+- Part 1 (field-state metadata + UI rendering): ~2 hours including the save-block logic
+- Part 2 (description migration): ~1 hour mechanical edits across 11 spells × 2 fields each
+- Toast verification + fix if needed: ~30 min
+- Testing across admin preview + spell card + docs + toasts: ~1 hour
+
+Low-risk because none of this touches the canister — frontend-only changes plus admin config edits. The templater is already in place. The metadata mapping is additive.
