@@ -1967,7 +1967,6 @@ persistent actor Self {
         let memo = "spell-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
-        let sevenDaysNs : Int = oneDayNs * 7;
 
         switch (shenaniganType) {
             case (#moneyTrickster) {
@@ -2068,11 +2067,16 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
+                        // effectValues schema: [pct, capWholePp]. pctTimes100
+                        // is pct*100 because the mint helper divides by 10_000.
+                        let pct = effectNatOr(config.effectValues, 0, 5);
+                        let cap = effectNatOr(config.effectValues, 1, 1000);
+                        let durationNs : Int = config.duration * 3_600_000_000_000;
                         mintSiphons := principalMap.put(mintSiphons, t, {
                             siphoner = caster;
-                            expiresAt = nowTs + sevenDaysNs;
-                            pctTimes100 = 500;
-                            capUnits = ppToUnits(1000);
+                            expiresAt = nowTs + durationNs;
+                            pctTimes100 = pct * 100;
+                            capUnits = ppToUnits(cap);
                             siphonedSoFar = 0;
                         });
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
@@ -2286,11 +2290,17 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
+                        // pct + cap mirror the success roll. Backfire window
+                        // stays at halfWeekNs (3d) — the asymmetric "your
+                        // mistake is shorter than your win" design isn't a
+                        // config field; revisit if admin asks for it.
+                        let pct = effectNatOr(config.effectValues, 0, 5);
+                        let cap = effectNatOr(config.effectValues, 1, 1000);
                         mintSiphons := principalMap.put(mintSiphons, caster, {
                             siphoner = t;
                             expiresAt = nowTs + halfWeekNs;
-                            pctTimes100 = 500;
-                            capUnits = ppToUnits(1000);
+                            pctTimes100 = pct * 100;
+                            capUnits = ppToUnits(cap);
                             siphonedSoFar = 0;
                         });
                         // Target IS affected — they become the siphoner of
