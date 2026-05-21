@@ -1624,10 +1624,15 @@ persistent actor Self {
         switch (sanitizeRenameName(name)) {
             case (#Err(msg)) { return #Err(msg) };
             case (#Ok(text)) {
-                let sevenDaysNs : Int = 86_400_000_000_000 * 7;
+                // Rename duration is admin-tunable via config.duration
+                // (hours). Falls back to 7d if the config row is missing.
+                let durationNs : Int = switch (getConfigForType(#renameSpell)) {
+                    case (?c) { c.duration * 3_600_000_000_000 };
+                    case null { 86_400_000_000_000 * 7 };
+                };
                 customDisplayNames := principalMap.put(customDisplayNames, slot.target, {
                     name = text;
-                    expiresAt = Time.now() + sevenDaysNs;
+                    expiresAt = Time.now() + durationNs;
                 });
                 pendingRenames := principalMap.delete(pendingRenames, caller);
                 return #Ok;
@@ -2029,12 +2034,13 @@ persistent actor Self {
                         // name from the pool before stashing the new slot.
                         // Otherwise the prior cast's rename would be silently
                         // overwritten and lost.
+                        let renameDurationNs : Int = config.duration * 3_600_000_000_000;
                         switch (principalMap.get(pendingRenames, caster)) {
                             case (?prior) {
                                 if (Time.now() < prior.expiresAt) {
                                     customDisplayNames := principalMap.put(customDisplayNames, prior.target, {
                                         name = pickRenameName();
-                                        expiresAt = nowTs + sevenDaysNs;
+                                        expiresAt = nowTs + renameDurationNs;
                                     });
                                 };
                             };
@@ -2224,7 +2230,6 @@ persistent actor Self {
         let memo = "backfire-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
-        let sevenDaysNs : Int = oneDayNs * 7;
         let halfWeekNs : Int = oneDayNs * 3;
 
         switch (shenaniganType) {
@@ -2268,9 +2273,10 @@ persistent actor Self {
                 };
             };
             case (#renameSpell) {
+                let renameDurationNs : Int = config.duration * 3_600_000_000_000;
                 customDisplayNames := principalMap.put(customDisplayNames, caster, {
                     name = pickRenameName();
-                    expiresAt = nowTs + sevenDaysNs;
+                    expiresAt = nowTs + renameDurationNs;
                 });
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
