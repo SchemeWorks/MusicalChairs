@@ -9,7 +9,7 @@
 
 The MLM cascade shipped in V1 (2026-05-16, per [mlm-deductive-cascade-design.md](2026-05-16-mlm-deductive-cascade-design.md)) walks a static `referralChain` map. Sponsors who recruited downlines receive a fixed share for life; the right to collect is not tradable, not seizable, and not extinguishable.
 
-The full design vision (per [PONZI_POINTS_REDESIGN.md](../../../../keen-franklin-a424d7/docs/PONZI_POINTS_REDESIGN.md)) is for each downline edge to be represented by a transferable NFT, with the cascade routing through current NFT ownership instead of original-sponsor relationships. V1 was built to support this swap: the function `getPayoutTarget(current : Principal) : Principal` at [shenanigans/main.mo:591](../../../shenanigans/main.mo:591) was explicitly designed as the V2 swap-point, with a `// v2 will swap this to NFT-ownership lookup` comment.
+The full design vision (per [PONZI_POINTS_REDESIGN.md](PONZI_POINTS_REDESIGN.md)) is for each downline edge to be represented by a transferable NFT, with the cascade routing through current NFT ownership instead of original-sponsor relationships. V1 was built to support this swap: the function `getPayoutTarget(current : Principal) : Principal` (currently around `shenanigans/main.mo:785`; grep for it) was explicitly designed as the V2 swap-point, with a `// v2 will swap this to NFT-ownership lookup` comment.
 
 This spec defines V2.0: introduce a contract NFT per downline edge, route the cascade through NFT ownership via hourly snapshots, and add admin tooling for testing. Harberger tax, marketplace, and player-facing defection are deferred to V2.1+ because they're tunable on top of routing — and they're easy to get wrong on first pass. The routing rewrite is not.
 
@@ -22,7 +22,7 @@ This spec defines V2.0: introduce a contract NFT per downline edge, route the ca
 | 3 | NFT identity | Sequential `Nat`, starting from 1. ICRC-7-shaped naming for future-compat. |
 | 4 | NFT metadata | `{ id, downliner, originalSponsor, mintedAt }`. Ownership tracked in a separate map (mutable; metadata is write-once). |
 | 5 | Mint trigger | At `registerReferral`. Immediate, before any deposit. Charles accumulates inventory from never-deposited registrants → V2.1 marketplace inventory. |
-| 6 | Launch backfill | One-shot bulk mint at upgrade: iterate `referralChain`, mint one NFT per entry to Charles. Functionally identical to sleazy reset for V2.0 cascade behavior (Charles already collects the same payouts); seeds V2.1 marketplace inventory at zero extra runtime cost. |
+| 6 | Launch backfill | Iterate `referralChain` at migration time and mint one NFT per entry. **Owner-target is conditional on whether V2.0 ships before or after V1 has real users.** Default in this spec is Mode A (Charles) per the brainstorm-time assumption of sock-puppet-only `referralChain`. If V2.0 ships post-launch with real referral relationships in place, switch to Mode B (original sponsor) — single-line change in `seedMigrationV2_NFT`. See "Migration / launch behavior" for the two modes spelled out. |
 | 7 | Cascade model | **Model Y**: walk the NFT ownership graph, not the original-sponsor chain. Each hop: `current := ownerOf(NFT for current)`. Buying a contract inserts you into the cascade above that downliner, and the cascade continues UP from you. |
 | 8 | `referralChain` map | Kept as historical record. No cascade role. Available for future "Rockstar referrer" rewards or similar historical queries. |
 | 9 | Snapshot mechanism | Hourly (admin-tunable). On timer tick, copy `liveOwnership` → `ownershipSnapshot`. Cascade reads `ownershipSnapshot` exclusively. Transfers between snapshots don't affect cascade payouts until next refresh. |
@@ -210,11 +210,28 @@ Beady is bypassed entirely. Selling `NFT_1` removed her from Alice's cascade. Th
 One-shot upgrade-time function `Migration.runV2_0_nft` (added to `shenanigans/migration.mo`), invoked from `postupgrade` after the existing `runV2` MLM migration:
 
 1. **State init.** All new maps start empty; `nextNftId = 1`; `snapshotIntervalSeconds = 3600`; `snapshotVersion = 0`.
-2. **Bulk mint to Charles.** Iterate `referralChain`. For each `(downliner, originalSponsor)` entry, call `mintContract(downliner, house())`. Owner = Charles regardless of original sponsor. `originalSponsor` metadata preserved.
+2. **Bulk mint.** Iterate `referralChain`. For each `(downliner, originalSponsor)` entry, call `mintContract(downliner, <owner-target>)`. See "owner-target selection" below.
 3. **Initial snapshot.** Synchronously call `refreshSnapshot()`. Cascade is live immediately post-migration.
 4. **Start timer.** `startSnapshotTimer<system>()` to begin hourly refreshes.
 
 Idempotency: `mintContract` guards on `downlinerToNft` presence, so re-running the migration is safe.
+
+### Owner-target selection — pick BEFORE deploy
+
+The owner of each backfilled NFT depends on whether V1 has accumulated real (non-sock-puppet) referral relationships by the time V2.0 ships. **Pick the mode that matches reality at deploy time.**
+
+| Mode | Bulk-mint line | When to use |
+|---|---|---|
+| **A — Charles consolidates** | `ignore mintContract(downliner, house());` | Pre-launch, or post-launch with sock-puppet-only `referralChain`. Functionally identical to sleazy reset for cascade payouts (Charles already gets them). Seeds V2.1 marketplace inventory at zero extra runtime cost. |
+| **B — Preserve original sponsor** | `ignore mintContract(downliner, originalSponsor);` | Post-launch with real referral relationships. Each NFT mints to the principal who actually referred the downliner. Preserves V1 cascade economics into V2 unchanged. |
+
+This spec was authored under brainstorm-time assumption of "sock-puppet-only `referralChain`" → Mode A default. Before deploying V2.0:
+
+1. Query the production `referralChain` size and audit whether any entries are real users (not Rob's test principals).
+2. If any real users exist: switch Task 10's `seedMigrationV2_NFT` to Mode B (one-line edit) before deploying.
+3. If only sock puppets: keep Mode A. Charles holds the inventory; V2.1 marketplace launches with supply.
+
+This is the *only* deploy-time decision in the V2.0 implementation. Everything else is static code.
 
 Rollback paths:
 - **Pause cascade routing:** set `snapshotIntervalSeconds` to a large value and call `refreshSnapshotNow()` to freeze the snapshot at a known-good state. Cascade continues using frozen snapshot.
@@ -309,7 +326,7 @@ ICP recovery is out-of-band: admin creates a backdated 30-day Rob position absor
 
 ## Out of scope (deferred to V2.1+)
 
-Per [PONZI_POINTS_REDESIGN.md](../../../../keen-franklin-a424d7/docs/PONZI_POINTS_REDESIGN.md):
+Per [PONZI_POINTS_REDESIGN.md](PONZI_POINTS_REDESIGN.md):
 
 - **Harberger tax.** Owner self-declares price, ongoing % to Charles, anyone can force-buy at declared price.
 - **Marketplace UI.** Browse, list, buy contracts.
