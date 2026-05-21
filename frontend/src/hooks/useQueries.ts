@@ -1994,6 +1994,7 @@ export function useAddReaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
     },
+    onError: (e: Error) => { toast.error(e.message); },
   });
 }
 
@@ -2009,6 +2010,7 @@ export function useRemoveReaction() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
     },
+    onError: (e: Error) => { toast.error(e.message); },
   });
 }
 
@@ -2026,6 +2028,7 @@ export function useKarmaReact() {
       queryClient.invalidateQueries({ queryKey: ['ponziPoints'] });
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'karmaReceived'] });
     },
+    onError: (e: Error) => { toast.error(e.message); },
   });
 }
 

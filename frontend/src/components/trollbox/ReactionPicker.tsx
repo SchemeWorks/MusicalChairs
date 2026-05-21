@@ -21,20 +21,15 @@ export default function ReactionPicker({ itemId, onClose }: Props) {
   const [karmaAmount, setKarmaAmount] = useState<number>(KARMA_MIN_PP);
 
   const handleFree = async (emoji: string) => {
-    await addReact.mutateAsync({ itemId, emoji });
+    try { await addReact.mutateAsync({ itemId, emoji }); } catch { /* hook toasts */ }
     onClose();
   };
   const handleKarma = async (emoji: string) => {
     const amount = Number.isFinite(karmaAmount) && karmaAmount >= KARMA_MIN_PP
       ? karmaAmount
       : KARMA_MIN_PP;
-    try {
-      await karmaReact.mutateAsync({ itemId, emoji, ppToBurn: BigInt(amount) });
-      onClose();
-    } catch (e) {
-      // Let the mutation toast handle it via the hook's error path; just close.
-      onClose();
-    }
+    try { await karmaReact.mutateAsync({ itemId, emoji, ppToBurn: BigInt(amount) }); } catch { /* hook toasts */ }
+    onClose();
   };
 
   const recipientPp = Math.floor((karmaAmount * KARMA_SPLIT_RECIPIENT_PCT) / 100);
