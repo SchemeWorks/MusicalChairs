@@ -223,4 +223,67 @@ module {
         );
         { var shenaniganConfigs = migrated };
     };
+
+    // ================================================================
+    // V5 — Add optional backfireDescription field to ShenaniganConfig
+    //
+    // The stable-interface compatibility check rejects adding ANY field
+    // (even optional) to a record stored in stable state without an
+    // explicit migration. This migration copies every existing config
+    // through and sets backfireDescription = null. Frontend falls back
+    // to a hardcoded TS map when null, so no visible behavior changes
+    // until admin saves a value via the panel.
+    // ================================================================
+
+    type V5OldShenaniganConfig = V4NewShenaniganConfig;
+
+    type V5NewShenaniganConfig = {
+        id : Nat;
+        name : Text;
+        description : Text;
+        backfireDescription : ?Text;
+        costSuccess : Float;
+        costFailure : Float;
+        costBackfire : Float;
+        successOdds : Nat;
+        failureOdds : Nat;
+        backfireOdds : Nat;
+        duration : Nat;
+        cooldown : Nat;
+        effectValues : [Float];
+        castLimit : Nat;
+        backgroundColor : Text;
+    };
+
+    type V5OldConfigMap = OrderedMap.Map<Nat, V5OldShenaniganConfig>;
+    type V5NewConfigMap = OrderedMap.Map<Nat, V5NewShenaniganConfig>;
+
+    public func runV5(
+        old : { var shenaniganConfigs : V5OldConfigMap }
+    ) : { var shenaniganConfigs : V5NewConfigMap } {
+        let natMap = OrderedMap.Make<Nat>(Nat.compare);
+        let migrated = natMap.map<V5OldShenaniganConfig, V5NewShenaniganConfig>(
+            old.shenaniganConfigs,
+            func(_id : Nat, c : V5OldShenaniganConfig) : V5NewShenaniganConfig {
+                {
+                    id = c.id;
+                    name = c.name;
+                    description = c.description;
+                    backfireDescription = null;  // admin sets via the panel
+                    costSuccess = c.costSuccess;
+                    costFailure = c.costFailure;
+                    costBackfire = c.costBackfire;
+                    successOdds = c.successOdds;
+                    failureOdds = c.failureOdds;
+                    backfireOdds = c.backfireOdds;
+                    duration = c.duration;
+                    cooldown = c.cooldown;
+                    effectValues = c.effectValues;
+                    castLimit = c.castLimit;
+                    backgroundColor = c.backgroundColor;
+                };
+            },
+        );
+        { var shenaniganConfigs = migrated };
+    };
 };
