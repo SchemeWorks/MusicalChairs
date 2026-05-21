@@ -419,7 +419,7 @@ export default function ShenanigansAdminPanel() {
                     min="0" hint="0 = instant. Otherwise, how long the effect lingers." />
                   <AdminInput label="Cooldown (hours)" type="number" value={selectedShenanigan.cooldown}
                     onChange={v => updateField('cooldown', Math.max(0, parseInt(v) || 0))}
-                    min="0" hint="How long before they can cast again. 0 = spam city." />
+                    min="0" hint="Lockout only fires on success. Failures/backfires let them retry. 0 = no lockout ever." />
                 </div>
 
                 {/* Effects section */}
