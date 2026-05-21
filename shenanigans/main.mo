@@ -1993,14 +1993,18 @@ persistent actor Self {
                 };
             };
             case (#aoeSkim) {
+                // effectValues schema: [pctMin, pctMax, capWholePpPerVictim].
+                let pctMin = effectNatOr(config.effectValues, 0, 1);
+                let pctMax = effectNatOr(config.effectValues, 1, 3);
+                let cap = effectNatOr(config.effectValues, 2, 60);
                 let pool = enumerateHolders(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
-                        let pct = rollPct(1, 3);
-                        let amount = capAt(bal * pct / 100, ppToUnits(60));
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(bal * pct / 100, ppToUnits(cap));
                         if (amount > 0) {
                             switch (await chipTransfer(victim, caster, amount, memo)) {
                                 case (#Ok(_)) {
@@ -2247,7 +2251,12 @@ persistent actor Self {
                 };
             };
             case (#aoeSkim) {
-                let pct = rollPct(1, 3);
+                // Pct mirrors the success roll range; no per-cap on backfire
+                // because the description doesn't promise one and casterBal
+                // is naturally bounded.
+                let pctMin = effectNatOr(config.effectValues, 0, 1);
+                let pctMax = effectNatOr(config.effectValues, 1, 3);
+                let pct = rollPct(pctMin, pctMax);
                 let loss = casterBal * pct / 100;
                 switch (await burnFrom(caster, loss, memo)) {
                     case (#Ok(_)) {
