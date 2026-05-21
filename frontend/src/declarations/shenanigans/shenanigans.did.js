@@ -360,6 +360,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getShenaniganStats' : IDL.Func([], [ShenaniganStats], ['query']),
+    'getSpellCooldowns' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Int))],
+        ['query'],
+      ),
     'getTopPpBurners' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
