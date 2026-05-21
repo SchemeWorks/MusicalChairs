@@ -1279,18 +1279,16 @@ persistent actor Self {
         // load-bearing gate is `cooldown` (in hours), enforced ONLY on
         // success: failures and backfires let the player keep pulling the
         // lever. Success → locked out of that spell for cooldown hours.
-        // Defaults are literal text (no {N} placeholders) because the
-        // backend currently HARDCODES all spell mechanics — effectValues
-        // and duration in config are display-only metadata that the
-        // success/backfire handlers ignore. Templating against
-        // effectValues would let admin edit the *description* without
-        // changing the *mechanic*, which is misleading.
         //
-        // The renderTemplate helper + backfireDescription field still
-        // exist for the future state where backend reads from config.
-        // Admin can opt-in to templating in the meantime by editing
-        // descriptions with {N} placeholders — but right now the result
-        // would be "description claims X, mechanic does Y."
+        // Description strings are LITERAL — they bake the spell's seed
+        // numbers in prose. The backend now reads `effectValues` and
+        // `duration` at runtime (see determineOutcomeWithMod,
+        // applySuccessEffect, applyBackfireEffect), so admin tuning of
+        // those fields takes effect on the next deploy. That means
+        // descriptions can drift if admin tunes effectValues without
+        // updating copy. Either retype the description on each tune, or
+        // switch to `{0}/{1}/{dur_h}/{dur_d}` placeholders — see
+        // renderTemplate in the frontend.
         let defaultConfigs : [ShenaniganConfig] = [
             { id = 0; name = "MEV Attack"; description = "Sandwich-attacks the target for 2\u{2013}8% of their Ponzi Points (max 250 PP)."; backfireDescription = ?"You pay the target 2\u{2013}8% of your PP (max 250)."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 60; failureOdds = 25; backfireOdds = 15; duration = 0; cooldown = 2; effectValues = [2.0, 8.0, 250.0]; castLimit = 0; backgroundColor = "#fff9e6" },
             { id = 1; name = "Contagion"; description = "Losses get socialized \u{2014} every player surrenders 1\u{2013}3% (max 60 PP each)."; backfireDescription = ?"You burn 1\u{2013}3% of your own PP."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 40; failureOdds = 40; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [1.0, 3.0, 60.0]; castLimit = 1; backgroundColor = "#e6f7ff" },
@@ -1521,6 +1519,25 @@ persistent actor Self {
         if (value > ceiling) { ceiling } else { value };
     };
 
+    /// Read a Nat from a Float effectValues[i], falling back to `fallback`
+    /// when the array is shorter than expected (admin saved a malformed
+    /// config) or the value is negative. Truncates fractional Floats —
+    /// use `effectFloatOr` directly for multipliers like 1.3 that need
+    /// to participate in further math before being cast to Nat.
+    func effectNatOr(values : [Float], i : Nat, fallback : Nat) : Nat {
+        if (i >= values.size()) { return fallback };
+        let f = values[i];
+        if (f < 0.0) { return fallback };
+        Int.abs(Float.toInt(f));
+    };
+
+    /// Float counterpart to `effectNatOr`. Used by Override Bonus's
+    /// multiplier (1.3 → 13_000 bps) and any future spell that needs the
+    /// fractional part preserved before integer conversion.
+    func effectFloatOr(values : [Float], i : Nat, fallback : Float) : Float {
+        if (i >= values.size()) { fallback } else { values[i] }
+    };
+
     /// Returns true if `target` is currently shielded; decrements charges
     /// and clears the shield if charges hit zero. Expired shields are
     /// silently cleared.
@@ -1605,10 +1622,15 @@ persistent actor Self {
         switch (sanitizeRenameName(name)) {
             case (#Err(msg)) { return #Err(msg) };
             case (#Ok(text)) {
-                let sevenDaysNs : Int = 86_400_000_000_000 * 7;
+                // Rename duration is admin-tunable via config.duration
+                // (hours). Falls back to 7d if the config row is missing.
+                let durationNs : Int = switch (getConfigForType(#renameSpell)) {
+                    case (?c) { c.duration * 3_600_000_000_000 };
+                    case null { 86_400_000_000_000 * 7 };
+                };
                 customDisplayNames := principalMap.put(customDisplayNames, slot.target, {
                     name = text;
-                    expiresAt = Time.now() + sevenDaysNs;
+                    expiresAt = Time.now() + durationNs;
                 });
                 pendingRenames := principalMap.delete(pendingRenames, caller);
                 return #Ok;
@@ -1683,35 +1705,13 @@ persistent actor Self {
     };
 
     /// Roll outcome with rubber-band modifier baked into success odds.
-    /// Clamped to [5, 95]. backfireOdds reads off the configured tail
-    /// unchanged — modifier shifts mass between success and failure only.
-    func determineOutcomeWithMod(shenaniganType : ShenaniganType, modPct : Int) : ShenaniganOutcome {
-        let baseSuccess : Int = switch (shenaniganType) {
-            case (#moneyTrickster) { 60 };
-            case (#aoeSkim) { 40 };
-            case (#renameSpell) { 90 };
-            case (#mintTaxSiphon) { 70 };
-            case (#downlineHeist) { 30 };
-            case (#magicMirror) { 100 };
-            case (#ppBoosterAura) { 100 };
-            case (#purseCutter) { 20 };
-            case (#whaleRebalance) { 50 };
-            case (#downlineBoost) { 100 };
-            case (#goldenName) { 100 };
-        };
-        let baseBackfireTail : Int = switch (shenaniganType) {
-            case (#moneyTrickster) { 85 };
-            case (#aoeSkim) { 80 };
-            case (#renameSpell) { 95 };
-            case (#mintTaxSiphon) { 90 };
-            case (#downlineHeist) { 90 };
-            case (#magicMirror) { 100 };
-            case (#ppBoosterAura) { 100 };
-            case (#purseCutter) { 70 };
-            case (#whaleRebalance) { 80 };
-            case (#downlineBoost) { 100 };
-            case (#goldenName) { 100 };
-        };
+    /// Clamped to [5, 95]. The fail/backfire split reads off the configured
+    /// tail unchanged — the modifier shifts mass between success and failure
+    /// only. Odds come straight from the admin-editable ShenaniganConfig;
+    /// see initializeDefaultShenanigans for the seed values.
+    func determineOutcomeWithMod(config : ShenaniganConfig, modPct : Int) : ShenaniganOutcome {
+        let baseSuccess : Int = config.successOdds;
+        let baseBackfireTail : Int = config.successOdds + config.failureOdds;
         let adjustedRaw : Int = baseSuccess + modPct;
         let adjusted : Int = if (adjustedRaw < 5) { 5 } else if (adjustedRaw > 95) { 95 } else { adjustedRaw };
         let randomValue : Int = Int.abs(Time.now()) % 100;
@@ -1845,7 +1845,7 @@ persistent actor Self {
             case (_) { false };
         };
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
-        let outcome = determineOutcomeWithMod(shenaniganType, modPct);
+        let outcome = determineOutcomeWithMod(config, modPct);
 
         // Determine the cost this outcome charges, then clamp to balance so
         // an unaffordable backfire/failure just zeros the caster instead of
@@ -1882,10 +1882,10 @@ persistent actor Self {
 
         let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat } = switch (outcome) {
             case (#success) {
-                await applySuccessEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#backfire) {
-                await applyBackfireEffect(shenaniganType, caller, target, casterBal, targetBal, castId);
+                await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#fail) {
                 { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
@@ -1955,6 +1955,7 @@ persistent actor Self {
     /// is still written.
     func applySuccessEffect(
         shenaniganType : ShenaniganType,
+        config : ShenaniganConfig,
         caster : Principal,
         target : ?Principal,
         _casterBal : Nat,
@@ -1964,7 +1965,6 @@ persistent actor Self {
         let memo = "spell-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
-        let sevenDaysNs : Int = oneDayNs * 7;
 
         switch (shenaniganType) {
             case (#moneyTrickster) {
@@ -1976,8 +1976,13 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
-                        let pct = rollPct(2, 8);
-                        let amount = capAt(targetBal * pct / 100, ppToUnits(250));
+                        // effectValues schema: [pctMin, pctMax, capWholePp].
+                        // Defaults match the original hardcoded 2/8/250.
+                        let pctMin = effectNatOr(config.effectValues, 0, 2);
+                        let pctMax = effectNatOr(config.effectValues, 1, 8);
+                        let cap = effectNatOr(config.effectValues, 2, 250);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(t, caster, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1 };
@@ -1990,14 +1995,18 @@ persistent actor Self {
                 };
             };
             case (#aoeSkim) {
+                // effectValues schema: [pctMin, pctMax, capWholePpPerVictim].
+                let pctMin = effectNatOr(config.effectValues, 0, 1);
+                let pctMax = effectNatOr(config.effectValues, 1, 3);
+                let cap = effectNatOr(config.effectValues, 2, 60);
                 let pool = enumerateHolders(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
-                        let pct = rollPct(1, 3);
-                        let amount = capAt(bal * pct / 100, ppToUnits(60));
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(bal * pct / 100, ppToUnits(cap));
                         if (amount > 0) {
                             switch (await chipTransfer(victim, caster, amount, memo)) {
                                 case (#Ok(_)) {
@@ -2022,12 +2031,13 @@ persistent actor Self {
                         // name from the pool before stashing the new slot.
                         // Otherwise the prior cast's rename would be silently
                         // overwritten and lost.
+                        let renameDurationNs : Int = config.duration * 3_600_000_000_000;
                         switch (principalMap.get(pendingRenames, caster)) {
                             case (?prior) {
                                 if (Time.now() < prior.expiresAt) {
                                     customDisplayNames := principalMap.put(customDisplayNames, prior.target, {
                                         name = pickRenameName();
-                                        expiresAt = nowTs + sevenDaysNs;
+                                        expiresAt = nowTs + renameDurationNs;
                                     });
                                 };
                             };
@@ -2055,11 +2065,16 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
+                        // effectValues schema: [pct, capWholePp]. pctTimes100
+                        // is pct*100 because the mint helper divides by 10_000.
+                        let pct = effectNatOr(config.effectValues, 0, 5);
+                        let cap = effectNatOr(config.effectValues, 1, 1000);
+                        let durationNs : Int = config.duration * 3_600_000_000_000;
                         mintSiphons := principalMap.put(mintSiphons, t, {
                             siphoner = caster;
-                            expiresAt = nowTs + sevenDaysNs;
-                            pctTimes100 = 500;
-                            capUnits = ppToUnits(1000);
+                            expiresAt = nowTs + durationNs;
+                            pctTimes100 = pct * 100;
+                            capUnits = ppToUnits(cap);
                             siphonedSoFar = 0;
                         });
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
@@ -2139,7 +2154,16 @@ persistent actor Self {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#ppBoosterAura) {
-                let pct = rollPct(105, 115);
+                // effectValues schema: [boostPctMin, boostPctMax]. Stored
+                // as the *boost above 100%* (e.g. [5, 15] = +5–15%) — the
+                // 100 baseline gets added here to produce the bps. Cannot
+                // backfire (100% success spell); duration window stays at
+                // the hardcoded 24h because config.duration = 0 means
+                // "rest of round" in this slot, which the runtime still
+                // approximates with a fixed 24h ceiling.
+                let boostMin = effectNatOr(config.effectValues, 0, 5);
+                let boostMax = effectNatOr(config.effectValues, 1, 15);
+                let pct = rollPct(100 + boostMin, 100 + boostMax);
                 mintMultipliers := principalMap.put(mintMultipliers, caster, {
                     multiplierBps = pct * 100;
                     expiresAt = nowTs + oneDayNs;
@@ -2155,8 +2179,12 @@ persistent actor Self {
                         if (consumeShieldIfActive(t)) {
                             return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0 };
                         };
-                        let pct = rollPct(25, 50);
-                        let amount = capAt(targetBal * pct / 100, ppToUnits(800));
+                        // effectValues schema: [pctMin, pctMax, capWholePp].
+                        let pctMin = effectNatOr(config.effectValues, 0, 25);
+                        let pctMax = effectNatOr(config.effectValues, 1, 50);
+                        let cap = effectNatOr(config.effectValues, 2, 800);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await burnFrom(t, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1 };
@@ -2169,12 +2197,15 @@ persistent actor Self {
                 };
             };
             case (#whaleRebalance) {
+                // effectValues schema: [pct, capWholePpPerWhale].
+                let pct = effectNatOr(config.effectValues, 0, 20);
+                let cap = effectNatOr(config.effectValues, 1, 300);
                 let whales = await top3HoldersByBalance(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
                 for ((whale, bal) in whales.vals()) {
                     if (not consumeShieldIfActive(whale)) {
-                        let amount = capAt(bal * 20 / 100, ppToUnits(300));
+                        let amount = capAt(bal * pct / 100, ppToUnits(cap));
                         if (amount > 0) {
                             switch (await chipTransfer(whale, caster, amount, memo)) {
                                 case (#Ok(_)) {
@@ -2189,14 +2220,25 @@ persistent actor Self {
                 return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims };
             };
             case (#downlineBoost) {
+                // effectValues schema: [multiplier]. Stored as a Float
+                // (e.g. 1.3 = 1.3x downline kick-up) so admin can tune
+                // sub-integer steps. Convert to bps for the cascade-boost
+                // record (1.3 → 13_000).
+                let multiplier = effectFloatOr(config.effectValues, 0, 1.3);
+                let multiplierBps : Nat = Int.abs(Float.toInt(multiplier * 10_000.0));
                 cascadeBoosts := principalMap.put(cascadeBoosts, caster, {
-                    multiplierBps = 13_000;
+                    multiplierBps;
                     expiresAt = nowTs + oneDayNs;
                 });
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
             case (#goldenName) {
-                goldenUntil := principalMap.put(goldenUntil, caster, nowTs + oneDayNs);
+                // Gold-name window comes from config.duration (hours).
+                // config.effectValues = [24, 168] is reserved for a future
+                // weighted-roll mechanic (short vs. long buff); ignored for
+                // now per TUNING_NOTES.md.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                goldenUntil := principalMap.put(goldenUntil, caster, nowTs + durationNs);
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
         };
@@ -2207,6 +2249,7 @@ persistent actor Self {
     /// backfire (they never produce this outcome).
     func applyBackfireEffect(
         shenaniganType : ShenaniganType,
+        config : ShenaniganConfig,
         caster : Principal,
         target : ?Principal,
         casterBal : Nat,
@@ -2216,7 +2259,6 @@ persistent actor Self {
         let memo = "backfire-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
-        let sevenDaysNs : Int = oneDayNs * 7;
         let halfWeekNs : Int = oneDayNs * 3;
 
         switch (shenaniganType) {
@@ -2226,8 +2268,11 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
-                        let pct = rollPct(2, 8);
-                        let amount = capAt(casterBal * pct / 100, ppToUnits(250));
+                        let pctMin = effectNatOr(config.effectValues, 0, 2);
+                        let pctMax = effectNatOr(config.effectValues, 1, 8);
+                        let cap = effectNatOr(config.effectValues, 2, 250);
+                        let pct = rollPct(pctMin, pctMax);
+                        let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(caster, t, amount, memo)) {
                             case (#Ok(_)) {
                                 return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1 };
@@ -2240,7 +2285,12 @@ persistent actor Self {
                 };
             };
             case (#aoeSkim) {
-                let pct = rollPct(1, 3);
+                // Pct mirrors the success roll range; no per-cap on backfire
+                // because the description doesn't promise one and casterBal
+                // is naturally bounded.
+                let pctMin = effectNatOr(config.effectValues, 0, 1);
+                let pctMax = effectNatOr(config.effectValues, 1, 3);
+                let pct = rollPct(pctMin, pctMax);
                 let loss = casterBal * pct / 100;
                 switch (await burnFrom(caster, loss, memo)) {
                     case (#Ok(_)) {
@@ -2252,9 +2302,10 @@ persistent actor Self {
                 };
             };
             case (#renameSpell) {
+                let renameDurationNs : Int = config.duration * 3_600_000_000_000;
                 customDisplayNames := principalMap.put(customDisplayNames, caster, {
                     name = pickRenameName();
-                    expiresAt = nowTs + sevenDaysNs;
+                    expiresAt = nowTs + renameDurationNs;
                 });
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
             };
@@ -2264,11 +2315,17 @@ persistent actor Self {
                         return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0 };
                     };
                     case (?t) {
+                        // pct + cap mirror the success roll. Backfire window
+                        // stays at halfWeekNs (3d) — the asymmetric "your
+                        // mistake is shorter than your win" design isn't a
+                        // config field; revisit if admin asks for it.
+                        let pct = effectNatOr(config.effectValues, 0, 5);
+                        let cap = effectNatOr(config.effectValues, 1, 1000);
                         mintSiphons := principalMap.put(mintSiphons, caster, {
                             siphoner = t;
                             expiresAt = nowTs + halfWeekNs;
-                            pctTimes100 = 500;
-                            capUnits = ppToUnits(1000);
+                            pctTimes100 = pct * 100;
+                            capUnits = ppToUnits(cap);
                             siphonedSoFar = 0;
                         });
                         // Target IS affected — they become the siphoner of
@@ -2334,8 +2391,11 @@ persistent actor Self {
                 };
             };
             case (#purseCutter) {
-                let pct = rollPct(25, 50);
-                let amount = capAt(casterBal * pct / 100, ppToUnits(800));
+                let pctMin = effectNatOr(config.effectValues, 0, 25);
+                let pctMax = effectNatOr(config.effectValues, 1, 50);
+                let cap = effectNatOr(config.effectValues, 2, 800);
+                let pct = rollPct(pctMin, pctMax);
+                let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                 switch (await burnFrom(caster, amount, memo)) {
                     case (#Ok(_)) {
                         return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0 };
@@ -2346,6 +2406,8 @@ persistent actor Self {
                 };
             };
             case (#whaleRebalance) {
+                let pct = effectNatOr(config.effectValues, 0, 20);
+                let cap = effectNatOr(config.effectValues, 1, 300);
                 let whales = await top3HoldersByBalance(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
@@ -2353,10 +2415,10 @@ persistent actor Self {
                     // Re-read caster balance per iteration so successive
                     // payouts are bounded by what's actually left, not the
                     // initial snapshot. With three whales and stale balance
-                    // a caster could lose up to 60%; per-iteration caps it
-                    // at ~49% (0.2 + 0.16 + 0.128).
+                    // a caster could lose up to 3*pct%; per-iteration caps
+                    // it via the compound floor (at pct=20 → ~49%).
                     let liveBal = await getChipBalance(caster);
-                    let amount = capAt(liveBal * 20 / 100, ppToUnits(300));
+                    let amount = capAt(liveBal * pct / 100, ppToUnits(cap));
                     if (amount > 0) {
                         switch (await chipTransfer(caster, whale, amount, memo)) {
                             case (#Ok(_)) {
@@ -3310,7 +3372,7 @@ persistent actor Self {
     /// subaccount). Use for fixups, comps, or seeding test accounts.
     public shared ({ caller }) func adminMint(to : Principal, wholePp : Nat) : async { #Ok : Nat; #Err : Text } {
         requireAdmin(caller);
-        await mintInternal(to, ppToUnits(wholePp), "admin-mint-" # Principal.toText(to));
+        await mintInternal(to, ppToUnits(wholePp), "admin-mint");
     };
 
     public shared ({ caller }) func setSimple21DayPpPerIcp(v : Nat) : async () {
