@@ -736,6 +736,16 @@ export function useSetPendingRenameName() {
       return result.Ok;
     },
     onSuccess: () => {
+      // Optimistically null the cached pending-rename slot BEFORE invalidating
+      // so the mount-time useEffect in Shenanigans.tsx doesn't see stale data
+      // between modal-close and refetch-completion. Without this, the modal
+      // re-opened with the same target after every successful commit: the
+      // effect at Shenanigans.tsx:161 re-fired on renamePrompt → null, saw
+      // the still-cached non-null pendingRename, and re-set the prompt.
+      queryClient.setQueriesData(
+        { queryKey: ['shenanigans', 'pendingRename'] },
+        null
+      );
       queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
       // Invalidate the display-name cache for ALL principals so the target's
       // newly-chosen name surfaces immediately in the trollbox, live feed,
@@ -782,6 +792,14 @@ export function useCancelPendingRename() {
       await actor.cancelPendingRename();
     },
     onSuccess: () => {
+      // Mirror the optimistic null from useSetPendingRenameName so the Skip
+      // path can't hit the same race (modal closes synchronously here, but
+      // belt-and-suspenders against future refactors that might rely on the
+      // backend roundtrip clearing the cache).
+      queryClient.setQueriesData(
+        { queryKey: ['shenanigans', 'pendingRename'] },
+        null
+      );
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });
     },
   });
