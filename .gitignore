@@ -41,3 +41,6 @@ coverage/
 # Claude worktrees (each is its own git checkout — never commit as a submodule)
 .claude/worktrees/
 .claire/
+
+# Superpowers brainstorming session files
+.superpowers/
