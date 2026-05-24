@@ -9,6 +9,8 @@ export type {
   ShenaniganConfig,
   ShenaniganRecord,
   ShenaniganStats,
+  ActiveSpellEffects,
+  ShieldState,
   _SERVICE,
 } from './shenanigans.did';
 

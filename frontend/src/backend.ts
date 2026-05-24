@@ -28,4 +28,6 @@ export type {
   ShenaniganRecord,
   ShenaniganStats,
   ShenaniganConfig,
+  ActiveSpellEffects,
+  ShieldState,
 } from './declarations/shenanigans';

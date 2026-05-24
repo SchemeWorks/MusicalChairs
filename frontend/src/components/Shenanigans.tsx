@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
@@ -14,6 +15,15 @@ import { useDisplayName } from './trollbox/useDisplayName';
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
 const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter
+
+// Poison Pill (magicMirror) shield charge ceiling. Mirrors the hardcoded
+// cap at shenanigans/main.mo:2178 — keep in sync until that cap is promoted
+// to a config field (tracked in TUNING_NOTES → "Promote the Poison Pill
+// charge cap to a tunable"). Used to gray out the Cast button when the
+// player's shield is already at max so they don't burn PP for a silent
+// no-op (the backend still charges them; only the charge count is capped).
+const POISON_PILL_ID = 5;
+const POISON_PILL_CHARGE_CAP = 3;
 
 
 interface ShenaniganConfig {
@@ -119,12 +129,132 @@ function OutcomeTargetName({ principalText }: { principalText: string }) {
   return <>{name || 'them'}</>;
 }
 
+// Compact "Xh Ym" / "Xm" / "<1m" formatter for active-effect expiries.
+// Always shows a value while the effect is live; never negative.
+function formatRemaining(expiresAtNs: bigint): string {
+  const nowMs = Date.now();
+  const expiresMs = Number(expiresAtNs) / 1_000_000;
+  const remainingMs = expiresMs - nowMs;
+  if (remainingMs <= 0) return 'expiring';
+  const totalMin = Math.ceil(remainingMs / 60_000);
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+// Strip of badges shown above the spell grid. Surfaces every live buff or
+// debuff returned by getActiveSpellEffects so a player can see at a glance
+// what's protecting them (Shield), helping them (Yield Boost, Override Bonus,
+// Whitelisted), or being done to them (Renamed, Siphoned). Returns null
+// (renders nothing) when no effects are active — no empty placeholder.
+function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveSpellEffects | null }) {
+  if (!effects) return null;
+
+  type Badge = {
+    key: string;
+    icon: React.ReactNode;
+    label: string;
+    tone: 'good' | 'bad' | 'neutral';
+  };
+  const badges: Badge[] = [];
+
+  const shield = effects.shield[0];
+  if (shield && shield.chargesRemaining > 0n) {
+    badges.push({
+      key: 'shield',
+      icon: <Shield className="w-3.5 h-3.5" />,
+      label: `Shield × ${Number(shield.chargesRemaining)} · ${formatRemaining(shield.expiresAt)}`,
+      tone: 'good',
+    });
+  }
+
+  const mult = effects.mintMultiplier[0];
+  if (mult) {
+    const pctBonus = (Number(mult.multiplierBps) - 10_000) / 100;
+    badges.push({
+      key: 'yield',
+      icon: <ArrowUp className="w-3.5 h-3.5" />,
+      label: `Yield Boost +${pctBonus.toFixed(0)}% · ${formatRemaining(mult.expiresAt)}`,
+      tone: 'good',
+    });
+  }
+
+  const boost = effects.cascadeBoost[0];
+  if (boost) {
+    const mx = Number(boost.multiplierBps) / 10_000;
+    badges.push({
+      key: 'override',
+      icon: <TrendingUp className="w-3.5 h-3.5" />,
+      label: `Override ${mx.toFixed(2)}× · ${formatRemaining(boost.expiresAt)}`,
+      tone: 'good',
+    });
+  }
+
+  if (effects.golden) {
+    badges.push({
+      key: 'golden',
+      icon: <Sparkles className="w-3.5 h-3.5" />,
+      label: 'Whitelisted',
+      tone: 'good',
+    });
+  }
+
+  const name = effects.displayName[0];
+  if (name) {
+    badges.push({
+      key: 'renamed',
+      icon: <Pencil className="w-3.5 h-3.5" />,
+      label: `Renamed "${name.name}" · ${formatRemaining(name.expiresAt)}`,
+      tone: 'bad',
+    });
+  }
+
+  const siphon = effects.mintSiphon[0];
+  if (siphon) {
+    const pct = Number(siphon.pctTimes100) / 100;
+    badges.push({
+      key: 'siphoned',
+      icon: <Building2 className="w-3.5 h-3.5" />,
+      label: `Siphoned ${pct.toFixed(0)}% · ${formatRemaining(siphon.expiresAt)}`,
+      tone: 'bad',
+    });
+  }
+
+  if (badges.length === 0) return null;
+
+  const toneClass = (tone: Badge['tone']) =>
+    tone === 'good'
+      ? 'bg-[var(--mc-green)]/15 mc-text-green border-[var(--mc-green)]/30'
+      : tone === 'bad'
+      ? 'bg-[var(--mc-danger)]/15 mc-text-danger border-[var(--mc-danger)]/30'
+      : 'bg-white/5 mc-text-dim border-white/10';
+
+  return (
+    <div className="mc-card p-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="mc-label flex-shrink-0">Active Effects:</span>
+        {badges.map(b => (
+          <span
+            key={b.key}
+            className={`text-xs px-2 py-1 rounded-full font-bold inline-flex items-center gap-1.5 border ${toneClass(b.tone)}`}
+          >
+            {b.icon}
+            {b.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Shenanigans() {
   const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const { data: cooldownsRaw } = useGetSpellCooldowns();
+  const { data: activeEffects } = useGetActiveSpellEffects();
   const castShenanigan = useCastShenanigan();
   const queryClient = useQueryClient();
   const successFlavor = useSpellFlavorPool('spellFlavor.success');
@@ -162,6 +292,37 @@ export default function Shenanigans() {
       setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
     }
   }, [pendingRename, renamePrompt]);
+
+  // Toast when the player's Poison Pill shield absorbs an incoming attack.
+  // Detects this by watching chargesRemaining via the 10s active-effects poll
+  // — when charges drop between observations, infer absorption. We DON'T toast
+  // when the shield naturally expired (previous expiresAt has passed by the
+  // time we re-poll): that's not an attack-block, just the duration running
+  // out. Edge case we accept: if both an absorption AND natural expiry happen
+  // inside the same 10s poll window, the toast gets suppressed. Rare; can be
+  // fixed by emitting a chat event from the backend in a follow-up.
+  const prevShieldRef = useRef<{ charges: number; expiresMs: number } | null>(null);
+  useEffect(() => {
+    const cur = activeEffects?.shield[0] ?? null;
+    const curCharges = cur ? Number(cur.chargesRemaining) : 0;
+    const prev = prevShieldRef.current;
+    if (prev && curCharges < prev.charges) {
+      const naturallyExpired = !cur && prev.expiresMs <= Date.now();
+      if (!naturallyExpired) {
+        const absorbed = prev.charges - curCharges;
+        const tail = curCharges > 0
+          ? `${curCharges} charge${curCharges === 1 ? '' : 's'} left.`
+          : 'Shield depleted.';
+        toast.success(
+          absorbed > 1
+            ? `🛡 Your shield absorbed ${absorbed} attacks — ${tail}`
+            : `🛡 Your shield absorbed an attack — ${tail}`,
+          { duration: 5000 }
+        );
+      }
+    }
+    prevShieldRef.current = cur ? { charges: curCharges, expiresMs: Number(cur.expiresAt) / 1_000_000 } : null;
+  }, [activeEffects]);
 
   useEffect(() => {
     if (backendConfigs) {
@@ -328,6 +489,8 @@ export default function Shenanigans() {
         <span className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()} PP</span>
       </div>
 
+      <ActiveEffectsStrip effects={activeEffects ?? null} />
+
       {/* Desktop 2-column layout: cards left, feed right */}
       <div className="mc-shenanigans-layout">
         {/* Left column: filter + cards + guardrails */}
@@ -380,7 +543,13 @@ export default function Shenanigans() {
                 const cooldownExpiresMs = cooldownExpiresAt.get(trick.id) ?? 0;
                 const onCooldown = cooldownExpiresMs > Date.now();
                 const minutesLeft = onCooldown ? Math.ceil((cooldownExpiresMs - Date.now()) / 60_000) : 0;
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown;
+                // Shield-aware state for the Poison Pill card only. Charges
+                // already at cap = casting is a silent no-op on charges (still
+                // costs PP, just refreshes expiry), so we gray the button.
+                const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
+                const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
+                const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
                 return (
                   <div
                     key={`shenanigan-${idx}`}
@@ -404,13 +573,23 @@ export default function Shenanigans() {
                     {/* Title + per-outcome costs (success/fail/backfire). Pre-cast
                         gate is costSuccess — the upfront commitment. */}
                     <h3 className="font-display text-sm mc-text-primary text-center mb-1">{trick.name}</h3>
-                    <div className="text-center mb-3">
+                    <div className="text-center mb-3 flex items-center justify-center gap-2 flex-wrap">
                       <span
                         className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-purple)]/20 mc-text-purple"
                         title="Cost on success / failure / backfire"
                       >
                         {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
                       </span>
+                      {/* Shield charge badge — Poison Pill only, when shield is live. */}
+                      {trick.id === POISON_PILL_ID && shield && shieldCharges > 0 && (
+                        <span
+                          className="text-xs px-2 py-0.5 rounded-full font-bold bg-[var(--mc-green)]/15 mc-text-green border border-[var(--mc-green)]/30 inline-flex items-center gap-1"
+                          title={`Shield active — ${shieldCharges} charge${shieldCharges === 1 ? '' : 's'} remaining, expires in ${formatRemaining(shield.expiresAt)}`}
+                        >
+                          <Shield className="w-3 h-3" />
+                          {shieldCharges}/{POISON_PILL_CHARGE_CAP} · {formatRemaining(shield.expiresAt)}
+                        </span>
+                      )}
                     </div>
 
                     {/* Description (rendered through templater so admin
@@ -446,7 +625,8 @@ export default function Shenanigans() {
                     >
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
-                      ) : onCooldown ? `Cooldown — ${minutesLeft}m`
+                      ) : shieldFull ? 'Shield full'
+                        : onCooldown ? `Cooldown — ${minutesLeft}m`
                         : userPoints < trick.costSuccess ? `Need ${trick.costSuccess} PP`
                         : `Cast (${trick.costSuccess} PP)`}
                     </button>
@@ -461,10 +641,22 @@ export default function Shenanigans() {
                 const cooldownExpiresMs = cooldownExpiresAt.get(trick.id) ?? 0;
                 const onCooldown = cooldownExpiresMs > Date.now();
                 const minutesLeft = onCooldown ? Math.ceil((cooldownExpiresMs - Date.now()) / 60_000) : 0;
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown;
+                const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
+                const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
+                const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
+                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
                 return (
                   <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
                     <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
+                    {trick.id === POISON_PILL_ID && shield && shieldCharges > 0 && (
+                      <span
+                        className="text-xs mc-text-green inline-flex items-center gap-1"
+                        title={`Shield active — ${shieldCharges} charge${shieldCharges === 1 ? '' : 's'} remaining`}
+                      >
+                        <Shield className="w-3 h-3" />
+                        {shieldCharges}/{POISON_PILL_CHARGE_CAP}
+                      </span>
+                    )}
                     <span className="text-xs mc-text-muted" title="Cost on success / failure / backfire">
                       {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
                     </span>
@@ -478,7 +670,8 @@ export default function Shenanigans() {
                     >
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-1">🎲</span>Casting…</>
-                      ) : onCooldown ? `${minutesLeft}m` : 'Cast'}
+                      ) : shieldFull ? 'Full'
+                        : onCooldown ? `${minutesLeft}m` : 'Cast'}
                     </button>
                   </div>
                 );
