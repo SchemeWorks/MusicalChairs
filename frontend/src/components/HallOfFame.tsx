@@ -8,6 +8,7 @@ import GoldenName from './GoldenName';
 import LoadingSpinner from './LoadingSpinner';
 import Podium from './hall-of-fame/Podium';
 import type { HallOfFameEntry } from './hall-of-fame/PodiumCard';
+import { CharlesIcon, isCharles } from '../lib/charles';
 
 function LeaderboardRow({
   entry,
@@ -127,28 +128,48 @@ export default function HallOfFame() {
         </button>
       </div>
 
-      {/* Your Rank banner */}
-      <div className="mc-card p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Target className="h-5 w-5 mc-text-cyan" />
-          <div>
-            <span className="text-xs mc-label">Your Rank (Diamond Tier)</span>
-            <div className="font-bold mc-text-primary text-sm">
-              {userBurnerRank !== undefined && userBurnerRank >= 0 ? (
-                <span className={userBurnerRank < 3 ? 'mc-text-gold mc-glow-gold' : ''}>
-                  #{userBurnerRank + 1} of {burnersData?.length || 0} burners
-                </span>
-              ) : (
-                <span className="mc-text-muted">Unranked — burn PP to climb</span>
-              )}
+      {/* Your Rank banner — "House Status" variant for admins (Charles never
+          appears on the public leaderboard, so showing them a rank wouldn't
+          make sense). Layout mirrors the standard banner exactly to avoid
+          page-shift between admin and non-admin views. */}
+      {principal && isCharles(principal) ? (
+        <div className="mc-card p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <CharlesIcon className="h-5 w-5 mc-text-gold" />
+            <div>
+              <span className="text-xs mc-label">House Status</span>
+              <div className="font-bold mc-text-primary text-sm">Not ranked</div>
+              <div className="text-xs mc-text-muted italic">The house never plays its own table.</div>
             </div>
           </div>
+          <div className="text-right">
+            <div className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()}</div>
+            <div className="text-xs mc-text-muted">PP</div>
+          </div>
         </div>
-        <div className="text-right">
-          <div className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()}</div>
-          <div className="text-xs mc-text-muted">PP</div>
+      ) : (
+        <div className="mc-card p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Target className="h-5 w-5 mc-text-cyan" />
+            <div>
+              <span className="text-xs mc-label">Your Rank (Diamond Tier)</span>
+              <div className="font-bold mc-text-primary text-sm">
+                {userBurnerRank !== undefined && userBurnerRank >= 0 ? (
+                  <span className={userBurnerRank < 3 ? 'mc-text-gold mc-glow-gold' : ''}>
+                    #{userBurnerRank + 1} of {burnersData?.length || 0} burners
+                  </span>
+                ) : (
+                  <span className="mc-text-muted">Unranked — burn PP to climb</span>
+                )}
+              </div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()}</div>
+            <div className="text-xs mc-text-muted">PP</div>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Karma received — prestige stat from trollbox karma reactions */}
       <div className="mc-card p-4 flex items-center justify-between">
