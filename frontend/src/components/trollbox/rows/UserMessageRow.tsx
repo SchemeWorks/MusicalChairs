@@ -1,4 +1,5 @@
 import React from 'react';
+import { minidenticon } from 'minidenticons';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
 import { useDisplayName } from '../useDisplayName';
 
@@ -25,9 +26,8 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
 
   return (
     <div className={`relative flex gap-2 px-3 py-2 ${mentioned ? 'border-l-2 border-amber-400' : ''}`}>
-      <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-700 text-xs font-medium text-zinc-200 shrink-0">
-        {authorName.charAt(0).toUpperCase()}
-      </div>
+      <Identicon seed={item.author.toText()} />
+
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="text-sm font-medium text-zinc-200 truncate">{authorName}</span>
@@ -46,6 +46,18 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
     </div>
   );
 }
+
+const Identicon = React.memo(function Identicon({ seed }: { seed: string }) {
+  const svg = React.useMemo(() => minidenticon(seed, 60, 50), [seed]);
+  const dataUri = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
+  return (
+    <img
+      src={dataUri}
+      alt=""
+      className="h-6 w-6 rounded-full bg-zinc-800 shrink-0"
+    />
+  );
+});
 
 function formatTimestamp(ns: bigint): string {
   const ms = Number(ns / 1_000_000n);
