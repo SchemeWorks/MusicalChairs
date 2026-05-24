@@ -1524,3 +1524,58 @@
   ::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.5); }
 }
+
+/* ================================================================
+   VIP GOLD ANIMATIONS — keyframes live outside any layer
+   ================================================================ */
+
+@keyframes mc-gold-sweep {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: -200% 0%; }
+}
+
+@keyframes mc-gold-pulse {
+  0%   { text-shadow: 0 0 16px rgba(255, 215, 0, 0.4); }
+  100% { text-shadow: 0 0 28px rgba(255, 215, 0, 0.7); }
+}
+
+@layer utilities {
+  .mc-name-vip {
+    background-image: linear-gradient(90deg, #FFD700 0%, #FFF4B0 50%, #FFD700 100%);
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation:
+      mc-gold-sweep 3s linear infinite,
+      mc-gold-pulse 2s ease-in-out infinite alternate;
+  }
+
+  .mc-pedestal-vip {
+    position: relative;
+    overflow: hidden;
+  }
+  .mc-pedestal-vip::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(90deg, transparent 0%, rgba(255, 215, 0, 0.25) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: mc-gold-sweep 3s linear infinite;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mc-name-vip {
+    background-image: none;
+    color: var(--mc-gold);
+    text-shadow: 0 0 20px var(--mc-glow-gold);
+    animation: none;
+  }
+  .mc-pedestal-vip::before {
+    animation: none;
+    opacity: 0;
+  }
+}
