@@ -128,7 +128,7 @@ Data sources (all already wired up):
 - Casts, outcomes: from `getUserMetrics(principal)` — already used by the Track Record card today.
 - Karma: from `getUserMetrics(principal)` — already used by the Karma Received card today.
 
-If any of those metrics are zero / null, render `0` rather than hiding the field. Density is the goal; gaps would feel buggy.
+If any of those metrics are zero or null, hide that field (and its preceding ` · ` separator) rather than rendering a `0`. If all of row 2's fields are empty (e.g. a fresh user with no casts yet), the entire row 2 is omitted and the pinned area renders as a single line. The dense layout is acceptable for now but is not the goal — the line should stay clean when there's no data to show.
 
 ## 4. `<HallOfFameMobileBlock />` (mobile top-of-page)
 
