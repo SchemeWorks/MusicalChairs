@@ -753,9 +753,13 @@ export function useSetPendingRenameName() {
       queryClient.invalidateQueries({ queryKey: ['recentShenanigans'] });
       // Invalidate the display-name cache for ALL principals so the target's
       // newly-chosen name surfaces immediately in the trollbox, live feed,
-      // and target picker. useDisplayName keys on ['shenanigans','goldenName',
-      // principalText], so a partial invalidation by exact key would miss it.
-      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'goldenName'] });
+      // and target picker. useDisplayName keys on
+      // ['shenanigans','customDisplayName',principalText] (set by renameSpell),
+      // and useIsGolden keys on ['shenanigans','goldenStatus',principalText]
+      // (set by goldenName / Whitelisted). Invalidate both so either cast
+      // outcome lands in the UI immediately.
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'customDisplayName'] });
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'goldenStatus'] });
       // Also drop the per-caller pending-rename query so the mount-time
       // check doesn't keep reopening the modal.
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });

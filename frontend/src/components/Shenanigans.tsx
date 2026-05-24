@@ -11,7 +11,8 @@ import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Targ
 import HallOfFame from './HallOfFame';
 import TargetPicker from './TargetPicker';
 import WhitelistedFanfare from './WhitelistedFanfare';
-import { useDisplayName } from './trollbox/useDisplayName';
+import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
+import GoldenName from './GoldenName';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
@@ -100,8 +101,10 @@ function LiveFeedRow({
   spellIcon: React.ReactNode;
 }) {
   const casterName = useDisplayName(record.user);
+  const isCasterGolden = useIsGolden(record.user);
   const target = record.target[0] ?? null;
   const targetName = useDisplayName(target);
+  const isTargetGolden = useIsGolden(target);
   const outcomeKey = variantKey(record.outcome);
   const outcomeColor =
     outcomeKey === 'success' ? 'mc-text-green' :
@@ -110,14 +113,22 @@ function LiveFeedRow({
   return (
     <div className="mc-card p-2 text-xs space-y-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
+        {isCasterGolden ? (
+          <GoldenName name={casterName || 'Anon'} isGolden={true} className="font-bold truncate" />
+        ) : (
+          <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
+        )}
         <span className={`font-bold flex-shrink-0 ${outcomeColor}`}>{outcomeKey.toUpperCase()}</span>
       </div>
       <div className="mc-text-dim flex items-center gap-1 min-w-0">
         <span className="flex-shrink-0">{spellIcon}</span>
         <span className="truncate">{spellName}</span>
         {target ? (
-          <span className="mc-text-muted truncate"> → {targetName}</span>
+          isTargetGolden ? (
+            <span className="mc-text-muted truncate"> → <GoldenName name={targetName} isGolden={true} /></span>
+          ) : (
+            <span className="mc-text-muted truncate"> → {targetName}</span>
+          )
         ) : null}
       </div>
     </div>
@@ -127,6 +138,8 @@ function LiveFeedRow({
 function OutcomeTargetName({ principalText }: { principalText: string }) {
   const principal = Principal.fromText(principalText);
   const name = useDisplayName(principal);
+  const isGolden = useIsGolden(principal);
+  if (isGolden) return <GoldenName name={name || 'them'} isGolden={true} />;
   return <>{name || 'them'}</>;
 }
 

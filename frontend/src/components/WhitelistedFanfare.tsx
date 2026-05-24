@@ -33,17 +33,27 @@ export default function WhitelistedFanfare({ open, onClose }: WhitelistedFanfare
     });
   }, [open]);
 
-  // Auto-dismiss timer + click/key listeners.
+  // Stable ref to the latest onClose so the auto-dismiss effect doesn't
+  // restart every time the parent re-renders. The parent (Shenanigans)
+  // polls on a 10s interval and creates a fresh onClose arrow per render,
+  // so depending on `onClose` directly would perpetually reset the 5s timer
+  // and the auto-dismiss would never fire.
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  // Auto-dismiss timer + key listener. Depends only on `open`.
   React.useEffect(() => {
     if (!open) return;
-    const timer = window.setTimeout(onClose, DISMISS_MS);
-    const handleKey = () => onClose();
-    window.addEventListener('keydown', handleKey, { once: true });
+    const dismiss = () => onCloseRef.current();
+    const timer = window.setTimeout(dismiss, DISMISS_MS);
+    window.addEventListener('keydown', dismiss, { once: true });
     return () => {
       window.clearTimeout(timer);
-      window.removeEventListener('keydown', handleKey);
+      window.removeEventListener('keydown', dismiss);
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
