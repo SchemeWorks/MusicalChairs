@@ -7,8 +7,11 @@ import { renderTemplate } from '../lib/renderTemplate';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
-import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, Trophy, LayoutGrid, List } from 'lucide-react';
-import HallOfFame from './HallOfFame';
+import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, LayoutGrid, List } from 'lucide-react';
+import HallOfFameRail from './hall-of-fame/HallOfFameRail';
+import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
+import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
+import GuardrailsTooltip from './Shenanigans/GuardrailsTooltip';
 import TargetPicker from './TargetPicker';
 import WhitelistedFanfare from './WhitelistedFanfare';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
@@ -90,50 +93,6 @@ function getShenaniganCategory(idx: number): FilterCategory {
 // Variant tags are objects like { success: null }; extract the single key.
 const variantKey = (v: unknown): string =>
   v && typeof v === 'object' ? Object.keys(v as Record<string, unknown>)[0] ?? '' : '';
-
-function LiveFeedRow({
-  record,
-  spellName,
-  spellIcon,
-}: {
-  record: ShenaniganRecord;
-  spellName: string;
-  spellIcon: React.ReactNode;
-}) {
-  const casterName = useDisplayName(record.user);
-  const isCasterGolden = useIsGolden(record.user);
-  const target = record.target[0] ?? null;
-  const targetName = useDisplayName(target);
-  const isTargetGolden = useIsGolden(target);
-  const outcomeKey = variantKey(record.outcome);
-  const outcomeColor =
-    outcomeKey === 'success' ? 'mc-text-green' :
-    outcomeKey === 'fail' ? 'mc-text-danger' :
-    'mc-text-purple';
-  return (
-    <div className="mc-card p-2 text-xs space-y-1">
-      <div className="flex items-center justify-between gap-2">
-        {isCasterGolden ? (
-          <GoldenName name={casterName || 'Anon'} isGolden={true} className="font-bold truncate" />
-        ) : (
-          <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
-        )}
-        <span className={`font-bold flex-shrink-0 ${outcomeColor}`}>{outcomeKey.toUpperCase()}</span>
-      </div>
-      <div className="mc-text-dim flex items-center gap-1 min-w-0">
-        <span className="flex-shrink-0">{spellIcon}</span>
-        <span className="truncate">{spellName}</span>
-        {target ? (
-          isTargetGolden ? (
-            <span className="mc-text-muted truncate"> → <GoldenName name={targetName} isGolden={true} /></span>
-          ) : (
-            <span className="mc-text-muted truncate"> → {targetName}</span>
-          )
-        ) : null}
-      </div>
-    </div>
-  );
-}
 
 function OutcomeTargetName({ principalText }: { principalText: string }) {
   const principal = Principal.fromText(principalText);
@@ -263,7 +222,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
 }
 
 export default function Shenanigans() {
-  const { data: stats, isLoading: statsLoading } = useGetShenaniganStats();
+  const { isLoading: statsLoading } = useGetShenaniganStats();
   const { data: recentShenanigans, isLoading: recentLoading } = useGetRecentShenanigans();
   const { data: ponziData, isLoading: ponziLoading } = useGetPonziPoints();
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
@@ -505,10 +464,9 @@ export default function Shenanigans() {
 
   return (
     <div className="space-y-6">
-      {/* PP balance bar */}
-      <div className="mc-card p-3 flex items-center justify-center gap-3">
-        <span className="mc-label">Your Ponzi Points:</span>
-        <span className="text-lg font-bold mc-text-purple mc-glow-purple">{userPoints.toLocaleString()} PP</span>
+      {/* Mobile-only: Hall of Fame at top of page. Hidden on lg+. */}
+      <div className="block lg:hidden">
+        <HallOfFameMobileBlock />
       </div>
 
       <ActiveEffectsStrip effects={activeEffects ?? null} />
@@ -554,6 +512,7 @@ export default function Shenanigans() {
               >
                 <List className="w-4 h-4" />
               </button>
+              <GuardrailsTooltip />
             </div>
           </div>
 
@@ -712,86 +671,36 @@ export default function Shenanigans() {
             </div>
           )}
 
-          {/* Guardrails */}
-          <div className="mc-card p-5">
-            <h3 className="font-display text-sm mc-text-primary mb-3 flex items-center gap-2">
-              <Shield className="h-4 w-4 mc-text-cyan" /> Guardrails
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs mc-text-dim">
-              <div className="flex items-start gap-2">
-                <Info className="h-3 w-3 mc-text-cyan mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">PP & Cosmetics Only</strong> — Never affects ICP, pot, backer selection, or payout math</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">Cooldowns</strong> — A successful cast locks that spell out for hours. Failures and backfires? Try again immediately.</span>
-              </div>
-              <div className="flex items-start gap-2">
-                <AlertTriangle className="h-3 w-3 mc-text-gold mt-0.5 flex-shrink-0" />
-                <span><strong className="mc-text-primary">No Refunds</strong> — Every cast burns PP, win or lose.</span>
-              </div>
-            </div>
-          </div>
         </div>
 
-        {/* Right column (desktop): Stats + Live Feed — sticky */}
-        <div className="mc-shenanigans-sidebar">
-          <div className="mc-card-elevated">
-            {/* Per-viewer lifetime cast totals from getShenaniganStats. Despite
-                the historical "current round" framing this is NOT round-scoped
-                and NOT global — it's just the logged-in user's own running
-                tally across every cast they've ever made. */}
-            <h3 className="font-display text-base mc-text-primary mb-4">Your Track Record</h3>
-            <div className="grid grid-cols-3 gap-3 mb-6">
-              {[
-                { label: 'PP Spent', value: stats?.totalSpent?.toLocaleString() || '0', color: 'mc-text-cyan' },
-                { label: 'Total Cast', value: stats?.totalCast?.toString() || '0', color: 'mc-text-green' },
-                { label: 'Outcomes', value: `${stats?.goodOutcomes || 0}/${stats?.badOutcomes || 0}/${stats?.backfires || 0}`, sub: 'good/bad/backfire', color: 'mc-text-purple' },
-              ].map(s => (
-                <div key={s.label} className="mc-card p-3 text-center">
-                  <div className="mc-label mb-1">{s.label}</div>
-                  <div className={`text-lg font-bold ${s.color}`}>{s.value}</div>
-                  {s.sub && <div className="text-xs mc-text-muted">{s.sub}</div>}
-                </div>
-              ))}
-            </div>
-
-            {/* Live feed */}
-            <h3 className="font-display text-base mc-text-primary mb-3">Live Feed</h3>
-            <div className="space-y-2 max-h-72 overflow-y-auto">
-              {recentShenanigans && recentShenanigans.length > 0 ? (
-                recentShenanigans.slice(0, 20).map(s => {
-                  const config = availableShenanigans.find(a => variantKey(a.type) === variantKey(s.shenaniganType));
-                  return (
-                    <LiveFeedRow
-                      key={s.id.toString()}
-                      record={s}
-                      spellName={config?.name ?? 'Unknown'}
-                      spellIcon={config?.icon ?? null}
-                    />
-                  );
-                })
-              ) : (
-                <p className="text-center mc-text-muted text-sm py-4">No shenanigans cast yet. Be the first!</p>
-              )}
-            </div>
-          </div>
+        {/* Right column (desktop): HoF rail + Live Feed — sticky via .mc-shenanigans-sidebar */}
+        <div className="mc-shenanigans-sidebar space-y-4">
+          <HallOfFameRail />
+          <LiveFeedPanel
+            records={recentShenanigans ?? []}
+            resolveSpell={(s) => {
+              const config = availableShenanigans.find(a => variantKey(a.type) === variantKey(s.shenaniganType));
+              return { name: config?.name ?? 'Unknown', icon: config?.icon ?? null };
+            }}
+          />
         </div>
       </div>
 
-      {/* Hall of Fame */}
-      <div className="mt-2">
-        <div className="flex items-center gap-2 mb-4">
-          <Trophy className="h-5 w-5 mc-text-gold" />
-          <h2 className="font-display text-lg mc-text-primary">Hall of Fame</h2>
-        </div>
-        <HallOfFame />
+      {/* Mobile-only Live Feed: collapsed by default. Hidden on lg+. */}
+      <div className="block lg:hidden">
+        <LiveFeedPanel
+          records={recentShenanigans ?? []}
+          resolveSpell={(s) => {
+            const config = availableShenanigans.find(a => variantKey(a.type) === variantKey(s.shenaniganType));
+            return { name: config?.name ?? 'Unknown', icon: config?.icon ?? null };
+          }}
+          defaultCollapsed
+        />
       </div>
 
-      {/* Footer */}
-      <div className="mc-status-blue p-4 text-center text-xs">
-        <span className="font-bold">Shenanigans are pure entertainment.</span>
-        <span className="mc-text-dim"> They don't affect game math — just the madness. Effects limited to PP and cosmetics only.</span>
+      {/* Compact footer */}
+      <div className="text-center text-xs mc-text-muted mt-2">
+        PP &amp; cosmetics only · pure entertainment · no refunds
       </div>
 
       <WhitelistedFanfare
