@@ -4,6 +4,7 @@ import { Principal } from '@dfinity/principal';
 import { useGetTopPonziPointsBurners, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
+import GoldenName from './GoldenName';
 import LoadingSpinner from './LoadingSpinner';
 
 interface HallOfFameEntry {
@@ -36,23 +37,33 @@ function PodiumSlot({
   const m = medals[rank];
   const h = heights[rank];
 
-  // Whitelisted (golden-name) takes precedence over the rank-medal text color,
-  // since the spell is specifically about flexing your name in gold.
-  const nameClass = isGolden ? 'mc-text-gold mc-glow-gold' : 'mc-text-primary';
   const displayName = name || '…';
+
+  // When golden, the pedestal swaps to a gold-tinted background + border and
+  // gets the animated shimmer overlay via `.mc-pedestal-vip`. Rank number
+  // also flips gold. Otherwise standard rank-based styling.
+  const pedestalBg = isGolden ? 'bg-[var(--mc-gold)]/15' : m.bg;
+  const pedestalBorder = isGolden ? 'border-[var(--mc-gold)]/50' : m.border;
+  const pedestalShimmer = isGolden ? 'mc-pedestal-vip' : '';
+  const rankNumberClass = isGolden ? 'mc-text-gold' : m.text;
 
   return (
     <div className="flex flex-col items-center" style={{ minWidth: '90px' }}>
-      <div className={`w-10 h-10 rounded-full ${m.bg} border ${m.border} flex items-center justify-center mb-1.5 relative`} style={{ boxShadow: m.glow }}>
-        <span className={`font-display text-sm ${isGolden ? 'mc-text-gold' : m.text}`}>{displayName.charAt(0).toUpperCase() || '?'}</span>
+      <div
+        className={`w-10 h-10 rounded-full ${isGolden ? 'bg-[var(--mc-gold)]/20 border-[var(--mc-gold)]/60' : `${m.bg} ${m.border}`} border flex items-center justify-center mb-1.5 relative`}
+        style={{ boxShadow: m.glow }}
+      >
+        <span className={`font-display text-sm ${isGolden ? 'mc-text-gold' : m.text}`}>
+          {displayName.charAt(0).toUpperCase() || '?'}
+        </span>
         <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
           {m.icon}
         </div>
       </div>
-      <span className={`text-xs font-bold truncate max-w-[80px] text-center ${nameClass}`}>{displayName}</span>
+      <GoldenName name={displayName} isGolden={isGolden} className="text-xs font-bold truncate max-w-[80px] text-center" />
       <span className="text-xs font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</span>
-      <div className={`${h} w-full mt-2 rounded-t-lg ${m.bg} border-t border-x ${m.border} flex items-start justify-center pt-2`}>
-        <span className={`font-display text-sm ${m.text}`}>#{rank}</span>
+      <div className={`${h} w-full mt-2 rounded-t-lg ${pedestalBg} border-t border-x ${pedestalBorder} ${pedestalShimmer} flex items-start justify-center pt-2`}>
+        <span className={`font-display text-sm ${rankNumberClass}`}>#{rank}</span>
       </div>
     </div>
   );
@@ -101,12 +112,10 @@ function LeaderboardRow({
   const style = getRankStyle(entry.rank);
   const isTop3 = entry.rank <= 3;
   const displayName = name || '…';
-  // Golden-name spell wins over the rank-based color, and over the "(you)" cyan.
-  const nameClass = isGolden
-    ? 'mc-text-gold mc-glow-gold'
-    : isUser
-      ? 'mc-text-cyan'
-      : 'mc-text-primary';
+  // When not golden, the row name still respects the "(you)" cyan highlight.
+  // When golden, <GoldenName> takes over the color/decoration regardless of
+  // whether it's the current user.
+  const fallbackClass = isUser ? 'mc-text-cyan' : 'mc-text-primary';
 
   return (
     <div
@@ -127,9 +136,13 @@ function LeaderboardRow({
           <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${
             isTop3 ? 'bg-white/10' : 'bg-[var(--mc-purple)]/10'
           } mc-text-dim`}>{style.label}</span>
-          <span className={`font-bold text-sm ml-2 ${nameClass}`}>
-            {displayName}{isUser ? ' (you)' : ''}
-          </span>
+          {isGolden ? (
+            <GoldenName name={displayName} isGolden={true} className="font-bold text-sm ml-2" />
+          ) : (
+            <span className={`font-bold text-sm ml-2 ${fallbackClass}`}>
+              {displayName}{isUser ? ' (you)' : ''}
+            </span>
+          )}
         </div>
       </div>
       <div className="text-right">
