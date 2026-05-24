@@ -33,7 +33,13 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
       }`}
       style={isGolden ? { backgroundImage: 'linear-gradient(90deg, rgba(255,215,0,0.08), transparent 60%)' } : undefined}
     >
-      <Identicon seed={item.author.toText()} />
+      {isGolden ? (
+        <div className="rounded-full p-[2px] bg-[var(--mc-gold)]/40 shrink-0" style={{ boxShadow: '0 0 8px rgba(255, 215, 0, 0.4)' }}>
+          <Identicon seed={item.author.toText()} />
+        </div>
+      ) : (
+        <Identicon seed={item.author.toText()} />
+      )}
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
