@@ -10,6 +10,7 @@ import { ShenaniganType, ShenaniganRecord } from '../backend';
 import { Info, Shield, Zap, AlertTriangle, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, Trophy, LayoutGrid, List } from 'lucide-react';
 import HallOfFame from './HallOfFame';
 import TargetPicker from './TargetPicker';
+import WhitelistedFanfare from './WhitelistedFanfare';
 import { useDisplayName } from './trollbox/useDisplayName';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
@@ -267,6 +268,7 @@ export default function Shenanigans() {
   const [targetPickerOpen, setTargetPickerOpen] = useState(false);
   const [selectedShenanigan, setSelectedShenanigan] = useState<{ id: number; type: ShenaniganType; name: string; costSuccess: number; costFailure: number; costBackfire: number; icon: React.ReactNode } | null>(null);
   const [selectedTarget, setSelectedTarget] = useState<Principal | null>(null);
+  const [whitelistedFanfareOpen, setWhitelistedFanfareOpen] = useState(false);
   const [outcomeToast, setOutcomeToast] = useState<{
     name: string;
     outcome: string;
@@ -422,6 +424,7 @@ export default function Shenanigans() {
       }
       setTimeout(() => {
         const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
+        const isWhitelistedSuccess = outcome === 'success' && selectedShenanigan.id === 10 /* goldenName */;
         const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
           ? detail.affectedTarget[0]?.toText() ?? null
           : null;
@@ -430,6 +433,12 @@ export default function Shenanigans() {
           // affirmation, and otherwise the toast would sit hidden behind
           // the rename modal's backdrop.
           setRenamePrompt({ targetPrincipal: targetPrincipalText });
+        } else if (isWhitelistedSuccess) {
+          // Skip the success toast — the fanfare card IS the affirmation,
+          // and stacking the small green toast under a confetti overlay
+          // looks ridiculous. Failure / backfire still go through the
+          // normal toast below.
+          setWhitelistedFanfareOpen(true);
         } else {
           // Pick the cost matching the rolled outcome. (If the caster's
           // balance was below this, the backend clamped to balance — the
@@ -771,6 +780,11 @@ export default function Shenanigans() {
         <span className="font-bold">Shenanigans are pure entertainment.</span>
         <span className="mc-text-dim"> They don't affect game math — just the madness. Effects limited to PP and cosmetics only.</span>
       </div>
+
+      <WhitelistedFanfare
+        open={whitelistedFanfareOpen}
+        onClose={() => setWhitelistedFanfareOpen(false)}
+      />
 
       {/* Outcome toast */}
       {outcomeToast && (
