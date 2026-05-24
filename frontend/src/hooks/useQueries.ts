@@ -1242,14 +1242,19 @@ export function useGetTopPonziPointsBurners() {
     queryKey: ['topPpBurners'],
     queryFn: async () => {
       const burners = await actor.getTopPpBurners(50n);
-      // No `name` field: display names are resolved per-row via useDisplayName
-      // at render time (so golden-name spells take precedence over saved profile
-      // names and update in real time).
-      return burners.map(([principal, unitsBig], index) => ({
-        rank: index + 1,
-        ponziPointsBurned: Number(unitsBig / 100_000_000n),
-        principal: principal.toString(),
-      }));
+      // Admins (Charles principals) are filtered out of the public ranking —
+      // the house never plays its own table. Filter BEFORE rank assignment so
+      // the remaining list is contiguous (1..N with no gaps where admins
+      // would've been). No `name` field: display names are resolved per-row
+      // via useDisplayName at render time (so golden-name spells take
+      // precedence over saved profile names and update in real time).
+      return burners
+        .filter(([principal]) => !isCharles(principal.toString()))
+        .map(([principal, unitsBig], index) => ({
+          rank: index + 1,
+          ponziPointsBurned: Number(unitsBig / 100_000_000n),
+          principal: principal.toString(),
+        }));
     },
     refetchInterval: 30000,
   });
