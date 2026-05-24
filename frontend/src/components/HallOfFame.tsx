@@ -6,88 +6,8 @@ import { useWallet } from '../hooks/useWallet';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
 import LoadingSpinner from './LoadingSpinner';
-
-interface HallOfFameEntry {
-  rank: number;
-  ponziPointsBurned?: number;
-  principal: string;
-}
-
-// Each row resolves its own name + golden status via cached per-principal
-// queries, so the leaderboard shows real display names (golden-name spell
-// takes precedence over saved profile names). Rendered inside a component
-// so the hooks are called once per row, not in a loop in the parent.
-function PodiumSlot({
-  entry,
-  rank,
-}: {
-  entry: HallOfFameEntry;
-  rank: 1 | 2 | 3;
-}) {
-  const principal = React.useMemo(() => Principal.fromText(entry.principal), [entry.principal]);
-  const name = useDisplayName(principal);
-  const isGolden = useIsGolden(principal);
-
-  const heights = { 1: 'h-28', 2: 'h-20', 3: 'h-14' };
-  const medals = {
-    1: { bg: 'bg-[var(--mc-gold)]/20', border: 'border-[var(--mc-gold)]/40', text: 'mc-text-gold', glow: '0 0 16px rgba(255, 215, 0, 0.2)', icon: <Medal className="h-3.5 w-3.5 mc-text-gold" /> },
-    2: { bg: 'bg-gray-400/10', border: 'border-gray-400/30', text: 'text-gray-300', glow: '0 0 12px rgba(192, 192, 192, 0.15)', icon: <Medal className="h-3 w-3 text-gray-300" /> },
-    3: { bg: 'bg-amber-600/15', border: 'border-amber-600/30', text: 'text-amber-500', glow: '0 0 12px rgba(205, 127, 50, 0.15)', icon: <Medal className="h-3 w-3 text-amber-500" /> },
-  };
-  const m = medals[rank];
-  const h = heights[rank];
-
-  const displayName = name || '…';
-
-  // When golden, the pedestal swaps to a gold-tinted background + border and
-  // gets the animated shimmer overlay via `.mc-pedestal-vip`. Rank number
-  // also flips gold. Otherwise standard rank-based styling.
-  const pedestalBg = isGolden ? 'bg-[var(--mc-gold)]/15' : m.bg;
-  const pedestalBorder = isGolden ? 'border-[var(--mc-gold)]/50' : m.border;
-  const pedestalShimmer = isGolden ? 'mc-pedestal-vip' : '';
-  const rankNumberClass = isGolden ? 'mc-text-gold' : m.text;
-
-  return (
-    <div className="flex flex-col items-center" style={{ minWidth: '90px' }}>
-      <div
-        className={`w-10 h-10 rounded-full ${isGolden ? 'bg-[var(--mc-gold)]/20 border-[var(--mc-gold)]/60' : `${m.bg} ${m.border}`} border flex items-center justify-center mb-1.5 relative`}
-        style={{ boxShadow: m.glow }}
-      >
-        <span className={`font-display text-sm ${isGolden ? 'mc-text-gold' : m.text}`}>
-          {displayName.charAt(0).toUpperCase() || '?'}
-        </span>
-        <div className="absolute -top-1 -right-1 w-4 h-4 flex items-center justify-center">
-          {m.icon}
-        </div>
-      </div>
-      <GoldenName name={displayName} isGolden={isGolden} className="text-xs font-bold truncate max-w-[80px] text-center" />
-      <span className="text-xs font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</span>
-      <div className={`${h} w-full mt-2 rounded-t-lg ${pedestalBg} border-t border-x ${pedestalBorder} ${pedestalShimmer} flex items-start justify-center pt-2`}>
-        <span className={`font-display text-sm ${rankNumberClass}`}>#{rank}</span>
-      </div>
-    </div>
-  );
-}
-
-function Podium({ entries }: { entries: HallOfFameEntry[] }) {
-  const top3 = entries.slice(0, 3);
-  if (top3.length === 0) return null;
-
-  // Reorder for podium: [2nd, 1st, 3rd]
-  const podiumOrder = top3.length >= 3
-    ? [top3[1], top3[0], top3[2]]
-    : top3.length === 2
-    ? [top3[1], top3[0]]
-    : [top3[0]];
-
-  return (
-    <div className={`flex items-end justify-center gap-2 mb-6`} style={{ minHeight: '140px' }}>
-      {podiumOrder.map(entry => (
-        <PodiumSlot key={entry.rank} entry={entry} rank={entry.rank as 1 | 2 | 3} />
-      ))}
-    </div>
-  );
-}
+import Podium from './hall-of-fame/Podium';
+import type { HallOfFameEntry } from './hall-of-fame/PodiumCard';
 
 function LeaderboardRow({
   entry,
@@ -251,22 +171,26 @@ export default function HallOfFame() {
           <h3 className="font-display text-base mc-text-primary">Diamond Tier</h3>
         </div>
         <p className="text-xs mc-text-muted mb-4">Most Points Spent on Shenanigans</p>
-        {burnersData && burnersData.length >= 2 && (
+        {burnersData && burnersData.length >= 1 && (
           <Podium entries={burnersData} />
         )}
-        <div className="space-y-2 max-h-96 overflow-y-auto">
-          {burnersData && burnersData.length > 0
-            ? burnersData
-                .slice(burnersData.length >= 2 ? Math.min(3, burnersData.length) : 0)
-                .map(entry => (
-                  <LeaderboardRow
-                    key={`b-${entry.rank}`}
-                    entry={entry}
-                    isUser={entry.principal === userPrincipal}
-                  />
-                ))
-            : <p className="text-sm mc-text-dim text-center py-4">No Diamond Tier members yet</p>}
-        </div>
+        {burnersData && burnersData.length > 3 ? (
+          <div className="space-y-2 max-h-96 overflow-y-auto">
+            {burnersData
+              .slice(3)
+              .map(entry => (
+                <LeaderboardRow
+                  key={`b-${entry.rank}`}
+                  entry={entry}
+                  isUser={entry.principal === userPrincipal}
+                />
+              ))}
+          </div>
+        ) : (
+          <div className="text-center py-6 text-xs mc-text-muted italic">
+            Only {burnersData?.length ?? 0} burners so far. Anyone with ≥1 PP burned can join the leaderboard.
+          </div>
+        )}
       </div>
 
       {/* PP disclaimer */}
