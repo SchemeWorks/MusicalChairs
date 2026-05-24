@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Premortem — Solana Port</title>
+<style>
+  :root {
+    --bg: #0a0e1a;
+    --bg-card: #131826;
+    --bg-card-soft: #1a2030;
+    --text: #e8eaf0;
+    --text-dim: #8b94a8;
+    --text-faint: #5a6378;
+    --accent: #6ee7b7;
+    --critical: #f87171;
+    --major: #fb923c;
+    --border: #232a3d;
+    --border-soft: #1e2434;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; -webkit-font-smoothing: antialiased; }
+  body { max-width: 1200px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  /* Hero */
+  .hero { padding: 32px 0 24px; border-bottom: 1px solid var(--border); margin-bottom: 40px; }
+  .hero .eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+  .hero h1 { font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 12px; }
+  .hero .subtitle { color: var(--text-dim); font-size: 17px; max-width: 720px; }
+  .hero .meta { color: var(--text-faint); font-size: 13px; margin-top: 16px; font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+
+  /* Scope strip */
+  .scope { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 40px; }
+  .scope-item { background: var(--bg-card); border: 1px solid var(--border-soft); border-radius: 8px; padding: 16px 20px; }
+  .scope-item .label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-faint); margin-bottom: 8px; }
+  .scope-item .value { font-size: 28px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .scope-item .desc { font-size: 13px; color: var(--text-dim); margin-top: 6px; }
+
+  /* Synthesis */
+  .synthesis { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 32px; margin-bottom: 48px; }
+  .synthesis h2 { font-size: 22px; margin-bottom: 24px; letter-spacing: -0.01em; }
+  .syn-block { margin-bottom: 28px; }
+  .syn-block:last-child { margin-bottom: 0; }
+  .syn-block h3 { font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 12px; font-weight: 600; }
+  .syn-block p { color: var(--text); font-size: 15px; }
+  .syn-block p + p { margin-top: 12px; }
+  .syn-block .callout { background: var(--bg-card-soft); border-left: 3px solid var(--accent); padding: 14px 18px; margin: 12px 0; border-radius: 4px; font-size: 15px; color: var(--text); }
+  .syn-block ol, .syn-block ul { padding-left: 24px; color: var(--text); }
+  .syn-block li { margin-bottom: 10px; font-size: 15px; }
+  .syn-block li strong { color: var(--accent); }
+
+  /* Failure grid */
+  .grid-header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+  .grid-header h2 { font-size: 22px; letter-spacing: -0.01em; }
+  .grid-header .legend { display: flex; gap: 16px; font-size: 12px; color: var(--text-dim); }
+  .legend-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+  .dot-critical { background: var(--critical); }
+  .dot-major { background: var(--major); }
+
+  .failure-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 20px; }
+  .failure-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; }
+  .failure-card.critical { border-top: 3px solid var(--critical); }
+  .failure-card.major { border-top: 3px solid var(--major); }
+  .card-head { display: flex; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+  .card-num { font-family: ui-monospace, "SF Mono", Menlo, monospace; font-size: 13px; color: var(--text-faint); font-weight: 600; padding-top: 2px; }
+  .card-title { font-size: 17px; font-weight: 600; letter-spacing: -0.005em; flex: 1; }
+  .card-severity { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 700; padding: 4px 8px; border-radius: 4px; white-space: nowrap; }
+  .card-severity.critical { background: rgba(248, 113, 113, 0.15); color: var(--critical); }
+  .card-severity.major { background: rgba(251, 146, 60, 0.15); color: var(--major); }
+
+  .section-label { font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-faint); font-weight: 600; margin-bottom: 8px; margin-top: 16px; }
+  .section-label:first-of-type { margin-top: 0; }
+  .story { color: var(--text); font-size: 14px; line-height: 1.65; }
+  .story p + p { margin-top: 10px; }
+  .assumption { color: var(--text); font-size: 14px; font-style: italic; background: var(--bg-card-soft); padding: 12px 14px; border-radius: 6px; border-left: 2px solid var(--text-faint); }
+  .warnings { list-style: none; padding: 0; }
+  .warnings li { color: var(--text); font-size: 13px; padding: 8px 0 8px 18px; position: relative; border-bottom: 1px solid var(--border-soft); }
+  .warnings li:last-child { border-bottom: none; }
+  .warnings li::before { content: "→"; position: absolute; left: 0; color: var(--accent); font-weight: 700; }
+
+  /* Footer */
+  footer { margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); color: var(--text-faint); font-size: 12px; font-family: ui-monospace, "SF Mono", Menlo, monospace; display: flex; justify-content: space-between; }
+
+  @media (max-width: 720px) {
+    body { padding: 24px 16px 60px; }
+    .hero h1 { font-size: 28px; }
+    .scope { grid-template-columns: 1fr; }
+    .failure-grid { grid-template-columns: 1fr; }
+    .synthesis { padding: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="eyebrow">Premortem · Klein method</div>
+  <h1>Solana Port — Failure Analysis</h1>
+  <div class="subtitle">It's November 2026. The Solana port shipped six months ago. It failed. This document is the postmortem we'd write after the fact — except we're writing it now, so we still have time to change course.</div>
+  <div class="meta">Plan: docs/superpowers/specs/2026-05-23-solana-port-design.md · Generated 2026-05-23</div>
+</section>
+
+<section class="scope">
+  <div class="scope-item">
+    <div class="label">Agents Dispatched</div>
+    <div class="value">9</div>
+    <div class="desc">One per failure reason, all in parallel</div>
+  </div>
+  <div class="scope-item">
+    <div class="label">Critical Severity</div>
+    <div class="value">5</div>
+    <div class="desc">High probability × high damage</div>
+  </div>
+  <div class="scope-item">
+    <div class="label">Major Severity</div>
+    <div class="value">4</div>
+    <div class="desc">Medium probability or medium damage</div>
+  </div>
+</section>
+
+<section class="synthesis">
+  <h2>Synthesis</h2>
+
+  <div class="syn-block">
+    <h3>1 — The Most Likely Failure</h3>
+    <p><strong>Operator burnout (#8).</strong> Unusually for a premortem, the early warning signs are already present in this room. During the design discussion the operator stated outright that Motoko "sounds much more elegant and sophisticated," called the Solana workarounds "weird," said it "kills me" to walk away from the oldest-35% rule. Pre-existing disposition + dual-stack maintenance is the canonical recipe for atrophy.</p>
+    <p>Close second: <strong>cold-start liquidity (#9)</strong>. The IC bootstrap mechanisms (Ponzi Points, NFT cascade, shenanigans, community pressure) are explicitly dropped on the Solana side, and Solana audiences don't self-bootstrap ponzis the way they self-bootstrap memecoins (the latter has a liquid secondary market and an exit; this game has neither).</p>
+  </div>
+
+  <div class="syn-block">
+    <h3>2 — The Most Dangerous Failure</h3>
+    <p><strong>MEV bots and Series B slot-hash exploitation (#3).</strong> Three reasons it's worst-case:</p>
+    <ul>
+      <li>Silent — no obvious "broken" state, just unfair outcomes accumulating</li>
+      <li>Cross-chain reputation damage — Twitter doesn't distinguish "Solana version exploited" from "Musical Chairs exploited"</li>
+      <li>The fix requires either an audit (blocked by #7) or Switchboard VRF integration (more work the burned-out operator won't want to do)</li>
+    </ul>
+    <p>Math parity drift (#1) is comparable in damage — both attack the "fairness" pillar holding the entire game together. But MEV is harder to walk back once the headlines exist.</p>
+  </div>
+
+  <div class="syn-block">
+    <h3>3 — The Hidden Assumption</h3>
+    <p>Across all 9 failure modes, the deepest unexamined assumption is:</p>
+    <div class="callout">"This is a <em>port</em> — same product, same audience, different plumbing."</div>
+    <p>But it's not a port. It's a <strong>new product launched in a new market under a familiar name</strong>. Different audience (Phantom degens vs ICP natives), different competitive set (Pump.fun vs nothing comparable on IC), different distribution channel (Twitter/Solana subreddit vs IC community), different operational model (dual stack vs single stack), different trust assumptions (anonymous wallet sigs vs II delegations).</p>
+    <p>The spec treats this as a technical undertaking. The failure modes are almost all <strong>product / market / operator</strong> failures, not technical ones. The Anchor program will probably work fine. What might not work is everything around it.</p>
+  </div>
+
+  <div class="syn-block">
+    <h3>4 — The Revised Plan</h3>
+    <ol>
+      <li><strong>Validate the audience BEFORE building.</strong> Run a 2-week customer-development sprint before writing Rust. Concrete: fake landing page with Phantom connect, $500 in paid traffic, measure intent-to-deposit conversion and sentiment. If "is this a scam?" replies exceed 3:1 vs satirical engagement, kill the project. Two weeks beats fourteen.</li>
+      <li><strong>Promote the parity test suite from Phase 5 mitigation to Phase 1 gating criterion.</strong> Refuse to merge any economics code without a passing golden-vector test against the Motoko implementation, with the tolerance band publicly documented in advance.</li>
+      <li><strong>Ship Switchboard VRF from day one for Series B selection.</strong> The "V1 is fine because the prize is small" reasoning died in failure mode #3. Add 1-2 weeks and pay the per-call cost. Cheaper than a 400K-view exploit thread.</li>
+      <li><strong>Operator commitment test at Phase 3 boundary.</strong> Before starting Phase 4 (frontend) or Phase 5 (audit), do a written self-assessment: "Am I going to want to maintain this for 18+ months?" If the honest answer is anything but yes, kill the project before sinking the frontend and audit costs.</li>
+      <li><strong>Audit outreach in Phase 0, not Phase 5.</strong> Email 5+ Solana auditors with the spec and the satirical framing visible during the design phase. If brand-risk decline is the pattern, discover it in week 1, not week 11.</li>
+      <li><strong>Indexer multi-RPC failover and viral-spike load test as launch-blockers.</strong> Provider-agnostic parser. Helius + Triton as default redundancy. Simulated 1000-tx-in-5-min stress test. CycleOps alert thresholds set against viral-spike worst case.</li>
+      <li><strong>Phantom UX: collapse popups aggressively.</strong> Use Solana's transaction composition and Lighthouse assertion accounts to do multi-step flows in one popup. Target ≤1 popup per <em>session</em>, not per action. Test the friction-collapsed UX against IC retention before committing.</li>
+      <li><strong>Cold-start liquidity bootstrap is mandatory, not optional.</strong> Either operator seeds Pool with X SOL of house liquidity, first-N-depositors get a small bonus, cross-promo with a Solana protocol with overlapping audience, or don't launch until 100+ committed pre-launch wallets exist. Picking none of these is picking failure mode #9.</li>
+    </ol>
+  </div>
+
+  <div class="syn-block">
+    <h3>5 — Pre-Launch Checklist</h3>
+    <ul>
+      <li><strong>Audience pilot complete.</strong> $500 in paid traffic to Phantom-connect landing page. Intent-to-deposit conversion measured. Scam-reply vs satirical-engagement ratio &lt;2:1.</li>
+      <li><strong>Parity test suite green.</strong> 1000+ golden test vectors comparing IC vs Solana within explicit ε tolerance. Tolerance band publicly disclosed in advance.</li>
+      <li><strong>At least 2 reputable auditors quoted in writing.</strong> Not "let me check internally." Written engagement quotes confirming the brand-risk filter wasn't activated.</li>
+      <li><strong>Indexer viral-spike test passed.</strong> 1000+ tx in 5 min: no consensus failures, lag &lt;60s recovery, cycle burn within 3x baseline, automatic Helius → Triton failover verified.</li>
+      <li><strong>Operator self-assessment: yes.</strong> Written, dated commitment to 18+ months of maintenance, signed before Phase 5 audit dollars are spent.</li>
+    </ul>
+    <p style="margin-top: 16px; color: var(--text-dim); font-size: 14px;">If any gate fails, the project shouldn't ship in its current form. That's a feature of the checklist, not a bug.</p>
+  </div>
+</section>
+
+<div class="grid-header">
+  <h2>Nine Failure Modes</h2>
+  <div class="legend">
+    <span><span class="legend-dot dot-critical"></span>Critical</span>
+    <span><span class="legend-dot dot-major"></span>Major</span>
+  </div>
+</div>
+
+<div class="failure-grid">
+
+  <!-- 1 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">01</div>
+      <div class="card-title">Math parity drift</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>Launch week: Solana flavor goes live. Same UI labels, same plans, same Carried Interest tiers. Charles tweets "same game, pick your wallet."</p>
+      <p>Day 8: a degen named SOLBRO settles a 5 SOL compounding15Day position on Solana and posts it next to a matched II user's IC payout. Solana paid <code>amount × ROI_COMP15_Q64</code> at maturity; IC paid <code>amount × (1.12^15.04 - 1)</code> rounded to 8 decimals — because Motoko's <code>Float.pow</code> runs against fractional <code>daysElapsed</code> and the user happened to settle 56 minutes after the mark. IC was 0.6% larger. SOLBRO calls it a scam in the Telegram.</p>
+      <p>Two weeks later the parity test suite confirms dozens of small drifts — IC favors matured compounding, Solana favors early simple withdrawals. Charles tries to explain. Nobody believes him. Framing inverts from "same game, two chains" to "Charles runs two slightly different scams." Deposits freeze on both sides.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That "same game rules" survives translation between Float-with-runtime-rounding and integer-fixed-point-at-maturity-only — when the IC version's payouts are themselves emergent products of repeated rounding, not a clean closed form anyone can reproduce.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Parity test suite is "TODO" past Phase 5 instead of a Phase 1 gating criterion next to the fixed-point math itself</li>
+      <li><code>adminGetActivePlansSnapshot</code> shows different numbers on the two flavors at matched inputs during devnet — anyone opening both dashboards side-by-side sees it</li>
+    </ul>
+  </div>
+
+  <!-- 2 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">02</div>
+      <div class="card-title">Audience mismatch (degen vs satire)</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>Launch week looks fine. Then cohorts diverge. 40% of new wallets are "literalists" — degens who deposit 0.5-2 SOL on the implicit promise of early gains, lose to the Carried Interest curve, and take to Twitter calling it a rug. "Front-End Load" copy gets screenshotted: "they literally TELL you they're skimming and people still deposit." Reads as an own, not a joke. By August three mid-tier alpha accounts have pinned warning threads.</p>
+      <p>The second cohort — sophisticates — is worse in a quieter way. A Jito-adjacent quant group publishes a Dune dashboard reverse-engineering the tier schedule, posts optimal entry/exit timing as a Jupyter notebook, runs a bot farm extracting ~28% of net inflows during August. The 12%/7.5%/3% schedule becomes a solved game.</p>
+      <p>Meanwhile Pump.fun mints 10K tokens a day and BONK derivatives offer 50x leverage. The satirical-MLM frame feels clever to ICP natives, low-energy LARP next to actual on-chain casino energy. Volume bleeds to &lt;5% IC daily by October.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That a self-aware satirical frame travels across crypto cultures — when the joke actually requires an in-group that trusts the protocol's intent before reading the copy.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Week 1-2: "is this a scam?" replies to satirical engagement on Solana launch tweet exceeds 3:1 (vs &lt;0.5:1 for IC posts)</li>
+      <li>Week 2-4: A Dune dashboard or Twitter thread reverse-engineering the tier schedule with optimal-exit math gets &gt;50 likes</li>
+    </ul>
+  </div>
+
+  <!-- 3 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">03</div>
+      <div class="card-title">MEV bots + Series B slot-hash exploitation</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>By July a Jito searcher named "chair-sniper" writes a 200-line Rust bot monitoring the Pool PDA's lamport balance via Geyser. The moment a withdrawal pushes the pot under rent-exemption, the bot races to land <code>trigger_reset</code> in the next slot — submitting across 12 fee-payer wallets at 50ms intervals.</p>
+      <p>Because the program lets the cranker pick any of 512 recent SlotHashes plus any underwater promotee, the bot iterates all 512 hashes locally, finds the one whose hash mod candidate-count points at one of its 30 pre-seeded sockpuppet "losses," and submits. Series B goes to chair-sniper's wallets in 41 of the next 47 round resets. Sockpuppet farm cost ~0.3 SOL.</p>
+      <p>By September, on-chain explorers show three wallet clusters winning 89% of all Series B promotions ever. A Twitter thread titled "Musical Chairs is a bot farm now" hits 400K views. Sandwich attacks on the partial-payout scaling compound the bleed. By October the only addresses still depositing are the searchers themselves, recycling SOL through the bonus loop. Pot dies.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">"The prize is small so the incentive to attack is low" — but the prize doesn't have to be large when the marginal cost of attacking is near-zero (sockpuppet dust + Jito fees) and the attack is fully automatable across infinite rounds.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>The same 5-10 wallets cranking <code>trigger_reset</code> within the same slot as the triggering withdrawal, every round</li>
+      <li>A cluster of identical underwater <code>simple21</code> games at protocol minimum, created within the same hour, by addresses that never withdraw</li>
+    </ul>
+  </div>
+
+  <!-- 4 -->
+  <div class="failure-card major">
+    <div class="card-head">
+      <div class="card-num">04</div>
+      <div class="card-title">Indexer infrastructure failure</div>
+      <div class="card-severity major">Major</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>October 14, 2026, 2:47 AM ET. A Twitter influencer posts the Solana game as "Phantom-degen heaven." Within 90 minutes, 4,200 wallets pile in. The Anchor program handles it fine. The indexer does not. At 60s polling, each poll pulls 200+ new signatures. On a 13-node subnet that's 13 real HTTP hits per call. Helius rate-limits us to 429s by 3:15 AM. Outcalls start failing "no consensus" because throttled replicas get different error bodies than successful ones. Bookmark stops advancing.</p>
+      <p>By morning the indexer is 9 hours behind. Frontend history tab shows "no recent events." Subreddit screenshots a withdrawal that "disappeared." Trust evaporates in a day. We scramble to ship a Triton failover — except we never wrote provider-agnostic parsing. Three days of triage. Cycle burn during the spike hits ~14T/day, 4x projection, canister freezes day 5.</p>
+      <p>By November, "the Solana version is broken" is the dominant sentiment. Phantom DAU drops 80%. We quietly stop promoting it.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">We treated the indexer as plumbing — a passive mirror — when it is actually a load-bearing piece of user-visible infrastructure with its own SLA, attack surface, and cost curve that scales nonlinearly with on-chain activity.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Indexer lag (<code>secondsSinceLastPoll</code>) not surfaced in the frontend header — if lag exceeds 5 min in non-spike conditions, architecture is wrong</li>
+      <li>Cycle burn per 1000 signatures exits the ~3M/event band, indicating consensus retries days before a freeze</li>
+    </ul>
+  </div>
+
+  <!-- 5 -->
+  <div class="failure-card major">
+    <div class="card-head">
+      <div class="card-num">05</div>
+      <div class="card-title">Frontend adapter abstraction leaks</div>
+      <div class="card-severity major">Major</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>Phase 4 kicks off in July expecting a 1-2 week "wrap existing actor behind <code>PonziService</code>" refactor. Week 1 hits the first leak: <code>useCreateGame</code> already branches on <code>walletType === 'oisy'</code> for sequential approve+create. Solana doesn't need approve — Phantom signs the program instruction directly — so the deposit flow can't share its <code>try/catch</code> shape or error-string parsing. Handler splits in two.</p>
+      <p>Two days later: the mutation <code>onSuccess</code> invalidation list is useless for Solana because <code>getUserGames</code> reads directly from RPC, not a query that needs invalidating. Phantom confirmation comes back in 600ms; user sees stale balances for 5s while React Query waits. Team adds a chain-aware <code>refetch-after-confirm</code> layer, then realizes every mutation needs it.</p>
+      <p>By week 3 leaks have spread: rate-limit hook has no Solana analog, Charles chip blows up on base58 pubkeys, error toasts show "Error 6001" instead of human strings, PendingQueueCard shows stuck spinners during Phantom popups. Phase 4 finishes in November, four months late. To ship at all, the team disables half the polish on the Solana path. It goes out feeling like a degraded prototype.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That two chains with fundamentally different transaction lifecycles, error vocabularies, and authentication models can share a single async-call-based interface without forcing every UI component that consumes timing, errors, or auth identity to branch internally.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Count of <code>walletType === 'oisy'</code> / chain-specific branches in <code>useQueries.ts</code> mutations crosses ~3 within week 1 of Phase 4 (the Oisy precedent is already this failure mode in miniature)</li>
+      <li>Number of <code>useQuery</code> hooks whose <code>onSuccess</code> invalidation list is empty or different on Solana climbs past ~5</li>
+    </ul>
+  </div>
+
+  <!-- 6 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">06</div>
+      <div class="card-title">Phantom UX friction kills retention</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>Launch week looks fine — 1,200 unique wallets, healthy curiosity inflows. Then the curve craters. D1 retention: 38% (vs IC 71%). D7: 11% (vs 44%). D30: 3%. Sessions-per-DAU collapses from 4.2 day one to 1.6 by week two — users doing one popup-burdened action per visit, then leaving. The shape isn't a slow bleed; it's a cliff at day 2-3, exactly when the novelty wears off and the friction tax becomes the dominant signal.</p>
+      <p>Discord and Solana subreddit tell the story: "why am I signing 5 times to play a game", "phantom popup hell", "fun concept, brutal UX". Power users who understand the compounding plan and want to settle/restake daily quit fastest — they're the ones hitting 6-8 popups per session. The casual deposit-and-forget crowd sticks around longer but never re-engages, which means no compounding velocity, which means TVL stays at $180K vs IC's $2.1M.</p>
+      <p>By September the Solana flavor is a ghost town with a working program. By November we quietly stop marketing it. The IC version's delegated-auth micro-loop keeps humming — same game, same math, dramatically different session length.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That Solana DeFi users' tolerance for popup-per-action friction (proven in swap/mint contexts with 1-2 txs per session) would transfer to a game designed around dozens of micro-decisions per session — when in fact that friction was the entire reason no one had built a fast-loop game on Solana before.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>D1 retention &lt;50% in the first launch cohort (vs IC baseline ~70%) — visible within 48 hours of opening signups</li>
+      <li>Sessions-per-DAU drops below 2.0 by day 3, with median session length under 90 seconds</li>
+    </ul>
+  </div>
+
+  <!-- 7 -->
+  <div class="failure-card major">
+    <div class="card-head">
+      <div class="card-num">07</div>
+      <div class="card-title">Audit unavailable or refused</div>
+      <div class="card-severity major">Major</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>We send the spec to OtterSec and Zellic in early July. OtterSec passes within a week — the lead notes internally that their public-report policy makes "ponzi-themed" branded engagements a non-starter regardless of satirical framing; reputation with institutional clients makes it impossible. Zellic ghosts after the intro call once the scoping doc reaches a partner. Halborn quotes $48K with a queue starting in October — three months past the launch window. Neodyme would fit but has a 5-month Jito/Marginfi backlog.</p>
+      <p>We pivot mid-tier in August. Ackee quotes $22K with 6-week availability, but flags the slot-hash RNG and pull-model reward index as "needs second pass" — implying another round and $10K. Operator, burning cycles on parallel IC work, ships to devnet with self-review and a public bug bounty as audit substitute.</p>
+      <p>A Q&amp;A thread on Solana subreddit catches the <code>claim_rewards</code> math drifting on edge cases (fixed-point rounding accumulating in <code>reward_index</code>) two weeks after mainnet. Refunds issued from admin escape hatch, which itself becomes the next narrative problem. Momentum dies. IC meanwhile ships V2 NFT cascades and the spec goes stale.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That auditor selection is a capacity-and-budget problem, not a brand-acceptance problem — that any firm with a slot would take the engagement if the money was there.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>First outreach to a top-tier auditor goes unanswered for 10+ business days, or intro call ends with "let me check internally" then silence — brand-risk filter killing it quietly, not a scheduling issue</li>
+      <li>The scoping doc requires you to soften "ponzi" to "yield game" before sending — if you're euphemizing, the auditor will euphemize the decline</li>
+    </ul>
+  </div>
+
+  <!-- 8 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">08</div>
+      <div class="card-title">Maintainer burnout from two stacks</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p><strong>June 2026 (Month 1):</strong> Port ships. First dual-stack bug lands two weeks in — Anchor's <code>Clock::get()</code> is in seconds, not nanoseconds, Robert forgot to divide. Fixes it in Rust at midnight, then mirrors in Motoko anyway because the tier schedule was wrong in shared docs. Two PRs, two test suites, two deploys, two announcements. 3am bedtime.</p>
+      <p><strong>August (Month 3):</strong> Robert ships a new Shenanigan spell. Joyful work — IC version goes out in an afternoon. Solana port requires a borsh schema change, program upgrade, indexer re-bump, breaks two integration tests. Takes four days. He doesn't ship the spell to Solana. Players ask why. He says "soon." A pattern starts.</p>
+      <p><strong>October (Month 5):</strong> Robert tweets "honestly, the IC version is just more fun." A Solana player notices the carried interest tier was retuned on IC but not Solana — real economic divergence affecting their withdrawal. They post angrily. Robert spends a weekend backporting, hating every minute. Two weeks later: "Solana version entering maintenance mode. No new features. Withdraw your positions by Dec 31." Trust on both sides erodes.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That a solo operator who already complained about Solana's limitations during design would somehow find renewed enthusiasm for maintaining it once shipping reality replaced theoretical novelty.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Commit cadence divergence by Month 2: IC commits outpace Solana 3:1, with Solana commits clustered on weekends ("forced catch-up" pattern)</li>
+      <li>Bug-report response latency by Month 3: IC issues get same-day reply, Solana sits 48-72 hours before engagement, replies grow terser ("tracking, will fix")</li>
+    </ul>
+  </div>
+
+  <!-- 9 -->
+  <div class="failure-card critical">
+    <div class="card-head">
+      <div class="card-num">09</div>
+      <div class="card-title">Cold-start liquidity failure</div>
+      <div class="card-severity critical">Critical</div>
+    </div>
+    <div class="section-label">Failure story</div>
+    <div class="story">
+      <p>Launch week (June 2026): 47 unique Phantom wallets connect after a Twitter push and a Solana subreddit post. Median deposit is 8 USDC. Within 72 hours, 31 of those wallets initiate Carried Interest withdrawals at the Week 1 tier (12% toll). TVL pumps to $4,200 on day 2, sags to $1,900 by day 5 as withdrawals outpace deposits, never recovers. Daily active wallets settle at 3-6 by week 4, mostly the operator's own test addresses and two Twitter friends who promised to "check it out."</p>
+      <p>The Discord gets one substantive question — "where does the yield come from?" — and after the honest answer ("from later depositors, it's a ponzi") goes silent. Withdrawal screenshots posted by skeptics frame the 4% front-end load as "rugged on entry." Nobody self-identifies as a Series A backer because the landing page describes it as "seed the pool with 100+ USDC for a 24% bonus entitlement payable when the pool reaches solvency" — which to a Phantom user reads as "lock up real money in a stranger's empty ponzi for an IOU."</p>
+      <p>Zero Series A commitments by month 2. By November, TVL is ~$5K across 43 wallets, of which the operator controls 11.</p>
+    </div>
+    <div class="section-label">Underlying assumption</div>
+    <div class="assumption">That Solana degens would self-bootstrap a ponzi out of pure financial curiosity, the way they do memecoins — ignoring that memecoins have a liquid secondary market and exit, while this game requires <em>new depositors</em> (not buyers) to generate yield.</div>
+    <div class="section-label">Early warning signs</div>
+    <ul class="warnings">
+      <li>Week 1: Withdrawal-initiations / new-deposits ratio &gt; 0.5 within 72 hours of launch (healthy bootstrap needs &lt;0.2)</li>
+      <li>Week 2: Zero Series A backer commitments despite &gt;100 wallet connects — nobody trusts the pool enough to be patient capital</li>
+    </ul>
+  </div>
+
+</div>
+
+<footer>
+  <span>Premortem generated 2026-05-23</span>
+  <span>Klein method · 9 agents · parallel dispatch</span>
+</footer>
+
+</body>
+</html>

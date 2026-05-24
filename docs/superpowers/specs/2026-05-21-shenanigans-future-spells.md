@@ -157,3 +157,50 @@ The user framed these as small-player spells but the structure works for *anyone
 - Earlier feature backlog (public feed, MLM ranks, bounties, insurance with Reginald, Dokapon curses/events): `project_shenanigan_feature_backlog` memory entry
 - Cost-shape typology that emerged during tuning is in TUNING_NOTES.md — new spells should pick a pattern intentionally rather than drift
 - Silent-backfire trap concern (any new spell with positive backfire odds needs a real handler, not a stub) — also in TUNING_NOTES.md
+
+---
+
+## Theme 3 — Tweaks to existing spells
+
+### 3.1 — Cease & Desist: pool default + pay-to-name premium
+
+**Status:** idea only. Captured 2026-05-21 after Charles noticed current behavior is "caster picks the name" (opposite of what he expected).
+
+**Current behavior:** Successful cast creates a 5-minute pending-rename slot. Caster sees a modal, types a name, hits "Lock it in." If they let the 5min lapse OR cast another Cease & Desist before committing, the old slot auto-commits with a `pickRenameName()` pool pick. So pool is the *fallback*, caster-pick is the *default*.
+
+**Proposed:** invert the defaults.
+
+- **Default success (no modal):** backend immediately picks a name from the pool and applies it. Cast resolves instantly — no modal, no follow-up action. Fast and chaotic. Matches the "throw a tomato at someone" energy of a 38%-success griefing spell.
+- **Pay-to-name premium:** at cast time, caster can toggle a "Pick name yourself" option that costs an extra **400 PP** (or similar significant amount). Premium toggle unlocks the existing modal flow — caster picks the exact name.
+
+**Design beats:**
+- Default cast becomes a "tomato throw" — fast, chaotic, slightly random in outcome. Good for the casual griefing energy.
+- Premium tier becomes a "personalized burn" — pay extra to land a *specific* insult. Better for grudges, callbacks to in-game drama.
+- The price gate (400 PP) means personalized burns become a meaningful investment — players save them for moments that matter.
+
+**Backend changes:**
+- Add a `premiumRename: Bool` parameter to the cast function (or a separate `castCeaseAndDesistPremium` endpoint).
+- In the `#renameSpell` success handler, branch on the premium flag:
+  - If false: immediately call `pickRenameName()`, write to `customDisplayNames`, skip the pending-rename slot creation.
+  - If true: existing pending-rename slot flow (caster picks).
+- Charge the extra 400 PP as part of the cast cost on premium casts.
+
+**Frontend changes:**
+- Add a toggle on the cast confirmation modal: "Pick name yourself (+400 PP)" with cost preview.
+- If toggle off: standard cast, no modal post-cast.
+- If toggle on: standard cast + rename modal post-cast (existing flow).
+
+**Pool curation:**
+- Worth a copy pass on `pickRenameName()` to make sure the pool is satirically tight (VC/MLM jargon, finance disasters, etc.). Pool quality matters more in the new default since most casts will use it. Examples: "GeneralPartnerOfMyMomsBasement", "DeFi Death Spiraler", "Liquidity Provider Of Tears", "Carry Trade Casualty", "Bag Holder Brigade", "Pre-Seed Bagheads", etc.
+
+**Compat note:** the existing pending-rename flow doesn't go away — it stays as the premium path. The migration is purely additive (new flag, new fast path on success).
+
+### 3.2 — Cease & Desist: rename-modal re-opens after commit (BUG, fixed in [TBD commit])
+
+**Status:** bug, reproducible. Patch identified, ready to ship.
+
+When the caster successfully commits a name via "Lock it in," the modal re-opens with the same target due to a race condition in `useSetPendingRenameName.onSuccess`. The mutation invalidates the pending-rename query but doesn't optimistically clear the cache — so the mount-time `useEffect` in [Shenanigans.tsx:161](../../../frontend/src/components/Shenanigans.tsx:161) sees stale data between modal-close and refetch-completion, and re-opens the modal.
+
+**Fix:** add `queryClient.setQueriesData({ queryKey: ['shenanigans', 'pendingRename'] }, null)` to the mutation's `onSuccess` before the invalidate. Mirror in `useCancelPendingRename.onSuccess`. Frontend-only, no canister change.
+
+See in-session notes for the full diagnosis; patch is ~5 lines.
