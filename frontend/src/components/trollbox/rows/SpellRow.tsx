@@ -1,6 +1,7 @@
 import React from 'react';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
-import { useDisplayName } from '../useDisplayName';
+import { useDisplayName, useIsGolden } from '../useDisplayName';
+import GoldenName from '../../GoldenName';
 import { useGetShenaniganConfigs } from '../../../hooks/useQueries';
 
 // Order matches backend shenanigan IDs (0-indexed). Used to map a variant tag
@@ -28,6 +29,8 @@ export default function SpellRow({ item }: Props) {
   const userName = useDisplayName(cast.caster);
   const target = cast.target?.[0] ?? null;
   const targetName = useDisplayName(target);
+  const isCasterGolden = useIsGolden(cast.caster);
+  const isTargetGolden = useIsGolden(target);
   const { data: configs = [] } = useGetShenaniganConfigs();
 
   if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
@@ -38,13 +41,24 @@ export default function SpellRow({ item }: Props) {
   const spellName = configs.find(c => Number(c.id) === variantId)?.name ?? 'a spell';
   return (
     <div className="px-3 py-1 text-xs">
-      <span className={`${outcomeColor} font-medium`}>✨ {userName}</span>
+      <span className={`${outcomeColor} font-medium`}>
+        ✨{' '}
+        {isCasterGolden ? (
+          <GoldenName name={userName} isGolden={true} className="font-medium" />
+        ) : (
+          userName
+        )}
+      </span>
       <span className="text-zinc-400"> cast </span>
       <span className="text-zinc-200 font-medium">{spellName}</span>
       {target ? (
         <>
           <span className="text-zinc-400"> on </span>
-          <span className="text-zinc-200 font-medium">{targetName}</span>
+          {isTargetGolden ? (
+            <GoldenName name={targetName} isGolden={true} className="font-medium" />
+          ) : (
+            <span className="text-zinc-200 font-medium">{targetName}</span>
+          )}
         </>
       ) : null}
       <span className="text-zinc-400"> — {outcomeText}.</span>
