@@ -17,11 +17,49 @@ function rankChipColor(rank: 1 | 2 | 3): string {
   return 'text-amber-500';
 }
 
-function tintClasses(rank: 1 | 2 | 3, isGolden: boolean): string {
-  if (isGolden) return 'border border-[var(--mc-gold)] bg-[var(--mc-gold)]/15';
-  if (rank === 1) return 'border border-[var(--mc-gold)]/40 bg-[var(--mc-gold)]/[0.08]';
-  if (rank === 2) return 'border border-gray-400/40 bg-gray-400/5';
-  return 'border border-amber-600/40 bg-amber-600/5';
+// Resolved styling for a (rank, isGolden) pair, scaled for the compact cell.
+// Golden status supersedes rank tinting (border + bg + glow) but does NOT
+// remove the #1 scale-lift — both signals coexist. Mirrors the full PodiumCard
+// matrix so a #1 whitelisted player reads as "the most ornate cell on the
+// page" in both the wide and compact layouts.
+function resolveCellStyle(rank: 1 | 2 | 3, isGolden: boolean) {
+  const isFirst = rank === 1;
+  if (isGolden) {
+    return {
+      borderClass: 'border-2 border-[var(--mc-gold)]',
+      bgClass: 'bg-[var(--mc-gold)]/15',
+      shimmerClass: 'mc-pedestal-vip',
+      boxShadow: isFirst
+        ? '0 0 20px rgba(255, 215, 0, 0.55)'
+        : '0 0 16px rgba(255, 215, 0, 0.4)',
+      scaleClass: isFirst ? 'scale-[1.04]' : 'scale-100',
+    };
+  }
+  if (isFirst) {
+    return {
+      borderClass: 'border border-[var(--mc-gold)]/40',
+      bgClass: 'bg-[var(--mc-gold)]/[0.08]',
+      shimmerClass: '',
+      boxShadow: '0 0 12px rgba(255, 215, 0, 0.18)',
+      scaleClass: 'scale-[1.02]',
+    };
+  }
+  if (rank === 2) {
+    return {
+      borderClass: 'border border-gray-400/40',
+      bgClass: 'bg-gray-400/5',
+      shimmerClass: '',
+      boxShadow: '0 0 10px rgba(192, 192, 192, 0.12)',
+      scaleClass: 'scale-100',
+    };
+  }
+  return {
+    borderClass: 'border border-amber-600/40',
+    bgClass: 'bg-amber-600/5',
+    shimmerClass: '',
+    boxShadow: '0 0 10px rgba(205, 127, 50, 0.12)',
+    scaleClass: 'scale-100',
+  };
 }
 
 function CompactPodiumCell({ entry, rank, identiconSize }: { entry: HallOfFameEntry; rank: 1 | 2 | 3; identiconSize: 'sm' | 'md' }) {
@@ -31,7 +69,7 @@ function CompactPodiumCell({ entry, rank, identiconSize }: { entry: HallOfFameEn
   const displayName = name || '…';
   const ppBurned = (entry.ponziPointsBurned || 0).toLocaleString();
   const chipColor = rankChipColor(rank);
-  const tint = tintClasses(rank, isGolden);
+  const style = resolveCellStyle(rank, isGolden);
   const identiconUri = React.useMemo(() => {
     const svg = minidenticon(entry.principal, 60, 50);
     return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
@@ -41,7 +79,8 @@ function CompactPodiumCell({ entry, rank, identiconSize }: { entry: HallOfFameEn
     <div
       role="group"
       aria-label={`Rank #${rank}: ${displayName}, ${ppBurned} PP burned${isGolden ? ', Whitelisted' : ''}`}
-      className={`relative rounded-lg p-2 flex flex-col items-center text-center ${tint}`}
+      className={`relative rounded-lg p-2 flex flex-col items-center text-center transition-transform ${style.borderClass} ${style.bgClass} ${style.shimmerClass} ${style.scaleClass}`}
+      style={{ boxShadow: style.boxShadow }}
       title={displayName}
     >
       <div className={`absolute top-1 right-1 flex items-center gap-0.5 text-[10px] font-bold ${chipColor}`}>
@@ -51,7 +90,7 @@ function CompactPodiumCell({ entry, rank, identiconSize }: { entry: HallOfFameEn
       {isGolden ? (
         <div
           className="rounded-full p-[2px] bg-[var(--mc-gold)]/40 mb-1.5 mt-3"
-          style={{ boxShadow: '0 0 8px rgba(255, 215, 0, 0.5)' }}
+          style={{ boxShadow: '0 0 10px rgba(255, 215, 0, 0.6)' }}
         >
           <img src={identiconUri} alt="" className={`${idSize} rounded-full bg-zinc-800`} />
         </div>
@@ -62,6 +101,15 @@ function CompactPodiumCell({ entry, rank, identiconSize }: { entry: HallOfFameEn
         <GoldenName name={displayName} isGolden={isGolden} className="truncate" />
       </div>
       <div className="text-sm font-bold mc-text-purple mt-0.5">{ppBurned}</div>
+      {isGolden && (
+        <div
+          className="mt-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full bg-[var(--mc-gold)]/20 border border-[var(--mc-gold)]/50 mc-text-gold text-[8px] font-bold tracking-wide"
+          title="Whitelisted"
+        >
+          <span aria-hidden="true">◆</span>
+          <span className="truncate">WHITELISTED</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -74,7 +122,7 @@ export default function CompactPodium({ entries, identiconSize = 'sm' }: Compact
   if (top3[0]) ordered.push({ entry: top3[0], rank: 1 });
   if (top3[2]) ordered.push({ entry: top3[2], rank: 3 });
   return (
-    <div className="grid grid-cols-3 gap-1 mb-3">
+    <div className="grid grid-cols-3 gap-1.5 mb-3 mt-1">
       {ordered.map(({ entry, rank }) => (
         <CompactPodiumCell key={`compact-${rank}`} entry={entry} rank={rank} identiconSize={identiconSize} />
       ))}
