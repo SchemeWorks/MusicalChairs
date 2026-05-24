@@ -1,7 +1,8 @@
 import React from 'react';
 import { minidenticon } from 'minidenticons';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
-import { useDisplayName } from '../useDisplayName';
+import { useDisplayName, useIsGolden } from '../useDisplayName';
+import GoldenName from '../../GoldenName';
 
 interface Props {
   item: ChatItem;
@@ -18,6 +19,7 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
   if (!('userMessage' in kind)) return null;
   const { body } = kind.userMessage;
   const authorName = useDisplayName(item.author);
+  const isGolden = useIsGolden(item.author);
   const mentioned = !!currentUserName && body.includes(`@${currentUserName}`);
 
   if (item.deleted) {
@@ -25,12 +27,21 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
   }
 
   return (
-    <div className={`relative flex gap-2 px-3 py-2 ${mentioned ? 'border-l-2 border-amber-400' : ''}`}>
+    <div
+      className={`relative flex gap-2 px-3 py-2 ${
+        isGolden ? 'border-l-2 border-[var(--mc-gold)]' : mentioned ? 'border-l-2 border-amber-400' : ''
+      }`}
+      style={isGolden ? { backgroundImage: 'linear-gradient(90deg, rgba(255,215,0,0.08), transparent 60%)' } : undefined}
+    >
       <Identicon seed={item.author.toText()} />
 
       <div className="flex-1 min-w-0">
         <div className="flex items-baseline gap-2">
-          <span className="text-sm font-medium text-zinc-200 truncate">{authorName}</span>
+          {isGolden ? (
+            <GoldenName name={authorName} isGolden={true} className="text-sm font-medium truncate" />
+          ) : (
+            <span className="text-sm font-medium text-zinc-200 truncate">{authorName}</span>
+          )}
           <span className="text-xs text-zinc-500">{formatTimestamp(item.timestamp)}</span>
         </div>
         <div className="text-sm text-zinc-300 break-words whitespace-pre-wrap">{renderBodyWithMentions(body)}</div>
