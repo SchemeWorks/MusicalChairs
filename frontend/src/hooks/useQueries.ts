@@ -681,7 +681,11 @@ export function useGetShenaniganStats() {
 
   return useQuery<ShenaniganStats>({
     queryKey: ['shenaniganStats', principal],
-    queryFn: async () => actor.getShenaniganStats(),
+    queryFn: async () => {
+      if (!principal) throw new Error('No principal');
+      return await actor.getShenaniganStats(Principal.fromText(principal));
+    },
+    enabled: !!principal,
     refetchInterval: 5000,
   });
 }

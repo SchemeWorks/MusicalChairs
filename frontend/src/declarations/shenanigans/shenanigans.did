@@ -419,7 +419,7 @@ service : {
   /// One-hop lookup — returns the user's immediate referrer (L1) or null.
   getReferrer: (user: principal) -> (opt principal) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
-  getShenaniganStats: () -> (ShenaniganStats) query;
+  getShenaniganStats: (player: principal) -> (ShenaniganStats) query;
   /// Per-(player, spell) live cooldowns for the spell-card UI. Returns
   /// (spellId, expiresAtNs) pairs for every spell currently on cooldown
   /// for the player. Spells not on cooldown are omitted. Frontend

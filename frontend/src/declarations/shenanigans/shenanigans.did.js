@@ -378,7 +378,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(ShenaniganConfig)],
         ['query'],
       ),
-    'getShenaniganStats' : IDL.Func([], [ShenaniganStats], ['query']),
+    'getShenaniganStats' : IDL.Func(
+        [IDL.Principal],
+        [ShenaniganStats],
+        ['query'],
+      ),
     'getSpellCooldowns' : IDL.Func(
         [IDL.Principal],
         [IDL.Vec(IDL.Tuple(IDL.Nat, IDL.Int))],

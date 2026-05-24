@@ -3198,8 +3198,15 @@ persistent actor Self {
     // Query Functions
     // ================================================================
 
-    public query ({ caller }) func getShenaniganStats() : async ShenaniganStats {
-        switch (principalMap.get(shenaniganStats, caller)) {
+    // Takes the player principal explicitly (rather than reading `caller`)
+    // so the frontend can fetch via the anonymous read actor and still get
+    // the right per-user totals — same pattern as getSpellCooldowns. The
+    // earlier caller-keyed shape silently returned the anonymous principal's
+    // empty record whenever the read actor was used (which it always is on
+    // the Shenanigans page), making the "Your Track Record" panel stuck on
+    // zeros for every player.
+    public query func getShenaniganStats(player : Principal) : async ShenaniganStats {
+        switch (principalMap.get(shenaniganStats, player)) {
             case (null) { { totalSpent = 0.0; totalCast = 0; goodOutcomes = 0; badOutcomes = 0; backfires = 0; dealerCut = 0.0 } };
             case (?stats) { stats };
         };

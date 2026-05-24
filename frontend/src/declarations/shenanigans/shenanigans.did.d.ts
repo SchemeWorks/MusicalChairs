@@ -408,7 +408,7 @@ export interface _SERVICE {
    */
   'getReferrer' : ActorMethod<[Principal], [] | [Principal]>,
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
-  'getShenaniganStats' : ActorMethod<[], ShenaniganStats>,
+  'getShenaniganStats' : ActorMethod<[Principal], ShenaniganStats>,
   /**
    * / Per-(player, spell) live cooldowns for the spell-card UI. Returns
    * / (spellId, expiresAtNs) pairs for every spell currently on cooldown
