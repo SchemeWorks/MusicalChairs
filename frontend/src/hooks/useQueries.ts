@@ -838,6 +838,25 @@ export function useGetSpellCooldowns() {
   });
 }
 
+/// Live buffs/debuffs on the caller (Poison Pill shield charges, golden
+/// status, mint multipliers, etc). Polled every 10s so the Active Effects
+/// strip and Poison Pill shield badge stay roughly current without
+/// over-polling. Mirrors the read-actor + explicit-principal pattern from
+/// useGetSpellCooldowns.
+export function useGetActiveSpellEffects() {
+  const actor = useReadShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery<ActiveSpellEffects | null>({
+    queryKey: ['activeSpellEffects', principal],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      return await actor.getActiveSpellEffects(Principal.fromText(principal));
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 10_000,
+  });
+}
+
 export function useUpdateShenaniganConfig() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
