@@ -993,7 +993,7 @@
     line-height: 1;
   }
 
-  /* Mobile: show only Balance, P/L, PP — hide Positions and Pot */
+  /* Mobile: show only Balance, P/L, PP — hide Positions and AUM */
   @media (max-width: 768px) {
     .mc-status-bar-desktop {
       display: none;

@@ -37,10 +37,10 @@ export default function PonziPointsDashboard() {
           <p className="text-xs mc-text-muted mt-2 font-accent italic">Worthless tokens for YOLOing into a Ponzi</p>
         </div>
 
-        {/* Breakdown: chip subaccount (spendable) vs external wallet */}
+        {/* Breakdown: side-pocket subaccount (spendable) vs external wallet */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="mc-card mc-accent-green p-4 text-center">
-            <div className="mc-label mb-1">Chips (spendable)</div>
+            <div className="mc-label mb-1">Side pocket (spendable)</div>
             <div className="text-xl font-bold mc-text-green">{chipPoints.toLocaleString()}</div>
           </div>
           <div className="mc-card mc-accent-cyan p-4 text-center">
@@ -49,8 +49,8 @@ export default function PonziPointsDashboard() {
           </div>
         </div>
         <div className="flex gap-3 mt-4 justify-center">
-          <button onClick={() => { window.location.hash = '#chips'; }} className="mc-btn mc-btn-primary">
-            Manage chips
+          <button onClick={() => { window.location.hash = '#side-pocket'; }} className="mc-btn mc-btn-primary">
+            Manage side pocket
           </button>
         </div>
       </div>

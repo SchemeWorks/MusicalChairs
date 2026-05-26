@@ -408,7 +408,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               <p className="font-accent italic">A small reinvestment keeps the engine running — and your returns flowing.</p>
               <p>Simple positions: {pctPrecise(EXIT_TOLL_EARLY)} carried interest within {EXIT_TOLL_EARLY_DAYS} days, {pctPrecise(EXIT_TOLL_MID)} within {EXIT_TOLL_MID_DAYS} days, {pctPrecise(EXIT_TOLL_LATE)} after.</p>
               <p>Compounding plans: 9% carry (15-day) or 13% carry (30-day) at maturity.</p>
-              <p>Your deposit is deployed into the pot to fund interest obligations. Your position is an entitlement to future interest from that pot.</p>
+              <p>Your deposit is deployed into AUM to fund interest obligations. Your position is an entitlement to future interest from AUM.</p>
             </div>
           )}
         </div>
@@ -464,7 +464,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                   <div className="mc-label mb-2">Custody</div>
                   <div className="text-xs space-y-1.5">
                     <div className="flex justify-between">
-                      <span className="mc-text-muted">Chips (spendable)</span>
+                      <span className="mc-text-muted">Side pocket (spendable)</span>
                       <span className="mc-text-green font-bold">{(ponziData.chipPoints || 0).toLocaleString()} PP</span>
                     </div>
                     <div className="flex justify-between">

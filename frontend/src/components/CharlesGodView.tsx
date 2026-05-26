@@ -80,7 +80,7 @@ function ActivePlansTable({ snapshots }: { snapshots: ActivePlanSnapshot[] }) {
   if (snapshots.length === 0) {
     return (
       <div className="text-center py-12 mc-text-muted text-sm">
-        No in-flight plans. Pot is dry.
+        No in-flight plans. AUM is dry.
       </div>
     );
   }
@@ -163,7 +163,7 @@ function PlanRow({ snapshot, expanded, onToggle }: { snapshot: ActivePlanSnapsho
         </div>
         <div className="col-span-1 text-right">
           {wouldBeInsolvent ? (
-            <span className="inline-flex items-center gap-1 text-[10px] mc-text-danger" title="Pot can't cover this claim — would trigger reset">
+            <span className="inline-flex items-center gap-1 text-[10px] mc-text-danger" title="AUM can't cover this claim — would trigger reset">
               <AlertTriangle className="h-3 w-3" /> Insolv
             </span>
           ) : isMatured ? (

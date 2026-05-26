@@ -65,9 +65,9 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
         </button>
       </div>
 
-      {/* Pot — desktop only */}
+      {/* AUM — desktop only */}
       <div className="mc-status-bar-stat mc-status-bar-desktop">
-        <span className="mc-status-bar-label">Pot</span>
+        <span className="mc-status-bar-label">AUM</span>
         <span className="mc-status-bar-value mc-text-gold">{formatICP(potBalance)} ICP</span>
       </div>
     </div>

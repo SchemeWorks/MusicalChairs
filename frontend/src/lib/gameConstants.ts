@@ -17,7 +17,7 @@ export const PLAN_DAYS_COMPOUND_30 = 30;
 
 // ── Deposit Limits ───────────────────────────────────────────────────
 export const MIN_DEPOSIT_ICP = 0.1;
-export const SIMPLE_MAX_DEPOSIT_POT_FRACTION = 0.2;   // 20 % of pot
+export const SIMPLE_MAX_DEPOSIT_POT_FRACTION = 0.2;   // 20 % of AUM
 export const SIMPLE_MAX_DEPOSIT_FLOOR_ICP = 5;         // or 5 ICP, whichever is greater
 export const DEPOSIT_RATE_LIMIT = 3;                   // positions per hour
 
@@ -36,7 +36,7 @@ export const JACKPOT_FEE_RATE_15D = 0.09;       //  9 % (15-day plan)
 export const JACKPOT_FEE_RATE_30D = 0.13;       // 13 % (30-day plan)
 
 // ── Fee Distribution ────────────────────────────────────────────────
-export const FEE_POT_SHARE = 0.5;               // 50 % to pot
+export const FEE_POT_SHARE = 0.5;               // 50 % to AUM
 export const FEE_BACKER_SHARE = 0.5;            // 50 % to backers
 export const BACKER_OLDEST_UPSTREAM_SHARE = 0.35;   // 35 % of backer half
 export const BACKER_OTHER_UPSTREAM_SHARE = 0.25;    // 25 % of backer half

@@ -119,7 +119,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
     icon: <Dices className="h-5 w-5 mc-text-green" />,
     content: (
       <>
-        <p>Musical Chairs is a transparent Ponzi scheme on the Internet Computer. New deposits fund existing players' returns. When deposits slow and the pot drains, the music stops, the chairs reset, and anyone still holding a position takes a total loss.</p>
+        <p>Musical Chairs is a transparent Ponzi scheme on the Internet Computer. New deposits fund existing players' returns. When deposits slow and AUM drains, the music stops, the chairs reset, and anyone still holding a position takes a total loss.</p>
         <p>Every mechanic described in these docs is exactly what happens on-chain. There are no hidden fees, no backdoors, no "trust us" moments. The code is the product. The prospectus is the product.</p>
       </>
     ),
@@ -140,9 +140,9 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
           ]}
         />
         <div className="mt-4 space-y-2">
-          <p><strong className="text-white">Simple mode:</strong> Your funds are deployed into the pot; in return you hold a position that accrues interest daily at the Simple rate. Withdraw accrued interest at any time, subject to carried interest. The position closes at the end of its {PLAN_DAYS_SIMPLE}-day term.</p>
-          <p><strong className="text-white">Compounding mode:</strong> Your funds are deployed into the pot; in return you hold a position that compounds daily until maturity. At maturity the accumulated interest is paid out, minus carried interest — {pct(JACKPOT_FEE_RATE_15D)} on the {PLAN_DAYS_COMPOUND_15}-day plan, {pct(JACKPOT_FEE_RATE_30D)} on the {PLAN_DAYS_COMPOUND_30}-day plan. No early withdrawal.</p>
-          <p><strong className="text-white">The risk:</strong> If the pot empties before your position is paid out, your entitlement is worthless. Longer plans = higher returns = higher risk of getting caught in a reset.</p>
+          <p><strong className="text-white">Simple mode:</strong> Your funds are deployed into AUM; in return you hold a position that accrues interest daily at the Simple rate. Withdraw accrued interest at any time, subject to carried interest. The position closes at the end of its {PLAN_DAYS_SIMPLE}-day term.</p>
+          <p><strong className="text-white">Compounding mode:</strong> Your funds are deployed into AUM; in return you hold a position that compounds daily until maturity. At maturity the accumulated interest is paid out, minus carried interest — {pct(JACKPOT_FEE_RATE_15D)} on the {PLAN_DAYS_COMPOUND_15}-day plan, {pct(JACKPOT_FEE_RATE_30D)} on the {PLAN_DAYS_COMPOUND_30}-day plan. No early withdrawal.</p>
+          <p><strong className="text-white">The risk:</strong> If AUM empties before your position is paid out, your entitlement is worthless. Longer plans = higher returns = higher risk of getting caught in a reset.</p>
         </div>
       </>
     ),
@@ -156,10 +156,10 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
       <>
         <div className="space-y-2">
           <p><strong className="text-white">Minimum deposit:</strong> {MIN_DEPOSIT_ICP} ICP for all plan types.</p>
-          <p><strong className="text-white">Maximum deposit (Simple only):</strong> The greater of {pct(SIMPLE_MAX_DEPOSIT_POT_FRACTION)} of the current pot balance or {SIMPLE_MAX_DEPOSIT_FLOOR_ICP} ICP. This prevents a single player from draining the pot in one withdrawal.</p>
+          <p><strong className="text-white">Maximum deposit (Simple only):</strong> The greater of {pct(SIMPLE_MAX_DEPOSIT_POT_FRACTION)} of current AUM or {SIMPLE_MAX_DEPOSIT_FLOOR_ICP} ICP. This prevents a single player from draining AUM in one withdrawal.</p>
           <p><strong className="text-white">Maximum deposit (Compounding):</strong> No limit above the {MIN_DEPOSIT_ICP} ICP minimum.</p>
           <p><strong className="text-white">Rate limit:</strong> {DEPOSIT_RATE_LIMIT} positions per hour per user.</p>
-          <p><strong className="text-white">Front-End Load:</strong> {pct(COVER_CHARGE_RATE)} of every deposit is skimmed and routed to Management. The other {pct(1 - COVER_CHARGE_RATE)} enters the pot.</p>
+          <p><strong className="text-white">Front-End Load:</strong> {pct(COVER_CHARGE_RATE)} of every deposit is skimmed and routed to Management. The other {pct(1 - COVER_CHARGE_RATE)} enters AUM.</p>
         </div>
         <div className="mc-card p-4 mt-4 mc-accent-gold">
           <p className="text-xs mc-text-muted">Deposits go through the ICRC-2 approve/transfer_from flow. You approve the backend canister to pull funds from your wallet, then the backend executes the transfer. This is a standard ICP token pattern.</p>
@@ -201,8 +201,8 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
           ]}
         />
 
-        <p className="mt-4 mc-text-muted">Carried interest flows back into the pot or to backers. It funds other players' returns. This is the engine — new money in, old money out.</p>
-        <p className="mc-text-muted">{pct(FEE_POT_SHARE)} of carried interest seeds the next round's pot. The other {pct(FEE_BACKER_SHARE)} repays the backers. The Front-End Load is separate — it goes to Management and never touches the pot.</p>
+        <p className="mt-4 mc-text-muted">Carried interest flows back into AUM or to backers. It funds other players' returns. This is the engine — new money in, old money out.</p>
+        <p className="mc-text-muted">{pct(FEE_POT_SHARE)} of carried interest seeds the next round's AUM. The other {pct(FEE_BACKER_SHARE)} repays the backers. The Front-End Load is separate — it goes to Management and never touches AUM.</p>
       </>
     ),
   },
@@ -217,7 +217,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
 
         <p className="font-bold text-white mt-4 mb-2">How It Works</p>
         <div className="space-y-2">
-          <p><strong className="text-white">Deposit:</strong> Minimum {MIN_DEPOSIT_ICP} ICP. Your deposit goes directly into the pot.</p>
+          <p><strong className="text-white">Deposit:</strong> Minimum {MIN_DEPOSIT_ICP} ICP. Your deposit goes directly into AUM.</p>
           <p><strong className="text-white">Entitlement (Series A):</strong> You're owed {pct(1 + UPSTREAM_BACKER_BONUS)} of your deposit (original + {pct(UPSTREAM_BACKER_BONUS)} bonus).</p>
           <p><strong className="text-white">Repayment:</strong> Comes from the backer share ({pct(FEE_BACKER_SHARE)}) of carried interest on every player withdrawal.</p>
           <p><strong className="text-white">PP earned:</strong> {fmt(ppBacker)} Ponzi Points per ICP deposited.</p>
@@ -260,12 +260,12 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
     icon: <Flame className="h-5 w-5 mc-text-danger" />,
     content: (
       <>
-        <p>When the pot can't cover a payout, the music stops and the chairs reset. This is the core Musical Chairs mechanic — a Ponzi just collapses and walks away; we recapitalize and start the next round.</p>
+        <p>When AUM can't cover a payout, the music stops and the chairs reset. This is the core Musical Chairs mechanic — a Ponzi just collapses and walks away; we recapitalize and start the next round.</p>
         <div className="space-y-2 mt-3">
           <p><strong className="mc-text-danger">All active positions are liquidated.</strong> Total loss for anyone still holding.</p>
           <p><strong className="mc-text-danger">All pending payouts are voided.</strong> Accrued but unwithdrawn earnings disappear.</p>
           <p><strong className="mc-text-gold">A random unprofitable player becomes a Series B Backer.</strong> Their entitlement equals their losses plus a {pct(DOWNSTREAM_BACKER_BONUS)} bonus.</p>
-          <p><strong className="mc-text-green">A new round begins.</strong> Fresh pot, clean slate, same rules.</p>
+          <p><strong className="mc-text-green">A new round begins.</strong> Fresh AUM, clean slate, same rules.</p>
         </div>
       </>
     ),
@@ -290,7 +290,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
             ['Referral activity', 'Based on downline PP earnings'],
           ]}
         />
-        <p className="mt-4 mc-text-muted">PP do not affect ICP payouts, pot mechanics, or game math in any way. They're purely for Shenanigans and bragging rights.</p>
+        <p className="mt-4 mc-text-muted">PP do not affect ICP payouts, AUM mechanics, or game math in any way. They're purely for Shenanigans and bragging rights.</p>
       </>
     ),
   },
@@ -339,7 +339,7 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <div className="space-y-3">
           <div className="mc-card p-4">
             <p className="font-display text-xs text-white mb-1">Shields</p>
-            <p>Magic Mirror gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker — they still pay the cost, the shield charge is consumed, no damage lands. AOE Skim and Whale Rebalance respect shields per-target (shielded victims skipped, others still hit). Rename and Downline Heist bypass shields by design.</p>
+            <p>Poison Pill gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker — they still pay the cost, the shield charge is consumed, no damage lands. Contagion and Wealth Tax respect shields per-target (shielded victims skipped, others still hit). Cease & Desist and Crossline Poach bypass shields by design.</p>
           </div>
         </div>
       </>
@@ -382,20 +382,20 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
       <>
         <div className="space-y-3">
           {[
-            ['Pot', 'The shared pool of ICP that funds all player returns. Fed by deposits and fees. Drained by withdrawals and payouts.'],
-            ['Position', 'An entitlement to future interest payments from the pot. Your principal is part of the pot.'],
-            ['Front-End Load', `The ${pct(COVER_CHARGE_RATE)} fee taken from every deposit before it enters the pot. Routed to Management — does not feed the pot or backers.`],
+            ['AUM', 'Assets Under Management — the shared pool of ICP that funds all player returns. Fed by deposits and fees. Drained by withdrawals and payouts.'],
+            ['Position', 'An entitlement to future interest payments from AUM. Your principal is part of AUM.'],
+            ['Front-End Load', `The ${pct(COVER_CHARGE_RATE)} fee taken from every deposit before it enters AUM. Routed to Management — does not feed AUM or backers.`],
             ['Carried Interest (Simple)', `The fee charged when withdrawing from a Simple position. Ranges from ${pct(EXIT_TOLL_LATE)} to ${pct(EXIT_TOLL_EARLY)} depending on how long you've been in.`],
             ['Carried Interest (Compounding)', `The fee charged on Compounding position payouts at maturity — ${pct(JACKPOT_FEE_RATE_15D)} on the ${PLAN_DAYS_COMPOUND_15}-day plan, ${pct(JACKPOT_FEE_RATE_30D)} on the ${PLAN_DAYS_COMPOUND_30}-day plan.`],
             ['Backer', `A player who has deposited into the Seed Round. Earns a share of the backer repayment pool from carried interest.`],
             ['Series A Backer', `A backer who voluntarily deposited into the Seed Round. Receives a ${pct(UPSTREAM_BACKER_BONUS)} bonus on their stake.`],
             ['Series B Backer', `A backer created automatically during an Emergency Equity Conversion from a random unprofitable player. Receives a ${pct(DOWNSTREAM_BACKER_BONUS)} bonus on their losses.`],
             ['Entitlement', `The total amount a backer is owed: their original deposit plus their bonus (${pct(UPSTREAM_BACKER_BONUS)} for Series A, ${pct(DOWNSTREAM_BACKER_BONUS)} for Series B).`],
-            ['Emergency Equity Conversion', `When the pot can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
+            ['Emergency Equity Conversion', `When AUM can't cover a payout: all positions liquidated, a new round begins, and a random unprofitable player becomes a Series B Backer.`],
             ['Ponzi Points (PP)', 'In-game currency earned through deposits, referrals, and backer stakes. Can only be spent on Shenanigans.'],
             ['Shenanigans', "Cosmetic game actions cast using PP. Range from stealing other players' PP to renaming them to boosting your own earnings rate. All are PP-only — they never touch ICP."],
             ['Downline', `Anyone you referred (or anyone they referred, recursively). You collect 10% of every PP they earn, half kept and half cascading further up the chain.`],
-            ['Round', 'A full game cycle, from pot creation to reset. When the pot empties, the round ends and a new one begins.'],
+            ['Round', 'A full game cycle, from AUM creation to reset. When AUM empties, the round ends and a new one begins.'],
             ['Musical Chairs Wallet', 'Your in-app ICP balance held by the backend canister. Separate from your external wallet (II/Plug).'],
           ].map(([term, def]) => (
             <div key={term as string}>

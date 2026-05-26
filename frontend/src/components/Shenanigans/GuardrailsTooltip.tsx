@@ -46,7 +46,7 @@ export default function GuardrailsTooltip() {
           <div className="space-y-2 text-xs mc-text-dim">
             <div className="flex items-start gap-2">
               <Info className="h-3 w-3 mc-text-cyan mt-0.5 flex-shrink-0" />
-              <span><strong className="mc-text-primary">PP &amp; Cosmetics Only</strong> — Never affects ICP, pot, backer selection, or payout math.</span>
+              <span><strong className="mc-text-primary">PP &amp; Cosmetics Only</strong> — Never affects ICP, AUM, backer selection, or payout math.</span>
             </div>
             <div className="flex items-start gap-2">
               <Zap className="h-3 w-3 mc-text-purple mt-0.5 flex-shrink-0" />

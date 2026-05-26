@@ -226,7 +226,7 @@ export default function HallOfFame() {
         </p>
         <div className="flex items-start gap-2 text-xs mc-text-dim">
           <span className="mc-text-gold mt-0.5">&#9888;</span>
-          <span>All effects are limited to Ponzi Points and cosmetics only &mdash; never touching ICP, pot size, backer selection, payout math, or round structure.</span>
+          <span>All effects are limited to Ponzi Points and cosmetics only &mdash; never touching ICP, AUM, backer selection, payout math, or round structure.</span>
         </div>
       </div>
     </div>

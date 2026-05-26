@@ -130,7 +130,7 @@ function BackerInfoCard() {
               Emergency Equity Conversion <Zap className="h-4 w-4" />
             </h4>
             <div className="text-xs mc-text-dim space-y-1 leading-relaxed">
-              <p><strong className="mc-text-primary">When the pot empties:</strong> A random unprofitable depositor is promoted to Series B Investor.</p>
+              <p><strong className="mc-text-primary">When AUM empties:</strong> A random unprofitable depositor is promoted to Series B Investor.</p>
               <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus the Series B return.</p>
               <p><strong className="mc-text-primary">Multiple backers</strong> can coexist, sharing fee payments via the distribution system.</p>
               <p className="mc-text-muted italic mt-2">When the fund runs dry, management restructures. Standard operating procedure.</p>

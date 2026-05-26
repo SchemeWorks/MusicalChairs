@@ -53,7 +53,7 @@ const howItWorks: { step: string; title: string; body: string; color: string; fi
   {
     step: '3',
     title: 'The Reset',
-    body: 'Pot empties, round resets, whole thing starts over. This is the product.',
+    body: 'AUM empties, round resets, whole thing starts over. This is the product.',
     color: 'danger',
   },
   {
@@ -297,15 +297,15 @@ export default function App() {
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
   const [showBankPage, setShowBankPage] = useState(
-    () => window.location.hash === '#bank' || window.location.hash === '#chips',
+    () => window.location.hash === '#bank' || window.location.hash === '#side-pocket',
   );
   const { data: publicStats } = useGetPublicStats();
 
-  // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #chips
+  // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #side-pocket
   useEffect(() => {
     const onHashChange = () => {
       setShowDocsPage(window.location.hash.startsWith('#docs'));
-      setShowBankPage(window.location.hash === '#bank' || window.location.hash === '#chips');
+      setShowBankPage(window.location.hash === '#bank' || window.location.hash === '#side-pocket');
     };
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
@@ -619,7 +619,7 @@ export default function App() {
                 <div ref={ribbonRef} className="mt-8 mc-card p-4 mc-scroll-animate">
                   <div className="grid grid-cols-3 md:grid-cols-6 gap-4 text-center text-xs">
                     <div>
-                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>Pot Balance</div>
+                      <div className="mc-text-muted mb-1 uppercase tracking-wider" style={{ fontSize: '10px' }}>AUM</div>
                       <div className="font-bold mc-text-gold text-sm">
                         {publicStats ? `${formatICP(publicStats.potBalance)} ICP` : '—'}
                       </div>

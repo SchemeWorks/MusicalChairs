@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/compone
 import { KeyRound, ShieldAlert, ExternalLink } from 'lucide-react';
 
 const CANISTERS: { name: string; id: string; note: string }[] = [
-  { name: 'backend',      id: '5zxxg-tyaaa-aaaac-qeckq-cai', note: 'The pot, the rules, the math.' },
+  { name: 'backend',      id: '5zxxg-tyaaa-aaaac-qeckq-cai', note: 'AUM, the rules, the math.' },
   { name: 'shenanigans',  id: 'j56tm-oaaaa-aaaac-qf34q-cai', note: 'Referrals, Ponzi Points spend.' },
   { name: 'pp_ledger',    id: '5xv2o-iiaaa-aaaac-qeclq-cai', note: 'Ponzi Points ICRC ledger.' },
   { name: 'ponzi_math',   id: 'guy42-yqaaa-aaaaj-qr5pq-cai', note: 'Math canister. To be black-holed.' },
@@ -111,7 +111,7 @@ export default function BetaBadge() {
                 Right now, that's one person. Admin functions exist that could, in theory:
               </p>
               <ul className="text-sm mc-text-dim space-y-1 mt-2 ml-4 list-disc marker:mc-text-purple">
-                <li>Drain the pot</li>
+                <li>Drain AUM</li>
                 <li>Change rules mid-round</li>
                 <li>Tune fees to whatever number we feel like</li>
                 <li>Pause withdrawals</li>

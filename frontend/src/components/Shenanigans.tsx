@@ -742,7 +742,7 @@ export default function Shenanigans() {
                 // 8 whaleRebalance, 9 downlineBoost, 10 goldenName
 
                 if (outcomeToast.outcome === 'success') {
-                  // Numeric wins first (Money Trickster, AoE Skim, Whale Rebalance theft).
+                  // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
                   if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
                   // Spells with no PP delta — explain what actually happened.

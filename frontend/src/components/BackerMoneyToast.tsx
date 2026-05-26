@@ -11,7 +11,7 @@ const charlesQuips = [
   "The fund always appreciates a generous LP.",
   "Smart money. Or at least, money.",
   "Every dollar helps. Mostly me.",
-  "You just made the pot a little heavier. Charles approves.",
+  "You just made AUM a little heavier. Charles approves.",
   "That's the spirit. Keep it coming.",
 ];
 

@@ -138,7 +138,7 @@ export function useGetMaxDepositLimit() {
   return useQuery<number>({
     queryKey: ['maxDepositLimit'],
     queryFn: async () => actor.getMaxDepositLimit(),
-    refetchInterval: 5000, // Refetch every 5 seconds as pot balance changes
+    refetchInterval: 5000, // Refetch every 5 seconds as AUM changes
   });
 }
 
