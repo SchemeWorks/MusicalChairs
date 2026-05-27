@@ -1770,6 +1770,27 @@ persistent actor Self {
         pool[Int.abs(Time.now()) % pool.size()];
     };
 
+    /// Resolve a principal's current effective display name. Order:
+    ///   1. customDisplayNames (rename-spell overlay, current within expiry)
+    ///   2. Fallback: short principal — frontend renders "Player.<short>"
+    ///      for unnamed principals; we mirror that here for parity.
+    /// Used to snapshot the target's "old name" at rename-spell cast time so
+    /// the feed can show "renamed X → Y".
+    func effectiveDisplayName(p : Principal) : Text {
+        let now = Time.now();
+        switch (principalMap.get(customDisplayNames, p)) {
+            case (?entry) {
+                if (entry.expiresAt > now) { return entry.name };
+            };
+            case null {};
+        };
+        let full = Principal.toText(p);
+        let short = if (Text.size(full) > 8) {
+            Text.fromIter(Array.subArray(Iter.toArray(full.chars()), 0, 8).vals())
+        } else { full };
+        "Player." # short;
+    };
+
     /// Validate + sanitize a player-chosen rename. Rules:
     ///  - Trim leading/trailing spaces
     ///  - 1 to 32 chars after trim
@@ -2080,7 +2101,7 @@ persistent actor Self {
         let casterBal : Nat = casterBalPre - actualBurnedUnits;
         let targetBal : Nat = targetBalForRoll;
 
-        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool } = switch (outcome) {
+        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = switch (outcome) {
             case (#success) {
                 await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
@@ -2088,7 +2109,7 @@ persistent actor Self {
                 await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#fail) {
-                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
         };
 
@@ -2105,7 +2126,7 @@ persistent actor Self {
             cost = actualCostFloat;
             ppDelta = ?detail.ppDeltaCaster;
             affectedCount = ?detail.affectedCount;
-            renameDetail = null; // wired up by a later commit
+            renameDetail = detail.renameDetail;
             shieldDeflected = ?detail.shieldDeflected;
         };
         shenanigans := natMap.put(shenanigans, castId, newShenanigan);
@@ -2120,7 +2141,7 @@ persistent actor Self {
                 outcome;
                 ppDelta = ?detail.ppDeltaCaster;
                 affectedCount = ?detail.affectedCount;
-                renameDetail = null; // wired up by a later commit
+                renameDetail = detail.renameDetail;
                 shieldDeflected = ?detail.shieldDeflected;
             })
         );
@@ -2178,7 +2199,7 @@ persistent actor Self {
         _casterBal : Nat,
         targetBal : Nat,
         castId : Nat,
-    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool } {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } {
         let memo = "spell-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
@@ -2187,11 +2208,11 @@ persistent actor Self {
             case (#moneyTrickster) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         if (consumeShieldIfActive(t)) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true };
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true; renameDetail = null };
                         };
                         // effectValues schema: [pctMin, pctMax, capWholePp].
                         // Defaults match the original hardcoded 2/8/250.
@@ -2202,10 +2223,10 @@ persistent actor Self {
                         let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(t, caster, amount, memo)) {
                             case (#Ok(_)) {
-                                return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                                return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                             };
                             case (#Err(_)) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                         };
                     };
@@ -2235,12 +2256,12 @@ persistent actor Self {
                         };
                     };
                 };
-                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims; shieldDeflected = false };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
             case (#renameSpell) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         // If the caster already has an active pending-rename
@@ -2269,18 +2290,18 @@ persistent actor Self {
                             target = t;
                             expiresAt = nowTs + fiveMinNs;
                         });
-                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         if (consumeShieldIfActive(t)) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true };
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true; renameDetail = null };
                         };
                         // effectValues schema: [pct, capWholePp]. pctTimes100
                         // is pct*100 because the mint helper divides by 10_000.
@@ -2294,14 +2315,14 @@ persistent actor Self {
                             capUnits = ppToUnits(cap);
                             siphonedSoFar = 0;
                         });
-                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };
             };
             case (#downlineHeist) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         // Find deepest downline of target — prefer L3, then L2, then L1
@@ -2339,14 +2360,14 @@ persistent actor Self {
                         };
                         switch (victim) {
                             case (null) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                             case (?v) {
                                 if (v != caster) {
                                     referralChain := principalMap.put(referralChain, v, caster);
-                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                                 };
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                         };
                     };
@@ -2368,7 +2389,7 @@ persistent actor Self {
                     chargesRemaining = newCharges;
                     expiresAt = nowTs + oneDayNs;
                 });
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#ppBoosterAura) {
                 // effectValues schema: [boostPctMin, boostPctMax]. Stored
@@ -2385,16 +2406,16 @@ persistent actor Self {
                     multiplierBps = pct * 100;
                     expiresAt = nowTs + oneDayNs;
                 });
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#purseCutter) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         if (consumeShieldIfActive(t)) {
-                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true };
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true; renameDetail = null };
                         };
                         // effectValues schema: [pctMin, pctMax, capWholePp].
                         let pctMin = effectNatOr(config.effectValues, 0, 25);
@@ -2404,10 +2425,10 @@ persistent actor Self {
                         let amount = capAt(targetBal * pct / 100, ppToUnits(cap));
                         switch (await burnFrom(t, amount, memo)) {
                             case (#Ok(_)) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                             };
                             case (#Err(_)) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                         };
                     };
@@ -2434,7 +2455,7 @@ persistent actor Self {
                         };
                     };
                 };
-                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims; shieldDeflected = false };
+                return { ppDeltaCaster = total; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
             case (#downlineBoost) {
                 // effectValues schema: [multiplier]. Stored as a Float
@@ -2447,7 +2468,7 @@ persistent actor Self {
                     multiplierBps;
                     expiresAt = nowTs + oneDayNs;
                 });
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#goldenName) {
                 // Gold-name window comes from config.duration (hours).
@@ -2456,7 +2477,7 @@ persistent actor Self {
                 // now per TUNING_NOTES.md.
                 let durationNs : Int = config.duration * 3_600_000_000_000;
                 goldenUntil := principalMap.put(goldenUntil, caster, nowTs + durationNs);
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
         };
     };
@@ -2472,7 +2493,7 @@ persistent actor Self {
         casterBal : Nat,
         _targetBal : Nat,
         castId : Nat,
-    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool } {
+    ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } {
         let memo = "backfire-" # Nat.toText(castId);
         let nowTs = Time.now();
         let oneDayNs : Int = 86_400_000_000_000;
@@ -2482,7 +2503,7 @@ persistent actor Self {
             case (#moneyTrickster) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         let pctMin = effectNatOr(config.effectValues, 0, 2);
@@ -2492,10 +2513,10 @@ persistent actor Self {
                         let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                         switch (await chipTransfer(caster, t, amount, memo)) {
                             case (#Ok(_)) {
-                                return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                                return { ppDeltaCaster = -amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                             };
                             case (#Err(_)) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                         };
                     };
@@ -2511,10 +2532,10 @@ persistent actor Self {
                 let loss = casterBal * pct / 100;
                 switch (await burnFrom(caster, loss, memo)) {
                     case (#Ok(_)) {
-                        return { ppDeltaCaster = -loss; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = -loss; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (#Err(_)) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                 };
             };
@@ -2524,12 +2545,12 @@ persistent actor Self {
                     name = pickRenameName();
                     expiresAt = nowTs + renameDurationNs;
                 });
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#mintTaxSiphon) {
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         // pct + cap mirror the success roll. Backfire window
@@ -2549,7 +2570,7 @@ persistent actor Self {
                         // caster's mints for 3 days. Mirror the success
                         // branch's affectedCount = 1 so the UI doesn't say
                         // "no observable effect."
-                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };
             };
@@ -2557,7 +2578,7 @@ persistent actor Self {
                 // Caster loses deepest downline to target
                 switch (target) {
                     case (null) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (?t) {
                         let entries = principalMap.entries(referralChain);
@@ -2594,14 +2615,14 @@ persistent actor Self {
                         };
                         switch (victim) {
                             case (null) {
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                             case (?v) {
                                 if (v != t) {
                                     referralChain := principalMap.put(referralChain, v, t);
-                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false };
+                                    return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                                 };
-                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false };
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                             };
                         };
                     };
@@ -2615,10 +2636,10 @@ persistent actor Self {
                 let amount = capAt(casterBal * pct / 100, ppToUnits(cap));
                 switch (await burnFrom(caster, amount, memo)) {
                     case (#Ok(_)) {
-                        return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = -amount; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                     case (#Err(_)) {
-                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
                     };
                 };
             };
@@ -2646,19 +2667,19 @@ persistent actor Self {
                         };
                     };
                 };
-                return { ppDeltaCaster = -total; affectedTarget = null; affectedCount = victims; shieldDeflected = false };
+                return { ppDeltaCaster = -total; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
             case (#magicMirror) {
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#ppBoosterAura) {
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#downlineBoost) {
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#goldenName) {
-                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
         };
     };
