@@ -879,6 +879,8 @@ export default function Shenanigans() {
                   if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
                   if (d < 0 && cnt === 0) return <p className="text-xs mc-text-purple mb-3">You burned {Math.abs(Math.round(d))} PP.</p>;
                   // State-change backfires with no PP delta — name them.
+                  // Spells 5/6/9/10 default to 100% success in config but admin
+                  // can tune odds, so every spell needs backfire copy.
                   switch (id) {
                     case 2: // renameSpell backfire — caster gets renamed
                       return <p className="text-xs mc-text-purple mb-3">You got renamed for 7 days.</p>;
@@ -888,13 +890,36 @@ export default function Shenanigans() {
                             // who switched to the (original) target. Reword for clarity.
                       if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} bolted — they're in someone else's downline now.</p>;
                       return <p className="text-xs mc-text-purple mb-3">Backfired — but you had no downline to lose.</p>;
+                    case 5: // magicMirror (Poison Pill) — no extra effect, just the cost burn
+                      return <p className="text-xs mc-text-purple mb-3">Pill landed in your own pocket. PP burned, no shield.</p>;
+                    case 6: // ppBoosterAura (Yield Boost) — no extra effect
+                      return <p className="text-xs mc-text-purple mb-3">Booster jammed. No yield, just a smoldering injector.</p>;
+                    case 9: // downlineBoost (Override Bonus) — no extra effect
+                      return <p className="text-xs mc-text-purple mb-3">Your downline filed a grievance. PP went to HR; no override.</p>;
+                    case 10: // goldenName (Whitelisted) — no extra effect
+                      return <p className="text-xs mc-text-purple mb-3">Application leaked to the press. PP burned in PR scramble.</p>;
                     default:
                       return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
                   }
                 }
 
                 if (outcomeToast.outcome === 'fail') {
-                  return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
+                  // Most spells share the generic "nothing happened" — the
+                  // 4 buff/cosmetic spells (5/6/9/10) default to 100% success
+                  // but admin-tunable odds mean a fail can still fire. Give
+                  // them flavor so the toast doesn't read as a no-op.
+                  switch (id) {
+                    case 5: // magicMirror (Poison Pill)
+                      return <p className="text-xs mc-text-muted mb-3">The pill dissolved. No shield, no refund.</p>;
+                    case 6: // ppBoosterAura (Yield Boost)
+                      return <p className="text-xs mc-text-muted mb-3">Booster refused to engage. No yield change.</p>;
+                    case 9: // downlineBoost (Override Bonus)
+                      return <p className="text-xs mc-text-muted mb-3">Downline didn't hear you. Cascade unchanged.</p>;
+                    case 10: // goldenName (Whitelisted)
+                      return <p className="text-xs mc-text-muted mb-3">Whitelist application rejected. No gold name today.</p>;
+                    default:
+                      return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
+                  }
                 }
                 return null;
               })()}
