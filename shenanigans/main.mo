@@ -583,6 +583,11 @@ persistent actor Self {
     // Active spell-effect state — see type docs above. All empty on first
     // deploy; orthogonal persistence carries values across upgrades.
     var customDisplayNames = principalMap.empty<DisplayNameOverride>();
+
+    /// User-set display names. Set by each player via setMyDisplayName.
+    /// Consulted by effectiveDisplayName as a fallback when no
+    /// customDisplayNames overlay is active.
+    var userDisplayNames = principalMap.empty<Text>();
     var mintSiphons = principalMap.empty<MintSiphon>();
     var shieldsActive = principalMap.empty<ShieldState>();
     var mintMultipliers = principalMap.empty<MintMultiplier>();
@@ -1879,7 +1884,10 @@ persistent actor Self {
             };
             case null {};
         };
-        null;
+        // Fall through to the user's self-set name if any. Still returns
+        // null when nothing is set — the rename feed deliberately skips
+        // the suffix in that case (no synthetic "Player.<short>" fallback).
+        principalMap.get(userDisplayNames, p);
     };
 
     /// Validate + sanitize a player-chosen rename. Rules:
@@ -2032,6 +2040,26 @@ persistent actor Self {
     /// refunded.
     public shared ({ caller }) func cancelPendingRename() : async () {
         pendingRenames := principalMap.delete(pendingRenames, caller);
+    };
+
+    /// Set the caller's preferred display name. Used by effectiveDisplayName
+    /// as the source of truth when no rename-spell overlay is active.
+    /// Same sanitization as setPendingRenameName.
+    public shared ({ caller }) func setMyDisplayName(name : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        switch (sanitizeRenameName(name)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok(text)) {
+                userDisplayNames := principalMap.put(userDisplayNames, caller, text);
+                return #Ok;
+            };
+        };
+    };
+
+    /// Returns the principal's user-set display name, if any. Public —
+    /// frontend uses this to render names on profiles, feed, etc.
+    public query func getUserDisplayName(p : Principal) : async ?Text {
+        principalMap.get(userDisplayNames, p);
     };
 
     /// Enumerate every known PP holder except `excluded`. Caller-side
