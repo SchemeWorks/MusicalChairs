@@ -1919,9 +1919,10 @@ persistent actor Self {
         switch (sanitizeRenameName(name)) {
             case (#Err(msg)) { return #Err(msg) };
             case (#Ok(text)) {
-                // Premium custom-name surcharge.
+                // Premium custom-name surcharge. ICRC-1 caps the memo at 32
+                // bytes; principal text is 63 chars so don't interpolate it.
                 let surchargeUnits = ppToUnits(PREMIUM_RENAME_SURCHARGE_PP);
-                switch (await burnFrom(caller, surchargeUnits, "rename-custom-" # Principal.toText(slot.target))) {
+                switch (await burnFrom(caller, surchargeUnits, "rename-custom")) {
                     case (#Err(msg)) {
                         return #Err("Couldn't burn 500 PP surcharge: " # msg);
                     };
