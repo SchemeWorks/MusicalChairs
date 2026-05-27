@@ -2124,7 +2124,10 @@ persistent actor Self {
         let primary = await mintInternal(player, toPlayer, eventId);
         switch (siphonTuple) {
             case (?(siphoner, take)) {
-                let _ = await mintInternal(siphoner, take, "siphon-" # eventId);
+                switch (await mintInternal(siphoner, take, "siphon-" # eventId)) {
+                    case (#Ok(_)) {};
+                    case (#Err(msg)) { Debug.print("siphon mint failed for siphon-" # eventId # ": " # msg) };
+                };
             };
             case null {};
         };
@@ -2803,7 +2806,10 @@ persistent actor Self {
                 let casterNet : Nat = if (drained < casterGain) { drained } else { casterGain };
                 if (drained > casterGain) {
                     let excess = drained - casterGain;
-                    let _ = await burnFrom(caster, excess, memo);
+                    switch (await burnFrom(caster, excess, memo)) {
+                        case (#Ok(_)) {};
+                        case (#Err(msg)) { Debug.print("bearRaid burn-excess failed: " # msg) };
+                    };
                 };
 
                 // Set Most Wanted on the caster for 24h.
@@ -3049,7 +3055,10 @@ persistent actor Self {
                 // Bill didn't pass — caster burns extra (in addition to the standard
                 // backfire cost burn).
                 let casterLoss : Nat = ppToUnits(effectNatOr(config.effectValues, 3, 200));
-                let _ = await burnFrom(caster, casterLoss, memo);
+                switch (await burnFrom(caster, casterLoss, memo)) {
+                    case (#Ok(_)) {};
+                    case (#Err(msg)) { Debug.print("stimulusCheck backfire extra-burn failed: " # msg) };
+                };
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#bearRaid) {
@@ -3059,14 +3068,19 @@ persistent actor Self {
                 let perVictimMinBR : Nat = effectNatOr(config.effectValues, 1, 40);
                 let perVictimMaxBR : Nat = effectNatOr(config.effectValues, 2, 50);
 
-                let _ = await burnFrom(caster, casterLossBR, memo);
+                switch (await burnFrom(caster, casterLossBR, memo)) {
+                    case (#Ok(_)) {};
+                    case (#Err(msg)) { Debug.print("bearRaid backfire caster-burn failed: " # msg) };
+                };
                 var othersBR : Nat = 0;
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
                     if (not Principal.equal(holder, caster)) {
                         let perVictim = rollPct(perVictimMinBR, perVictimMaxBR);
                         let perVictimUnits = ppToUnits(perVictim);
-                        let _ = await mintInternal(holder, perVictimUnits, memo);
-                        othersBR += 1;
+                        switch (await mintInternal(holder, perVictimUnits, memo)) {
+                            case (#Ok(_)) { othersBR += 1 };
+                            case (#Err(msg)) { Debug.print("bearRaid backfire mint failed for holder: " # msg) };
+                        };
                     };
                 };
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = othersBR; shieldDeflected = false; renameDetail = null };
