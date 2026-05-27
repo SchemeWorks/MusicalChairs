@@ -7,7 +7,7 @@ import { Principal } from '@dfinity/principal';
 // Types
 // ============================================================================
 
-export type WalletType = 'none' | 'internet-identity' | 'plug' | 'oisy';
+export type WalletType = 'none' | 'internet-identity' | 'plug' | 'oisy' | 'siws';
 
 export interface WalletState {
   walletType: WalletType;
@@ -140,7 +140,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const openWallet = useCallback(() => setIsOpen(true), []);
   const closeWallet = useCallback(() => setIsOpen(false), []);
 
-  const isConnected = walletType !== 'none' && (!!identity || walletType === 'oisy');
+  const isConnected = walletType !== 'none' && (!!identity || walletType === 'oisy' || walletType === 'siws');
 
   // ============================================================================
   // Initialization - Check for existing sessions
@@ -186,6 +186,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
           setWalletType('oisy');
         } else {
           // Session expired or signer has no active session — downgrade cleanly.
+          localStorage.removeItem('musical-chairs-wallet-type');
+        }
+      } else if (savedWalletType === 'siws') {
+        const { restoreSiwsSession } = await import('../lib/siwsSigner');
+        const connection = await restoreSiwsSession();
+        if (connection) {
+          setIdentity(connection.identity);
+          setPrincipal(connection.principal);
+          setWalletType('siws');
+        } else {
+          // Session expired or saved state was corrupted — downgrade cleanly.
           localStorage.removeItem('musical-chairs-wallet-type');
         }
       }
@@ -243,6 +254,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
           break;
         case 'oisy':
           await connectOisy();
+          break;
+        case 'siws':
+          await connectSiws();
           break;
       }
 
@@ -343,6 +357,54 @@ export function WalletProvider({ children }: WalletProviderProps) {
     }
   };
 
+  const connectSiws = async () => {
+    const { connectSiws: doConnect } = await import('../lib/siwsSigner');
+    const walletAdapterMod = await import('@solana/wallet-adapter-base');
+    const walletsMod = await import('@solana/wallet-adapter-wallets');
+
+    // Detect available Solana wallets via Wallet Standard. Pick the first
+    // one the user has installed. Phantom and Solflare cover the dominant
+    // share of Solana wallets; we can add more here later if needed.
+    const wallets = [
+      new walletsMod.PhantomWalletAdapter(),
+      new walletsMod.SolflareWalletAdapter(),
+    ];
+
+    const adapter = wallets.find(
+      (w) => w.readyState === walletAdapterMod.WalletReadyState.Installed,
+    );
+
+    if (!adapter) {
+      throw new Error(
+        'No Solana wallet detected. Install Phantom or Solflare to continue.',
+      );
+    }
+
+    // Connect to the wallet. This pops the wallet's "approve connection" UI.
+    await adapter.connect();
+
+    if (!adapter.publicKey) {
+      throw new Error('Wallet did not return a public key.');
+    }
+
+    const pubkeyBase58 = adapter.publicKey.toBase58();
+
+    // Wrap adapter.signMessage so the SIWS signer can call it via a generic
+    // (msg: Uint8Array) => Promise<Uint8Array> callback.
+    const signMessage = async (msg: Uint8Array): Promise<Uint8Array> => {
+      if (!adapter.signMessage) {
+        throw new Error('Selected wallet does not support signMessage.');
+      }
+      return adapter.signMessage(msg);
+    };
+
+    const connection = await doConnect(signMessage, pubkeyBase58);
+
+    setIdentity(connection.identity);
+    setPrincipal(connection.principal);
+    setWalletType('siws');
+  };
+
   // ============================================================================
   // Disconnect
   // ============================================================================
@@ -354,6 +416,9 @@ export function WalletProvider({ children }: WalletProviderProps) {
       } else if (walletType === 'oisy') {
         const { clearOisySigner } = await import('../lib/oisySigner');
         clearOisySigner();
+      } else if (walletType === 'siws') {
+        const { clearSiwsSession } = await import('../lib/siwsSigner');
+        clearSiwsSession();
       } else if (authClient) {
         await authClient.logout();
       }
