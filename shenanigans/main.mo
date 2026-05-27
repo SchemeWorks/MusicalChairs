@@ -2033,6 +2033,21 @@ persistent actor Self {
             case null {};
         };
 
+        // Tender Offer post-backfire lockout — 7d cooldown on Tender Offer
+        // specifically (other spells unaffected). Pure map read — kept up
+        // here with the other lockouts so a locked-out caster doesn't pay
+        // an async balance round-trip just to get rejected.
+        if (shenaniganType == #tenderOffer) {
+            switch (principalMap.get(tenderOfferBackfireLockUntil, caller)) {
+                case (?deadline) {
+                    if (Time.now() < deadline) {
+                        throw Error.reject("Tender Offer is locked out (recent backfire). Try a different spell.");
+                    };
+                };
+                case null {};
+            };
+        };
+
         // Reject target-required spells called without one. Without this trap
         // the success branch would silently no-op and the caster's PP would
         // burn for no observable effect.
@@ -2042,6 +2057,7 @@ persistent actor Self {
             case (#mintTaxSiphon) { true };
             case (#downlineHeist) { true };
             case (#purseCutter) { true };
+            case (#tenderOffer) { true };
             case (_) { false };
         };
         if (needsTarget) {
@@ -2081,19 +2097,6 @@ persistent actor Self {
             Debug.trap("Insufficient chips to cast this shenanigan");
         };
 
-        // Tender Offer post-backfire lockout — 7d cooldown on Tender Offer
-        // specifically (other spells unaffected).
-        if (shenaniganType == #tenderOffer) {
-            switch (principalMap.get(tenderOfferBackfireLockUntil, caller)) {
-                case (?deadline) {
-                    if (Time.now() < deadline) {
-                        throw Error.reject("Tender Offer is locked out (recent backfire). Try a different spell.");
-                    };
-                };
-                case null {};
-            };
-        };
-
         let castId = nextShenaniganId;
         // Reserve the castId atomically before any `await` yields. Two
         // concurrent casts must not both read the same id and then have one
@@ -2111,16 +2114,10 @@ persistent actor Self {
 
         // Tender Offer 50% target-balance gate. Whales only — target must
         // have <= 50% of caster's balance. Reuses the already-queried balances.
+        // Null target was already rejected by the needsTarget trap above.
         if (shenaniganType == #tenderOffer) {
-            switch (target) {
-                case (null) {
-                    throw Error.reject("Tender Offer requires a target.");
-                };
-                case (?_t) {
-                    if (targetBalForRoll > casterBalPre / 2) {
-                        throw Error.reject("Target's PP balance must be at most 50% of yours for Tender Offer.");
-                    };
-                };
+            if (targetBalForRoll > casterBalPre / 2) {
+                throw Error.reject("Target's PP balance must be at most 50% of yours for Tender Offer.");
             };
         };
 
@@ -2826,6 +2823,12 @@ persistent actor Self {
                         // Backfire: caster pays target 3x the spell cost as poison-pill
                         // compensation + caster locks out of Tender Offer specifically
                         // for 7 days.
+                        // Float.toInt truncates toward zero. costBackfire is configured
+                        // as an integer-valued Float (300.0 by default) so 3x is exact;
+                        // if a future admin tunes it to a non-integer, this silently
+                        // shorts the target by the fractional amount. Acceptable for
+                        // now — surface a check or use Float.nearest if/when fractional
+                        // costs become a real configuration option.
                         let compensationPp : Nat = Int.abs(Float.toInt(config.costBackfire * 3.0));
                         let compensationUnits = ppToUnits(compensationPp);
                         let _ = await chipTransfer(caster, t, compensationUnits, memo);
