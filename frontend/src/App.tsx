@@ -476,7 +476,7 @@ export default function App() {
                   }}
                   aria-label="Docs"
                   title="Docs"
-                  className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs sm:text-sm font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/15 hover:border-white/30"
+                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-full text-xs sm:text-sm font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/15 hover:border-white/30"
                 >
                   <BookOpen className="h-4 w-4" />
                   <span className="hidden sm:inline">Docs</span>

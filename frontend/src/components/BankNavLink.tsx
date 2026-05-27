@@ -19,7 +19,7 @@ export default function BankNavLink({ onClick }: BankNavLinkProps) {
       onClick={onClick}
       aria-label="Bank"
       title="Bank — deposit and withdraw"
-      className="relative flex items-center gap-1.5 px-3 py-2 rounded-full text-xs sm:text-sm font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/15 hover:border-white/30"
+      className="relative hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-full text-xs sm:text-sm font-display mc-text-dim hover:mc-text-primary hover:bg-white/5 transition-all border border-white/15 hover:border-white/30"
     >
       <Landmark className="h-4 w-4" />
       <span className="hidden sm:inline">Bank</span>
