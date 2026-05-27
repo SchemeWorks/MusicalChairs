@@ -1850,25 +1850,25 @@ persistent actor Self {
         pool[Int.abs(Time.now()) % pool.size()];
     };
 
-    /// Resolve a principal's current effective display name. Order:
-    ///   1. customDisplayNames (rename-spell overlay, current within expiry)
-    ///   2. Fallback: short principal — frontend renders "Player.<short>"
-    ///      for unnamed principals; we mirror that here for parity.
-    /// Used to snapshot the target's "old name" at rename-spell cast time so
-    /// the feed can show "renamed X → Y".
-    func effectiveDisplayName(p : Principal) : Text {
+    /// Resolve a principal's current effective display name from the
+    /// shenanigans canister's own state. Returns the active customDisplayNames
+    /// overlay if one is set and unexpired; otherwise null.
+    ///
+    /// Returns null rather than synthesizing a "Player.<short>" fallback —
+    /// shenanigans doesn't know the user's real backend-canister profile
+    /// name, and falling back to a truncated principal in the feed reads
+    /// as weird ("Player.zegjz-jp → ..."). Callers that need a snapshot
+    /// for the rename-detail feed should skip populating renameDetail
+    /// when this returns null.
+    func effectiveDisplayName(p : Principal) : ?Text {
         let now = Time.now();
         switch (principalMap.get(customDisplayNames, p)) {
             case (?entry) {
-                if (entry.expiresAt > now) { return entry.name };
+                if (entry.expiresAt > now) { return ?entry.name };
             };
             case null {};
         };
-        let full = Principal.toText(p);
-        let short = if (Text.size(full) > 8) {
-            Text.fromIter(Array.subArray(Iter.toArray(full.chars()), 0, 8).vals())
-        } else { full };
-        "Player." # short;
+        null;
     };
 
     /// Validate + sanitize a player-chosen rename. Rules:
@@ -2455,7 +2455,10 @@ persistent actor Self {
                         let renameDurationNs : Int = config.duration * 3_600_000_000_000;
                         // Snapshot the target's effective name BEFORE we mutate
                         // customDisplayNames so the feed can show "renamed X → Y".
-                        let oldName = effectiveDisplayName(t);
+                        // ?Text: null when the target had no prior overlay, in
+                        // which case we leave renameDetail = null below (no
+                        // weird "Player.<short>" suffix in the feed).
+                        let oldNameOpt = effectiveDisplayName(t);
 
                         // Auto-commit any prior pending slot the caster left open
                         // (legacy hygiene — keeps the slot map bounded).
@@ -2485,12 +2488,20 @@ persistent actor Self {
                             target = t;
                             expiresAt = nowTs + fiveMinNs;
                         });
+                        // Only populate renameDetail when we actually have an
+                        // old name to show. Otherwise leave it null — the
+                        // chat row falls back to the terse format.
+                        let renameDetail : ?{ oldName : Text; newName : Text } =
+                            switch (oldNameOpt) {
+                                case (?oldName) { ?{ oldName; newName = pooledName } };
+                                case null { null };
+                            };
                         return {
                             ppDeltaCaster = 0;
                             affectedTarget = ?t;
                             affectedCount = 1;
                             shieldDeflected = false;
-                            renameDetail = ?{ oldName; newName = pooledName };
+                            renameDetail;
                         };
                     };
                 };
