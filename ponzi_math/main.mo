@@ -1536,6 +1536,10 @@ persistent actor class PonziMath(initArgs : {
         isAdmin(caller);
     };
 
+    public query func getCurrentRoundId() : async Nat {
+        currentRoundId;
+    };
+
     public query ({ caller }) func adminGetCurrentRoundId() : async Nat {
         requireAdmin(caller);
         currentRoundId;
