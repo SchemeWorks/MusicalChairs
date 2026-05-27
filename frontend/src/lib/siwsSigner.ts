@@ -64,7 +64,10 @@ export interface SiwsConnection {
 // canister reconstructs server-side from the same `SiwsMessage` record returned
 // by `siws_prepare_login`. As long as the bytes we sign match the bytes the
 // canister re-derives, signature verification passes.
-function buildSiwsMessageText(msg: SiwsMessage): string {
+//
+// EXPORTED for `siwsSigner.test.ts` — the snapshot test pins the exact byte
+// output so any accidental format drift fails CI before it can ship.
+export function buildSiwsMessageText(msg: SiwsMessage): string {
   const issuedAtIso = new Date(Number(msg.issued_at / 1_000_000n)).toISOString();
   const expirationIso = new Date(
     Number(msg.expiration_time / 1_000_000n),

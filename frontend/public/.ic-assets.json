@@ -10,5 +10,9 @@
       "Content-Type": "text/plain"
     },
     "ignore": false
+  },
+  {
+    "match": "**/*",
+    "security_policy": "standard"
   }
 ]

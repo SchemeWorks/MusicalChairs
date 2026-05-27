@@ -362,9 +362,13 @@ export function WalletProvider({ children }: WalletProviderProps) {
     const walletAdapterMod = await import('@solana/wallet-adapter-base');
     const walletsMod = await import('@solana/wallet-adapter-wallets');
 
-    // Detect available Solana wallets via Wallet Standard. Pick the first
-    // one the user has installed. Phantom and Solflare cover the dominant
-    // share of Solana wallets; we can add more here later if needed.
+    // Detect available Solana wallets. Phantom and Solflare ship explicit
+    // adapters because they predate the Wallet Standard protocol; newer
+    // wallets like Backpack/Coinbase/Glow use Wallet Standard auto-discovery
+    // and have no per-wallet adapter package. To support them we'd switch
+    // to `@wallet-standard/core::getWallets()` and iterate the registered
+    // wallet-standard wallets — a heavier refactor. For now we list only
+    // the legacy-adapter wallets explicitly.
     const wallets = [
       new walletsMod.PhantomWalletAdapter(),
       new walletsMod.SolflareWalletAdapter(),
