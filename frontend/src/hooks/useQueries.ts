@@ -661,17 +661,6 @@ export function useClaimBackerRepayment() {
   });
 }
 
-export function useCalculateGameEarnings() {
-  const { actor } = usePonziMathActor();
-
-  return useMutation({
-    mutationFn: async (game: GameRecord) => {
-      if (!actor) throw new Error('Actor not available');
-      return actor.calculateEarnings(game);
-    },
-  });
-}
-
 // Shenanigans Queries — routed to standalone shenanigans canister.
 // Read paths use the anonymous read actor so that Oisy users don't get
 // their query refetches upgraded to icrc49 update calls via the signer.
@@ -1613,94 +1602,6 @@ export function calculatePonziPoints(amount: number, plan: string, rates: PpRate
   return amount * ppRateForPlan(plan, rates);
 }
 
-// Transaction History Query (Mock data until backend is implemented)
-export function useGetTransactionHistory() {
-  return useQuery({
-    queryKey: ['transactionHistory'],
-    queryFn: async () => {
-      // TODO: wire to useReadActor + actor.getTransactionHistory() when backend method exists.
-      
-      // Mock data for now - simulating live transaction history
-      const baseTransactions = [
-        {
-          id: 'tx_1',
-          type: 'deposit' as const,
-          amount: 100,
-          date: new Date('2025-01-20'),
-          status: 'completed' as const,
-          houseFee: 3.0,
-        },
-        {
-          id: 'tx_2',
-          type: 'game' as const,
-          amount: 50,
-          date: new Date('2025-01-21'),
-          status: 'completed' as const,
-          planId: '21-day-simple',
-          ponziPoints: 50000,
-        },
-        {
-          id: 'tx_3',
-          type: 'withdrawal' as const,
-          amount: 25,
-          date: new Date('2025-01-22'),
-          status: 'completed' as const,
-          exitTollFee: 25 * EXIT_TOLL_EARLY,
-        },
-        {
-          id: 'tx_4',
-          type: 'mlm_reward' as const,
-          amount: 10,
-          date: new Date('2025-01-23'),
-          status: 'completed' as const,
-          description: 'Level 1 MLM reward (8%)'
-        }
-      ];
-
-      // Simulate new transactions occasionally
-      if (Math.random() < 0.2) { // 20% chance of new transaction
-        const randomChoice = Math.random();
-        
-        if (randomChoice < 0.33) {
-          // Add deposit transaction
-          baseTransactions.unshift({
-            id: `tx_${Date.now()}`,
-            type: 'deposit' as const,
-            amount: Math.floor(Math.random() * 100) + 10,
-            date: new Date(),
-            status: 'completed' as const,
-            houseFee: (Math.floor(Math.random() * 100) + 10) * 0.03,
-          });
-        } else if (randomChoice < 0.66) {
-          // Add withdrawal transaction
-          const amount = Math.floor(Math.random() * 50) + 5;
-          baseTransactions.unshift({
-            id: `tx_${Date.now()}`,
-            type: 'withdrawal' as const,
-            amount,
-            date: new Date(),
-            status: 'completed' as const,
-            exitTollFee: amount * EXIT_TOLL_EARLY,
-          });
-        } else {
-          // Add MLM reward transaction
-          const level = Math.floor(Math.random() * 3) + 1;
-          baseTransactions.unshift({
-            id: `tx_${Date.now()}`,
-            type: 'mlm_reward' as const,
-            amount: Math.floor(Math.random() * 20) + 5,
-            date: new Date(),
-            status: 'completed' as const,
-            description: `Level ${level} MLM reward (${level === 1 ? '8%' : level === 2 ? '5%' : '2%'})`
-          });
-        }
-      }
-
-      return baseTransactions;
-    },
-  });
-}
-
 // ============================================================================
 // New hooks added during ponzi_math extraction
 // ============================================================================
@@ -2101,22 +2002,6 @@ export function useAddReaction() {
   });
 }
 
-export function useRemoveReaction() {
-  const { actor } = useShenaniganActor();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async ({ itemId, emoji }: { itemId: bigint; emoji: string }) => {
-      if (!actor) throw new Error('No shenanigans actor');
-      const result = await actor.removeReaction(itemId, emoji);
-      if ('Err' in result) throw new Error(result.Err);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'chatItems'] });
-    },
-    onError: (e: Error) => { toast.error(e.message); },
-  });
-}
-
 export function useKarmaReact() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();
@@ -2218,20 +2103,6 @@ export function useListChimeSounds() {
     queryFn: async () => actor.listChimeSounds(),
     refetchInterval: 60_000,
     enabled: !!actor,
-  });
-}
-
-export function useGetChimeSound(name: string | null) {
-  const actor = useReadShenaniganActor();
-  return useQuery({
-    queryKey: ['shenanigans', 'chimeSound', name],
-    queryFn: async () => {
-      if (!name) return null;
-      const result = await actor.getChimeSound(name);
-      return result.length === 0 ? null : result[0];
-    },
-    enabled: !!actor && !!name,
-    staleTime: 60 * 60_000, // Bytes don't change without an admin upload; cache aggressively.
   });
 }
 
