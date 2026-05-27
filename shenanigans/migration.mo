@@ -450,4 +450,202 @@ module {
             var shenanigans = old.shenanigans;
         };
     };
+
+    // ================================================================
+    // V7 — Add optional outcome-detail fields to cast records + chat items
+    //
+    // Adds four optional fields (ppDelta, affectedCount, renameDetail,
+    // shieldDeflected) to ShenaniganRecord and to the #spellCast chat
+    // item kind. Forward-only: every historical record gets null for
+    // the new fields. New casts populate them at write time.
+    //
+    // Also extends the ShenaniganType variant set with #tenderOffer,
+    // #stimulusCheck, #bearRaid. These don't appear in pre-V7
+    // persisted data (the spells didn't exist), but listing them keeps
+    // the type aligned with the post-migration shape.
+    //
+    // See docs/superpowers/plans/2026-05-27-shenanigans-feed-and-new-spells.md.
+    // ================================================================
+
+    type V7ShenaniganType = {
+        #moneyTrickster;
+        #aoeSkim;
+        #renameSpell;
+        #mintTaxSiphon;
+        #downlineHeist;
+        #magicMirror;
+        #ppBoosterAura;
+        #purseCutter;
+        #whaleRebalance;
+        #downlineBoost;
+        #goldenName;
+        #tenderOffer;
+        #stimulusCheck;
+        #bearRaid;
+    };
+
+    type V7ShenaniganOutcome = {
+        #success;
+        #fail;
+        #backfire;
+    };
+
+    type V7OldShenaniganRecord = {
+        id : Nat;
+        user : Principal;
+        shenaniganType : V7ShenaniganType;
+        target : ?Principal;
+        outcome : V7ShenaniganOutcome;
+        timestamp : Int;
+        cost : Float;
+    };
+
+    type V7NewShenaniganRecord = {
+        id : Nat;
+        user : Principal;
+        shenaniganType : V7ShenaniganType;
+        target : ?Principal;
+        outcome : V7ShenaniganOutcome;
+        timestamp : Int;
+        cost : Float;
+        ppDelta : ?Int;
+        affectedCount : ?Nat;
+        renameDetail : ?{ oldName : Text; newName : Text };
+        shieldDeflected : ?Bool;
+    };
+
+    type V7Reaction = {
+        emoji : Text;
+        reactors : [Principal];
+        karmaPpBurned : Nat;
+    };
+
+    type V7OldChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : V7ShenaniganType;
+            target : ?Principal;
+            outcome : V7ShenaniganOutcome;
+        };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    type V7NewChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : V7ShenaniganType;
+            target : ?Principal;
+            outcome : V7ShenaniganOutcome;
+            ppDelta : ?Int;
+            affectedCount : ?Nat;
+            renameDetail : ?{ oldName : Text; newName : Text };
+            shieldDeflected : ?Bool;
+        };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    type V7OldChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V7OldChatItemKind;
+        reactions : [V7Reaction];
+        deleted : Bool;
+    };
+
+    type V7NewChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V7NewChatItemKind;
+        reactions : [V7Reaction];
+        deleted : Bool;
+    };
+
+    type V7OldShenaniganMap = OrderedMap.Map<Nat, V7OldShenaniganRecord>;
+    type V7NewShenaniganMap = OrderedMap.Map<Nat, V7NewShenaniganRecord>;
+
+    public func runV7(
+        old : {
+            var chatItems : [V7OldChatItem];
+            var shenanigans : V7OldShenaniganMap;
+        }
+    ) : {
+        var chatItems : [V7NewChatItem];
+        var shenanigans : V7NewShenaniganMap;
+    } {
+        let natMap = OrderedMap.Make<Nat>(Nat.compare);
+
+        // ShenaniganRecord: backfill the four optional fields with null
+        // on every historical record. New casts populate them at write.
+        var newShenanigans : V7NewShenaniganMap = natMap.empty<V7NewShenaniganRecord>();
+        for ((id, rec) in natMap.entries(old.shenanigans)) {
+            let newRec : V7NewShenaniganRecord = {
+                id = rec.id;
+                user = rec.user;
+                shenaniganType = rec.shenaniganType;
+                target = rec.target;
+                outcome = rec.outcome;
+                timestamp = rec.timestamp;
+                cost = rec.cost;
+                ppDelta = null;
+                affectedCount = null;
+                renameDetail = null;
+                shieldDeflected = null;
+            };
+            newShenanigans := natMap.put(newShenanigans, id, newRec);
+        };
+
+        // ChatItem: only #spellCast changes shape. Other variants pass
+        // through unchanged.
+        let migrated = Buffer.Buffer<V7NewChatItem>(old.chatItems.size());
+        for (item in old.chatItems.vals()) {
+            let newKind : V7NewChatItemKind = switch (item.kind) {
+                case (#spellCast(sc)) {
+                    #spellCast({
+                        castId = sc.castId;
+                        caster = sc.caster;
+                        shenaniganType = sc.shenaniganType;
+                        target = sc.target;
+                        outcome = sc.outcome;
+                        ppDelta = null;
+                        affectedCount = null;
+                        renameDetail = null;
+                        shieldDeflected = null;
+                    });
+                };
+                case (#userMessage(x)) { #userMessage(x) };
+                case (#signup(x)) { #signup(x) };
+                case (#rankUp(x)) { #rankUp(x) };
+                case (#roundResult(x)) { #roundResult(x) };
+                case (#reginald(x)) { #reginald(x) };
+                case (#pinUpdate(x)) { #pinUpdate(x) };
+            };
+            migrated.add({
+                id = item.id;
+                author = item.author;
+                timestamp = item.timestamp;
+                kind = newKind;
+                reactions = item.reactions;
+                deleted = item.deleted;
+            });
+        };
+
+        {
+            var chatItems = Buffer.toArray(migrated);
+            var shenanigans = newShenanigans;
+        };
+    };
 };

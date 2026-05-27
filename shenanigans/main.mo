@@ -21,6 +21,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -32,6 +33,12 @@ import Icrc21 "icrc21";
 // applied 2026-05-21. See migration.mo for the historical migration record
 // and Migration.runV6.
 
+// V7 (2026-05-27): adds optional outcome-detail fields (ppDelta,
+// affectedCount, renameDetail, shieldDeflected) to ShenaniganRecord and
+// the #spellCast chat item. Backfills null on every historical record.
+// Remove this (with migration = ...) attachment in a follow-up commit
+// after the upgrade has been deployed to mainnet (same pattern as V6).
+(with migration = Migration.runV7)
 persistent actor Self {
 
     // ================================================================
