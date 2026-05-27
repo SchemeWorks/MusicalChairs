@@ -1902,6 +1902,32 @@ persistent actor Self {
         };
     };
 
+    /// Sweep expired entries from the time-keyed lockout maps. Called
+    /// lazily on cast and on admin queries; cheap because the maps stay
+    /// small. Doesn't touch customDisplayNames/cooldowns/mintSiphons/
+    /// shields — those have their own expiry semantics handled inline.
+    func sweepExpiredLockouts() {
+        let now = Time.now();
+        for (p in principalMap.keys(acquiredLockUntil)) {
+            switch (principalMap.get(acquiredLockUntil, p)) {
+                case (?d) { if (d <= now) { acquiredLockUntil := principalMap.delete(acquiredLockUntil, p) } };
+                case null {};
+            };
+        };
+        for (p in principalMap.keys(tenderOfferBackfireLockUntil)) {
+            switch (principalMap.get(tenderOfferBackfireLockUntil, p)) {
+                case (?d) { if (d <= now) { tenderOfferBackfireLockUntil := principalMap.delete(tenderOfferBackfireLockUntil, p) } };
+                case null {};
+            };
+        };
+        for (p in principalMap.keys(mostWantedUntil)) {
+            switch (principalMap.get(mostWantedUntil, p)) {
+                case (?d) { if (d <= now) { mostWantedUntil := principalMap.delete(mostWantedUntil, p) } };
+                case null {};
+            };
+        };
+    };
+
     /// Caller commits a custom-typed name for their pending Rename slot.
     /// Burns 500 PP. Must be called within 5 minutes of the cast. Name is
     /// sanitized: trimmed, 1-32 chars, alphanumeric + space + dash + underscore.
@@ -2111,6 +2137,10 @@ persistent actor Self {
 
     public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+
+        // Lazily prune stale entries so the maps don't accumulate indefinitely.
+        sweepExpiredPendingRenames();
+        sweepExpiredLockouts();
 
         // Acquired-lockout: recently-acquired targets cannot cast ANY spell
         // during the 24h post-acquisition integration period.
