@@ -12,6 +12,12 @@
       "main": "shenanigans/main.mo",
       "type": "motoko"
     },
+    "siws_provider": {
+      "type": "custom",
+      "candid": "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.did",
+      "wasm": "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.wasm.gz",
+      "init_arg": "(record { domain = \"musicalchairs.fun\"; uri = \"https://musicalchairs.fun\"; salt = \"musical-chairs-siws-v1\"; chain_id = opt \"mainnet\"; scheme = opt \"https\"; statement = opt \"Sign in with your Solana wallet to play Musical Chairs.\"; sign_in_expires_in = opt 300000000000; session_expires_in = opt 2592000000000000; targets = null; runtime_features = null })"
+    },
     "frontend": {
       "dependencies": [],
       "source": ["frontend/dist"],
