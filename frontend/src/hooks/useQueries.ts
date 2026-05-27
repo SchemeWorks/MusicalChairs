@@ -1226,16 +1226,6 @@ export function useGetSeedRoundDashboard() {
 // Legacy alias
 export const useGetHouseDashboard = useGetSeedRoundDashboard;
 
-// Top-holders leaderboard retired — pp_ledger exposes balances as on-chain state,
-// not as a sorted view. The hook is kept as a no-op stub so existing consumers
-// compile until Task 29 removes them.
-export function useGetTopPonziPointsHolders() {
-  return useQuery({
-    queryKey: ['topPonziPointsHolders'],
-    queryFn: async () => [] as { rank: number; name: string; ponziPoints: number; principal: string }[],
-  });
-}
-
 export function useGetTopPonziPointsBurners() {
   const actor = useReadShenaniganActor();
   return useQuery({
@@ -1272,18 +1262,6 @@ export function useGetRoundBurnedLeaderboard(roundId?: number, limit = 50) {
     enabled: !!actor,
     staleTime: 15_000,
   });
-}
-
-// Legacy Hall of Fame Query - kept for backward compatibility but deprecated
-export function useGetHallOfFame() {
-  const { data: holders } = useGetTopPonziPointsHolders();
-  const { data: burners } = useGetTopPonziPointsBurners();
-
-  return {
-    data: { holders, burners },
-    isLoading: false,
-    error: null
-  };
 }
 
 // === Chip custody & cash-out (pp_ledger + shenanigans) ===
