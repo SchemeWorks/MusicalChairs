@@ -62,114 +62,31 @@ Expected: dfx 0.20+ (any version that supports Rust canister builds — should a
 
 ---
 
-## Task 2: Scaffold the siws_provider Rust canister
+## Task 2 & Task 3 — SUPERSEDED (see Task 4 for the replacement)
 
-**Files:**
-- Create: `siws_provider/Cargo.toml`
-- Create: `siws_provider/src/lib.rs`
+**Why amended (2026-05-27):** The original plan called for scaffolding a local Rust crate that re-exports `ic_siws_provider`, then vendoring its Candid. The Task 2 implementer correctly escalated that this won't work because:
 
-- [ ] **Step 1: Look up the latest version of `ic_siws_provider` on crates.io**
+1. **`ic_siws_provider` is not published on crates.io.** Only the underlying library `ic_siws` is. There's no version to pin.
+2. **The re-export pattern doesn't carry canister endpoints.** `#[ic_cdk::init]` / `#[update]` / `#[query]` macros emit `__canister_method_*` symbols into the compilation unit they appear in; `pub use foo::*;` doesn't carry those through. A `cdylib` whose `lib.rs` is just `pub use ic_siws_provider::*;` would build but have zero exported methods.
+3. **The upstream ships a pre-built wasm.** v0.1.0 release at https://github.com/kristoferlund/ic-siws/releases/tag/v0.1.0 includes `ic_siws_provider.wasm.gz` and `ic_siws_provider.did` — exactly the integration model the existing `pp_ledger` canister already uses in this repo.
 
-Run: `curl -s https://crates.io/api/v1/crates/ic_siws_provider | jq -r '.crate.max_stable_version'`
-Expected: a semver string like `0.1.0` or `0.2.x`. Record this version — you'll pin it in Cargo.toml.
+The fix: drop Tasks 2 and 3 entirely; register the canister in dfx.json using `"type": "custom"` with URLs pointing at the upstream v0.1.0 release (see Task 4 below). No local Rust compilation needed. No `siws_provider/` directory created in the repo. Same pattern as `pp_ledger`.
 
-If `jq` not installed, visit https://crates.io/crates/ic_siws_provider in a browser and read the latest stable version.
-
-- [ ] **Step 2: Create the Cargo manifest**
-
-File: `siws_provider/Cargo.toml`
-
-```toml
-[package]
-name = "siws_provider"
-version = "0.1.0"
-edition = "2021"
-
-[lib]
-crate-type = ["cdylib"]
-path = "src/lib.rs"
-
-[dependencies]
-ic_siws_provider = "<VERSION_FROM_STEP_1>"
-ic-cdk = "0.16"
-candid = "0.10"
-```
-
-Replace `<VERSION_FROM_STEP_1>` with the version recorded in Step 1.
-
-- [ ] **Step 3: Create the canister entry point**
-
-File: `siws_provider/src/lib.rs`
-
-```rust
-// Musical Chairs SIWS provider.
-//
-// Re-exports the upstream `ic_siws_provider` canister wholesale. The whole
-// canister is just configuration — domain/statement/scheme — supplied at
-// init time. The actual SIWS protocol implementation lives in the
-// ic-siws crate, which is well-tested.
-//
-// If we ever need to fork behavior, we'd inline the provider's source
-// here and modify; today we use it stock.
-
-pub use ic_siws_provider::*;
-```
-
-- [ ] **Step 4: Verify it builds against the wasm target**
-
-Run: `cd siws_provider && cargo build --release --target wasm32-unknown-unknown && cd ..`
-Expected: a `target/wasm32-unknown-unknown/release/siws_provider.wasm` file is produced. Compilation succeeds with no errors. Warnings are OK.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add siws_provider/Cargo.toml siws_provider/src/lib.rs
-git commit -m "feat(siws): scaffold ic_siws_provider Rust canister
-
-Adds the Rust crate that will be deployed as siws_provider canister.
-Re-exports ic_siws_provider stock; configuration via init args in dfx.json."
-```
+Result: M0 collapses from 15 tasks to 13. All other task numbers stay stable for traceability.
 
 ---
 
-## Task 3: Vendor the Candid interface for siws_provider
-
-**Files:**
-- Create: `siws_provider/siws_provider.did`
-
-- [ ] **Step 1: Fetch the upstream .did file**
-
-Run: `curl -fsSL https://raw.githubusercontent.com/kristoferlund/ic-siws/main/packages/ic_siws_provider/ic_siws_provider.did -o siws_provider/siws_provider.did`
-Expected: file is created with non-zero size. Open it and verify it contains type definitions like `LoginDetails`, `Delegation`, `PrepareLoginOkResponse`, and methods like `siws_prepare_login`, `siws_login`, `siws_get_delegation`.
-
-If the URL 404s (upstream restructured), find the .did file by browsing https://github.com/kristoferlund/ic-siws/tree/main/packages/ic_siws_provider and copy its content into `siws_provider/siws_provider.did` manually.
-
-- [ ] **Step 2: Verify the .did is valid Candid**
-
-Run: `dfx --version >/dev/null && echo "dfx available"` then `(cd siws_provider && dfx generate --help >/dev/null 2>&1 || true)`
-Expected: dfx is available. (Full candid validation happens when dfx.json is updated in Task 4.)
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add siws_provider/siws_provider.did
-git commit -m "feat(siws): vendor upstream Candid interface
-
-Pinned at the version compatible with ic_siws_provider crate.
-Re-sync if we bump the crate version in Cargo.toml."
-```
-
----
-
-## Task 4: Register siws_provider in dfx.json
+## Task 4: Register siws_provider in dfx.json (custom pre-built wasm)
 
 **Files:**
 - Modify: `dfx.json`
 
-- [ ] **Step 1: Read current dfx.json**
+This task replaces what the original plan split across Tasks 2-4. We pull the pre-built `ic_siws_provider` canister directly from the upstream v0.1.0 GitHub release, the same way `pp_ledger` already pulls its wasm from DFINITY's release. No local Rust compilation.
+
+- [ ] **Step 1: Read current dfx.json for context**
 
 Run: `cat dfx.json`
-Note the existing canister entries (`backend`, `ponzi_math`, `shenanigans`, `frontend`, `internet-identity`, `pp_ledger`, `pp_assets`). The new entry will sit alongside them.
+Note the existing canister entries. In particular, look at the `pp_ledger` entry — it's the model we're mirroring (`"type": "custom"` with `wasm` and `candid` URLs to a GitHub release plus an inline `init_arg`).
 
 - [ ] **Step 2: Add siws_provider canister entry**
 
@@ -177,36 +94,54 @@ Modify `dfx.json` — inside the `"canisters"` object, add a new entry. Insert i
 
 ```json
     "siws_provider": {
-      "type": "rust",
-      "package": "siws_provider",
-      "candid": "siws_provider/siws_provider.did",
+      "type": "custom",
+      "candid": "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.did",
+      "wasm": "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.wasm.gz",
       "init_arg": "(record { domain = \"musicalchairs.fun\"; uri = \"https://musicalchairs.fun\"; salt = \"musical-chairs-siws-v1\"; chain_id = opt \"mainnet\"; scheme = opt \"https\"; statement = opt \"Sign in with your Solana wallet to play Musical Chairs.\"; sign_in_expires_in = opt 300000000000; session_expires_in = opt 2592000000000000; targets = null; runtime_features = null })"
     }
 ```
 
 The `init_arg` parameters:
-- `domain` — must match the URL your frontend is served from. Use `"musicalchairs.fun"` for mainnet; for local dev, override at deploy time (Task 8).
+- `domain` — must match the URL your frontend is served from. The dfx.json value is the mainnet domain (`musicalchairs.fun`); for local dev, override at deploy time via `dfx deploy siws_provider --argument '(record { domain = "localhost"; ... })'` (see Task 5 Step 2).
 - `uri` — full origin including scheme.
-- `salt` — any string. Used to make derived principals canister-specific. Don't change after first deploy or all existing principals break.
+- `salt` — any string. Used to make derived principals canister-specific. **Never change after first mainnet deploy or all existing principals break.**
 - `chain_id` — `"mainnet"` for Solana mainnet (Phantom signs against this).
 - `sign_in_expires_in` — 5 minutes in nanoseconds (`5 * 60 * 1_000_000_000`).
 - `session_expires_in` — 30 days in nanoseconds (`30 * 24 * 60 * 60 * 1_000_000_000`).
+- `targets` and `runtime_features` — both null; no canister allowlist needed and no optional features enabled.
 
-- [ ] **Step 3: Validate dfx.json parses and builds plan**
+If `dfx.json` already has the upstream v0.1.0 .wasm.gz cached locally (e.g., a teammate ran this earlier), dfx may skip the download. That's fine — file integrity is checked against the wasm hash.
+
+- [ ] **Step 3: Validate dfx.json parses correctly**
 
 Run: `dfx canister --network=local create siws_provider 2>&1 | head -20`
-Expected: "Creating canister siws_provider..." then either "Created canister siws_provider with id …" OR "Cannot find canister id. Local network may not be running." Either is acceptable — both prove dfx parsed the new entry.
+Expected: "Creating canister siws_provider..." then either "Created canister siws_provider with id …" OR "Cannot find canister id. Local network may not be running." OR a network error if dfx isn't started — any of these prove dfx parsed the new entry.
 
-If you get a parse error on `init_arg`, the issue is JSON-escaped Candid: double-check that every internal double-quote inside `init_arg` is escaped as `\"`.
+If you get a JSON parse error or "Unknown canister type" error, the issue is JSON-escaped Candid: double-check that every internal double-quote inside `init_arg` is escaped as `\"`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Verify upstream release URLs are reachable**
+
+Run:
+```bash
+curl -sLI -o /dev/null -w "wasm: %{http_code}\n" "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.wasm.gz" && \
+curl -sLI -o /dev/null -w "candid: %{http_code}\n" "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.did"
+```
+Expected: both report `200`. If either is non-200, the upstream release has changed shape — stop and report back.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add dfx.json
-git commit -m "build(siws): register siws_provider canister in dfx.json
+git commit -m "build(siws): register siws_provider canister via upstream wasm
 
-Type: rust, init_arg pins domain/salt/expiry for the musicalchairs.fun deploy.
-Local dev will override domain at deploy time."
+Uses 'custom' canister type pointing at ic-siws v0.1.0 GitHub release,
+mirroring how pp_ledger pulls its wasm from DFINITY's release.
+init_arg pins domain/salt/expiry for the musicalchairs.fun deploy;
+local dev will override domain at deploy time.
+
+Replaces the original plan's local Rust crate (Tasks 2-3, superseded)
+because ic_siws_provider isn't published on crates.io and the upstream
+maintainer ships a pre-built wasm for direct dfx integration."
 ```
 
 ---
