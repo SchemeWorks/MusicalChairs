@@ -30,6 +30,8 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     { type: 'internet-identity', name: 'Internet Identity', description: 'The institutional choice. Clean, native, no questions asked.', icon: '/ii-logo.svg', installed: true },
     { type: 'plug', name: 'Plug Wallet', description: 'For those who like to keep their keys close.', icon: '/plug-logo.svg', installed: isPlugInstalled, installUrl: 'https://plugwallet.ooo/' },
     { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', installed: true, comingSoon: true },
+    // TODO: replace ◎ Unicode fallback with a proper /solana-logo.svg asset for visual parity with the other wallets.
+    { type: 'siws', name: 'Solana', description: 'Sign in with your Phantom or Solflare wallet', icon: '◎', installed: true },
   ];
 
   const handleConnect = async (walletType: WalletType) => {
@@ -71,6 +73,8 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
             const isSelected = selectedWallet === wallet.type;
             const isThisConnecting = isConnecting && isSelected;
             const isNotInstalled = !wallet.installed && wallet.installUrl;
+            // Asset icons start with '/'; anything else (e.g. Unicode '◎') renders as text.
+            const isAssetIcon = wallet.icon.startsWith('/');
 
             if (wallet.comingSoon) {
               return (
@@ -79,7 +83,11 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                   className="flex items-center gap-3 p-4 rounded-xl mc-card opacity-50 cursor-not-allowed"
                   title="Coming soon"
                 >
-                  <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain grayscale" />
+                  {isAssetIcon ? (
+                    <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain grayscale" />
+                  ) : (
+                    <span aria-label={wallet.name} className="h-8 w-8 flex items-center justify-center text-2xl mc-text-muted">{wallet.icon}</span>
+                  )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
@@ -100,7 +108,11 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-4 rounded-xl mc-card hover:border-white/20 transition-all"
                 >
-                  <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
+                  {isAssetIcon ? (
+                    <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
+                  ) : (
+                    <span aria-label={wallet.name} className="h-8 w-8 flex items-center justify-center text-2xl mc-text-primary">{wallet.icon}</span>
+                  )}
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
@@ -124,7 +136,11 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
                     : 'bg-white/3 border-white/8 hover:bg-white/6 hover:border-white/15'
                 } disabled:opacity-50`}
               >
-                <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
+                {isAssetIcon ? (
+                  <img src={wallet.icon} alt={wallet.name} className="h-8 w-8 object-contain" />
+                ) : (
+                  <span aria-label={wallet.name} className="h-8 w-8 flex items-center justify-center text-2xl mc-text-primary">{wallet.icon}</span>
+                )}
                 <div className="flex-1">
                   <span className="font-bold text-sm mc-text-primary">{wallet.name}</span>
                   <p className="text-xs mc-text-muted mt-0.5">{wallet.description}</p>
