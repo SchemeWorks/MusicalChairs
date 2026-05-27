@@ -1920,7 +1920,7 @@ persistent actor Self {
             case (#Err(msg)) { return #Err(msg) };
             case (#Ok(text)) {
                 // Premium custom-name surcharge.
-                let surchargeUnits = ppToUnits(PREMIUM_TYPE_YOUR_OWN_PP);
+                let surchargeUnits = ppToUnits(PREMIUM_RENAME_SURCHARGE_PP);
                 switch (await burnFrom(caller, surchargeUnits, "rename-custom-" # Principal.toText(slot.target))) {
                     case (#Err(msg)) {
                         return #Err("Couldn't burn 500 PP surcharge: " # msg);
@@ -3160,7 +3160,11 @@ persistent actor Self {
     /// Cease & Desist rename instead of accepting the pool-pick or
     /// re-rolling a different pool name. Charged at the moment
     /// setPendingRenameName commits the custom name.
-    let PREMIUM_TYPE_YOUR_OWN_PP : Nat = 500;
+    /// (Identifier kept as PREMIUM_RENAME_SURCHARGE_PP for stable-signature
+    /// continuity with the previous deploy where this constant existed
+    /// at 400 PP and was charged at cast time — semantics changed but
+    /// renaming would force an explicit migration.)
+    let PREMIUM_RENAME_SURCHARGE_PP : Nat = 500;
     let CHIME_SOUND_MAX_BYTES : Nat = 200_000;       // 200 KB per file
     let CHIME_SOUND_MAX_COUNT : Nat = 20;            // up to 20 sounds in the pool
     let CHIME_SOUND_NAME_MAX_LEN : Nat = 64;
