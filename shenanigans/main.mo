@@ -1790,6 +1790,17 @@ persistent actor Self {
         min + (Int.abs(Time.now()) % span);
     };
 
+    /// Per-victim variant of rollPct — XORs the principal's hash into the
+    /// time seed so each victim in an AoE loop gets an independent roll.
+    /// Still not cryptographic; uses raw Principal.hash + Time.now().
+    func rollPctForPrincipal(min : Nat, max : Nat, p : Principal) : Nat {
+        if (max <= min) { return min };
+        let span : Nat = Nat.sub(max, min) + 1;
+        let h : Nat32 = Principal.hash(p);
+        let mix : Nat = Nat32.toNat(h) + Int.abs(Time.now());
+        min + (mix % span);
+    };
+
     /// Cap a Nat at `ceiling`.
     func capAt(value : Nat, ceiling : Nat) : Nat {
         if (value > ceiling) { ceiling } else { value };
@@ -2466,7 +2477,7 @@ persistent actor Self {
                 for (victim in pool.vals()) {
                     if (not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
-                        let pct = rollPct(pctMin, pctMax);
+                        let pct = rollPctForPrincipal(pctMin, pctMax, victim);
                         let amount = capAt(bal * pct / 100, ppToUnits(cap));
                         if (amount > 0) {
                             switch (await chipTransfer(victim, caster, amount, memo)) {
@@ -2766,7 +2777,7 @@ persistent actor Self {
                 var othersCount : Nat = 0;
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
                     if (not Principal.equal(holder, caster)) {
-                        let perVictim = rollPct(perVictimMin, perVictimMax);
+                        let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         let res = await mintInternal(holder, perVictimUnits, memo);
                         switch (res) {
@@ -2788,7 +2799,7 @@ persistent actor Self {
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
                     if (not Principal.equal(holder, caster)) {
                         if (not consumeShieldIfActive(holder)) {
-                            let perVictim = rollPct(perVictimMin, perVictimMax);
+                            let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                             let perVictimUnits = ppToUnits(perVictim);
                             let res = await chipTransfer(holder, caster, perVictimUnits, memo);
                             switch (res) {
@@ -3075,7 +3086,7 @@ persistent actor Self {
                 var othersBR : Nat = 0;
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
                     if (not Principal.equal(holder, caster)) {
-                        let perVictim = rollPct(perVictimMinBR, perVictimMaxBR);
+                        let perVictim = rollPctForPrincipal(perVictimMinBR, perVictimMaxBR, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         switch (await mintInternal(holder, perVictimUnits, memo)) {
                             case (#Ok(_)) { othersBR += 1 };
