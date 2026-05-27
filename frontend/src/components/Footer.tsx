@@ -1,6 +1,6 @@
 export function Footer() {
   return (
-    <footer className="mc-border-subtle border-t mt-8 pt-3 pb-4 px-4 text-xs mc-text-muted">
+    <footer className="mc-border-subtle border-t mt-8 pt-3 pb-4 px-4 pr-20 sm:pr-4 text-xs mc-text-muted">
       <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 whitespace-nowrap">
           <span>
@@ -45,7 +45,7 @@ export function Footer() {
           rel="noreferrer"
           className="shrink-0 opacity-80 hover:opacity-100 transition-opacity"
         >
-          <img src="/built-on-icp.png" alt="Built on the Internet Computer" className="h-5" />
+          <img src="/built-on-icp.svg" alt="Built on the Internet Computer" className="h-6" />
         </a>
         <button
           type="button"

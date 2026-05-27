@@ -65,10 +65,13 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
         </button>
       </div>
 
-      {/* AUM — desktop only */}
-      <div className="mc-status-bar-stat mc-status-bar-desktop">
+      {/* AUM — compact format on mobile (1 decimal), full precision on desktop */}
+      <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">AUM</span>
-        <span className="mc-status-bar-value mc-text-gold">{formatICP(potBalance)} ICP</span>
+        <span className="mc-status-bar-value mc-text-gold">
+          <span className="sm:hidden">{potBalance >= 10 ? potBalance.toFixed(1) : formatICP(potBalance)}</span>
+          <span className="hidden sm:inline">{formatICP(potBalance)} ICP</span>
+        </span>
       </div>
     </div>
   );

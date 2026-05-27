@@ -38,7 +38,7 @@ const navItems: NavItem[] = [
   { id: 'invest', mobileLabel: '\u201CInvest\u201D', icon: <Rocket className="h-5 w-5" /> },
   { id: 'seedRound', mobileLabel: 'Seed', icon: <Landmark className="h-5 w-5" /> },
   { id: 'mlm', mobileLabel: 'MLM', icon: <Users className="h-5 w-5" /> },
-  { id: 'shenanigans', mobileLabel: 'Tricks', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
+  { id: 'shenanigans', mobileLabel: 'Spells', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
 ];
 
 const profitCenterSubtitles = [
