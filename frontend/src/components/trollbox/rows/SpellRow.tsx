@@ -10,7 +10,7 @@ import { useGetShenaniganConfigs } from '../../../hooks/useQueries';
 const SHEN_VARIANT_ORDER = [
   'moneyTrickster', 'aoeSkim', 'renameSpell', 'mintTaxSiphon', 'downlineHeist',
   'magicMirror', 'ppBoosterAura', 'purseCutter', 'whaleRebalance', 'downlineBoost', 'goldenName',
-  'tenderOffer',
+  'tenderOffer', 'stimulusCheck', 'bearRaid',
 ] as const;
 
 const variantKey = (v: unknown): string =>

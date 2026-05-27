@@ -8,7 +8,7 @@ import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
-import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, Sparkles, Dices, LayoutGrid, List } from 'lucide-react';
+import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, TrendingDown, Sparkles, Dices, DollarSign, LayoutGrid, List } from 'lucide-react';
 import HallOfFameRail from './hall-of-fame/HallOfFameRail';
 import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
 import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
@@ -58,6 +58,7 @@ const shenaniganIcons: Record<number, React.ReactNode> = {
   3: <Building2 className="h-5 w-5" />, 4: <Target className="h-5 w-5" />, 5: <FlipHorizontal2 className="h-5 w-5" />,
   6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
   9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />, 11: <Dices className="h-5 w-5" />,
+  12: <DollarSign className="h-5 w-5" />, 13: <TrendingDown className="h-5 w-5" />,
 };
 
 const shenaniganTypes: ShenaniganType[] = [
@@ -65,6 +66,7 @@ const shenaniganTypes: ShenaniganType[] = [
   ShenaniganType.mintTaxSiphon, ShenaniganType.downlineHeist, ShenaniganType.magicMirror,
   ShenaniganType.ppBoosterAura, ShenaniganType.purseCutter, ShenaniganType.whaleRebalance,
   ShenaniganType.downlineBoost, ShenaniganType.goldenName, ShenaniganType.tenderOffer,
+  ShenaniganType.stimulusCheck, ShenaniganType.bearRaid,
 ];
 
 // Dark-themed aura colors for each shenanigan
@@ -81,11 +83,13 @@ const auraColors: Record<number, string> = {
   9: 'rgba(16, 185, 129, 0.3)',
   10: 'rgba(245, 158, 11, 0.3)',
   11: 'rgba(255, 100, 50, 0.3)',
+  12: 'rgba(80, 200, 120, 0.3)',
+  13: 'rgba(220, 50, 90, 0.3)',
 };
 
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
 
-const offenseTypes = [0, 1, 3, 4, 7, 8, 11]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance, tenderOffer
+const offenseTypes = [0, 1, 3, 4, 7, 8, 11, 13]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance, tenderOffer, bearRaid
 const defenseTypes = [5, 6, 9]; // magicMirror, ppBoosterAura, downlineBoost
 
 function getShenaniganCategory(idx: number): FilterCategory {

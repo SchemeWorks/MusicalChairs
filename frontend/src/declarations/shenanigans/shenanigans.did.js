@@ -9,6 +9,7 @@ export const idlFactory = ({ IDL }) => {
   const ShenaniganType = IDL.Variant({
     'ppBoosterAura' : IDL.Null,
     'goldenName' : IDL.Null,
+    'stimulusCheck' : IDL.Null,
     'whaleRebalance' : IDL.Null,
     'downlineBoost' : IDL.Null,
     'moneyTrickster' : IDL.Null,
@@ -18,6 +19,7 @@ export const idlFactory = ({ IDL }) => {
     'downlineHeist' : IDL.Null,
     'renameSpell' : IDL.Null,
     'purseCutter' : IDL.Null,
+    'bearRaid' : IDL.Null,
     'tenderOffer' : IDL.Null,
   });
   const ShenaniganOutcome = IDL.Variant({

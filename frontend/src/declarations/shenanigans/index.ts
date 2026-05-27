@@ -28,6 +28,8 @@ export const ShenaniganType = {
   downlineBoost: { downlineBoost: null } as ShenaniganTypeT,
   goldenName: { goldenName: null } as ShenaniganTypeT,
   tenderOffer: { tenderOffer: null } as ShenaniganTypeT,
+  stimulusCheck: { stimulusCheck: null } as ShenaniganTypeT,
+  bearRaid: { bearRaid: null } as ShenaniganTypeT,
 };
 
 export type ShenaniganOutcome = ShenaniganOutcomeT;

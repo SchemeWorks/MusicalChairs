@@ -193,6 +193,7 @@ export interface ShenaniganStats {
 }
 export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'goldenName' : null } |
+  { 'stimulusCheck' : null } |
   { 'whaleRebalance' : null } |
   { 'downlineBoost' : null } |
   { 'moneyTrickster' : null } |
@@ -202,6 +203,7 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'downlineHeist' : null } |
   { 'renameSpell' : null } |
   { 'purseCutter' : null } |
+  { 'bearRaid' : null } |
   { 'tenderOffer' : null };
 export interface ShieldState {
   'expiresAt' : bigint,
