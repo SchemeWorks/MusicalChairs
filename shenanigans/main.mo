@@ -2693,7 +2693,11 @@ persistent actor Self {
                     };
                 };
 
-                // Caster keeps casterGain; burn the excess (spec: 'caster keeps 100, excess burns').
+                // Caster keeps min(drained, casterGain); burn the excess
+                // (spec: 'caster keeps 100, excess burns'). If drained falls
+                // short of casterGain (small player pool, all shielded, etc.)
+                // the caster simply nets what was drained — no top-up mint.
+                let casterNet : Nat = if (drained < casterGain) { drained } else { casterGain };
                 if (drained > casterGain) {
                     let excess = drained - casterGain;
                     let _ = await burnFrom(caster, excess, memo);
@@ -2703,7 +2707,7 @@ persistent actor Self {
                 let oneDayMostWantedNs : Int = 24 * 3600 * 1_000_000_000;
                 mostWantedUntil := principalMap.put(mostWantedUntil, caster, nowTs + oneDayMostWantedNs);
 
-                return { ppDeltaCaster = casterGain; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
+                return { ppDeltaCaster = casterNet; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
         };
     };
