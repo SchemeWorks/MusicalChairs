@@ -824,7 +824,9 @@ export default function Shenanigans() {
                     return <p className="text-xs mc-text-green mb-3">Coordinated short. {cnt} player{cnt === 1 ? '' : 's'} took a haircut. You netted {Math.round(d)} PP (the rest burned).</p>;
                   }
                   if (id === 11) { // tenderOffer — acquired the target's whole stack
-                    return <p className="text-xs mc-text-green mb-3">Acquired {target}. Their {Math.round(d)} PP is yours. They're integrating for 24h.</p>;
+                    // Shielded targets return cnt=0 and the acquired-lock isn't set.
+                    if (cnt === 0) return <p className="text-xs mc-text-green mb-3">{target} was shielded. Acquisition deflected.</p>;
+                    return <p className="text-xs mc-text-green mb-3">Acquired {target}. Their {Math.round(d)} PP is yours. They're locked out of casting for 24h.</p>;
                   }
                   // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
@@ -834,9 +836,10 @@ export default function Shenanigans() {
                     case 3: // mintTaxSiphon
                       if (cnt === 1) return <p className="text-xs mc-text-green mb-3">{target} is now siphoned. You'll skim 5% of their next 1000 PP minted (over 7 days).</p>;
                       return <p className="text-xs mc-text-green mb-3">{target} was shielded. No siphon.</p>;
-                    case 4: // downlineHeist
-                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole a downline member from {target}.</p>;
-                      return <p className="text-xs mc-text-green mb-3">{target} had no downline to steal.</p>;
+                    case 4: // downlineHeist — affectedTarget is the poached member, NOT the
+                            // original target. Reword so the sentence reads correctly.
+                      if (cnt === 1) return <p className="text-xs mc-text-green mb-3">Poached {target} — they're in your downline now.</p>;
+                      return <p className="text-xs mc-text-green mb-3">No downline member to poach.</p>;
                     case 5: // magicMirror
                       return <p className="text-xs mc-text-green mb-3">Shield up. Next hostile spell aimed at you gets blocked.</p>;
                     case 6: // ppBoosterAura
@@ -868,6 +871,9 @@ export default function Shenanigans() {
                   if (id === 13) { // bearRaid — karmic inversion, everyone got paid
                     return <p className="text-xs mc-text-purple mb-3">You misread the cycle. {cnt} player{cnt === 1 ? '' : 's'} got paid; you burned 100 PP.</p>;
                   }
+                  if (id === 11) { // tenderOffer — d < 0 (paid target 3x cost) + 7d Tender Offer lockout
+                    return <p className="text-xs mc-text-purple mb-3">{target} got {Math.abs(Math.round(d))} PP as poison-pill compensation. Tender Offer locked for 7 days.</p>;
+                  }
                   // Numeric losses first.
                   if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
                   if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
@@ -878,8 +884,9 @@ export default function Shenanigans() {
                       return <p className="text-xs mc-text-purple mb-3">You got renamed for 7 days.</p>;
                     case 3: // mintTaxSiphon backfire — target becomes the siphoner
                       return <p className="text-xs mc-text-purple mb-3">{target} now siphons 5% of YOUR mints for 3 days.</p>;
-                    case 4: // downlineHeist backfire — caster loses a downline
-                      if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} stole a downline member from you.</p>;
+                    case 4: // downlineHeist backfire — affectedTarget is the downline member
+                            // who switched to the (original) target. Reword for clarity.
+                      if (cnt === 1) return <p className="text-xs mc-text-purple mb-3">{target} bolted — they're in someone else's downline now.</p>;
                       return <p className="text-xs mc-text-purple mb-3">Backfired — but you had no downline to lose.</p>;
                     default:
                       return <p className="text-xs mc-text-purple mb-3">Backfired — but no observable effect.</p>;
