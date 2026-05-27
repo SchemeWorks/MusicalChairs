@@ -50,6 +50,7 @@ persistent actor Self {
         #whaleRebalance;
         #downlineBoost;
         #goldenName;
+        #tenderOffer;
     };
 
     public type ShenaniganOutcome = {
@@ -566,6 +567,17 @@ persistent actor Self {
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
 
+    /// Tender-Offer acquired-lockout. Principal → nanosecond-precision
+    /// deadline. While `now < deadline`, the principal cannot cast ANY
+    /// spell — they were just acquired via tender offer and are in the
+    /// 24h post-acquisition integration period.
+    var acquiredLockUntil = principalMap.empty<Int>();
+
+    /// Tender-Offer post-backfire cooldown. Principal → nanosecond-
+    /// precision deadline. While `now < deadline`, the principal cannot
+    /// cast Tender Offer specifically (other spells unaffected).
+    var tenderOfferBackfireLockUntil = principalMap.empty<Int>();
+
     // When Rename Spell lands on #success, the new name is NOT applied
     // immediately. Instead the caster gets a 5-minute window to pick a
     // name via setPendingRenameName. If the window lapses, the slot
@@ -971,6 +983,21 @@ persistent actor Self {
         switch (adminPrincipal) {
             case (?_) { startObserver<system>() };
             case (null) {};
+        };
+        // Idempotent seeding for spell configs added after the original
+        // 11 (which seed at canister-init time). Each entry is added only
+        // if its id is missing — never overrides admin-tuned values.
+        let newConfigs : [ShenaniganConfig] = [
+            // Tender Offer (id=11) — Phase 3 added 2026-05-27
+            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
+        ];
+        for (cfg in newConfigs.vals()) {
+            switch (natMap.get(shenaniganConfigs, cfg.id)) {
+                case (?_existing) { /* leave admin-tuned config in place */ };
+                case null {
+                    shenaniganConfigs := natMap.put(shenaniganConfigs, cfg.id, cfg);
+                };
+            };
         };
     };
 
@@ -1405,6 +1432,7 @@ persistent actor Self {
             { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; backfireDescription = ?"You pay each of the top 3 whales (caps at ~49% loss)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
             { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; backfireDescription = ?"Cannot backfire."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
             { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard for 24 hours \u{2014} the only clout that matters."; backfireDescription = ?"Cannot backfire."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
+            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -1994,6 +2022,17 @@ persistent actor Self {
     public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal, premiumRename : Bool) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
+        // Acquired-lockout: recently-acquired targets cannot cast ANY spell
+        // during the 24h post-acquisition integration period.
+        switch (principalMap.get(acquiredLockUntil, caller)) {
+            case (?deadline) {
+                if (Time.now() < deadline) {
+                    throw Error.reject("You are locked out of casting (recently acquired by tender offer). Try again later.");
+                };
+            };
+            case null {};
+        };
+
         // Reject target-required spells called without one. Without this trap
         // the success branch would silently no-op and the caster's PP would
         // burn for no observable effect.
@@ -2042,6 +2081,19 @@ persistent actor Self {
             Debug.trap("Insufficient chips to cast this shenanigan");
         };
 
+        // Tender Offer post-backfire lockout — 7d cooldown on Tender Offer
+        // specifically (other spells unaffected).
+        if (shenaniganType == #tenderOffer) {
+            switch (principalMap.get(tenderOfferBackfireLockUntil, caller)) {
+                case (?deadline) {
+                    if (Time.now() < deadline) {
+                        throw Error.reject("Tender Offer is locked out (recent backfire). Try a different spell.");
+                    };
+                };
+                case null {};
+            };
+        };
+
         let castId = nextShenaniganId;
         // Reserve the castId atomically before any `await` yields. Two
         // concurrent casts must not both read the same id and then have one
@@ -2056,6 +2108,22 @@ persistent actor Self {
             case (?t) { await getChipBalance(t) };
             case null { 0 };
         };
+
+        // Tender Offer 50% target-balance gate. Whales only — target must
+        // have <= 50% of caster's balance. Reuses the already-queried balances.
+        if (shenaniganType == #tenderOffer) {
+            switch (target) {
+                case (null) {
+                    throw Error.reject("Tender Offer requires a target.");
+                };
+                case (?_t) {
+                    if (targetBalForRoll > casterBalPre / 2) {
+                        throw Error.reject("Target's PP balance must be at most 50% of yours for Tender Offer.");
+                    };
+                };
+            };
+        };
+
         let isAggressive = switch (shenaniganType) {
             case (#moneyTrickster) { true };
             case (#aoeSkim) { true };
@@ -2063,6 +2131,7 @@ persistent actor Self {
             case (#downlineHeist) { true };
             case (#purseCutter) { true };
             case (#whaleRebalance) { true };
+            case (#tenderOffer) { true };
             case (_) { false };
         };
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
@@ -2521,6 +2590,33 @@ persistent actor Self {
                 goldenUntil := principalMap.put(goldenUntil, caster, nowTs + durationNs);
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
+            case (#tenderOffer) {
+                switch (target) {
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                    case (?t) {
+                        // Pre-cast 50% balance gate is enforced earlier in castShenanigan.
+                        // Reaching here, target is acquirable.
+                        if (consumeShieldIfActive(t)) {
+                            return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = true; renameDetail = null };
+                        };
+                        // Transfer the target's entire balance to the caster.
+                        let amount = targetBal;
+                        switch (await chipTransfer(t, caster, amount, memo)) {
+                            case (#Ok(_)) {
+                                // Acquired-lockout: target can't cast any spell for 24h.
+                                let oneDayNsLocal : Int = 24 * 3600 * 1_000_000_000;
+                                acquiredLockUntil := principalMap.put(acquiredLockUntil, t, nowTs + oneDayNsLocal);
+                                return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
+                            };
+                            case (#Err(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                            };
+                        };
+                    };
+                };
+            };
         };
     };
 
@@ -2723,6 +2819,22 @@ persistent actor Self {
             case (#goldenName) {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
+            case (#tenderOffer) {
+                switch (target) {
+                    case (null) {};
+                    case (?t) {
+                        // Backfire: caster pays target 3x the spell cost as poison-pill
+                        // compensation + caster locks out of Tender Offer specifically
+                        // for 7 days.
+                        let compensationPp : Nat = Int.abs(Float.toInt(config.costBackfire * 3.0));
+                        let compensationUnits = ppToUnits(compensationPp);
+                        let _ = await chipTransfer(caster, t, compensationUnits, memo);
+                        let sevenDaysNs : Int = 7 * 24 * 3600 * 1_000_000_000;
+                        tenderOfferBackfireLockUntil := principalMap.put(tenderOfferBackfireLockUntil, caster, nowTs + sevenDaysNs);
+                    };
+                };
+                return { ppDeltaCaster = 0; affectedTarget = target; affectedCount = (switch (target) { case (null) { 0 }; case (?_) { 1 } }); shieldDeflected = false; renameDetail = null };
+            };
         };
     };
 
@@ -2777,6 +2889,7 @@ persistent actor Self {
             case (#whaleRebalance) { 8 };
             case (#downlineBoost) { 9 };
             case (#goldenName) { 10 };
+            case (#tenderOffer) { 11 };
         };
         natMap.get(shenaniganConfigs, id);
     };
@@ -3892,6 +4005,7 @@ persistent actor Self {
                 case (#whaleRebalance) { 8 };
                 case (#downlineBoost) { 9 };
                 case (#goldenName) { 10 };
+                case (#tenderOffer) { 11 };
             };
             // record.cost is in whole-PP Float; convert back to units. ppToUnits
             // takes Nat so floor — safe because the backend wrote whole-PP
