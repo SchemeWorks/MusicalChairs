@@ -61,6 +61,10 @@ persistent actor Self {
         #strategicReserve;
         #slushFund;
         #insiderTip;
+        #voiceOfGod;
+        #customTitle;
+        #echo;
+        #confettiCannon;
     };
 
     public type ShenaniganOutcome = {
@@ -620,6 +624,28 @@ persistent actor Self {
     /// successful Bear Raid by the caster (24h window).
     var mostWantedUntil = principalMap.empty<Int>();
 
+    /// Voice of God cosmetic. Principal → nanosecond-precision deadline.
+    /// While `now < deadline`, the principal's chat rows render with special
+    /// institutional styling. Seeded by #voiceOfGod spell.
+    var voiceOfGodUntil = principalMap.empty<Int>();
+
+    /// Active custom titles. caller → { title; expiresAt }.
+    var customTitles = principalMap.empty<{ title : Text; expiresAt : Int }>();
+
+    /// Pending custom-title slots created by a successful #customTitle cast.
+    /// Caster has 5 minutes to call setCustomTitle.
+    var pendingCustomTitles = principalMap.empty<{ expiresAt : Int }>();
+
+    /// Echo cosmetic. Principal → nanosecond-precision deadline.
+    /// While `now < deadline`, every chat post by this principal auto-emits
+    /// a Reginald-kind footnote item from the echoSnarkPool.
+    var echoUntil = principalMap.empty<Int>();
+
+    /// Confetti Cannon cosmetic. Principal → nanosecond-precision deadline.
+    /// While `now < deadline`, the frontend overlays confetti on successful
+    /// cast rows from this principal.
+    var confettiCannonUntil = principalMap.empty<Int>();
+
     // When Rename Spell lands on #success, the new name is NOT applied
     // immediately. Instead the caster gets a 5-minute window to pick a
     // name via setPendingRenameName. If the window lapses, the slot
@@ -662,6 +688,38 @@ persistent actor Self {
         "Down-Round Donnie",
         "Liquidation Larry",
     ];
+
+    /// Snark lines fired by Echo as a footnote to the caster's chat
+    /// messages. Brand voice: dry institutional, first-person plural,
+    /// no named persona. Match the cadence of @musicalchairsIC.
+    transient let echoSnarkPool : [Text] = [
+        "We have heard this thesis underwritten before.",
+        "A measured view.",
+        "The position has been disclosed.",
+        "Net of carry, of course.",
+        "The firm makes no editorial comment.",
+        "Underwriting noted.",
+        "The conviction is, of course, the speaker's.",
+        "A strong vintage of certainty.",
+        "The cap table grows.",
+        "We do not call it that.",
+        "The thesis holds. So far.",
+        "The rotation rewards patience.",
+        "Position size to follow. Or not.",
+        "We underwrite hope, denominated in ICP.",
+        "Carry is what you pay for the privilege of having said this.",
+        "A measured outcome, in any direction.",
+        "The firm has navigated this rotation before.",
+        "The thesis is, of course, the speaker's.",
+        "Patient capital often says this.",
+        "The disclosure is, on its face, complete.",
+    ];
+
+    func pickEchoSnark() : Text {
+        let pool = effectivePool("echoSnarkPool", echoSnarkPool);
+        if (pool.size() == 0) { return "A measured view." };
+        pool[Int.abs(Time.now()) % pool.size()];
+    };
 
     // PP ledger actor reference
     transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
@@ -1062,6 +1120,14 @@ persistent actor Self {
             { id = 16; name = "Slush Fund"; description = "Anonymous donor strikes again. Send a target 100\u{2013}200 PP. They'll wonder who's bullish on them."; backfireDescription = ?"They found out it was you. You owe them an extra 200 PP for the unsolicited generosity."; costSuccess = 50.0; costFailure = 15.0; costBackfire = 40.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 0; cooldown = 12; effectValues = [100.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffd9" },
             // Insider Tip (id=17) — Phase 5 added 2026-05-27
             { id = 17; name = "Insider Tip"; description = "Slip the target a hot tip. Their mint rate jumps +10% for 12h. (Don't worry, the SEC doesn't read this codebase.)"; backfireDescription = ?"Whisper got out. SEC settlement, no admission of wrongdoing. You pay 50 PP."; costSuccess = 50.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 12; cooldown = 12; effectValues = [10.0, 50.0]; castLimit = 0; backgroundColor = "#d9ffe6" },
+            // Voice of God (id=18) — Phase 6 cosmetic spells
+            { id = 18; name = "Voice of God"; description = "For 6 hours, your chat carries institutional weight. The firm has briefly authorized your voice."; backfireDescription = ?"The microphone is, on review, in another firm."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 80; failureOdds = 15; backfireOdds = 5; duration = 6; cooldown = 12; effectValues = []; castLimit = 0; backgroundColor = "#fff4d6" },
+            // Custom Title (id=19)
+            { id = 19; name = "Custom Title"; description = "Underwrite a \u{27E8}self-disclosed title\u{27E9} next to your name for 7 days. The firm makes no representations as to its veracity."; backfireDescription = ?"The title was, on consideration, unbecoming."; costSuccess = 150.0; costFailure = 40.0; costBackfire = 60.0; successOdds = 70; failureOdds = 25; backfireOdds = 5; duration = 168; cooldown = 24; effectValues = [300.0]; castLimit = 0; backgroundColor = "#e6e6ff" },
+            // Echo (id=20)
+            { id = 20; name = "Echo"; description = "For 6 hours, the firm publishes a footnote on every chat message you post. (Net of editorial.)"; backfireDescription = ?"Editorial discretion declined."; costSuccess = 75.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 75; failureOdds = 20; backfireOdds = 5; duration = 6; cooldown = 12; effectValues = []; castLimit = 0; backgroundColor = "#f0d6ff" },
+            // Confetti Cannon (id=21)
+            { id = 21; name = "Confetti Cannon"; description = "For 24 hours, every successful Shenanigan you cast triggers a fanfare animation in the feed. (Net of taste.)"; backfireDescription = ?"The fanfare was scheduled. The fanfare did not occur."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 40.0; successOdds = 80; failureOdds = 15; backfireOdds = 5; duration = 24; cooldown = 24; effectValues = []; castLimit = 0; backgroundColor = "#ffe6ec" },
         ];
         for (cfg in newConfigs.vals()) {
             switch (natMap.get(shenaniganConfigs, cfg.id)) {
@@ -1511,6 +1577,14 @@ persistent actor Self {
             { id = 15; name = "Strategic Reserve"; description = "You've got runway and a board seat. Lock in a Strategic Reserve title \u{2014} purple name on the leaderboard for 7 days."; backfireDescription = ?"Cannot backfire."; costSuccess = 1500.0; costFailure = 500.0; costBackfire = 0.0; successOdds = 90; failureOdds = 10; backfireOdds = 0; duration = 168; cooldown = 168; effectValues = [2000.0]; castLimit = 0; backgroundColor = "#e6d4ff" },
             { id = 16; name = "Slush Fund"; description = "Anonymous donor strikes again. Send a target 100\u{2013}200 PP. They'll wonder who's bullish on them."; backfireDescription = ?"They found out it was you. You owe them an extra 200 PP for the unsolicited generosity."; costSuccess = 50.0; costFailure = 15.0; costBackfire = 40.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 0; cooldown = 12; effectValues = [100.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffd9" },
             { id = 17; name = "Insider Tip"; description = "Slip the target a hot tip. Their mint rate jumps +10% for 12h. (Don't worry, the SEC doesn't read this codebase.)"; backfireDescription = ?"Whisper got out. SEC settlement, no admission of wrongdoing. You pay 50 PP."; costSuccess = 50.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 12; cooldown = 12; effectValues = [10.0, 50.0]; castLimit = 0; backgroundColor = "#d9ffe6" },
+            // Voice of God (id=18) — cosmetic chat styling for 6h
+            { id = 18; name = "Voice of God"; description = "For 6 hours, your chat carries institutional weight. The firm has briefly authorized your voice."; backfireDescription = ?"The microphone is, on review, in another firm."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 80; failureOdds = 15; backfireOdds = 5; duration = 6; cooldown = 12; effectValues = []; castLimit = 0; backgroundColor = "#fff4d6" },
+            // Custom Title (id=19) — self-disclosed title next to name for 7 days
+            { id = 19; name = "Custom Title"; description = "Underwrite a \u{27E8}self-disclosed title\u{27E9} next to your name for 7 days. The firm makes no representations as to its veracity."; backfireDescription = ?"The title was, on consideration, unbecoming."; costSuccess = 150.0; costFailure = 40.0; costBackfire = 60.0; successOdds = 70; failureOdds = 25; backfireOdds = 5; duration = 168; cooldown = 24; effectValues = [300.0]; castLimit = 0; backgroundColor = "#e6e6ff" },
+            // Echo (id=20) — auto-snark footnote on caster's chat posts for 6h
+            { id = 20; name = "Echo"; description = "For 6 hours, the firm publishes a footnote on every chat message you post. (Net of editorial.)"; backfireDescription = ?"Editorial discretion declined."; costSuccess = 75.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 75; failureOdds = 20; backfireOdds = 5; duration = 6; cooldown = 12; effectValues = []; castLimit = 0; backgroundColor = "#f0d6ff" },
+            // Confetti Cannon (id=21) — frontend fanfare animation for 24h
+            { id = 21; name = "Confetti Cannon"; description = "For 24 hours, every successful Shenanigan you cast triggers a fanfare animation in the feed. (Net of taste.)"; backfireDescription = ?"The fanfare was scheduled. The fanfare did not occur."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 40.0; successOdds = 80; failureOdds = 15; backfireOdds = 5; duration = 24; cooldown = 24; effectValues = []; castLimit = 0; backgroundColor = "#ffe6ec" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -1972,6 +2046,123 @@ persistent actor Self {
                 case null {};
             };
         };
+        for (p in principalMap.keys(voiceOfGodUntil)) {
+            switch (principalMap.get(voiceOfGodUntil, p)) {
+                case (?d) { if (d <= now) { voiceOfGodUntil := principalMap.delete(voiceOfGodUntil, p) } };
+                case null {};
+            };
+        };
+        for (p in principalMap.keys(echoUntil)) {
+            switch (principalMap.get(echoUntil, p)) {
+                case (?d) { if (d <= now) { echoUntil := principalMap.delete(echoUntil, p) } };
+                case null {};
+            };
+        };
+        for (p in principalMap.keys(confettiCannonUntil)) {
+            switch (principalMap.get(confettiCannonUntil, p)) {
+                case (?d) { if (d <= now) { confettiCannonUntil := principalMap.delete(confettiCannonUntil, p) } };
+                case null {};
+            };
+        };
+        // Sweep expired customTitles (value is a record, not a plain Int).
+        for (p in principalMap.keys(customTitles)) {
+            switch (principalMap.get(customTitles, p)) {
+                case (?entry) { if (entry.expiresAt <= now) { customTitles := principalMap.delete(customTitles, p) } };
+                case null {};
+            };
+        };
+    };
+
+    /// Lazy cleanup: drop every pendingCustomTitles entry whose expiresAt has passed.
+    func sweepExpiredPendingCustomTitles() {
+        let now = Time.now();
+        for (p in principalMap.keys(pendingCustomTitles)) {
+            switch (principalMap.get(pendingCustomTitles, p)) {
+                case (?s) { if (s.expiresAt <= now) { pendingCustomTitles := principalMap.delete(pendingCustomTitles, p) } };
+                case null {};
+            };
+        };
+    };
+
+    /// Caller commits their custom title string into the active-title map.
+    /// Must be called within 5 minutes of a successful #customTitle cast.
+    public shared ({ caller }) func setCustomTitle(title : Text) : async { #Ok; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        sweepExpiredPendingCustomTitles();
+        let slot = switch (principalMap.get(pendingCustomTitles, caller)) {
+            case (null) { return #Err("No pending title slot") };
+            case (?s) { s };
+        };
+        if (Time.now() >= slot.expiresAt) {
+            pendingCustomTitles := principalMap.delete(pendingCustomTitles, caller);
+            return #Err("Pending title slot expired");
+        };
+        switch (sanitizeRenameName(title)) {
+            case (#Err(msg)) { return #Err(msg) };
+            case (#Ok(text)) {
+                let durationNs : Int = switch (getConfigForType(#customTitle)) {
+                    case (?c) { c.duration * 3_600_000_000_000 };
+                    case null { 86_400_000_000_000 * 7 };
+                };
+                customTitles := principalMap.put(customTitles, caller, {
+                    title = text;
+                    expiresAt = Time.now() + durationNs;
+                });
+                pendingCustomTitles := principalMap.delete(pendingCustomTitles, caller);
+                return #Ok;
+            };
+        };
+    };
+
+    /// Returns the active custom title for `p`, if any. Used by the frontend
+    /// to render ⟨Title⟩ inline next to the user's display name.
+    public query func getCustomTitle(p : Principal) : async ?Text {
+        switch (principalMap.get(customTitles, p)) {
+            case (?entry) {
+                if (entry.expiresAt > Time.now()) { ?entry.title } else { null }
+            };
+            case null { null };
+        };
+    };
+
+    /// Returns the active pending-custom-title slot for the caller, if any.
+    /// Drives the frontend modal that prompts for a title post-success.
+    public query ({ caller }) func getPendingCustomTitleForCaller() : async ?{ expiresAt : Int } {
+        switch (principalMap.get(pendingCustomTitles, caller)) {
+            case (?s) { if (Time.now() < s.expiresAt) { ?s } else { null } };
+            case null { null };
+        };
+    };
+
+    /// Voice of God status for `p`. Returns deadline (ns since epoch) while
+    /// active, null otherwise. Frontend uses to apply special chat styling.
+    public query func getVoiceOfGodStatus(p : Principal) : async ?Int {
+        switch (principalMap.get(voiceOfGodUntil, p)) {
+            case (?deadline) {
+                if (Time.now() < deadline) { ?deadline } else { null };
+            };
+            case null { null };
+        };
+    };
+
+    /// Echo status for `p`. Returns deadline while active, null otherwise.
+    public query func getEchoStatus(p : Principal) : async ?Int {
+        switch (principalMap.get(echoUntil, p)) {
+            case (?deadline) {
+                if (Time.now() < deadline) { ?deadline } else { null };
+            };
+            case null { null };
+        };
+    };
+
+    /// Confetti Cannon status for `p`. Returns deadline while active, null otherwise.
+    public query func getConfettiCannonStatus(p : Principal) : async ?Int {
+        switch (principalMap.get(confettiCannonUntil, p)) {
+            case (?deadline) {
+                if (Time.now() < deadline) { ?deadline } else { null };
+            };
+            case null { null };
+        };
     };
 
     /// Caller commits a custom-typed name for their pending Rename slot.
@@ -2260,6 +2451,10 @@ persistent actor Self {
             case (#insiderTip) { true };
             case (#stimulusCheck) { false };
             case (#bearRaid) { false };
+            case (#voiceOfGod) { false };
+            case (#customTitle) { false };
+            case (#echo) { false };
+            case (#confettiCannon) { false };
             case (_) { false };
         };
         if (needsTarget) {
@@ -2341,6 +2536,14 @@ persistent actor Self {
             };
         };
 
+        // Custom Title balance gate — caster must hold ≥ effectValues[0] PP.
+        if (shenaniganType == #customTitle) {
+            let gate = ppToUnits(effectNatOr(config.effectValues, 0, 300));
+            if (casterBalPre < gate) {
+                throw Error.reject("Custom Title requires you to have at least " # Nat.toText(effectNatOr(config.effectValues, 0, 300)) # " PP.");
+            };
+        };
+
         let isAggressive = switch (shenaniganType) {
             case (#moneyTrickster) { true };
             case (#aoeSkim) { true };
@@ -2350,6 +2553,10 @@ persistent actor Self {
             case (#whaleRebalance) { true };
             case (#tenderOffer) { true };
             case (#bearRaid) { true };
+            case (#voiceOfGod) { false };
+            case (#customTitle) { false };
+            case (#echo) { false };
+            case (#confettiCannon) { false };
             case (_) { false };
         };
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
@@ -2970,6 +3177,32 @@ persistent actor Self {
                     };
                 };
             };
+            case (#voiceOfGod) {
+                // Set voiceOfGodUntil deadline for the caster.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                voiceOfGodUntil := principalMap.put(voiceOfGodUntil, caster, nowTs + durationNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#customTitle) {
+                // Create a 5-minute pending slot. User calls setCustomTitle within that window.
+                let fiveMinNs : Int = 300_000_000_000;
+                pendingCustomTitles := principalMap.put(pendingCustomTitles, caster, {
+                    expiresAt = nowTs + fiveMinNs;
+                });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#echo) {
+                // Set echoUntil deadline for the caster.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                echoUntil := principalMap.put(echoUntil, caster, nowTs + durationNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#confettiCannon) {
+                // Set confettiCannonUntil deadline for the caster.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                confettiCannonUntil := principalMap.put(confettiCannonUntil, caster, nowTs + durationNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
         };
     };
 
@@ -3291,6 +3524,19 @@ persistent actor Self {
                     };
                 };
             };
+            // Cosmetic spells — backfire is cost burn only (no extra state change).
+            case (#voiceOfGod) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#customTitle) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#echo) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#confettiCannon) {
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
         };
     };
 
@@ -3352,6 +3598,10 @@ persistent actor Self {
             case (#strategicReserve) { 15 };
             case (#slushFund) { 16 };
             case (#insiderTip) { 17 };
+            case (#voiceOfGod) { 18 };
+            case (#customTitle) { 19 };
+            case (#echo) { 20 };
+            case (#confettiCannon) { 21 };
         };
         natMap.get(shenaniganConfigs, id);
     };
@@ -3731,6 +3981,19 @@ persistent actor Self {
                 };
                 case (null) {};
             };
+        };
+
+        // Echo: if the poster is Echo-active, append a Reginald-kind snark footnote.
+        switch (principalMap.get(echoUntil, caller)) {
+            case (?deadline) {
+                if (Time.now() < deadline) {
+                    let _ = appendChatItem(
+                        Principal.fromActor(Self),
+                        #reginald({ line = pickEchoSnark(); triggerKind = "echo" })
+                    );
+                };
+            };
+            case null {};
         };
 
         #Ok(id);
@@ -4530,6 +4793,10 @@ persistent actor Self {
                 case (#strategicReserve) { 15 };
                 case (#slushFund) { 16 };
                 case (#insiderTip) { 17 };
+                case (#voiceOfGod) { 18 };
+                case (#customTitle) { 19 };
+                case (#echo) { 20 };
+                case (#confettiCannon) { 21 };
             };
             // record.cost is in whole-PP Float; convert back to units. ppToUnits
             // takes Nat so floor — safe because the backend wrote whole-PP
@@ -4609,6 +4876,7 @@ persistent actor Self {
     /// duplicating the lists in the frontend.
     public query func getFlavorPoolDefaults(name : Text) : async [Text] {
         if (name == "renameNamePool") { return renameNamePool };
+        if (name == "echoSnarkPool") { return echoSnarkPool };
         if (Text.startsWith(name, #text "reginald.")) {
             let trigger = Text.trimStart(name, #text "reginald.");
             return Reginald.defaults(trigger);
