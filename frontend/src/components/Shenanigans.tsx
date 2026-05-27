@@ -1013,7 +1013,7 @@ export default function Shenanigans() {
                   disabled={rerollRename.isPending || setRenameName.isPending}
                   className="mc-btn-secondary px-5 py-2 rounded-full text-sm w-full"
                 >
-                  {rerollRename.isPending ? 'Rolling…' : 'Pick a different one'}
+                  {rerollRename.isPending ? 'Rolling…' : 'Pick a different one (–50 PP)'}
                 </button>
                 {/* Type your own */}
                 <div className="w-full mt-1">

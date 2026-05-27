@@ -1988,10 +1988,11 @@ persistent actor Self {
     };
 
     /// Caller re-rolls the pool-pick for their currently-pending rename.
-    /// Free. Returns the new pool-picked name on Ok. Resets the rename
-    /// expiry (the target gets the full duration with the new name).
+    /// Costs 50 PP. Returns the new pool-picked name on Ok. Resets the
+    /// rename expiry (the target gets the full duration with the new name).
     /// Does NOT extend the 5-minute pending slot itself — caster still
-    /// has to act within the original 5min cast window.
+    /// has to act within the original 5min cast window. Burn happens
+    /// BEFORE the new name is picked — if burn fails, the slot is unchanged.
     public shared ({ caller }) func rerollPendingRename() : async { #Ok : Text; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
         sweepExpiredPendingRenames();
@@ -2002,6 +2003,14 @@ persistent actor Self {
         if (Time.now() >= slot.expiresAt) {
             pendingRenames := principalMap.delete(pendingRenames, caller);
             return #Err("Pending rename expired");
+        };
+        // 50 PP reroll surcharge — cheap shopping, not free.
+        let rerollUnits = ppToUnits(REROLL_RENAME_COST_PP);
+        switch (await burnFrom(caller, rerollUnits, "rename-reroll")) {
+            case (#Err(msg)) {
+                return #Err("Couldn't burn 50 PP reroll surcharge: " # msg);
+            };
+            case (#Ok(_)) {};
         };
         let durationNs : Int = switch (getConfigForType(#renameSpell)) {
             case (?c) { c.duration * 3_600_000_000_000 };
@@ -3262,6 +3271,10 @@ persistent actor Self {
     /// at 400 PP and was charged at cast time — semantics changed but
     /// renaming would force an explicit migration.)
     let PREMIUM_RENAME_SURCHARGE_PP : Nat = 500;
+    /// Burn per reroll of a pending Cease & Desist rename. Cheap enough
+    /// that the caster can shop the pool a few times; expensive enough
+    /// that they can't endlessly spin for the perfect name.
+    let REROLL_RENAME_COST_PP : Nat = 50;
     let CHIME_SOUND_MAX_BYTES : Nat = 200_000;       // 200 KB per file
     let CHIME_SOUND_MAX_COUNT : Nat = 20;            // up to 20 sounds in the pool
     let CHIME_SOUND_NAME_MAX_LEN : Nat = 64;
