@@ -810,9 +810,22 @@ export default function Shenanigans() {
                 // Per-spell IDs (mirror shenaniganTypes array order in main.mo):
                 // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
                 // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
-                // 8 whaleRebalance, 9 downlineBoost, 10 goldenName
+                // 8 whaleRebalance, 9 downlineBoost, 10 goldenName,
+                // 11 tenderOffer, 12 stimulusCheck, 13 bearRaid
 
                 if (outcomeToast.outcome === 'success') {
+                  // Spell-specific copy for spells whose generic "stole" framing
+                  // doesn't fit (Stimulus is hero, Bear Raid voice differs from
+                  // a 1v1 theft, Tender Offer is an acquisition not a theft).
+                  if (id === 12) { // stimulusCheck — hero, mints to everyone
+                    return <p className="text-xs mc-text-green mb-3">Pulled strings at the Fed. {cnt} player{cnt === 1 ? '' : 's'} got paid. You took {Math.round(d)} PP off the top.</p>;
+                  }
+                  if (id === 13) { // bearRaid — drain everyone, caster keeps up to 100, excess burns
+                    return <p className="text-xs mc-text-green mb-3">Coordinated short. {cnt} player{cnt === 1 ? '' : 's'} took a haircut. You netted {Math.round(d)} PP (the rest burned).</p>;
+                  }
+                  if (id === 11) { // tenderOffer — acquired the target's whole stack
+                    return <p className="text-xs mc-text-green mb-3">Acquired {target}. Their {Math.round(d)} PP is yours. They're integrating for 24h.</p>;
+                  }
                   // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
                   if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
@@ -846,6 +859,15 @@ export default function Shenanigans() {
                 }
 
                 if (outcomeToast.outcome === 'backfire') {
+                  // Spell-specific backfires for spells whose handlers do work
+                  // but return ppDeltaCaster = 0 (the toast can't infer the
+                  // burn/payout from the delta alone).
+                  if (id === 12) { // stimulusCheck — caster burned extra 200 PP
+                    return <p className="text-xs mc-text-purple mb-3">The bill didn't pass. You ate the lobbying budget — 200 PP gone.</p>;
+                  }
+                  if (id === 13) { // bearRaid — karmic inversion, everyone got paid
+                    return <p className="text-xs mc-text-purple mb-3">You misread the cycle. {cnt} player{cnt === 1 ? '' : 's'} got paid; you burned 100 PP.</p>;
+                  }
                   // Numeric losses first.
                   if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
                   if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
