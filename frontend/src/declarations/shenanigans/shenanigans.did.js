@@ -287,7 +287,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'cancelPendingRename' : IDL.Func([], [], []),
     'castShenanigan' : IDL.Func(
-        [ShenaniganType, IDL.Opt(IDL.Principal)],
+        [ShenaniganType, IDL.Opt(IDL.Principal), IDL.Bool],
         [ShenaniganOutcomeDetail],
         [],
       ),

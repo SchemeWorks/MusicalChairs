@@ -345,8 +345,8 @@ service : {
   /// mount-time prompt. The cast cost is already burned and is not
   /// refunded.
   cancelPendingRename: () -> ();
-  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
-   (ShenaniganOutcomeDetail);
+  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal,
+   premiumRename: bool) -> (ShenaniganOutcomeDetail);
   claimCashOut: (id: nat) -> (variant {
                                 Err: text;
                                 Ok: nat;

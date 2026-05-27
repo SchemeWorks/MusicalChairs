@@ -263,6 +263,7 @@ export default function Shenanigans() {
   const cancelRenameName = useCancelPendingRename();
   const { data: pendingRename } = useGetPendingRenameForCaller();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
+  const [premiumRenameToggle, setPremiumRenameToggle] = useState(false);
 
   // If the user cast Rename, navigated away, then came back within 5 minutes,
   // reopen the modal so they can still pick the name. Only triggers when the
@@ -272,6 +273,12 @@ export default function Shenanigans() {
       setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
     }
   }, [pendingRename, renamePrompt]);
+
+  // Reset the premium-rename toggle whenever the confirmation modal closes so
+  // a fresh cast always starts with the pool-pick default.
+  useEffect(() => {
+    if (!confirmOpen) setPremiumRenameToggle(false);
+  }, [confirmOpen]);
 
   // Toast when the player's Poison Pill shield absorbs an incoming attack.
   // Detects this by watching chargesRemaining via the 10s active-effects poll
@@ -403,7 +410,11 @@ export default function Shenanigans() {
     setConfirmOpen(false);
     setAnimatingTrick(variantKey(selectedShenanigan.type));
     try {
-      const detail = await castShenanigan.mutateAsync({ shenaniganType: selectedShenanigan.type, target: selectedTarget });
+      const detail = await castShenanigan.mutateAsync({
+        shenaniganType: selectedShenanigan.type,
+        target: selectedTarget,
+        premiumRename: selectedShenanigan.id === 2 && premiumRenameToggle,
+      });
       const outcome = variantKey(detail.outcome);
       // A success just set a cooldown on the backend — refresh the
       // cooldown query so the spell card flips to "Cooldown — Xm" without
@@ -413,11 +424,12 @@ export default function Shenanigans() {
       }
       setTimeout(() => {
         const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
+        const isPremiumRename = isRenameSuccess && premiumRenameToggle;
         const isWhitelistedSuccess = outcome === 'success' && selectedShenanigan.id === 10 /* goldenName */;
         const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
           ? detail.affectedTarget[0]?.toText() ?? null
           : null;
-        if (isRenameSuccess && targetPrincipalText) {
+        if (isPremiumRename && targetPrincipalText) {
           // Skip the success toast — the rename modal IS the success
           // affirmation, and otherwise the toast would sit hidden behind
           // the rename modal's backdrop.
@@ -987,7 +999,26 @@ export default function Shenanigans() {
                 <span className="mc-toast-accent">{selectedShenanigan.costBackfire} PP</span> on backfire.
               </p>
               <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds. (If a backfire exceeds your balance, you zero out.)</p>
-              <div className="flex gap-3 justify-center">
+              {selectedShenanigan?.id === 2 && (
+                <label className="flex items-start gap-2 mt-3 text-xs cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={premiumRenameToggle}
+                    onChange={(e) => setPremiumRenameToggle(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium mc-text-primary">Pick the name yourself</span>
+                    <span className="mc-text-muted"> (+400 PP)</span>
+                    <span className="block mc-text-muted">
+                      {premiumRenameToggle
+                        ? 'On success, a modal opens to type the exact name.'
+                        : 'On success, a name is pulled from the pool instantly.'}
+                    </span>
+                  </span>
+                </label>
+              )}
+              <div className="flex gap-3 justify-center mt-4">
                 <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
                 <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>
               </div>

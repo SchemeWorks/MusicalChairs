@@ -299,7 +299,7 @@ export interface _SERVICE {
    */
   'cancelPendingRename' : ActorMethod<[], undefined>,
   'castShenanigan' : ActorMethod<
-    [ShenaniganType, [] | [Principal]],
+    [ShenaniganType, [] | [Principal], boolean],
     ShenaniganOutcomeDetail
   >,
   'claimCashOut' : ActorMethod<

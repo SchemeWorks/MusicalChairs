@@ -715,9 +715,9 @@ export function useCastShenanigan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ shenaniganType, target }: { shenaniganType: ShenaniganType; target: Principal | null }) => {
+    mutationFn: async ({ shenaniganType, target, premiumRename }: { shenaniganType: ShenaniganType; target: Principal | null; premiumRename?: boolean }) => {
       if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.castShenanigan(shenaniganType, target ? [target] : []);
+      return actor.castShenanigan(shenaniganType, target ? [target] : [], premiumRename ?? false);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenaniganStats'] });
