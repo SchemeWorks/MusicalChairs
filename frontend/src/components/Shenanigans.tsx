@@ -1009,11 +1009,11 @@ export default function Shenanigans() {
                   />
                   <span>
                     <span className="font-medium mc-text-primary">Pick the name yourself</span>
-                    <span className="mc-text-muted"> (+400 PP)</span>
+                    <span className="mc-text-muted"> (+400 PP, win or lose)</span>
                     <span className="block mc-text-muted">
                       {premiumRenameToggle
-                        ? 'On success, a modal opens to type the exact name.'
-                        : 'On success, a name is pulled from the pool instantly.'}
+                        ? 'Premium locked in. If it lands, a modal opens to type the name. If it fails or backfires, the 400 PP is gone too.'
+                        : 'Pool-pick is the default — a name is pulled from the rolodex instantly on success.'}
                     </span>
                   </span>
                 </label>
