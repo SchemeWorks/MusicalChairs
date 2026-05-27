@@ -27,6 +27,7 @@ export const ShenaniganType = {
   whaleRebalance: { whaleRebalance: null } as ShenaniganTypeT,
   downlineBoost: { downlineBoost: null } as ShenaniganTypeT,
   goldenName: { goldenName: null } as ShenaniganTypeT,
+  tenderOffer: { tenderOffer: null } as ShenaniganTypeT,
 };
 
 export type ShenaniganOutcome = ShenaniganOutcomeT;

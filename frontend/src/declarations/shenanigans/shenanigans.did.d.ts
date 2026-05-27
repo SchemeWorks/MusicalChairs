@@ -201,7 +201,8 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'magicMirror' : null } |
   { 'downlineHeist' : null } |
   { 'renameSpell' : null } |
-  { 'purseCutter' : null };
+  { 'purseCutter' : null } |
+  { 'tenderOffer' : null };
 export interface ShieldState {
   'expiresAt' : bigint,
   'chargesRemaining' : bigint,

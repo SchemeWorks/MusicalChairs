@@ -22,7 +22,7 @@ import GoldenName from './GoldenName';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
-const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter
+const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7, 11]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter, tenderOffer
 
 // Poison Pill (magicMirror) shield charge ceiling. Mirrors the hardcoded
 // cap at shenanigans/main.mo:2178 — keep in sync until that cap is promoted
@@ -57,14 +57,14 @@ const shenaniganIcons: Record<number, React.ReactNode> = {
   0: <Coins className="h-5 w-5" />, 1: <Waves className="h-5 w-5" />, 2: <Pencil className="h-5 w-5" />,
   3: <Building2 className="h-5 w-5" />, 4: <Target className="h-5 w-5" />, 5: <FlipHorizontal2 className="h-5 w-5" />,
   6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
-  9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />,
+  9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />, 11: <Dices className="h-5 w-5" />,
 };
 
 const shenaniganTypes: ShenaniganType[] = [
   ShenaniganType.moneyTrickster, ShenaniganType.aoeSkim, ShenaniganType.renameSpell,
   ShenaniganType.mintTaxSiphon, ShenaniganType.downlineHeist, ShenaniganType.magicMirror,
   ShenaniganType.ppBoosterAura, ShenaniganType.purseCutter, ShenaniganType.whaleRebalance,
-  ShenaniganType.downlineBoost, ShenaniganType.goldenName,
+  ShenaniganType.downlineBoost, ShenaniganType.goldenName, ShenaniganType.tenderOffer,
 ];
 
 // Dark-themed aura colors for each shenanigan
@@ -80,11 +80,12 @@ const auraColors: Record<number, string> = {
   8: 'rgba(168, 85, 247, 0.3)',
   9: 'rgba(16, 185, 129, 0.3)',
   10: 'rgba(245, 158, 11, 0.3)',
+  11: 'rgba(255, 100, 50, 0.3)',
 };
 
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
 
-const offenseTypes = [0, 1, 3, 4, 7, 8]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance
+const offenseTypes = [0, 1, 3, 4, 7, 8, 11]; // moneyTrickster, aoeSkim, mintTaxSiphon, downlineHeist, purseCutter, whaleRebalance, tenderOffer
 const defenseTypes = [5, 6, 9]; // magicMirror, ppBoosterAura, downlineBoost
 
 function getShenaniganCategory(idx: number): FilterCategory {

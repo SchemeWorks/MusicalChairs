@@ -18,6 +18,7 @@ export const idlFactory = ({ IDL }) => {
     'downlineHeist' : IDL.Null,
     'renameSpell' : IDL.Null,
     'purseCutter' : IDL.Null,
+    'tenderOffer' : IDL.Null,
   });
   const ShenaniganOutcome = IDL.Variant({
     'backfire' : IDL.Null,
