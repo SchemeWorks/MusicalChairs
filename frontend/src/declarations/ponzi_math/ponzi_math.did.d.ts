@@ -176,6 +176,16 @@ export interface PonziMath {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'adminClearAllBackerPositions' : ActorMethod<
+    [],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'adminForceReset' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'adminGetActivePlansSnapshot' : ActorMethod<[], Array<ActivePlanSnapshot>>,
   'adminGetCurrentRoundId' : ActorMethod<[], bigint>,
   'adminGetEventsByRound' : ActorMethod<[bigint], Array<GeneralLedgerEntry>>,
@@ -185,6 +195,11 @@ export interface PonziMath {
   'adminMergeBackerPosition' : ActorMethod<
     [Principal, Principal],
     { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'adminSweepUntracked' : ActorMethod<
+    [],
+    { 'Ok' : bigint } |
       { 'Err' : string }
   >,
   'calculateCompounded30DayEarnings' : ActorMethod<[GameRecord], number>,
@@ -217,10 +232,15 @@ export interface PonziMath {
   'getBackerRepaymentBalanceFor' : ActorMethod<[Principal], number>,
   'getCanisterICPBalance' : ActorMethod<[], bigint>,
   'getCoverChargeBalance' : ActorMethod<[], bigint>,
+  'getCurrentRoundId' : ActorMethod<[], bigint>,
   'getDaysActive' : ActorMethod<[], bigint>,
   'getGameById' : ActorMethod<[bigint], [] | [GameRecord]>,
   'getGameResetHistory' : ActorMethod<[], Array<GameResetRecord>>,
   'getGeneralLedger' : ActorMethod<[], Array<GeneralLedgerEntry>>,
+  'getGeneralLedgerPage' : ActorMethod<
+    [bigint, bigint],
+    { 'total' : bigint, 'entries' : Array<GeneralLedgerEntry> }
+  >,
   'getGeneralLedgerStats' : ActorMethod<
     [],
     {

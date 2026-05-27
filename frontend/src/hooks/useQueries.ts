@@ -1264,6 +1264,24 @@ export function useGetRoundBurnedLeaderboard(roundId?: number, limit = 50) {
   });
 }
 
+/// Live ponzi_math currentRoundId. Used by HallOfFame to pass an explicit
+/// round id to useGetRoundBurnedLeaderboard rather than letting the
+/// shenanigans canister fall back to its 30s-stale cached value (which
+/// would lag round resets and show the wrong round briefly).
+export function useGetCurrentRoundId() {
+  const { actor } = usePonziMathActor();
+  return useQuery({
+    queryKey: ['ponziMath', 'currentRoundId'],
+    queryFn: async () => {
+      if (!actor) return null;
+      const id = await actor.getCurrentRoundId();
+      return Number(id);
+    },
+    enabled: !!actor,
+    staleTime: 15_000,
+  });
+}
+
 // === Chip custody & cash-out (pp_ledger + shenanigans) ===
 
 const SHENANIGANS_PRINCIPAL = Principal.fromText('j56tm-oaaaa-aaaac-qf34q-cai');

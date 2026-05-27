@@ -1,7 +1,7 @@
 import React from 'react';
 import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
 import { Principal } from '@dfinity/principal';
-import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
+import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetPonziPoints, useGetKarmaReceived, useGetCurrentRoundId } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
@@ -77,7 +77,11 @@ function LeaderboardRow({
 export default function HallOfFame() {
   const [filter, setFilter] = React.useState<'all-time' | 'this-round'>('all-time');
   const { data: allTimeBurnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
-  const { data: roundRaw } = useGetRoundBurnedLeaderboard(undefined, 50);
+  // Pass an explicit roundId from ponzi_math rather than letting shenanigans
+  // fall back to its 30s-stale cached value — keeps the leaderboard pinned to
+  // the live round even right after a reset.
+  const { data: currentRoundId } = useGetCurrentRoundId();
+  const { data: roundRaw } = useGetRoundBurnedLeaderboard(currentRoundId ?? undefined, 50);
   const { data: ponziData } = useGetPonziPoints();
   const { principal } = useWallet();
   const { data: karmaUnits } = useGetKarmaReceived(principal ?? undefined);

@@ -19,6 +19,14 @@ type PonziMath =
                                            Err: text;
                                            Ok: nat;
                                          });
+   adminClearAllBackerPositions: () -> (variant {
+                                          Err: text;
+                                          Ok;
+                                        });
+   adminForceReset: (reason: text) -> (variant {
+                                         Err: text;
+                                         Ok;
+                                       });
    adminGetActivePlansSnapshot: () -> (vec ActivePlanSnapshot) query;
    adminGetCurrentRoundId: () -> (nat) query;
    adminGetEventsByRound: (roundId: nat) -> (vec GeneralLedgerEntry) query;
@@ -30,6 +38,10 @@ type PonziMath =
        Err: text;
        Ok;
      });
+   adminSweepUntracked: () -> (variant {
+                                 Err: text;
+                                 Ok: nat;
+                               });
    calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
    calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
    calculateCompoundedROI: () -> (float64) query;
@@ -62,10 +74,16 @@ type PonziMath =
    getBackerRepaymentBalanceFor: (user: principal) -> (float64) query;
    getCanisterICPBalance: () -> (nat);
    getCoverChargeBalance: () -> (nat) query;
+   getCurrentRoundId: () -> (nat) query;
    getDaysActive: () -> (nat) query;
    getGameById: (gameId: nat) -> (opt GameRecord) query;
    getGameResetHistory: () -> (vec GameResetRecord) query;
    getGeneralLedger: () -> (vec GeneralLedgerEntry) query;
+   getGeneralLedgerPage: (offset: nat, limit: nat) ->
+    (record {
+       entries: vec GeneralLedgerEntry;
+       total: nat;
+     }) query;
    getGeneralLedgerStats: () ->
     (record {
        entryCount: nat;

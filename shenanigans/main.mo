@@ -2959,6 +2959,7 @@ persistent actor Self {
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#tenderOffer) {
+                var compensationActual : Nat = 0;
                 switch (target) {
                     case (null) {};
                     case (?t) {
@@ -2973,12 +2974,20 @@ persistent actor Self {
                         // costs become a real configuration option.
                         let compensationPp : Nat = Int.abs(Float.toInt(config.costBackfire * 3.0));
                         let compensationUnits = ppToUnits(compensationPp);
-                        let _ = await chipTransfer(caster, t, compensationUnits, memo);
+                        switch (await chipTransfer(caster, t, compensationUnits, memo)) {
+                            case (#Ok(_)) { compensationActual := compensationUnits };
+                            case (#Err(_)) { compensationActual := 0 };
+                        };
                         let sevenDaysNs : Int = 7 * 24 * 3600 * 1_000_000_000;
                         tenderOfferBackfireLockUntil := principalMap.put(tenderOfferBackfireLockUntil, caster, nowTs + sevenDaysNs);
                     };
                 };
-                return { ppDeltaCaster = 0; affectedTarget = target; affectedCount = (switch (target) { case (null) { 0 }; case (?_) { 1 } }); shieldDeflected = false; renameDetail = null };
+                // ppDeltaCaster reflects the actual amount the caster lost (negative),
+                // not the nominal 3x cost — matches the Bear Raid pattern. affectedCount
+                // is 1 only when the comp transfer succeeded.
+                let casterDelta : Int = -compensationActual;
+                let affectedCt : Nat = if (compensationActual > 0) { 1 } else { 0 };
+                return { ppDeltaCaster = casterDelta; affectedTarget = target; affectedCount = affectedCt; shieldDeflected = false; renameDetail = null };
             };
             case (#stimulusCheck) {
                 // Bill didn't pass — caster burns extra (in addition to the standard

@@ -187,6 +187,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'adminClearAllBackerPositions' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminForceReset' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'adminGetActivePlansSnapshot' : IDL.Func(
         [],
         [IDL.Vec(ActivePlanSnapshot)],
@@ -208,6 +218,11 @@ export const idlFactory = ({ IDL }) => {
     'adminMergeBackerPosition' : IDL.Func(
         [IDL.Principal, IDL.Principal],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminSweepUntracked' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
     'calculateCompounded30DayEarnings' : IDL.Func(
@@ -256,10 +271,21 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getCanisterICPBalance' : IDL.Func([], [IDL.Nat], []),
     'getCoverChargeBalance' : IDL.Func([], [IDL.Nat], ['query']),
+    'getCurrentRoundId' : IDL.Func([], [IDL.Nat], ['query']),
     'getDaysActive' : IDL.Func([], [IDL.Nat], ['query']),
     'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
     'getGameResetHistory' : IDL.Func([], [IDL.Vec(GameResetRecord)], ['query']),
     'getGeneralLedger' : IDL.Func([], [IDL.Vec(GeneralLedgerEntry)], ['query']),
+    'getGeneralLedgerPage' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [
+          IDL.Record({
+            'total' : IDL.Nat,
+            'entries' : IDL.Vec(GeneralLedgerEntry),
+          }),
+        ],
+        ['query'],
+      ),
     'getGeneralLedgerStats' : IDL.Func(
         [],
         [
