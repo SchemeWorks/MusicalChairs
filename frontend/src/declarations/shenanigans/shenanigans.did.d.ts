@@ -333,6 +333,14 @@ export interface _SERVICE {
    */
   'getCashOutsFor' : ActorMethod<[Principal], Array<CashOutEntry>>,
   'getChimeSound' : ActorMethod<[string], [] | [ChimeSound]>,
+  /**
+   * / PP units this principal can deposit tax-free. Funded by prior chip
+   * / withdrawals (claimCashOut credits the user for the amount paid out).
+   * / Drained by depositChips up to the deposited amount. Frontend uses
+   * / this to show "Tax-free deposit available: X PP" in the bank UI so
+   * / users can predict the cascade impact before depositing.
+   */
+  'getChipsTaxCredit' : ActorMethod<[Principal], bigint>,
   'getCurrentPin' : ActorMethod<[], [] | [ChatItem]>,
   /**
    * / Active rename-spell name for `user`, if any. Expired entries return null.

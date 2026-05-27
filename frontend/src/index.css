@@ -877,6 +877,45 @@
     background: radial-gradient(circle, var(--aura-color, rgba(168, 85, 247, 0.3)) 0%, transparent 70%);
     box-shadow: 0 0 30px var(--aura-color, var(--mc-glow-purple)), 0 0 60px var(--aura-color, var(--mc-glow-purple));
     position: relative;
+    /* Promote to its own compositor layer so the pseudo's transform pulse
+       doesn't force the parent's box-shadow to repaint on every scroll/frame.
+       Without this, the icon flickers when the page is scrolling. */
+    will-change: transform;
+    transform: translateZ(0);
+  }
+
+  /* "Top up" pill on a disabled shenanigan card — shown when the user has
+     enough total PP (side pocket + wallet) to cast the spell but their
+     side-pocket subaccount specifically is short. Single tap →
+     #side-pocket hash, which opens the Bank page where they can deposit. */
+  .mc-shenanigan-topup-pill {
+    display: block;
+    width: 100%;
+    margin-top: 6px;
+    padding: 5px 8px;
+    border-radius: 6px;
+    background: rgba(255, 215, 0, 0.1);
+    color: var(--mc-gold);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    text-align: center;
+    cursor: pointer;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .mc-shenanigan-topup-pill:hover {
+    background: rgba(255, 215, 0, 0.18);
+    border-color: rgba(255, 215, 0, 0.55);
+  }
+  .mc-shenanigan-topup-pill-compact {
+    /* Inline version for the compact list row — sits next to the Cast button
+       rather than below it. */
+    width: auto;
+    margin-top: 0;
+    padding: 4px 8px;
+    font-size: 0.6rem;
   }
 
   .mc-shenanigan-icon::after {
@@ -886,6 +925,7 @@
     border-radius: 50%;
     background: radial-gradient(circle, var(--aura-color, rgba(168, 85, 247, 0.15)), transparent 70%);
     animation: mc-aura-pulse 3s ease-in-out infinite;
+    will-change: transform, opacity;
   }
 
   @keyframes mc-aura-pulse {
@@ -1523,6 +1563,322 @@
   ::-webkit-scrollbar-track { background: var(--mc-void); }
   ::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.5); }
+
+  /* ================================================================
+     BUY PP — sticky sidebar widget, mobile FAB, shared flyout
+     ================================================================ */
+
+  .mc-buy-pp-widget {
+    background: linear-gradient(165deg, rgba(40, 8, 24, 0.95) 0%, rgba(18, 14, 28, 0.95) 100%);
+    border: 1px solid rgba(255, 45, 120, 0.35);
+    border-radius: 14px;
+    padding: var(--space-lg);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 28px var(--mc-glow-pink);
+    position: relative;
+    overflow: hidden;
+  }
+  .mc-buy-pp-widget::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: 14px;
+    /* Static gradient border — animating background-position on a 200% gradient
+       caused intermittent flickering on the live site (subpixel repaints during
+       scroll). Static gradient still pops; we don't need the slow drift. */
+    background: linear-gradient(135deg, var(--mc-neon-pink), var(--mc-gold), var(--mc-neon-pink));
+    z-index: -1;
+    opacity: 0.55;
+  }
+
+  .mc-buy-pp-coin {
+    filter: drop-shadow(0 0 6px var(--mc-glow-gold)) drop-shadow(0 0 12px var(--mc-glow-pink));
+    animation: mc-buy-pp-coin-pulse 2.8s ease-in-out infinite;
+    will-change: transform;
+  }
+  @keyframes mc-buy-pp-coin-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.08); }
+  }
+
+  .mc-buy-pp-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid var(--mc-border);
+    border-radius: 8px;
+    padding: 8px 10px;
+    transition: border-color 0.15s ease;
+  }
+  .mc-buy-pp-input-row:focus-within {
+    border-color: var(--mc-neon-pink);
+    box-shadow: 0 0 0 3px rgba(255, 45, 120, 0.15);
+  }
+  .mc-buy-pp-input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--mc-white);
+    font-size: 1.25rem;
+    font-weight: 600;
+    min-width: 0;
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  .mc-buy-pp-input::-webkit-outer-spin-button,
+  .mc-buy-pp-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .mc-buy-pp-input-suffix {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--mc-white-dim);
+  }
+  .mc-buy-pp-max {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    color: var(--mc-neon-cyan);
+    background: rgba(0, 240, 255, 0.08);
+    border: 1px solid rgba(0, 240, 255, 0.25);
+    border-radius: 6px;
+    padding: 3px 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mc-buy-pp-max:hover:not(:disabled) {
+    background: rgba(0, 240, 255, 0.15);
+    border-color: var(--mc-neon-cyan);
+  }
+  .mc-buy-pp-max:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .mc-buy-pp-quote {
+    margin-top: var(--space-md);
+    margin-bottom: var(--space-md);
+    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: 8px;
+    border: 1px dashed rgba(255, 215, 0, 0.2);
+  }
+  .mc-buy-pp-quote-amount {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--mc-gold);
+    text-shadow: 0 0 12px rgba(255, 215, 0, 0.35);
+    line-height: 1.1;
+    margin-top: 4px;
+  }
+
+  .mc-buy-pp-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    font-size: 0.95rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    color: #fff;
+    /* Static gradient — drift animation removed (background-position keyframes
+       on large gradients caused flickering during page scroll). */
+    background: linear-gradient(135deg, var(--mc-neon-pink), #c026d3, var(--mc-neon-pink));
+    border: 2px solid var(--mc-neon-pink);
+    border-radius: 10px;
+    cursor: pointer;
+    box-shadow: 0 0 24px var(--mc-glow-pink), 0 4px 14px rgba(0, 0, 0, 0.4);
+    text-shadow: 0 0 8px rgba(255, 255, 255, 0.4);
+    text-transform: uppercase;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mc-buy-pp-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 0 36px var(--mc-glow-pink), 0 6px 18px rgba(0, 0, 0, 0.5);
+  }
+  .mc-buy-pp-button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .mc-buy-pp-button:disabled {
+    background: linear-gradient(135deg, #374151, #1f2937);
+    border-color: #4b5563;
+    box-shadow: none;
+    text-shadow: none;
+    cursor: not-allowed;
+    opacity: 0.7;
+  }
+
+  .mc-buy-pp-fast-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: var(--space-md);
+  }
+  .mc-buy-pp-fast-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 4px 9px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .mc-buy-pp-fast-toggle.on {
+    color: var(--mc-gold);
+    background: rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.2);
+  }
+  .mc-buy-pp-fast-toggle.on:hover {
+    background: rgba(255, 215, 0, 0.18);
+    box-shadow: 0 0 14px rgba(255, 215, 0, 0.35);
+  }
+  .mc-buy-pp-fast-toggle.off {
+    color: var(--mc-white-muted);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+  .mc-buy-pp-fast-toggle.off:hover {
+    color: var(--mc-white-dim);
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .mc-buy-pp-revoke {
+    font-size: 0.6rem;
+    color: var(--mc-white-muted);
+    text-decoration: underline;
+    cursor: pointer;
+    background: none;
+    border: none;
+    padding: 2px 4px;
+  }
+  .mc-buy-pp-revoke:hover {
+    color: var(--mc-danger);
+  }
+  .mc-buy-pp-fast-blurb {
+    margin-top: 4px;
+    font-size: 0.6rem;
+    color: var(--mc-white-muted);
+    text-align: center;
+    font-style: italic;
+  }
+
+  /* Post-buy "Deposit to Side Pocket" prompt — gold-emphasized strip that
+     sits between the header and the input row after a successful PartyDEX
+     buy. Buying PP lands tokens in the user's wallet; the side pocket (a
+     separate ledger subaccount on shenanigans) is what's actually spent
+     when casting spells. This prompt removes the surprise. */
+  .mc-buy-pp-deposit-prompt {
+    margin-bottom: var(--space-md);
+    padding: 10px 12px;
+    border-radius: 10px;
+    background: linear-gradient(165deg, rgba(60, 45, 8, 0.7) 0%, rgba(40, 30, 5, 0.7) 100%);
+    border: 1px solid rgba(255, 215, 0, 0.35);
+    box-shadow: 0 0 16px rgba(255, 215, 0, 0.15);
+  }
+  .mc-buy-pp-deposit-button {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 12px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: var(--mc-void);
+    background: linear-gradient(135deg, var(--mc-gold), #e0b800);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    box-shadow: 0 0 14px rgba(255, 215, 0, 0.3);
+    text-transform: uppercase;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mc-buy-pp-deposit-button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: 0 0 22px rgba(255, 215, 0, 0.45);
+  }
+  .mc-buy-pp-deposit-button:active:not(:disabled) {
+    transform: translateY(0);
+  }
+  .mc-buy-pp-deposit-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  /* Mobile FAB — bottom-LEFT, mirrors trollbox FAB on the right */
+  .mc-buy-pp-fab {
+    position: fixed;
+    bottom: 80px; /* clears mc-bottom-tabs (~64px) */
+    left: 16px;
+    z-index: 50;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: radial-gradient(circle, rgba(255, 45, 120, 0.4) 0%, rgba(18, 14, 28, 0.95) 65%);
+    border: 2px solid var(--mc-neon-pink);
+    /* Static box-shadow — animating box-shadow keyframes caused flicker
+       (every frame forces a paint, not just composite). The neon ring + the
+       gold zap badge are eye-catching enough without the pulse. */
+    box-shadow: 0 0 24px var(--mc-glow-pink), 0 4px 14px rgba(0, 0, 0, 0.5);
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .mc-buy-pp-fab:hover {
+    transform: scale(1.07);
+    box-shadow: 0 0 36px var(--mc-glow-pink), 0 6px 18px rgba(0, 0, 0, 0.6);
+  }
+  .mc-buy-pp-fab-zap {
+    position: absolute;
+    top: -4px;
+    right: -4px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: var(--mc-gold);
+    color: var(--mc-void);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 8px var(--mc-glow-gold);
+  }
+
+  /* Mobile bottom sheet for the FAB-triggered flyout */
+  .mc-buy-pp-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(2px);
+    z-index: 60;
+    animation: mc-backdrop-in 0.2s ease;
+  }
+  .mc-buy-pp-sheet {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 61;
+    background: linear-gradient(165deg, rgba(40, 8, 24, 0.98) 0%, rgba(18, 14, 28, 0.98) 100%);
+    border-top: 1px solid rgba(255, 45, 120, 0.4);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -8px 40px rgba(0, 0, 0, 0.6), 0 0 32px var(--mc-glow-pink);
+    animation: mc-sheet-in 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    padding-bottom: env(safe-area-inset-bottom);
+    max-height: 88vh;
+    overflow-y: auto;
+  }
 }
 
 /* ================================================================

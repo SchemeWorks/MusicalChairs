@@ -1391,7 +1391,30 @@ export function useDepositChips() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['ppBalances'] });
       qc.invalidateQueries({ queryKey: ['ppAllowance'] });
+      qc.invalidateQueries({ queryKey: ['chipsTaxCredit'] });
     },
+  });
+}
+
+/**
+ * Tax-free deposit credit available to the current user. Funded by prior chip
+ * withdrawals (cash-outs credit the user 1:1 for the amount paid out). Consumed
+ * by depositChips up to the deposited amount. The remainder of a deposit kicks
+ * 10% up the cascade. Surfaced in BankSummary so the user can see what their
+ * next deposit would actually cost.
+ */
+export function useChipsTaxCredit() {
+  const actor = useReadShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery({
+    queryKey: ['chipsTaxCredit', principal],
+    queryFn: async () => {
+      if (!principal) return 0n;
+      const units = await actor.getChipsTaxCredit(Principal.fromText(principal));
+      return units as bigint;
+    },
+    enabled: !!principal,
+    refetchInterval: 15_000,
   });
 }
 

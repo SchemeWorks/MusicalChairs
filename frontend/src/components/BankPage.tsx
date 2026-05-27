@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import BankSummary from './BankSummary';
 import BridgeCard from './BridgeCard';
 import PendingQueueCard from './PendingQueueCard';
+import BuyPPWidget from './Shenanigans/BuyPPWidget';
 
 interface BankPageProps {
   onClose: () => void;
@@ -31,6 +32,12 @@ export default function BankPage({ onClose }: BankPageProps) {
       </div>
       <BankSummary />
       <BridgeCard />
+      {/* Quick-buy PP from PartyDEX — sits between bridge and pending queue
+          so users who need more PP before depositing have it one click away
+          without leaving the Bank page. */}
+      <div className="max-w-md mx-auto w-full">
+        <BuyPPWidget />
+      </div>
       <PendingQueueCard />
     </div>
   );

@@ -558,6 +558,25 @@ persistent actor Self {
     // whole ledger. Populated inside mintInternal.
     var knownPpHolders = principalMap.empty<Bool>();
 
+    // Tax-free deposit credit (in PP units) per user. Funded by chip-withdrawal
+    // cash-outs: when a user withdraws N chips → wallet, their credit grows by
+    // N. When they deposit M chips, the first min(M, credit) is tax-free and
+    // the remainder kicks 10% up the cascade (cascadeInitialBps × cascade
+    // passthrough chain, mirroring mint cascades but funded by the deposit
+    // itself rather than newly-minted PP).
+    //
+    // Rationale: PP minted by the canister always lands in chips (mintInternal
+    // → chip subaccount), so wallet PP only exists from (a) explicit chip
+    // withdrawals, or (b) external buys / inbound ICRC transfers. Path (a)
+    // already paid the cascade at mint time; charging again on re-deposit
+    // would double-tax. The credit tracks "amount this principal has already
+    // paid tax on" so re-deposits flow through tax-free up to that amount.
+    //
+    // Note: credit is bound to the withdrawing principal, not the tokens. If
+    // Alice withdraws and ICRC-transfers PP to Bob, Bob's deposit is taxed
+    // (he didn't withdraw). Alice's credit persists until she deposits again.
+    var chipsTaxCredit = principalMap.empty<Nat>();
+
     // Pool of satirical names Rename Spell pulls from. Keep PG-13.
     transient let renameNamePool : [Text] = [
         "Cap Table Casualty",
@@ -1144,6 +1163,7 @@ persistent actor Self {
             return #Err("Minimum deposit is " # Nat.toText(mintConfig.minDepositPp) # " PP");
         };
         try {
+            // Step 1: pull the full deposit into the caller's chip subaccount.
             let res = await ppLedger.icrc2_transfer_from({
                 spender_subaccount = null;
                 from = { owner = caller; subaccount = null };
@@ -1157,7 +1177,34 @@ persistent actor Self {
                 created_at_time = ?nowNat64();
             });
             switch (res) {
-                case (#Ok(idx)) { #Ok(idx) };
+                case (#Ok(idx)) {
+                    // Step 2: consume tax-free credit. The first `used` units
+                    // of this deposit are exempt from the kick-up because the
+                    // depositor previously withdrew that much (and paid tax
+                    // when those units were originally minted).
+                    let credit = switch (principalMap.get(chipsTaxCredit, caller)) {
+                        case (?c) c;
+                        case (null) 0;
+                    };
+                    let used = if (credit >= amountUnits) amountUnits else credit;
+                    let newCredit : Nat = credit - used;
+                    if (newCredit == 0) {
+                        chipsTaxCredit := principalMap.delete(chipsTaxCredit, caller);
+                    } else {
+                        chipsTaxCredit := principalMap.put(chipsTaxCredit, caller, newCredit);
+                    };
+
+                    // Step 3: kick 10% of the taxable portion up the cascade.
+                    // The cascade is funded by direct chip→chip transfers, so
+                    // the depositor's chips end up at amountUnits − cascadeUnits.
+                    let taxableUnits : Nat = amountUnits - used;
+                    let cascadeUnits = taxableUnits * mintConfig.cascadeInitialBps / 10_000;
+                    if (cascadeUnits > 0) {
+                        await distributeCascadeFromChips(caller, cascadeUnits, "chipdep-" # Nat.toText(idx));
+                    };
+
+                    #Ok(idx);
+                };
                 case (#Err(#InsufficientAllowance(_))) {
                     #Err("Approve shenanigans on pp_ledger first");
                 };
@@ -1252,6 +1299,14 @@ persistent actor Self {
             switch (res) {
                 case (#Ok(idx)) {
                     cashOuts := natMap.put(cashOuts, id, { entry with claimed = true });
+                    // Credit the user for the amount actually paid out. Future
+                    // deposits will be tax-free up to this amount (chipsTaxCredit
+                    // accumulates across multiple withdrawals).
+                    let existing = switch (principalMap.get(chipsTaxCredit, caller)) {
+                        case (?c) c;
+                        case (null) 0;
+                    };
+                    chipsTaxCredit := principalMap.put(chipsTaxCredit, caller, existing + payable);
                     #Ok(idx);
                 };
                 case (#Err(e)) { #Err(describeTransferErr(e)) };
@@ -1283,6 +1338,18 @@ persistent actor Self {
     public shared query ({ caller }) func getMyCashOuts() : async [CashOutEntry] {
         let all = Iter.toArray(natMap.vals(cashOuts));
         Array.filter<CashOutEntry>(all, func(e) { e.player == caller and not e.cancelled });
+    };
+
+    /// PP units this principal can deposit tax-free. Funded by prior chip
+    /// withdrawals (claimCashOut credits the user for the amount paid out).
+    /// Drained by depositChips up to the deposited amount. Frontend uses
+    /// this to show "Tax-free deposit available: X PP" in the bank UI so
+    /// users can predict the cascade impact before depositing.
+    public query func getChipsTaxCredit(user : Principal) : async Nat {
+        switch (principalMap.get(chipsTaxCredit, user)) {
+            case (?c) c;
+            case (null) 0;
+        };
     };
 
     // ================================================================
@@ -1503,6 +1570,98 @@ persistent actor Self {
         // Residual to house: covers depth cap, cycle break, exhausted chain.
         if (remaining > 0) {
             let _ = await mintWithEffects(house(), remaining, "cascade-residual-" # eventId);
+        };
+    };
+
+    /// Like distributeDeductiveCascade but funded by transfers FROM the
+    /// source's chip subaccount (no minting). Used for the chips-deposit
+    /// kick-up — the depositor's deposited PP funds the upline payouts so
+    /// the cascade is a real economic cost to the depositor, not free PP
+    /// inflation. Per-upline mint effects (PP Booster Aura, Mint Tax Siphon,
+    /// Cascade Boost) are intentionally NOT applied here: those effects
+    /// belong to mint cascades, not redistributed deposit tax.
+    ///
+    /// Caller is responsible for ensuring `cascadeUnits` is already sitting
+    /// in `sourceUser`'s chip subaccount before invoking (i.e. call AFTER a
+    /// successful transfer_from of the full deposit amount).
+    func distributeCascadeFromChips(sourceUser : Principal, cascadeUnits : Nat, eventId : Text) : async () {
+        if (cascadeUnits == 0) return;
+
+        var remaining : Nat = cascadeUnits;
+        var visited = principalMap.empty<()>();
+        visited := principalMap.put(visited, sourceUser, ());
+
+        var depth : Nat = 0;
+        var activeRank : Nat = 0;
+        var current : Principal = sourceUser;
+
+        label walk loop {
+            if (remaining == 0 or depth >= CASCADE_DEPTH_CAP) { break walk };
+
+            let next = getPayoutTarget(current);
+            switch (principalMap.get(visited, next)) {
+                case (?_) { break walk };
+                case (null) {};
+            };
+            visited := principalMap.put(visited, next, ());
+            depth += 1;
+
+            if (not isActive(next)) { current := next; continue walk };
+
+            activeRank += 1;
+            let payout = remaining * mintConfig.cascadePassthroughBps / 10_000;
+            if (payout == 0) { break walk };
+
+            try {
+                let res = await ppLedger.icrc1_transfer({
+                    from_subaccount = ?Subaccount.principalToChipSubaccount(sourceUser);
+                    to = {
+                        owner = Principal.fromActor(Self);
+                        subaccount = ?Subaccount.principalToChipSubaccount(next);
+                    };
+                    amount = payout;
+                    fee = ?0;
+                    memo = ?Text.encodeUtf8("kickup-A" # Nat.toText(activeRank) # "-" # eventId);
+                    created_at_time = ?nowNat64();
+                });
+                switch (res) {
+                    case (#Ok(_)) {
+                        knownPpHolders := principalMap.put(knownPpHolders, next, true);
+                        if (activeRank <= 3) { bumpReferralEarnings(next, activeRank, payout) };
+                        maybeEmitRankUp(next);
+                        remaining -= payout;
+                    };
+                    case (#Err(_)) {
+                        // Transfer failed (e.g. TemporarilyUnavailable). Leave
+                        // remaining intact so the residual sweep picks it up.
+                    };
+                };
+            } catch (_) {
+                // ppLedger call failed — same handling as #Err above.
+            };
+
+            current := next;
+        };
+
+        // Residual: covers depth cap, cycle break, exhausted chain, and any
+        // failed leg payouts. Transfer from source's chips to house's chips.
+        if (remaining > 0) {
+            try {
+                let _ = await ppLedger.icrc1_transfer({
+                    from_subaccount = ?Subaccount.principalToChipSubaccount(sourceUser);
+                    to = {
+                        owner = Principal.fromActor(Self);
+                        subaccount = ?Subaccount.principalToChipSubaccount(house());
+                    };
+                    amount = remaining;
+                    fee = ?0;
+                    memo = ?Text.encodeUtf8("kickup-residual-" # eventId);
+                    created_at_time = ?nowNat64();
+                });
+            } catch (_) {
+                // Residual failed too — sourceUser keeps the difference. Safe
+                // failure mode (conservative for the depositor).
+            };
         };
     };
 

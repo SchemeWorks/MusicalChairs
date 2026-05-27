@@ -310,6 +310,7 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getChimeSound' : IDL.Func([IDL.Text], [IDL.Opt(ChimeSound)], ['query']),
+    'getChipsTaxCredit' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getCurrentPin' : IDL.Func([], [IDL.Opt(ChatItem)], ['query']),
     'getCustomDisplayName' : IDL.Func(
         [IDL.Principal],

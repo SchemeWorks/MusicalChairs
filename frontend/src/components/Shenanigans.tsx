@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
 import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
+import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
@@ -11,6 +12,8 @@ import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, Arrow
 import HallOfFameRail from './hall-of-fame/HallOfFameRail';
 import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
 import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
+import BuyPPWidget from './Shenanigans/BuyPPWidget';
+import BuyPPFab from './Shenanigans/BuyPPFab';
 import GuardrailsTooltip from './Shenanigans/GuardrailsTooltip';
 import TargetPicker from './TargetPicker';
 import WhitelistedFanfare from './WhitelistedFanfare';
@@ -250,7 +253,10 @@ export default function Shenanigans() {
     ppDelta?: number;                  // PP units / 10^8 — display-ready number
     targetPrincipalText?: string | null;
     affectedCount?: number;
+    errorKind?: ErrorKind;             // populated when outcome === 'error'; drives contextual CTAs
+    errorRaw?: string;                 // raw error blob behind a Details disclosure
   } | null>(null);
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [renamePrompt, setRenamePrompt] = useState<{ targetPrincipal: string } | null>(null);
   const [renameInput, setRenameInput] = useState('');
   const setRenameName = useSetPendingRenameName();
@@ -344,15 +350,26 @@ export default function Shenanigans() {
     name: string,
     icon: React.ReactNode,
   ) => {
-    // Pre-cast gate = costSuccess (the minimum the caster commits to paying).
-    // A worse outcome may charge more; if they can't afford it the backend
-    // clamps the burn to balance and zeros them out — no trap.
-    if ((ponziData?.totalPoints || 0) < costSuccess) {
+    // Pre-cast gate = costSuccess against SIDE-POCKET balance (not total).
+    // The side pocket is the spendable bucket for shenanigans; wallet PP
+    // requires a deposit step first. If the side pocket is short but wallet
+    // PP would cover it, the toast gets an insufficient_chips errorKind
+    // which renders the "Deposit PP →" CTA — mirroring the runtime trap
+    // path so the UX is consistent whether the gate catches it here or on
+    // the backend. (errorKind name retained because backend trap message
+    // still uses "chips" — see errorMessages.ts.)
+    const chips = ponziData?.chipPoints || 0;
+    const wallet = ponziData?.walletPoints || 0;
+    if (chips < costSuccess) {
+      const canTopUp = chips + wallet >= costSuccess;
       setOutcomeToast({
         name,
         outcome: 'error',
-        flavor: `Insufficient PP. Need ${costSuccess}, have ${(ponziData?.totalPoints || 0).toLocaleString()}.`,
+        flavor: canTopUp
+          ? `Need ${costSuccess.toLocaleString()} in side pocket. You have ${chips.toLocaleString()} in side pocket and ${wallet.toLocaleString()} in wallet — deposit some to play.`
+          : `Need ${costSuccess.toLocaleString()} PP. You have ${(chips + wallet).toLocaleString()} total.`,
         cost: 0,
+        errorKind: canTopUp ? 'insufficient_chips' : undefined,
       });
       return;
     }
@@ -433,15 +450,24 @@ export default function Shenanigans() {
         }
         setAnimatingTrick(null);
       }, 1500);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      // Trap errors come back as a wall of IC debug text. prettifyCanisterError
+      // pulls out the actual trap message and classifies known patterns so the
+      // toast can show a contextual CTA (e.g. "Deposit PP →" for insufficient_chips).
+      const pretty = prettifyCanisterError(error);
+      // The cast trapped — NO PP was deducted. Setting cost to 0 prevents the
+      // toast from showing the misleading "X PP spent" line. (Previously we
+      // showed selectedShenanigan.costSuccess here, which was actively wrong
+      // and confused users into thinking they'd been charged for a failed cast.)
       setOutcomeToast({
         name: selectedShenanigan.name,
         outcome: 'error',
-        flavor: error.message || 'Something went wrong. The PP is still gone.',
-        // Cost on error path is unknown (trap before outcome roll) — show
-        // the upfront commitment so the toast still has a number.
-        cost: selectedShenanigan.costSuccess,
+        flavor: pretty.message,
+        cost: 0,
+        errorKind: pretty.kind,
+        errorRaw: pretty.raw,
       });
+      setShowErrorDetails(false);
       setAnimatingTrick(null);
     }
   };
@@ -460,7 +486,13 @@ export default function Shenanigans() {
 
   if (statsLoading || recentLoading || configsLoading || ponziLoading) return <LoadingSpinner />;
 
-  const userPoints = ponziData?.totalPoints || 0;
+  // Side pocket vs wallet PP — only side-pocket PP can be spent on
+  // shenanigans. Wallet PP must be deposited first (Bank → BridgeCard, or
+  // BuyPP widget's post-buy prompt). Comparing against totalPoints was the
+  // legacy bug that caused the "Insufficient chips" trap to surface as a
+  // wall-of-text error.
+  const userChips = ponziData?.chipPoints || 0;
+  const userWallet = ponziData?.walletPoints || 0;
 
   return (
     <div className="space-y-6">
@@ -530,7 +562,7 @@ export default function Shenanigans() {
                 const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
                 const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
                 const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
+                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
                 return (
                   <div
                     key={`shenanigan-${idx}`}
@@ -608,9 +640,22 @@ export default function Shenanigans() {
                         <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
                       ) : shieldFull ? 'Shield full'
                         : onCooldown ? `Cooldown — ${minutesLeft}m`
-                        : userPoints < trick.costSuccess ? `Need ${trick.costSuccess} PP`
+                        : userChips < trick.costSuccess ? (userChips + userWallet >= trick.costSuccess ? `Need ${trick.costSuccess} in side pocket` : `Need ${trick.costSuccess} PP`)
                         : `Cast (${trick.costSuccess} PP)`}
                     </button>
+                    {/* Per-card top-up pill — shown only when the side
+                        pocket is short but wallet PP would cover the cast.
+                        Clicking jumps to the Bank page where the bridge +
+                        BuyPP widget live. */}
+                    {!onCooldown && !shieldFull && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
+                      <button
+                        type="button"
+                        onClick={() => { window.location.hash = '#side-pocket'; }}
+                        className="mc-shenanigan-topup-pill"
+                      >
+                        Top up {(trick.costSuccess - userChips).toLocaleString()} PP →
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -625,7 +670,7 @@ export default function Shenanigans() {
                 const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
                 const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
                 const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
-                const isDisabled = castShenanigan.isPending || userPoints < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
+                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
                 return (
                   <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
                     <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
@@ -642,6 +687,16 @@ export default function Shenanigans() {
                       {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
                     </span>
                     <span className="text-xs mc-text-dim">{trick.odds.success}% win</span>
+                    {!onCooldown && !shieldFull && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
+                      <button
+                        type="button"
+                        onClick={() => { window.location.hash = '#side-pocket'; }}
+                        className="mc-shenanigan-topup-pill mc-shenanigan-topup-pill-compact"
+                        title={`Need ${(trick.costSuccess - userChips).toLocaleString()} more in side pocket`}
+                      >
+                        Top up →
+                      </button>
+                    )}
                     <button
                       onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.costSuccess, trick.costFailure, trick.costBackfire, trick.name, trick.icon)}
                       disabled={isDisabled}
@@ -673,9 +728,10 @@ export default function Shenanigans() {
 
         </div>
 
-        {/* Right column (desktop): HoF rail + Live Feed — sticky via .mc-shenanigans-sidebar */}
+        {/* Right column (desktop): HoF rail + Buy PP widget + Live Feed — sticky via .mc-shenanigans-sidebar */}
         <div className="mc-shenanigans-sidebar space-y-4">
           <HallOfFameRail />
+          <BuyPPWidget />
           <LiveFeedPanel
             records={recentShenanigans ?? []}
             resolveSpell={(s) => {
@@ -685,6 +741,9 @@ export default function Shenanigans() {
           />
         </div>
       </div>
+
+      {/* Mobile-only: Buy PP FAB (bottom-left, mirrors trollbox). Hidden on lg+. */}
+      <BuyPPFab />
 
       {/* Mobile-only Live Feed: collapsed by default. Hidden on lg+. */}
       <div className="block lg:hidden">
@@ -798,15 +857,49 @@ export default function Shenanigans() {
                 }
                 return null;
               })()}
-              {outcomeToast.cost > 0 && (
+              {outcomeToast.cost > 0 && outcomeToast.outcome !== 'error' && (
                 <p className="text-xs mc-text-muted mb-3">{outcomeToast.cost} PP spent</p>
               )}
-              <button
-                onClick={() => setOutcomeToast(null)}
-                className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
-              >
-                Noted
-              </button>
+              {outcomeToast.outcome === 'error' && outcomeToast.errorKind === 'insufficient_chips' && (
+                <p className="text-xs mc-text-muted mb-3">
+                  Your PP needs to be deposited into your side pocket before you can cast.
+                </p>
+              )}
+              {outcomeToast.outcome === 'error' && (
+                <div className="text-xs mb-3">
+                  <button
+                    type="button"
+                    onClick={() => setShowErrorDetails(v => !v)}
+                    className="mc-text-muted underline hover:mc-text-dim"
+                  >
+                    {showErrorDetails ? 'Hide details' : 'Show details'}
+                  </button>
+                  {showErrorDetails && outcomeToast.errorRaw && (
+                    <pre className="mt-2 p-2 rounded bg-black/40 text-[10px] mc-text-muted text-left overflow-auto max-h-32 whitespace-pre-wrap break-words">
+                      {outcomeToast.errorRaw}
+                    </pre>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center justify-center gap-2 flex-wrap">
+                {outcomeToast.outcome === 'error' && outcomeToast.errorKind === 'insufficient_chips' && (
+                  <button
+                    onClick={() => {
+                      setOutcomeToast(null);
+                      window.location.hash = '#side-pocket';
+                    }}
+                    className="mc-btn-primary px-5 py-2 rounded-full text-sm"
+                  >
+                    Deposit PP →
+                  </button>
+                )}
+                <button
+                  onClick={() => setOutcomeToast(null)}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+                >
+                  {outcomeToast.outcome === 'error' ? 'Close' : 'Noted'}
+                </button>
+              </div>
             </div>
           </div>
         </>
