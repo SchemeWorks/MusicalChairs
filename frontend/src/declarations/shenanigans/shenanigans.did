@@ -27,8 +27,11 @@ type ShenaniganType =
  variant {
    aoeSkim;
    bearRaid;
+   confettiCannon;
+   customTitle;
    downlineBoost;
    downlineHeist;
+   echo;
    foundersRound;
    goldenName;
    insiderTip;
@@ -42,6 +45,7 @@ type ShenaniganType =
    stimulusCheck;
    strategicReserve;
    tenderOffer;
+   voiceOfGod;
    whaleRebalance;
  };
 type ShenaniganStats = 
@@ -389,9 +393,16 @@ service : {
   /// this to show "Tax-free deposit available: X PP" in the bank UI so
   /// users can predict the cascade impact before depositing.
   getChipsTaxCredit: (user: principal) -> (nat) query;
+  /// Confetti Cannon status for `p`. Returns deadline while active, null otherwise.
+  getConfettiCannonStatus: (p: principal) -> (opt int) query;
   getCurrentPin: () -> (opt ChatItem) query;
   /// Active rename-spell name for `user`, if any. Expired entries return null.
   getCustomDisplayName: (user: principal) -> (opt text) query;
+  /// Returns the active custom title for `p`, if any. Used by the frontend
+  /// to render ⟨Title⟩ inline next to the user's display name.
+  getCustomTitle: (p: principal) -> (opt text) query;
+  /// Echo status for `p`. Returns deadline while active, null otherwise.
+  getEchoStatus: (p: principal) -> (opt int) query;
   /// Returns the hardcoded default lines for a known pool name. Useful for
   /// the admin UI to show "this is what defaults look like" without
   /// duplicating the lists in the frontend.
@@ -431,6 +442,9 @@ service : {
   /// Deterministic on the principal + time-derived nonce; retries on the
   /// astronomically-unlikely collision. Codes are stable once assigned.
   getOrCreateReferralCode: () -> (text);
+  /// Returns the active pending-custom-title slot for the caller, if any.
+  /// Drives the frontend modal that prompts for a title post-success.
+  getPendingCustomTitleForCaller: () -> (opt record {expiresAt: int;}) query;
   /// Returns the active pending-rename slot for the caller, if any.
   /// Drives the frontend modal that prompts for a name post-success.
   getPendingRenameForCaller: () ->
@@ -490,6 +504,9 @@ service : {
   /// Returns the principal's user-set display name, if any. Public —
   /// frontend uses this to render names on profiles, feed, etc.
   getUserDisplayName: (p: principal) -> (opt text) query;
+  /// Voice of God status for `p`. Returns deadline (ns since epoch) while
+  /// active, null otherwise. Frontend uses to apply special chat styling.
+  getVoiceOfGodStatus: (p: principal) -> (opt int) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
    (ConsentMessageResponse);
@@ -566,6 +583,12 @@ service : {
   setCashOutDelaySeconds: (v: nat) -> ();
   setCompounding15DayPpPerIcp: (v: nat) -> ();
   setCompounding30DayPpPerIcp: (v: nat) -> ();
+  /// Caller commits their custom title string into the active-title map.
+  /// Must be called within 5 minutes of a successful #customTitle cast.
+  setCustomTitle: (title: text) -> (variant {
+                                      Err: text;
+                                      Ok;
+                                    });
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
   /// Set the caller's preferred display name. Used by effectiveDisplayName

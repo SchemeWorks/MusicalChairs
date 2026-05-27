@@ -12,6 +12,7 @@ const SHEN_VARIANT_ORDER = [
   'magicMirror', 'ppBoosterAura', 'purseCutter', 'whaleRebalance', 'downlineBoost', 'goldenName',
   'tenderOffer', 'stimulusCheck', 'bearRaid',
   'foundersRound', 'strategicReserve', 'slushFund', 'insiderTip',
+  'voiceOfGod', 'customTitle', 'echo', 'confettiCannon',
 ] as const;
 
 const variantKey = (v: unknown): string =>

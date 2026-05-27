@@ -34,6 +34,10 @@ export const ShenaniganType = {
   strategicReserve: { strategicReserve: null } as ShenaniganTypeT,
   slushFund: { slushFund: null } as ShenaniganTypeT,
   insiderTip: { insiderTip: null } as ShenaniganTypeT,
+  voiceOfGod: { voiceOfGod: null } as ShenaniganTypeT,
+  customTitle: { customTitle: null } as ShenaniganTypeT,
+  echo: { echo: null } as ShenaniganTypeT,
+  confettiCannon: { confettiCannon: null } as ShenaniganTypeT,
 };
 
 export type ShenaniganOutcome = ShenaniganOutcomeT;

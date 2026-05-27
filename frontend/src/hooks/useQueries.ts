@@ -886,6 +886,111 @@ export function useGetStrategicReserveStatus(principal: Principal | null) {
   });
 }
 
+/// Voice of God status for a principal. Returns deadline (ns as bigint) while
+/// active, null when inactive. Polled every 30s — cosmetic only.
+export function useGetVoiceOfGodStatus(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<bigint | null>({
+    queryKey: ['shenanigans', 'voiceOfGodStatus', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const result = await actor.getVoiceOfGodStatus(principal);
+      return result.length === 0 ? null : result[0] as bigint;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
+/// Active custom title for a principal. Returns the title text while active,
+/// null when none or expired. Polled every 30s — cosmetic only.
+export function useGetCustomTitle(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<string | null>({
+    queryKey: ['shenanigans', 'customTitle', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const result = await actor.getCustomTitle(principal);
+      return result.length === 0 ? null : result[0] ?? null;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
+/// Caller's pending custom-title slot (5-min window after a successful cast).
+/// Returns { expiresAt } while a slot is live, null otherwise.
+export function useGetPendingCustomTitleForCaller() {
+  const { actor } = useShenaniganActor();
+  const { principal } = useWallet();
+  return useQuery<{ expiresAt: bigint } | null>({
+    queryKey: ['shenanigans', 'pendingCustomTitle', principal],
+    queryFn: async () => {
+      if (!actor) return null;
+      const result = await actor.getPendingCustomTitleForCaller();
+      if (result.length === 0) return null;
+      return result[0] ?? null;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
+/// Commit a custom title string into the caller's pending slot.
+export function useSetCustomTitle() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (title: string) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      const result = await actor.setCustomTitle(title);
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.setQueriesData({ queryKey: ['shenanigans', 'pendingCustomTitle'] }, null);
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingCustomTitle'] });
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'customTitle'] });
+    },
+  });
+}
+
+/// Echo status for a principal. Returns deadline (ns as bigint) while active,
+/// null when inactive. Polled every 30s.
+export function useGetEchoStatus(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<bigint | null>({
+    queryKey: ['shenanigans', 'echoStatus', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const result = await actor.getEchoStatus(principal);
+      return result.length === 0 ? null : result[0] as bigint;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
+/// Confetti Cannon status for a principal. Returns deadline (ns as bigint)
+/// while active, null when inactive. Polled every 30s.
+export function useGetConfettiCannonStatus(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<bigint | null>({
+    queryKey: ['shenanigans', 'confettiCannonStatus', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const result = await actor.getConfettiCannonStatus(principal);
+      return result.length === 0 ? null : result[0] as bigint;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useUpdateShenaniganConfig() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();

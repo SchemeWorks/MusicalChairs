@@ -11,15 +11,19 @@ export const idlFactory = ({ IDL }) => {
     'goldenName' : IDL.Null,
     'stimulusCheck' : IDL.Null,
     'whaleRebalance' : IDL.Null,
+    'echo' : IDL.Null,
     'downlineBoost' : IDL.Null,
     'moneyTrickster' : IDL.Null,
+    'confettiCannon' : IDL.Null,
     'mintTaxSiphon' : IDL.Null,
     'aoeSkim' : IDL.Null,
+    'customTitle' : IDL.Null,
     'magicMirror' : IDL.Null,
     'insiderTip' : IDL.Null,
     'downlineHeist' : IDL.Null,
     'renameSpell' : IDL.Null,
     'purseCutter' : IDL.Null,
+    'voiceOfGod' : IDL.Null,
     'foundersRound' : IDL.Null,
     'strategicReserve' : IDL.Null,
     'bearRaid' : IDL.Null,
@@ -331,12 +335,23 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getChimeSound' : IDL.Func([IDL.Text], [IDL.Opt(ChimeSound)], ['query']),
     'getChipsTaxCredit' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
+    'getConfettiCannonStatus' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Int)],
+        ['query'],
+      ),
     'getCurrentPin' : IDL.Func([], [IDL.Opt(ChatItem)], ['query']),
     'getCustomDisplayName' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Text)],
         ['query'],
       ),
+    'getCustomTitle' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getEchoStatus' : IDL.Func([IDL.Principal], [IDL.Opt(IDL.Int)], ['query']),
     'getFlavorPoolDefaults' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(IDL.Text)],
@@ -372,6 +387,11 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getOrCreateReferralCode' : IDL.Func([], [IDL.Text], []),
+    'getPendingCustomTitleForCaller' : IDL.Func(
+        [],
+        [IDL.Opt(IDL.Record({ 'expiresAt' : IDL.Int }))],
+        ['query'],
+      ),
     'getPendingRenameForCaller' : IDL.Func(
         [],
         [
@@ -439,6 +459,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(IDL.Text)],
         ['query'],
       ),
+    'getVoiceOfGodStatus' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Int)],
+        ['query'],
+      ),
     'icrc10_supported_standards' : IDL.Func(
         [],
         [IDL.Vec(StandardRecord)],
@@ -503,6 +528,11 @@ export const idlFactory = ({ IDL }) => {
     'setCashOutDelaySeconds' : IDL.Func([IDL.Nat], [], []),
     'setCompounding15DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setCustomTitle' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setMyDisplayName' : IDL.Func(

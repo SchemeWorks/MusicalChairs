@@ -195,15 +195,19 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'goldenName' : null } |
   { 'stimulusCheck' : null } |
   { 'whaleRebalance' : null } |
+  { 'echo' : null } |
   { 'downlineBoost' : null } |
   { 'moneyTrickster' : null } |
+  { 'confettiCannon' : null } |
   { 'mintTaxSiphon' : null } |
   { 'aoeSkim' : null } |
+  { 'customTitle' : null } |
   { 'magicMirror' : null } |
   { 'insiderTip' : null } |
   { 'downlineHeist' : null } |
   { 'renameSpell' : null } |
   { 'purseCutter' : null } |
+  { 'voiceOfGod' : null } |
   { 'foundersRound' : null } |
   { 'strategicReserve' : null } |
   { 'bearRaid' : null } |
@@ -357,11 +361,24 @@ export interface _SERVICE {
    * / users can predict the cascade impact before depositing.
    */
   'getChipsTaxCredit' : ActorMethod<[Principal], bigint>,
+  /**
+   * / Confetti Cannon status for `p`. Returns deadline while active, null otherwise.
+   */
+  'getConfettiCannonStatus' : ActorMethod<[Principal], [] | [bigint]>,
   'getCurrentPin' : ActorMethod<[], [] | [ChatItem]>,
   /**
    * / Active rename-spell name for `user`, if any. Expired entries return null.
    */
   'getCustomDisplayName' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Returns the active custom title for `p`, if any. Used by the frontend
+   * / to render ⟨Title⟩ inline next to the user's display name.
+   */
+  'getCustomTitle' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Echo status for `p`. Returns deadline while active, null otherwise.
+   */
+  'getEchoStatus' : ActorMethod<[Principal], [] | [bigint]>,
   /**
    * / Returns the hardcoded default lines for a known pool name. Useful for
    * / the admin UI to show "this is what defaults look like" without
@@ -411,6 +428,14 @@ export interface _SERVICE {
    * / astronomically-unlikely collision. Codes are stable once assigned.
    */
   'getOrCreateReferralCode' : ActorMethod<[], string>,
+  /**
+   * / Returns the active pending-custom-title slot for the caller, if any.
+   * / Drives the frontend modal that prompts for a title post-success.
+   */
+  'getPendingCustomTitleForCaller' : ActorMethod<
+    [],
+    [] | [{ 'expiresAt' : bigint }]
+  >,
   /**
    * / Returns the active pending-rename slot for the caller, if any.
    * / Drives the frontend modal that prompts for a name post-success.
@@ -476,6 +501,11 @@ export interface _SERVICE {
    * / frontend uses this to render names on profiles, feed, etc.
    */
   'getUserDisplayName' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Voice of God status for `p`. Returns deadline (ns since epoch) while
+   * / active, null otherwise. Frontend uses to apply special chat styling.
+   */
+  'getVoiceOfGodStatus' : ActorMethod<[Principal], [] | [bigint]>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
@@ -571,6 +601,15 @@ export interface _SERVICE {
   'setCashOutDelaySeconds' : ActorMethod<[bigint], undefined>,
   'setCompounding15DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setCompounding30DayPpPerIcp' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Caller commits their custom title string into the active-title map.
+   * / Must be called within 5 minutes of a successful #customTitle cast.
+   */
+  'setCustomTitle' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   /**

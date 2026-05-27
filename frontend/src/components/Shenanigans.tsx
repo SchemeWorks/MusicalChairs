@@ -2,13 +2,13 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects, useSetCustomTitle, useGetPendingCustomTitleForCaller, useGetConfettiCannonStatus } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
 import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
-import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, TrendingDown, Sparkles, Dices, DollarSign, LayoutGrid, List, Briefcase, Crown, Gift, Lightbulb } from 'lucide-react';
+import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, TrendingDown, Sparkles, Dices, DollarSign, LayoutGrid, List, Briefcase, Crown, Gift, Lightbulb, Megaphone, BadgeCheck, Quote, PartyPopper } from 'lucide-react';
 import HallOfFameRail from './hall-of-fame/HallOfFameRail';
 import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
 import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
@@ -19,6 +19,8 @@ import TargetPicker from './TargetPicker';
 import WhitelistedFanfare from './WhitelistedFanfare';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
+import { triggerConfetti } from './ConfettiCanvas';
+import { useWallet } from '../hooks/useWallet';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
@@ -61,6 +63,8 @@ const shenaniganIcons: Record<number, React.ReactNode> = {
   12: <DollarSign className="h-5 w-5" />, 13: <TrendingDown className="h-5 w-5" />,
   14: <Briefcase className="h-5 w-5" />, 15: <Crown className="h-5 w-5" />,
   16: <Gift className="h-5 w-5" />, 17: <Lightbulb className="h-5 w-5" />,
+  18: <Megaphone className="h-5 w-5" />, 19: <BadgeCheck className="h-5 w-5" />,
+  20: <Quote className="h-5 w-5" />, 21: <PartyPopper className="h-5 w-5" />,
 };
 
 const shenaniganTypes: ShenaniganType[] = [
@@ -71,6 +75,8 @@ const shenaniganTypes: ShenaniganType[] = [
   ShenaniganType.stimulusCheck, ShenaniganType.bearRaid,
   ShenaniganType.foundersRound, ShenaniganType.strategicReserve,
   ShenaniganType.slushFund, ShenaniganType.insiderTip,
+  ShenaniganType.voiceOfGod, ShenaniganType.customTitle,
+  ShenaniganType.echo, ShenaniganType.confettiCannon,
 ];
 
 // Dark-themed aura colors for each shenanigan
@@ -93,6 +99,10 @@ const auraColors: Record<number, string> = {
   15: 'rgba(180, 120, 255, 0.3)',   // light purple (Strategic Reserve #e6d4ff)
   16: 'rgba(100, 220, 100, 0.3)',   // light green (Slush Fund #e6ffd9)
   17: 'rgba(80, 230, 130, 0.3)',    // lighter green (Insider Tip #d9ffe6)
+  18: 'rgba(255, 220, 100, 0.3)',   // warm gold (Voice of God #fff4d6)
+  19: 'rgba(130, 130, 255, 0.3)',   // soft blue-purple (Custom Title #e6e6ff)
+  20: 'rgba(200, 120, 255, 0.3)',   // soft purple (Echo #f0d6ff)
+  21: 'rgba(255, 140, 160, 0.3)',   // soft pink (Confetti Cannon #ffe6ec)
 };
 
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
@@ -244,6 +254,9 @@ export default function Shenanigans() {
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const { data: cooldownsRaw } = useGetSpellCooldowns();
   const { data: activeEffects } = useGetActiveSpellEffects();
+  const { principal } = useWallet();
+  const callerPrincipal = principal ? (() => { try { return Principal.fromText(principal); } catch { return null; } })() : null;
+  const { data: confettiCannonDeadlineNs } = useGetConfettiCannonStatus(callerPrincipal);
   const castShenanigan = useCastShenanigan();
   const queryClient = useQueryClient();
   const successFlavor = useSpellFlavorPool('spellFlavor.success');
@@ -277,6 +290,11 @@ export default function Shenanigans() {
   const cancelRenameName = useCancelPendingRename();
   const rerollRename = useRerollPendingRename();
   const { data: pendingRename } = useGetPendingRenameForCaller();
+  const [customTitlePrompt, setCustomTitlePrompt] = useState(false);
+  const [customTitleInput, setCustomTitleInput] = useState('');
+  const [customTitleInputError, setCustomTitleInputError] = useState('');
+  const setCustomTitleMutation = useSetCustomTitle();
+  const { data: pendingCustomTitle } = useGetPendingCustomTitleForCaller();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
 
   // If the user cast Rename, navigated away, then came back within 5 minutes,
@@ -287,6 +305,13 @@ export default function Shenanigans() {
       setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
     }
   }, [pendingRename, renamePrompt]);
+
+  // Same pattern for Custom Title — reopen if navigated away mid-window.
+  useEffect(() => {
+    if (pendingCustomTitle && !customTitlePrompt) {
+      setCustomTitlePrompt(true);
+    }
+  }, [pendingCustomTitle, customTitlePrompt]);
 
   // Toast when the player's Poison Pill shield absorbs an incoming attack.
   // Detects this by watching chargesRemaining via the 10s active-effects poll
@@ -428,10 +453,15 @@ export default function Shenanigans() {
       // waiting for the 30s poll.
       if (outcome === 'success') {
         queryClient.invalidateQueries({ queryKey: ['spellCooldowns'] });
+        // Fire confetti if the caster has an active Confetti Cannon buff.
+        const cannonActive = confettiCannonDeadlineNs !== null && confettiCannonDeadlineNs !== undefined
+          && Number(confettiCannonDeadlineNs) / 1_000_000 > Date.now();
+        if (cannonActive) triggerConfetti();
       }
       setTimeout(() => {
         const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
         const isWhitelistedSuccess = outcome === 'success' && selectedShenanigan.id === 10 /* goldenName */;
+        const isCustomTitleSuccess = outcome === 'success' && selectedShenanigan.id === 19 /* customTitle */;
         const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
           ? detail.affectedTarget[0]?.toText() ?? null
           : null;
@@ -442,6 +472,12 @@ export default function Shenanigans() {
           setRenameInput('');
           setRenameInputError('');
           setRenamePrompt({ targetPrincipal: targetPrincipalText });
+        } else if (isCustomTitleSuccess) {
+          // Skip the generic toast — the Custom Title modal is the success
+          // affirmation. The player must commit their title within 5 minutes.
+          setCustomTitleInput('');
+          setCustomTitleInputError('');
+          setCustomTitlePrompt(true);
         } else if (isWhitelistedSuccess) {
           // Skip the success toast — the fanfare card IS the affirmation,
           // and stacking the small green toast under a confetti overlay
@@ -849,6 +885,18 @@ export default function Shenanigans() {
                   if (id === 17) { // insiderTip — target gets +10% mint rate
                     return <p className="text-xs mc-text-green mb-3">{target}'s mint rate just jumped +10% for 12h. They're going to be insufferable.</p>;
                   }
+                  if (id === 18) { // voiceOfGod — bolder chat posts for 6h
+                    return <p className="text-xs mc-text-green mb-3">Voice of God active for 6h. Your posts carry institutional authority now. Try not to abuse it.</p>;
+                  }
+                  if (id === 19) { // customTitle — modal handles the affirmation; this branch is unreachable but kept for safety
+                    return <p className="text-xs mc-text-green mb-3">Title slot secured. You have 5 minutes to choose your designation.</p>;
+                  }
+                  if (id === 20) { // echo — Reginald footnotes on posts for 6h
+                    return <p className="text-xs mc-text-green mb-3">Echo active for 6h. Reginald will be appending editorial commentary to your contributions. He has opinions.</p>;
+                  }
+                  if (id === 21) { // confettiCannon — confetti on successful casts for 24h
+                    return <p className="text-xs mc-text-green mb-3">Confetti Cannon loaded. Your next 24h of successful casts will be appropriately celebrated.</p>;
+                  }
                   // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
                   if (d > 0 && cnt > 1)  return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {cnt} players.</p>;
@@ -907,6 +955,18 @@ export default function Shenanigans() {
                   if (id === 17) { // insiderTip — SEC settlement, d < 0 burn
                     return <p className="text-xs mc-text-purple mb-3">Whisper got out. SEC settlement, no admission of wrongdoing. -50 PP.</p>;
                   }
+                  if (id === 18) { // voiceOfGod — cost burn, no effect
+                    return <p className="text-xs mc-text-purple mb-3">Voice of God went to voicemail. PP burned, pulpit empty.</p>;
+                  }
+                  if (id === 19) { // customTitle — cost burn, no slot opened
+                    return <p className="text-xs mc-text-purple mb-3">Title application returned to sender. HR says the form was incomplete.</p>;
+                  }
+                  if (id === 20) { // echo — cost burn, no effect
+                    return <p className="text-xs mc-text-purple mb-3">Echo chamber collapsed inward. Reginald is fine. You are not.</p>;
+                  }
+                  if (id === 21) { // confettiCannon — cost burn, no effect
+                    return <p className="text-xs mc-text-purple mb-3">Cannon misfired. Confetti went sideways. PP gone, dignity unclear.</p>;
+                  }
                   // Numeric losses first.
                   if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;
                   if (d < 0 && cnt > 1)   return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {cnt} whales.</p>;
@@ -950,6 +1010,14 @@ export default function Shenanigans() {
                       return <p className="text-xs mc-text-muted mb-3">Downline didn't hear you. Cascade unchanged.</p>;
                     case 10: // goldenName (Whitelisted)
                       return <p className="text-xs mc-text-muted mb-3">Whitelist application rejected. No gold name today.</p>;
+                    case 18: // voiceOfGod
+                      return <p className="text-xs mc-text-muted mb-3">Broadcast signal lost. No voice, no authority, no refund.</p>;
+                    case 19: // customTitle
+                      return <p className="text-xs mc-text-muted mb-3">Title pending review. Rejected. No explanation provided.</p>;
+                    case 20: // echo
+                      return <p className="text-xs mc-text-muted mb-3">Reginald declined to participate. Echo silent.</p>;
+                    case 21: // confettiCannon
+                      return <p className="text-xs mc-text-muted mb-3">Cannon failed inspection. No confetti, no celebration, no refund.</p>;
                     default:
                       return <p className="text-xs mc-text-muted mb-3">Nothing happened. The PP is still gone.</p>;
                   }
@@ -1093,6 +1161,74 @@ export default function Shenanigans() {
                     <p className="text-xs text-red-400 mt-1">{renameInputError}</p>
                   )}
                 </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Custom Title — post-success commit modal */}
+      {customTitlePrompt && (
+        <>
+          <div className="mc-modal-backdrop" aria-hidden="true" />
+          <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
+            <div className="mc-toast text-center max-w-sm">
+              <div className="font-display text-xl mc-text-primary mb-2">
+                Designation Approved.
+              </div>
+              <p className="text-sm mc-text-dim mb-3">
+                Choose a title (1–32 characters). It will appear beside your name in chat for 7 days.
+              </p>
+              <div className="flex flex-col gap-2 items-center w-full">
+                <div className="flex gap-2 w-full">
+                  <input
+                    type="text"
+                    value={customTitleInput}
+                    onChange={(e) => { setCustomTitleInput(e.target.value); setCustomTitleInputError(''); }}
+                    onKeyDown={async (e) => {
+                      if (e.key === 'Enter' && customTitleInput.trim().length > 0 && !setCustomTitleMutation.isPending) {
+                        setCustomTitleInputError('');
+                        try {
+                          await setCustomTitleMutation.mutateAsync(customTitleInput.trim());
+                          setCustomTitlePrompt(false);
+                          setCustomTitleInput('');
+                        } catch (err: any) {
+                          setCustomTitleInputError(err.message || 'Failed to set title');
+                        }
+                      }
+                    }}
+                    maxLength={32}
+                    className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm mc-text-primary"
+                    placeholder="e.g., Chief Visionary Officer"
+                    autoFocus
+                  />
+                  <button
+                    onClick={async () => {
+                      setCustomTitleInputError('');
+                      try {
+                        await setCustomTitleMutation.mutateAsync(customTitleInput.trim());
+                        setCustomTitlePrompt(false);
+                        setCustomTitleInput('');
+                      } catch (err: any) {
+                        setCustomTitleInputError(err.message || 'Failed to set title');
+                      }
+                    }}
+                    disabled={customTitleInput.trim().length === 0 || setCustomTitleMutation.isPending}
+                    className="mc-btn-primary px-4 py-2 rounded-full text-sm whitespace-nowrap"
+                  >
+                    {setCustomTitleMutation.isPending ? 'Filing…' : 'Commit'}
+                  </button>
+                </div>
+                {customTitleInputError && (
+                  <p className="text-xs text-red-400 self-start">{customTitleInputError}</p>
+                )}
+                <button
+                  onClick={() => { setCustomTitlePrompt(false); setCustomTitleInput(''); setCustomTitleInputError(''); }}
+                  disabled={setCustomTitleMutation.isPending}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm w-full"
+                >
+                  Skip (slot expires in 5 min)
+                </button>
               </div>
             </div>
           </div>
