@@ -6,6 +6,7 @@ import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
 import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
 import { oisySigner } from '../lib/oisySigner';
+import { truncateSolanaPubkey } from '../lib/siwsSigner';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
 interface WalletDropdownProps {
@@ -185,7 +186,14 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const userName = userProfile?.name || 'User';
 
   const walletIcon = walletType === 'internet-identity' ? <img src="/ii-logo.svg" alt="II" className="h-4 w-4" /> : walletType === 'plug' ? <img src="/plug-logo.svg" alt="Plug" className="h-4 w-4" /> : walletType === 'oisy' ? <img src="/oisy-logo.svg" alt="OISY" className="h-4 w-4" /> : <CreditCard className="h-4 w-4 mc-text-muted" />;
-  const walletName = walletType === 'internet-identity' ? 'Internet Identity' : walletType === 'plug' ? 'Plug' : walletType === 'oisy' ? 'OISY' : 'Wallet';
+  const walletName = walletType === 'internet-identity' ? 'Internet Identity' : walletType === 'plug' ? 'Plug' : walletType === 'oisy' ? 'OISY' : walletType === 'siws' ? 'Solana' : 'Wallet';
+
+  // SIWS users see their Solana pubkey alongside the IC principal. The pubkey
+  // is stashed in localStorage by siwsSigner.ts on connect; we read it on each
+  // render rather than threading another field through WalletContextType.
+  const siwsPubkey = walletType === 'siws'
+    ? (typeof window !== 'undefined' ? localStorage.getItem('musical-chairs-siws-pubkey') : null)
+    : null;
 
   // Click outside to close
   useEffect(() => {
@@ -435,6 +443,14 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             {copied ? <Check className="h-3 w-3 mc-text-green" /> : <Copy className="h-3 w-3" />}
           </button>
         </div>
+        {walletType === 'siws' && siwsPubkey && (
+          <div className="mt-3">
+            <div className="mc-label mb-1">Solana Pubkey</div>
+            <div className="mc-card p-2 text-xs mc-text-muted font-mono truncate" title={siwsPubkey}>
+              {truncateSolanaPubkey(siwsPubkey)}
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
