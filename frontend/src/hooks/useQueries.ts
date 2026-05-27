@@ -1260,6 +1260,20 @@ export function useGetTopPonziPointsBurners() {
   });
 }
 
+export function useGetRoundBurnedLeaderboard(roundId?: number, limit = 50) {
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'roundBurnedLeaderboard', roundId, limit],
+    queryFn: async () => {
+      if (!actor) return [] as [Principal, bigint][];
+      const arg: [] | [bigint] = roundId !== undefined ? [BigInt(roundId)] : [];
+      return actor.getRoundBurnedLeaderboard(arg, BigInt(limit));
+    },
+    enabled: !!actor,
+    staleTime: 15_000,
+  });
+}
+
 // Legacy Hall of Fame Query - kept for backward compatibility but deprecated
 export function useGetHallOfFame() {
   const { data: holders } = useGetTopPonziPointsHolders();

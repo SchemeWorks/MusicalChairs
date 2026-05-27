@@ -390,6 +390,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Opt(IDL.Principal)],
         ['query'],
       ),
+    'getRoundBurnedLeaderboard' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        ['query'],
+      ),
     'getShenaniganConfigs' : IDL.Func(
         [],
         [IDL.Vec(ShenaniganConfig)],

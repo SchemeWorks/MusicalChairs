@@ -350,6 +350,7 @@ persistent actor Self {
     type PonziMathActor = actor {
         getAllGames : shared query () -> async [PonziMathGameRecord];
         getBackerPositions : shared query () -> async [PonziMathBackerPosition];
+        getCurrentRoundId : shared query () -> async Nat;
     };
 
     // ================================================================
@@ -551,8 +552,23 @@ persistent actor Self {
     var cashOuts = natMap.empty<CashOutEntry>();
     var nextCashOutId : Nat = 0;
 
+    /// Cached ponzi_math currentRoundId. Refreshed lazily — see
+    /// readCurrentRoundIdCached. Used to bucket per-round burn tallies
+    /// without a sync call on every cast (which would add an async hop
+    /// to every spell). Stale-by-some-seconds is acceptable; the worst
+    /// case is a few burns get bucketed into the previous round if
+    /// ponzi_math reset between refresh cycles.
+    var cachedCurrentRoundId : Nat = 1;
+    var cachedCurrentRoundIdAt : Int = 0; // ns
+
     // Leaderboard (local state — not derived from ledger)
     var ppBurnedPerPlayer = principalMap.empty<Nat>();  // cumulative PP units burned
+    /// Per-round burn tally. Outer key = currentRoundId; inner = player
+    /// → burned PP-units in that round. Updated on every successful
+    /// spell cast alongside the existing lifetime ppBurnedPerPlayer.
+    /// Powers the 'This Round' leaderboard filter.
+    var ppBurnedPerPlayerPerRound = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+
     // spellsCastPerPlayer: cumulative count of #success OR #backfire casts.
     // #fail outcomes are not counted because they had no observable effect.
     var spellsCastPerPlayer = principalMap.empty<Nat>();
@@ -960,6 +976,24 @@ persistent actor Self {
             case (null) { Debug.trap("ponzi_math canister not configured") };
             case (?p) { actor (Principal.toText(p)) : PonziMathActor };
         };
+    };
+
+    /// Returns the ponzi_math currentRoundId, refreshing the cache when
+    /// stale (>30s). Used by per-cast burn-tally bucketing.
+    func readCurrentRoundIdCached() : async Nat {
+        let now = Time.now();
+        let staleNs : Int = 30 * 1_000_000_000;
+        if (now - cachedCurrentRoundIdAt > staleNs) {
+            let ponziMath = getPonziMath();
+            try {
+                let fresh = await ponziMath.getCurrentRoundId();
+                cachedCurrentRoundId := fresh;
+                cachedCurrentRoundIdAt := now;
+            } catch (_) {
+                // Use stale cache on call failure.
+            };
+        };
+        cachedCurrentRoundId;
     };
 
     // ================================================================
@@ -2201,6 +2235,19 @@ persistent actor Self {
             case (?n) { n };
         };
         ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + actualBurnedUnits);
+
+        // Per-round tally — current round only.
+        let currentRound = await readCurrentRoundIdCached();
+        let roundMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppBurnedPerPlayerPerRound, currentRound)) {
+            case (?m) { m };
+            case null { principalMap.empty<Nat>() };
+        };
+        let roundPrior : Nat = switch (principalMap.get(roundMap, caller)) {
+            case (?n) { n };
+            case null { 0 };
+        };
+        let updatedRoundMap = principalMap.put(roundMap, caller, roundPrior + actualBurnedUnits);
+        ppBurnedPerPlayerPerRound := natMap.put(ppBurnedPerPlayerPerRound, currentRound, updatedRoundMap);
 
         // Caster balance after burn — what they have left when effects fire.
         let casterBal : Nat = casterBalPre - actualBurnedUnits;
@@ -3536,6 +3583,19 @@ persistent actor Self {
         };
         ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + burnUnits);
 
+        // Per-round tally for karma burns.
+        let karmaRound = await readCurrentRoundIdCached();
+        let karmaRoundMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppBurnedPerPlayerPerRound, karmaRound)) {
+            case (?m) { m };
+            case null { principalMap.empty<Nat>() };
+        };
+        let karmaRoundPrior : Nat = switch (principalMap.get(karmaRoundMap, caller)) {
+            case (?n) { n };
+            case null { 0 };
+        };
+        let updatedKarmaRoundMap = principalMap.put(karmaRoundMap, caller, karmaRoundPrior + burnUnits);
+        ppBurnedPerPlayerPerRound := natMap.put(ppBurnedPerPlayerPerRound, karmaRound, updatedKarmaRoundMap);
+
         let priorRecv = switch (principalMap.get(karmaReceivedPerPlayer, recipient)) {
             case (null) { 0 };
             case (?n) { n };
@@ -3856,6 +3916,29 @@ persistent actor Self {
         switch (principalMap.get(ppBurnedPerPlayer, user)) {
             case (null) { 0 };
             case (?n) { n };
+        };
+    };
+
+    /// Returns burn totals for the specified round, sorted descending.
+    /// Pass null for the current round. Limit caps the result size.
+    public query func getRoundBurnedLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
+        let target = switch (roundId) {
+            case (?id) { id };
+            case null { cachedCurrentRoundId };
+        };
+        switch (natMap.get(ppBurnedPerPlayerPerRound, target)) {
+            case (null) { [] };
+            case (?roundMap) {
+                let entries = Iter.toArray(principalMap.entries(roundMap));
+                let sorted = Array.sort<(Principal, Nat)>(entries, func(a, b) {
+                    if (b.1 > a.1) { #greater }
+                    else if (b.1 < a.1) { #less }
+                    else { #equal }
+                });
+                if (sorted.size() > limit) {
+                    Array.subArray(sorted, 0, limit)
+                } else { sorted }
+            };
         };
     };
 

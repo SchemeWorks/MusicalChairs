@@ -427,6 +427,14 @@ export interface _SERVICE {
    * / One-hop lookup — returns the user's immediate referrer (L1) or null.
    */
   'getReferrer' : ActorMethod<[Principal], [] | [Principal]>,
+  /**
+   * / Returns burn totals for the specified round, sorted descending.
+   * / Pass null for the current round. Limit caps the result size.
+   */
+  'getRoundBurnedLeaderboard' : ActorMethod<
+    [[] | [bigint], bigint],
+    Array<[Principal, bigint]>
+  >,
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
   'getShenaniganStats' : ActorMethod<[Principal], ShenaniganStats>,
   /**

@@ -442,6 +442,13 @@ service : {
   getReferralStats: (user: principal) -> (ReferralStats) query;
   /// One-hop lookup — returns the user's immediate referrer (L1) or null.
   getReferrer: (user: principal) -> (opt principal) query;
+  /// Returns burn totals for the specified round, sorted descending.
+  /// Pass null for the current round. Limit caps the result size.
+  getRoundBurnedLeaderboard: (roundId: opt nat, limit: nat) ->
+   (vec record {
+          principal;
+          nat;
+        }) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
   getShenaniganStats: (player: principal) -> (ShenaniganStats) query;
   /// Per-(player, spell) live cooldowns for the spell-card UI. Returns

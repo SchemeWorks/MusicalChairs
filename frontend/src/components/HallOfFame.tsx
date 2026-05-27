@@ -1,7 +1,7 @@
 import React from 'react';
 import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
 import { Principal } from '@dfinity/principal';
-import { useGetTopPonziPointsBurners, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
+import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetPonziPoints, useGetKarmaReceived } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
@@ -75,11 +75,27 @@ function LeaderboardRow({
 }
 
 export default function HallOfFame() {
-  const { data: burnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
+  const [filter, setFilter] = React.useState<'all-time' | 'this-round'>('all-time');
+  const { data: allTimeBurnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
+  const { data: roundRaw } = useGetRoundBurnedLeaderboard(undefined, 50);
   const { data: ponziData } = useGetPonziPoints();
   const { principal } = useWallet();
   const { data: karmaUnits } = useGetKarmaReceived(principal ?? undefined);
   const karmaPp = karmaUnits ? Number(karmaUnits / 100_000_000n) : 0;
+
+  // Build this-round entries in the same shape as all-time entries
+  const roundBurnersData = React.useMemo(() => {
+    if (!roundRaw) return [];
+    return roundRaw
+      .filter(([p]) => !isCharles(p.toString()))
+      .map(([p, unitsBig], index) => ({
+        rank: index + 1,
+        ponziPointsBurned: Number(unitsBig / 100_000_000n),
+        principal: p.toString(),
+      }));
+  }, [roundRaw]);
+
+  const burnersData = filter === 'this-round' ? roundBurnersData : allTimeBurnersData;
 
   if (burnersLoading) return <LoadingSpinner />;
 
@@ -91,7 +107,7 @@ export default function HallOfFame() {
     );
   }
 
-  const hasData = burnersData && burnersData.length > 0;
+  const hasData = allTimeBurnersData && allTimeBurnersData.length > 0;
 
   const userPrincipal = principal || '';
   const userBurnerRank = burnersData?.findIndex(e => e.principal === userPrincipal);
@@ -115,14 +131,22 @@ export default function HallOfFame() {
       {/* Time filter toggle */}
       <div className="flex gap-2 justify-center">
         <button
-          disabled
-          title="Coming after next round reset"
-          className="px-4 py-2 rounded-full text-xs font-bold mc-text-muted bg-white/5 border border-white/10 cursor-not-allowed opacity-50"
+          onClick={() => setFilter('this-round')}
+          className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+            filter === 'this-round'
+              ? 'bg-[var(--mc-purple)]/25 mc-text-primary border-[var(--mc-purple)]/30'
+              : 'mc-text-muted bg-white/5 border-white/10 hover:bg-white/10'
+          }`}
         >
           This Round
         </button>
         <button
-          className="px-4 py-2 rounded-full text-xs font-bold bg-[var(--mc-purple)]/25 mc-text-primary border border-[var(--mc-purple)]/30"
+          onClick={() => setFilter('all-time')}
+          className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+            filter === 'all-time'
+              ? 'bg-[var(--mc-purple)]/25 mc-text-primary border-[var(--mc-purple)]/30'
+              : 'mc-text-muted bg-white/5 border-white/10 hover:bg-white/10'
+          }`}
         >
           All Time
         </button>
