@@ -1,7 +1,7 @@
 # Musical Chairs — Solana via Chain Fusion — Design Spec
 
-**Date:** 2026-05-25
-**Status:** Design — implementation pending review.
+**Date:** 2026-05-27 (initial draft 2026-05-25, iterated over 2 days).
+**Status:** Design approved — implementation plan to follow.
 **Supersedes:** [2026-05-23-solana-port-design.md](2026-05-23-solana-port-design.md) (native Anchor program approach, killed by [the 2026-05-23 premortem](2026-05-23-solana-port-premortem.md)).
 
 ## Why this exists
@@ -214,17 +214,34 @@ This is uglier than ICRC-2 approve, but it's the price of native Solana with no 
 
 1. User calls `ponzi_math_sol.withdrawEarnings(gameId)` from the frontend.
 2. Canister computes the payout (same math as `ponzi_math`).
-3. Canister builds a Solana SystemProgram transfer instruction: **from the pool address** to `user.depositAddress` (or a user-specified destination). User can override the destination with any Solana address — useful for withdrawing to a different wallet than the one used to deposit.
-4. Canister signs the tx with `sign_with_schnorr` (algorithm = Ed25519).
+3. Canister builds a Solana tx with two instructions:
+   - `advance_nonce_account` on the canister's durable nonce account (signer: pool address).
+   - SystemProgram::transfer **from the pool address** to `user.depositAddress` (or a user-specified destination).
+4. Canister signs both instructions with `sign_with_schnorr` using the `["pool"]` derivation path (algorithm = Ed25519).
 5. Canister broadcasts via `sol-rpc.sendTransaction`.
 6. Canister updates `Game.totalWithdrawn` only after the tx confirms (returned by `sendTransaction` if it succeeds, or polled via `sol-rpc.getSignatureStatuses` for finality).
 
-**Durable nonces.** `sol-rpc.getLatestBlockhash` doesn't reach IC consensus reliably (per sol-rpc docs — fast-changing response). So we use **durable nonces**:
+### Durable nonce bootstrap
 
-- At canister init, create a Solana nonce account owned by the canister-controlled address.
-- Use that nonce account as the recent blockhash on every outbound tx.
-- Each tx advances the nonce; the canister stores the latest nonce value.
-- This is the standard Solana pattern for off-chain signers that can't query recent blockhashes.
+`sol-rpc.getLatestBlockhash` doesn't reach IC consensus reliably (per sol-rpc docs — fast-changing response), so all routine outbound txs use **durable nonces** instead. The nonce account itself has to be created once with a chicken-and-egg bootstrap.
+
+**One-time admin-callable `bootstrap()` function on `ponzi_math_sol`:**
+
+1. Derive pool address (`sign_with_schnorr.public_key` with derivation path `["pool"]`). Deterministic — no Solana tx, just an IC call.
+2. Verify pool address has been funded by the operator. Required minimum: `~3M lamports` (≈ 0.003 SOL: 2× nonce-account rent-exemption ~1.44M lamports each, with a buffer). The operator's Series A seed deposit goes here too — same address, just adds to it.
+3. Derive nonce account address (derivation path `["nonce"]`).
+4. Build a Solana tx with two instructions:
+   - SystemProgram::createAccount — funder = pool address, new account = nonce account, lamports = rent-exempt minimum, space = 80 bytes, owner = SystemProgram.
+   - SystemProgram::initializeNonceAccount — nonce account = the new account, authority = pool address.
+5. Sign with both `["pool"]` and `["nonce"]` derivation paths via `sign_with_schnorr`.
+6. Fetch a recent blockhash via `sol-rpc.getLatestBlockhash` for this *one* bootstrap tx, retrying on failure since the endpoint is consensus-flaky (try up to 5 times with fresh blockhashes).
+7. Broadcast via `sol-rpc.sendTransaction`.
+8. After confirmation, fetch the initial nonce value via `sol-rpc.getAccountInfo(nonce_account_address)`, store in `lastNonceValue`.
+9. Mark `bootstrapped := true`. Function is idempotent — calling it again after success returns OK without doing anything.
+
+**After bootstrap:** every routine outbound tx prepends `advance_nonce_account` as its first instruction. The canister stores the nonce value advanced after each tx so it always knows the current nonce locally. If consistency is ever lost (e.g. a tx fails after signing but before broadcast), recovery is `sol-rpc.getAccountInfo(nonce_account_address)` to resync.
+
+**Operator flow at deploy:** fund the pool address with at least 0.003 SOL plus your Series A seed → call `bootstrap()` from the admin UI → done. Pool address is shown in the admin UI; QR code provided.
 
 ### State
 
@@ -596,10 +613,14 @@ The premortem's revised plan listed 5 gates. With chain fusion, three become moo
 
 ### Other open items
 
-1. **SIWS provider canister: roll-our-own vs use Kristofer Lund's ic-siws-canister?** The ic-siws library is Rust; we'd either write a Motoko version or accept Rust for this one canister. Recommend Rust + the library to avoid reimplementing Ed25519 verification. Outside the operator's Motoko comfort zone but bounded — it's a thin wrapper around a well-tested library.
+1. **SIWS provider canister — resolved.** Deploy the upstream Rust `ic-siws` canister as-is. Operator confirmed Rust-alongside-Motoko is fine (already true via `pp_ledger` and `internet-identity`). Build tooling: dfx handles Rust canister builds out of the box; just need the `wasm32-unknown-unknown` rustup target installed.
 2. **Mainnet Solana RPC provider behind sol-rpc canister.** `sol-rpc` multiplexes Helius / Triton / QuickNode internally. Confirm which provider is default and the SLA.
 3. **Deposit address QR code design.** Phantom mobile reads standard Solana URL format `solana:<address>?amount=<sol>` — easy. Make sure the QR generator supports the `amount` parameter.
-4. **Cover charge SOL destination.** Separate from ICP cover charge target. Pick a Solana address for the dev treasury; could be a multisig (Squads) later, but a plain user-controlled keypair is fine for V1.
+4. **Cover charge SOL destination — resolved.** Mirrors the existing ICP cover charge flow:
+   - `ponzi_math_sol` accrues cover charge in state field `coverChargeAccrualLamports : Nat64`, incremented on every deposit detection by 4% of the deposited amount. SOL itself sits on the pool address (commingled with pot, same as ICP cover charge commingles with the pot balance on the ICP canister).
+   - `solTreasuryAddress : ?Text` config field on `ponzi_math_sol`, admin-tunable. Set to the operator's personal Phantom address at deploy.
+   - New admin function `payManagementSol() : async Result<Text, Text>` builds a tx: `advance_nonce_account` + SystemProgram::transfer (from pool, to `solTreasuryAddress`, amount = `coverChargeAccrualLamports`). Signs with `["pool"]`. Broadcasts. On confirmation, resets `coverChargeAccrualLamports := 0`. Returns the tx signature.
+   - Admin Wallet widget in the frontend gets a second card mirroring the ICP cover charge card: shows `coverChargeAccrualLamports` from a query, button to sweep, displays the Solana tx signature on success.
 5. **Test admin escape hatches.** `ponzi_math_sol` inherits all of `ponzi_math`'s test admin hatches but parameterized for SOL. Ensure the principals authorized to call them are the operator's.
 6. **Frontend bundling.** Adding `@solana/wallet-adapter` plus dependencies could add ~200KB gzipped to the frontend. Code-split the SIWS path so II-only users don't pay the cost.
 
