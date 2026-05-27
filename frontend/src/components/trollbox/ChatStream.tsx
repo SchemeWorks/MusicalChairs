@@ -63,29 +63,34 @@ export default function ChatStream({ currentUserName, isAdmin }: Props) {
   };
 
   return (
-    <div
-      ref={scrollerRef}
-      onScroll={handleScroll}
-      className="flex-1 overflow-y-auto overscroll-contain"
-    >
-      {[...visible].reverse().map((item) => (
-        <div key={item.id.toString()} className="group relative">
-          <ChatItemRow
-            item={item}
-            currentUserName={currentUserName}
-            isAdmin={isAdmin}
-            onBlock={handleBlock}
-            onReact={(id) => setPicker(id)}
-            onDelete={handleDelete}
-            blocked={blocked}
-          />
-          {picker === item.id && (
-            <div className="absolute right-2 top-2 z-10">
-              <ReactionPicker itemId={item.id} onClose={() => setPicker(null)} />
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
+    <>
+      {picker !== null && (
+        <div className="fixed inset-0 z-[9]" onClick={() => setPicker(null)} aria-hidden="true" />
+      )}
+      <div
+        ref={scrollerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto overscroll-contain"
+      >
+        {[...visible].reverse().map((item) => (
+          <div key={item.id.toString()} className="group relative">
+            <ChatItemRow
+              item={item}
+              currentUserName={currentUserName}
+              isAdmin={isAdmin}
+              onBlock={handleBlock}
+              onReact={(id) => setPicker(id)}
+              onDelete={handleDelete}
+              blocked={blocked}
+            />
+            {picker === item.id && (
+              <div className="absolute right-2 top-2 z-10">
+                <ReactionPicker itemId={item.id} onClose={() => setPicker(null)} />
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </>
   );
 }

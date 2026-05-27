@@ -61,7 +61,9 @@ export default function SpellRow({ item }: Props) {
           )}
         </>
       ) : null}
-      <span className="text-zinc-400"> — {outcomeText}.</span>
+      <span className="text-zinc-400"> — </span>
+      <span className={outcomeColor}>{outcomeText}</span>
+      <span className="text-zinc-400">.</span>
     </div>
   );
 }
