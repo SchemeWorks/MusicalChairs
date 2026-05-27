@@ -30,6 +30,10 @@ export const ShenaniganType = {
   tenderOffer: { tenderOffer: null } as ShenaniganTypeT,
   stimulusCheck: { stimulusCheck: null } as ShenaniganTypeT,
   bearRaid: { bearRaid: null } as ShenaniganTypeT,
+  foundersRound: { foundersRound: null } as ShenaniganTypeT,
+  strategicReserve: { strategicReserve: null } as ShenaniganTypeT,
+  slushFund: { slushFund: null } as ShenaniganTypeT,
+  insiderTip: { insiderTip: null } as ShenaniganTypeT,
 };
 
 export type ShenaniganOutcome = ShenaniganOutcomeT;

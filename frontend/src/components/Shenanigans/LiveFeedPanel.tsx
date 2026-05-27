@@ -1,6 +1,6 @@
 import React from 'react';
-import { useDisplayName, useIsGolden } from '../trollbox/useDisplayName';
-import GoldenName from '../GoldenName';
+import { useDisplayName, useIsGolden, useIsStrategicReserve } from '../trollbox/useDisplayName';
+import GoldenName, { PurpleName } from '../GoldenName';
 import type { ShenaniganRecord } from '../../backend';
 
 interface LiveFeedRowProps {
@@ -25,9 +25,11 @@ function formatPp(units: bigint | number): string {
 function LiveFeedRow({ record, spellName, spellIcon }: LiveFeedRowProps) {
   const casterName = useDisplayName(record.user);
   const isCasterGolden = useIsGolden(record.user);
+  const isCasterPurple = useIsStrategicReserve(record.user);
   const target = record.target[0] ?? null;
   const targetName = useDisplayName(target);
   const isTargetGolden = useIsGolden(target);
+  const isTargetPurple = useIsStrategicReserve(target);
   const outcomeKey = variantKey(record.outcome);
 
   // Forward-only detail fields. Old records have empty arrays here and
@@ -78,6 +80,8 @@ function LiveFeedRow({ record, spellName, spellIcon }: LiveFeedRowProps) {
       <div className="flex items-center justify-between gap-2">
         {isCasterGolden ? (
           <GoldenName name={casterName || 'Anon'} isGolden={true} className="font-bold truncate" />
+        ) : isCasterPurple ? (
+          <PurpleName name={casterName || 'Anon'} isPurple={true} className="font-bold truncate" />
         ) : (
           <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
         )}
@@ -89,6 +93,8 @@ function LiveFeedRow({ record, spellName, spellIcon }: LiveFeedRowProps) {
         {target ? (
           isTargetGolden ? (
             <span className="mc-text-muted truncate"> → <GoldenName name={targetName} isGolden={true} /></span>
+          ) : isTargetPurple ? (
+            <span className="mc-text-muted truncate"> → <PurpleName name={targetName} isPurple={true} /></span>
           ) : (
             <span className="mc-text-muted truncate"> → {targetName}</span>
           )

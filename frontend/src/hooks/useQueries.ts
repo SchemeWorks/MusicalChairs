@@ -868,6 +868,24 @@ export function useGetActiveSpellEffects() {
   });
 }
 
+/// Strategic Reserve status for an arbitrary principal. Returns the deadline
+/// (nanoseconds since epoch as bigint) while the effect is active, null
+/// otherwise. Polled every 30s — cosmetic-only, low urgency.
+export function useGetStrategicReserveStatus(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<bigint | null>({
+    queryKey: ['strategicReserveStatus', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return null;
+      const result = await actor.getStrategicReserveStatus(principal);
+      return result.length === 0 ? null : result[0] as bigint;
+    },
+    enabled: !!actor && !!principal,
+    refetchInterval: 30_000,
+  });
+}
+
 export function useUpdateShenaniganConfig() {
   const { actor } = useShenaniganActor();
   const queryClient = useQueryClient();

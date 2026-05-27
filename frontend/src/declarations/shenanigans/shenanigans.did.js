@@ -16,10 +16,14 @@ export const idlFactory = ({ IDL }) => {
     'mintTaxSiphon' : IDL.Null,
     'aoeSkim' : IDL.Null,
     'magicMirror' : IDL.Null,
+    'insiderTip' : IDL.Null,
     'downlineHeist' : IDL.Null,
     'renameSpell' : IDL.Null,
     'purseCutter' : IDL.Null,
+    'foundersRound' : IDL.Null,
+    'strategicReserve' : IDL.Null,
     'bearRaid' : IDL.Null,
+    'slushFund' : IDL.Null,
     'tenderOffer' : IDL.Null,
   });
   const ShenaniganOutcome = IDL.Variant({
@@ -415,6 +419,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Nat, SpellTally))],
         ['query'],
       ),
+    'getStrategicReserveStatus' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Int)],
+        ['query'],
+      ),
     'getTopPpBurners' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
@@ -423,6 +432,11 @@ export const idlFactory = ({ IDL }) => {
     'getTopSpellCasters' : IDL.Func(
         [IDL.Nat],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        ['query'],
+      ),
+    'getUserDisplayName' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(IDL.Text)],
         ['query'],
       ),
     'icrc10_supported_standards' : IDL.Func(
@@ -491,6 +505,11 @@ export const idlFactory = ({ IDL }) => {
     'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
+    'setMyDisplayName' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
     'setObserverIntervalSeconds' : IDL.Func([IDL.Nat], [], []),
     'setPendingRenameName' : IDL.Func(
         [IDL.Text],

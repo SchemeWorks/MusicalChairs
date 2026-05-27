@@ -59,3 +59,29 @@ export function useIsGolden(principal: Principal | null): boolean {
   const goldenQuery = useGoldenStatusQuery(principal);
   return Boolean(goldenQuery.data);
 }
+
+// Strategic Reserve status query — calls getStrategicReserveStatus on the
+// shenanigans canister. Returns true when the deadline is in the future.
+function useStrategicReserveQuery(principal: Principal | null) {
+  const principalText = principal?.toText() ?? '';
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'strategicReserve', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return false;
+      const result = await actor.getStrategicReserveStatus(principal);
+      if (result.length === 0) return false;
+      const deadline = Number(result[0]) / 1_000_000; // ns → ms
+      return Date.now() < deadline;
+    },
+    refetchInterval: 30000,
+    enabled: !!actor && !!principal,
+  });
+}
+
+/// True when the principal has an active Strategic Reserve (id 15) spell.
+/// Use to drive purple-name rendering on the leaderboard.
+export function useIsStrategicReserve(principal: Principal | null): boolean {
+  const q = useStrategicReserveQuery(principal);
+  return Boolean(q.data);
+}

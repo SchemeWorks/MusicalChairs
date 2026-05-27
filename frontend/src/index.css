@@ -1926,6 +1926,19 @@
     pointer-events: none;
     opacity: 0.6;
   }
+
+  /* Strategic Reserve (id=15) purple-name treatment. Mirrors mc-name-vip
+     but sweeps violet→lavender instead of gold. */
+  .mc-name-vip-purple {
+    background-image: linear-gradient(90deg, #a78bfa 0%, #e9d5ff 50%, #a78bfa 100%);
+    background-size: 200% 100%;
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    animation:
+      mc-gold-sweep 3s linear infinite,
+      mc-gold-pulse 2s ease-in-out infinite alternate;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1938,5 +1951,10 @@
   .mc-pedestal-vip::before {
     animation: none;
     opacity: 0;
+  }
+  .mc-name-vip-purple {
+    background-image: none;
+    color: #a78bfa;
+    animation: none;
   }
 }

@@ -8,7 +8,7 @@ import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
 import LoadingSpinner from './LoadingSpinner';
 import { ShenaniganType, ShenaniganRecord } from '../backend';
-import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, TrendingDown, Sparkles, Dices, DollarSign, LayoutGrid, List } from 'lucide-react';
+import { Shield, Coins, Waves, Pencil, Building2, Target, FlipHorizontal2, ArrowUp, Scissors, Fish, TrendingUp, TrendingDown, Sparkles, Dices, DollarSign, LayoutGrid, List, Briefcase, Crown, Gift, Lightbulb } from 'lucide-react';
 import HallOfFameRail from './hall-of-fame/HallOfFameRail';
 import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
 import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
@@ -22,7 +22,7 @@ import GoldenName from './GoldenName';
 
 // Spell ids that REQUIRE a target. Mirrors the trap in shenanigans/main.mo
 // castShenanigan — backend rejects null target for these.
-const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7, 11]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter, tenderOffer
+const TARGETED_SPELL_IDS = new Set([0, 2, 3, 4, 7, 11, 16, 17]); // moneyTrickster, renameSpell, mintTaxSiphon, downlineHeist, purseCutter, tenderOffer, slushFund, insiderTip
 
 // Poison Pill (magicMirror) shield charge ceiling. Mirrors the hardcoded
 // cap at shenanigans/main.mo:2178 — keep in sync until that cap is promoted
@@ -59,6 +59,8 @@ const shenaniganIcons: Record<number, React.ReactNode> = {
   6: <ArrowUp className="h-5 w-5" />, 7: <Scissors className="h-5 w-5" />, 8: <Fish className="h-5 w-5" />,
   9: <TrendingUp className="h-5 w-5" />, 10: <Sparkles className="h-5 w-5" />, 11: <Dices className="h-5 w-5" />,
   12: <DollarSign className="h-5 w-5" />, 13: <TrendingDown className="h-5 w-5" />,
+  14: <Briefcase className="h-5 w-5" />, 15: <Crown className="h-5 w-5" />,
+  16: <Gift className="h-5 w-5" />, 17: <Lightbulb className="h-5 w-5" />,
 };
 
 const shenaniganTypes: ShenaniganType[] = [
@@ -67,6 +69,8 @@ const shenaniganTypes: ShenaniganType[] = [
   ShenaniganType.ppBoosterAura, ShenaniganType.purseCutter, ShenaniganType.whaleRebalance,
   ShenaniganType.downlineBoost, ShenaniganType.goldenName, ShenaniganType.tenderOffer,
   ShenaniganType.stimulusCheck, ShenaniganType.bearRaid,
+  ShenaniganType.foundersRound, ShenaniganType.strategicReserve,
+  ShenaniganType.slushFund, ShenaniganType.insiderTip,
 ];
 
 // Dark-themed aura colors for each shenanigan
@@ -85,6 +89,10 @@ const auraColors: Record<number, string> = {
   11: 'rgba(255, 100, 50, 0.3)',
   12: 'rgba(80, 200, 120, 0.3)',
   13: 'rgba(220, 50, 90, 0.3)',
+  14: 'rgba(160, 160, 255, 0.3)',   // light blue-purple (Founder's Round #e6e6ff)
+  15: 'rgba(180, 120, 255, 0.3)',   // light purple (Strategic Reserve #e6d4ff)
+  16: 'rgba(100, 220, 100, 0.3)',   // light green (Slush Fund #e6ffd9)
+  17: 'rgba(80, 230, 130, 0.3)',    // lighter green (Insider Tip #d9ffe6)
 };
 
 type FilterCategory = 'all' | 'offense' | 'defense' | 'chaos';
@@ -811,7 +819,8 @@ export default function Shenanigans() {
                 // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
                 // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
                 // 8 whaleRebalance, 9 downlineBoost, 10 goldenName,
-                // 11 tenderOffer, 12 stimulusCheck, 13 bearRaid
+                // 11 tenderOffer, 12 stimulusCheck, 13 bearRaid,
+                // 14 foundersRound, 15 strategicReserve, 16 slushFund, 17 insiderTip
 
                 if (outcomeToast.outcome === 'success') {
                   // Spell-specific copy for spells whose generic "stole" framing
@@ -827,6 +836,18 @@ export default function Shenanigans() {
                     // Shielded targets return cnt=0 and the acquired-lock isn't set.
                     if (cnt === 0) return <p className="text-xs mc-text-green mb-3">{target} was shielded. Acquisition deflected.</p>;
                     return <p className="text-xs mc-text-green mb-3">Acquired {target}. Their {Math.round(d)} PP is yours. They're locked out of casting for 24h.</p>;
+                  }
+                  if (id === 14) { // foundersRound — self-buff, mint rate +15%
+                    return <p className="text-xs mc-text-green mb-3">Locked in a flat round. Mint rate +15% for 24h.</p>;
+                  }
+                  if (id === 15) { // strategicReserve — cosmetic purple name
+                    return <p className="text-xs mc-text-green mb-3">Strategic Reserve secured. Purple name for 7 days. (You've made it.)</p>;
+                  }
+                  if (id === 16) { // slushFund — minted PP to target
+                    return <p className="text-xs mc-text-green mb-3">Slipped a wad of PP to {target}. They'll wonder who their secret admirer is.</p>;
+                  }
+                  if (id === 17) { // insiderTip — target gets +10% mint rate
+                    return <p className="text-xs mc-text-green mb-3">{target}'s mint rate just jumped +10% for 12h. They're going to be insufferable.</p>;
                   }
                   // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
@@ -873,6 +894,18 @@ export default function Shenanigans() {
                   }
                   if (id === 11) { // tenderOffer — d < 0 (paid target 3x cost) + 7d Tender Offer lockout
                     return <p className="text-xs mc-text-purple mb-3">{target} got {Math.abs(Math.round(d))} PP as poison-pill compensation. Tender Offer locked for 7 days.</p>;
+                  }
+                  if (id === 14) { // foundersRound — down round, mint rate -10%
+                    return <p className="text-xs mc-text-purple mb-3">Down round. Mint rate -10% for 24h. Investors are "concerned."</p>;
+                  }
+                  if (id === 15) { // strategicReserve — reserves frozen (0% default odds but admin-tunable)
+                    return <p className="text-xs mc-text-purple mb-3">Reserves frozen pending audit. PP gone.</p>;
+                  }
+                  if (id === 16) { // slushFund — they found you out, paid d < 0 to target
+                    return <p className="text-xs mc-text-purple mb-3">{target} found you out. You owe them an extra 200 PP for being annoying.</p>;
+                  }
+                  if (id === 17) { // insiderTip — SEC settlement, d < 0 burn
+                    return <p className="text-xs mc-text-purple mb-3">Whisper got out. SEC settlement, no admission of wrongdoing. -50 PP.</p>;
                   }
                   // Numeric losses first.
                   if (d < 0 && cnt === 1)  return <p className="text-xs mc-text-purple mb-3">Paid {Math.abs(Math.round(d))} PP to {target}.</p>;

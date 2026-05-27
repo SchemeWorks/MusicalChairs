@@ -1,6 +1,6 @@
 import React from 'react';
 import { Principal } from '@dfinity/principal';
-import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
+import { useDisplayName, useIsGolden, useIsStrategicReserve } from './trollbox/useDisplayName';
 
 interface GoldenNameProps {
   /** Resolved display name (caller decides how to get it). */
@@ -89,4 +89,48 @@ export function GoldenNameByPrincipal({
   const name = useDisplayName(principal);
   const isGolden = useIsGolden(principal);
   return <GoldenName name={name || '…'} isGolden={isGolden} className={className} />;
+}
+
+interface PurpleNameProps {
+  /** Resolved display name (caller decides how to get it). */
+  name: string;
+  /** Whether this player has an active Strategic Reserve spell. */
+  isPurple: boolean;
+  className?: string;
+}
+
+/**
+ * Renders a player display name with a purple ◈ prefix glyph and
+ * `mc-name-vip-purple` styling when `isPurple` is true. Falls back to
+ * plain `mc-text-primary` when not active. Mirrors GoldenName's layout.
+ */
+export function PurpleName({ name, isPurple, className }: PurpleNameProps) {
+  if (isPurple) {
+    const { wrapperClass, innerTextClass } = splitTruncationClasses(className);
+    return (
+      <span className={`inline-flex items-baseline gap-1 min-w-0 ${wrapperClass}`.trim()}>
+        <span aria-hidden="true" style={{ color: '#a78bfa' }} className="flex-shrink-0">◈</span>
+        <span className={`mc-name-vip-purple ${innerTextClass}`.trim()}>{name}</span>
+      </span>
+    );
+  }
+  return (
+    <span className={`mc-text-primary ${className ?? ''}`.trim()}>{name}</span>
+  );
+}
+
+/**
+ * Convenience wrapper that resolves both display name and Strategic Reserve
+ * status from a principal. Use this wherever purple-name rendering is needed.
+ */
+export function PurpleNameByPrincipal({
+  principal,
+  className,
+}: {
+  principal: Principal | null;
+  className?: string;
+}) {
+  const name = useDisplayName(principal);
+  const isPurple = useIsStrategicReserve(principal);
+  return <PurpleName name={name || '…'} isPurple={isPurple} className={className} />;
 }

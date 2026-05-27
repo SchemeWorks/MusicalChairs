@@ -1,7 +1,7 @@
 import React from 'react';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
-import { useDisplayName, useIsGolden } from '../useDisplayName';
-import GoldenName from '../../GoldenName';
+import { useDisplayName, useIsGolden, useIsStrategicReserve } from '../useDisplayName';
+import GoldenName, { PurpleName } from '../../GoldenName';
 import { useGetShenaniganConfigs } from '../../../hooks/useQueries';
 
 // Order matches backend shenanigan IDs (0-indexed). Used to map a variant tag
@@ -11,6 +11,7 @@ const SHEN_VARIANT_ORDER = [
   'moneyTrickster', 'aoeSkim', 'renameSpell', 'mintTaxSiphon', 'downlineHeist',
   'magicMirror', 'ppBoosterAura', 'purseCutter', 'whaleRebalance', 'downlineBoost', 'goldenName',
   'tenderOffer', 'stimulusCheck', 'bearRaid',
+  'foundersRound', 'strategicReserve', 'slushFund', 'insiderTip',
 ] as const;
 
 const variantKey = (v: unknown): string =>
@@ -38,7 +39,9 @@ export default function SpellRow({ item }: Props) {
   const target = cast.target?.[0] ?? null;
   const targetName = useDisplayName(target);
   const isCasterGolden = useIsGolden(cast.caster);
+  const isCasterPurple = useIsStrategicReserve(cast.caster);
   const isTargetGolden = useIsGolden(target);
+  const isTargetPurple = useIsStrategicReserve(target);
   const { data: configs = [] } = useGetShenaniganConfigs();
 
   if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
@@ -88,6 +91,8 @@ export default function SpellRow({ item }: Props) {
         ✨{' '}
         {isCasterGolden ? (
           <GoldenName name={userName} isGolden={true} className="font-medium" />
+        ) : isCasterPurple ? (
+          <PurpleName name={userName} isPurple={true} className="font-medium" />
         ) : (
           userName
         )}
@@ -99,6 +104,8 @@ export default function SpellRow({ item }: Props) {
           <span className="text-zinc-400"> on </span>
           {isTargetGolden ? (
             <GoldenName name={targetName} isGolden={true} className="font-medium" />
+          ) : isTargetPurple ? (
+            <PurpleName name={targetName} isPurple={true} className="font-medium" />
           ) : (
             <span className="text-zinc-200 font-medium">{targetName}</span>
           )}

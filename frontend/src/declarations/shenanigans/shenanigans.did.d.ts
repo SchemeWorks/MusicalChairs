@@ -200,10 +200,14 @@ export type ShenaniganType = { 'ppBoosterAura' : null } |
   { 'mintTaxSiphon' : null } |
   { 'aoeSkim' : null } |
   { 'magicMirror' : null } |
+  { 'insiderTip' : null } |
   { 'downlineHeist' : null } |
   { 'renameSpell' : null } |
   { 'purseCutter' : null } |
+  { 'foundersRound' : null } |
+  { 'strategicReserve' : null } |
   { 'bearRaid' : null } |
+  { 'slushFund' : null } |
   { 'tenderOffer' : null };
 export interface ShieldState {
   'expiresAt' : bigint,
@@ -454,6 +458,12 @@ export interface _SERVICE {
    */
   'getSpellTallies' : ActorMethod<[], Array<[bigint, SpellTally]>>,
   /**
+   * / Strategic Reserve status for `p`. Returns the deadline (ns since epoch)
+   * / while the effect is active, null otherwise. Used by the frontend to
+   * / apply purple leaderboard styling.
+   */
+  'getStrategicReserveStatus' : ActorMethod<[Principal], [] | [bigint]>,
+  /**
    * / Top-N players by cumulative PP burned. Returns (principal, PP-units).
    */
   'getTopPpBurners' : ActorMethod<[bigint], Array<[Principal, bigint]>>,
@@ -461,6 +471,11 @@ export interface _SERVICE {
    * / Top-N players by number of spells cast (success + backfire).
    */
   'getTopSpellCasters' : ActorMethod<[bigint], Array<[Principal, bigint]>>,
+  /**
+   * / Returns the principal's user-set display name, if any. Public —
+   * / frontend uses this to render names on profiles, feed, etc.
+   */
+  'getUserDisplayName' : ActorMethod<[Principal], [] | [string]>,
   'icrc10_supported_standards' : ActorMethod<[], Array<StandardRecord>>,
   'icrc21_canister_call_consent_message' : ActorMethod<
     [ConsentMessageRequest],
@@ -507,10 +522,11 @@ export interface _SERVICE {
   >,
   /**
    * / Caller re-rolls the pool-pick for their currently-pending rename.
-   * / Free. Returns the new pool-picked name on Ok. Resets the rename
-   * / expiry (the target gets the full duration with the new name).
+   * / Costs 50 PP. Returns the new pool-picked name on Ok. Resets the
+   * / rename expiry (the target gets the full duration with the new name).
    * / Does NOT extend the 5-minute pending slot itself — caster still
-   * / has to act within the original 5min cast window.
+   * / has to act within the original 5min cast window. Burn happens
+   * / BEFORE the new name is picked — if burn fails, the slot is unchanged.
    */
   'rerollPendingRename' : ActorMethod<
     [],
@@ -557,6 +573,16 @@ export interface _SERVICE {
   'setCompounding30DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
+  /**
+   * / Set the caller's preferred display name. Used by effectiveDisplayName
+   * / as the source of truth when no rename-spell overlay is active.
+   * / Same sanitization as setPendingRenameName.
+   */
+  'setMyDisplayName' : ActorMethod<
+    [string],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
   /**
    * / Caller commits a custom-typed name for their pending Rename slot.

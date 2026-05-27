@@ -29,14 +29,18 @@ type ShenaniganType =
    bearRaid;
    downlineBoost;
    downlineHeist;
+   foundersRound;
    goldenName;
+   insiderTip;
    magicMirror;
    mintTaxSiphon;
    moneyTrickster;
    ppBoosterAura;
    purseCutter;
    renameSpell;
+   slushFund;
    stimulusCheck;
+   strategicReserve;
    tenderOffer;
    whaleRebalance;
  };
@@ -469,6 +473,10 @@ service : {
                                 nat;
                                 SpellTally;
                               }) query;
+  /// Strategic Reserve status for `p`. Returns the deadline (ns since epoch)
+  /// while the effect is active, null otherwise. Used by the frontend to
+  /// apply purple leaderboard styling.
+  getStrategicReserveStatus: (p: principal) -> (opt int) query;
   /// Top-N players by cumulative PP burned. Returns (principal, PP-units).
   getTopPpBurners: (limit: nat) -> (vec record {
                                           principal;
@@ -479,6 +487,9 @@ service : {
                                              principal;
                                              nat;
                                            }) query;
+  /// Returns the principal's user-set display name, if any. Public —
+  /// frontend uses this to render names on profiles, feed, etc.
+  getUserDisplayName: (p: principal) -> (opt text) query;
   icrc10_supported_standards: () -> (vec StandardRecord) query;
   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
    (ConsentMessageResponse);
@@ -517,10 +528,11 @@ service : {
                                            Ok: nat;
                                          });
   /// Caller re-rolls the pool-pick for their currently-pending rename.
-  /// Free. Returns the new pool-picked name on Ok. Resets the rename
-  /// expiry (the target gets the full duration with the new name).
+  /// Costs 50 PP. Returns the new pool-picked name on Ok. Resets the
+  /// rename expiry (the target gets the full duration with the new name).
   /// Does NOT extend the 5-minute pending slot itself — caster still
-  /// has to act within the original 5min cast window.
+  /// has to act within the original 5min cast window. Burn happens
+  /// BEFORE the new name is picked — if burn fails, the slot is unchanged.
   rerollPendingRename: () -> (variant {
                                 Err: text;
                                 Ok: text;
@@ -556,6 +568,13 @@ service : {
   setCompounding30DayPpPerIcp: (v: nat) -> ();
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
+  /// Set the caller's preferred display name. Used by effectiveDisplayName
+  /// as the source of truth when no rename-spell overlay is active.
+  /// Same sanitization as setPendingRenameName.
+  setMyDisplayName: (name: text) -> (variant {
+                                       Err: text;
+                                       Ok;
+                                     });
   setObserverIntervalSeconds: (v: nat) -> ();
   /// Caller commits a custom-typed name for their pending Rename slot.
   /// Burns 500 PP. Must be called within 5 minutes of the cast. Name is
