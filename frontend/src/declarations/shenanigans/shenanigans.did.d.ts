@@ -40,10 +40,14 @@ export type ChatItemKind = {
   { 'rankUp' : { 'user' : Principal, 'newRank' : string } } |
   {
     'spellCast' : {
+      'renameDetail' : [] | [{ 'newName' : string, 'oldName' : string }],
       'shenaniganType' : ShenaniganType,
+      'ppDelta' : [] | [bigint],
       'target' : [] | [Principal],
+      'affectedCount' : [] | [bigint],
       'castId' : bigint,
       'caster' : Principal,
+      'shieldDeflected' : [] | [boolean],
       'outcome' : ShenaniganOutcome,
     }
   } |
@@ -162,16 +166,21 @@ export type ShenaniganOutcome = { 'backfire' : null } |
 export interface ShenaniganOutcomeDetail {
   'affectedTarget' : [] | [Principal],
   'affectedCount' : bigint,
+  'shieldDeflected' : boolean,
   'outcome' : ShenaniganOutcome,
   'ppDeltaCaster' : bigint,
 }
 export interface ShenaniganRecord {
   'id' : bigint,
+  'renameDetail' : [] | [{ 'newName' : string, 'oldName' : string }],
   'shenaniganType' : ShenaniganType,
   'cost' : number,
   'user' : Principal,
+  'ppDelta' : [] | [bigint],
   'target' : [] | [Principal],
+  'affectedCount' : [] | [bigint],
   'timestamp' : bigint,
+  'shieldDeflected' : [] | [boolean],
   'outcome' : ShenaniganOutcome,
 }
 export interface ShenaniganStats {

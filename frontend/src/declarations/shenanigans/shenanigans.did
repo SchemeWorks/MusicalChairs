@@ -48,10 +48,17 @@ type ShenaniganStats =
  };
 type ShenaniganRecord = 
  record {
+   affectedCount: opt nat;
    cost: float64;
    id: nat;
    outcome: ShenaniganOutcome;
+   ppDelta: opt int;
+   renameDetail: opt record {
+                       newName: text;
+                       oldName: text;
+                     };
    shenaniganType: ShenaniganType;
+   shieldDeflected: opt bool;
    target: opt principal;
    timestamp: int;
    user: principal;
@@ -62,6 +69,7 @@ type ShenaniganOutcomeDetail =
    affectedTarget: opt principal;
    outcome: ShenaniganOutcome;
    ppDeltaCaster: int;
+   shieldDeflected: bool;
  };
 type ShenaniganOutcome = 
  variant {
@@ -221,10 +229,17 @@ type ChatItemKind =
    signup: record {newUser: principal;};
    spellCast:
     record {
+      affectedCount: opt nat;
       castId: nat;
       caster: principal;
       outcome: ShenaniganOutcome;
+      ppDelta: opt int;
+      renameDetail: opt record {
+                          newName: text;
+                          oldName: text;
+                        };
       shenaniganType: ShenaniganType;
+      shieldDeflected: opt bool;
       target: opt principal;
     };
    userMessage: record {

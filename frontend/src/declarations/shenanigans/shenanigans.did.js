@@ -27,6 +27,7 @@ export const idlFactory = ({ IDL }) => {
   const ShenaniganOutcomeDetail = IDL.Record({
     'affectedTarget' : IDL.Opt(IDL.Principal),
     'affectedCount' : IDL.Nat,
+    'shieldDeflected' : IDL.Bool,
     'outcome' : ShenaniganOutcome,
     'ppDeltaCaster' : IDL.Int,
   });
@@ -89,10 +90,16 @@ export const idlFactory = ({ IDL }) => {
     'signup' : IDL.Record({ 'newUser' : IDL.Principal }),
     'rankUp' : IDL.Record({ 'user' : IDL.Principal, 'newRank' : IDL.Text }),
     'spellCast' : IDL.Record({
+      'renameDetail' : IDL.Opt(
+        IDL.Record({ 'newName' : IDL.Text, 'oldName' : IDL.Text })
+      ),
       'shenaniganType' : ShenaniganType,
+      'ppDelta' : IDL.Opt(IDL.Int),
       'target' : IDL.Opt(IDL.Principal),
+      'affectedCount' : IDL.Opt(IDL.Nat),
       'castId' : IDL.Nat,
       'caster' : IDL.Principal,
+      'shieldDeflected' : IDL.Opt(IDL.Bool),
       'outcome' : ShenaniganOutcome,
     }),
     'reginald' : IDL.Record({ 'line' : IDL.Text, 'triggerKind' : IDL.Text }),
@@ -129,11 +136,17 @@ export const idlFactory = ({ IDL }) => {
   });
   const ShenaniganRecord = IDL.Record({
     'id' : IDL.Nat,
+    'renameDetail' : IDL.Opt(
+      IDL.Record({ 'newName' : IDL.Text, 'oldName' : IDL.Text })
+    ),
     'shenaniganType' : ShenaniganType,
     'cost' : IDL.Float64,
     'user' : IDL.Principal,
+    'ppDelta' : IDL.Opt(IDL.Int),
     'target' : IDL.Opt(IDL.Principal),
+    'affectedCount' : IDL.Opt(IDL.Nat),
     'timestamp' : IDL.Int,
+    'shieldDeflected' : IDL.Opt(IDL.Bool),
     'outcome' : ShenaniganOutcome,
   });
   const SignupEntry = IDL.Record({
