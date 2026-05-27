@@ -31,7 +31,7 @@ import type {
 // (or per-module) rather than imported from declarations/index.ts, so the
 // local-vs-mainnet switch is co-located with the code that needs it.
 const SIWS_PROVIDER_CANISTER_ID_LOCAL = 'uxrrr-q7777-77774-qaaaq-cai';
-const SIWS_PROVIDER_CANISTER_ID_MAINNET = ''; // TODO(Task 13): set after mainnet deploy
+const SIWS_PROVIDER_CANISTER_ID_MAINNET = 'tcm26-yqaaa-aaaac-qg2lq-cai';
 
 const IS_LOCAL =
   typeof window !== 'undefined' && window.location.hostname === 'localhost';

@@ -5,6 +5,9 @@
   "frontend": {
     "ic": "5qu42-fqaaa-aaaac-qecla-cai"
   },
+  "ponzi_math": {
+    "ic": "guy42-yqaaa-aaaaj-qr5pq-cai"
+  },
   "pp_assets": {
     "ic": "4236a-haaaa-aaaac-qecma-cai"
   },
@@ -14,7 +17,7 @@
   "shenanigans": {
     "ic": "j56tm-oaaaa-aaaac-qf34q-cai"
   },
-  "ponzi_math": {
-    "ic": "guy42-yqaaa-aaaaj-qr5pq-cai"
+  "siws_provider": {
+    "ic": "tcm26-yqaaa-aaaac-qg2lq-cai"
   }
 }
