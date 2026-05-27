@@ -1035,7 +1035,7 @@ persistent actor Self {
         // if its id is missing — never overrides admin-tuned values.
         let newConfigs : [ShenaniganConfig] = [
             // Tender Offer (id=11) — Phase 3 added 2026-05-27
-            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
+            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 12; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
             // Stimulus Check (id=12) — Phase 4 added 2026-05-27
             { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
             // Bear Raid (id=13) — Phase 4 added 2026-05-27
@@ -1482,7 +1482,7 @@ persistent actor Self {
             { id = 8; name = "Wealth Tax"; description = "A socialist mayor takes office \u{2014} 20% from the top 3 PP holders (max 300 PP/whale)."; backfireDescription = ?"You pay each of the top 3 whales (caps at ~49% loss)."; costSuccess = 20.0; costFailure = 20.0; costBackfire = 20.0; successOdds = 50; failureOdds = 30; backfireOdds = 20; duration = 0; cooldown = 12; effectValues = [20.0, 300.0]; castLimit = 0; backgroundColor = "#f0e6ff" },
             { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; backfireDescription = ?"Cannot backfire."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
             { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard for 24 hours \u{2014} the only clout that matters."; backfireDescription = ?"Cannot backfire."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
-            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
+            { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 12; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
             { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
             { id = 13; name = "Bear Raid"; description = "Coordinated short. You profit on the spread; everyone else takes a haircut."; backfireDescription = ?"You misread the cycle — burn 100 PP and everyone else gets paid 40-50 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 100.0]; castLimit = 0; backgroundColor = "#ffe6f0" },
         ];
@@ -2204,12 +2204,14 @@ persistent actor Self {
             case null { 0 };
         };
 
-        // Tender Offer 50% target-balance gate. Whales only — target must
-        // have <= 50% of caster's balance. Reuses the already-queried balances.
-        // Null target was already rejected by the needsTarget trap above.
+        // Tender Offer target-balance gate — target must have ≤ thresholdPct%
+        // of caster's balance. The threshold reads effectValues[0] (default 50)
+        // so admin can retune it without a redeploy. Null target was already
+        // rejected by the needsTarget trap above.
         if (shenaniganType == #tenderOffer) {
-            if (targetBalForRoll > casterBalPre / 2) {
-                throw Error.reject("Target's PP balance must be at most 50% of yours for Tender Offer.");
+            let thresholdPct = effectNatOr(config.effectValues, 0, 50);
+            if (targetBalForRoll > casterBalPre * thresholdPct / 100) {
+                throw Error.reject("Target's PP balance must be at most " # Nat.toText(thresholdPct) # "% of yours for Tender Offer.");
             };
         };
 
