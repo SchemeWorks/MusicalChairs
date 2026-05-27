@@ -302,7 +302,7 @@ export interface _SERVICE {
    */
   'cancelPendingRename' : ActorMethod<[], undefined>,
   'castShenanigan' : ActorMethod<
-    [ShenaniganType, [] | [Principal], boolean],
+    [ShenaniganType, [] | [Principal]],
     ShenaniganOutcomeDetail
   >,
   'claimCashOut' : ActorMethod<
@@ -505,6 +505,18 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  /**
+   * / Caller re-rolls the pool-pick for their currently-pending rename.
+   * / Free. Returns the new pool-picked name on Ok. Resets the rename
+   * / expiry (the target gets the full duration with the new name).
+   * / Does NOT extend the 5-minute pending slot itself — caster still
+   * / has to act within the original 5min cast window.
+   */
+  'rerollPendingRename' : ActorMethod<
+    [],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
   'resetShenaniganConfig' : ActorMethod<[bigint], undefined>,
   /**
    * / Look up the principal a short referral code resolves to. Returns null
@@ -547,9 +559,9 @@ export interface _SERVICE {
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   'setObserverIntervalSeconds' : ActorMethod<[bigint], undefined>,
   /**
-   * / Caller commits a chosen name for their most recent successful Rename
-   * / Spell. Must be called within 5 minutes of the cast. Name is sanitized:
-   * / trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+   * / Caller commits a custom-typed name for their pending Rename slot.
+   * / Burns 500 PP. Must be called within 5 minutes of the cast. Name is
+   * / sanitized: trimmed, 1-32 chars, alphanumeric + space + dash + underscore.
    */
   'setPendingRenameName' : ActorMethod<
     [string],

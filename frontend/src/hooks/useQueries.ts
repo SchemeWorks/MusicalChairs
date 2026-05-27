@@ -715,9 +715,9 @@ export function useCastShenanigan() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async ({ shenaniganType, target, premiumRename }: { shenaniganType: ShenaniganType; target: Principal | null; premiumRename?: boolean }) => {
+    mutationFn: async ({ shenaniganType, target }: { shenaniganType: ShenaniganType; target: Principal | null }) => {
       if (!actor) throw new Error('Shenanigans actor not available');
-      return actor.castShenanigan(shenaniganType, target ? [target] : [], premiumRename ?? false);
+      return actor.castShenanigan(shenaniganType, target ? [target] : []);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenaniganStats'] });
@@ -763,6 +763,24 @@ export function useSetPendingRenameName() {
       // Also drop the per-caller pending-rename query so the mount-time
       // check doesn't keep reopening the modal.
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });
+    },
+  });
+}
+
+export function useRerollPendingRename() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Actor not ready');
+      const res = await actor.rerollPendingRename();
+      if ('Err' in res) throw new Error(res.Err);
+      return res.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'pendingRename'] });
+      // Bust display-name caches so the new pool pick renders everywhere.
+      queryClient.invalidateQueries({ queryKey: ['shenanigans', 'customDisplayName'] });
     },
   });
 }

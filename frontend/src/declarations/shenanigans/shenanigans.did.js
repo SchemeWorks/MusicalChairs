@@ -290,7 +290,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'cancelPendingRename' : IDL.Func([], [], []),
     'castShenanigan' : IDL.Func(
-        [ShenaniganType, IDL.Opt(IDL.Principal), IDL.Bool],
+        [ShenaniganType, IDL.Opt(IDL.Principal)],
         [ShenaniganOutcomeDetail],
         [],
       ),
@@ -464,6 +464,11 @@ export const idlFactory = ({ IDL }) => {
     'requestCashOut' : IDL.Func(
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'rerollPendingRename' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
         [],
       ),
     'resetShenaniganConfig' : IDL.Func([IDL.Nat], [], []),

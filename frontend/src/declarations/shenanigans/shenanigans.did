@@ -348,8 +348,8 @@ service : {
   /// mount-time prompt. The cast cost is already burned and is not
   /// refunded.
   cancelPendingRename: () -> ();
-  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal,
-   premiumRename: bool) -> (ShenaniganOutcomeDetail);
+  castShenanigan: (shenaniganType: ShenaniganType, target: opt principal) ->
+   (ShenaniganOutcomeDetail);
   claimCashOut: (id: nat) -> (variant {
                                 Err: text;
                                 Ok: nat;
@@ -516,6 +516,15 @@ service : {
                                            Err: text;
                                            Ok: nat;
                                          });
+  /// Caller re-rolls the pool-pick for their currently-pending rename.
+  /// Free. Returns the new pool-picked name on Ok. Resets the rename
+  /// expiry (the target gets the full duration with the new name).
+  /// Does NOT extend the 5-minute pending slot itself — caster still
+  /// has to act within the original 5min cast window.
+  rerollPendingRename: () -> (variant {
+                                Err: text;
+                                Ok: text;
+                              });
   resetShenaniganConfig: (id: nat) -> ();
   /// Look up the principal a short referral code resolves to. Returns null
   /// for unknown codes. Used by the frontend to translate `?ref=<code>`
@@ -548,9 +557,9 @@ service : {
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
   setObserverIntervalSeconds: (v: nat) -> ();
-  /// Caller commits a chosen name for their most recent successful Rename
-  /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
-  /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+  /// Caller commits a custom-typed name for their pending Rename slot.
+  /// Burns 500 PP. Must be called within 5 minutes of the cast. Name is
+  /// sanitized: trimmed, 1-32 chars, alphanumeric + space + dash + underscore.
   setPendingRenameName: (name: text) -> (variant {
                                            Err: text;
                                            Ok;

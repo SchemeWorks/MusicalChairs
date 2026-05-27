@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
 import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
@@ -264,11 +264,12 @@ export default function Shenanigans() {
   const [showErrorDetails, setShowErrorDetails] = useState(false);
   const [renamePrompt, setRenamePrompt] = useState<{ targetPrincipal: string } | null>(null);
   const [renameInput, setRenameInput] = useState('');
+  const [renameInputError, setRenameInputError] = useState('');
   const setRenameName = useSetPendingRenameName();
   const cancelRenameName = useCancelPendingRename();
+  const rerollRename = useRerollPendingRename();
   const { data: pendingRename } = useGetPendingRenameForCaller();
   const [availableShenanigans, setAvailableShenanigans] = useState<ShenaniganConfig[]>([]);
-  const [premiumRenameToggle, setPremiumRenameToggle] = useState(false);
 
   // If the user cast Rename, navigated away, then came back within 5 minutes,
   // reopen the modal so they can still pick the name. Only triggers when the
@@ -278,12 +279,6 @@ export default function Shenanigans() {
       setRenamePrompt({ targetPrincipal: pendingRename.target.toText() });
     }
   }, [pendingRename, renamePrompt]);
-
-  // Reset the premium-rename toggle whenever the confirmation modal closes so
-  // a fresh cast always starts with the pool-pick default.
-  useEffect(() => {
-    if (!confirmOpen) setPremiumRenameToggle(false);
-  }, [confirmOpen]);
 
   // Toast when the player's Poison Pill shield absorbs an incoming attack.
   // Detects this by watching chargesRemaining via the 10s active-effects poll
@@ -418,7 +413,6 @@ export default function Shenanigans() {
       const detail = await castShenanigan.mutateAsync({
         shenaniganType: selectedShenanigan.type,
         target: selectedTarget,
-        premiumRename: selectedShenanigan.id === 2 && premiumRenameToggle,
       });
       const outcome = variantKey(detail.outcome);
       // A success just set a cooldown on the backend — refresh the
@@ -429,15 +423,16 @@ export default function Shenanigans() {
       }
       setTimeout(() => {
         const isRenameSuccess = outcome === 'success' && selectedShenanigan.id === 2 /* renameSpell */;
-        const isPremiumRename = isRenameSuccess && premiumRenameToggle;
         const isWhitelistedSuccess = outcome === 'success' && selectedShenanigan.id === 10 /* goldenName */;
         const targetPrincipalText = detail.affectedTarget && detail.affectedTarget.length > 0
           ? detail.affectedTarget[0]?.toText() ?? null
           : null;
-        if (isPremiumRename && targetPrincipalText) {
+        if (isRenameSuccess && targetPrincipalText) {
           // Skip the success toast — the rename modal IS the success
           // affirmation, and otherwise the toast would sit hidden behind
           // the rename modal's backdrop.
+          setRenameInput('');
+          setRenameInputError('');
           setRenamePrompt({ targetPrincipal: targetPrincipalText });
         } else if (isWhitelistedSuccess) {
           // Skip the success toast — the fanfare card IS the affirmation,
@@ -922,57 +917,95 @@ export default function Shenanigans() {
         </>
       )}
 
-      {/* Rename Spell — name picker modal */}
+      {/* Rename Spell — post-success reveal modal */}
       {renamePrompt && (
         <>
           <div className="mc-modal-backdrop" aria-hidden="true" />
           <div className="fixed top-28 md:top-36 left-1/2 -translate-x-1/2 z-[9999]" role="dialog" aria-modal="true">
             <div className="mc-toast text-center max-w-sm">
               <div className="font-display text-xl mc-text-primary mb-2">
-                Name them.
+                Cease &amp; Desist landed.
               </div>
               <p className="text-sm mc-text-dim mb-3">
-                You have 5 minutes. 1-32 characters. Letters, numbers, space, dash, underscore.
+                Their new name:{' '}
+                <strong className="mc-text-primary">
+                  <OutcomeTargetName principalText={renamePrompt.targetPrincipal} />
+                </strong>
               </p>
-              <input
-                type="text"
-                value={renameInput}
-                onChange={(e) => setRenameInput(e.target.value)}
-                maxLength={32}
-                autoFocus
-                className="w-full px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm mc-text-primary mb-3"
-                placeholder="e.g., Liquidation Larry"
-              />
-              <div className="flex gap-3 justify-center">
+              {/* Accept */}
+              <div className="flex flex-col gap-2 items-center">
                 <button
                   onClick={async () => {
                     setRenamePrompt(null);
                     setRenameInput('');
-                    // Tell the backend to clear the slot so it doesn't
-                    // re-trigger the mount-time prompt. Best-effort —
-                    // ignore network errors; the slot lapses in 5 min anyway.
+                    setRenameInputError('');
                     try { await cancelRenameName.mutateAsync(); } catch {}
                   }}
                   disabled={cancelRenameName.isPending}
-                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm"
+                  className="mc-btn-primary px-5 py-2 rounded-full text-sm w-full"
                 >
-                  Skip (no rename)
+                  Accept
                 </button>
+                {/* Re-roll */}
                 <button
                   onClick={async () => {
+                    setRenameInputError('');
                     try {
-                      await setRenameName.mutateAsync(renameInput);
-                      setRenamePrompt(null);
-                      setRenameInput('');
+                      await rerollRename.mutateAsync();
                     } catch (e: any) {
-                      alert(e.message || 'Rename failed');
+                      setRenameInputError(e.message || 'Re-roll failed');
                     }
                   }}
-                  disabled={renameInput.trim().length === 0 || setRenameName.isPending}
-                  className="mc-btn-primary px-5 py-2 rounded-full text-sm"
+                  disabled={rerollRename.isPending || setRenameName.isPending}
+                  className="mc-btn-secondary px-5 py-2 rounded-full text-sm w-full"
                 >
-                  {setRenameName.isPending ? 'Committing…' : 'Lock it in'}
+                  {rerollRename.isPending ? 'Rolling…' : 'Pick a different one'}
                 </button>
+                {/* Type your own */}
+                <div className="w-full mt-1">
+                  <p className="text-xs mc-text-muted mb-1">Type your own (–500 PP)</p>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={renameInput}
+                      onChange={(e) => { setRenameInput(e.target.value); setRenameInputError(''); }}
+                      onKeyDown={async (e) => {
+                        if (e.key === 'Enter' && renameInput.trim().length > 0 && !setRenameName.isPending) {
+                          setRenameInputError('');
+                          try {
+                            await setRenameName.mutateAsync(renameInput);
+                            setRenamePrompt(null);
+                            setRenameInput('');
+                          } catch (err: any) {
+                            setRenameInputError(err.message || 'Rename failed');
+                          }
+                        }
+                      }}
+                      maxLength={32}
+                      className="flex-1 px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-sm mc-text-primary"
+                      placeholder="e.g., Liquidation Larry"
+                    />
+                    <button
+                      onClick={async () => {
+                        setRenameInputError('');
+                        try {
+                          await setRenameName.mutateAsync(renameInput);
+                          setRenamePrompt(null);
+                          setRenameInput('');
+                        } catch (err: any) {
+                          setRenameInputError(err.message || 'Rename failed');
+                        }
+                      }}
+                      disabled={renameInput.trim().length === 0 || setRenameName.isPending || rerollRename.isPending}
+                      className="mc-btn-primary px-4 py-2 rounded-full text-sm whitespace-nowrap"
+                    >
+                      {setRenameName.isPending ? 'Committing…' : 'Lock it in'}
+                    </button>
+                  </div>
+                  {renameInputError && (
+                    <p className="text-xs text-red-400 mt-1">{renameInputError}</p>
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -1004,25 +1037,6 @@ export default function Shenanigans() {
                 <span className="mc-toast-accent">{selectedShenanigan.costBackfire} PP</span> on backfire.
               </p>
               <p className="text-xs mc-text-muted mb-4">Outcome is random. No refunds. (If a backfire exceeds your balance, you zero out.)</p>
-              {selectedShenanigan?.id === 2 && (
-                <label className="flex items-start gap-2 mt-3 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={premiumRenameToggle}
-                    onChange={(e) => setPremiumRenameToggle(e.target.checked)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    <span className="font-medium mc-text-primary">Pick the name yourself</span>
-                    <span className="mc-text-muted"> (+400 PP, win or lose)</span>
-                    <span className="block mc-text-muted">
-                      {premiumRenameToggle
-                        ? 'Premium locked in. If it lands, a modal opens to type the name. If it fails or backfires, the 400 PP is gone too.'
-                        : 'Pool-pick is the default — a name is pulled from the rolodex instantly on success.'}
-                    </span>
-                  </span>
-                </label>
-              )}
               <div className="flex gap-3 justify-center mt-4">
                 <button onClick={() => setConfirmOpen(false)} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Cancel</button>
                 <button onClick={handleConfirmCast} className="mc-btn-primary px-5 py-2 rounded-full text-sm">Cast It!</button>

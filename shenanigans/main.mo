@@ -1902,9 +1902,9 @@ persistent actor Self {
         };
     };
 
-    /// Caller commits a chosen name for their most recent successful Rename
-    /// Spell. Must be called within 5 minutes of the cast. Name is sanitized:
-    /// trimmed, 1-32 chars, alphanumeric + space + dash + underscore only.
+    /// Caller commits a custom-typed name for their pending Rename slot.
+    /// Burns 500 PP. Must be called within 5 minutes of the cast. Name is
+    /// sanitized: trimmed, 1-32 chars, alphanumeric + space + dash + underscore.
     public shared ({ caller }) func setPendingRenameName(name : Text) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
         sweepExpiredPendingRenames();
@@ -1919,8 +1919,14 @@ persistent actor Self {
         switch (sanitizeRenameName(name)) {
             case (#Err(msg)) { return #Err(msg) };
             case (#Ok(text)) {
-                // Rename duration is admin-tunable via config.duration
-                // (hours). Falls back to 7d if the config row is missing.
+                // Premium custom-name surcharge.
+                let surchargeUnits = ppToUnits(PREMIUM_TYPE_YOUR_OWN_PP);
+                switch (await burnFrom(caller, surchargeUnits, "rename-custom-" # Principal.toText(slot.target))) {
+                    case (#Err(msg)) {
+                        return #Err("Couldn't burn 500 PP surcharge: " # msg);
+                    };
+                    case (#Ok(_)) {};
+                };
                 let durationNs : Int = switch (getConfigForType(#renameSpell)) {
                     case (?c) { c.duration * 3_600_000_000_000 };
                     case null { 86_400_000_000_000 * 7 };
@@ -1933,6 +1939,37 @@ persistent actor Self {
                 return #Ok;
             };
         };
+    };
+
+    /// Caller re-rolls the pool-pick for their currently-pending rename.
+    /// Free. Returns the new pool-picked name on Ok. Resets the rename
+    /// expiry (the target gets the full duration with the new name).
+    /// Does NOT extend the 5-minute pending slot itself — caster still
+    /// has to act within the original 5min cast window.
+    public shared ({ caller }) func rerollPendingRename() : async { #Ok : Text; #Err : Text } {
+        if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        sweepExpiredPendingRenames();
+        let slot = switch (principalMap.get(pendingRenames, caller)) {
+            case (null) { return #Err("No pending rename") };
+            case (?s) { s };
+        };
+        if (Time.now() >= slot.expiresAt) {
+            pendingRenames := principalMap.delete(pendingRenames, caller);
+            return #Err("Pending rename expired");
+        };
+        let durationNs : Int = switch (getConfigForType(#renameSpell)) {
+            case (?c) { c.duration * 3_600_000_000_000 };
+            case null { 86_400_000_000_000 * 7 };
+        };
+        let newName = pickRenameName();
+        customDisplayNames := principalMap.put(customDisplayNames, slot.target, {
+            name = newName;
+            expiresAt = Time.now() + durationNs;
+        });
+        // Slot stays open — caster can keep re-rolling until they accept or
+        // pay for a custom name. The 5-minute window from the original cast
+        // continues to apply.
+        return #Ok(newName);
     };
 
     /// Returns the active pending-rename slot for the caller, if any.
@@ -2071,7 +2108,7 @@ persistent actor Self {
     // Core Logic
     // ================================================================
 
-    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal, premiumRename : Bool) : async ShenaniganOutcomeDetail {
+    public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
 
         // Acquired-lockout: recently-acquired targets cannot cast ANY spell
@@ -2214,14 +2251,8 @@ persistent actor Self {
             case (#fail) { costFailureUnits };
             case (#backfire) { costBackfireUnits };
         };
-        // Premium-rename surcharge — Phase 2 added 2026-05-27.
-        // Applies on all three outcomes (success/fail/backfire): the caster
-        // paid to have the option to pick the name regardless of outcome.
-        let surchargedCostUnits : Nat = if (shenaniganType == #renameSpell and premiumRename) {
-            costForOutcomeUnits + ppToUnits(PREMIUM_RENAME_SURCHARGE_PP)
-        } else { costForOutcomeUnits };
-        let actualBurnedUnits : Nat = if (surchargedCostUnits <= casterBalPre) {
-            surchargedCostUnits
+        let actualBurnedUnits : Nat = if (costForOutcomeUnits <= casterBalPre) {
+            costForOutcomeUnits
         } else {
             casterBalPre
         };
@@ -2259,7 +2290,7 @@ persistent actor Self {
 
         let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = switch (outcome) {
             case (#success) {
-                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId, premiumRename);
+                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
             };
             case (#backfire) {
                 await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
@@ -2355,7 +2386,6 @@ persistent actor Self {
         _casterBal : Nat,
         targetBal : Nat,
         castId : Nat,
-        premiumRename : Bool,
     ) : async { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } {
         let memo = "spell-" # Nat.toText(castId);
         let nowTs = Time.now();
@@ -2422,42 +2452,12 @@ persistent actor Self {
                     };
                     case (?t) {
                         let renameDurationNs : Int = config.duration * 3_600_000_000_000;
-                        // Snapshot the target's effective display name BEFORE we
-                        // mutate customDisplayNames so the feed can show "renamed
-                        // X → Y" on pool-pick casts.
+                        // Snapshot the target's effective name BEFORE we mutate
+                        // customDisplayNames so the feed can show "renamed X → Y".
                         let oldName = effectiveDisplayName(t);
 
-                        if (not premiumRename) {
-                            // POOL-PICK FAST PATH (new default since 2026-05-27).
-                            // Auto-commit any prior pending slot the caster has open
-                            // (matches legacy behavior of preventing slot leak), then
-                            // skip slot creation and apply the rename immediately.
-                            switch (principalMap.get(pendingRenames, caster)) {
-                                case (?prior) {
-                                    if (Time.now() < prior.expiresAt) {
-                                        customDisplayNames := principalMap.put(customDisplayNames, prior.target, {
-                                            name = pickRenameName();
-                                            expiresAt = nowTs + renameDurationNs;
-                                        });
-                                    };
-                                };
-                                case null {};
-                            };
-                            let pooledName = pickRenameName();
-                            customDisplayNames := principalMap.put(customDisplayNames, t, {
-                                name = pooledName;
-                                expiresAt = nowTs + renameDurationNs;
-                            });
-                            return {
-                                ppDeltaCaster = 0;
-                                affectedTarget = ?t;
-                                affectedCount = 1;
-                                shieldDeflected = false;
-                                renameDetail = ?{ oldName; newName = pooledName };
-                            };
-                        };
-
-                        // PREMIUM PATH (legacy slot flow with +400 PP surcharge).
+                        // Auto-commit any prior pending slot the caster left open
+                        // (legacy hygiene — keeps the slot map bounded).
                         switch (principalMap.get(pendingRenames, caster)) {
                             case (?prior) {
                                 if (Time.now() < prior.expiresAt) {
@@ -2469,19 +2469,27 @@ persistent actor Self {
                             };
                             case null {};
                         };
+
+                        // SURPRISE REVEAL: pool-pick is the default. Always applied
+                        // immediately on success. Caster has a 5-min window to
+                        // override via rerollPendingRename (free) or
+                        // setPendingRenameName (500 PP for custom).
+                        let pooledName = pickRenameName();
+                        customDisplayNames := principalMap.put(customDisplayNames, t, {
+                            name = pooledName;
+                            expiresAt = nowTs + renameDurationNs;
+                        });
                         let fiveMinNs : Int = 300_000_000_000;
                         pendingRenames := principalMap.put(pendingRenames, caster, {
                             target = t;
                             expiresAt = nowTs + fiveMinNs;
                         });
-                        // v1: premium renames don't populate renameDetail (caster's
-                        // private flex — picked later via setPendingRenameName).
                         return {
                             ppDeltaCaster = 0;
                             affectedTarget = ?t;
                             affectedCount = 1;
                             shieldDeflected = false;
-                            renameDetail = null;
+                            renameDetail = ?{ oldName; newName = pooledName };
                         };
                     };
                 };
@@ -3148,11 +3156,11 @@ persistent actor Self {
     let CHAT_RATE_WINDOW_MAX : Nat = 15;                   // 15 posts / window
     let KARMA_MIN_PP : Nat = 10;
     let KARMA_REGINALD_THRESHOLD_PP : Nat = 100;
-    /// Surcharge in whole PP added to the rolled outcome cost when the
-    /// caster opts to pick the rename name themselves rather than accepting
-    /// a pool pick. See plan 2026-05-27-shenanigans-feed-and-new-spells.md
-    /// Phase 2.
-    let PREMIUM_RENAME_SURCHARGE_PP : Nat = 400;
+    /// Burn when the caster opts to type a custom name for their
+    /// Cease & Desist rename instead of accepting the pool-pick or
+    /// re-rolling a different pool name. Charged at the moment
+    /// setPendingRenameName commits the custom name.
+    let PREMIUM_TYPE_YOUR_OWN_PP : Nat = 500;
     let CHIME_SOUND_MAX_BYTES : Nat = 200_000;       // 200 KB per file
     let CHIME_SOUND_MAX_COUNT : Nat = 20;            // up to 20 sounds in the pool
     let CHIME_SOUND_NAME_MAX_LEN : Nat = 64;
