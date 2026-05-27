@@ -878,7 +878,70 @@ git commit -m "ops(siws): record mainnet canister ID for siws_provider"
 
 ---
 
-## Task 14: Mainnet end-to-end validation
+## Task 14: Capture rollback baseline for the frontend canister
+
+**Files:** none — captures current production state via a git tag.
+
+Before deploying the new frontend with SIWS support, mark the current production state so we can roll back in ~2 minutes if anything regresses for live users. Mainnet is where the risk lives.
+
+- [ ] **Step 1: Inspect the currently-deployed frontend canister**
+
+Run: `dfx canister --network=ic info frontend`
+Expected: prints the canister's module hash, controller(s), memory size. Record the module hash in your notes — verifies our rollback target before we deploy.
+
+- [ ] **Step 2: Tag the current main as the rollback target**
+
+The current `main` branch is by definition the production state (live deploys come from it). Tag it:
+
+```bash
+git tag -a frontend-pre-m0 -m "Frontend baseline before M0 SIWS deploy — rollback target if Task 15 regresses for live users"
+```
+
+- [ ] **Step 3: Verify the tag and push to origin**
+
+Run: `git show frontend-pre-m0 --stat | head -10`
+Expected: shows the tagged commit's hash and metadata.
+
+Run: `git push origin frontend-pre-m0`
+Expected: tag pushed to origin.
+
+- [ ] **Step 4: Dry-run the rollback procedure locally**
+
+This proves the rollback path mechanically works before we're in a real incident. Run:
+
+```bash
+dfx start --clean --background
+git stash  # save any in-progress work
+git checkout frontend-pre-m0 -- frontend/
+dfx deploy frontend --network=local
+```
+Expected: local frontend canister builds and deploys from the pre-M0 source with no errors.
+
+Restore working state:
+```bash
+git checkout main -- frontend/
+git stash pop  # restore in-progress work, if any
+dfx stop
+```
+
+- [ ] **Step 5: Write down the rollback recipe**
+
+Add a note to your operator runbook (or just commit-message your future self):
+
+> **To roll back the M0 frontend deploy:**
+> ```bash
+> git checkout frontend-pre-m0 -- frontend/
+> dfx deploy frontend --network=ic
+> # Verify: visit https://musicalchairs.fun and confirm the Solana button is gone.
+> git checkout main -- frontend/  # restore working tree
+> ```
+> This redeploys the pre-M0 wasm. Live users see the old frontend on next page load (~30s for browser cache TTL). The `siws_provider` canister stays deployed but unused — harmless, no live users call it.
+
+- [ ] **Step 6: No commit — rollback baseline is a tag, not a file.**
+
+---
+
+## Task 15: Mainnet end-to-end validation
 
 **Files:** none — manual validation.
 
@@ -922,7 +985,7 @@ All of the following must be true before declaring M0 shipped:
 
 1. ✅ `siws_provider` canister deployed to mainnet at a recorded canister ID.
 2. ✅ Frontend deployed with SIWS button visible alongside II/Plug/OISY in the wallet modal.
-3. ✅ End-to-end Phantom sign-in works on mainnet (Task 14 Steps 1-4).
+3. ✅ End-to-end Phantom sign-in works on mainnet (Task 15 Steps 1-4).
 4. ✅ Same Phantom wallet always yields the same IC principal on mainnet.
 5. ✅ Session restoration works (refresh page → no re-pop of Phantom).
 6. ✅ Existing II/Plug/OISY login flows unchanged.
