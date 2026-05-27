@@ -51,6 +51,8 @@ persistent actor Self {
         #downlineBoost;
         #goldenName;
         #tenderOffer;
+        #stimulusCheck;
+        #bearRaid;
     };
 
     public type ShenaniganOutcome = {
@@ -578,6 +580,12 @@ persistent actor Self {
     /// cast Tender Offer specifically (other spells unaffected).
     var tenderOfferBackfireLockUntil = principalMap.empty<Int>();
 
+    /// Most Wanted. Principal → nanosecond-precision deadline. While
+    /// `now < deadline`, any spell cast against this principal gets a
+    /// +20pp success-rate modifier (pile-on dynamic). Set after every
+    /// successful Bear Raid by the caster (24h window).
+    var mostWantedUntil = principalMap.empty<Int>();
+
     // When Rename Spell lands on #success, the new name is NOT applied
     // immediately. Instead the caster gets a 5-minute window to pick a
     // name via setPendingRenameName. If the window lapses, the slot
@@ -990,6 +998,10 @@ persistent actor Self {
         let newConfigs : [ShenaniganConfig] = [
             // Tender Offer (id=11) — Phase 3 added 2026-05-27
             { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
+            // Stimulus Check (id=12) — Phase 4 added 2026-05-27
+            { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
+            // Bear Raid (id=13) — Phase 4 added 2026-05-27
+            { id = 13; name = "Bear Raid"; description = "Coordinated short. You profit on the spread; everyone else takes a haircut."; backfireDescription = ?"You misread the cycle — burn 100 PP and everyone else gets paid 40-50 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 100.0]; castLimit = 0; backgroundColor = "#ffe6f0" },
         ];
         for (cfg in newConfigs.vals()) {
             switch (natMap.get(shenaniganConfigs, cfg.id)) {
@@ -1433,6 +1445,8 @@ persistent actor Self {
             { id = 9; name = "Override Bonus"; description = "Your downline kicks up 1.3x PP for the rest of the round."; backfireDescription = ?"Cannot backfire."; costSuccess = 10.0; costFailure = 10.0; costBackfire = 10.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 0; cooldown = 24; effectValues = [1.3]; castLimit = 1; backgroundColor = "#e6fffa" },
             { id = 10; name = "Whitelisted"; description = "Gold name on the leaderboard for 24 hours \u{2014} the only clout that matters."; backfireDescription = ?"Cannot backfire."; costSuccess = 5.0; costFailure = 5.0; costBackfire = 5.0; successOdds = 100; failureOdds = 0; backfireOdds = 0; duration = 24; cooldown = 24; effectValues = [24.0, 168.0]; castLimit = 1; backgroundColor = "#fff0e6" },
             { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 0; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
+            { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
+            { id = 13; name = "Bear Raid"; description = "Coordinated short. You profit on the spread; everyone else takes a haircut."; backfireDescription = ?"You misread the cycle — burn 100 PP and everyone else gets paid 40-50 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 100.0]; castLimit = 0; backgroundColor = "#ffe6f0" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -2058,6 +2072,8 @@ persistent actor Self {
             case (#downlineHeist) { true };
             case (#purseCutter) { true };
             case (#tenderOffer) { true };
+            case (#stimulusCheck) { false };
+            case (#bearRaid) { false };
             case (_) { false };
         };
         if (needsTarget) {
@@ -2129,10 +2145,27 @@ persistent actor Self {
             case (#purseCutter) { true };
             case (#whaleRebalance) { true };
             case (#tenderOffer) { true };
+            case (#bearRaid) { true };
             case (_) { false };
         };
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
-        let outcome = determineOutcomeWithMod(config, modPct);
+
+        // Most Wanted bonus: if the target was a recent successful Bear Raider,
+        // every spell cast against them gets +20pp success modifier (pile-on).
+        var mostWantedBonus : Int = 0;
+        switch (target) {
+            case (?t) {
+                switch (principalMap.get(mostWantedUntil, t)) {
+                    case (?deadline) {
+                        if (Time.now() < deadline) { mostWantedBonus := 20 };
+                    };
+                    case null {};
+                };
+            };
+            case null {};
+        };
+
+        let outcome = determineOutcomeWithMod(config, modPct + mostWantedBonus);
 
         // Determine the cost this outcome charges, then clamp to balance so
         // an unaffordable backfire/failure just zeros the caster instead of
@@ -2614,6 +2647,64 @@ persistent actor Self {
                     };
                 };
             };
+            case (#stimulusCheck) {
+                let casterGain : Nat = ppToUnits(effectNatOr(config.effectValues, 0, 100));
+                let perVictimMin : Nat = effectNatOr(config.effectValues, 1, 40);
+                let perVictimMax : Nat = effectNatOr(config.effectValues, 2, 50);
+
+                // Mint to caster first.
+                let casterRes = await mintInternal(caster, casterGain, memo);
+                let casterMinted = switch (casterRes) { case (#Ok(_)) { casterGain }; case (#Err(_)) { 0 } };
+
+                // Iterate all known holders. Pay each (except caster) a random 40-50 PP.
+                var othersCount : Nat = 0;
+                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (not Principal.equal(holder, caster)) {
+                        let perVictim = rollPct(perVictimMin, perVictimMax);
+                        let perVictimUnits = ppToUnits(perVictim);
+                        let res = await mintInternal(holder, perVictimUnits, memo);
+                        switch (res) {
+                            case (#Ok(_)) { othersCount += 1 };
+                            case (#Err(_)) {};
+                        };
+                    };
+                };
+
+                return { ppDeltaCaster = casterMinted; affectedTarget = null; affectedCount = othersCount; shieldDeflected = false; renameDetail = null };
+            };
+            case (#bearRaid) {
+                let casterGain : Nat = ppToUnits(effectNatOr(config.effectValues, 0, 100));
+                let perVictimMin : Nat = effectNatOr(config.effectValues, 1, 40);
+                let perVictimMax : Nat = effectNatOr(config.effectValues, 2, 50);
+
+                var drained : Nat = 0;
+                var victims : Nat = 0;
+                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (not Principal.equal(holder, caster)) {
+                        if (not consumeShieldIfActive(holder)) {
+                            let perVictim = rollPct(perVictimMin, perVictimMax);
+                            let perVictimUnits = ppToUnits(perVictim);
+                            let res = await chipTransfer(holder, caster, perVictimUnits, memo);
+                            switch (res) {
+                                case (#Ok(_)) { drained += perVictimUnits; victims += 1 };
+                                case (#Err(_)) {};
+                            };
+                        };
+                    };
+                };
+
+                // Caster keeps casterGain; burn the excess (spec: 'caster keeps 100, excess burns').
+                if (drained > casterGain) {
+                    let excess = drained - casterGain;
+                    let _ = await burnFrom(caster, excess, memo);
+                };
+
+                // Set Most Wanted on the caster for 24h.
+                let oneDayMostWantedNs : Int = 24 * 3600 * 1_000_000_000;
+                mostWantedUntil := principalMap.put(mostWantedUntil, caster, nowTs + oneDayMostWantedNs);
+
+                return { ppDeltaCaster = casterGain; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
+            };
         };
     };
 
@@ -2838,6 +2929,32 @@ persistent actor Self {
                 };
                 return { ppDeltaCaster = 0; affectedTarget = target; affectedCount = (switch (target) { case (null) { 0 }; case (?_) { 1 } }); shieldDeflected = false; renameDetail = null };
             };
+            case (#stimulusCheck) {
+                // Bill didn't pass — caster burns extra (in addition to the standard
+                // backfire cost burn).
+                let casterLoss : Nat = ppToUnits(effectNatOr(config.effectValues, 3, 200));
+                let _ = await burnFrom(caster, casterLoss, memo);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#bearRaid) {
+                // Karmic inversion — backfire becomes an accidental Stimulus Check.
+                // Caster takes a hit, everyone else gets paid.
+                let casterLossBR : Nat = ppToUnits(effectNatOr(config.effectValues, 3, 100));
+                let perVictimMinBR : Nat = effectNatOr(config.effectValues, 1, 40);
+                let perVictimMaxBR : Nat = effectNatOr(config.effectValues, 2, 50);
+
+                let _ = await burnFrom(caster, casterLossBR, memo);
+                var othersBR : Nat = 0;
+                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (not Principal.equal(holder, caster)) {
+                        let perVictim = rollPct(perVictimMinBR, perVictimMaxBR);
+                        let perVictimUnits = ppToUnits(perVictim);
+                        let _ = await mintInternal(holder, perVictimUnits, memo);
+                        othersBR += 1;
+                    };
+                };
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = othersBR; shieldDeflected = false; renameDetail = null };
+            };
         };
     };
 
@@ -2893,6 +3010,8 @@ persistent actor Self {
             case (#downlineBoost) { 9 };
             case (#goldenName) { 10 };
             case (#tenderOffer) { 11 };
+            case (#stimulusCheck) { 12 };
+            case (#bearRaid) { 13 };
         };
         natMap.get(shenaniganConfigs, id);
     };
@@ -4009,6 +4128,8 @@ persistent actor Self {
                 case (#downlineBoost) { 9 };
                 case (#goldenName) { 10 };
                 case (#tenderOffer) { 11 };
+                case (#stimulusCheck) { 12 };
+                case (#bearRaid) { 13 };
             };
             // record.cost is in whole-PP Float; convert back to units. ppToUnits
             // takes Nat so floor — safe because the backend wrote whole-PP
