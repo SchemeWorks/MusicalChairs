@@ -57,6 +57,10 @@ persistent actor Self {
         #tenderOffer;
         #stimulusCheck;
         #bearRaid;
+        #foundersRound;
+        #strategicReserve;
+        #slushFund;
+        #insiderTip;
     };
 
     public type ShenaniganOutcome = {
@@ -594,6 +598,11 @@ persistent actor Self {
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
 
+    /// Strategic Reserve cosmetic. Principal → nanosecond-precision deadline.
+    /// While `now < deadline`, the principal renders with a purple leaderboard
+    /// name. Seeded by #strategicReserve spell; queried via getStrategicReserveStatus.
+    var strategicReserveUntil = principalMap.empty<Int>();
+
     /// Tender-Offer acquired-lockout. Principal → nanosecond-precision
     /// deadline. While `now < deadline`, the principal cannot cast ANY
     /// spell — they were just acquired via tender offer and are in the
@@ -1045,6 +1054,14 @@ persistent actor Self {
             { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
             // Bear Raid (id=13) — Phase 4 added 2026-05-27
             { id = 13; name = "Bear Raid"; description = "Coordinated short. You profit on the spread; everyone else takes a haircut."; backfireDescription = ?"You misread the cycle — burn 100 PP and everyone else gets paid 40-50 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 100.0]; castLimit = 0; backgroundColor = "#ffe6f0" },
+            // Founder's Round (id=14) — Phase 5 added 2026-05-27
+            { id = 14; name = "Founder's Round"; description = "Lock in a flat round at 1.2\u{00D7} last quarter's valuation. Investors smile. Mint rate +15% for 24h."; backfireDescription = ?"Down round. Mint rate -10% for 24h."; costSuccess = 300.0; costFailure = 100.0; costBackfire = 200.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 24; cooldown = 24; effectValues = [500.0, 15.0, 10.0]; castLimit = 1; backgroundColor = "#e6e6ff" },
+            // Strategic Reserve (id=15) — Phase 5 added 2026-05-27
+            { id = 15; name = "Strategic Reserve"; description = "You've got runway and a board seat. Lock in a Strategic Reserve title \u{2014} purple name on the leaderboard for 7 days."; backfireDescription = ?"Cannot backfire."; costSuccess = 1500.0; costFailure = 500.0; costBackfire = 0.0; successOdds = 90; failureOdds = 10; backfireOdds = 0; duration = 168; cooldown = 168; effectValues = [2000.0]; castLimit = 0; backgroundColor = "#e6d4ff" },
+            // Slush Fund (id=16) — Phase 5 added 2026-05-27
+            { id = 16; name = "Slush Fund"; description = "Anonymous donor strikes again. Send a target 100\u{2013}200 PP. They'll wonder who's bullish on them."; backfireDescription = ?"They found out it was you. You owe them an extra 200 PP for the unsolicited generosity."; costSuccess = 50.0; costFailure = 15.0; costBackfire = 40.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 0; cooldown = 12; effectValues = [100.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffd9" },
+            // Insider Tip (id=17) — Phase 5 added 2026-05-27
+            { id = 17; name = "Insider Tip"; description = "Slip the target a hot tip. Their mint rate jumps +10% for 12h. (Don't worry, the SEC doesn't read this codebase.)"; backfireDescription = ?"Whisper got out. SEC settlement, no admission of wrongdoing. You pay 50 PP."; costSuccess = 50.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 12; cooldown = 12; effectValues = [10.0, 50.0]; castLimit = 0; backgroundColor = "#d9ffe6" },
         ];
         for (cfg in newConfigs.vals()) {
             switch (natMap.get(shenaniganConfigs, cfg.id)) {
@@ -1490,6 +1507,10 @@ persistent actor Self {
             { id = 11; name = "Tender Offer"; description = "Make a tender offer for a smaller player's entire position. They get taken private. Their cap table integrates into yours."; backfireDescription = ?"The target gets 3x your cost as poison-pill compensation, and you can't cast Tender Offer for 7 days."; costSuccess = 500.0; costFailure = 100.0; costBackfire = 300.0; successOdds = 35; failureOdds = 50; backfireOdds = 15; duration = 0; cooldown = 12; effectValues = [50.0]; castLimit = 0; backgroundColor = "#fff0ea" },
             { id = 12; name = "Stimulus Check"; description = "Pull strings at the Fed — everyone gets a check. You get a bigger one for proposing it."; backfireDescription = ?"The bill didn't pass. You ate the lobbying budget — burn 200 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffe6" },
             { id = 13; name = "Bear Raid"; description = "Coordinated short. You profit on the spread; everyone else takes a haircut."; backfireDescription = ?"You misread the cycle — burn 100 PP and everyone else gets paid 40-50 PP."; costSuccess = 100.0; costFailure = 30.0; costBackfire = 50.0; successOdds = 55; failureOdds = 35; backfireOdds = 10; duration = 0; cooldown = 24; effectValues = [100.0, 40.0, 50.0, 100.0]; castLimit = 0; backgroundColor = "#ffe6f0" },
+            { id = 14; name = "Founder's Round"; description = "Lock in a flat round at 1.2\u{00D7} last quarter's valuation. Investors smile. Mint rate +15% for 24h."; backfireDescription = ?"Down round. Mint rate -10% for 24h."; costSuccess = 300.0; costFailure = 100.0; costBackfire = 200.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 24; cooldown = 24; effectValues = [500.0, 15.0, 10.0]; castLimit = 1; backgroundColor = "#e6e6ff" },
+            { id = 15; name = "Strategic Reserve"; description = "You've got runway and a board seat. Lock in a Strategic Reserve title \u{2014} purple name on the leaderboard for 7 days."; backfireDescription = ?"Cannot backfire."; costSuccess = 1500.0; costFailure = 500.0; costBackfire = 0.0; successOdds = 90; failureOdds = 10; backfireOdds = 0; duration = 168; cooldown = 168; effectValues = [2000.0]; castLimit = 0; backgroundColor = "#e6d4ff" },
+            { id = 16; name = "Slush Fund"; description = "Anonymous donor strikes again. Send a target 100\u{2013}200 PP. They'll wonder who's bullish on them."; backfireDescription = ?"They found out it was you. You owe them an extra 200 PP for the unsolicited generosity."; costSuccess = 50.0; costFailure = 15.0; costBackfire = 40.0; successOdds = 70; failureOdds = 20; backfireOdds = 10; duration = 0; cooldown = 12; effectValues = [100.0, 200.0]; castLimit = 0; backgroundColor = "#e6ffd9" },
+            { id = 17; name = "Insider Tip"; description = "Slip the target a hot tip. Their mint rate jumps +10% for 12h. (Don't worry, the SEC doesn't read this codebase.)"; backfireDescription = ?"Whisper got out. SEC settlement, no admission of wrongdoing. You pay 50 PP."; costSuccess = 50.0; costFailure = 20.0; costBackfire = 40.0; successOdds = 60; failureOdds = 30; backfireOdds = 10; duration = 12; cooldown = 12; effectValues = [10.0, 50.0]; castLimit = 0; backgroundColor = "#d9ffe6" },
         ];
         for (config in defaultConfigs.vals()) {
             shenaniganConfigs := natMap.put(shenaniganConfigs, config.id, config);
@@ -1945,6 +1966,12 @@ persistent actor Self {
                 case null {};
             };
         };
+        for (p in principalMap.keys(strategicReserveUntil)) {
+            switch (principalMap.get(strategicReserveUntil, p)) {
+                case (?d) { if (d <= now) { strategicReserveUntil := principalMap.delete(strategicReserveUntil, p) } };
+                case null {};
+            };
+        };
     };
 
     /// Caller commits a custom-typed name for their pending Rename slot.
@@ -2229,6 +2256,8 @@ persistent actor Self {
             case (#downlineHeist) { true };
             case (#purseCutter) { true };
             case (#tenderOffer) { true };
+            case (#slushFund) { true };
+            case (#insiderTip) { true };
             case (#stimulusCheck) { false };
             case (#bearRaid) { false };
             case (_) { false };
@@ -2293,6 +2322,22 @@ persistent actor Self {
             let thresholdPct = effectNatOr(config.effectValues, 0, 50);
             if (targetBalForRoll > casterBalPre * thresholdPct / 100) {
                 throw Error.reject("Target's PP balance must be at most " # Nat.toText(thresholdPct) # "% of yours for Tender Offer.");
+            };
+        };
+
+        // Founder's Round balance gate — caster must hold ≥ effectValues[0] PP.
+        if (shenaniganType == #foundersRound) {
+            let gate = ppToUnits(effectNatOr(config.effectValues, 0, 500));
+            if (casterBalPre < gate) {
+                throw Error.reject("Founder's Round requires you to have at least " # Nat.toText(effectNatOr(config.effectValues, 0, 500)) # " PP.");
+            };
+        };
+
+        // Strategic Reserve balance gate — caster must hold ≥ effectValues[0] PP.
+        if (shenaniganType == #strategicReserve) {
+            let gate = ppToUnits(effectNatOr(config.effectValues, 0, 2000));
+            if (casterBalPre < gate) {
+                throw Error.reject("Strategic Reserve requires you to have at least " # Nat.toText(effectNatOr(config.effectValues, 0, 2000)) # " PP.");
             };
         };
 
@@ -2866,6 +2911,65 @@ persistent actor Self {
 
                 return { ppDeltaCaster = casterNet; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
+            case (#foundersRound) {
+                // effectValues schema: [balanceGatePp, successPct, backfirePct].
+                // balanceGatePp is enforced above in the pre-cast gate.
+                // Success: write a mint multiplier for caster at (100 + successPct)%.
+                let successPct = effectNatOr(config.effectValues, 1, 15);
+                let multiplierBps : Nat = 10000 + successPct * 100;
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                mintMultipliers := principalMap.put(mintMultipliers, caster, {
+                    multiplierBps;
+                    expiresAt = nowTs + durationNs;
+                });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#strategicReserve) {
+                // Write the strategic-reserve deadline for the caster.
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                strategicReserveUntil := principalMap.put(strategicReserveUntil, caster, nowTs + durationNs);
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#slushFund) {
+                // Mint 100–200 PP to the chosen target.
+                switch (target) {
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                    case (?t) {
+                        let mintMin = effectNatOr(config.effectValues, 0, 100);
+                        let mintMax = effectNatOr(config.effectValues, 1, 200);
+                        let amount = ppToUnits(rollPct(mintMin, mintMax));
+                        switch (await mintInternal(t, amount, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
+                            };
+                            case (#Err(msg)) {
+                                Debug.print("slushFund mintInternal failed: " # msg);
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                            };
+                        };
+                    };
+                };
+            };
+            case (#insiderTip) {
+                // Write a mint multiplier for the target at (100 + buffPct)%.
+                switch (target) {
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                    case (?t) {
+                        let buffPct = effectNatOr(config.effectValues, 0, 10);
+                        let multiplierBps : Nat = 10000 + buffPct * 100;
+                        let durationNs : Int = config.duration * 3_600_000_000_000;
+                        mintMultipliers := principalMap.put(mintMultipliers, t, {
+                            multiplierBps;
+                            expiresAt = nowTs + durationNs;
+                        });
+                        return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
+                    };
+                };
+            };
         };
     };
 
@@ -3133,6 +3237,60 @@ persistent actor Self {
                 };
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = othersBR; shieldDeflected = false; renameDetail = null };
             };
+            case (#foundersRound) {
+                // Down round — write a negative mint multiplier for the caster.
+                let backfirePct = effectNatOr(config.effectValues, 2, 10);
+                // Guard: only apply if 10000 > backfirePct * 100 (i.e. no underflow).
+                let multiplierBps : Nat = if (10000 > backfirePct * 100) {
+                    10000 - backfirePct * 100
+                } else { 1 };
+                let durationNs : Int = config.duration * 3_600_000_000_000;
+                mintMultipliers := principalMap.put(mintMultipliers, caster, {
+                    multiplierBps;
+                    expiresAt = nowTs + durationNs;
+                });
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#strategicReserve) {
+                // 0% backfire odds by default — this branch only fires if admin
+                // tunes the odds. No extra effect beyond the standard cost burn.
+                return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+            };
+            case (#slushFund) {
+                // They found out — caster pays target 200 PP extra.
+                switch (target) {
+                    case (null) {
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                    case (?t) {
+                        let finePp : Nat = effectNatOr(config.effectValues, 1, 200);
+                        let fineUnits = ppToUnits(finePp);
+                        switch (await chipTransfer(caster, t, fineUnits, memo)) {
+                            case (#Ok(_)) {
+                                return { ppDeltaCaster = -fineUnits; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
+                            };
+                            case (#Err(msg)) {
+                                Debug.print("slushFund backfire chipTransfer failed: " # msg);
+                                return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                            };
+                        };
+                    };
+                };
+            };
+            case (#insiderTip) {
+                // SEC settlement fine — caster burns effectValues[1] PP.
+                let finePp : Nat = effectNatOr(config.effectValues, 1, 50);
+                let fineUnits = ppToUnits(finePp);
+                switch (await burnFrom(caster, fineUnits, memo)) {
+                    case (#Ok(_)) {
+                        return { ppDeltaCaster = -fineUnits; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                    case (#Err(msg)) {
+                        Debug.print("insiderTip backfire burnFrom failed: " # msg);
+                        return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                    };
+                };
+            };
         };
     };
 
@@ -3190,6 +3348,10 @@ persistent actor Self {
             case (#tenderOffer) { 11 };
             case (#stimulusCheck) { 12 };
             case (#bearRaid) { 13 };
+            case (#foundersRound) { 14 };
+            case (#strategicReserve) { 15 };
+            case (#slushFund) { 16 };
+            case (#insiderTip) { 17 };
         };
         natMap.get(shenaniganConfigs, id);
     };
@@ -4006,6 +4168,18 @@ persistent actor Self {
         Array.map<(Principal, Int), Principal>(buf, func(e) = e.0);
     };
 
+    /// Strategic Reserve status for `p`. Returns the deadline (ns since epoch)
+    /// while the effect is active, null otherwise. Used by the frontend to
+    /// apply purple leaderboard styling.
+    public query func getStrategicReserveStatus(p : Principal) : async ?Int {
+        switch (principalMap.get(strategicReserveUntil, p)) {
+            case (?deadline) {
+                if (Time.now() < deadline) { ?deadline } else { null };
+            };
+            case null { null };
+        };
+    };
+
     /// Active rename-spell name for `user`, if any. Expired entries return null.
     public query func getCustomDisplayName(user : Principal) : async ?Text {
         switch (principalMap.get(customDisplayNames, user)) {
@@ -4352,6 +4526,10 @@ persistent actor Self {
                 case (#tenderOffer) { 11 };
                 case (#stimulusCheck) { 12 };
                 case (#bearRaid) { 13 };
+                case (#foundersRound) { 14 };
+                case (#strategicReserve) { 15 };
+                case (#slushFund) { 16 };
+                case (#insiderTip) { 17 };
             };
             // record.cost is in whole-PP Float; convert back to units. ppToUnits
             // takes Nat so floor — safe because the backend wrote whole-PP
