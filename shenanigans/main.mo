@@ -248,6 +248,15 @@ persistent actor Self {
     /// `multiplierBps / 10_000`. e.g. 11_500 = 1.15x.
     public type MintMultiplier = { multiplierBps : Nat; expiresAt : Int };
 
+    /// Per-source mint multiplier entry. Each spell that writes a mint
+    /// multiplier gets its own slot keyed by sourceSpellId. The effective
+    /// rate is computed via 80% diminishing-returns stacking.
+    public type MintMultiplierSource = {
+        sourceSpellId : Nat;  // 6 = ppBoosterAura, 14 = foundersRound, 17 = insiderTip
+        multiplierBps : Nat;  // 10000 = 1.0×, 11500 = 1.15×, 9000 = 0.9× (penalty)
+        expiresAt : Int;
+    };
+
     /// Downline Boost — multiplies referral cascade mints whose upline is
     /// this user (any tier) by `multiplierBps / 10_000`.
     public type CascadeBoost = { multiplierBps : Nat; expiresAt : Int };
@@ -604,6 +613,14 @@ persistent actor Self {
     var mintSiphons = principalMap.empty<MintSiphon>();
     var shieldsActive = principalMap.empty<ShieldState>();
     var mintMultipliers = principalMap.empty<MintMultiplier>();
+    /// Per-source multiplier tracking. Each principal can have multiple
+    /// active buffs/penalties from different spells. The effective rate is
+    /// computed via 80% diminishing-returns stacking (see
+    /// recomputeMintMultiplier).
+    ///
+    /// `mintMultipliers` (the legacy single-slot map) is kept as the
+    /// derived effective rate so existing read paths continue working.
+    var mintMultiplierSources = principalMap.empty<[MintMultiplierSource]>();
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
 
@@ -1162,6 +1179,19 @@ persistent actor Self {
             let now = Time.now();
             for (p in principalMap.keys(knownPpHolders)) {
                 lastActiveAt := principalMap.put(lastActiveAt, p, now);
+            };
+        };
+        // One-shot migration: convert existing mintMultipliers entries to
+        // mintMultiplierSources (single source, defaulted to Yield Boost
+        // id=6). Idempotent — only runs when sources map is empty.
+        if (principalMap.size(mintMultiplierSources) == 0) {
+            for ((p, entry) in principalMap.entries(mintMultipliers)) {
+                let source : MintMultiplierSource = {
+                    sourceSpellId = 6;
+                    multiplierBps = entry.multiplierBps;
+                    expiresAt = entry.expiresAt;
+                };
+                mintMultiplierSources := principalMap.put(mintMultiplierSources, p, [source]);
             };
         };
     };
@@ -2044,6 +2074,78 @@ persistent actor Self {
         #Ok(trimmed);
     };
 
+    /// Compute the effective multiplier from a list of active sources.
+    /// Each source contributes its bonus (multiplierBps - 10000) with
+    /// diminishing returns: the highest-magnitude source applies at full
+    /// weight, each subsequent source at 80% of the previous (compounding).
+    ///
+    /// Penalties (multiplierBps < 10000) stack the same way — their
+    /// negative bonuses are added to the total with the same decay.
+    ///
+    /// Sorted by absolute magnitude of the bonus descending so the
+    /// largest-impact source (positive OR negative) gets full weight.
+    func computeEffectiveMultiplierBps(sources : [MintMultiplierSource]) : Nat {
+        let now = Time.now();
+        let active = Array.filter<MintMultiplierSource>(sources, func(s) = s.expiresAt > now);
+        if (active.size() == 0) { return 10000 };
+        // Sort by |multiplierBps - 10000| descending.
+        let sorted = Array.sort<MintMultiplierSource>(active, func(a, b) {
+            let absA : Nat = if (a.multiplierBps > 10000) { a.multiplierBps - 10000 } else { 10000 - a.multiplierBps };
+            let absB : Nat = if (b.multiplierBps > 10000) { b.multiplierBps - 10000 } else { 10000 - b.multiplierBps };
+            if (absB > absA) { #less }
+            else if (absB < absA) { #greater }
+            else { #equal }
+        });
+        var totalBonusBps : Int = 0;
+        var decayBps : Nat = 10000;  // starts at 1.0, multiplied by 0.8 each step
+        for (s in sorted.vals()) {
+            let bonusBps : Int = (s.multiplierBps : Int) - 10000;
+            let weightedBonus : Int = bonusBps * (decayBps : Int) / 10000;
+            totalBonusBps += weightedBonus;
+            decayBps := decayBps * 8000 / 10000;  // 80% decay
+        };
+        let effective : Int = 10000 + totalBonusBps;
+        // Floor at 0 — multiplier can't be negative.
+        if (effective < 0) { 0 } else { Int.abs(effective) };
+    };
+
+    /// Add or replace a source in the multiplier sources list for a
+    /// principal. If a source with the same sourceSpellId already exists,
+    /// it's replaced (the latest cast of that spell wins for that source).
+    /// After updating, recomputes the legacy mintMultipliers effective view.
+    func addMintMultiplierSource(target : Principal, source : MintMultiplierSource) {
+        let now = Time.now();
+        let existing : [MintMultiplierSource] = switch (principalMap.get(mintMultiplierSources, target)) {
+            case (?ss) { ss };
+            case null { [] };
+        };
+        // Drop the existing entry for this sourceSpellId (if any) plus any expired entries.
+        let filtered = Array.filter<MintMultiplierSource>(existing, func(s) {
+            s.sourceSpellId != source.sourceSpellId and s.expiresAt > now
+        });
+        let updated = Array.append<MintMultiplierSource>(filtered, [source]);
+        mintMultiplierSources := principalMap.put(mintMultiplierSources, target, updated);
+        // Refresh the legacy effective-multiplier slot.
+        let effective = computeEffectiveMultiplierBps(updated);
+        if (effective == 10000) {
+            mintMultipliers := principalMap.delete(mintMultipliers, target);
+        } else {
+            // Use the latest expiresAt across active sources as the legacy
+            // expiry (the latest source to expire — that's when the
+            // effective multiplier drops to 1.0).
+            var latestExpiry : Int = 0;
+            for (s in updated.vals()) {
+                if (s.expiresAt > now and s.expiresAt > latestExpiry) {
+                    latestExpiry := s.expiresAt;
+                };
+            };
+            mintMultipliers := principalMap.put(mintMultipliers, target, {
+                multiplierBps = effective;
+                expiresAt = latestExpiry;
+            });
+        };
+    };
+
     /// Lazy cleanup: drop every pendingRenames entry whose expiresAt has
     /// already passed. Called on the warm path of setPendingRenameName so
     /// the map doesn't accumulate stubs from casters who never commit.
@@ -2109,6 +2211,20 @@ persistent actor Self {
             switch (principalMap.get(customTitles, p)) {
                 case (?entry) { if (entry.expiresAt <= now) { customTitles := principalMap.delete(customTitles, p) } };
                 case null {};
+            };
+        };
+        // Sweep expired mintMultiplierSources entries. Prune expired sources
+        // from each principal's list; delete the key entirely if all expired.
+        for (p in principalMap.keys(mintMultiplierSources)) {
+            let sources = switch (principalMap.get(mintMultiplierSources, p)) {
+                case (?ss) { ss };
+                case null { [] };
+            };
+            let active = Array.filter<MintMultiplierSource>(sources, func(s) = s.expiresAt > now);
+            if (active.size() == 0) {
+                mintMultiplierSources := principalMap.delete(mintMultiplierSources, p);
+            } else if (active.size() < sources.size()) {
+                mintMultiplierSources := principalMap.put(mintMultiplierSources, p, active);
             };
         };
     };
@@ -3011,31 +3127,13 @@ persistent actor Self {
                 // approximates with a fixed 24h ceiling.
                 let boostMin = effectNatOr(config.effectValues, 0, 5);
                 let boostMax = effectNatOr(config.effectValues, 1, 15);
-                let pct = rollPct(100 + boostMin, 100 + boostMax);
-                let newMultiplierBps_ppb : Nat = pct * 100;
-                let newExpiresAt_ppb : Int = nowTs + oneDayNs;
-                // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
-                let existingBps_ppb : Nat = switch (principalMap.get(mintMultipliers, caster)) {
-                    case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
-                    case null { 10000 };
-                };
-                let finalBps_ppb : Nat = if (newMultiplierBps_ppb > existingBps_ppb) { newMultiplierBps_ppb } else { existingBps_ppb };
-                let finalExpiresAt_ppb : Int = if (newMultiplierBps_ppb > existingBps_ppb) {
-                    newExpiresAt_ppb
-                } else {
-                    switch (principalMap.get(mintMultipliers, caster)) {
-                        case (?entry) { if (entry.expiresAt > newExpiresAt_ppb) { entry.expiresAt } else { newExpiresAt_ppb } };
-                        case null { newExpiresAt_ppb };
-                    };
-                };
-                mintMultipliers := principalMap.put(mintMultipliers, caster, {
-                    multiplierBps = finalBps_ppb;
-                    expiresAt = finalExpiresAt_ppb;
+                let bonusPct_ppb = rollPct(boostMin, boostMax);
+                let durationNs_ppb : Int = oneDayNs;
+                addMintMultiplierSource(caster, {
+                    sourceSpellId = 6;
+                    multiplierBps = 10000 + bonusPct_ppb * 100;
+                    expiresAt = nowTs + durationNs_ppb;
                 });
-                // TODO(diminishing-returns): track per-source multipliers so the
-                // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
-                // +15%" instead of a single combined badge. Until then, the higher
-                // multiplier wins (max — see I1 fix).
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#purseCutter) {
@@ -3244,31 +3342,12 @@ persistent actor Self {
                 // balanceGatePp is enforced above in the pre-cast gate.
                 // Success: write a mint multiplier for caster at (100 + successPct)%.
                 let successPct = effectNatOr(config.effectValues, 1, 15);
-                let newMultiplierBps_fr : Nat = 10000 + successPct * 100;
-                let durationNs : Int = config.duration * 3_600_000_000_000;
-                let newExpiresAt_fr : Int = nowTs + durationNs;
-                // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
-                let existingBps_fr : Nat = switch (principalMap.get(mintMultipliers, caster)) {
-                    case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
-                    case null { 10000 };
-                };
-                let finalBps_fr : Nat = if (newMultiplierBps_fr > existingBps_fr) { newMultiplierBps_fr } else { existingBps_fr };
-                let finalExpiresAt_fr : Int = if (newMultiplierBps_fr > existingBps_fr) {
-                    newExpiresAt_fr
-                } else {
-                    switch (principalMap.get(mintMultipliers, caster)) {
-                        case (?entry) { if (entry.expiresAt > newExpiresAt_fr) { entry.expiresAt } else { newExpiresAt_fr } };
-                        case null { newExpiresAt_fr };
-                    };
-                };
-                mintMultipliers := principalMap.put(mintMultipliers, caster, {
-                    multiplierBps = finalBps_fr;
-                    expiresAt = finalExpiresAt_fr;
+                let durationNs_fr : Int = config.duration * 3_600_000_000_000;
+                addMintMultiplierSource(caster, {
+                    sourceSpellId = 14;
+                    multiplierBps = 10000 + successPct * 100;
+                    expiresAt = nowTs + durationNs_fr;
                 });
-                // TODO(diminishing-returns): track per-source multipliers so the
-                // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
-                // +15%" instead of a single combined badge. Until then, the higher
-                // multiplier wins (max — see I1 fix).
                 let coin_fr = Int.abs(Time.now()) % 4; // 25% trigger rate
                 if (coin_fr == 0) {
                     switch (reginaldPickFor("foundersRound")) {
@@ -3316,31 +3395,12 @@ persistent actor Self {
                     };
                     case (?t) {
                         let buffPct = effectNatOr(config.effectValues, 0, 10);
-                        let newMultiplierBps_it : Nat = 10000 + buffPct * 100;
-                        let durationNs : Int = config.duration * 3_600_000_000_000;
-                        let newExpiresAt_it : Int = nowTs + durationNs;
-                        // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
-                        let existingBps_it : Nat = switch (principalMap.get(mintMultipliers, t)) {
-                            case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
-                            case null { 10000 };
-                        };
-                        let finalBps_it : Nat = if (newMultiplierBps_it > existingBps_it) { newMultiplierBps_it } else { existingBps_it };
-                        let finalExpiresAt_it : Int = if (newMultiplierBps_it > existingBps_it) {
-                            newExpiresAt_it
-                        } else {
-                            switch (principalMap.get(mintMultipliers, t)) {
-                                case (?entry) { if (entry.expiresAt > newExpiresAt_it) { entry.expiresAt } else { newExpiresAt_it } };
-                                case null { newExpiresAt_it };
-                            };
-                        };
-                        mintMultipliers := principalMap.put(mintMultipliers, t, {
-                            multiplierBps = finalBps_it;
-                            expiresAt = finalExpiresAt_it;
+                        let durationNs_it : Int = config.duration * 3_600_000_000_000;
+                        addMintMultiplierSource(t, {
+                            sourceSpellId = 17;
+                            multiplierBps = 10000 + buffPct * 100;
+                            expiresAt = nowTs + durationNs_it;
                         });
-                        // TODO(diminishing-returns): track per-source multipliers so the
-                        // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
-                        // +15%" instead of a single combined badge. Until then, the higher
-                        // multiplier wins (max — see I1 fix).
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };
@@ -3641,19 +3701,16 @@ persistent actor Self {
             };
             case (#foundersRound) {
                 // Down round — write a negative mint multiplier for the caster.
-                // Backfire is a penalty (below 1.0×), so we always overwrite —
-                // no max-guard needed here (a penalty should land regardless of
-                // any existing positive buff; the buff-stacking follow-up can
-                // revisit this if needed).
+                // Backfire is a penalty (below 1.0×); addMintMultiplierSource
+                // replaces any existing foundersRound source so the penalty
+                // lands regardless of a previous positive buff from this slot.
                 let backfirePct = effectNatOr(config.effectValues, 2, 10);
-                // Guard: only apply if 10000 > backfirePct * 100 (i.e. no underflow).
-                let multiplierBps : Nat = if (10000 > backfirePct * 100) {
-                    10000 - backfirePct * 100
-                } else { 1 };
-                let durationNs : Int = config.duration * 3_600_000_000_000;
-                mintMultipliers := principalMap.put(mintMultipliers, caster, {
-                    multiplierBps;
-                    expiresAt = nowTs + durationNs;
+                let penaltyBps : Nat = if (10000 > backfirePct * 100) { 10000 - backfirePct * 100 } else { 0 };
+                let durationNs_frBF : Int = config.duration * 3_600_000_000_000;
+                addMintMultiplierSource(caster, {
+                    sourceSpellId = 14;
+                    multiplierBps = penaltyBps;
+                    expiresAt = nowTs + durationNs_frBF;
                 });
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
@@ -4587,6 +4644,18 @@ persistent actor Self {
             mintSiphon = liveSiphon;
             golden = isGolden;
         };
+    };
+
+    /// Returns the active multiplier sources for a principal (each with
+    /// sourceSpellId, multiplierBps, expiresAt). Frontend reads this to
+    /// render per-source badges in the Active Effects Strip.
+    public query func getMintMultiplierSources(p : Principal) : async [MintMultiplierSource] {
+        let now = Time.now();
+        let sources = switch (principalMap.get(mintMultiplierSources, p)) {
+            case (?ss) { ss };
+            case null { return [] };
+        };
+        Array.filter<MintMultiplierSource>(sources, func(s) = s.expiresAt > now);
     };
 
     /// Read the caller's (or any principal's) active Magic Mirror shield, if any.
