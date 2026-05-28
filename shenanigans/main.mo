@@ -578,9 +578,17 @@ persistent actor Self {
         backerPpPerSol = 120_000;  // 4_000 * 30; admin can retune
     };
 
-    // Observer cursors
+    // Observer cursors (ICP-side)
     var gameIdCursor : Nat = 0;                         // next unprocessed game id
     var backerSeen = principalMap.empty<BackerSeen>();  // cumulative ICP minted-for per backer
+
+    // M2: Observer cursors (SOL-side). Namespaced separately from the
+    // ICP cursors so the two sources can advance independently. Each
+    // ponzi_math canister has its own gameId namespace, so a tick can
+    // safely process game 0 on the SOL canister even after the ICP
+    // canister already has games up to 50.
+    var solGameIdCursor : Nat = 0;
+    var solBackerSeen = principalMap.empty<BackerSeen>();
 
     // Observer lock to prevent concurrent ticks
     transient var observerRunning : Bool = false;
@@ -604,6 +612,13 @@ persistent actor Self {
     // and a failed delta mint blocks the same principal on subsequent ticks.
     transient var backerMintRetries = principalMap.empty<Nat>();
     var missedBackerMints = principalMap.empty<Text>();
+
+    // M2: SOL-side retry counters + miss map. Separate keys per source so
+    // a failed SOL mint doesn't stall the ICP source and vice versa.
+    transient var solGameMintRetries = natMap.empty<Nat>();
+    var missedSolGameMints = natMap.empty<Text>();
+    transient var solBackerMintRetries = principalMap.empty<Nat>();
+    var missedSolBackerMints = principalMap.empty<Text>();
 
     // Cash-out queue
     var cashOuts = natMap.empty<CashOutEntry>();
