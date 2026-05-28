@@ -1671,7 +1671,30 @@ persistent actor class PonziMathSol(initArgs : {
 
     public shared ({ caller }) func getOrCreateDepositAddress() : async { #Ok : Text; #Err : Text } {
         requireAuthenticated(caller);
-        Debug.trap("getOrCreateDepositAddress: not yet implemented (Task 10)");
+        switch (principalMapNat.get(depositAddresses, caller)) {
+            case (?addr) { #Ok(addr) };
+            case (null) {
+                acquireCallerLock(caller);
+                try {
+                    let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(caller));
+                    depositAddresses := principalMapNat.put(depositAddresses, caller, addr);
+                    addressToPrincipal := textMap.put(addressToPrincipal, addr, caller);
+                    #Ok(addr);
+                } catch (e) {
+                    #Err("Failed to derive deposit address: " # Error.message(e));
+                } finally {
+                    releaseCallerLock(caller);
+                };
+            };
+        };
+    };
+
+    public query ({ caller }) func getMyDepositAddress() : async ?Text {
+        principalMapNat.get(depositAddresses, caller);
+    };
+
+    public query func getDepositAddressFor(p : Principal) : async ?Text {
+        principalMapNat.get(depositAddresses, p);
     };
 
     public shared ({ caller }) func prepareSolDeposit(args : { plan : GamePlan; expectedAmountLamports : Nat64 }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
