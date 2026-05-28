@@ -1451,20 +1451,38 @@ persistent actor Self {
         };
     };
 
-    func processBackerDeltas() : async () {
-        let ponziMath = getPonziMath();
+    func processBackerDeltas(denomination : Denomination) : async () {
+        let ponziMathOpt : ?PonziMathActor = switch (denomination) {
+            case (#icp) { ?getPonziMath() };
+            case (#sol) { getPonziMathSol() };
+        };
+        let ponziMath = switch (ponziMathOpt) {
+            case (?p) { p };
+            case (null) { return };  // SOL not configured — no-op.
+        };
         let backers = try { await ponziMath.getBackerPositions() } catch (_) { [] };
         for (backer in backers.vals()) {
-            let seen : Float = switch (principalMap.get(backerSeen, backer.owner)) {
+            let seenMap = switch (denomination) {
+                case (#icp) { backerSeen };
+                case (#sol) { solBackerSeen };
+            };
+            let seen : Float = switch (principalMap.get(seenMap, backer.owner)) {
                 case (null) { 0.0 };
                 case (?v) { v };
             };
             if (backer.amount > seen) {
                 let delta : Float = backer.amount - seen;
-                let baseUnits = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
+                let ppPerUnit : Nat = switch (denomination) {
+                    case (#icp) { mintConfig.backerPpPerIcp };
+                    case (#sol) { mintConfig.backerPpPerSol };
+                };
+                let baseUnits = icpFloatToPpUnits(delta, ppPerUnit);
                 let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
-                let eventId = "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount);
+                let eventId = switch (denomination) {
+                    case (#icp) { "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount) };
+                    case (#sol) { "backer-sol-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount) };
+                };
 
                 let res = await mintWithEffects(backer.owner, playerNet, eventId);
                 switch (res) {
@@ -1473,11 +1491,23 @@ persistent actor Self {
                         if (delta >= 0.1) {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, Time.now());
                         };
-                        backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
-                        backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                        switch (denomination) {
+                            case (#icp) {
+                                backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                                backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                            };
+                            case (#sol) {
+                                solBackerSeen := principalMap.put(solBackerSeen, backer.owner, backer.amount);
+                                solBackerMintRetries := principalMap.delete(solBackerMintRetries, backer.owner);
+                            };
+                        };
                     };
                     case (#Err(msg)) {
-                        let attempts = switch (principalMap.get(backerMintRetries, backer.owner)) {
+                        let retryMap = switch (denomination) {
+                            case (#icp) { backerMintRetries };
+                            case (#sol) { solBackerMintRetries };
+                        };
+                        let attempts = switch (principalMap.get(retryMap, backer.owner)) {
                             case (?n) { n + 1 };
                             case (null) { 1 };
                         };
@@ -1488,11 +1518,27 @@ persistent actor Self {
                                 # Principal.toText(backer.owner) # " at amount "
                                 # Float.toText(backer.amount) # " after "
                                 # Nat.toText(attempts) # " attempts: " # msg);
-                            missedBackerMints := principalMap.put(missedBackerMints, backer.owner, msg);
-                            backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
-                            backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                            switch (denomination) {
+                                case (#icp) {
+                                    missedBackerMints := principalMap.put(missedBackerMints, backer.owner, msg);
+                                    backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                                    backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                                };
+                                case (#sol) {
+                                    missedSolBackerMints := principalMap.put(missedSolBackerMints, backer.owner, msg);
+                                    solBackerMintRetries := principalMap.delete(solBackerMintRetries, backer.owner);
+                                    solBackerSeen := principalMap.put(solBackerSeen, backer.owner, backer.amount);
+                                };
+                            };
                         } else {
-                            backerMintRetries := principalMap.put(backerMintRetries, backer.owner, attempts);
+                            switch (denomination) {
+                                case (#icp) {
+                                    backerMintRetries := principalMap.put(backerMintRetries, backer.owner, attempts);
+                                };
+                                case (#sol) {
+                                    solBackerMintRetries := principalMap.put(solBackerMintRetries, backer.owner, attempts);
+                                };
+                            };
                             Debug.print("Backer mint attempt " # Nat.toText(attempts)
                                 # "/" # Nat.toText(MAX_MINT_RETRIES)
                                 # " failed for " # eventId # ": " # msg);
