@@ -954,6 +954,13 @@ export default function Shenanigans() {
                 const target = outcomeToast.targetPrincipalText
                   ? <OutcomeTargetName principalText={outcomeToast.targetPrincipalText} />
                   : 'them';
+                // Look up the spell's config so toasts can render durations
+                // and effectValues without hardcoding (admin-tunable values
+                // flow through to the success/backfire copy).
+                const cfg = id !== undefined ? backendConfigs?.find(c => Number(c.id) === id) : undefined;
+                const ev = (n: number): number => cfg ? Number(cfg.effectValues[n] ?? 0) : 0;
+                const durH = cfg ? Number(cfg.duration) : 0;
+                const durD = Math.round(durH / 24);
                 // Per-spell IDs (mirror shenaniganTypes array order in main.mo):
                 // 0 moneyTrickster, 1 aoeSkim, 2 renameSpell, 3 mintTaxSiphon,
                 // 4 downlineHeist, 5 magicMirror, 6 ppBoosterAura, 7 purseCutter,
@@ -976,29 +983,29 @@ export default function Shenanigans() {
                     if (cnt === 0) return <p className="text-xs mc-text-green mb-3">{target} was shielded. Acquisition deflected.</p>;
                     return <p className="text-xs mc-text-green mb-3">Acquired {target}. Their {Math.round(d)} PP is yours. They're locked out of casting for 24h.</p>;
                   }
-                  if (id === 14) { // foundersRound — self-buff, mint rate +15%
-                    return <p className="text-xs mc-text-green mb-3">Locked in a flat round. Mint rate +15% for 24h.</p>;
+                  if (id === 14) { // foundersRound — self-buff, mint rate +effectValues[1]%
+                    return <p className="text-xs mc-text-green mb-3">Locked in a flat round. Mint rate +{ev(1)}% for {durH}h.</p>;
                   }
                   if (id === 15) { // strategicReserve — cosmetic purple name
-                    return <p className="text-xs mc-text-green mb-3">Strategic Reserve secured. Purple name for 7 days. (You've made it.)</p>;
+                    return <p className="text-xs mc-text-green mb-3">Strategic Reserve secured. Purple name for {durD} days. (You've made it.)</p>;
                   }
-                  if (id === 16) { // slushFund — minted PP to target
-                    return <p className="text-xs mc-text-green mb-3">Slipped 100–200 PP to {target}. They'll wonder who's bullish on them.</p>;
+                  if (id === 16) { // slushFund — minted PP to target (effectValues[0]-[1])
+                    return <p className="text-xs mc-text-green mb-3">Slipped {ev(0)}–{ev(1)} PP to {target}. They'll wonder who's bullish on them.</p>;
                   }
-                  if (id === 17) { // insiderTip — target gets +10% mint rate
-                    return <p className="text-xs mc-text-green mb-3">{target}'s mint rate just jumped +10% for 12h. They're going to be insufferable.</p>;
+                  if (id === 17) { // insiderTip — target gets +effectValues[0]% mint rate
+                    return <p className="text-xs mc-text-green mb-3">{target}'s mint rate just jumped +{ev(0)}% for {durH}h. They're going to be insufferable.</p>;
                   }
-                  if (id === 18) { // voiceOfGod — bolder chat posts for 6h
-                    return <p className="text-xs mc-text-green mb-3">Voice of God active for 6h. Your posts carry institutional authority now. Try not to abuse it.</p>;
+                  if (id === 18) { // voiceOfGod — institutional chat for {durH}h
+                    return <p className="text-xs mc-text-green mb-3">Voice of God active for {durH}h. Your posts carry institutional authority now. Try not to abuse it.</p>;
                   }
                   if (id === 19) { // customTitle — modal handles the affirmation; this branch is unreachable but kept for safety
                     return <p className="text-xs mc-text-green mb-3">Title slot secured. You have 5 minutes to choose your designation.</p>;
                   }
-                  if (id === 20) { // echo — Reginald footnotes on posts for 6h
-                    return <p className="text-xs mc-text-green mb-3">Echo active for 6h. Reginald will be appending editorial commentary to your contributions. He has opinions.</p>;
+                  if (id === 20) { // echo — Reginald footnotes on posts for {durH}h
+                    return <p className="text-xs mc-text-green mb-3">Echo active for {durH}h. Reginald will be appending editorial commentary to your contributions. He has opinions.</p>;
                   }
-                  if (id === 21) { // confettiCannon — confetti on successful casts for 24h
-                    return <p className="text-xs mc-text-green mb-3">Confetti Cannon loaded. Your next 24h of successful casts will be appropriately celebrated.</p>;
+                  if (id === 21) { // confettiCannon — confetti on successful casts for {durH}h
+                    return <p className="text-xs mc-text-green mb-3">Confetti Cannon loaded. Your next {durH}h of successful casts will be appropriately celebrated.</p>;
                   }
                   // Numeric wins first (MEV Attack, Contagion, Wealth Tax theft).
                   if (d > 0 && cnt === 1) return <p className="text-xs mc-text-green mb-3">Stole {Math.round(d)} PP from {target}.</p>;
@@ -1046,8 +1053,8 @@ export default function Shenanigans() {
                   if (id === 11) { // tenderOffer — d < 0 (paid target 3x cost) + 7d Tender Offer lockout
                     return <p className="text-xs mc-text-purple mb-3">{target} got {Math.abs(Math.round(d))} PP as poison-pill compensation. Tender Offer locked for 7 days.</p>;
                   }
-                  if (id === 14) { // foundersRound — down round, mint rate -10%
-                    return <p className="text-xs mc-text-purple mb-3">Down round. Mint rate -10% for 24h. Investors are "concerned."</p>;
+                  if (id === 14) { // foundersRound — down round, mint rate -effectValues[2]%
+                    return <p className="text-xs mc-text-purple mb-3">Down round. Mint rate -{ev(2)}% for {durH}h. Investors are "concerned."</p>;
                   }
                   if (id === 15) { // strategicReserve — reserves frozen (0% default odds but admin-tunable)
                     return <p className="text-xs mc-text-purple mb-3">Reserves frozen pending audit. PP gone.</p>;
@@ -1055,8 +1062,8 @@ export default function Shenanigans() {
                   if (id === 16) { // slushFund — they found you out, paid d < 0 to target
                     return <p className="text-xs mc-text-purple mb-3">{target} found you out. You owe them an extra 200 PP for being annoying.</p>;
                   }
-                  if (id === 17) { // insiderTip — SEC settlement, d < 0 burn
-                    return <p className="text-xs mc-text-purple mb-3">Whisper got out. SEC settlement, no admission of wrongdoing. -50 PP.</p>;
+                  if (id === 17) { // insiderTip — SEC settlement; fine = effectValues[1]
+                    return <p className="text-xs mc-text-purple mb-3">Whisper got out. SEC settlement, no admission of wrongdoing. -{ev(1)} PP.</p>;
                   }
                   if (id === 18) { // voiceOfGod — cost burn, no effect
                     return <p className="text-xs mc-text-purple mb-3">Voice of God went to voicemail. PP burned, pulpit empty.</p>;
