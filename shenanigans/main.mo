@@ -21,7 +21,6 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
-import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -43,7 +42,6 @@ import Migration "migration";
 // 2026-05-28. See migration.mo for the historical migration record and
 // Migration.runV8.
 
-(with migration = Migration.runV8)
 persistent actor Self {
 
     // ================================================================
