@@ -464,6 +464,14 @@ export interface _SERVICE {
     [[] | [bigint], bigint],
     Array<[Principal, bigint]>
   >,
+  /**
+   * / Returns mint totals for the specified round, sorted descending.
+   * / Pass null for the current round. Limit caps the result size.
+   */
+  'getRoundMintLeaderboard' : ActorMethod<
+    [[] | [bigint], bigint],
+    Array<[Principal, bigint]>
+  >,
   'getShenaniganConfigs' : ActorMethod<[], Array<ShenaniganConfig>>,
   'getShenaniganStats' : ActorMethod<[Principal], ShenaniganStats>,
   /**

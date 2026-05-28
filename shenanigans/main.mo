@@ -581,6 +581,11 @@ persistent actor Self {
     /// Powers the 'This Round' leaderboard filter.
     var ppBurnedPerPlayerPerRound = natMap.empty<OrderedMap.Map<Principal, Nat>>();
 
+    /// Per-round mint tally — Map<roundId, Map<player, totalMintedUnits>>.
+    /// Updated alongside every mintInternal call. Used by the "Top Earners
+    /// This Round" leaderboard (mirrors the burn-tally surface).
+    var ppMintedPerPlayerPerRound = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+
     // spellsCastPerPlayer: cumulative count of #success OR #backfire casts.
     // #fail outcomes are not counted because they had no observable effect.
     var spellsCastPerPlayer = principalMap.empty<Nat>();
@@ -1630,6 +1635,17 @@ persistent actor Self {
             switch (res) {
                 case (#Ok(idx)) {
                     knownPpHolders := principalMap.put(knownPpHolders, player, true);
+                    let currentRound = cachedCurrentRoundId;
+                    let roundMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppMintedPerPlayerPerRound, currentRound)) {
+                        case (?m) { m };
+                        case null { principalMap.empty<Nat>() };
+                    };
+                    let priorMintTotal : Nat = switch (principalMap.get(roundMap, player)) {
+                        case (?n) { n };
+                        case null { 0 };
+                    };
+                    let newRoundMap = principalMap.put(roundMap, player, priorMintTotal + amount);
+                    ppMintedPerPlayerPerRound := natMap.put(ppMintedPerPlayerPerRound, currentRound, newRoundMap);
                     #Ok(idx);
                 };
                 case (#Err(#Duplicate { duplicate_of })) { #Ok(duplicate_of) };
@@ -4567,6 +4583,29 @@ persistent actor Self {
             case null { cachedCurrentRoundId };
         };
         switch (natMap.get(ppBurnedPerPlayerPerRound, target)) {
+            case (null) { [] };
+            case (?roundMap) {
+                let entries = Iter.toArray(principalMap.entries(roundMap));
+                let sorted = Array.sort<(Principal, Nat)>(entries, func(a, b) {
+                    if (b.1 > a.1) { #greater }
+                    else if (b.1 < a.1) { #less }
+                    else { #equal }
+                });
+                if (sorted.size() > limit) {
+                    Array.subArray(sorted, 0, limit)
+                } else { sorted }
+            };
+        };
+    };
+
+    /// Returns mint totals for the specified round, sorted descending.
+    /// Pass null for the current round. Limit caps the result size.
+    public query func getRoundMintLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
+        let target = switch (roundId) {
+            case (?id) { id };
+            case null { cachedCurrentRoundId };
+        };
+        switch (natMap.get(ppMintedPerPlayerPerRound, target)) {
             case (null) { [] };
             case (?roundMap) {
                 let entries = Iter.toArray(principalMap.entries(roundMap));

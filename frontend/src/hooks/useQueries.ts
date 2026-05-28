@@ -1394,6 +1394,23 @@ export function useGetRoundBurnedLeaderboard(roundId?: number, limit = 50) {
   });
 }
 
+/// Per-round mint totals from the shenanigans canister. Mirrors
+/// useGetRoundBurnedLeaderboard but ranks earners (mints received)
+/// instead of burners.
+export function useGetRoundMintLeaderboard(roundId?: number, limit = 50) {
+  const actor = useReadShenaniganActor();
+  return useQuery({
+    queryKey: ['shenanigans', 'roundMintLeaderboard', roundId, limit],
+    queryFn: async () => {
+      if (!actor) return [] as [Principal, bigint][];
+      const arg: [] | [bigint] = roundId !== undefined ? [BigInt(roundId)] : [];
+      return actor.getRoundMintLeaderboard(arg, BigInt(limit));
+    },
+    enabled: !!actor,
+    staleTime: 15_000,
+  });
+}
+
 /// Live ponzi_math currentRoundId. Used by HallOfFame to pass an explicit
 /// round id to useGetRoundBurnedLeaderboard rather than letting the
 /// shenanigans canister fall back to its 30s-stale cached value (which

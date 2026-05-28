@@ -467,6 +467,13 @@ service : {
           principal;
           nat;
         }) query;
+  /// Returns mint totals for the specified round, sorted descending.
+  /// Pass null for the current round. Limit caps the result size.
+  getRoundMintLeaderboard: (roundId: opt nat, limit: nat) ->
+   (vec record {
+          principal;
+          nat;
+        }) query;
   getShenaniganConfigs: () -> (vec ShenaniganConfig) query;
   getShenaniganStats: (player: principal) -> (ShenaniganStats) query;
   /// Per-(player, spell) live cooldowns for the spell-card UI. Returns
