@@ -5013,6 +5013,10 @@ persistent actor Self {
         running : Bool;
         gameIdCursor : Nat;
         backerSeenCount : Nat;
+        // M2 (Solana chain fusion): SOL-side observer state.
+        solGameIdCursor : Nat;
+        solBackerSeenCount : Nat;
+        ponziMathSolPrincipal : ?Principal;
         intervalSeconds : Nat;
         missedGameMintsCount : Nat;
         missedBackerMintsCount : Nat;
@@ -5021,6 +5025,9 @@ persistent actor Self {
             running = observerTimerId != null;
             gameIdCursor;
             backerSeenCount = principalMap.size(backerSeen);
+            solGameIdCursor;
+            solBackerSeenCount = principalMap.size(solBackerSeen);
+            ponziMathSolPrincipal;
             intervalSeconds = mintConfig.observerIntervalSeconds;
             missedGameMintsCount = natMap.size(missedGameMints);
             missedBackerMintsCount = principalMap.size(missedBackerMints);
@@ -5072,6 +5079,22 @@ persistent actor Self {
     public shared ({ caller }) func setBackerPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
+    };
+    public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with simple21DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setCompounding15DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding15DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setCompounding30DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding30DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setBackerPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with backerPpPerSol = v };
     };
     /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
     /// Use setCascadeBps(initial, passthrough) instead.
