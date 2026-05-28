@@ -1,5 +1,5 @@
 import React from 'react';
-import { useDisplayName, useIsGolden, useIsStrategicReserve } from '../trollbox/useDisplayName';
+import { useDisplayName, useIsGolden, useIsStrategicReserve, useHasConfettiCannon, useCustomTitle } from '../trollbox/useDisplayName';
 import GoldenName, { PurpleName } from '../GoldenName';
 import type { ShenaniganRecord } from '../../backend';
 
@@ -26,10 +26,13 @@ function LiveFeedRow({ record, spellName, spellIcon }: LiveFeedRowProps) {
   const casterName = useDisplayName(record.user);
   const isCasterGolden = useIsGolden(record.user);
   const isCasterPurple = useIsStrategicReserve(record.user);
+  const casterHasConfetti = useHasConfettiCannon(record.user);
+  const casterTitle = useCustomTitle(record.user);
   const target = record.target[0] ?? null;
   const targetName = useDisplayName(target);
   const isTargetGolden = useIsGolden(target);
   const isTargetPurple = useIsStrategicReserve(target);
+  const targetTitle = useCustomTitle(target);
   const outcomeKey = variantKey(record.outcome);
 
   // Forward-only detail fields. Old records have empty arrays here and
@@ -76,28 +79,42 @@ function LiveFeedRow({ record, spellName, spellIcon }: LiveFeedRowProps) {
   }
 
   return (
-    <div className="mc-card p-2 text-xs space-y-1">
+    <div className="mc-card p-2 text-xs space-y-1 relative">
+      {/* C1: subtle confetti overlay for other viewers when caster has Confetti Cannon active */}
+      {outcomeKey === 'success' && casterHasConfetti && (
+        <div className="mc-confetti-row" aria-hidden="true">
+          <div className="mc-confetti-row-p3" />
+          <div className="mc-confetti-row-p4" />
+          <div className="mc-confetti-row-p5" />
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
-        {isCasterGolden ? (
-          <GoldenName name={casterName || 'Anon'} isGolden={true} className="font-bold truncate" />
-        ) : isCasterPurple ? (
-          <PurpleName name={casterName || 'Anon'} isPurple={true} className="font-bold truncate" />
-        ) : (
-          <span className="font-bold mc-text-primary truncate">{casterName || 'Anon'}</span>
-        )}
+        <span className="font-bold truncate inline-flex items-center gap-0.5 min-w-0">
+          {isCasterGolden ? (
+            <GoldenName name={casterName || 'Anon'} isGolden={true} className="font-bold" />
+          ) : isCasterPurple ? (
+            <PurpleName name={casterName || 'Anon'} isPurple={true} className="font-bold" />
+          ) : (
+            <span className="font-bold mc-text-primary">{casterName || 'Anon'}</span>
+          )}
+          {casterTitle && <span className="mc-text-custom-title-bracket">⟨{casterTitle}⟩</span>}
+        </span>
         <span className={`font-bold flex-shrink-0 ${outcomeColor}`}>{outcomeLabel}</span>
       </div>
       <div className="mc-text-dim flex items-center gap-1 min-w-0">
         <span className="flex-shrink-0">{spellIcon}</span>
         <span className="truncate">{spellName}</span>
         {target ? (
-          isTargetGolden ? (
-            <span className="mc-text-muted truncate"> → <GoldenName name={targetName} isGolden={true} /></span>
-          ) : isTargetPurple ? (
-            <span className="mc-text-muted truncate"> → <PurpleName name={targetName} isPurple={true} /></span>
-          ) : (
-            <span className="mc-text-muted truncate"> → {targetName}</span>
-          )
+          <span className="mc-text-muted truncate inline-flex items-center gap-0.5"> →{' '}
+            {isTargetGolden ? (
+              <GoldenName name={targetName} isGolden={true} />
+            ) : isTargetPurple ? (
+              <PurpleName name={targetName} isPurple={true} />
+            ) : (
+              <span>{targetName}</span>
+            )}
+            {targetTitle && <span className="mc-text-custom-title-bracket">⟨{targetTitle}⟩</span>}
+          </span>
         ) : null}
       </div>
       {detailLine}

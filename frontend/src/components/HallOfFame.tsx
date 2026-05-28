@@ -3,7 +3,7 @@ import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
 import { Principal } from '@dfinity/principal';
 import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetPonziPoints, useGetKarmaReceived, useGetCurrentRoundId } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
-import { useDisplayName, useIsGolden } from './trollbox/useDisplayName';
+import { useDisplayName, useIsGolden, useCustomTitle } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
 import LoadingSpinner from './LoadingSpinner';
 import Podium from './hall-of-fame/Podium';
@@ -20,6 +20,7 @@ function LeaderboardRow({
   const principal = React.useMemo(() => Principal.fromText(entry.principal), [entry.principal]);
   const name = useDisplayName(principal);
   const isGolden = useIsGolden(principal);
+  const customTitle = useCustomTitle(principal);
 
   const getRankStyle = (rank: number) => {
     switch (rank) {
@@ -58,10 +59,14 @@ function LeaderboardRow({
             isTop3 ? 'bg-white/10' : 'bg-[var(--mc-purple)]/10'
           } mc-text-dim`}>{style.label}</span>
           {isGolden ? (
-            <GoldenName name={displayName} isGolden={true} className="font-bold text-sm ml-2" />
+            <span className="inline-flex items-center gap-0.5">
+              <GoldenName name={displayName} isGolden={true} className="font-bold text-sm ml-2" />
+              {customTitle && <span className="mc-text-custom-title-bracket">⟨{customTitle}⟩</span>}
+            </span>
           ) : (
             <span className={`font-bold text-sm ml-2 ${fallbackClass}`}>
               {displayName}{isUser ? ' (you)' : ''}
+              {customTitle && <span className="mc-text-custom-title-bracket">⟨{customTitle}⟩</span>}
             </span>
           )}
         </div>

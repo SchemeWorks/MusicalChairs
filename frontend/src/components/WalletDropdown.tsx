@@ -3,7 +3,7 @@ import { Principal } from '@dfinity/principal';
 import { useQueryClient } from '@tanstack/react-query';
 import { useWallet } from '../hooks/useWallet';
 import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
-import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp } from '../hooks/useQueries';
+import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp, useGetCustomTitle } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
 import { oisySigner } from '../lib/oisySigner';
 import { truncateSolanaPubkey } from '../lib/siwsSigner';
@@ -184,6 +184,11 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
 
   const principalId = principal || '';
   const userName = userProfile?.name || 'User';
+  const callerPrincipalObj = React.useMemo(() => {
+    if (!principal) return null;
+    try { return Principal.fromText(principal); } catch { return null; }
+  }, [principal]);
+  const { data: callerCustomTitle } = useGetCustomTitle(callerPrincipalObj);
 
   const walletIcon = walletType === 'internet-identity' ? <img src="/ii-logo.svg" alt="II" className="h-4 w-4" /> : walletType === 'plug' ? <img src="/plug-logo.svg" alt="Plug" className="h-4 w-4" /> : walletType === 'oisy' ? <img src="/oisy-logo.svg" alt="OISY" className="h-4 w-4" /> : <CreditCard className="h-4 w-4 mc-text-muted" />;
   const walletName = walletType === 'internet-identity' ? 'Internet Identity' : walletType === 'plug' ? 'Plug' : walletType === 'oisy' ? 'OISY' : walletType === 'siws' ? 'Solana' : 'Wallet';
@@ -252,8 +257,10 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               <button onClick={() => { setIsEditingName(false); setNewName(''); }} className="text-xs mc-text-danger p-2">✕</button>
             </div>
           ) : (
-            <span className="font-bold text-sm mc-text-primary cursor-pointer hover:mc-text-cyan" onClick={() => { setNewName(userName); setIsEditingName(true); }}>
-              {userName} <Pencil className="h-3 w-3 inline ml-1 mc-text-muted" />
+            <span className="font-bold text-sm mc-text-primary cursor-pointer hover:mc-text-cyan inline-flex items-center gap-1" onClick={() => { setNewName(userName); setIsEditingName(true); }}>
+              {userName}
+              {callerCustomTitle && <span className="mc-text-custom-title-bracket">⟨{callerCustomTitle}⟩</span>}
+              <Pencil className="h-3 w-3 mc-text-muted" />
             </span>
           )}
         </div>

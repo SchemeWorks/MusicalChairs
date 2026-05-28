@@ -1,6 +1,6 @@
 import React from 'react';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
-import { useDisplayName, useIsGolden, useIsStrategicReserve } from '../useDisplayName';
+import { useDisplayName, useIsGolden, useIsStrategicReserve, useCustomTitle } from '../useDisplayName';
 import GoldenName, { PurpleName } from '../../GoldenName';
 import { useGetShenaniganConfigs } from '../../../hooks/useQueries';
 
@@ -43,6 +43,8 @@ export default function SpellRow({ item }: Props) {
   const isCasterPurple = useIsStrategicReserve(cast.caster);
   const isTargetGolden = useIsGolden(target);
   const isTargetPurple = useIsStrategicReserve(target);
+  const casterTitle = useCustomTitle(cast.caster);
+  const targetTitle = useCustomTitle(target);
   const { data: configs = [] } = useGetShenaniganConfigs();
 
   if (item.deleted) return <div className="px-3 py-1 text-zinc-500 italic text-xs">[removed by Management]</div>;
@@ -97,6 +99,7 @@ export default function SpellRow({ item }: Props) {
         ) : (
           userName
         )}
+        {casterTitle && <span className="mc-text-custom-title-bracket">⟨{casterTitle}⟩</span>}
       </span>
       <span className="text-zinc-400"> cast </span>
       <span className="text-zinc-200 font-medium">{spellName}</span>
@@ -110,6 +113,7 @@ export default function SpellRow({ item }: Props) {
           ) : (
             <span className="text-zinc-200 font-medium">{targetName}</span>
           )}
+          {targetTitle && <span className="mc-text-custom-title-bracket">⟨{targetTitle}⟩</span>}
         </>
       ) : null}
       <span className="text-zinc-400"> — </span>

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects, useSetCustomTitle, useGetPendingCustomTitleForCaller, useGetConfettiCannonStatus } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects, useSetCustomTitle, useGetPendingCustomTitleForCaller, useGetConfettiCannonStatus, useGetVoiceOfGodStatus, useGetEchoStatus, useGetStrategicReserveStatus, useGetCustomTitle } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
 import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
@@ -147,8 +147,23 @@ function formatRemaining(expiresAtNs: bigint): string {
 // what's protecting them (Shield), helping them (Yield Boost, Override Bonus,
 // Whitelisted), or being done to them (Renamed, Siphoned). Returns null
 // (renders nothing) when no effects are active — no empty placeholder.
-function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveSpellEffects | null }) {
-  if (!effects) return null;
+interface ActiveEffectsStripProps {
+  effects: import('../backend').ActiveSpellEffects | null;
+  // New cosmetic/status effects not surfaced by getActiveSpellEffects (C2 fix)
+  voiceOfGodDeadlineNs: bigint | null;
+  customTitle: string | null;
+  echoDeadlineNs: bigint | null;
+  confettiCannonDeadlineNs: bigint | null;
+  strategicReserveDeadlineNs: bigint | null;
+}
+function ActiveEffectsStrip({ effects, voiceOfGodDeadlineNs, customTitle, echoDeadlineNs, confettiCannonDeadlineNs, strategicReserveDeadlineNs }: ActiveEffectsStripProps) {
+  const nowMs = Date.now();
+  const isVogActive = voiceOfGodDeadlineNs !== null && Number(voiceOfGodDeadlineNs) / 1_000_000 > nowMs;
+  const isEchoActive = echoDeadlineNs !== null && Number(echoDeadlineNs) / 1_000_000 > nowMs;
+  const isConfettiActive = confettiCannonDeadlineNs !== null && Number(confettiCannonDeadlineNs) / 1_000_000 > nowMs;
+  const isStrategicReserveActive = strategicReserveDeadlineNs !== null && Number(strategicReserveDeadlineNs) / 1_000_000 > nowMs;
+
+  if (!effects && !isVogActive && !customTitle && !isEchoActive && !isConfettiActive && !isStrategicReserveActive) return null;
 
   type Badge = {
     key: string;
@@ -158,7 +173,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
   };
   const badges: Badge[] = [];
 
-  const shield = effects.shield[0];
+  const shield = effects?.shield[0];
   if (shield && shield.chargesRemaining > 0n) {
     badges.push({
       key: 'shield',
@@ -168,7 +183,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
     });
   }
 
-  const mult = effects.mintMultiplier[0];
+  const mult = effects?.mintMultiplier[0];
   if (mult) {
     const pctBonus = (Number(mult.multiplierBps) - 10_000) / 100;
     badges.push({
@@ -179,7 +194,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
     });
   }
 
-  const boost = effects.cascadeBoost[0];
+  const boost = effects?.cascadeBoost[0];
   if (boost) {
     const mx = Number(boost.multiplierBps) / 10_000;
     badges.push({
@@ -190,7 +205,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
     });
   }
 
-  if (effects.golden) {
+  if (effects?.golden) {
     badges.push({
       key: 'golden',
       icon: <Sparkles className="w-3.5 h-3.5" />,
@@ -199,7 +214,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
     });
   }
 
-  const name = effects.displayName[0];
+  const name = effects?.displayName[0];
   if (name) {
     badges.push({
       key: 'renamed',
@@ -209,7 +224,7 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
     });
   }
 
-  const siphon = effects.mintSiphon[0];
+  const siphon = effects?.mintSiphon[0];
   if (siphon) {
     const pct = Number(siphon.pctTimes100) / 100;
     badges.push({
@@ -217,6 +232,52 @@ function ActiveEffectsStrip({ effects }: { effects: import('../backend').ActiveS
       icon: <Building2 className="w-3.5 h-3.5" />,
       label: `Siphoned ${pct.toFixed(0)}% · ${formatRemaining(siphon.expiresAt)}`,
       tone: 'bad',
+    });
+  }
+
+  // C2: new cosmetic/status effects (Voice of God, Custom Title, Echo, Confetti Cannon, Strategic Reserve)
+  if (isVogActive && voiceOfGodDeadlineNs !== null) {
+    badges.push({
+      key: 'voiceOfGod',
+      icon: <Megaphone className="w-3.5 h-3.5" />,
+      label: `Voice of God · ${formatRemaining(voiceOfGodDeadlineNs)}`,
+      tone: 'good',
+    });
+  }
+
+  if (customTitle) {
+    badges.push({
+      key: 'customTitle',
+      icon: <BadgeCheck className="w-3.5 h-3.5" />,
+      label: `Title: ⟨${customTitle}⟩`,
+      tone: 'good',
+    });
+  }
+
+  if (isEchoActive && echoDeadlineNs !== null) {
+    badges.push({
+      key: 'echo',
+      icon: <Quote className="w-3.5 h-3.5" />,
+      label: `Echo · ${formatRemaining(echoDeadlineNs)}`,
+      tone: 'good',
+    });
+  }
+
+  if (isConfettiActive && confettiCannonDeadlineNs !== null) {
+    badges.push({
+      key: 'confettiCannon',
+      icon: <PartyPopper className="w-3.5 h-3.5" />,
+      label: `Confetti Cannon · ${formatRemaining(confettiCannonDeadlineNs)}`,
+      tone: 'good',
+    });
+  }
+
+  if (isStrategicReserveActive && strategicReserveDeadlineNs !== null) {
+    badges.push({
+      key: 'strategicReserve',
+      icon: <Crown className="w-3.5 h-3.5" />,
+      label: `Strategic Reserve · ${formatRemaining(strategicReserveDeadlineNs)}`,
+      tone: 'good',
     });
   }
 
@@ -257,6 +318,11 @@ export default function Shenanigans() {
   const { principal } = useWallet();
   const callerPrincipal = principal ? (() => { try { return Principal.fromText(principal); } catch { return null; } })() : null;
   const { data: confettiCannonDeadlineNs } = useGetConfettiCannonStatus(callerPrincipal);
+  // C2: additional status hooks for the ActiveEffectsStrip
+  const { data: voiceOfGodDeadlineNs } = useGetVoiceOfGodStatus(callerPrincipal);
+  const { data: echoDeadlineNs } = useGetEchoStatus(callerPrincipal);
+  const { data: strategicReserveDeadlineNs } = useGetStrategicReserveStatus(callerPrincipal);
+  const { data: callerCustomTitle } = useGetCustomTitle(callerPrincipal);
   const castShenanigan = useCastShenanigan();
   const queryClient = useQueryClient();
   const successFlavor = useSpellFlavorPool('spellFlavor.success');
@@ -557,7 +623,14 @@ export default function Shenanigans() {
         <HallOfFameMobileBlock />
       </div>
 
-      <ActiveEffectsStrip effects={activeEffects ?? null} />
+      <ActiveEffectsStrip
+        effects={activeEffects ?? null}
+        voiceOfGodDeadlineNs={voiceOfGodDeadlineNs ?? null}
+        customTitle={callerCustomTitle ?? null}
+        echoDeadlineNs={echoDeadlineNs ?? null}
+        confettiCannonDeadlineNs={confettiCannonDeadlineNs ?? null}
+        strategicReserveDeadlineNs={strategicReserveDeadlineNs ?? null}
+      />
 
       {/* Desktop 2-column layout: cards left, feed right */}
       <div className="mc-shenanigans-layout">
@@ -618,7 +691,12 @@ export default function Shenanigans() {
                 const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
                 const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
                 const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
-                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
+                // I2: balance gate for Founder's Round (14), Strategic Reserve (15),
+                // Custom Title (19). effectValues[0] is the minimum PP balance required.
+                const BALANCE_GATED_IDS = [14, 15, 19];
+                const balanceGate = BALANCE_GATED_IDS.includes(trick.id) ? (trick.effectValues[0] ?? 0) : 0;
+                const balanceGateUnmet = balanceGate > 0 && userChips < balanceGate;
+                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull || balanceGateUnmet;
                 return (
                   <div
                     key={`shenanigan-${idx}`}
@@ -688,6 +766,7 @@ export default function Shenanigans() {
                     <button
                       onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.costSuccess, trick.costFailure, trick.costBackfire, trick.name, trick.icon)}
                       disabled={isDisabled}
+                      title={balanceGateUnmet ? `Requires ${balanceGate.toLocaleString()} PP in side pocket` : undefined}
                       className={`w-full py-2 rounded-lg text-xs font-bold uppercase transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                       }`}
@@ -696,6 +775,7 @@ export default function Shenanigans() {
                         <><span className="inline-block animate-spin mr-2">🎲</span>Casting…</>
                       ) : shieldFull ? 'Shield full'
                         : onCooldown ? `Cooldown — ${minutesLeft}m`
+                        : balanceGateUnmet ? `Requires ${balanceGate.toLocaleString()} PP`
                         : userChips < trick.costSuccess ? (userChips + userWallet >= trick.costSuccess ? `Need ${trick.costSuccess} in side pocket` : `Need ${trick.costSuccess} PP`)
                         : `Cast (${trick.costSuccess} PP)`}
                     </button>
@@ -703,7 +783,7 @@ export default function Shenanigans() {
                         pocket is short but wallet PP would cover the cast.
                         Clicking jumps to the Bank page where the bridge +
                         BuyPP widget live. */}
-                    {!onCooldown && !shieldFull && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
+                    {!onCooldown && !shieldFull && !balanceGateUnmet && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
                       <button
                         type="button"
                         onClick={() => { window.location.hash = '#side-pocket'; }}
@@ -726,7 +806,11 @@ export default function Shenanigans() {
                 const shield = trick.id === POISON_PILL_ID ? activeEffects?.shield[0] ?? null : null;
                 const shieldCharges = shield ? Number(shield.chargesRemaining) : 0;
                 const shieldFull = trick.id === POISON_PILL_ID && shieldCharges >= POISON_PILL_CHARGE_CAP;
-                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull;
+                // I2: balance gate for Founder's Round (14), Strategic Reserve (15), Custom Title (19)
+                const BALANCE_GATED_IDS_C = [14, 15, 19];
+                const balanceGate_c = BALANCE_GATED_IDS_C.includes(trick.id) ? (trick.effectValues[0] ?? 0) : 0;
+                const balanceGateUnmet_c = balanceGate_c > 0 && userChips < balanceGate_c;
+                const isDisabled = castShenanigan.isPending || userChips < trick.costSuccess || animatingTrick === trickKey || onCooldown || shieldFull || balanceGateUnmet_c;
                 return (
                   <div key={`compact-${idx}`} className="py-2 flex items-center gap-3">
                     <span className="flex-1 font-medium mc-text-primary text-sm">{trick.name}</span>
@@ -743,7 +827,7 @@ export default function Shenanigans() {
                       {trick.costSuccess}/{trick.costFailure}/{trick.costBackfire} PP
                     </span>
                     <span className="text-xs mc-text-dim">{trick.odds.success}% win</span>
-                    {!onCooldown && !shieldFull && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
+                    {!onCooldown && !shieldFull && !balanceGateUnmet_c && !castShenanigan.isPending && userChips < trick.costSuccess && userChips + userWallet >= trick.costSuccess && (
                       <button
                         type="button"
                         onClick={() => { window.location.hash = '#side-pocket'; }}
@@ -756,6 +840,7 @@ export default function Shenanigans() {
                     <button
                       onClick={() => !isDisabled && handleCastClick(trick.id, trick.type, trick.costSuccess, trick.costFailure, trick.costBackfire, trick.name, trick.icon)}
                       disabled={isDisabled}
+                      title={balanceGateUnmet_c ? `Requires ${balanceGate_c.toLocaleString()} PP` : undefined}
                       className={`text-xs font-bold px-3 py-1 rounded-lg transition-all ${
                         isDisabled ? 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5' : 'mc-btn-primary'
                       }`}
@@ -763,7 +848,9 @@ export default function Shenanigans() {
                       {animatingTrick === trickKey ? (
                         <><span className="inline-block animate-spin mr-1">🎲</span>Casting…</>
                       ) : shieldFull ? 'Full'
-                        : onCooldown ? `${minutesLeft}m` : 'Cast'}
+                        : onCooldown ? `${minutesLeft}m`
+                        : balanceGateUnmet_c ? `Need ${balanceGate_c.toLocaleString()} PP`
+                        : 'Cast'}
                     </button>
                   </div>
                 );
@@ -880,7 +967,7 @@ export default function Shenanigans() {
                     return <p className="text-xs mc-text-green mb-3">Strategic Reserve secured. Purple name for 7 days. (You've made it.)</p>;
                   }
                   if (id === 16) { // slushFund — minted PP to target
-                    return <p className="text-xs mc-text-green mb-3">Slipped a wad of PP to {target}. They'll wonder who their secret admirer is.</p>;
+                    return <p className="text-xs mc-text-green mb-3">Slipped 100–200 PP to {target}. They'll wonder who's bullish on them.</p>;
                   }
                   if (id === 17) { // insiderTip — target gets +10% mint rate
                     return <p className="text-xs mc-text-green mb-3">{target}'s mint rate just jumped +10% for 12h. They're going to be insufferable.</p>;

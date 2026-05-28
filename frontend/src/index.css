@@ -1087,6 +1087,69 @@
     z-index: 9999;
   }
 
+  /* Live-feed row confetti overlay — fires when the caster has Confetti Cannon
+     active and the cast outcome is success. 5 small particles fall and fade. */
+  .mc-confetti-row {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    border-radius: inherit;
+  }
+  .mc-confetti-row::before,
+  .mc-confetti-row::after {
+    content: '';
+    position: absolute;
+    top: -6px;
+    width: 5px;
+    height: 5px;
+    border-radius: 1px;
+    opacity: 0;
+    animation: mc-confetti-fall 1.2s ease-in forwards;
+  }
+  .mc-confetti-row::before {
+    left: 20%;
+    background: #f59e0b;
+    animation-delay: 0s;
+    transform: rotate(20deg);
+  }
+  .mc-confetti-row::after {
+    left: 65%;
+    background: #a78bfa;
+    animation-delay: 0.15s;
+    transform: rotate(-15deg);
+  }
+  .mc-confetti-row-p3,
+  .mc-confetti-row-p4,
+  .mc-confetti-row-p5 {
+    position: absolute;
+    top: -6px;
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    opacity: 0;
+    animation: mc-confetti-fall 1.2s ease-in forwards;
+  }
+  .mc-confetti-row-p3 {
+    left: 40%;
+    background: #34d399;
+    animation-delay: 0.05s;
+  }
+  .mc-confetti-row-p4 {
+    left: 80%;
+    background: #f87171;
+    animation-delay: 0.2s;
+  }
+  .mc-confetti-row-p5 {
+    left: 10%;
+    background: #60a5fa;
+    animation-delay: 0.3s;
+  }
+  @keyframes mc-confetti-fall {
+    0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(40px) rotate(180deg); }
+  }
+
   /* Spinner */
   .mc-spinner {
     width: 40px;
