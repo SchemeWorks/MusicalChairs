@@ -833,6 +833,80 @@ persistent actor class PonziMathSol(initArgs : {
         roundToEightDecimals(roi);
     };
 
+    // ====================================================================
+    // SOL payouts (used by withdraw, settle, claimRepayment, payManagement)
+    // ====================================================================
+
+    /// Build and broadcast a SOL transfer FROM the pool TO `toAddress`
+    /// for `lamports` lamports. Returns the tx signature on success.
+    /// Bumps lastNonceValue on success.
+    func sendSolPayout(toAddress : Text, lamports : Nat64) : async { #Ok : Text; #Err : Text } {
+        let pool = switch (poolAddress) {
+            case (null) { return #Err("Pool address not derived") };
+            case (?p) { p };
+        };
+        let nonceAddr = switch (nonceAccountAddress) {
+            case (null) { return #Err("Nonce account not initialized") };
+            case (?n) { n };
+        };
+        let nonceVal = switch (lastNonceValue) {
+            case (null) { return #Err("Nonce value cache empty — call adminRefreshNonce") };
+            case (?n) { n };
+        };
+        if (not Base58.isPlausibleSolanaAddress(toAddress)) {
+            return #Err("Destination is not a valid Solana address: " # toAddress);
+        };
+
+        let advanceIx = SolTx.advanceNonceIx(nonceAddr, pool);
+        let transferIx = SolTx.transferIx(pool, toAddress, lamports);
+        let compiled = SolTx.compile(pool, nonceVal, [advanceIx, transferIx]);
+        let msgBytes = SolTx.serializeMessage(compiled);
+
+        // Pool is the only signer (both feePayer and nonce authority).
+        let sigs = await SolSigner.signMulti(keyId, [derivationPathPool()], msgBytes);
+        let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
+
+        let sendRes = await solRpc.sendTransaction(
+            txBytes,
+            ?{
+                skipPreflight = ?false;
+                preflightCommitment = ?"confirmed";
+                maxRetries = ?(3 : Nat64);
+                encoding = ?"base64";
+            },
+            ?{ provider = ?solRpcProvider },
+        );
+        switch (sendRes) {
+            case (#Err(e)) { #Err("sendTransaction failed: " # rpcErrorText(e)) };
+            case (#Ok(txSig)) {
+                // Refresh nonce.
+                let acctRes = await solRpc.getAccountInfo(
+                    nonceAddr,
+                    ?{ commitment = ?"confirmed"; encoding = ?"base64" },
+                    ?{ provider = ?solRpcProvider },
+                );
+                switch (acctRes) {
+                    case (#Ok(?account)) {
+                        switch (parseNonceFromAccountData(account.data)) {
+                            case (?n) { lastNonceValue := ?n };
+                            case (null) {};
+                        };
+                    };
+                    case (_) {};
+                };
+                #Ok(txSig);
+            };
+        };
+    };
+
+    /// Convert SOL (Float) → lamports (Nat64).
+    /// Returns 0 for negative input.
+    func solToLamports(sol : Float) : Nat64 {
+        let lam = sol * 1_000_000_000.0;
+        if (lam < 0.0) { return 0 };
+        Nat64.fromNat(Int.abs(Float.toInt(lam)));
+    };
+
     // ========================================================================
     // withdrawEarnings — simple-plan payout, applies tiered exit toll
     // ========================================================================
