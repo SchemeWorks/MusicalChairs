@@ -105,8 +105,10 @@ module {
         if (buf == 0) {
             byteList := [];
         } else {
-            // Use a growing array via Buffer; rebuild via Array.
-            let tmp = Array.init<Nat8>(64, 0); // 32 input bytes max → 64 output is safe
+            // Worst-case base58→base256 expansion is log2(58)/8 ≈ 0.733
+            // bytes per input char, so the input length is always a safe
+            // upper bound on the output byte count.
+            let tmp = Array.init<Nat8>(chars.size() + 1, 0);
             var bi : Nat = 0;
             while (buf > 0) {
                 tmp[bi] := Nat8.fromNat(buf % 256);
