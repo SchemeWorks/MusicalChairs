@@ -1,6 +1,7 @@
 import Array "mo:base/Array";
 import Blob "mo:base/Blob";
 import Int "mo:base/Int";
+import Int64 "mo:base/Int64";
 import Nat8 "mo:base/Nat8";
 import Text "mo:base/Text";
 
@@ -120,7 +121,7 @@ module {
     public type HttpOutcallError = {
         #IcError : { code : RejectionCode; message : Text };
         #InvalidHttpJsonRpcResponse : {
-            status : Nat;     // nat16 in candid; Nat is supertype in Motoko
+            status : Nat16;
             body : Text;
             parsingError : ?Text;
         };
@@ -133,7 +134,7 @@ module {
     };
 
     public type JsonRpcError = {
-        code : Int;
+        code : Int64;
         message : Text;
     };
 
@@ -153,7 +154,7 @@ module {
     public type Hash = Text;
     public type Slot = Nat64;
     public type Lamport = Nat64;
-    public type Timestamp = Int;   // int64 in candid
+    public type Timestamp = Int64;
 
     public type CommitmentLevel = {
         #processed;
@@ -358,7 +359,7 @@ module {
 
     // Reward type — minimally declared
     public type Reward = {
-        lamports : Int;
+        lamports : Int64;
         commission : ?Nat8;
         pubkey : Pubkey;
         rewardType : ?{ #fee; #rent; #voting; #staking };
@@ -486,7 +487,7 @@ module {
     public func rpcErrorText(e : RpcError) : Text {
         switch (e) {
             case (#JsonRpcError({ code; message })) {
-                "JsonRpcError(" # Int.toText(code) # "): " # message
+                "JsonRpcError(" # Int64.toText(code) # "): " # message
             };
             case (#ProviderError(pe)) {
                 switch (pe) {
