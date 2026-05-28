@@ -87,9 +87,11 @@ export const idlFactory = ({ IDL }) => {
     'bytes' : IDL.Vec(IDL.Nat8),
     'uploadedAt' : IDL.Int,
   });
+  const Denomination = IDL.Variant({ 'icp' : IDL.Null, 'sol' : IDL.Null });
   const ChatItemKind = IDL.Variant({
     'roundResult' : IDL.Record({
       'winnerPpUnits' : IDL.Nat,
+      'denomination' : Denomination,
       'gameId' : IDL.Nat,
       'winner' : IDL.Principal,
     }),
@@ -98,7 +100,10 @@ export const idlFactory = ({ IDL }) => {
       'body' : IDL.Text,
       'replyTo' : IDL.Opt(IDL.Nat),
     }),
-    'signup' : IDL.Record({ 'newUser' : IDL.Principal }),
+    'signup' : IDL.Record({
+      'denomination' : Denomination,
+      'newUser' : IDL.Principal,
+    }),
     'rankUp' : IDL.Record({ 'user' : IDL.Principal, 'newRank' : IDL.Text }),
     'spellCast' : IDL.Record({
       'renameDetail' : IDL.Opt(
@@ -130,19 +135,23 @@ export const idlFactory = ({ IDL }) => {
   });
   const MintConfig = IDL.Record({
     'compounding15DayPpPerIcp' : IDL.Nat,
+    'compounding15DayPpPerSol' : IDL.Nat,
     'minDepositPp' : IDL.Nat,
     'cascadeInitialBps' : IDL.Nat,
     'compounding30DayPpPerIcp' : IDL.Nat,
+    'compounding30DayPpPerSol' : IDL.Nat,
     'referralL1Bps' : IDL.Nat,
     'referralL2Bps' : IDL.Nat,
     'referralL3Bps' : IDL.Nat,
     'observerIntervalSeconds' : IDL.Nat,
     'backerPpPerIcp' : IDL.Nat,
+    'backerPpPerSol' : IDL.Nat,
     'cashOutDelaySeconds' : IDL.Nat,
     'activityWindowDays' : IDL.Opt(IDL.Nat),
     'activityRequiresDeposit' : IDL.Bool,
     'signupGiftPp' : IDL.Nat,
     'simple21DayPpPerIcp' : IDL.Nat,
+    'simple21DayPpPerSol' : IDL.Nat,
     'cascadePassthroughBps' : IDL.Nat,
   });
   const MintMultiplierSource = IDL.Record({
@@ -388,9 +397,12 @@ export const idlFactory = ({ IDL }) => {
           IDL.Record({
             'missedBackerMintsCount' : IDL.Nat,
             'gameIdCursor' : IDL.Nat,
+            'solBackerSeenCount' : IDL.Nat,
             'missedGameMintsCount' : IDL.Nat,
             'intervalSeconds' : IDL.Nat,
+            'ponziMathSolPrincipal' : IDL.Opt(IDL.Principal),
             'running' : IDL.Bool,
+            'solGameIdCursor' : IDL.Nat,
             'backerSeenCount' : IDL.Nat,
           }),
         ],
@@ -539,10 +551,13 @@ export const idlFactory = ({ IDL }) => {
     'setActivityRequiresDeposit' : IDL.Func([IDL.Bool], [], []),
     'setActivityWindowDays' : IDL.Func([IDL.Opt(IDL.Nat)], [], []),
     'setBackerPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setBackerPpPerSol' : IDL.Func([IDL.Nat], [], []),
     'setCascadeBps' : IDL.Func([IDL.Nat, IDL.Nat], [], []),
     'setCashOutDelaySeconds' : IDL.Func([IDL.Nat], [], []),
     'setCompounding15DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setCompounding15DayPpPerSol' : IDL.Func([IDL.Nat], [], []),
     'setCompounding30DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setCompounding30DayPpPerSol' : IDL.Func([IDL.Nat], [], []),
     'setCustomTitle' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
@@ -561,9 +576,11 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'setPonziMathSolPrincipal' : IDL.Func([IDL.Principal], [], []),
     'setReferralBps' : IDL.Func([IDL.Nat, IDL.Nat, IDL.Nat], [], []),
     'setSignupGiftPp' : IDL.Func([IDL.Nat], [], []),
     'setSimple21DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
+    'setSimple21DayPpPerSol' : IDL.Func([IDL.Nat], [], []),
     'stopObserver' : IDL.Func([], [], []),
     'updateShenaniganConfig' : IDL.Func([ShenaniganConfig], [], []),
   });

@@ -30,13 +30,14 @@ export interface ChatItem {
 export type ChatItemKind = {
     'roundResult' : {
       'winnerPpUnits' : bigint,
+      'denomination' : Denomination,
       'gameId' : bigint,
       'winner' : Principal,
     }
   } |
   { 'pinUpdate' : { 'body' : string } } |
   { 'userMessage' : { 'body' : string, 'replyTo' : [] | [bigint] } } |
-  { 'signup' : { 'newUser' : Principal } } |
+  { 'signup' : { 'denomination' : Denomination, 'newUser' : Principal } } |
   { 'rankUp' : { 'user' : Principal, 'newRank' : string } } |
   {
     'spellCast' : {
@@ -87,6 +88,8 @@ export interface ConsentMessageSpec {
   'metadata' : ConsentMessageMetadata,
   'device_spec' : [] | [DeviceSpec],
 }
+export type Denomination = { 'icp' : null } |
+  { 'sol' : null };
 export type DeviceSpec = { 'GenericDisplay' : null } |
   {
     'LineDisplay' : {
@@ -103,19 +106,23 @@ export type Icrc21Error = {
 export interface LineDisplayPage { 'lines' : Array<string> }
 export interface MintConfig {
   'compounding15DayPpPerIcp' : bigint,
+  'compounding15DayPpPerSol' : bigint,
   'minDepositPp' : bigint,
   'cascadeInitialBps' : bigint,
   'compounding30DayPpPerIcp' : bigint,
+  'compounding30DayPpPerSol' : bigint,
   'referralL1Bps' : bigint,
   'referralL2Bps' : bigint,
   'referralL3Bps' : bigint,
   'observerIntervalSeconds' : bigint,
   'backerPpPerIcp' : bigint,
+  'backerPpPerSol' : bigint,
   'cashOutDelaySeconds' : bigint,
   'activityWindowDays' : [] | [bigint],
   'activityRequiresDeposit' : boolean,
   'signupGiftPp' : bigint,
   'simple21DayPpPerIcp' : bigint,
+  'simple21DayPpPerSol' : bigint,
   'cascadePassthroughBps' : bigint,
 }
 export interface MintMultiplier {
@@ -430,9 +437,12 @@ export interface _SERVICE {
     {
       'missedBackerMintsCount' : bigint,
       'gameIdCursor' : bigint,
+      'solBackerSeenCount' : bigint,
       'missedGameMintsCount' : bigint,
       'intervalSeconds' : bigint,
+      'ponziMathSolPrincipal' : [] | [Principal],
       'running' : boolean,
+      'solGameIdCursor' : bigint,
       'backerSeenCount' : bigint,
     }
   >,
@@ -551,6 +561,11 @@ export interface _SERVICE {
   /**
    * / One-shot catch-up primer. Admin only. Call immediately after the
    * / cutover upgrade completes, before unpausing user traffic.
+   * / One-shot catch-up primer. Admin only. Call immediately after the
+   * / cutover upgrade completes, before unpausing user traffic. M2:
+   * / also seeds the SOL-side cursors if ponziMathSolPrincipal is set
+   * / (otherwise the SOL block is a no-op — admin can call this again
+   * / after configuring the SOL principal to back-fill cursors).
    */
   'primeObserverCursors' : ActorMethod<[], undefined>,
   /**
@@ -619,10 +634,13 @@ export interface _SERVICE {
   'setActivityRequiresDeposit' : ActorMethod<[boolean], undefined>,
   'setActivityWindowDays' : ActorMethod<[[] | [bigint]], undefined>,
   'setBackerPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setBackerPpPerSol' : ActorMethod<[bigint], undefined>,
   'setCascadeBps' : ActorMethod<[bigint, bigint], undefined>,
   'setCashOutDelaySeconds' : ActorMethod<[bigint], undefined>,
   'setCompounding15DayPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setCompounding15DayPpPerSol' : ActorMethod<[bigint], undefined>,
   'setCompounding30DayPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setCompounding30DayPpPerSol' : ActorMethod<[bigint], undefined>,
   /**
    * / Caller commits their custom title string into the active-title map.
    * / Must be called within 5 minutes of a successful #customTitle cast.
@@ -656,12 +674,20 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   /**
+   * / M2: configure the SOL-side ponzi_math canister. null until set;
+   * / while null, the SOL-side observer branch no-ops. Admin only.
+   * / Mirrors the setHousePrincipal pattern (anonymous-principal guard
+   * / + admin guard).
+   */
+  'setPonziMathSolPrincipal' : ActorMethod<[Principal], undefined>,
+  /**
    * / Deprecated. The deductive cascade ignores referralL[1-3]Bps.
    * / Use setCascadeBps(initial, passthrough) instead.
    */
   'setReferralBps' : ActorMethod<[bigint, bigint, bigint], undefined>,
   'setSignupGiftPp' : ActorMethod<[bigint], undefined>,
   'setSimple21DayPpPerIcp' : ActorMethod<[bigint], undefined>,
+  'setSimple21DayPpPerSol' : ActorMethod<[bigint], undefined>,
   'stopObserver' : ActorMethod<[], undefined>,
   'updateShenaniganConfig' : ActorMethod<[ShenaniganConfig], undefined>,
 }
