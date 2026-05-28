@@ -21,6 +21,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -36,6 +37,13 @@ import Icrc21 "icrc21";
 // #spellCast chat item) was applied 2026-05-27. See migration.mo for the
 // historical migration record and Migration.runV7.
 
+// Migration V8 (Solana chain fusion observer support: MintConfig gains
+// *PerSol rates; ChatItemKind.#signup + #roundResult gain a denomination
+// tag, backfilled to #icp on all pre-M2 chat items). Applied during the
+// M2 deploy — see docs/superpowers/plans/2026-05-28-solana-chain-fusion-m2.md
+// and Migration.runV8.
+
+(with migration = Migration.runV8)
 persistent actor Self {
 
     // ================================================================
@@ -187,6 +195,14 @@ persistent actor Self {
         signupGiftPp : Nat;
         activityRequiresDeposit : Bool;
         activityWindowDays : ?Nat;
+        // M2 (Solana chain fusion): SOL-denominated mint rates. Anchored
+        // at deploy time per the design spec's 30x ratio; admin-tunable
+        // via the matching per-field setters (setSimple21DayPpPerSol etc.,
+        // added alongside the existing setSimple21DayPpPerIcp pattern).
+        simple21DayPpPerSol : Nat;     // initial 6_000
+        compounding15DayPpPerSol : Nat; // initial 12_000
+        compounding30DayPpPerSol : Nat; // initial 18_000
+        backerPpPerSol : Nat;          // initial = backerPpPerIcp * 30 (set by V8 migration)
     };
 
     /// Per-backer cumulative ICP seen by the observer. Used to mint only
@@ -275,6 +291,14 @@ persistent actor Self {
     // Trollbox types
     // ================================================================
 
+    /// Asset side of an observable event. Pre-M2 the observer only ever
+    /// saw ICP-side ponzi_math state; M2 adds a SOL-side source by adding
+    /// this tag to event-bearing chat items and a Denomination parameter
+    /// to the observer functions. Denomination is a property of the EVENT,
+    /// not of the user — a user with one of each kind of deposit will
+    /// surface as two separate events.
+    public type Denomination = { #icp; #sol };
+
     public type ChatItemKind = {
         #userMessage : { body : Text; replyTo : ?Nat };
         // Spell-cast events embed all rendering data inline so the trollbox
@@ -297,9 +321,9 @@ persistent actor Self {
             renameDetail : ?{ oldName : Text; newName : Text };
             shieldDeflected : ?Bool;
         };
-        #signup : { newUser : Principal };
+        #signup : { newUser : Principal; denomination : Denomination };
         #rankUp : { user : Principal; newRank : Text };
-        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat; denomination : Denomination };
         #reginald : { line : Text; triggerKind : Text };
         #pinUpdate : { body : Text };
     };
@@ -540,6 +564,13 @@ persistent actor Self {
         signupGiftPp = 500;
         activityRequiresDeposit = true;
         activityWindowDays = null;
+        // M2 (Solana chain fusion) — fresh-install defaults match the
+        // V8 migration defaults so a fresh deploy has the same MintConfig
+        // shape an upgraded deploy gets.
+        simple21DayPpPerSol = 6_000;
+        compounding15DayPpPerSol = 12_000;
+        compounding30DayPpPerSol = 18_000;
+        backerPpPerSol = 120_000;  // 4_000 * 30; admin can retune
     };
 
     // Observer cursors
@@ -1240,7 +1271,7 @@ persistent actor Self {
                     case (?_) {};
                     case (null) {
                         signupAnnouncedSet := principalMap.put(signupAnnouncedSet, game.player, Time.now());
-                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
+                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player; denomination = #icp }));
                     };
                 };
 
@@ -1283,6 +1314,7 @@ persistent actor Self {
                             gameId = game.id;
                             winner = game.player;
                             winnerPpUnits = playerNet;
+                            denomination = #icp;
                         }));
 
                         let coin = Int.abs(Time.now()) % 7; // ~15%
