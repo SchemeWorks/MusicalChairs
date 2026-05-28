@@ -8,6 +8,10 @@
       "main": "ponzi_math/main.mo",
       "type": "motoko"
     },
+    "ponzi_math_sol": {
+      "main": "ponzi_math_sol/main.mo",
+      "type": "motoko"
+    },
     "shenanigans": {
       "main": "shenanigans/main.mo",
       "type": "motoko"
