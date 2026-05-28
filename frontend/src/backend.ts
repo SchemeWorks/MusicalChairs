@@ -23,6 +23,25 @@ export type {
   _SERVICE as PonziMathService,
 } from './declarations/ponzi_math';
 
+export {
+  idlFactory as ponziMathSolIdlFactory,
+  GamePlan as SolGamePlan,
+  BackerType as SolBackerType,
+} from './declarations/ponzi_math_sol';
+export type {
+  GameRecord as SolGameRecord,
+  PlatformStats as SolPlatformStats,
+  GameResetRecord as SolGameResetRecord,
+  BackerPosition as SolBackerPosition,
+  BackerKey as SolBackerKey,
+  GeneralLedgerEntry as SolGeneralLedgerEntry,
+  GeneralLedgerEvent as SolGeneralLedgerEvent,
+  ActivePlanSnapshot as SolActivePlanSnapshot,
+  RoundSummary as SolRoundSummary,
+  DepositIntent as SolDepositIntent,
+  _SERVICE as PonziMathSolService,
+} from './declarations/ponzi_math_sol';
+
 export { ShenaniganType, ShenaniganOutcome } from './declarations/shenanigans';
 export type {
   ShenaniganRecord,
