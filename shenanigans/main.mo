@@ -1279,21 +1279,44 @@ persistent actor Self {
         observerRunning := false;
     };
 
-    func processNewGames() : async () {
-        let ponziMath = getPonziMath();
+    func processNewGames(denomination : Denomination) : async () {
+        // Select the right ponzi_math source. ICP is required; SOL is
+        // optional and no-ops while unconfigured.
+        let ponziMathOpt : ?PonziMathActor = switch (denomination) {
+            case (#icp) { ?getPonziMath() };
+            case (#sol) { getPonziMathSol() };
+        };
+        let ponziMath = switch (ponziMathOpt) {
+            case (?p) { p };
+            case (null) { return };  // SOL not configured — no-op.
+        };
         let games = try { await ponziMath.getAllGames() } catch (_) { [] };
         let sorted = Array.sort<PonziMathGameRecord>(games, func(a, b) = Nat.compare(a.id, b.id));
+        // Choose the right cursor + rate fields + eventId prefix per denomination.
+        // The ICP path keeps the historical 'game-N' / 'signup-...' eventId
+        // shapes so PP ledger memo dedup is unaffected. The SOL path uses
+        // a 'sol-' infix so the two namespaces can never collide.
+        let cursor : Nat = switch (denomination) {
+            case (#icp) { gameIdCursor };
+            case (#sol) { solGameIdCursor };
+        };
         for (game in sorted.vals()) {
-            if (game.id >= gameIdCursor) {
-                let ppPerIcp = switch (game.plan) {
-                    case (#simple21Day) { mintConfig.simple21DayPpPerIcp };
-                    case (#compounding15Day) { mintConfig.compounding15DayPpPerIcp };
-                    case (#compounding30Day) { mintConfig.compounding30DayPpPerIcp };
+            if (game.id >= cursor) {
+                let ppPerUnit : Nat = switch (denomination, game.plan) {
+                    case (#icp, #simple21Day) { mintConfig.simple21DayPpPerIcp };
+                    case (#icp, #compounding15Day) { mintConfig.compounding15DayPpPerIcp };
+                    case (#icp, #compounding30Day) { mintConfig.compounding30DayPpPerIcp };
+                    case (#sol, #simple21Day) { mintConfig.simple21DayPpPerSol };
+                    case (#sol, #compounding15Day) { mintConfig.compounding15DayPpPerSol };
+                    case (#sol, #compounding30Day) { mintConfig.compounding30DayPpPerSol };
                 };
-                let baseUnits = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let baseUnits = icpFloatToPpUnits(game.amount, ppPerUnit);
                 let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
-                let eventId = "game-" # Nat.toText(game.id);
+                let eventId = switch (denomination) {
+                    case (#icp) { "game-" # Nat.toText(game.id) };
+                    case (#sol) { "game-sol-" # Nat.toText(game.id) };
+                };
 
                 // Announce signup in chat unconditionally on first observation —
                 // independent of whether the gift is enabled. This ensures the
@@ -1302,7 +1325,7 @@ persistent actor Self {
                     case (?_) {};
                     case (null) {
                         signupAnnouncedSet := principalMap.put(signupAnnouncedSet, game.player, Time.now());
-                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player; denomination = #icp }));
+                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player; denomination }));
                     };
                 };
 
@@ -1316,7 +1339,15 @@ persistent actor Self {
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
-                            let giftEventId = "signup-" # Principal.toText(game.player);
+                            // Signup-gift event id includes the denomination so a
+                            // cross-pot user (joins ICP then later joins SOL) cannot
+                            // accidentally double-claim the gift via ledger memo
+                            // collision. Practically irrelevant today (signupGiftClaimed
+                            // gates by principal), but cheap defense-in-depth.
+                            let giftEventId = switch (denomination) {
+                                case (#icp) { "signup-" # Principal.toText(game.player) };
+                                case (#sol) { "signup-sol-" # Principal.toText(game.player) };
+                            };
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
@@ -1338,14 +1369,22 @@ persistent actor Self {
                         if (game.amount >= 0.1) {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, Time.now());
                         };
-                        gameMintRetries := natMap.delete(gameMintRetries, game.id);
-                        gameIdCursor := game.id + 1;
+                        switch (denomination) {
+                            case (#icp) {
+                                gameMintRetries := natMap.delete(gameMintRetries, game.id);
+                                gameIdCursor := game.id + 1;
+                            };
+                            case (#sol) {
+                                solGameMintRetries := natMap.delete(solGameMintRetries, game.id);
+                                solGameIdCursor := game.id + 1;
+                            };
+                        };
 
                         let _ = appendChatItem(Principal.fromActor(Self), #roundResult({
                             gameId = game.id;
                             winner = game.player;
                             winnerPpUnits = playerNet;
-                            denomination = #icp;
+                            denomination;
                         }));
 
                         let coin = Int.abs(Time.now()) % 7; // ~15%
@@ -1359,9 +1398,19 @@ persistent actor Self {
                         };
                     };
                     case (#Err(msg)) {
-                        let attempts = switch (natMap.get(gameMintRetries, game.id)) {
-                            case (?n) { n + 1 };
-                            case (null) { 1 };
+                        let attempts : Nat = switch (denomination) {
+                            case (#icp) {
+                                switch (natMap.get(gameMintRetries, game.id)) {
+                                    case (?n) { n + 1 };
+                                    case (null) { 1 };
+                                };
+                            };
+                            case (#sol) {
+                                switch (natMap.get(solGameMintRetries, game.id)) {
+                                    case (?n) { n + 1 };
+                                    case (null) { 1 };
+                                };
+                            };
                         };
                         if (attempts >= MAX_MINT_RETRIES) {
                             // Exhausted retries — record the miss and advance
@@ -1369,12 +1418,28 @@ persistent actor Self {
                             // Admin can call adminMint to compensate the player.
                             Debug.print("Giving up on " # eventId # " after "
                                 # Nat.toText(attempts) # " attempts: " # msg);
-                            missedGameMints := natMap.put(missedGameMints, game.id, msg);
-                            gameMintRetries := natMap.delete(gameMintRetries, game.id);
-                            gameIdCursor := game.id + 1;
+                            switch (denomination) {
+                                case (#icp) {
+                                    missedGameMints := natMap.put(missedGameMints, game.id, msg);
+                                    gameMintRetries := natMap.delete(gameMintRetries, game.id);
+                                    gameIdCursor := game.id + 1;
+                                };
+                                case (#sol) {
+                                    missedSolGameMints := natMap.put(missedSolGameMints, game.id, msg);
+                                    solGameMintRetries := natMap.delete(solGameMintRetries, game.id);
+                                    solGameIdCursor := game.id + 1;
+                                };
+                            };
                             // Fall through — continue to next game in the loop.
                         } else {
-                            gameMintRetries := natMap.put(gameMintRetries, game.id, attempts);
+                            switch (denomination) {
+                                case (#icp) {
+                                    gameMintRetries := natMap.put(gameMintRetries, game.id, attempts);
+                                };
+                                case (#sol) {
+                                    solGameMintRetries := natMap.put(solGameMintRetries, game.id, attempts);
+                                };
+                            };
                             Debug.print("Mint attempt " # Nat.toText(attempts)
                                 # "/" # Nat.toText(MAX_MINT_RETRIES)
                                 # " failed for " # eventId # ": " # msg);
