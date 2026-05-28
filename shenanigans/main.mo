@@ -39,9 +39,9 @@ import Migration "migration";
 
 // Migration V8 (Solana chain fusion observer support: MintConfig gains
 // *PerSol rates; ChatItemKind.#signup + #roundResult gain a denomination
-// tag, backfilled to #icp on all pre-M2 chat items). Applied during the
-// M2 deploy — see docs/superpowers/plans/2026-05-28-solana-chain-fusion-m2.md
-// and Migration.runV8.
+// tag, backfilled to #icp on all pre-M2 chat items) was applied
+// 2026-05-28. See migration.mo for the historical migration record and
+// Migration.runV8.
 
 (with migration = Migration.runV8)
 persistent actor Self {
