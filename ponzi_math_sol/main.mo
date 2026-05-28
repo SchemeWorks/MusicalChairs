@@ -1619,78 +1619,6 @@ persistent actor class PonziMathSol(initArgs : {
     // All methods below are gated on caller == TEST_ADMIN (init arg).
     // ========================================================================
 
-    // createBackdatedGame — same flow as createGame but with a caller-specified
-    // startTime, enabling tests of matured-position payouts.
-    public shared ({ caller }) func createBackdatedGame(
-        plan : GamePlan,
-        amount : Float,
-        isCompounding : Bool,
-        startTimeNanos : Int,
-    ) : async { #Ok : Nat; #Err : Text } {
-        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
-        requireAuthenticated(caller);
-        validateAmount(amount);
-        if (amount < 0.1) { return #Err("Minimum deposit is 0.1 ICP") };
-        if (not validateEightDecimals(amount)) {
-            return #Err("Amount cannot have more than 8 decimal places");
-        };
-        if (startTimeNanos > Time.now()) {
-            return #Err("startTime must not be in the future");
-        };
-
-        acquireCallerLock(caller);
-        acquireGlobalLock();
-        try {
-            // ICP deposit was here. SOL-side deposit not yet wired in Task 8 — see Task 20.
-            Debug.trap("test admin SOL payout: not yet wired in Task 8 — see Task 20");
-
-            let coverCharge = amount * 0.04; // COVER_CHARGE_RATE — re-declared inline after deletion of createGame block
-            let coverChargeE8s = Int.abs(Float.toInt(coverCharge * 100_000_000.0));
-            coverChargeBalance += coverChargeE8s;
-            let netAmount = amount - coverCharge;
-
-            let gameId = nextGameId;
-            nextGameId += 1;
-
-            if (coverChargeE8s > 0) {
-                recordLedger(#coverChargeAccrued({ gameId; player = caller; amountE8s = coverChargeE8s }));
-            };
-
-            let newGame : GameRecord = {
-                id = gameId;
-                player = caller;
-                plan;
-                amount;
-                startTime = startTimeNanos;
-                isCompounding;
-                isActive = true;
-                lastUpdateTime = startTimeNanos;
-                accumulatedEarnings = 0.0;
-                totalWithdrawn = 0.0;
-            };
-            gameRecords := natMap.put(gameRecords, gameId, newGame);
-            platformStats := {
-                platformStats with
-                totalDeposits = platformStats.totalDeposits + amount;
-                activeGames = platformStats.activeGames + 1;
-                potBalance = platformStats.potBalance + netAmount;
-            };
-
-            recordLedger(#backdatedGameCreated({
-                admin = caller;
-                player = caller;
-                gameId;
-                startTime = startTimeNanos;
-                amount;
-            }));
-
-            #Ok(gameId);
-        } finally {
-            releaseGlobalLock();
-            releaseCallerLock(caller);
-        };
-    };
-
     // adminMergeBackerPosition — merge `from`'s backer position into `to`.
     // Sums amount + entitlement, keeps the earlier startTime / firstDepositDate,
     // also moves any accumulated backerRepayments. Used to consolidate smoke-test
@@ -1771,19 +1699,52 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
-    // adminSweepUntracked — recover any actual ICP balance that exceeds
-    // internal accounting (potBalance + roundSeedReserve + sum(backerRepayments)
-    // + coverChargeBalance). Sends `actual - internal - fee` to the testAdmin.
-    // Used to reconcile dust left over by operations like
-    // adminClearAllBackerPositions, which zero internal accounting fields
-    // without crediting the corresponding ICP elsewhere. No-op if there is no
-    // positive untracked balance.
-    public shared ({ caller }) func adminSweepUntracked() : async { #Ok : Nat; #Err : Text } {
+    /// Admin: compute the difference between the pool address's actual
+    /// on-chain balance and the sum of internal accounting (pot +
+    /// roundSeedReserve + repayments + coverChargeAccrual). If positive
+    /// (untracked dust), send it to the testAdmin's deposit address.
+    /// No-op otherwise.
+    public shared ({ caller }) func adminSweepUntracked() : async { #Ok : Text; #Err : Text } {
         if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
         acquireGlobalLock();
         try {
-            // ICP balance read + sweep was here. SOL-side not yet wired in Task 8 — see Task 20.
-            Debug.trap("test admin SOL payout: not yet wired in Task 8 — see Task 20");
+            let pool = switch (poolAddress) {
+                case (null) { return #Err("Pool not derived") };
+                case (?p) { p };
+            };
+            let balRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
+            let actualLamports = switch (balRes) {
+                case (#Ok(b)) { b };
+                case (#Err(e)) { return #Err("getBalance: " # rpcErrorText(e)) };
+            };
+
+            var repaymentSum : Float = 0.0;
+            for ((_, amount) in backerKeyMap.entries(backerRepayments)) {
+                repaymentSum += amount;
+            };
+            let internalFloat = platformStats.potBalance + roundSeedReserve + repaymentSum;
+            let internalLamports : Nat64 = solToLamports(internalFloat) + coverChargeAccrualLamports;
+
+            if (actualLamports <= internalLamports) {
+                return #Err("No untracked balance (actual=" # Nat64.toText(actualLamports) # ", internal=" # Nat64.toText(internalLamports) # ")");
+            };
+            let untracked : Nat64 = actualLamports - internalLamports;
+            let solFee : Nat64 = 5_000;
+            if (untracked <= solFee) {
+                return #Err("Untracked balance below fee");
+            };
+            let payout : Nat64 = untracked - solFee;
+
+            let destination = switch (principalMapNat.get(depositAddresses, caller)) {
+                case (?addr) { addr };
+                case (null) {
+                    return #Err("testAdmin has no deposit address; call getOrCreateDepositAddress as testAdmin first");
+                };
+            };
+            switch (await sendSolPayout(destination, payout)) {
+                case (#Ok(txSig)) { #Ok(txSig) };
+                case (#Err(e)) { #Err(e) };
+            };
         } finally {
             releaseGlobalLock();
         };
@@ -2498,11 +2459,114 @@ persistent actor class PonziMathSol(initArgs : {
     public query func getSolTreasuryAddress() : async Text { solTreasuryAddress };
     public query func getCoverChargeAccrualLamports() : async Nat64 { coverChargeAccrualLamports };
 
+    /// Admin: record a Series A backer position for `owner` of `amount`
+    /// SOL. Use ONCE at deploy to register the operator's pre-deposited
+    /// pool seed. Mirrors ponzi_math.addBackerMoney's bookkeeping but
+    /// skips the synchronous transfer-from (the SOL is already on the
+    /// pool address, deposited out-of-band by the operator).
     public shared ({ caller }) func adminRegisterSeriesABacker(owner : Principal, amount : Float) : async { #Ok; #Err : Text } {
-        let _ = caller;
-        let _ = owner;
-        let _ = amount;
-        Debug.trap("adminRegisterSeriesABacker: not yet implemented (Task 20)");
+        requireAdmin(caller);
+        validateAmount(amount);
+        if (amount < 0.05) { return #Err("Minimum is 0.05 SOL") };
+
+        acquireGlobalLock();
+        try {
+            let entitlement = amount * 1.24;
+            switch (backerKeyMap.get(backerPositions, (owner, #seriesA))) {
+                case (null) {
+                    let pos : BackerPosition = {
+                        owner;
+                        amount;
+                        entitlement;
+                        startTime = Time.now();
+                        isActive = true;
+                        backerType = #seriesA;
+                        firstDepositDate = ?Time.now();
+                    };
+                    backerPositions := backerKeyMap.put(backerPositions, (owner, #seriesA), pos);
+                };
+                case (?existing) {
+                    let updated : BackerPosition = {
+                        existing with
+                        amount = existing.amount + amount;
+                        entitlement = existing.entitlement + entitlement;
+                    };
+                    backerPositions := backerKeyMap.put(backerPositions, (owner, #seriesA), updated);
+                };
+            };
+            platformStats := { platformStats with potBalance = platformStats.potBalance + amount };
+            recordLedger(#backerDeposit({ backer = owner; amount; entitlement }));
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    /// Admin: manually credit an unmatched / TTL-expired SOL deposit.
+    /// `lamports` is the gross detected amount; cover charge is
+    /// computed at the standard 4% rate. Used to clear admin-review
+    /// entries flagged by creditDeposit when no intent matched.
+    public shared ({ caller }) func adminCreditManualDeposit(
+        player : Principal,
+        plan : GamePlan,
+        lamports : Nat64,
+    ) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (lamports < MIN_DEPOSIT_LAMPORTS) { return #Err("Below minimum deposit") };
+
+        acquireGlobalLock();
+        try {
+            let coverChargeLamports = bpsApply(lamports, COVER_CHARGE_RATE_LAMPORTS_BPS);
+            let netLamports = lamports - coverChargeLamports;
+            let depositSol = lamportsToSol(lamports);
+            let coverChargeSol = lamportsToSol(coverChargeLamports);
+            let netSol = lamportsToSol(netLamports);
+
+            let gameId = nextGameId;
+            nextGameId += 1;
+            coverChargeAccrualLamports += coverChargeLamports;
+
+            let isCompounding = switch (plan) { case (#simple21Day) { false }; case (_) { true } };
+            let game : GameRecord = {
+                id = gameId;
+                player;
+                plan;
+                amount = depositSol;
+                startTime = Time.now();
+                isCompounding;
+                isActive = true;
+                lastUpdateTime = Time.now();
+                accumulatedEarnings = 0.0;
+                totalWithdrawn = 0.0;
+            };
+            gameRecords := natMap.put(gameRecords, gameId, game);
+            platformStats := {
+                platformStats with
+                totalDeposits = platformStats.totalDeposits + depositSol;
+                activeGames = platformStats.activeGames + 1;
+                potBalance = platformStats.potBalance + netSol;
+            };
+            recordLedger(#deposit({
+                player;
+                gameId;
+                gross = depositSol;
+                coverCharge = coverChargeSol;
+                netToPot = netSol;
+                plan;
+                isCompounding;
+            }));
+            recordLedger(#backdatedGameCreated({
+                admin = caller;
+                player;
+                gameId;
+                startTime = Time.now();
+                amount = depositSol;
+            }));
+
+            #Ok(gameId);
+        } finally {
+            releaseGlobalLock();
+        };
     };
 
     // ====================================================================
