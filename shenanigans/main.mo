@@ -3401,6 +3401,15 @@ persistent actor Self {
                             multiplierBps = 10000 + buffPct * 100;
                             expiresAt = nowTs + durationNs_it;
                         });
+                        // 100% Reginald footnote — the firm publicly notes
+                        // the kindness so the target sees a chat surface on
+                        // top of the per-source badge in their effects strip.
+                        switch (reginaldPickFor("insiderTipReceived")) {
+                            case (?line) {
+                                let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "insiderTipReceived" }));
+                            };
+                            case (null) {};
+                        };
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };

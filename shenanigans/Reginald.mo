@@ -87,6 +87,19 @@ module {
         "We have, on your behalf, set fire to a small portion of your net worth.",
     ];
 
+    /// Fires on every successful Insider Tip. The firm publicly notes the
+    /// kindness — the target sees a chat footnote about being gifted on top
+    /// of the per-source badge in their active-effects strip.
+    public let insiderTipReceived : [Text] = [
+        "A position has been gifted a footnote.",
+        "Conviction redistributed.",
+        "Insider knowledge has been shared. We make no editorial comment.",
+        "The target's mint rate now incorporates a personal touch.",
+        "We have noted the kindness.",
+        "Cap table benevolence: a measured outcome.",
+        "Underwriting, shared without consent.",
+    ];
+
     /// Returns the hardcoded default pool for the given trigger name, or []
     /// for unknown triggers. Used by main.mo to seed effectivePool fallbacks
     /// and to answer adminGetFlavorPoolDefaults queries.
@@ -102,6 +115,7 @@ module {
             case ("stimulus") { stimulus };
             case ("bearRaid") { bearRaid };
             case ("foundersRound") { foundersRound };
+            case ("insiderTipReceived") { insiderTipReceived };
             case (_) { [] };
         };
     };
@@ -125,6 +139,7 @@ module {
             case ("stimulus") { stimulus };
             case ("bearRaid") { bearRaid };
             case ("foundersRound") { foundersRound };
+            case ("insiderTipReceived") { insiderTipReceived };
             case (_) { [] };
         };
         if (pool.size() == 0) { return null };
