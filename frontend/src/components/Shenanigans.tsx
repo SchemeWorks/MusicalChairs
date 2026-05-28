@@ -13,6 +13,7 @@ import HallOfFameRail from './hall-of-fame/HallOfFameRail';
 import HallOfFameMobileBlock from './hall-of-fame/HallOfFameMobileBlock';
 import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
 import BuyPPWidget from './Shenanigans/BuyPPWidget';
+import BuySOLWidget from './Shenanigans/BuySOLWidget';
 import BuyPPFab from './Shenanigans/BuyPPFab';
 import GuardrailsTooltip from './Shenanigans/GuardrailsTooltip';
 import TargetPicker from './TargetPicker';
@@ -330,7 +331,7 @@ export default function Shenanigans() {
   const { data: backendConfigs, isLoading: configsLoading } = useGetShenaniganConfigs();
   const { data: cooldownsRaw } = useGetSpellCooldowns();
   const { data: activeEffects } = useGetActiveSpellEffects();
-  const { principal } = useWallet();
+  const { principal, walletType } = useWallet();
   const callerPrincipal = principal ? (() => { try { return Principal.fromText(principal); } catch { return null; } })() : null;
   const { data: confettiCannonDeadlineNs } = useGetConfettiCannonStatus(callerPrincipal);
   // C2: additional status hooks for the ActiveEffectsStrip
@@ -890,7 +891,7 @@ export default function Shenanigans() {
         {/* Right column (desktop): HoF rail + Buy PP widget + Live Feed — sticky via .mc-shenanigans-sidebar */}
         <div className="mc-shenanigans-sidebar space-y-4">
           <HallOfFameRail />
-          <BuyPPWidget />
+          {walletType === 'siws' ? <BuySOLWidget /> : <BuyPPWidget />}
           <LiveFeedPanel
             records={recentShenanigans ?? []}
             resolveSpell={(s) => {

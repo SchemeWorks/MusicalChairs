@@ -4,12 +4,15 @@ import BankSummary from './BankSummary';
 import BridgeCard from './BridgeCard';
 import PendingQueueCard from './PendingQueueCard';
 import BuyPPWidget from './Shenanigans/BuyPPWidget';
+import BuySOLWidget from './Shenanigans/BuySOLWidget';
+import { useWallet } from '../hooks/useWallet';
 
 interface BankPageProps {
   onClose: () => void;
 }
 
 export default function BankPage({ onClose }: BankPageProps) {
+  const { walletType } = useWallet();
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -36,7 +39,7 @@ export default function BankPage({ onClose }: BankPageProps) {
           so users who need more PP before depositing have it one click away
           without leaving the Bank page. */}
       <div className="max-w-md mx-auto w-full">
-        <BuyPPWidget />
+        {walletType === 'siws' ? <BuySOLWidget /> : <BuyPPWidget />}
       </div>
       <PendingQueueCard />
     </div>
