@@ -2949,10 +2949,30 @@ persistent actor Self {
                 let boostMin = effectNatOr(config.effectValues, 0, 5);
                 let boostMax = effectNatOr(config.effectValues, 1, 15);
                 let pct = rollPct(100 + boostMin, 100 + boostMax);
+                let newMultiplierBps_ppb : Nat = pct * 100;
+                let newExpiresAt_ppb : Int = nowTs + oneDayNs;
+                // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
+                let existingBps_ppb : Nat = switch (principalMap.get(mintMultipliers, caster)) {
+                    case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
+                    case null { 10000 };
+                };
+                let finalBps_ppb : Nat = if (newMultiplierBps_ppb > existingBps_ppb) { newMultiplierBps_ppb } else { existingBps_ppb };
+                let finalExpiresAt_ppb : Int = if (newMultiplierBps_ppb > existingBps_ppb) {
+                    newExpiresAt_ppb
+                } else {
+                    switch (principalMap.get(mintMultipliers, caster)) {
+                        case (?entry) { if (entry.expiresAt > newExpiresAt_ppb) { entry.expiresAt } else { newExpiresAt_ppb } };
+                        case null { newExpiresAt_ppb };
+                    };
+                };
                 mintMultipliers := principalMap.put(mintMultipliers, caster, {
-                    multiplierBps = pct * 100;
-                    expiresAt = nowTs + oneDayNs;
+                    multiplierBps = finalBps_ppb;
+                    expiresAt = finalExpiresAt_ppb;
                 });
+                // TODO(diminishing-returns): track per-source multipliers so the
+                // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
+                // +15%" instead of a single combined badge. Until then, the higher
+                // multiplier wins (max — see I1 fix).
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#purseCutter) {
@@ -3123,12 +3143,31 @@ persistent actor Self {
                 // balanceGatePp is enforced above in the pre-cast gate.
                 // Success: write a mint multiplier for caster at (100 + successPct)%.
                 let successPct = effectNatOr(config.effectValues, 1, 15);
-                let multiplierBps : Nat = 10000 + successPct * 100;
+                let newMultiplierBps_fr : Nat = 10000 + successPct * 100;
                 let durationNs : Int = config.duration * 3_600_000_000_000;
+                let newExpiresAt_fr : Int = nowTs + durationNs;
+                // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
+                let existingBps_fr : Nat = switch (principalMap.get(mintMultipliers, caster)) {
+                    case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
+                    case null { 10000 };
+                };
+                let finalBps_fr : Nat = if (newMultiplierBps_fr > existingBps_fr) { newMultiplierBps_fr } else { existingBps_fr };
+                let finalExpiresAt_fr : Int = if (newMultiplierBps_fr > existingBps_fr) {
+                    newExpiresAt_fr
+                } else {
+                    switch (principalMap.get(mintMultipliers, caster)) {
+                        case (?entry) { if (entry.expiresAt > newExpiresAt_fr) { entry.expiresAt } else { newExpiresAt_fr } };
+                        case null { newExpiresAt_fr };
+                    };
+                };
                 mintMultipliers := principalMap.put(mintMultipliers, caster, {
-                    multiplierBps;
-                    expiresAt = nowTs + durationNs;
+                    multiplierBps = finalBps_fr;
+                    expiresAt = finalExpiresAt_fr;
                 });
+                // TODO(diminishing-returns): track per-source multipliers so the
+                // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
+                // +15%" instead of a single combined badge. Until then, the higher
+                // multiplier wins (max — see I1 fix).
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#strategicReserve) {
@@ -3167,12 +3206,31 @@ persistent actor Self {
                     };
                     case (?t) {
                         let buffPct = effectNatOr(config.effectValues, 0, 10);
-                        let multiplierBps : Nat = 10000 + buffPct * 100;
+                        let newMultiplierBps_it : Nat = 10000 + buffPct * 100;
                         let durationNs : Int = config.duration * 3_600_000_000_000;
+                        let newExpiresAt_it : Int = nowTs + durationNs;
+                        // Use max — full per-source stacking is the buff-stacking diminishing-returns follow-up.
+                        let existingBps_it : Nat = switch (principalMap.get(mintMultipliers, t)) {
+                            case (?entry) { if (entry.expiresAt > Time.now()) { entry.multiplierBps } else { 10000 } };
+                            case null { 10000 };
+                        };
+                        let finalBps_it : Nat = if (newMultiplierBps_it > existingBps_it) { newMultiplierBps_it } else { existingBps_it };
+                        let finalExpiresAt_it : Int = if (newMultiplierBps_it > existingBps_it) {
+                            newExpiresAt_it
+                        } else {
+                            switch (principalMap.get(mintMultipliers, t)) {
+                                case (?entry) { if (entry.expiresAt > newExpiresAt_it) { entry.expiresAt } else { newExpiresAt_it } };
+                                case null { newExpiresAt_it };
+                            };
+                        };
                         mintMultipliers := principalMap.put(mintMultipliers, t, {
-                            multiplierBps;
-                            expiresAt = nowTs + durationNs;
+                            multiplierBps = finalBps_it;
+                            expiresAt = finalExpiresAt_it;
                         });
+                        // TODO(diminishing-returns): track per-source multipliers so the
+                        // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
+                        // +15%" instead of a single combined badge. Until then, the higher
+                        // multiplier wins (max — see I1 fix).
                         return { ppDeltaCaster = 0; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                     };
                 };
@@ -3472,6 +3530,10 @@ persistent actor Self {
             };
             case (#foundersRound) {
                 // Down round — write a negative mint multiplier for the caster.
+                // Backfire is a penalty (below 1.0×), so we always overwrite —
+                // no max-guard needed here (a penalty should land regardless of
+                // any existing positive buff; the buff-stacking follow-up can
+                // revisit this if needed).
                 let backfirePct = effectNatOr(config.effectValues, 2, 10);
                 // Guard: only apply if 10000 > backfirePct * 100 (i.e. no underflow).
                 let multiplierBps : Nat = if (10000 > backfirePct * 100) {
@@ -3974,26 +4036,32 @@ persistent actor Self {
 
         let id = appendChatItem(caller, #userMessage({ body = cleaned; replyTo }));
 
+        var buzzwordFired : Bool = false;
         if (containsBuzzword(cleaned)) {
             switch (reginaldPickFor("buzzword")) {
                 case (?line) {
                     let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "buzzword" }));
+                    buzzwordFired := true;
                 };
                 case (null) {};
             };
         };
 
         // Echo: if the poster is Echo-active, append a Reginald-kind snark footnote.
-        switch (principalMap.get(echoUntil, caller)) {
-            case (?deadline) {
-                if (Time.now() < deadline) {
-                    let _ = appendChatItem(
-                        Principal.fromActor(Self),
-                        #reginald({ line = pickEchoSnark(); triggerKind = "echo" })
-                    );
+        // Skip when a buzzword Reginald line just fired on the same message —
+        // two Reginald items back-to-back is verbose. (I6 fix)
+        if (not buzzwordFired) {
+            switch (principalMap.get(echoUntil, caller)) {
+                case (?deadline) {
+                    if (Time.now() < deadline) {
+                        let _ = appendChatItem(
+                            Principal.fromActor(Self),
+                            #reginald({ line = pickEchoSnark(); triggerKind = "echo" })
+                        );
+                    };
                 };
+                case null {};
             };
-            case null {};
         };
 
         #Ok(id);
