@@ -1853,6 +1853,290 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
+    // ====================================================================
+    // Deposit credit + sweep helpers (Task 14)
+    // ====================================================================
+
+    /// Cover charge rate: 4% expressed as basis points (400 / 10_000).
+    transient let COVER_CHARGE_RATE_LAMPORTS_BPS : Nat64 = 400;
+
+    /// Apply basis points to a Nat64 amount. bpsApply(x, 400) = 4% of x.
+    func bpsApply(amount : Nat64, bps : Nat64) : Nat64 {
+        amount * bps / 10_000;
+    };
+
+    /// Convert lamports → SOL Float. Matches the Float convention used
+    /// by Game.amount, platformStats, etc. throughout the actor.
+    func lamportsToSol(lamports : Nat64) : Float {
+        Float.fromInt(Nat64.toNat(lamports)) / 1_000_000_000.0;
+    };
+
+    /// Build + sign + broadcast a sweep tx from `fromAddress` (per-user
+    /// deposit address) to the pool address for `lamports` lamports.
+    /// Two signers: per-user address (feePayer + transfer source) and pool
+    /// address (nonce authority on advance_nonce_account). Order: [per-user, pool].
+    /// Leaves ~5_000 lamports dust on the per-user address (tx fee floor).
+    /// Bumps lastNonceValue on success.
+    func sweepToPool(fromAddress : Text, fromDerivationPath : [Blob], lamports : Nat64) : async { #Ok : Text; #Err : Text } {
+        let pool = switch (poolAddress) {
+            case (null) { return #Err("Pool address not derived") };
+            case (?p) { p };
+        };
+        let nonceAddr = switch (nonceAccountAddress) {
+            case (null) { return #Err("Nonce account not initialized") };
+            case (?n) { n };
+        };
+        let nonceVal = switch (lastNonceValue) {
+            case (null) { return #Err("Nonce value cache empty — call adminRefreshNonce") };
+            case (?n) { n };
+        };
+
+        // Sweep leaves ~5_000 lamports dust on the per-user address for
+        // the network fee. If the detected amount is at or below that
+        // floor, refuse rather than building a zero/negative transfer.
+        if (lamports <= 5_000) {
+            return #Err("Detected amount below network-fee floor (≤5000 lamports)");
+        };
+        let sweepLamports : Nat64 = lamports - 5_000;
+
+        let nonceIx = SolTx.advanceNonceIx(nonceAddr, pool);
+        let transferIx = SolTx.transferIx(fromAddress, pool, sweepLamports);
+        // Compile with the per-user address as feePayer so the sweep
+        // tx's network fee comes out of the per-user dust — pool pays nothing.
+        let compiled = SolTx.compile(fromAddress, nonceVal, [nonceIx, transferIx]);
+        let msgBytes = SolTx.serializeMessage(compiled);
+        // Two signers: per-user (feePayer + transfer source) first, then pool
+        // (nonce authority).
+        let sigs = await SolSigner.signMulti(keyId, [fromDerivationPath, derivationPathPool()], msgBytes);
+        let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
+
+        let sendRes = await solRpc.sendTransaction(
+            txBytes,
+            ?{
+                skipPreflight = ?false;
+                preflightCommitment = ?"confirmed";
+                maxRetries = ?(3 : Nat64);
+                encoding = ?"base64";
+            },
+            ?{ provider = ?solRpcProvider },
+        );
+        switch (sendRes) {
+            case (#Err(e)) { #Err("sendTransaction failed: " # rpcErrorText(e)) };
+            case (#Ok(txSig)) {
+                // Refresh the nonce cache after a successful broadcast so
+                // future txs use the advanced value.
+                let acctRes = await solRpc.getAccountInfo(
+                    nonceAddr,
+                    ?{ commitment = ?"confirmed"; encoding = ?"base64" },
+                    ?{ provider = ?solRpcProvider },
+                );
+                switch (acctRes) {
+                    case (#Ok(?account)) {
+                        switch (parseNonceFromAccountData(account.data)) {
+                            case (?n) { lastNonceValue := ?n };
+                            case (null) {};
+                        };
+                    };
+                    case (_) {};
+                };
+                #Ok(txSig);
+            };
+        };
+    };
+
+    /// For a single DetectedSignature, fetch the tx, compute the inbound
+    /// lamports, match against an open intent, credit the game, and
+    /// sweep to the pool.
+    ///
+    /// Safety properties:
+    /// - lastSeenSignature advances ONLY after credit + sweep complete
+    ///   (at-least-once guarantee — a failure leaves cursor unmoved so the
+    ///   next detection pass retries).
+    /// - Outbound txs (postBalance ≤ preBalance) advance cursor without
+    ///   crediting (catches re-observations of our own sweep txs).
+    /// - Unmatched deposits (no intent, or TTL expired) log via Debug.print
+    ///   and return Ok(0) without advancing cursor — admin resolves later
+    ///   via adminCreditManualDeposit (Task 20).
+    func creditDeposit(sig : DetectedSignature) : async { #Ok : Nat; #Err : Text } {
+        // 1. Fetch transaction details.
+        let txRes = await solRpc.getTransaction(
+            sig.signature,
+            ?{
+                commitment = ?"confirmed";
+                maxSupportedTransactionVersion = ?(0 : Nat64);
+                encoding = ?"json";
+            },
+            ?{ provider = ?solRpcProvider },
+        );
+        let tx = switch (txRes) {
+            case (#Err(e)) { return #Err("getTransaction failed: " # rpcErrorText(e)) };
+            case (#Ok(null)) { return #Err("Transaction not found / not confirmed yet") };
+            case (#Ok(?t)) { t };
+        };
+
+        let meta = switch (tx.meta) {
+            case (null) { return #Err("Transaction meta missing") };
+            case (?m) { m };
+        };
+        if (meta.err != null) { return #Err("Transaction failed on-chain") };
+
+        let message = switch (tx.transaction) {
+            case (null) { return #Err("Transaction body missing") };
+            case (?b) {
+                switch (b.message) {
+                    case (null) { return #Err("Message missing from transaction body") };
+                    case (?m) { m };
+                };
+            };
+        };
+
+        // 2. Locate the deposit address inside accountKeys and compute the
+        //    inbound delta.
+        var addrIdx : ?Nat = null;
+        var i : Nat = 0;
+        while (i < message.accountKeys.size()) {
+            if (message.accountKeys[i] == sig.address) { addrIdx := ?i };
+            i += 1;
+        };
+        let idx = switch (addrIdx) {
+            case (null) {
+                return #Err("Deposit address not in transaction account keys (filter bug or false-positive)");
+            };
+            case (?n) { n };
+        };
+        if (idx >= meta.preBalances.size() or idx >= meta.postBalances.size()) {
+            return #Err("Pre/post balances missing for deposit address");
+        };
+        let preBal = meta.preBalances[idx];
+        let postBal = meta.postBalances[idx];
+        if (postBal <= preBal) {
+            // Outbound tx (probably a prior sweep we initiated). Advance
+            // the cursor without crediting.
+            lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+            return #Ok(0);
+        };
+        let inboundLamports : Nat64 = postBal - preBal;
+
+        // 3. Find an open intent for this principal that matches the amount
+        //    within ±5% tolerance and is not TTL-expired.
+        var matched : ?DepositIntent = null;
+        for (intent in natMap.vals(pendingIntents)) {
+            if (intent.principal == sig.principal and not intent.fulfilled) {
+                let expected = intent.expectedAmountLamports;
+                let tol = bpsApply(expected, 500); // 5% tolerance
+                let lo : Nat64 = if (expected > tol) { expected - tol } else { 0 };
+                let hi : Nat64 = expected + tol;
+                if (inboundLamports >= lo and inboundLamports <= hi and Time.now() <= intent.expiresAt) {
+                    matched := ?intent;
+                };
+            };
+        };
+
+        let intent = switch (matched) {
+            case (null) {
+                // Unmatched deposit — log for admin review. DO NOT advance
+                // the cursor; operator resolves via adminCreditManualDeposit.
+                Debug.print("Unmatched deposit on " # sig.address # ": " # Nat64.toText(inboundLamports) # " lamports sig=" # sig.signature);
+                return #Ok(0);
+            };
+            case (?i) { i };
+        };
+
+        // 4. Compute cover charge + net.
+        let coverChargeLamports = bpsApply(inboundLamports, COVER_CHARGE_RATE_LAMPORTS_BPS);
+        let netLamports = inboundLamports - coverChargeLamports;
+        let depositSol = lamportsToSol(inboundLamports);
+        let coverChargeSol = lamportsToSol(coverChargeLamports);
+        let netSol = lamportsToSol(netLamports);
+
+        // 5. Create the GameRecord, mark intent fulfilled, update stats,
+        //    record ledger events.
+        let gameId = nextGameId;
+        nextGameId += 1;
+        coverChargeAccrualLamports += coverChargeLamports;
+
+        if (coverChargeLamports > 0) {
+            recordLedger(#coverChargeAccrued({
+                gameId;
+                player = intent.principal;
+                // Field is named amountE8s but we reuse it for lamports per spec.
+                amountE8s = Nat64.toNat(coverChargeLamports);
+            }));
+        };
+
+        let newGame : GameRecord = {
+            id = gameId;
+            player = intent.principal;
+            plan = intent.plan;
+            amount = depositSol;
+            startTime = Time.now();
+            isCompounding = switch (intent.plan) {
+                case (#simple21Day) { false };
+                case (_) { true };
+            };
+            isActive = true;
+            lastUpdateTime = Time.now();
+            accumulatedEarnings = 0.0;
+            totalWithdrawn = 0.0;
+        };
+        gameRecords := natMap.put(gameRecords, gameId, newGame);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + depositSol;
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + netSol;
+        };
+        recordLedger(#deposit({
+            player = intent.principal;
+            gameId;
+            gross = depositSol;
+            coverCharge = coverChargeSol;
+            netToPot = netSol;
+            plan = intent.plan;
+            isCompounding = newGame.isCompounding;
+        }));
+
+        // Record the per-user deposit timestamp (rate-limit bookkeeping).
+        let now = Time.now();
+        let oneHourAgo = now - 3_600_000_000_000;
+        switch (principalMapNat.get(depositTimestamps, intent.principal)) {
+            case (null) {
+                depositTimestamps := principalMapNat.put(
+                    depositTimestamps,
+                    intent.principal,
+                    List.push(now, List.nil()),
+                );
+            };
+            case (?ts) {
+                let filtered = List.filter<Int>(ts, func(t) { t > oneHourAgo });
+                depositTimestamps := principalMapNat.put(
+                    depositTimestamps,
+                    intent.principal,
+                    List.push(now, filtered),
+                );
+            };
+        };
+
+        // Mark intent fulfilled.
+        pendingIntents := natMap.put(pendingIntents, intent.id, { intent with fulfilled = true });
+
+        // 6. Sweep deposit address → pool.
+        switch (await sweepToPool(sig.address, derivationPathForPrincipal(intent.principal), inboundLamports)) {
+            case (#Err(e)) {
+                // Pot already credited. Sweep failure leaves SOL on the
+                // per-user address; admin can retry. We still advance the
+                // cursor so the detection pass doesn't loop on this sig.
+                Debug.print("Sweep failed for " # sig.signature # ": " # e);
+            };
+            case (#Ok(_)) {};
+        };
+
+        // 7. Advance the per-address cursor — only here, after all mutations.
+        lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+
+        #Ok(gameId);
+    };
+
     public query func getPoolAddress() : async ?Text { poolAddress };
     public query func getNonceAccountAddress() : async ?Text { nonceAccountAddress };
     public query func isBootstrapped() : async Bool { bootstrapped };
@@ -1977,9 +2261,53 @@ persistent actor class PonziMathSol(initArgs : {
         Iter.toArray(natMap.vals(pendingIntents));
     };
 
+    /// Admin-callable detection sweep. Iterates every known deposit
+    /// address, fetches new signatures past the per-address cursor,
+    /// credits matching intents, sweeps to pool. Returns the count of
+    /// new GameRecords created (zero is normal when nothing arrived).
     public shared ({ caller }) func runDepositDetection() : async { #Ok : Nat; #Err : Text } {
         requireAdmin(caller);
-        Debug.trap("runDepositDetection: not yet implemented (Task 12-14)");
+        if (not bootstrapped) { return #Err("Not bootstrapped") };
+
+        var credits : Nat = 0;
+        for ((address, principal) in textMap.entries(addressToPrincipal)) {
+            let sigs = await scanAddress(address, principal);
+            for (sig in sigs.vals()) {
+                switch (await creditDeposit(sig)) {
+                    case (#Ok(gid)) { if (gid > 0) { credits += 1 } };
+                    case (#Err(e)) {
+                        Debug.print("creditDeposit error for " # sig.signature # ": " # e);
+                    };
+                };
+            };
+        };
+        #Ok(credits);
+    };
+
+    /// Admin: refresh the cached nonce by reading account info on-chain.
+    /// Use to recover from a nonce desync (e.g., broadcast succeeded but
+    /// the local nonce-refresh read failed). Idempotent.
+    public shared ({ caller }) func adminRefreshNonce() : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        let nonceAddr = switch (nonceAccountAddress) {
+            case (null) { return #Err("Nonce account not initialized") };
+            case (?n) { n };
+        };
+        let res = await solRpc.getAccountInfo(
+            nonceAddr,
+            ?{ commitment = ?"confirmed"; encoding = ?"base64" },
+            ?{ provider = ?solRpcProvider },
+        );
+        switch (res) {
+            case (#Err(e)) { #Err("getAccountInfo: " # rpcErrorText(e)) };
+            case (#Ok(null)) { #Err("Nonce account not found on-chain") };
+            case (#Ok(?account)) {
+                switch (parseNonceFromAccountData(account.data)) {
+                    case (?n) { lastNonceValue := ?n; #Ok(n) };
+                    case (null) { #Err("Could not parse nonce from account data") };
+                };
+            };
+        };
     };
 
     public shared ({ caller }) func payManagementSol() : async { #Ok : Text; #Err : Text } {
