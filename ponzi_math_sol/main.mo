@@ -1181,10 +1181,30 @@ persistent actor class PonziMathSol(initArgs : {
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
 
-            // ICP-side payout was here. SOL-side payout lands in
-            // Task 15-17; for now we trap so the function is wired
-            // but unusable until then.
-            Debug.trap("claimBackerRepayment: SOL payout not yet wired");
+            let netLamports = solToLamports(balance);
+            let solFee : Nat64 = 5_000;
+            if (netLamports <= solFee) {
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
+                return #Err("Claimable balance is below the Solana network fee; wait until your balance grows past 5,000 lamports");
+            };
+            let payoutLamports : Nat64 = netLamports - solFee;
+            let destination = switch (principalMapNat.get(depositAddresses, caller)) {
+                case (?addr) { addr };
+                case (null) {
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
+                    return #Err("Caller has no deposit address; call getOrCreateDepositAddress first.");
+                };
+            };
+            switch (await sendSolPayout(destination, payoutLamports)) {
+                case (#Err(e)) {
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
+                    backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
+                    return #Err("SOL payout failed: " # e);
+                };
+                case (#Ok(_txSig)) {};
+            };
 
             recordLedger(#backerRepaymentClaim({ backer = caller; amount = balance }));
 
