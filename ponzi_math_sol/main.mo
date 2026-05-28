@@ -2447,9 +2447,56 @@ persistent actor class PonziMathSol(initArgs : {
     };
 
     public shared ({ caller }) func payManagementSol() : async { #Ok : Text; #Err : Text } {
-        let _ = caller;
-        Debug.trap("payManagementSol: not yet implemented (Task 19)");
+        requireAdmin(caller);
+        if (coverChargeAccrualLamports == 0) { return #Err("Nothing to sweep") };
+        if (not Base58.isPlausibleSolanaAddress(solTreasuryAddress)) {
+            return #Err("solTreasuryAddress is not a valid Solana address: " # solTreasuryAddress);
+        };
+
+        acquireGlobalLock();
+        try {
+            let amount = coverChargeAccrualLamports;
+            let solFee : Nat64 = 5_000;
+            if (amount <= solFee) {
+                return #Err("Accumulated balance below transfer fee");
+            };
+            let payout : Nat64 = amount - solFee;
+
+            // Zero internal accrual BEFORE the outbound call — same
+            // pattern as sweepCoverCharges.
+            coverChargeAccrualLamports := 0;
+
+            switch (await sendSolPayout(solTreasuryAddress, payout)) {
+                case (#Err(e)) {
+                    coverChargeAccrualLamports := amount;
+                    #Err("SOL payout failed: " # e);
+                };
+                case (#Ok(txSig)) {
+                    recordLedger(#coverChargeSwept({
+                        amountE8s = Nat64.toNat(amount); // Reusing the field as lamports.
+                        toBackend = BACKEND_PRINCIPAL; // For audit only; the actual destination is solTreasuryAddress.
+                        blockIndex = 0;                 // No block index — SOL tx; signature lives in the ledger as a separate note.
+                    }));
+                    #Ok(txSig);
+                };
+            };
+        } finally {
+            releaseGlobalLock();
+        };
     };
+
+    /// Admin: update solTreasuryAddress (the destination of payManagementSol).
+    public shared ({ caller }) func adminSetSolTreasuryAddress(addr : Text) : async { #Ok; #Err : Text } {
+        requireAdmin(caller);
+        if (not Base58.isPlausibleSolanaAddress(addr)) {
+            return #Err("Not a valid Solana address: " # addr);
+        };
+        solTreasuryAddress := addr;
+        #Ok;
+    };
+
+    public query func getSolTreasuryAddress() : async Text { solTreasuryAddress };
+    public query func getCoverChargeAccrualLamports() : async Nat64 { coverChargeAccrualLamports };
 
     public shared ({ caller }) func adminRegisterSeriesABacker(owner : Principal, amount : Float) : async { #Ok; #Err : Text } {
         let _ = caller;
