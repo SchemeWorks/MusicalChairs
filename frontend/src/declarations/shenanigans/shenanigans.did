@@ -130,6 +130,12 @@ type MintSiphon =
    siphonedSoFar: nat;
    siphoner: principal;
  };
+type MintMultiplierSource = 
+ record {
+   expiresAt: int;
+   multiplierBps: nat;
+   sourceSpellId: nat;
+ };
 type MintMultiplier = 
  record {
    expiresAt: int;
@@ -415,6 +421,11 @@ service : {
   /// added in mintInternal and never removed (cheap, bounded by player count).
   getKnownPpHolders: () -> (vec principal) query;
   getMintConfig: () -> (MintConfig) query;
+  /// Returns the active multiplier sources for a principal (each with
+  /// sourceSpellId, multiplierBps, expiresAt). Frontend reads this to
+  /// render per-source badges in the Active Effects Strip.
+  getMintMultiplierSources: (p: principal) ->
+   (vec MintMultiplierSource) query;
   /// Backer principals whose delta mint was permanently skipped.
   getMissedBackerMints: () -> (vec record {
                                      principal;

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { toast } from 'sonner';
 import { useQueryClient } from '@tanstack/react-query';
 import { Principal } from '@dfinity/principal';
-import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects, useSetCustomTitle, useGetPendingCustomTitleForCaller, useGetConfettiCannonStatus, useGetVoiceOfGodStatus, useGetEchoStatus, useGetStrategicReserveStatus, useGetCustomTitle } from '../hooks/useQueries';
+import { useCastShenanigan, useGetShenaniganStats, useGetRecentShenanigans, useGetPonziPoints, useGetShenaniganConfigs, useSetPendingRenameName, useGetPendingRenameForCaller, useCancelPendingRename, useRerollPendingRename, useGetSpellCooldowns, useGetActiveSpellEffects, useSetCustomTitle, useGetPendingCustomTitleForCaller, useGetConfettiCannonStatus, useGetVoiceOfGodStatus, useGetEchoStatus, useGetStrategicReserveStatus, useGetCustomTitle, useGetMintMultiplierSources } from '../hooks/useQueries';
 import { renderTemplate } from '../lib/renderTemplate';
 import { prettifyCanisterError, ErrorKind } from '../lib/errorMessages';
 import { useSpellFlavorPool } from './trollbox/useSpellFlavorPool';
@@ -155,15 +155,20 @@ interface ActiveEffectsStripProps {
   echoDeadlineNs: bigint | null;
   confettiCannonDeadlineNs: bigint | null;
   strategicReserveDeadlineNs: bigint | null;
+  // Principal of the viewing user — needed for per-source multiplier badges.
+  principal: Principal | null;
 }
-function ActiveEffectsStrip({ effects, voiceOfGodDeadlineNs, customTitle, echoDeadlineNs, confettiCannonDeadlineNs, strategicReserveDeadlineNs }: ActiveEffectsStripProps) {
+function ActiveEffectsStrip({ effects, voiceOfGodDeadlineNs, customTitle, echoDeadlineNs, confettiCannonDeadlineNs, strategicReserveDeadlineNs, principal }: ActiveEffectsStripProps) {
+  // Hooks must come before any conditional returns (Rules of Hooks).
+  const { data: multiplierSources = [] } = useGetMintMultiplierSources(principal);
+
   const nowMs = Date.now();
   const isVogActive = voiceOfGodDeadlineNs !== null && Number(voiceOfGodDeadlineNs) / 1_000_000 > nowMs;
   const isEchoActive = echoDeadlineNs !== null && Number(echoDeadlineNs) / 1_000_000 > nowMs;
   const isConfettiActive = confettiCannonDeadlineNs !== null && Number(confettiCannonDeadlineNs) / 1_000_000 > nowMs;
   const isStrategicReserveActive = strategicReserveDeadlineNs !== null && Number(strategicReserveDeadlineNs) / 1_000_000 > nowMs;
 
-  if (!effects && !isVogActive && !customTitle && !isEchoActive && !isConfettiActive && !isStrategicReserveActive) return null;
+  if (!effects && !isVogActive && !customTitle && !isEchoActive && !isConfettiActive && !isStrategicReserveActive && multiplierSources.length === 0) return null;
 
   type Badge = {
     key: string;
@@ -183,14 +188,24 @@ function ActiveEffectsStrip({ effects, voiceOfGodDeadlineNs, customTitle, echoDe
     });
   }
 
-  const mult = effects?.mintMultiplier[0];
-  if (mult) {
-    const pctBonus = (Number(mult.multiplierBps) - 10_000) / 100;
+  // Per-source multiplier badges — one badge per active source spell.
+  // Replaces the old single "Yield Boost +X%" badge that showed the combined
+  // effective rate without attribution.
+  for (const source of multiplierSources) {
+    const sourceId = Number(source.sourceSpellId);
+    const bps = Number(source.multiplierBps);
+    const pctBonus = (bps - 10_000) / 100;
+    const label =
+      sourceId === 6 ? 'Yield Boost' :
+      sourceId === 14 ? "Founder's Round" :
+      sourceId === 17 ? 'Insider Tip' :
+      `Spell #${sourceId}`;
+    const sign = pctBonus >= 0 ? '+' : '';
     badges.push({
-      key: 'yield',
+      key: `multiplier-${sourceId}`,
       icon: <ArrowUp className="w-3.5 h-3.5" />,
-      label: `Yield Boost +${pctBonus.toFixed(0)}% · ${formatRemaining(mult.expiresAt)}`,
-      tone: 'good',
+      label: `${label} ${sign}${pctBonus.toFixed(0)}% · ${formatRemaining(source.expiresAt)}`,
+      tone: pctBonus >= 0 ? 'good' : 'bad',
     });
   }
 
@@ -630,6 +645,7 @@ export default function Shenanigans() {
         echoDeadlineNs={echoDeadlineNs ?? null}
         confettiCannonDeadlineNs={confettiCannonDeadlineNs ?? null}
         strategicReserveDeadlineNs={strategicReserveDeadlineNs ?? null}
+        principal={callerPrincipal}
       />
 
       {/* Desktop 2-column layout: cards left, feed right */}

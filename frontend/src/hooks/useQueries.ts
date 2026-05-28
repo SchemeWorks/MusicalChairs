@@ -14,7 +14,7 @@ import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ActivePlanSnapshot, RoundSummary, ShenaniganConfig, ActiveSpellEffects, ponziMathIdlFactory } from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
-import type { ChatItem } from '../declarations/shenanigans/shenanigans.did';
+import type { ChatItem, MintMultiplierSource } from '../declarations/shenanigans/shenanigans.did';
 import { TROLLBOX_POLL_MS, TROLLBOX_PIN_POLL_MS, TROLLBOX_MUTE_POLL_MS, TROLLBOX_FETCH_LIMIT } from '../components/trollbox/trollboxConstants';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 import { isCharles } from '../lib/charles';
@@ -900,6 +900,23 @@ export function useGetVoiceOfGodStatus(principal: Principal | null) {
     },
     enabled: !!actor && !!principal,
     refetchInterval: 30_000,
+  });
+}
+
+/// Per-source mint multipliers for a principal. Used by ActiveEffectsStrip
+/// to render separate badges for each source ("Yield Boost +12%",
+/// "Insider Tip +10%") instead of a single combined badge.
+export function useGetMintMultiplierSources(principal: Principal | null) {
+  const actor = useReadShenaniganActor();
+  const principalText = principal?.toText() ?? '';
+  return useQuery<MintMultiplierSource[]>({
+    queryKey: ['shenanigans', 'mintMultiplierSources', principalText],
+    queryFn: async () => {
+      if (!actor || !principal) return [];
+      return actor.getMintMultiplierSources(principal);
+    },
+    enabled: !!actor && !!principal,
+    staleTime: 15_000,
   });
 }
 

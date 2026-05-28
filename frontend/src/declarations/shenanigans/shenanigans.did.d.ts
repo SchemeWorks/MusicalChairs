@@ -122,6 +122,11 @@ export interface MintMultiplier {
   'expiresAt' : bigint,
   'multiplierBps' : bigint,
 }
+export interface MintMultiplierSource {
+  'expiresAt' : bigint,
+  'sourceSpellId' : bigint,
+  'multiplierBps' : bigint,
+}
 export interface MintSiphon {
   'expiresAt' : bigint,
   'pctTimes100' : bigint,
@@ -397,6 +402,15 @@ export interface _SERVICE {
    */
   'getKnownPpHolders' : ActorMethod<[], Array<Principal>>,
   'getMintConfig' : ActorMethod<[], MintConfig>,
+  /**
+   * / Returns the active multiplier sources for a principal (each with
+   * / sourceSpellId, multiplierBps, expiresAt). Frontend reads this to
+   * / render per-source badges in the Active Effects Strip.
+   */
+  'getMintMultiplierSources' : ActorMethod<
+    [Principal],
+    Array<MintMultiplierSource>
+  >,
   /**
    * / Backer principals whose delta mint was permanently skipped.
    */

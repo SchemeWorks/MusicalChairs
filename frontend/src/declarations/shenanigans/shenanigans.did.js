@@ -145,6 +145,11 @@ export const idlFactory = ({ IDL }) => {
     'simple21DayPpPerIcp' : IDL.Nat,
     'cascadePassthroughBps' : IDL.Nat,
   });
+  const MintMultiplierSource = IDL.Record({
+    'expiresAt' : IDL.Int,
+    'sourceSpellId' : IDL.Nat,
+    'multiplierBps' : IDL.Nat,
+  });
   const ShenaniganRecord = IDL.Record({
     'id' : IDL.Nat,
     'renameDetail' : IDL.Opt(
@@ -361,6 +366,11 @@ export const idlFactory = ({ IDL }) => {
     'getKarmaReceived' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
     'getKnownPpHolders' : IDL.Func([], [IDL.Vec(IDL.Principal)], ['query']),
     'getMintConfig' : IDL.Func([], [MintConfig], ['query']),
+    'getMintMultiplierSources' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Vec(MintMultiplierSource)],
+        ['query'],
+      ),
     'getMissedBackerMints' : IDL.Func(
         [],
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Text))],
