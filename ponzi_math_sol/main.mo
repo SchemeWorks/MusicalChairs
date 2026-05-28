@@ -2501,6 +2501,46 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
+    /// Admin: mark the canister as bootstrapped from on-chain state.
+    /// Use when the bootstrap tx broadcast succeeded on Solana but the
+    /// IC-side bookkeeping didn't commit (e.g. decode trap on a stale
+    /// sol-rpc binding). Reads the nonce account, parses the initial
+    /// nonce, sets `lastNonceValue` and flips `bootstrapped := true`.
+    /// Idempotent.
+    public shared ({ caller }) func adminMarkBootstrapped() : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        let nonceAddr = switch (nonceAccountAddress) {
+            case (null) { return #Err("Nonce account address not derived — call adminDerivePoolAddress first") };
+            case (?n) { n };
+        };
+        Cycles.add<system>(RPC_CYCLES);
+        let res = await solRpc.getAccountInfo(
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                pubkey = nonceAddr;
+                commitment = ?#confirmed;
+                encoding = ?#base58;
+                dataSlice = null;
+                minContextSlot = null;
+            },
+        );
+        switch (SolRpc.unwrapMultiAccountInfo(res)) {
+            case (#Err(e)) { #Err("getAccountInfo: " # e) };
+            case (#Ok(null)) { #Err("Nonce account not found on-chain") };
+            case (#Ok(?account)) {
+                switch (parseNonceFromAccountData(account.data)) {
+                    case (?n) {
+                        lastNonceValue := ?n;
+                        bootstrapped := true;
+                        #Ok("bootstrapped=true; nonce=" # n);
+                    };
+                    case (null) { #Err("Could not parse nonce from account data") };
+                };
+            };
+        };
+    };
+
     public shared ({ caller }) func payManagementSol() : async { #Ok : Text; #Err : Text } {
         requireAdmin(caller);
         if (coverChargeAccrualLamports == 0) { return #Err("Nothing to sweep") };
