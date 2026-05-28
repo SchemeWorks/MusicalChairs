@@ -15,6 +15,7 @@ import LiveFeedPanel from './Shenanigans/LiveFeedPanel';
 import BuyPPWidget from './Shenanigans/BuyPPWidget';
 import BuySOLWidget from './Shenanigans/BuySOLWidget';
 import BuyPPFab from './Shenanigans/BuyPPFab';
+import BuySOLFab from './Shenanigans/BuySOLFab';
 import GuardrailsTooltip from './Shenanigans/GuardrailsTooltip';
 import TargetPicker from './TargetPicker';
 import WhitelistedFanfare from './WhitelistedFanfare';
@@ -902,8 +903,9 @@ export default function Shenanigans() {
         </div>
       </div>
 
-      {/* Mobile-only: Buy PP FAB (bottom-left, mirrors trollbox). Hidden on lg+. */}
-      <BuyPPFab />
+      {/* Mobile-only: Buy FAB (bottom-left, mirrors trollbox). Hidden on lg+.
+          SIWS users get the SOL deposit sheet; everyone else the PP/ICP sheet. */}
+      {walletType === 'siws' ? <BuySOLFab /> : <BuyPPFab />}
 
       {/* Mobile-only Live Feed: collapsed by default. Hidden on lg+. */}
       <div className="block lg:hidden">
