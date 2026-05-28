@@ -1848,7 +1848,7 @@ persistent actor class PonziMathSol(initArgs : {
     // the IDL is present and the canister upgrades smoothly later.
     // ====================================================================
 
-    public shared ({ caller }) func bootstrap() : async { #Ok : Text; #Err : Text } {
+    public shared ({ caller }) func bootstrap(recentBlockhashOverride : ?Text) : async { #Ok : Text; #Err : Text } {
         requireAdmin(caller);
         if (bootstrapped) { return #Ok("already-bootstrapped") };
 
@@ -1885,10 +1885,19 @@ persistent actor class PonziMathSol(initArgs : {
             );
             let initIx = SolTx.initializeNonceIx(nonce, pool);
 
-            // 4. Fetch a recent blockhash (with retry).
-            let blockhash = switch (await fetchRecentBlockhashWithRetry(5)) {
+            // 4. Fetch a recent blockhash. Prefer the admin-supplied
+            //    override (operator pastes a known-fresh blockhash) so we
+            //    don't depend on sol-rpc's jsonRequest passthrough, which
+            //    has been flaky. Fall back to fetchRecentBlockhashWithRetry
+            //    when no override is provided.
+            let blockhash = switch (recentBlockhashOverride) {
                 case (?h) { h };
-                case (null) { return #Err("getLatestBlockhash failed after 5 retries") };
+                case (null) {
+                    switch (await fetchRecentBlockhashWithRetry(5)) {
+                        case (?h) { h };
+                        case (null) { return #Err("getLatestBlockhash failed after 5 retries. Retry with an admin-supplied blockhash via bootstrap(opt \"<base58>\").") };
+                    };
+                };
             };
 
             // 5. Compile + serialize the message.
