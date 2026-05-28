@@ -1,4 +1,5 @@
 import React from 'react';
+import { Megaphone } from 'lucide-react';
 import { minidenticon } from 'minidenticons';
 import type { ChatItem } from '../../../declarations/shenanigans/shenanigans.did';
 import { useDisplayName, useIsGolden, useIsStrategicReserve, useHasVoiceOfGod, useCustomTitle } from '../useDisplayName';
@@ -52,6 +53,12 @@ export default function UserMessageRow({ item, currentUserName, onBlock, onReact
             <PurpleName name={authorName} isPurple={true} className="text-sm font-medium truncate" />
           ) : (
             <span className="text-sm font-medium text-zinc-200 truncate">{authorName}</span>
+          )}
+          {hasVoiceOfGod && (
+            <Megaphone
+              className="w-3.5 h-3.5 text-[var(--mc-gold)] shrink-0 self-center"
+              aria-label="Voice of God"
+            />
           )}
           {customTitle && (
             <span className="mc-text-custom-title-bracket">⟨{customTitle}⟩</span>

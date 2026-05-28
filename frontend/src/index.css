@@ -2028,11 +2028,29 @@
    ================================================================ */
 
 @layer components {
-  /* Voice of God — bolder text, slightly larger, warm gold tint on the row */
+  /* Voice of God — bolder, larger, framed in gold with a slow breathing glow.
+     Inset box-shadow draws the 1px gold border without affecting layout; outer
+     box-shadow pulses between dim and bright to register motion without flashing. */
   .mc-voice-of-god {
     font-weight: 700;
     font-size: 1.05em;
-    background-image: linear-gradient(90deg, rgba(255, 215, 0, 0.07), transparent 60%);
+    background-color: rgba(255, 215, 0, 0.18);
+    border-radius: 6px;
+    animation: mc-vog-pulse 6s ease-in-out infinite;
+    will-change: box-shadow;
+  }
+
+  @keyframes mc-vog-pulse {
+    0%, 100% {
+      box-shadow:
+        inset 0 0 0 1px var(--mc-gold),
+        0 0 12px 2px rgba(255, 215, 0, 0.25);
+    }
+    50% {
+      box-shadow:
+        inset 0 0 0 1px var(--mc-gold),
+        0 0 16px 3px rgba(255, 215, 0, 0.55);
+    }
   }
 
   /* Custom Title bracket notation rendered in gold next to the name */
