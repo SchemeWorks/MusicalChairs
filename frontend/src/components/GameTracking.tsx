@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig } from '../hooks/useQueries';
+import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
-import { GameRecord, GamePlan } from '../backend';
+import { useWallet } from '../hooks/useWallet';
+import { formatSOL } from '../solana/lamports';
+import { GameRecord, GamePlan, SolGameRecord } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
@@ -256,6 +258,9 @@ interface GameTrackingProps {
 
 export default function GameTracking({ onNavigateToGameSetup, onTabChange, visible = true }: GameTrackingProps) {
   const { data: games, isLoading, error } = useGetUserGames();
+  const { walletType } = useWallet();
+  const solGamesQuery = useGetUserSolGames();
+  const solGames: SolGameRecord[] = walletType === 'siws' ? (solGamesQuery.data ?? []) : [];
   const { data: ponziData } = useGetPonziPoints();
   const { data: shenaniganConfigs } = useGetShenaniganConfigs();
   const { data: mintConfig } = useGetMintConfig();
@@ -391,6 +396,57 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
             </div>
           )}
         </div>
+
+        {/* SOL Positions (SIWS-authed users only) */}
+        {walletType === 'siws' && solGames.length > 0 && (
+          <div className="mc-card-elevated">
+            <h2 className="font-display text-lg mc-text-primary mb-4">Your SOL Positions</h2>
+            <div className="space-y-3">
+              {solGames.map((game) => {
+                // SolGameRecord shape: id (Nat), plan (variant), amount (Float SOL),
+                // accumulatedEarnings (Float SOL), isCompounding (Bool), startTime (Int ns).
+                const deposit = game.amount;
+                const earnings = game.accumulatedEarnings;
+                // Convert Float SOL → bigint lamports for formatSOL. Float precision loss
+                // is acceptable for display since lamports are not user-input here.
+                const toLamports = (sol: number) => BigInt(Math.round(sol * 1_000_000_000));
+                return (
+                  <div key={game.id.toString()} className="mc-card p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-display text-sm mc-text-primary">
+                        {getPlanName(game.plan)}
+                      </span>
+                      <span className="text-xs mc-text-muted">#{game.id.toString()}</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <div className="mc-label">Deposited</div>
+                        <div className="mc-text-primary font-bold">{formatSOL(toLamports(deposit))} SOL</div>
+                      </div>
+                      <div>
+                        <div className="mc-label">Accrued</div>
+                        <div className="mc-text-green font-bold">{formatSOL(toLamports(earnings))} SOL</div>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex justify-end">
+                      <Button
+                        disabled
+                        size="sm"
+                        variant="secondary"
+                        title="SOL withdrawals coming soon — backend M1.5"
+                      >
+                        <ArrowDownCircle className="h-3 w-3 mr-1" /> Withdraw
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-3 text-[10px] mc-text-muted italic text-center">
+              Withdrawals disabled in M2 — re-enabled once ponzi_math_sol.withdrawEarnings accepts a target address parameter (backend M1.5).
+            </div>
+          </div>
+        )}
 
         {/* Fee disclosure */}
         <div className="mc-house-card">
