@@ -14,6 +14,7 @@ import Iter "mo:base/Iter";
 import Debug "mo:base/Debug";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
+import Cycles "mo:base/ExperimentalCycles";
 
 import Icrc21 "icrc21";
 
@@ -285,6 +286,12 @@ persistent actor class PonziMathSol(initArgs : {
     // Min deposit gate — 0.05 SOL (50_000_000 lamports). Mirrors
     // ponzi_math's 0.1 ICP gate at deploy-time prices.
     transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 50_000_000;
+
+    // Cycles budget attached to every sol-rpc canister call.
+    // The sol-rpc canister (tghme-zyaaa-aaaar-qarca-cai) charges 5-20G per
+    // call depending on method and response size. 20G is a defensive buffer
+    // that covers the heaviest methods; unused cycles are refunded.
+    transient let RPC_CYCLES : Nat = 20_000_000_000;
 
     // Intent TTL — 10 minutes.
     transient let INTENT_TTL_NS : Int = 10 * 60 * 1_000_000_000;
@@ -595,6 +602,7 @@ persistent actor class PonziMathSol(initArgs : {
     func fetchRecentBlockhashWithRetry(attempts : Nat) : async ?Text {
         var i : Nat = 0;
         while (i < attempts) {
+            Cycles.add<system>(RPC_CYCLES);
             let res = await solRpc.getLatestBlockhash(?{ provider = ?solRpcProvider });
             switch (res) {
                 case (#Ok({ blockhash; lastValidBlockHeight = _ })) { return ?blockhash };
@@ -866,6 +874,7 @@ persistent actor class PonziMathSol(initArgs : {
         let sigs = await SolSigner.signMulti(keyId, [derivationPathPool()], msgBytes);
         let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
 
+        Cycles.add<system>(RPC_CYCLES);
         let sendRes = await solRpc.sendTransaction(
             txBytes,
             ?{
@@ -880,6 +889,7 @@ persistent actor class PonziMathSol(initArgs : {
             case (#Err(e)) { #Err("sendTransaction failed: " # rpcErrorText(e)) };
             case (#Ok(txSig)) {
                 // Refresh nonce.
+                Cycles.add<system>(RPC_CYCLES);
                 let acctRes = await solRpc.getAccountInfo(
                     nonceAddr,
                     ?{ commitment = ?"confirmed"; encoding = ?"base64" },
@@ -1433,6 +1443,7 @@ persistent actor class PonziMathSol(initArgs : {
         switch (poolAddress) {
             case (null) { 0 };
             case (?addr) {
+                Cycles.add<system>(RPC_CYCLES);
                 let res = await solRpc.getBalance(addr, ?{ provider = ?solRpcProvider });
                 switch (res) {
                     case (#Ok(lamports)) { lamports };
@@ -1712,6 +1723,7 @@ persistent actor class PonziMathSol(initArgs : {
                 case (null) { return #Err("Pool not derived") };
                 case (?p) { p };
             };
+            Cycles.add<system>(RPC_CYCLES);
             let balRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
             let actualLamports = switch (balRes) {
                 case (#Ok(b)) { b };
@@ -1798,6 +1810,7 @@ persistent actor class PonziMathSol(initArgs : {
             let nonce = await ensureNonceAccountAddress();
 
             // 2. Confirm pool funded (~0.003 SOL = 3M lamports minimum).
+            Cycles.add<system>(RPC_CYCLES);
             let balanceRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
             let balance = switch (balanceRes) {
                 case (#Ok(b)) { b };
@@ -1840,6 +1853,7 @@ persistent actor class PonziMathSol(initArgs : {
 
             // 7. Assemble + broadcast.
             let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
+            Cycles.add<system>(RPC_CYCLES);
             let sendRes = await solRpc.sendTransaction(
                 txBytes,
                 ?{
@@ -1860,6 +1874,7 @@ persistent actor class PonziMathSol(initArgs : {
             var attempts : Nat = 0;
             var initialNonce : ?Text = null;
             while (attempts < 10 and initialNonce == null) {
+                Cycles.add<system>(RPC_CYCLES);
                 let acctRes = await solRpc.getAccountInfo(nonce, ?{ commitment = ?"confirmed"; encoding = ?"base64" }, ?{ provider = ?solRpcProvider });
                 switch (acctRes) {
                     case (#Ok(?account)) {
@@ -1917,6 +1932,7 @@ persistent actor class PonziMathSol(initArgs : {
         // getSignaturesForAddress returns newest-first. We page until we
         // see the cursor (or exhaust). For M1 we do one page (up to 100
         // signatures) — devnet test volume is well under that.
+        Cycles.add<system>(RPC_CYCLES);
         let res = await solRpc.getSignaturesForAddress(
             address,
             ?{
@@ -2007,6 +2023,7 @@ persistent actor class PonziMathSol(initArgs : {
         let sigs = await SolSigner.signMulti(keyId, [fromDerivationPath, derivationPathPool()], msgBytes);
         let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
 
+        Cycles.add<system>(RPC_CYCLES);
         let sendRes = await solRpc.sendTransaction(
             txBytes,
             ?{
@@ -2022,6 +2039,7 @@ persistent actor class PonziMathSol(initArgs : {
             case (#Ok(txSig)) {
                 // Refresh the nonce cache after a successful broadcast so
                 // future txs use the advanced value.
+                Cycles.add<system>(RPC_CYCLES);
                 let acctRes = await solRpc.getAccountInfo(
                     nonceAddr,
                     ?{ commitment = ?"confirmed"; encoding = ?"base64" },
@@ -2056,6 +2074,7 @@ persistent actor class PonziMathSol(initArgs : {
     ///   via adminCreditManualDeposit (Task 20).
     func creditDeposit(sig : DetectedSignature) : async { #Ok : Nat; #Err : Text } {
         // 1. Fetch transaction details.
+        Cycles.add<system>(RPC_CYCLES);
         let txRes = await solRpc.getTransaction(
             sig.signature,
             ?{
@@ -2390,6 +2409,7 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { return #Err("Nonce account not initialized") };
             case (?n) { n };
         };
+        Cycles.add<system>(RPC_CYCLES);
         let res = await solRpc.getAccountInfo(
             nonceAddr,
             ?{ commitment = ?"confirmed"; encoding = ?"base64" },
