@@ -408,8 +408,11 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                 const deposit = game.amount;
                 const earnings = game.accumulatedEarnings;
                 // Convert Float SOL → bigint lamports for formatSOL. Float precision loss
-                // is acceptable for display since lamports are not user-input here.
-                const toLamports = (sol: number) => BigInt(Math.round(sol * 1_000_000_000));
+                // is acceptable for display since lamports are not user-input here. Clamp
+                // non-finite/negative Floats to 0 so a malformed backend value renders as
+                // "0.0000 SOL" rather than throwing inside .map() and white-screening the panel.
+                const toLamports = (sol: number) =>
+                  BigInt(Math.max(0, Math.round(Number.isFinite(sol) ? sol * 1_000_000_000 : 0)));
                 return (
                   <div key={game.id.toString()} className="mc-card p-3">
                     <div className="flex items-center justify-between mb-2">
