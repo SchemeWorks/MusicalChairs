@@ -1,7 +1,7 @@
 import React from 'react';
 import { Medal, Trophy, Target, Gem, Shield, Heart } from 'lucide-react';
 import { Principal } from '@dfinity/principal';
-import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetPonziPoints, useGetKarmaReceived, useGetCurrentRoundId } from '../hooks/useQueries';
+import { useGetTopPonziPointsBurners, useGetRoundBurnedLeaderboard, useGetRoundMintLeaderboard, useGetPonziPoints, useGetKarmaReceived, useGetCurrentRoundId } from '../hooks/useQueries';
 import { useWallet } from '../hooks/useWallet';
 import { useDisplayName, useIsGolden, useCustomTitle } from './trollbox/useDisplayName';
 import GoldenName from './GoldenName';
@@ -13,9 +13,11 @@ import { CharlesIcon, isCharles } from '../lib/charles';
 function LeaderboardRow({
   entry,
   isUser,
+  valueLabel = 'Burned',
 }: {
   entry: HallOfFameEntry;
   isUser: boolean;
+  valueLabel?: string;
 }) {
   const principal = React.useMemo(() => Principal.fromText(entry.principal), [entry.principal]);
   const name = useDisplayName(principal);
@@ -73,38 +75,59 @@ function LeaderboardRow({
       </div>
       <div className="text-right">
         <div className="text-lg font-bold mc-text-purple">{(entry.ponziPointsBurned || 0).toLocaleString()}</div>
-        <div className="text-xs mc-text-muted">Burned</div>
+        <div className="text-xs mc-text-muted">{valueLabel}</div>
       </div>
     </div>
   );
 }
 
 export default function HallOfFame() {
-  const [filter, setFilter] = React.useState<'all-time' | 'this-round'>('all-time');
+  // 3-mode filter: all-time burned (default), round burned, round earned.
+  // All-time earned isn't tracked (per-round mint tally only); the toggle
+  // surfaces only the modes we have data for.
+  const [filter, setFilter] = React.useState<'all-time-burned' | 'round-burned' | 'round-earned'>('all-time-burned');
   const { data: allTimeBurnersData, isLoading: burnersLoading, error: burnersError } = useGetTopPonziPointsBurners();
   // Pass an explicit roundId from ponzi_math rather than letting shenanigans
   // fall back to its 30s-stale cached value — keeps the leaderboard pinned to
   // the live round even right after a reset.
   const { data: currentRoundId } = useGetCurrentRoundId();
-  const { data: roundRaw } = useGetRoundBurnedLeaderboard(currentRoundId ?? undefined, 50);
+  const { data: roundBurnedRaw } = useGetRoundBurnedLeaderboard(currentRoundId ?? undefined, 50);
+  const { data: roundEarnedRaw } = useGetRoundMintLeaderboard(currentRoundId ?? undefined, 50);
   const { data: ponziData } = useGetPonziPoints();
   const { principal } = useWallet();
   const { data: karmaUnits } = useGetKarmaReceived(principal ?? undefined);
   const karmaPp = karmaUnits ? Number(karmaUnits / 100_000_000n) : 0;
 
-  // Build this-round entries in the same shape as all-time entries
+  // Build this-round burned entries in the same shape as all-time entries.
   const roundBurnersData = React.useMemo(() => {
-    if (!roundRaw) return [];
-    return roundRaw
+    if (!roundBurnedRaw) return [];
+    return roundBurnedRaw
       .filter(([p]) => !isCharles(p.toString()))
       .map(([p, unitsBig], index) => ({
         rank: index + 1,
         ponziPointsBurned: Number(unitsBig / 100_000_000n),
         principal: p.toString(),
       }));
-  }, [roundRaw]);
+  }, [roundBurnedRaw]);
 
-  const burnersData = filter === 'this-round' ? roundBurnersData : allTimeBurnersData;
+  // This-round earners — uses the per-round mint tally. Rendered with the
+  // same LeaderboardRow shape (the burned field carries the earned number;
+  // the column label switches based on filter mode).
+  const roundEarnersData = React.useMemo(() => {
+    if (!roundEarnedRaw) return [];
+    return roundEarnedRaw
+      .filter(([p]) => !isCharles(p.toString()))
+      .map(([p, unitsBig], index) => ({
+        rank: index + 1,
+        ponziPointsBurned: Number(unitsBig / 100_000_000n),
+        principal: p.toString(),
+      }));
+  }, [roundEarnedRaw]);
+
+  const burnersData =
+    filter === 'round-burned' ? roundBurnersData :
+    filter === 'round-earned' ? roundEarnersData :
+    allTimeBurnersData;
 
   if (burnersLoading) return <LoadingSpinner />;
 
@@ -137,27 +160,37 @@ export default function HallOfFame() {
 
   return (
     <div className="space-y-6">
-      {/* Time filter toggle */}
-      <div className="flex gap-2 justify-center">
+      {/* Filter toggle — three modes: all-time burned, round burned, round earned. */}
+      <div className="flex gap-2 justify-center flex-wrap">
         <button
-          onClick={() => setFilter('this-round')}
+          onClick={() => setFilter('all-time-burned')}
           className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
-            filter === 'this-round'
+            filter === 'all-time-burned'
               ? 'bg-[var(--mc-purple)]/25 mc-text-primary border-[var(--mc-purple)]/30'
               : 'mc-text-muted bg-white/5 border-white/10 hover:bg-white/10'
           }`}
         >
-          This Round
+          All Time Burned
         </button>
         <button
-          onClick={() => setFilter('all-time')}
+          onClick={() => setFilter('round-burned')}
           className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
-            filter === 'all-time'
+            filter === 'round-burned'
               ? 'bg-[var(--mc-purple)]/25 mc-text-primary border-[var(--mc-purple)]/30'
               : 'mc-text-muted bg-white/5 border-white/10 hover:bg-white/10'
           }`}
         >
-          All Time
+          Round Burned
+        </button>
+        <button
+          onClick={() => setFilter('round-earned')}
+          className={`px-4 py-2 rounded-full text-xs font-bold border transition-all ${
+            filter === 'round-earned'
+              ? 'bg-[var(--mc-purple)]/25 mc-text-primary border-[var(--mc-purple)]/30'
+              : 'mc-text-muted bg-white/5 border-white/10 hover:bg-white/10'
+          }`}
+        >
+          Round Earned
         </button>
       </div>
 
@@ -189,10 +222,12 @@ export default function HallOfFame() {
               <div className="font-bold mc-text-primary text-sm">
                 {userBurnerRank !== undefined && userBurnerRank >= 0 ? (
                   <span className={userBurnerRank < 3 ? 'mc-text-gold mc-glow-gold' : ''}>
-                    #{userBurnerRank + 1} of {burnersData?.length || 0} burners
+                    #{userBurnerRank + 1} of {burnersData?.length || 0} {filter === 'round-earned' ? 'earners' : 'burners'}
                   </span>
                 ) : (
-                  <span className="mc-text-muted">Unranked — burn PP to climb</span>
+                  <span className="mc-text-muted">
+                    {filter === 'round-earned' ? 'Unranked — mint PP to climb' : 'Unranked — burn PP to climb'}
+                  </span>
                 )}
               </div>
             </div>
@@ -222,9 +257,17 @@ export default function HallOfFame() {
       <div className="mc-card-elevated">
         <div className="flex items-center gap-2 mb-1">
           <Gem className="h-4 w-4 mc-text-cyan" />
-          <h3 className="font-display text-base mc-text-primary">Diamond Tier</h3>
+          <h3 className="font-display text-base mc-text-primary">
+            {filter === 'round-earned' ? 'Top Earners — This Round' : 'Diamond Tier'}
+          </h3>
         </div>
-        <p className="text-xs mc-text-muted mb-4">Most Points Spent on Shenanigans</p>
+        <p className="text-xs mc-text-muted mb-4">
+          {filter === 'round-earned'
+            ? 'Most Points minted this round (cascade, signups, Stimulus, Bear Raid backfire)'
+            : filter === 'round-burned'
+            ? 'Most Points burned this round'
+            : 'Most Points spent on Shenanigans, all-time'}
+        </p>
         {burnersData && burnersData.length >= 1 && (
           <Podium entries={burnersData} />
         )}
@@ -237,12 +280,15 @@ export default function HallOfFame() {
                   key={`b-${entry.rank}`}
                   entry={entry}
                   isUser={entry.principal === userPrincipal}
+                  valueLabel={filter === 'round-earned' ? 'Earned' : 'Burned'}
                 />
               ))}
           </div>
         ) : (
           <div className="text-center py-6 text-xs mc-text-muted italic">
-            Only {burnersData?.length ?? 0} burners so far. Anyone with ≥1 PP burned can join the leaderboard.
+            {filter === 'round-earned'
+              ? `Only ${burnersData?.length ?? 0} earners so far this round. Mint to claim a spot.`
+              : `Only ${burnersData?.length ?? 0} burners so far. Anyone with ≥1 PP burned can join the leaderboard.`}
           </div>
         )}
       </div>
