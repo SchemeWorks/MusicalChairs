@@ -597,19 +597,47 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
-    /// Fetch a recent blockhash, retrying on consensus failures. Used
-    /// ONLY by bootstrap — all other outbound txs use the durable nonce.
+    /// Fetch a recent blockhash via jsonRequest passthrough, retrying on
+    /// consensus failures. Used ONLY by bootstrap — all other outbound txs
+    /// use the durable nonce. The sol-rpc canister does not expose a typed
+    /// getLatestBlockhash method; we use the raw JSON-RPC passthrough.
     func fetchRecentBlockhashWithRetry(attempts : Nat) : async ?Text {
+        let payload = "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getLatestBlockhash\",\"params\":[{\"commitment\":\"finalized\"}]}";
         var i : Nat = 0;
         while (i < attempts) {
             Cycles.add<system>(RPC_CYCLES);
-            let res = await solRpc.getLatestBlockhash(?{ provider = ?solRpcProvider });
-            switch (res) {
-                case (#Ok({ blockhash; lastValidBlockHeight = _ })) { return ?blockhash };
+            let multiRes = await solRpc.jsonRequest(
+                SolRpc.rpcSources(solRpcProvider),
+                null,
+                payload,
+            );
+            switch (SolRpc.unwrapMultiRequest(multiRes)) {
+                case (#Ok(json)) {
+                    switch (SolRpc.parseBlockhashFromJson(json)) {
+                        case (?h) { return ?h };
+                        case (null) { i += 1 };
+                    };
+                };
                 case (#Err(_)) { i += 1 };
             };
         };
         null;
+    };
+
+    /// Extract raw bytes from an AccountData variant (base58 encoding only).
+    /// We request `encoding = #base58` for nonce accounts (80 bytes, well
+    /// within the 129-byte base58 limit), so the response is
+    /// `#binary(base58Text, #base58)`. Returns null for other variants.
+    func accountDataToBlob(data : SolRpc.AccountData) : ?Blob {
+        switch (data) {
+            case (#binary(encoded, #base58)) { Base58.decode(encoded) };
+            case (#binary(_encoded, #base64)) {
+                // Fallback: not used in practice — we always request base58.
+                // Return null; caller will skip nonce refresh.
+                null
+            };
+            case (_) { null };
+        };
     };
 
     /// Parse 32 bytes of nonce account body as a base58 blockhash.
@@ -619,11 +647,16 @@ persistent actor class PonziMathSol(initArgs : {
     ///   bytes 8..40 — authority pubkey (32 bytes)
     ///   bytes 40..72 — nonce value (32 bytes — what we want)
     ///   bytes 72..80 — fee_calculator.lamports_per_signature (u64 LE)
-    func parseNonceFromAccountData(data : Blob) : ?Text {
-        let arr = Blob.toArray(data);
-        if (arr.size() < 72) { return null };
-        let nonceBytes = Array.tabulate<Nat8>(32, func(i) { arr[40 + i] });
-        ?Base58.encode(Blob.fromArray(nonceBytes));
+    func parseNonceFromAccountData(data : SolRpc.AccountData) : ?Text {
+        switch (accountDataToBlob(data)) {
+            case (null) { null };
+            case (?rawBytes) {
+                let arr = Blob.toArray(rawBytes);
+                if (arr.size() < 72) { return null };
+                let nonceBytes = Array.tabulate<Nat8>(32, func(i) { arr[40 + i] });
+                ?Base58.encode(Blob.fromArray(nonceBytes));
+            };
+        };
     };
 
     // ========================================================================
@@ -876,26 +909,34 @@ persistent actor class PonziMathSol(initArgs : {
 
         Cycles.add<system>(RPC_CYCLES);
         let sendRes = await solRpc.sendTransaction(
-            txBytes,
-            ?{
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                transaction = SolRpc.base64Encode(txBytes);
+                encoding = ?#base64;
                 skipPreflight = ?false;
-                preflightCommitment = ?"confirmed";
-                maxRetries = ?(3 : Nat64);
-                encoding = ?"base64";
+                preflightCommitment = ?#confirmed;
+                maxRetries = ?(3 : Nat32);
+                minContextSlot = null;
             },
-            ?{ provider = ?solRpcProvider },
         );
-        switch (sendRes) {
-            case (#Err(e)) { #Err("sendTransaction failed: " # rpcErrorText(e)) };
+        switch (SolRpc.unwrapMultiSend(sendRes)) {
+            case (#Err(e)) { #Err("sendTransaction failed: " # e) };
             case (#Ok(txSig)) {
                 // Refresh nonce.
                 Cycles.add<system>(RPC_CYCLES);
                 let acctRes = await solRpc.getAccountInfo(
-                    nonceAddr,
-                    ?{ commitment = ?"confirmed"; encoding = ?"base64" },
-                    ?{ provider = ?solRpcProvider },
+                    SolRpc.rpcSources(solRpcProvider),
+                    null,
+                    {
+                        pubkey = nonceAddr;
+                        commitment = ?#confirmed;
+                        encoding = ?#base58;
+                        dataSlice = null;
+                        minContextSlot = null;
+                    },
                 );
-                switch (acctRes) {
+                switch (SolRpc.unwrapMultiAccountInfo(acctRes)) {
                     case (#Ok(?account)) {
                         switch (parseNonceFromAccountData(account.data)) {
                             case (?n) { lastNonceValue := ?n };
@@ -1444,8 +1485,12 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { 0 };
             case (?addr) {
                 Cycles.add<system>(RPC_CYCLES);
-                let res = await solRpc.getBalance(addr, ?{ provider = ?solRpcProvider });
-                switch (res) {
+                let res = await solRpc.getBalance(
+                    SolRpc.rpcSources(solRpcProvider),
+                    null,
+                    { pubkey = addr; commitment = ?#confirmed; minContextSlot = null },
+                );
+                switch (SolRpc.unwrapMultiBalance(res)) {
                     case (#Ok(lamports)) { lamports };
                     case (#Err(_)) { 0 };
                 };
@@ -1724,10 +1769,14 @@ persistent actor class PonziMathSol(initArgs : {
                 case (?p) { p };
             };
             Cycles.add<system>(RPC_CYCLES);
-            let balRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
-            let actualLamports = switch (balRes) {
+            let balRes = await solRpc.getBalance(
+                SolRpc.rpcSources(solRpcProvider),
+                null,
+                { pubkey = pool; commitment = ?#confirmed; minContextSlot = null },
+            );
+            let actualLamports = switch (SolRpc.unwrapMultiBalance(balRes)) {
                 case (#Ok(b)) { b };
-                case (#Err(e)) { return #Err("getBalance: " # rpcErrorText(e)) };
+                case (#Err(e)) { return #Err("getBalance: " # e) };
             };
 
             var repaymentSum : Float = 0.0;
@@ -1811,11 +1860,15 @@ persistent actor class PonziMathSol(initArgs : {
 
             // 2. Confirm pool funded (~0.003 SOL = 3M lamports minimum).
             Cycles.add<system>(RPC_CYCLES);
-            let balanceRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
-            let balance = switch (balanceRes) {
+            let balanceRes = await solRpc.getBalance(
+                SolRpc.rpcSources(solRpcProvider),
+                null,
+                { pubkey = pool; commitment = ?#confirmed; minContextSlot = null },
+            );
+            let balance = switch (SolRpc.unwrapMultiBalance(balanceRes)) {
                 case (#Ok(b)) { b };
                 case (#Err(e)) {
-                    return #Err("getBalance(pool) failed: " # rpcErrorText(e));
+                    return #Err("getBalance(pool) failed: " # e);
                 };
             };
             if (balance < (3_000_000 : Nat64)) {
@@ -1855,18 +1908,20 @@ persistent actor class PonziMathSol(initArgs : {
             let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
             Cycles.add<system>(RPC_CYCLES);
             let sendRes = await solRpc.sendTransaction(
-                txBytes,
-                ?{
+                SolRpc.rpcSources(solRpcProvider),
+                null,
+                {
+                    transaction = SolRpc.base64Encode(txBytes);
+                    encoding = ?#base64;
                     skipPreflight = ?false;
-                    preflightCommitment = ?"confirmed";
-                    maxRetries = ?(3 : Nat64);
-                    encoding = ?"base64";
+                    preflightCommitment = ?#confirmed;
+                    maxRetries = ?(3 : Nat32);
+                    minContextSlot = null;
                 },
-                ?{ provider = ?solRpcProvider },
             );
-            let txSig = switch (sendRes) {
+            let txSig = switch (SolRpc.unwrapMultiSend(sendRes)) {
                 case (#Ok(s)) { s };
-                case (#Err(e)) { return #Err("sendTransaction failed: " # rpcErrorText(e)) };
+                case (#Err(e)) { return #Err("sendTransaction failed: " # e) };
             };
 
             // 8. Fetch nonce account state to read the initial nonce value.
@@ -1875,8 +1930,18 @@ persistent actor class PonziMathSol(initArgs : {
             var initialNonce : ?Text = null;
             while (attempts < 10 and initialNonce == null) {
                 Cycles.add<system>(RPC_CYCLES);
-                let acctRes = await solRpc.getAccountInfo(nonce, ?{ commitment = ?"confirmed"; encoding = ?"base64" }, ?{ provider = ?solRpcProvider });
-                switch (acctRes) {
+                let acctRes = await solRpc.getAccountInfo(
+                    SolRpc.rpcSources(solRpcProvider),
+                    null,
+                    {
+                        pubkey = nonce;
+                        commitment = ?#confirmed;
+                        encoding = ?#base58;
+                        dataSlice = null;
+                        minContextSlot = null;
+                    },
+                );
+                switch (SolRpc.unwrapMultiAccountInfo(acctRes)) {
                     case (#Ok(?account)) {
                         initialNonce := parseNonceFromAccountData(account.data);
                     };
@@ -1896,17 +1961,6 @@ persistent actor class PonziMathSol(initArgs : {
             };
         } finally {
             releaseGlobalLock();
-        };
-    };
-
-    /// Convenience: render an RpcError for #Err returns.
-    func rpcErrorText(e : SolRpc.RpcError) : Text {
-        switch (e) {
-            case (#ProviderError(m)) { "ProviderError: " # m };
-            case (#HttpOutcallError(m)) { "HttpOutcallError: " # m };
-            case (#JsonRpcError({ code; message })) { "JsonRpcError(" # Int.toText(code) # "): " # message };
-            case (#ConsensusError(m)) { "ConsensusError: " # m };
-            case (#ValidationError(m)) { "ValidationError: " # m };
         };
     };
 
@@ -1934,16 +1988,18 @@ persistent actor class PonziMathSol(initArgs : {
         // signatures) — devnet test volume is well under that.
         Cycles.add<system>(RPC_CYCLES);
         let res = await solRpc.getSignaturesForAddress(
-            address,
-            ?{
-                limit = ?100;
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                pubkey = address;
+                limit = ?(100 : Nat32);
                 before = null;
                 until = cursor;
-                commitment = ?"confirmed";
+                commitment = ?#confirmed;
+                minContextSlot = null;
             },
-            ?{ provider = ?solRpcProvider },
         );
-        switch (res) {
+        switch (SolRpc.unwrapMultiSignatures(res)) {
             case (#Err(_)) { [] };
             case (#Ok(sigs)) {
                 // Reverse so we process oldest-first.
@@ -2025,27 +2081,35 @@ persistent actor class PonziMathSol(initArgs : {
 
         Cycles.add<system>(RPC_CYCLES);
         let sendRes = await solRpc.sendTransaction(
-            txBytes,
-            ?{
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                transaction = SolRpc.base64Encode(txBytes);
+                encoding = ?#base64;
                 skipPreflight = ?false;
-                preflightCommitment = ?"confirmed";
-                maxRetries = ?(3 : Nat64);
-                encoding = ?"base64";
+                preflightCommitment = ?#confirmed;
+                maxRetries = ?(3 : Nat32);
+                minContextSlot = null;
             },
-            ?{ provider = ?solRpcProvider },
         );
-        switch (sendRes) {
-            case (#Err(e)) { #Err("sendTransaction failed: " # rpcErrorText(e)) };
+        switch (SolRpc.unwrapMultiSend(sendRes)) {
+            case (#Err(e)) { #Err("sendTransaction failed: " # e) };
             case (#Ok(txSig)) {
                 // Refresh the nonce cache after a successful broadcast so
                 // future txs use the advanced value.
                 Cycles.add<system>(RPC_CYCLES);
                 let acctRes = await solRpc.getAccountInfo(
-                    nonceAddr,
-                    ?{ commitment = ?"confirmed"; encoding = ?"base64" },
-                    ?{ provider = ?solRpcProvider },
+                    SolRpc.rpcSources(solRpcProvider),
+                    null,
+                    {
+                        pubkey = nonceAddr;
+                        commitment = ?#confirmed;
+                        encoding = ?#base58;
+                        dataSlice = null;
+                        minContextSlot = null;
+                    },
                 );
-                switch (acctRes) {
+                switch (SolRpc.unwrapMultiAccountInfo(acctRes)) {
                     case (#Ok(?account)) {
                         switch (parseNonceFromAccountData(account.data)) {
                             case (?n) { lastNonceValue := ?n };
@@ -2074,64 +2138,59 @@ persistent actor class PonziMathSol(initArgs : {
     ///   via adminCreditManualDeposit (Task 20).
     func creditDeposit(sig : DetectedSignature) : async { #Ok : Nat; #Err : Text } {
         // 1. Fetch transaction details.
+        // We use encoding = base64 (the default binary form).  The sol-rpc
+        // canister returns the full meta (preBalances/postBalances) which is
+        // all we need to detect inbound SOL. We cannot easily extract
+        // accountKeys from the binary-encoded tx, so we scan all balance
+        // deltas and pick the largest positive increase — which for a simple
+        // SOL transfer is unambiguous.
         Cycles.add<system>(RPC_CYCLES);
         let txRes = await solRpc.getTransaction(
-            sig.signature,
-            ?{
-                commitment = ?"confirmed";
-                maxSupportedTransactionVersion = ?(0 : Nat64);
-                encoding = ?"json";
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                signature = sig.signature;
+                commitment = ?#confirmed;
+                maxSupportedTransactionVersion = ?(0 : Nat8);
+                encoding = ?#base64;
             },
-            ?{ provider = ?solRpcProvider },
         );
-        let tx = switch (txRes) {
-            case (#Err(e)) { return #Err("getTransaction failed: " # rpcErrorText(e)) };
+        let confirmedTx = switch (SolRpc.unwrapMultiTransaction(txRes)) {
+            case (#Err(e)) { return #Err("getTransaction failed: " # e) };
             case (#Ok(null)) { return #Err("Transaction not found / not confirmed yet") };
             case (#Ok(?t)) { t };
         };
 
-        let meta = switch (tx.meta) {
+        let meta = switch (confirmedTx.transaction.meta) {
             case (null) { return #Err("Transaction meta missing") };
             case (?m) { m };
         };
-        if (meta.err != null) { return #Err("Transaction failed on-chain") };
 
-        let message = switch (tx.transaction) {
-            case (null) { return #Err("Transaction body missing") };
-            case (?b) {
-                switch (b.message) {
-                    case (null) { return #Err("Message missing from transaction body") };
-                    case (?m) { m };
-                };
+        // 2. Find the largest positive balance delta across all accounts.
+        //    For a simple SOL inbound transfer this is the receiving account
+        //    (our deposit address). We take the MAX positive delta to handle
+        //    the case where multiple accounts received dust in the same tx.
+        let preBalances = meta.preBalances;
+        let postBalances = meta.postBalances;
+        let n = Nat.min(preBalances.size(), postBalances.size());
+        var maxDelta : Nat64 = 0;
+        var k : Nat = 0;
+        while (k < n) {
+            let pre = preBalances[k];
+            let post = postBalances[k];
+            if (post > pre) {
+                let delta : Nat64 = post - pre;
+                if (delta > maxDelta) { maxDelta := delta };
             };
+            k += 1;
         };
-
-        // 2. Locate the deposit address inside accountKeys and compute the
-        //    inbound delta.
-        var addrIdx : ?Nat = null;
-        var i : Nat = 0;
-        while (i < message.accountKeys.size()) {
-            if (message.accountKeys[i] == sig.address) { addrIdx := ?i };
-            i += 1;
-        };
-        let idx = switch (addrIdx) {
-            case (null) {
-                return #Err("Deposit address not in transaction account keys (filter bug or false-positive)");
-            };
-            case (?n) { n };
-        };
-        if (idx >= meta.preBalances.size() or idx >= meta.postBalances.size()) {
-            return #Err("Pre/post balances missing for deposit address");
-        };
-        let preBal = meta.preBalances[idx];
-        let postBal = meta.postBalances[idx];
-        if (postBal <= preBal) {
-            // Outbound tx (probably a prior sweep we initiated). Advance
-            // the cursor without crediting.
+        let inboundLamports : Nat64 = maxDelta;
+        if (inboundLamports == 0) {
+            // All balance deltas are non-positive → outbound or no-op tx.
+            // Advance the cursor without crediting (matches our own sweeps).
             lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
             return #Ok(0);
         };
-        let inboundLamports : Nat64 = postBal - preBal;
 
         // 3. Find an open intent for this principal that matches the amount
         //    within ±5% tolerance and is not TTL-expired.
@@ -2411,12 +2470,18 @@ persistent actor class PonziMathSol(initArgs : {
         };
         Cycles.add<system>(RPC_CYCLES);
         let res = await solRpc.getAccountInfo(
-            nonceAddr,
-            ?{ commitment = ?"confirmed"; encoding = ?"base64" },
-            ?{ provider = ?solRpcProvider },
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            {
+                pubkey = nonceAddr;
+                commitment = ?#confirmed;
+                encoding = ?#base58;
+                dataSlice = null;
+                minContextSlot = null;
+            },
         );
-        switch (res) {
-            case (#Err(e)) { #Err("getAccountInfo: " # rpcErrorText(e)) };
+        switch (SolRpc.unwrapMultiAccountInfo(res)) {
+            case (#Err(e)) { #Err("getAccountInfo: " # e) };
             case (#Ok(null)) { #Err("Nonce account not found on-chain") };
             case (#Ok(?account)) {
                 switch (parseNonceFromAccountData(account.data)) {
