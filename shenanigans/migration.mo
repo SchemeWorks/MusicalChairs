@@ -702,13 +702,69 @@ module {
         backerPpPerSol : Nat;
     };
 
-    // V8 reuses the V7 ShenaniganType / ShenaniganOutcome / Reaction shapes
-    // because they don't change in this migration.
-    type V8ShenaniganType = V7ShenaniganType;
+    // V8 must include every ShenaniganType variant that exists on the
+    // deployed actor at V8-apply time, not just those V7 declared. Between
+    // V7 (2026-05-27) and V8 (M2), eight new spells shipped — each one
+    // implicitly extended the actor's ShenaniganType variant set (adding
+    // variant constructors is implicit migration; no migration glue was
+    // required). When V8 tries to deserialize stored chatItems whose
+    // #spellCast.shenaniganType carries one of those newer variants, the
+    // type-table unification fails (M0170) if the migration's domain type
+    // is missing the variant. So V8ShenaniganType must enumerate ALL 22
+    // current variants, not alias the stale V7-era 14-variant type.
+    // ShenaniganOutcome and Reaction shapes remain unchanged.
+    type V8ShenaniganType = {
+        #moneyTrickster;
+        #aoeSkim;
+        #renameSpell;
+        #mintTaxSiphon;
+        #downlineHeist;
+        #magicMirror;
+        #ppBoosterAura;
+        #purseCutter;
+        #whaleRebalance;
+        #downlineBoost;
+        #goldenName;
+        #tenderOffer;
+        #stimulusCheck;
+        #bearRaid;
+        // Added between V7 and V8 via implicit-migration variant extension:
+        #foundersRound;
+        #strategicReserve;
+        #slushFund;
+        #insiderTip;
+        #voiceOfGod;
+        #customTitle;
+        #echo;
+        #confettiCannon;
+    };
     type V8ShenaniganOutcome = V7ShenaniganOutcome;
     type V8Reaction = V7Reaction;
 
-    type V8OldChatItemKind = V7NewChatItemKind;
+    // V8OldChatItemKind is the pre-M2 shape of the live actor's
+    // ChatItemKind: same arms as V7NewChatItemKind, but the #spellCast arm
+    // must reference V8ShenaniganType so the migration can read every
+    // stored variant. #signup and #roundResult keep their pre-M2 shape
+    // (no denomination); runV8 backfills denomination on transform.
+    type V8OldChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : V8ShenaniganType;
+            target : ?Principal;
+            outcome : V8ShenaniganOutcome;
+            ppDelta : ?Int;
+            affectedCount : ?Nat;
+            renameDetail : ?{ oldName : Text; newName : Text };
+            shieldDeflected : ?Bool;
+        };
+        #signup : { newUser : Principal };
+        #rankUp : { user : Principal; newRank : Text };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
 
     type V8NewChatItemKind = {
         #userMessage : { body : Text; replyTo : ?Nat };
