@@ -1262,6 +1262,11 @@ persistent actor Self {
     /// Advances cursors only after successful mint to guarantee at-least-once
     /// minting with ledger-level dedup (via created_at_time + memo) preventing
     /// duplicates.
+    /// Single observer pass. Mints PP for new deposits and dealer top-ups
+    /// from BOTH ponzi_math (ICP) and ponzi_math_sol (SOL). Each call to
+    /// processNewGames / processBackerDeltas advances only its own
+    /// denomination's cursor, so a failure on one side doesn't stall the
+    /// other. The SOL-side calls no-op while ponziMathSolPrincipal is null.
     func observerTick() : async () {
         if (observerRunning) return;
         // Upgrade-safety: refuse to mint until seedMigrationV2 has
@@ -1271,8 +1276,10 @@ persistent actor Self {
         if (not bootstrapped) return;
         observerRunning := true;
         try {
-            await processNewGames();
-            await processBackerDeltas();
+            await processNewGames(#icp);
+            await processNewGames(#sol);
+            await processBackerDeltas(#icp);
+            await processBackerDeltas(#sol);
         } catch (e) {
             Debug.print("Observer tick error: " # Error.message(e));
         };
