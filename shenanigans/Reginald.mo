@@ -24,9 +24,53 @@ module {
     ];
 
     public let roundResult : [Text] = [
-        "This outcome is not indicative of future performance.",
-        "We hope you enjoyed your round. We retain all marketing rights.",
-        "A reminder that participation is voluntary and irreversible.",
+        "The rotation completes. We continue.",
+        "A measured round. The thesis holds.",
+        "Position closed. The carry has been distributed.",
+        "Another vintage in the books.",
+        "The firm makes no editorial comment.",
+        "We welcome the patient.",
+        "Net of carry, of course.",
+    ];
+
+    public let tenderOffer : [Text] = [
+        "Notable: a position has been taken private.",
+        "Cap table integration in progress. We assist.",
+        "A measured acquisition.",
+        "The carry has been concentrated.",
+        "Another position consolidates. The thesis holds.",
+        "We have seen this thesis underwritten before.",
+    ];
+
+    public let whitelisted : [Text] = [
+        "A new gold name on the cap table. We make no editorial comment.",
+        "The firm welcomes the latest member of the patient class.",
+        "Gold accrues to the patient. As ever.",
+        "The leaderboard, denominated in self-regard.",
+        "A measured purchase.",
+    ];
+
+    public let stimulus : [Text] = [
+        "Money brrr. The firm has, as ever, no opinion.",
+        "Aggregate windfall distributed. Net of carry.",
+        "A measured stimulus.",
+        "The LP base, on the whole, approves.",
+        "We do not call it that.",
+    ];
+
+    public let bearRaid : [Text] = [
+        "Coordinated short executed. The rotation continues.",
+        "Drawdown across the LP base. The firm notes the event.",
+        "A measured haircut.",
+        "Carry redistribution, of a sort.",
+        "The position holders, on the whole, do not approve.",
+    ];
+
+    public let foundersRound : [Text] = [
+        "Another founder rounds up. We approve.",
+        "Underwriting locked. The thesis is, of course, the speaker's.",
+        "A measured raise.",
+        "The flat round, denominated in confidence.",
     ];
 
     public let buzzword : [Text] = [
@@ -53,6 +97,11 @@ module {
             case ("roundResult") { roundResult };
             case ("buzzword") { buzzword };
             case ("karma") { karma };
+            case ("tenderOffer") { tenderOffer };
+            case ("whitelisted") { whitelisted };
+            case ("stimulus") { stimulus };
+            case ("bearRaid") { bearRaid };
+            case ("foundersRound") { foundersRound };
             case (_) { [] };
         };
     };
@@ -71,6 +120,11 @@ module {
             case ("roundResult") { roundResult };
             case ("buzzword") { buzzword };
             case ("karma") { karma };
+            case ("tenderOffer") { tenderOffer };
+            case ("whitelisted") { whitelisted };
+            case ("stimulus") { stimulus };
+            case ("bearRaid") { bearRaid };
+            case ("foundersRound") { foundersRound };
             case (_) { [] };
         };
         if (pool.size() == 0) { return null };

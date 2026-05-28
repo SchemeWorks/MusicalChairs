@@ -3060,6 +3060,15 @@ persistent actor Self {
                 // now per TUNING_NOTES.md.
                 let durationNs : Int = config.duration * 3_600_000_000_000;
                 goldenUntil := principalMap.put(goldenUntil, caster, nowTs + durationNs);
+                let coin_gn = Int.abs(Time.now()) % 4; // 25% trigger rate
+                if (coin_gn == 0) {
+                    switch (reginaldPickFor("whitelisted")) {
+                        case (?line) {
+                            let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "whitelisted" }));
+                        };
+                        case (null) {};
+                    };
+                };
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#tenderOffer) {
@@ -3080,6 +3089,15 @@ persistent actor Self {
                                 // Acquired-lockout: target can't cast any spell for 24h.
                                 let oneDayNsLocal : Int = 24 * 3600 * 1_000_000_000;
                                 acquiredLockUntil := principalMap.put(acquiredLockUntil, t, nowTs + oneDayNsLocal);
+                                let coin_to = Int.abs(Time.now()) % 4; // 25% trigger rate
+                                if (coin_to == 0) {
+                                    switch (reginaldPickFor("tenderOffer")) {
+                                        case (?line) {
+                                            let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "tenderOffer" }));
+                                        };
+                                        case (null) {};
+                                    };
+                                };
                                 return { ppDeltaCaster = amount; affectedTarget = ?t; affectedCount = 1; shieldDeflected = false; renameDetail = null };
                             };
                             case (#Err(_)) {
@@ -3112,6 +3130,15 @@ persistent actor Self {
                     };
                 };
 
+                let coin_sc = Int.abs(Time.now()) % 5; // 20% trigger rate
+                if (coin_sc == 0) {
+                    switch (reginaldPickFor("stimulus")) {
+                        case (?line) {
+                            let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "stimulus" }));
+                        };
+                        case (null) {};
+                    };
+                };
                 return { ppDeltaCaster = casterMinted; affectedTarget = null; affectedCount = othersCount; shieldDeflected = false; renameDetail = null };
             };
             case (#bearRaid) {
@@ -3152,6 +3179,15 @@ persistent actor Self {
                 let oneDayMostWantedNs : Int = 24 * 3600 * 1_000_000_000;
                 mostWantedUntil := principalMap.put(mostWantedUntil, caster, nowTs + oneDayMostWantedNs);
 
+                let coin_br = Int.abs(Time.now()) % 5; // 20% trigger rate
+                if (coin_br == 0) {
+                    switch (reginaldPickFor("bearRaid")) {
+                        case (?line) {
+                            let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "bearRaid" }));
+                        };
+                        case (null) {};
+                    };
+                };
                 return { ppDeltaCaster = casterNet; affectedTarget = null; affectedCount = victims; shieldDeflected = false; renameDetail = null };
             };
             case (#foundersRound) {
@@ -3184,6 +3220,15 @@ persistent actor Self {
                 // active-effects strip can label "Insider Tip +10%" vs "Yield Boost
                 // +15%" instead of a single combined badge. Until then, the higher
                 // multiplier wins (max — see I1 fix).
+                let coin_fr = Int.abs(Time.now()) % 4; // 25% trigger rate
+                if (coin_fr == 0) {
+                    switch (reginaldPickFor("foundersRound")) {
+                        case (?line) {
+                            let _ = appendChatItem(Principal.fromActor(Self), #reginald({ line; triggerKind = "foundersRound" }));
+                        };
+                        case (null) {};
+                    };
+                };
                 return { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
             };
             case (#strategicReserve) {
