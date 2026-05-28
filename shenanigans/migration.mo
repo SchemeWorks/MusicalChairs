@@ -648,4 +648,176 @@ module {
             var shenanigans = newShenanigans;
         };
     };
+
+    // ================================================================
+    // V8 — Add Solana-side observer support
+    //
+    // Extends two persisted shapes for M2 (Solana chain fusion):
+    //
+    // (a) MintConfig gains four PP-per-SOL rate fields paired with the
+    //     existing PP-per-ICP rate fields. Defaults pin the 30x ratio
+    //     from the design spec at deploy time:
+    //         simple21DayPpPerSol       = 6_000
+    //         compounding15DayPpPerSol  = 12_000
+    //         compounding30DayPpPerSol  = 18_000
+    //         backerPpPerSol            = old.backerPpPerIcp * 30
+    //     Admin can retune any of them after deploy via the
+    //     setSimple21DayPpPerSol / setCompounding15DayPpPerSol /
+    //     setCompounding30DayPpPerSol / setBackerPpPerSol per-field
+    //     setters (added in M2, mirroring the existing PerIcp setters).
+    //
+    // (b) ChatItemKind gains a denomination field on the #signup and
+    //     #roundResult arms (Denomination = { #icp; #sol }). Every
+    //     pre-M2 chat item is ICP-sourced by construction, so the
+    //     migration backfills denomination = #icp on every historical
+    //     #signup and #roundResult item. Other variants pass through.
+    //
+    // See docs/superpowers/specs/2026-05-25-solana-chain-fusion-design.md.
+    // ================================================================
+
+    type V8Denomination = { #icp; #sol };
+
+    type V8OldMintConfig = V3NewMintConfig;
+
+    type V8NewMintConfig = {
+        simple21DayPpPerIcp : Nat;
+        compounding15DayPpPerIcp : Nat;
+        compounding30DayPpPerIcp : Nat;
+        backerPpPerIcp : Nat;
+        referralL1Bps : Nat;
+        referralL2Bps : Nat;
+        referralL3Bps : Nat;
+        minDepositPp : Nat;
+        cashOutDelaySeconds : Nat;
+        observerIntervalSeconds : Nat;
+        cascadeInitialBps : Nat;
+        cascadePassthroughBps : Nat;
+        signupGiftPp : Nat;
+        activityRequiresDeposit : Bool;
+        activityWindowDays : ?Nat;
+        // NEW in V8: SOL-side mint rates.
+        simple21DayPpPerSol : Nat;
+        compounding15DayPpPerSol : Nat;
+        compounding30DayPpPerSol : Nat;
+        backerPpPerSol : Nat;
+    };
+
+    // V8 reuses the V7 ShenaniganType / ShenaniganOutcome / Reaction shapes
+    // because they don't change in this migration.
+    type V8ShenaniganType = V7ShenaniganType;
+    type V8ShenaniganOutcome = V7ShenaniganOutcome;
+    type V8Reaction = V7Reaction;
+
+    type V8OldChatItemKind = V7NewChatItemKind;
+
+    type V8NewChatItemKind = {
+        #userMessage : { body : Text; replyTo : ?Nat };
+        #spellCast : {
+            castId : Nat;
+            caster : Principal;
+            shenaniganType : V8ShenaniganType;
+            target : ?Principal;
+            outcome : V8ShenaniganOutcome;
+            ppDelta : ?Int;
+            affectedCount : ?Nat;
+            renameDetail : ?{ oldName : Text; newName : Text };
+            shieldDeflected : ?Bool;
+        };
+        // NEW: denomination field on #signup.
+        #signup : { newUser : Principal; denomination : V8Denomination };
+        #rankUp : { user : Principal; newRank : Text };
+        // NEW: denomination field on #roundResult.
+        #roundResult : {
+            gameId : Nat;
+            winner : Principal;
+            winnerPpUnits : Nat;
+            denomination : V8Denomination;
+        };
+        #reginald : { line : Text; triggerKind : Text };
+        #pinUpdate : { body : Text };
+    };
+
+    type V8OldChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V8OldChatItemKind;
+        reactions : [V8Reaction];
+        deleted : Bool;
+    };
+
+    type V8NewChatItem = {
+        id : Nat;
+        author : Principal;
+        timestamp : Int;
+        kind : V8NewChatItemKind;
+        reactions : [V8Reaction];
+        deleted : Bool;
+    };
+
+    public func runV8(
+        old : {
+            var mintConfig : V8OldMintConfig;
+            var chatItems : [V8OldChatItem];
+        }
+    ) : {
+        var mintConfig : V8NewMintConfig;
+        var chatItems : [V8NewChatItem];
+    } {
+        let oldCfg = old.mintConfig;
+        let newCfg : V8NewMintConfig = {
+            simple21DayPpPerIcp = oldCfg.simple21DayPpPerIcp;
+            compounding15DayPpPerIcp = oldCfg.compounding15DayPpPerIcp;
+            compounding30DayPpPerIcp = oldCfg.compounding30DayPpPerIcp;
+            backerPpPerIcp = oldCfg.backerPpPerIcp;
+            referralL1Bps = oldCfg.referralL1Bps;
+            referralL2Bps = oldCfg.referralL2Bps;
+            referralL3Bps = oldCfg.referralL3Bps;
+            minDepositPp = oldCfg.minDepositPp;
+            cashOutDelaySeconds = oldCfg.cashOutDelaySeconds;
+            observerIntervalSeconds = oldCfg.observerIntervalSeconds;
+            cascadeInitialBps = oldCfg.cascadeInitialBps;
+            cascadePassthroughBps = oldCfg.cascadePassthroughBps;
+            signupGiftPp = oldCfg.signupGiftPp;
+            activityRequiresDeposit = oldCfg.activityRequiresDeposit;
+            activityWindowDays = oldCfg.activityWindowDays;
+            // SOL rates anchored at deploy time per the design spec's 30x ratio.
+            simple21DayPpPerSol = 6_000;
+            compounding15DayPpPerSol = 12_000;
+            compounding30DayPpPerSol = 18_000;
+            backerPpPerSol = oldCfg.backerPpPerIcp * 30;
+        };
+
+        let migrated = Buffer.Buffer<V8NewChatItem>(old.chatItems.size());
+        for (item in old.chatItems.vals()) {
+            let newKind : V8NewChatItemKind = switch (item.kind) {
+                // Pre-M2: every #signup and every #roundResult is ICP-sourced.
+                case (#signup({ newUser })) {
+                    #signup({ newUser; denomination = #icp });
+                };
+                case (#roundResult({ gameId; winner; winnerPpUnits })) {
+                    #roundResult({ gameId; winner; winnerPpUnits; denomination = #icp });
+                };
+                // Other variants pass through unchanged.
+                case (#userMessage(x)) { #userMessage(x) };
+                case (#spellCast(x)) { #spellCast(x) };
+                case (#rankUp(x)) { #rankUp(x) };
+                case (#reginald(x)) { #reginald(x) };
+                case (#pinUpdate(x)) { #pinUpdate(x) };
+            };
+            migrated.add({
+                id = item.id;
+                author = item.author;
+                timestamp = item.timestamp;
+                kind = newKind;
+                reactions = item.reactions;
+                deleted = item.deleted;
+            });
+        };
+
+        {
+            var mintConfig = newCfg;
+            var chatItems = Buffer.toArray(migrated);
+        };
+    };
 };

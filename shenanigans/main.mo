@@ -21,6 +21,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import Migration "migration";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -36,6 +37,13 @@ import Icrc21 "icrc21";
 // #spellCast chat item) was applied 2026-05-27. See migration.mo for the
 // historical migration record and Migration.runV7.
 
+// Migration V8 (Solana chain fusion observer support: MintConfig gains
+// *PerSol rates; ChatItemKind.#signup + #roundResult gain a denomination
+// tag, backfilled to #icp on all pre-M2 chat items). Applied during the
+// M2 deploy — see docs/superpowers/plans/2026-05-28-solana-chain-fusion-m2.md
+// and Migration.runV8.
+
+(with migration = Migration.runV8)
 persistent actor Self {
 
     // ================================================================
@@ -187,6 +195,14 @@ persistent actor Self {
         signupGiftPp : Nat;
         activityRequiresDeposit : Bool;
         activityWindowDays : ?Nat;
+        // M2 (Solana chain fusion): SOL-denominated mint rates. Anchored
+        // at deploy time per the design spec's 30x ratio; admin-tunable
+        // via the matching per-field setters (setSimple21DayPpPerSol etc.,
+        // added alongside the existing setSimple21DayPpPerIcp pattern).
+        simple21DayPpPerSol : Nat;     // initial 6_000
+        compounding15DayPpPerSol : Nat; // initial 12_000
+        compounding30DayPpPerSol : Nat; // initial 18_000
+        backerPpPerSol : Nat;          // initial = backerPpPerIcp * 30 (set by V8 migration)
     };
 
     /// Per-backer cumulative ICP seen by the observer. Used to mint only
@@ -275,6 +291,14 @@ persistent actor Self {
     // Trollbox types
     // ================================================================
 
+    /// Asset side of an observable event. Pre-M2 the observer only ever
+    /// saw ICP-side ponzi_math state; M2 adds a SOL-side source by adding
+    /// this tag to event-bearing chat items and a Denomination parameter
+    /// to the observer functions. Denomination is a property of the EVENT,
+    /// not of the user — a user with one of each kind of deposit will
+    /// surface as two separate events.
+    public type Denomination = { #icp; #sol };
+
     public type ChatItemKind = {
         #userMessage : { body : Text; replyTo : ?Nat };
         // Spell-cast events embed all rendering data inline so the trollbox
@@ -297,9 +321,9 @@ persistent actor Self {
             renameDetail : ?{ oldName : Text; newName : Text };
             shieldDeflected : ?Bool;
         };
-        #signup : { newUser : Principal };
+        #signup : { newUser : Principal; denomination : Denomination };
         #rankUp : { user : Principal; newRank : Text };
-        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat };
+        #roundResult : { gameId : Nat; winner : Principal; winnerPpUnits : Nat; denomination : Denomination };
         #reginald : { line : Text; triggerKind : Text };
         #pinUpdate : { body : Text };
     };
@@ -447,6 +471,11 @@ persistent actor Self {
     // Admin state
     var adminPrincipal : ?Principal = null;
     var ponziMathPrincipal : ?Principal = null;
+    // M2 (Solana chain fusion): second ponzi_math instance, SOL-denominated.
+    // null until admin calls setPonziMathSolPrincipal post-deploy. While
+    // null, the observer's SOL-side branch is a no-op — no inter-canister
+    // call, no state touched. ICP-side path is unaffected.
+    var ponziMathSolPrincipal : ?Principal = null;
 
     // Additional principals with admin access. Augments the legacy
     // adminPrincipal so multiple browser wallets can drive the admin
@@ -540,11 +569,26 @@ persistent actor Self {
         signupGiftPp = 500;
         activityRequiresDeposit = true;
         activityWindowDays = null;
+        // M2 (Solana chain fusion) — fresh-install defaults match the
+        // V8 migration defaults so a fresh deploy has the same MintConfig
+        // shape an upgraded deploy gets.
+        simple21DayPpPerSol = 6_000;
+        compounding15DayPpPerSol = 12_000;
+        compounding30DayPpPerSol = 18_000;
+        backerPpPerSol = 120_000;  // 4_000 * 30; admin can retune
     };
 
-    // Observer cursors
+    // Observer cursors (ICP-side)
     var gameIdCursor : Nat = 0;                         // next unprocessed game id
     var backerSeen = principalMap.empty<BackerSeen>();  // cumulative ICP minted-for per backer
+
+    // M2: Observer cursors (SOL-side). Namespaced separately from the
+    // ICP cursors so the two sources can advance independently. Each
+    // ponzi_math canister has its own gameId namespace, so a tick can
+    // safely process game 0 on the SOL canister even after the ICP
+    // canister already has games up to 50.
+    var solGameIdCursor : Nat = 0;
+    var solBackerSeen = principalMap.empty<BackerSeen>();
 
     // Observer lock to prevent concurrent ticks
     transient var observerRunning : Bool = false;
@@ -568,6 +612,13 @@ persistent actor Self {
     // and a failed delta mint blocks the same principal on subsequent ticks.
     transient var backerMintRetries = principalMap.empty<Nat>();
     var missedBackerMints = principalMap.empty<Text>();
+
+    // M2: SOL-side retry counters + miss map. Separate keys per source so
+    // a failed SOL mint doesn't stall the ICP source and vice versa.
+    transient var solGameMintRetries = natMap.empty<Nat>();
+    var missedSolGameMints = natMap.empty<Text>();
+    transient var solBackerMintRetries = principalMap.empty<Nat>();
+    var missedSolBackerMints = principalMap.empty<Text>();
 
     // Cash-out queue
     var cashOuts = natMap.empty<CashOutEntry>();
@@ -1088,6 +1139,17 @@ persistent actor Self {
         };
     };
 
+    /// M2: returns the SOL-side ponzi_math actor, or null if not configured.
+    /// Returning ?actor (instead of trapping like getPonziMath) lets the
+    /// observer no-op on un-configured SOL while still trapping when the
+    /// ICP path is mis-configured — ICP is required, SOL is optional.
+    func getPonziMathSol() : ?PonziMathActor {
+        switch (ponziMathSolPrincipal) {
+            case (null) { null };
+            case (?p) { ?(actor (Principal.toText(p)) : PonziMathActor) };
+        };
+    };
+
     /// Returns the ponzi_math currentRoundId, refreshing the cache when
     /// stale (>30s). Used by per-cast burn-tally bucketing.
     func readCurrentRoundIdCached() : async Nat {
@@ -1200,6 +1262,11 @@ persistent actor Self {
     /// Advances cursors only after successful mint to guarantee at-least-once
     /// minting with ledger-level dedup (via created_at_time + memo) preventing
     /// duplicates.
+    /// Single observer pass. Mints PP for new deposits and dealer top-ups
+    /// from BOTH ponzi_math (ICP) and ponzi_math_sol (SOL). Each call to
+    /// processNewGames / processBackerDeltas advances only its own
+    /// denomination's cursor, so a failure on one side doesn't stall the
+    /// other. The SOL-side calls no-op while ponziMathSolPrincipal is null.
     func observerTick() : async () {
         if (observerRunning) return;
         // Upgrade-safety: refuse to mint until seedMigrationV2 has
@@ -1209,29 +1276,54 @@ persistent actor Self {
         if (not bootstrapped) return;
         observerRunning := true;
         try {
-            await processNewGames();
-            await processBackerDeltas();
+            await processNewGames(#icp);
+            await processNewGames(#sol);
+            await processBackerDeltas(#icp);
+            await processBackerDeltas(#sol);
         } catch (e) {
             Debug.print("Observer tick error: " # Error.message(e));
         };
         observerRunning := false;
     };
 
-    func processNewGames() : async () {
-        let ponziMath = getPonziMath();
+    func processNewGames(denomination : Denomination) : async () {
+        // Select the right ponzi_math source. ICP is required; SOL is
+        // optional and no-ops while unconfigured.
+        let ponziMathOpt : ?PonziMathActor = switch (denomination) {
+            case (#icp) { ?getPonziMath() };
+            case (#sol) { getPonziMathSol() };
+        };
+        let ponziMath = switch (ponziMathOpt) {
+            case (?p) { p };
+            case (null) { return };  // SOL not configured — no-op.
+        };
         let games = try { await ponziMath.getAllGames() } catch (_) { [] };
         let sorted = Array.sort<PonziMathGameRecord>(games, func(a, b) = Nat.compare(a.id, b.id));
+        // Choose the right cursor + rate fields + eventId prefix per denomination.
+        // The ICP path keeps the historical 'game-N' / 'signup-...' eventId
+        // shapes so PP ledger memo dedup is unaffected. The SOL path uses
+        // a 'sol-' infix so the two namespaces can never collide.
+        let cursor : Nat = switch (denomination) {
+            case (#icp) { gameIdCursor };
+            case (#sol) { solGameIdCursor };
+        };
         for (game in sorted.vals()) {
-            if (game.id >= gameIdCursor) {
-                let ppPerIcp = switch (game.plan) {
-                    case (#simple21Day) { mintConfig.simple21DayPpPerIcp };
-                    case (#compounding15Day) { mintConfig.compounding15DayPpPerIcp };
-                    case (#compounding30Day) { mintConfig.compounding30DayPpPerIcp };
+            if (game.id >= cursor) {
+                let ppPerUnit : Nat = switch (denomination, game.plan) {
+                    case (#icp, #simple21Day) { mintConfig.simple21DayPpPerIcp };
+                    case (#icp, #compounding15Day) { mintConfig.compounding15DayPpPerIcp };
+                    case (#icp, #compounding30Day) { mintConfig.compounding30DayPpPerIcp };
+                    case (#sol, #simple21Day) { mintConfig.simple21DayPpPerSol };
+                    case (#sol, #compounding15Day) { mintConfig.compounding15DayPpPerSol };
+                    case (#sol, #compounding30Day) { mintConfig.compounding30DayPpPerSol };
                 };
-                let baseUnits = icpFloatToPpUnits(game.amount, ppPerIcp);
+                let baseUnits = icpFloatToPpUnits(game.amount, ppPerUnit);
                 let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
-                let eventId = "game-" # Nat.toText(game.id);
+                let eventId = switch (denomination) {
+                    case (#icp) { "game-" # Nat.toText(game.id) };
+                    case (#sol) { "game-sol-" # Nat.toText(game.id) };
+                };
 
                 // Announce signup in chat unconditionally on first observation —
                 // independent of whether the gift is enabled. This ensures the
@@ -1240,7 +1332,7 @@ persistent actor Self {
                     case (?_) {};
                     case (null) {
                         signupAnnouncedSet := principalMap.put(signupAnnouncedSet, game.player, Time.now());
-                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player }));
+                        let _ = appendChatItem(Principal.fromActor(Self), #signup({ newUser = game.player; denomination }));
                     };
                 };
 
@@ -1254,7 +1346,15 @@ persistent actor Self {
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
-                            let giftEventId = "signup-" # Principal.toText(game.player);
+                            // Signup-gift event id includes the denomination so a
+                            // cross-pot user (joins ICP then later joins SOL) cannot
+                            // accidentally double-claim the gift via ledger memo
+                            // collision. Practically irrelevant today (signupGiftClaimed
+                            // gates by principal), but cheap defense-in-depth.
+                            let giftEventId = switch (denomination) {
+                                case (#icp) { "signup-" # Principal.toText(game.player) };
+                                case (#sol) { "signup-sol-" # Principal.toText(game.player) };
+                            };
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
@@ -1276,13 +1376,22 @@ persistent actor Self {
                         if (game.amount >= 0.1) {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, game.player, Time.now());
                         };
-                        gameMintRetries := natMap.delete(gameMintRetries, game.id);
-                        gameIdCursor := game.id + 1;
+                        switch (denomination) {
+                            case (#icp) {
+                                gameMintRetries := natMap.delete(gameMintRetries, game.id);
+                                gameIdCursor := game.id + 1;
+                            };
+                            case (#sol) {
+                                solGameMintRetries := natMap.delete(solGameMintRetries, game.id);
+                                solGameIdCursor := game.id + 1;
+                            };
+                        };
 
                         let _ = appendChatItem(Principal.fromActor(Self), #roundResult({
                             gameId = game.id;
                             winner = game.player;
                             winnerPpUnits = playerNet;
+                            denomination;
                         }));
 
                         let coin = Int.abs(Time.now()) % 7; // ~15%
@@ -1296,9 +1405,19 @@ persistent actor Self {
                         };
                     };
                     case (#Err(msg)) {
-                        let attempts = switch (natMap.get(gameMintRetries, game.id)) {
-                            case (?n) { n + 1 };
-                            case (null) { 1 };
+                        let attempts : Nat = switch (denomination) {
+                            case (#icp) {
+                                switch (natMap.get(gameMintRetries, game.id)) {
+                                    case (?n) { n + 1 };
+                                    case (null) { 1 };
+                                };
+                            };
+                            case (#sol) {
+                                switch (natMap.get(solGameMintRetries, game.id)) {
+                                    case (?n) { n + 1 };
+                                    case (null) { 1 };
+                                };
+                            };
                         };
                         if (attempts >= MAX_MINT_RETRIES) {
                             // Exhausted retries — record the miss and advance
@@ -1306,12 +1425,28 @@ persistent actor Self {
                             // Admin can call adminMint to compensate the player.
                             Debug.print("Giving up on " # eventId # " after "
                                 # Nat.toText(attempts) # " attempts: " # msg);
-                            missedGameMints := natMap.put(missedGameMints, game.id, msg);
-                            gameMintRetries := natMap.delete(gameMintRetries, game.id);
-                            gameIdCursor := game.id + 1;
+                            switch (denomination) {
+                                case (#icp) {
+                                    missedGameMints := natMap.put(missedGameMints, game.id, msg);
+                                    gameMintRetries := natMap.delete(gameMintRetries, game.id);
+                                    gameIdCursor := game.id + 1;
+                                };
+                                case (#sol) {
+                                    missedSolGameMints := natMap.put(missedSolGameMints, game.id, msg);
+                                    solGameMintRetries := natMap.delete(solGameMintRetries, game.id);
+                                    solGameIdCursor := game.id + 1;
+                                };
+                            };
                             // Fall through — continue to next game in the loop.
                         } else {
-                            gameMintRetries := natMap.put(gameMintRetries, game.id, attempts);
+                            switch (denomination) {
+                                case (#icp) {
+                                    gameMintRetries := natMap.put(gameMintRetries, game.id, attempts);
+                                };
+                                case (#sol) {
+                                    solGameMintRetries := natMap.put(solGameMintRetries, game.id, attempts);
+                                };
+                            };
                             Debug.print("Mint attempt " # Nat.toText(attempts)
                                 # "/" # Nat.toText(MAX_MINT_RETRIES)
                                 # " failed for " # eventId # ": " # msg);
@@ -1323,20 +1458,38 @@ persistent actor Self {
         };
     };
 
-    func processBackerDeltas() : async () {
-        let ponziMath = getPonziMath();
+    func processBackerDeltas(denomination : Denomination) : async () {
+        let ponziMathOpt : ?PonziMathActor = switch (denomination) {
+            case (#icp) { ?getPonziMath() };
+            case (#sol) { getPonziMathSol() };
+        };
+        let ponziMath = switch (ponziMathOpt) {
+            case (?p) { p };
+            case (null) { return };  // SOL not configured — no-op.
+        };
         let backers = try { await ponziMath.getBackerPositions() } catch (_) { [] };
         for (backer in backers.vals()) {
-            let seen : Float = switch (principalMap.get(backerSeen, backer.owner)) {
+            let seenMap = switch (denomination) {
+                case (#icp) { backerSeen };
+                case (#sol) { solBackerSeen };
+            };
+            let seen : Float = switch (principalMap.get(seenMap, backer.owner)) {
                 case (null) { 0.0 };
                 case (?v) { v };
             };
             if (backer.amount > seen) {
                 let delta : Float = backer.amount - seen;
-                let baseUnits = icpFloatToPpUnits(delta, mintConfig.backerPpPerIcp);
+                let ppPerUnit : Nat = switch (denomination) {
+                    case (#icp) { mintConfig.backerPpPerIcp };
+                    case (#sol) { mintConfig.backerPpPerSol };
+                };
+                let baseUnits = icpFloatToPpUnits(delta, ppPerUnit);
                 let cascadeUnits = baseUnits * mintConfig.cascadeInitialBps / 10_000;
                 let playerNet : Nat = if (baseUnits > cascadeUnits) { baseUnits - cascadeUnits } else { 0 };
-                let eventId = "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount);
+                let eventId = switch (denomination) {
+                    case (#icp) { "backer-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount) };
+                    case (#sol) { "backer-sol-" # Principal.toText(backer.owner) # "-" # Float.toText(backer.amount) };
+                };
 
                 let res = await mintWithEffects(backer.owner, playerNet, eventId);
                 switch (res) {
@@ -1345,11 +1498,23 @@ persistent actor Self {
                         if (delta >= 0.1) {
                             lastQualifyingDeposit := principalMap.put(lastQualifyingDeposit, backer.owner, Time.now());
                         };
-                        backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
-                        backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                        switch (denomination) {
+                            case (#icp) {
+                                backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                                backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                            };
+                            case (#sol) {
+                                solBackerSeen := principalMap.put(solBackerSeen, backer.owner, backer.amount);
+                                solBackerMintRetries := principalMap.delete(solBackerMintRetries, backer.owner);
+                            };
+                        };
                     };
                     case (#Err(msg)) {
-                        let attempts = switch (principalMap.get(backerMintRetries, backer.owner)) {
+                        let retryMap = switch (denomination) {
+                            case (#icp) { backerMintRetries };
+                            case (#sol) { solBackerMintRetries };
+                        };
+                        let attempts = switch (principalMap.get(retryMap, backer.owner)) {
                             case (?n) { n + 1 };
                             case (null) { 1 };
                         };
@@ -1360,11 +1525,27 @@ persistent actor Self {
                                 # Principal.toText(backer.owner) # " at amount "
                                 # Float.toText(backer.amount) # " after "
                                 # Nat.toText(attempts) # " attempts: " # msg);
-                            missedBackerMints := principalMap.put(missedBackerMints, backer.owner, msg);
-                            backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
-                            backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                            switch (denomination) {
+                                case (#icp) {
+                                    missedBackerMints := principalMap.put(missedBackerMints, backer.owner, msg);
+                                    backerMintRetries := principalMap.delete(backerMintRetries, backer.owner);
+                                    backerSeen := principalMap.put(backerSeen, backer.owner, backer.amount);
+                                };
+                                case (#sol) {
+                                    missedSolBackerMints := principalMap.put(missedSolBackerMints, backer.owner, msg);
+                                    solBackerMintRetries := principalMap.delete(solBackerMintRetries, backer.owner);
+                                    solBackerSeen := principalMap.put(solBackerSeen, backer.owner, backer.amount);
+                                };
+                            };
                         } else {
-                            backerMintRetries := principalMap.put(backerMintRetries, backer.owner, attempts);
+                            switch (denomination) {
+                                case (#icp) {
+                                    backerMintRetries := principalMap.put(backerMintRetries, backer.owner, attempts);
+                                };
+                                case (#sol) {
+                                    solBackerMintRetries := principalMap.put(solBackerMintRetries, backer.owner, attempts);
+                                };
+                            };
                             Debug.print("Backer mint attempt " # Nat.toText(attempts)
                                 # "/" # Nat.toText(MAX_MINT_RETRIES)
                                 # " failed for " # eventId # ": " # msg);
@@ -1377,17 +1558,41 @@ persistent actor Self {
 
     /// One-shot catch-up primer. Admin only. Call immediately after the
     /// cutover upgrade completes, before unpausing user traffic.
+    /// One-shot catch-up primer. Admin only. Call immediately after the
+    /// cutover upgrade completes, before unpausing user traffic. M2:
+    /// also seeds the SOL-side cursors if ponziMathSolPrincipal is set
+    /// (otherwise the SOL block is a no-op — admin can call this again
+    /// after configuring the SOL principal to back-fill cursors).
     public shared ({ caller }) func primeObserverCursors() : async () {
         requireAdmin(caller);
-        let ponziMath = getPonziMath();
-        let games = await ponziMath.getAllGames();
-        var maxId : Nat = 0;
-        for (g in games.vals()) { if (g.id >= maxId) { maxId := g.id + 1 } };
-        gameIdCursor := maxId;
 
-        let backers = await ponziMath.getBackerPositions();
-        for (b in backers.vals()) {
+        // ICP side — existing behavior.
+        let ponziMathIcp = getPonziMath();
+        let icpGames = await ponziMathIcp.getAllGames();
+        var maxIcpId : Nat = 0;
+        for (g in icpGames.vals()) { if (g.id >= maxIcpId) { maxIcpId := g.id + 1 } };
+        gameIdCursor := maxIcpId;
+
+        let icpBackers = await ponziMathIcp.getBackerPositions();
+        for (b in icpBackers.vals()) {
             backerSeen := principalMap.put(backerSeen, b.owner, b.amount);
+        };
+
+        // SOL side — only run if configured. Safe to re-call this whole
+        // function any time after setPonziMathSolPrincipal lands.
+        switch (getPonziMathSol()) {
+            case (null) {};
+            case (?ponziMathSol) {
+                let solGames = await ponziMathSol.getAllGames();
+                var maxSolId : Nat = 0;
+                for (g in solGames.vals()) { if (g.id >= maxSolId) { maxSolId := g.id + 1 } };
+                solGameIdCursor := maxSolId;
+
+                let solBackers = await ponziMathSol.getBackerPositions();
+                for (b in solBackers.vals()) {
+                    solBackerSeen := principalMap.put(solBackerSeen, b.owner, b.amount);
+                };
+            };
         };
     };
 
@@ -4808,6 +5013,10 @@ persistent actor Self {
         running : Bool;
         gameIdCursor : Nat;
         backerSeenCount : Nat;
+        // M2 (Solana chain fusion): SOL-side observer state.
+        solGameIdCursor : Nat;
+        solBackerSeenCount : Nat;
+        ponziMathSolPrincipal : ?Principal;
         intervalSeconds : Nat;
         missedGameMintsCount : Nat;
         missedBackerMintsCount : Nat;
@@ -4816,6 +5025,9 @@ persistent actor Self {
             running = observerTimerId != null;
             gameIdCursor;
             backerSeenCount = principalMap.size(backerSeen);
+            solGameIdCursor;
+            solBackerSeenCount = principalMap.size(solBackerSeen);
+            ponziMathSolPrincipal;
             intervalSeconds = mintConfig.observerIntervalSeconds;
             missedGameMintsCount = natMap.size(missedGameMints);
             missedBackerMintsCount = principalMap.size(missedBackerMints);
@@ -4868,6 +5080,22 @@ persistent actor Self {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
     };
+    public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with simple21DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setCompounding15DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding15DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setCompounding30DayPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with compounding30DayPpPerSol = v };
+    };
+    public shared ({ caller }) func setBackerPpPerSol(v : Nat) : async () {
+        requireAdmin(caller);
+        mintConfig := { mintConfig with backerPpPerSol = v };
+    };
     /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
     /// Use setCascadeBps(initial, passthrough) instead.
     public shared ({ caller }) func setReferralBps(_l1 : Nat, _l2 : Nat, _l3 : Nat) : async () {
@@ -4895,6 +5123,18 @@ persistent actor Self {
             Debug.trap("housePrincipal cannot be the anonymous principal");
         };
         housePrincipal := ?p;
+    };
+
+    /// M2: configure the SOL-side ponzi_math canister. null until set;
+    /// while null, the SOL-side observer branch no-ops. Admin only.
+    /// Mirrors the setHousePrincipal pattern (anonymous-principal guard
+    /// + admin guard).
+    public shared ({ caller }) func setPonziMathSolPrincipal(p : Principal) : async () {
+        requireAdmin(caller);
+        if (Principal.isAnonymous(p)) {
+            Debug.trap("ponziMathSolPrincipal cannot be the anonymous principal");
+        };
+        ponziMathSolPrincipal := ?p;
     };
 
     public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {
