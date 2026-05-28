@@ -1,4 +1,5 @@
 import Array "mo:base/Array";
+import Buffer "mo:base/Buffer";
 import Principal "mo:base/Principal";
 import OrderedMap "mo:base/OrderedMap";
 import Time "mo:base/Time";
@@ -1794,6 +1795,61 @@ persistent actor class PonziMathSol(initArgs : {
             case (#JsonRpcError({ code; message })) { "JsonRpcError(" # Int.toText(code) # "): " # message };
             case (#ConsensusError(m)) { "ConsensusError: " # m };
             case (#ValidationError(m)) { "ValidationError: " # m };
+        };
+    };
+
+    // ====================================================================
+    // Deposit detection
+    // ====================================================================
+
+    /// A single new-signature record discovered for a deposit address.
+    type DetectedSignature = {
+        address : Text;
+        principal : Principal;
+        signature : Text;
+        slot : Nat64;
+    };
+
+    /// Scan a single deposit address for new inbound signatures.
+    /// Returns the list of signatures observed past lastSeenSignature
+    /// (chronologically ordered: oldest first). DOES NOT mutate
+    /// lastSeenSignature; that happens after the credit step succeeds in
+    /// Task 14.
+    func scanAddress(address : Text, principal : Principal) : async [DetectedSignature] {
+        let cursor = textMap.get(lastSeenSignature, address);
+        // getSignaturesForAddress returns newest-first. We page until we
+        // see the cursor (or exhaust). For M1 we do one page (up to 100
+        // signatures) — devnet test volume is well under that.
+        let res = await solRpc.getSignaturesForAddress(
+            address,
+            ?{
+                limit = ?100;
+                before = null;
+                until = cursor;
+                commitment = ?"confirmed";
+            },
+            ?{ provider = ?solRpcProvider },
+        );
+        switch (res) {
+            case (#Err(_)) { [] };
+            case (#Ok(sigs)) {
+                // Reverse so we process oldest-first.
+                let buf = Buffer.Buffer<DetectedSignature>(sigs.size());
+                var i : Nat = sigs.size();
+                while (i > 0) {
+                    i -= 1;
+                    let s = sigs[i];
+                    if (s.err == null) {
+                        buf.add({
+                            address;
+                            principal;
+                            signature = s.signature;
+                            slot = s.slot;
+                        });
+                    };
+                };
+                Buffer.toArray(buf);
+            };
         };
     };
 
