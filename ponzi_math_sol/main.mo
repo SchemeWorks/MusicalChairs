@@ -546,6 +546,35 @@ persistent actor class PonziMathSol(initArgs : {
     };
 
     // ========================================================================
+    // Chain fusion: derivation path helpers + pool address caching.
+    // These are private — callers go through adminDerivePoolAddress or
+    // ensurePoolAddress.
+    // ========================================================================
+
+    func derivationPathPool() : [Blob] {
+        [Text.encodeUtf8("pool")];
+    };
+
+    func derivationPathNonce() : [Blob] {
+        [Text.encodeUtf8("nonce")];
+    };
+
+    func derivationPathForPrincipal(p : Principal) : [Blob] {
+        [Principal.toBlob(p)];
+    };
+
+    func ensurePoolAddress() : async Text {
+        switch (poolAddress) {
+            case (?addr) { addr };
+            case (null) {
+                let addr = await SolSigner.deriveAddress(keyId, derivationPathPool());
+                poolAddress := ?addr;
+                addr;
+            };
+        };
+    };
+
+    // ========================================================================
     // Series B promotion: pick a random underwater player at round-reset time
     // and grant them a Series B backer position with entitlement
     // (amount - totalWithdrawn) * 1.16.
@@ -1625,6 +1654,20 @@ persistent actor class PonziMathSol(initArgs : {
     public query func getPoolAddress() : async ?Text { poolAddress };
     public query func getNonceAccountAddress() : async ?Text { nonceAccountAddress };
     public query func isBootstrapped() : async Bool { bootstrapped };
+
+    /// Admin-callable: derive the pool address via threshold-Schnorr and
+    /// cache it. Idempotent — subsequent calls just return the cached
+    /// value. Must be called once before bootstrap() so the operator can
+    /// fund the pool.
+    public shared ({ caller }) func adminDerivePoolAddress() : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        try {
+            let addr = await ensurePoolAddress();
+            #Ok(addr);
+        } catch (e) {
+            #Err("Failed to derive pool address: " # Error.message(e));
+        };
+    };
 
     public shared ({ caller }) func getOrCreateDepositAddress() : async { #Ok : Text; #Err : Text } {
         requireAuthenticated(caller);
