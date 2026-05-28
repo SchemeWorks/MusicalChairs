@@ -189,6 +189,17 @@ export function WalletProvider({ children }: WalletProviderProps) {
           localStorage.removeItem('musical-chairs-wallet-type');
         }
       } else if (savedWalletType === 'siws') {
+        // Option C prefetch: kick off the wallet-adapter chunk download in the
+        // background. Returning SIWS users whose delegation has expired will
+        // re-sign-in via the modal — and the modal needs these modules. By
+        // firing the import here we eliminate the ~500ms click hitch.
+        // Fire-and-forget; failure just falls back to the connectSiws() click
+        // path which lazy-loads the same modules.
+        void Promise.all([
+          import('@solana/wallet-adapter-base'),
+          import('@solana/wallet-adapter-wallets'),
+        ]).catch(() => { /* network blip; retry on click */ });
+
         const { restoreSiwsSession } = await import('../lib/siwsSigner');
         const connection = await restoreSiwsSession();
         if (connection) {
