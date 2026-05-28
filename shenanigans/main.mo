@@ -471,6 +471,11 @@ persistent actor Self {
     // Admin state
     var adminPrincipal : ?Principal = null;
     var ponziMathPrincipal : ?Principal = null;
+    // M2 (Solana chain fusion): second ponzi_math instance, SOL-denominated.
+    // null until admin calls setPonziMathSolPrincipal post-deploy. While
+    // null, the observer's SOL-side branch is a no-op — no inter-canister
+    // call, no state touched. ICP-side path is unaffected.
+    var ponziMathSolPrincipal : ?Principal = null;
 
     // Additional principals with admin access. Augments the legacy
     // adminPrincipal so multiple browser wallets can drive the admin
@@ -1116,6 +1121,17 @@ persistent actor Self {
         switch (ponziMathPrincipal) {
             case (null) { Debug.trap("ponzi_math canister not configured") };
             case (?p) { actor (Principal.toText(p)) : PonziMathActor };
+        };
+    };
+
+    /// M2: returns the SOL-side ponzi_math actor, or null if not configured.
+    /// Returning ?actor (instead of trapping like getPonziMath) lets the
+    /// observer no-op on un-configured SOL while still trapping when the
+    /// ICP path is mis-configured — ICP is required, SOL is optional.
+    func getPonziMathSol() : ?PonziMathActor {
+        switch (ponziMathSolPrincipal) {
+            case (null) { null };
+            case (?p) { ?(actor (Principal.toText(p)) : PonziMathActor) };
         };
     };
 
@@ -4927,6 +4943,18 @@ persistent actor Self {
             Debug.trap("housePrincipal cannot be the anonymous principal");
         };
         housePrincipal := ?p;
+    };
+
+    /// M2: configure the SOL-side ponzi_math canister. null until set;
+    /// while null, the SOL-side observer branch no-ops. Admin only.
+    /// Mirrors the setHousePrincipal pattern (anonymous-principal guard
+    /// + admin guard).
+    public shared ({ caller }) func setPonziMathSolPrincipal(p : Principal) : async () {
+        requireAdmin(caller);
+        if (Principal.isAnonymous(p)) {
+            Debug.trap("ponziMathSolPrincipal cannot be the anonymous principal");
+        };
+        ponziMathSolPrincipal := ?p;
     };
 
     public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {
