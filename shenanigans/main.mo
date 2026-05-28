@@ -1558,17 +1558,41 @@ persistent actor Self {
 
     /// One-shot catch-up primer. Admin only. Call immediately after the
     /// cutover upgrade completes, before unpausing user traffic.
+    /// One-shot catch-up primer. Admin only. Call immediately after the
+    /// cutover upgrade completes, before unpausing user traffic. M2:
+    /// also seeds the SOL-side cursors if ponziMathSolPrincipal is set
+    /// (otherwise the SOL block is a no-op — admin can call this again
+    /// after configuring the SOL principal to back-fill cursors).
     public shared ({ caller }) func primeObserverCursors() : async () {
         requireAdmin(caller);
-        let ponziMath = getPonziMath();
-        let games = await ponziMath.getAllGames();
-        var maxId : Nat = 0;
-        for (g in games.vals()) { if (g.id >= maxId) { maxId := g.id + 1 } };
-        gameIdCursor := maxId;
 
-        let backers = await ponziMath.getBackerPositions();
-        for (b in backers.vals()) {
+        // ICP side — existing behavior.
+        let ponziMathIcp = getPonziMath();
+        let icpGames = await ponziMathIcp.getAllGames();
+        var maxIcpId : Nat = 0;
+        for (g in icpGames.vals()) { if (g.id >= maxIcpId) { maxIcpId := g.id + 1 } };
+        gameIdCursor := maxIcpId;
+
+        let icpBackers = await ponziMathIcp.getBackerPositions();
+        for (b in icpBackers.vals()) {
             backerSeen := principalMap.put(backerSeen, b.owner, b.amount);
+        };
+
+        // SOL side — only run if configured. Safe to re-call this whole
+        // function any time after setPonziMathSolPrincipal lands.
+        switch (getPonziMathSol()) {
+            case (null) {};
+            case (?ponziMathSol) {
+                let solGames = await ponziMathSol.getAllGames();
+                var maxSolId : Nat = 0;
+                for (g in solGames.vals()) { if (g.id >= maxSolId) { maxSolId := g.id + 1 } };
+                solGameIdCursor := maxSolId;
+
+                let solBackers = await ponziMathSol.getBackerPositions();
+                for (b in solBackers.vals()) {
+                    solBackerSeen := principalMap.put(solBackerSeen, b.owner, b.amount);
+                };
+            };
         };
     };
 
