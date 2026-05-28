@@ -1697,10 +1697,82 @@ persistent actor class PonziMathSol(initArgs : {
         principalMapNat.get(depositAddresses, p);
     };
 
-    public shared ({ caller }) func prepareSolDeposit(args : { plan : GamePlan; expectedAmountLamports : Nat64 }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
+    public shared ({ caller }) func prepareSolDeposit(args : {
+        plan : GamePlan;
+        expectedAmountLamports : Nat64;
+    }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
         requireAuthenticated(caller);
-        let _ = args;
-        Debug.trap("prepareSolDeposit: not yet implemented (Task 11)");
+        if (args.expectedAmountLamports < MIN_DEPOSIT_LAMPORTS) {
+            return #Err("Minimum deposit is 0.05 SOL (50,000,000 lamports)");
+        };
+        if (not bootstrapped) {
+            return #Err("Canister not bootstrapped yet — operator must run bootstrap() first");
+        };
+
+        acquireCallerLock(caller);
+        try {
+            // Per-user rate limit, identical to ponzi_math's 3-deposits-per-hour
+            // gate. Sourced from the existing depositTimestamps map.
+            let currentTime = Time.now();
+            let oneHourAgo = currentTime - 3_600_000_000_000;
+            switch (principalMapNat.get(depositTimestamps, caller)) {
+                case (null) {};
+                case (?timestamps) {
+                    let filtered = List.filter<Int>(
+                        timestamps,
+                        func(t) { t > oneHourAgo },
+                    );
+                    if (List.size(filtered) >= 3) {
+                        return #Err("You can only open 3 positions per hour");
+                    };
+                };
+            };
+
+            // Ensure the user has a deposit address.
+            let depositAddr = switch (principalMapNat.get(depositAddresses, caller)) {
+                case (?a) { a };
+                case (null) {
+                    // Derive inline. Same logic as getOrCreateDepositAddress
+                    // but without recursive lock acquisition.
+                    let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(caller));
+                    depositAddresses := principalMapNat.put(depositAddresses, caller, addr);
+                    addressToPrincipal := textMap.put(addressToPrincipal, addr, caller);
+                    addr;
+                };
+            };
+
+            let intent : DepositIntent = {
+                id = nextIntentId;
+                principal = caller;
+                plan = args.plan;
+                expectedAmountLamports = args.expectedAmountLamports;
+                createdAt = currentTime;
+                expiresAt = currentTime + INTENT_TTL_NS;
+                fulfilled = false;
+            };
+            pendingIntents := natMap.put(pendingIntents, nextIntentId, intent);
+            let intentId = nextIntentId;
+            nextIntentId += 1;
+
+            #Ok({ intentId; depositAddress = depositAddr });
+        } finally {
+            releaseCallerLock(caller);
+        };
+    };
+
+    public query ({ caller }) func getMyPendingIntents() : async [DepositIntent] {
+        var out = List.nil<DepositIntent>();
+        for (intent in natMap.vals(pendingIntents)) {
+            if (intent.principal == caller and not intent.fulfilled) {
+                out := List.push(intent, out);
+            };
+        };
+        List.toArray(out);
+    };
+
+    public query ({ caller }) func adminGetAllIntents() : async [DepositIntent] {
+        requireAdmin(caller);
+        Iter.toArray(natMap.vals(pendingIntents));
     };
 
     public shared ({ caller }) func runDepositDetection() : async { #Ok : Nat; #Err : Text } {
