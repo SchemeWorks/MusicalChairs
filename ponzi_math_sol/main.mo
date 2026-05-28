@@ -975,10 +975,31 @@ persistent actor class PonziMathSol(initArgs : {
                             } else { platformStats.activeGames };
                     };
 
-                    // ICP-side payout was here. SOL-side payout lands in
-                    // Task 15-17; for now we trap so the function is wired
-                    // but unusable until then.
-                    Debug.trap("withdrawEarnings: SOL payout not yet wired");
+                    let netLamports = solToLamports(actualNetEarnings);
+                    let solFee : Nat64 = 5_000; // Solana network fee floor
+                    if (netLamports > solFee) {
+                        let payoutLamports : Nat64 = netLamports - solFee;
+                        let destination = switch (principalMapNat.get(depositAddresses, caller)) {
+                            case (?addr) { addr };
+                            case (null) {
+                                gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                                platformStats := originalStats;
+                                backerRepayments := originalRepayments;
+                                roundSeedReserve := originalSeedReserve;
+                                return #Err("Caller has no deposit address; cannot pay out. Call getOrCreateDepositAddress first.");
+                            };
+                        };
+                        switch (await sendSolPayout(destination, payoutLamports)) {
+                            case (#Err(e)) {
+                                gameRecords := natMap.put(gameRecords, gameId, originalGame);
+                                platformStats := originalStats;
+                                backerRepayments := originalRepayments;
+                                roundSeedReserve := originalSeedReserve;
+                                return #Err("SOL payout failed: " # e);
+                            };
+                            case (#Ok(_txSig)) {};
+                        };
+                    };
 
                     recordLedger(#tollDistribution(tollDetails));
                     recordLedger(#withdrawal({
