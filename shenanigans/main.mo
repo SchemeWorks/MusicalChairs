@@ -663,6 +663,18 @@ persistent actor Self {
     // whole ledger. Populated inside mintInternal.
     var knownPpHolders = principalMap.empty<Bool>();
 
+    /// Last interaction timestamp per principal. Updated on any
+    /// user-initiated action: cast a spell, post a chat message,
+    /// burn karma on a reaction, deposit chips, claim a cash-out.
+    /// NOT updated by passive mints (cascade payments received as side
+    /// effects). Used by AoE spells (Stimulus / Bear Raid / Contagion /
+    /// Wealth Tax) to filter the iteration to recently-active players.
+    var lastActiveAt = principalMap.empty<Int>();
+
+    /// Activity window for AoE inclusion. Principals whose lastActiveAt
+    /// is older than now - this window are skipped from AoE distribution.
+    let ACTIVITY_WINDOW_NS : Int = 10 * 86_400_000_000_000;
+
     // Tax-free deposit credit (in PP units) per user. Funded by chip-withdrawal
     // cash-outs: when a user withdraws N chips → wallet, their credit grows by
     // N. When they deposit M chips, the first min(M, credit) is tax-free and
@@ -1142,6 +1154,16 @@ persistent actor Self {
                 };
             };
         };
+        // One-shot: seed lastActiveAt for all existing knownPpHolders to
+        // Time.now() so the new activity filter doesn't lock everyone out
+        // for the first 10 days post-deploy. Idempotent — only seeds when
+        // lastActiveAt is empty.
+        if (principalMap.size(lastActiveAt) == 0) {
+            let now = Time.now();
+            for (p in principalMap.keys(knownPpHolders)) {
+                lastActiveAt := principalMap.put(lastActiveAt, p, now);
+            };
+        };
     };
 
     /// One observer pass. Mints PP for new deposits and dealer top-ups.
@@ -1348,6 +1370,7 @@ persistent actor Self {
     /// beforehand.
     public shared ({ caller }) func depositChips(amountUnits : Nat) : async { #Ok : Nat; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        markActive(caller);
         let minUnits = ppToUnits(mintConfig.minDepositPp);
         if (amountUnits < minUnits) {
             return #Err("Minimum deposit is " # Nat.toText(mintConfig.minDepositPp) # " PP");
@@ -1457,6 +1480,7 @@ persistent actor Self {
     };
 
     public shared ({ caller }) func claimCashOut(id : Nat) : async { #Ok : Nat; #Err : Text } {
+        markActive(caller);
         let entry = switch (natMap.get(cashOuts, id)) {
             case (null) { return #Err("No such cash-out") };
             case (?e) { e };
@@ -2307,6 +2331,24 @@ persistent actor Self {
 
     /// Enumerate every known PP holder except `excluded`. Caller-side
     /// async fetch of balances follows separately.
+    /// Update lastActiveAt for a principal. Call from every user-initiated
+    /// path. Cheap: just a map write.
+    func markActive(p : Principal) {
+        if (Principal.isAnonymous(p)) { return };
+        lastActiveAt := principalMap.put(lastActiveAt, p, Time.now());
+    };
+
+    /// True if a principal counts as "recently active" for AoE purposes.
+    /// Used by Stimulus / Bear Raid / Contagion (#aoeSkim) loops to skip
+    /// dormant principals. A principal with no lastActiveAt record at
+    /// all is considered inactive (returns false).
+    func isRecentlyActive(p : Principal) : Bool {
+        switch (principalMap.get(lastActiveAt, p)) {
+            case (?ts) { (Time.now() - ts) < ACTIVITY_WINDOW_NS };
+            case null { false };
+        };
+    };
+
     func enumerateHolders(excluded : Principal) : [Principal] {
         let buf = Array.filter<Principal>(
             Iter.toArray(principalMap.keys(knownPpHolders)),
@@ -2316,9 +2358,12 @@ persistent actor Self {
     };
 
     /// Fetch top-3 PP holders by current chip balance, excluding caster.
+    /// Applies the activity filter — inactive principals (lastActiveAt older
+    /// than ACTIVITY_WINDOW_NS) are excluded from candidacy.
     /// Returns up to 3 (Principal, balance) pairs sorted descending.
     func top3HoldersByBalance(excluded : Principal) : async [(Principal, Nat)] {
-        let candidates = enumerateHolders(excluded);
+        let all = enumerateHolders(excluded);
+        let candidates = Array.filter<Principal>(all, isRecentlyActive);
         let buf = Array.init<(Principal, Nat)>(candidates.size(), (excluded, 0));
         var i = 0;
         for (p in candidates.vals()) {
@@ -2422,6 +2467,7 @@ persistent actor Self {
 
     public shared ({ caller }) func castShenanigan(shenaniganType : ShenaniganType, target : ?Principal) : async ShenaniganOutcomeDetail {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
 
         // Lazily prune stale entries so the maps don't accumulate indefinitely.
         sweepExpiredPendingRenames();
@@ -2779,8 +2825,9 @@ persistent actor Self {
                 let pool = enumerateHolders(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
+                // Activity filter: skip principals inactive for more than 10 days.
                 for (victim in pool.vals()) {
-                    if (not consumeShieldIfActive(victim)) {
+                    if (isRecentlyActive(victim) and not consumeShieldIfActive(victim)) {
                         let bal = await getChipBalance(victim);
                         let pct = rollPctForPrincipal(pctMin, pctMax, victim);
                         let amount = capAt(bal * pct / 100, ppToUnits(cap));
@@ -3117,9 +3164,10 @@ persistent actor Self {
                 let casterMinted = switch (casterRes) { case (#Ok(_)) { casterGain }; case (#Err(_)) { 0 } };
 
                 // Iterate all known holders. Pay each (except caster) a random 40-50 PP.
+                // Activity filter: skip principals inactive for more than 10 days.
                 var othersCount : Nat = 0;
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
-                    if (not Principal.equal(holder, caster)) {
+                    if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
                         let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         let res = await mintInternal(holder, perVictimUnits, memo);
@@ -3148,8 +3196,9 @@ persistent actor Self {
 
                 var drained : Nat = 0;
                 var victims : Nat = 0;
+                // Activity filter: skip principals inactive for more than 10 days.
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
-                    if (not Principal.equal(holder, caster)) {
+                    if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
                         if (not consumeShieldIfActive(holder)) {
                             let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                             let perVictimUnits = ppToUnits(perVictim);
@@ -3577,8 +3626,9 @@ persistent actor Self {
                     case (#Err(msg)) { Debug.print("bearRaid backfire caster-burn failed: " # msg) };
                 };
                 var othersBR : Nat = 0;
+                // Activity filter: skip principals inactive for more than 10 days.
                 for ((holder, _) in principalMap.entries(knownPpHolders)) {
-                    if (not Principal.equal(holder, caster)) {
+                    if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
                         let perVictim = rollPctForPrincipal(perVictimMinBR, perVictimMaxBR, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         switch (await mintInternal(holder, perVictimUnits, memo)) {
@@ -4069,6 +4119,7 @@ persistent actor Self {
 
     public shared ({ caller }) func postChatMessage(body : Text, replyTo : ?Nat) : async { #Ok : Nat; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        markActive(caller);
 
         let cleaned = stripControlChars(body);
         let len = textLength(cleaned);
@@ -4196,6 +4247,7 @@ persistent actor Self {
     // the 40% to house as well — tipping Management for the snark.
     public shared ({ caller }) func addKarmaReaction(itemId : Nat, emoji : Text, ppToBurn : Nat) : async { #Ok; #Err : Text } {
         if (Principal.isAnonymous(caller)) { return #Err("Authentication required") };
+        markActive(caller);
         if (not emojiAllowed(emoji, KARMA_EMOJIS)) { return #Err("Emoji not allowed") };
         if (ppToBurn < KARMA_MIN_PP) { return #Err("Minimum 10 PP") };
 
