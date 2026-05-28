@@ -2069,13 +2069,16 @@ persistent actor class PonziMathSol(initArgs : {
             case (?n) { n };
         };
 
-        // Sweep leaves ~5_000 lamports dust on the per-user address for
-        // the network fee. If the detected amount is at or below that
-        // floor, refuse rather than building a zero/negative transfer.
-        if (lamports <= 5_000) {
-            return #Err("Detected amount below network-fee floor (≤5000 lamports)");
+        // Sweep tx has TWO signatures (per-user address as feePayer, and
+        // pool as nonce authority), so the on-chain fee is 10_000 lamports.
+        // Reserve that off the transfer amount; refuse if balance is below
+        // the floor to avoid building a tx Solana will reject with
+        // ResultWithNegativeLamports (custom program error 0x1).
+        let solFee : Nat64 = 10_000;
+        if (lamports <= solFee) {
+            return #Err("Detected amount below network-fee floor (≤" # Nat64.toText(solFee) # " lamports)");
         };
-        let sweepLamports : Nat64 = lamports - 5_000;
+        let sweepLamports : Nat64 = lamports - solFee;
 
         let nonceIx = SolTx.advanceNonceIx(nonceAddr, pool);
         let transferIx = SolTx.transferIx(fromAddress, pool, sweepLamports);
@@ -2499,6 +2502,32 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
+    };
+
+    /// Admin: retry the sweep from a per-user deposit address to the pool.
+    /// Use when creditDeposit credited the game but sweepToPool failed
+    /// (Debug.print'd "Sweep failed for ..."). Looks up the principal,
+    /// reads the current on-chain balance, and reissues the sweep tx.
+    /// Safe to call repeatedly — if the balance is already at dust,
+    /// returns an error rather than building a no-op tx.
+    public shared ({ caller }) func adminSweepDepositAddress(address : Text) : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        let principal = switch (textMap.get(addressToPrincipal, address)) {
+            case (null) { return #Err("Address not registered: " # address) };
+            case (?p) { p };
+        };
+        Cycles.add<system>(RPC_CYCLES);
+        let balRes = await solRpc.getBalance(
+            SolRpc.rpcSources(solRpcProvider),
+            null,
+            { pubkey = address; commitment = ?#confirmed; minContextSlot = null },
+        );
+        let lamports = switch (SolRpc.unwrapMultiBalance(balRes)) {
+            case (#Err(e)) { return #Err("getBalance: " # e) };
+            case (#Ok(b)) { b };
+        };
+        if (lamports == 0) { return #Err("Address has zero balance") };
+        await sweepToPool(address, derivationPathForPrincipal(principal), lamports);
     };
 
     /// Admin: mark the canister as bootstrapped from on-chain state.
