@@ -574,6 +574,49 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
+    // ====================================================================
+    // Bootstrap helpers
+    // ====================================================================
+
+    func ensureNonceAccountAddress() : async Text {
+        switch (nonceAccountAddress) {
+            case (?addr) { addr };
+            case (null) {
+                let addr = await SolSigner.deriveAddress(keyId, derivationPathNonce());
+                nonceAccountAddress := ?addr;
+                addr;
+            };
+        };
+    };
+
+    /// Fetch a recent blockhash, retrying on consensus failures. Used
+    /// ONLY by bootstrap — all other outbound txs use the durable nonce.
+    func fetchRecentBlockhashWithRetry(attempts : Nat) : async ?Text {
+        var i : Nat = 0;
+        while (i < attempts) {
+            let res = await solRpc.getLatestBlockhash(?{ provider = ?solRpcProvider });
+            switch (res) {
+                case (#Ok({ blockhash; lastValidBlockHeight = _ })) { return ?blockhash };
+                case (#Err(_)) { i += 1 };
+            };
+        };
+        null;
+    };
+
+    /// Parse 32 bytes of nonce account body as a base58 blockhash.
+    /// Solana nonce-account layout (System program account state):
+    ///   bytes 0..4 — version (u32 LE)
+    ///   bytes 4..8 — state (u32 LE; 1 = Initialized)
+    ///   bytes 8..40 — authority pubkey (32 bytes)
+    ///   bytes 40..72 — nonce value (32 bytes — what we want)
+    ///   bytes 72..80 — fee_calculator.lamports_per_signature (u64 LE)
+    func parseNonceFromAccountData(data : Blob) : ?Text {
+        let arr = Blob.toArray(data);
+        if (arr.size() < 72) { return null };
+        let nonceBytes = Array.tabulate<Nat8>(32, func(i) { arr[40 + i] });
+        ?Base58.encode(Blob.fromArray(nonceBytes));
+    };
+
     // ========================================================================
     // Series B promotion: pick a random underwater player at round-reset time
     // and grant them a Series B backer position with entitlement
@@ -1648,7 +1691,110 @@ persistent actor class PonziMathSol(initArgs : {
 
     public shared ({ caller }) func bootstrap() : async { #Ok : Text; #Err : Text } {
         requireAdmin(caller);
-        Debug.trap("bootstrap(): not yet implemented (Task 12)");
+        if (bootstrapped) { return #Ok("already-bootstrapped") };
+
+        acquireGlobalLock();
+        try {
+            // 1. Derive pool + nonce addresses.
+            let pool = await ensurePoolAddress();
+            let nonce = await ensureNonceAccountAddress();
+
+            // 2. Confirm pool funded (~0.003 SOL = 3M lamports minimum).
+            let balanceRes = await solRpc.getBalance(pool, ?{ provider = ?solRpcProvider });
+            let balance = switch (balanceRes) {
+                case (#Ok(b)) { b };
+                case (#Err(e)) {
+                    return #Err("getBalance(pool) failed: " # rpcErrorText(e));
+                };
+            };
+            if (balance < (3_000_000 : Nat64)) {
+                return #Err("Pool address " # pool # " has only " # Nat64.toText(balance) # " lamports; needs ≥3,000,000 (≈0.003 SOL). Fund and retry.");
+            };
+
+            // 3. Build the bootstrap tx: createAccount(pool → nonce, 1.5M lamports, 80 bytes, SystemProgram) + initializeNonceAccount(nonce, pool).
+            let createIx = SolTx.createAccountIx(
+                pool,
+                nonce,
+                1_500_000 : Nat64,   // rent-exempt minimum for 80 bytes is ~1.44M; round up.
+                SolTx.NONCE_ACCOUNT_SPACE,
+                SolTx.SYSTEM_PROGRAM_ID,
+            );
+            let initIx = SolTx.initializeNonceIx(nonce, pool);
+
+            // 4. Fetch a recent blockhash (with retry).
+            let blockhash = switch (await fetchRecentBlockhashWithRetry(5)) {
+                case (?h) { h };
+                case (null) { return #Err("getLatestBlockhash failed after 5 retries") };
+            };
+
+            // 5. Compile + serialize the message.
+            let compiled = SolTx.compile(pool, blockhash, [createIx, initIx]);
+            let msgBytes = SolTx.serializeMessage(compiled);
+
+            // 6. Sign with pool + nonce derivation paths. The bootstrap tx
+            //    is unique in that BOTH the funder (pool) and the new
+            //    account (nonce) must sign.
+            let sigs = await SolSigner.signMulti(
+                keyId,
+                [derivationPathPool(), derivationPathNonce()],
+                msgBytes,
+            );
+
+            // 7. Assemble + broadcast.
+            let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
+            let sendRes = await solRpc.sendTransaction(
+                txBytes,
+                ?{
+                    skipPreflight = ?false;
+                    preflightCommitment = ?"confirmed";
+                    maxRetries = ?(3 : Nat64);
+                    encoding = ?"base64";
+                },
+                ?{ provider = ?solRpcProvider },
+            );
+            let txSig = switch (sendRes) {
+                case (#Ok(s)) { s };
+                case (#Err(e)) { return #Err("sendTransaction failed: " # rpcErrorText(e)) };
+            };
+
+            // 8. Fetch nonce account state to read the initial nonce value.
+            //    Try a few times — confirmation may lag the send.
+            var attempts : Nat = 0;
+            var initialNonce : ?Text = null;
+            while (attempts < 10 and initialNonce == null) {
+                let acctRes = await solRpc.getAccountInfo(nonce, ?{ commitment = ?"confirmed"; encoding = ?"base64" }, ?{ provider = ?solRpcProvider });
+                switch (acctRes) {
+                    case (#Ok(?account)) {
+                        initialNonce := parseNonceFromAccountData(account.data);
+                    };
+                    case (_) {};
+                };
+                attempts += 1;
+            };
+            switch (initialNonce) {
+                case (?n) {
+                    lastNonceValue := ?n;
+                    bootstrapped := true;
+                    #Ok("bootstrapped; nonce-account=" # nonce # " initial-nonce=" # n # " tx=" # txSig);
+                };
+                case (null) {
+                    #Err("createAccount+initializeNonceAccount broadcast as tx " # txSig # ", but getAccountInfo could not parse the nonce body after 10 retries. Inspect on devnet explorer and re-run bootstrap.");
+                };
+            };
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    /// Convenience: render an RpcError for #Err returns.
+    func rpcErrorText(e : SolRpc.RpcError) : Text {
+        switch (e) {
+            case (#ProviderError(m)) { "ProviderError: " # m };
+            case (#HttpOutcallError(m)) { "HttpOutcallError: " # m };
+            case (#JsonRpcError({ code; message })) { "JsonRpcError(" # Int.toText(code) # "): " # message };
+            case (#ConsensusError(m)) { "ConsensusError: " # m };
+            case (#ValidationError(m)) { "ValidationError: " # m };
+        };
     };
 
     public query func getPoolAddress() : async ?Text { poolAddress };
