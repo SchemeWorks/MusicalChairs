@@ -1362,3 +1362,26 @@ Plan complete and saved to `docs/superpowers/plans/2026-05-28-frontend-m2-solana
 2. **Inline Execution** — Execute tasks in this session using superpowers:executing-plans, batch execution with checkpoints.
 
 **Which approach?**
+
+---
+
+## Smoke test results (2026-05-28)
+
+Executed all 12 build tasks (subagent-driven) + a final code review (1 Important fix: SIWS mobile FAB; 1 hardening: non-finite SOL clamp; 1 UX fix: copyable Solana pubkey in WalletDropdown). Then ran the live devnet smoke test against the deployed M0/M1/M2 canisters.
+
+**Validated ✅**
+- SIWS sign-in end-to-end against live `siws_provider` (DelegationIdentity, deterministic principal).
+- Auto-select widget by `walletType`, DEVNET chip, copyable principal + Solana pubkey.
+- `prepareSolDeposit` → correct per-user derived deposit address + `solana:<addr>?amount=` QR + intentId.
+- Projected-PP math correct (0.05 SOL × 12,000 = 600, matches live MintConfig).
+- On-chain: two 0.05 SOL transfers **finalized** at the derived address (0.1 SOL total, funds safe).
+- **Local-dev gotcha:** `siwsSigner.ts` routes to a local replica when `hostname === 'localhost'`. Test against live canisters by serving the dev server via `http://127.0.0.1:5173` (flips `IS_LOCAL` false). Pre-existing footgun; key it off an env var in a follow-up.
+
+**Blocked ⛔ — backend M1 deposit detection (sealed, out of scope)**
+- `ponzi_math_sol` has **no deposit-detection timer** (no `Timer`/`heartbeat`); `runDepositDetection` is admin-only manual.
+- Admin-triggered `runDepositDetection` (as `CharlesPonzi`) returned `#Ok(0)` — credited nothing, despite the deposit being finalized on-chain and visible via public RPC. The `sol-rpc` multi-provider consensus path (`scanAddress`/`creditDeposit`) isn't surfacing finalized devnet deposits. Lines up with the known `unwrapMulti*`/`Inconsistent` follow-up. **This is the real production blocker for SOL deposits** and needs a dedicated backend session.
+- Downstream (observer mint → chat → UI) was NOT exercised because no position was ever credited. `adminCreditManualDeposit(player, plan, lamports)` is the operator escape hatch to credit manually if needed.
+
+**Frontend follow-ups surfaced**
+- `BuySOLFlyout` "N pending deposit awaiting confirmation" copy is misleading (it's an open intent, not funds in flight). Rework as part of the Invest-tab redesign below.
+- **Design:** SOL plan-opening belongs on the **Invest tab** (denomination-aware), not the Buy-PP-widget slot — `prepareSolDeposit` is semantically a plan-opener, not a PP purchase. Next: brainstorm the denomination-aware Invest-tab flow (the "ideal" pairs with the deferred Send-via-Phantom path).
