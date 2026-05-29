@@ -2244,9 +2244,17 @@ persistent actor class PonziMathSol(initArgs : {
 
         let intent = switch (matched) {
             case (null) {
-                // Unmatched deposit — log for admin review. DO NOT advance
-                // the cursor; operator resolves via adminCreditManualDeposit.
-                Debug.print("Unmatched deposit on " # sig.address # ": " # Nat64.toText(inboundLamports) # " lamports sig=" # sig.signature);
+                // Unmatched deposit: confirmed inbound, but no open intent
+                // matches the amount. Advance the cursor anyway — otherwise we
+                // re-scan it every tick AND, critically, a stale deposit could
+                // later match a NEW same-amount intent for the same principal
+                // and double-credit. Funds stay on the address and remain
+                // recoverable via adminCreditManualDeposit; the cursor only
+                // controls auto-detection, never fund recovery. (Normal flow
+                // is intent-before-deposit, so a genuine deposit is matched on
+                // the tick that observes it, before this branch is reached.)
+                Debug.print("Unmatched deposit on " # sig.address # ": " # Nat64.toText(inboundLamports) # " lamports sig=" # sig.signature # " (cursor advanced)");
+                lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
                 return #Ok(0);
             };
             case (?i) { i };
