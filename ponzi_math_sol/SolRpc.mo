@@ -570,7 +570,17 @@ module {
         };
     };
 
-    /// Extract the consistent send-transaction result, or return an Err text.
+    /// Extract the send-transaction signature, or return an Err text.
+    ///
+    /// Unlike the read methods, sendTransaction divergence across providers is
+    /// NORMAL and must not be treated as failure: the signature is deterministic
+    /// from the signed tx bytes, so any provider that returns #Ok carries THE
+    /// signature and the broadcast did reach the network. The others commonly
+    /// return transient errors ("already processed", rate-limit, timeout). If we
+    /// hard-failed on #Inconsistent we would misreport a successful send AND
+    /// leave the durable nonce desynced (the tx consumed the nonce on-chain).
+    /// So: accept the first provider that returns a signature; only fail when
+    /// EVERY provider errored.
     public func unwrapMultiSend(r : MultiSendTransactionResult) : { #Ok : Signature; #Err : Text } {
         switch (r) {
             case (#Consistent(inner)) {
@@ -579,8 +589,21 @@ module {
                     case (#Err(e)) { #Err(rpcErrorText(e)) };
                 };
             };
-            case (#Inconsistent(_)) {
-                #Err("Providers returned inconsistent send results");
+            case (#Inconsistent(results)) {
+                var firstOk : ?Signature = null;
+                var errs : Text = "";
+                for ((_, res) in results.vals()) {
+                    switch (res) {
+                        case (#Ok(sig)) {
+                            switch (firstOk) { case (null) { firstOk := ?sig }; case (_) {} };
+                        };
+                        case (#Err(e)) { errs := errs # " | " # rpcErrorText(e) };
+                    };
+                };
+                switch (firstOk) {
+                    case (?sig) { #Ok(sig) };
+                    case (null) { #Err("all providers failed to broadcast:" # errs) };
+                };
             };
         };
     };
