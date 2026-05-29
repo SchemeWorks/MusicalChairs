@@ -265,6 +265,23 @@ export interface PonziMathSol {
       { 'Err' : string }
   >,
   /**
+   * / Admin: start (or restart) the auto-detection timer.
+   */
+  'adminStartDetectionTimer' : ActorMethod<
+    [],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
+  /**
+   * / Admin: stop the auto-detection timer. Manual runDepositDetection and
+   * / adminCreditManualDeposit still work while it is stopped.
+   */
+  'adminStopDetectionTimer' : ActorMethod<
+    [],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
+  /**
    * / Admin: retry the sweep from a per-user deposit address to the pool.
    * / Use when creditDeposit credited the game but sweepToPool failed
    * / (Debug.print'd "Sweep failed for ..."). Looks up the principal,
@@ -300,7 +317,7 @@ export interface PonziMathSol {
   'calculateEarnings' : ActorMethod<[GameRecord], number>,
   'checkDepositRateLimit' : ActorMethod<[], boolean>,
   'claimBackerRepayment' : ActorMethod<
-    [],
+    [[] | [string]],
     { 'Ok' : number } |
       { 'Err' : string }
   >,
@@ -318,6 +335,18 @@ export interface PonziMathSol {
   'getCurrentRoundId' : ActorMethod<[], bigint>,
   'getDaysActive' : ActorMethod<[], bigint>,
   'getDepositAddressFor' : ActorMethod<[Principal], [] | [string]>,
+  /**
+   * / Status of the auto-detection timer and the open-intent backlog.
+   */
+  'getDetectionStatus' : ActorMethod<
+    [],
+    {
+      'intervalSeconds' : bigint,
+      'openIntents' : bigint,
+      'timerArmed' : boolean,
+      'inProgress' : boolean,
+    }
+  >,
   'getGameById' : ActorMethod<[bigint], [] | [GameRecord]>,
   'getGameResetHistory' : ActorMethod<[], Array<GameResetRecord>>,
   'getGeneralLedger' : ActorMethod<[], Array<GeneralLedgerEntry>>,
@@ -368,10 +397,12 @@ export interface PonziMathSol {
       { 'Err' : string }
   >,
   /**
-   * / Admin-callable detection sweep. Iterates every known deposit
-   * / address, fetches new signatures past the per-address cursor,
-   * / credits matching intents, sweeps to pool. Returns the count of
-   * / new GameRecords created (zero is normal when nothing arrived).
+   * / Admin-callable manual detection sweep. Scans EVERY known deposit
+   * / address (not just those with open intents) so the operator can use it
+   * / for diagnostics / recovery. Returns the count of new GameRecords
+   * / created (zero is normal when nothing arrived). Shares the
+   * / detectionInProgress guard with the auto-detection timer so the two
+   * / never run concurrently.
    */
   'runDepositDetection' : ActorMethod<
     [],
@@ -390,12 +421,12 @@ export interface PonziMathSol {
     }
   >,
   'settleCompoundingGame' : ActorMethod<
-    [bigint],
+    [bigint, [] | [string]],
     { 'Ok' : number } |
       { 'Err' : string }
   >,
   'withdrawEarnings' : ActorMethod<
-    [bigint],
+    [bigint, [] | [string]],
     { 'Ok' : number } |
       { 'Err' : string }
   >,

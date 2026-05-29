@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames } from '../hooks/useQueries';
+import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames, useWithdrawSolGameEarnings } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
 import { formatSOL } from '../solana/lamports';
@@ -258,7 +258,7 @@ interface GameTrackingProps {
 
 export default function GameTracking({ onNavigateToGameSetup, onTabChange, visible = true }: GameTrackingProps) {
   const { data: games, isLoading, error } = useGetUserGames();
-  const { walletType } = useWallet();
+  const { walletType, solanaPubkey } = useWallet();
   const solGamesQuery = useGetUserSolGames();
   const solGames: SolGameRecord[] = walletType === 'siws' ? (solGamesQuery.data ?? []) : [];
   const { data: ponziData } = useGetPonziPoints();
@@ -270,6 +270,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const portfolio = useLivePortfolio(games);
   const withdrawMutation = useWithdrawGameEarnings();
   const settleMutation = useSettleCompoundingGame();
+  const solWithdrawMutation = useWithdrawSolGameEarnings();
   const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
 
   // Collapse state — both sections start closed
@@ -305,6 +306,19 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
       setReinvestDialogOpen(true);
     } catch (err) {
       console.error('Withdrawal failed:', err);
+    }
+  };
+
+  // SOL positions pay out directly to the connected Phantom wallet (no toll
+  // dialog — the SOL plans have their own fee schedule applied server-side).
+  // The mutation refuses to run without a connected SIWS pubkey, so funds can
+  // never be sent to the unspendable canister-derived deposit address.
+  const handleSolWithdraw = async (game: SolGameRecord) => {
+    try {
+      await solWithdrawMutation.mutateAsync({ gameId: game.id, isCompounding: game.isCompounding });
+      triggerConfetti();
+    } catch (err) {
+      console.error('SOL withdrawal failed:', err);
     }
   };
 
@@ -413,6 +427,9 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                 // "0.0000 SOL" rather than throwing inside .map() and white-screening the panel.
                 const toLamports = (sol: number) =>
                   BigInt(Math.max(0, Math.round(Number.isFinite(sol) ? sol * 1_000_000_000 : 0)));
+                const solPending =
+                  solWithdrawMutation.isPending &&
+                  solWithdrawMutation.variables?.gameId === game.id;
                 return (
                   <div key={game.id.toString()} className="mc-card p-3">
                     <div className="flex items-center justify-between mb-2">
@@ -433,20 +450,33 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
                     </div>
                     <div className="mt-3 flex justify-end">
                       <Button
-                        disabled
+                        onClick={() => handleSolWithdraw(game)}
+                        disabled={solPending || !solanaPubkey}
                         size="sm"
                         variant="secondary"
-                        title="SOL withdrawals coming soon — backend M1.5"
+                        title={
+                          !solanaPubkey
+                            ? 'Reconnect your Solana wallet to withdraw'
+                            : game.isCompounding
+                              ? 'Settle this compounding position to your Phantom wallet'
+                              : 'Withdraw to your Phantom wallet'
+                        }
                       >
-                        <ArrowDownCircle className="h-3 w-3 mr-1" /> Withdraw
+                        <ArrowDownCircle className="h-3 w-3 mr-1" />
+                        {solPending ? 'Processing…' : game.isCompounding ? 'Settle' : 'Withdraw'}
                       </Button>
                     </div>
                   </div>
                 );
               })}
             </div>
+            {solWithdrawMutation.isError && (
+              <div className="mt-3 mc-status-red p-2 text-xs text-center">
+                {solWithdrawMutation.error?.message || 'SOL withdrawal failed'}
+              </div>
+            )}
             <div className="mt-3 text-[10px] mc-text-muted italic text-center">
-              Withdrawals disabled in M2 — re-enabled once ponzi_math_sol.withdrawEarnings accepts a target address parameter (backend M1.5).
+              Withdrawals are sent to your connected Phantom wallet on Solana devnet.
             </div>
           </div>
         )}

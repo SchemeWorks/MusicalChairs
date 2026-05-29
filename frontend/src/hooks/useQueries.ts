@@ -2420,3 +2420,41 @@ export function usePrepareSolDeposit() {
     },
   });
 }
+
+// Cash out a SOL position to the user's OWN Solana wallet. Simple positions
+// route through withdrawEarnings; compounding positions through
+// settleCompoundingGame — the backend rejects the wrong method per game type
+// (see ponzi_math_sol withdrawEarnings/settleCompoundingGame guards), so we
+// branch on isCompounding here exactly as the ICP path does.
+//
+// CRITICAL: targetAddress must be the user's connected Phantom pubkey. If it is
+// omitted the canister falls back to the caller's canister-derived deposit
+// address, which is canister-controlled and UNSPENDABLE by the user — the funds
+// would be paid out to an address they can't touch. We therefore refuse to
+// submit without a connected SIWS Solana pubkey rather than risk that.
+export function useWithdrawSolGameEarnings() {
+  const { actor } = usePonziMathSolActor();
+  const { principal, solanaPubkey } = useWallet();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { gameId: bigint; isCompounding: boolean }) => {
+      if (!actor) throw new Error('SOL actor not ready');
+      if (!principal) throw new Error('Not authenticated');
+      if (!solanaPubkey) {
+        throw new Error('No connected Solana wallet address — reconnect your Phantom wallet to withdraw.');
+      }
+      const target: [string] = [solanaPubkey]; // candid `opt text` -> [] | [string]
+      const result = args.isCompounding
+        ? await actor.settleCompoundingGame(args.gameId, target)
+        : await actor.withdrawEarnings(args.gameId, target);
+      if ('Err' in result) throw new Error(result.Err);
+      return { earnings: result.Ok, gameId: args.gameId };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['userSolGames'] });
+      queryClient.invalidateQueries({ queryKey: ['mySolPendingIntents'] });
+      queryClient.invalidateQueries({ queryKey: ['mySolDepositAddress'] });
+    },
+  });
+}
