@@ -94,6 +94,17 @@ type PonziMathSol =
                                                   Err: text;
                                                   Ok;
                                                 });
+   /// Admin: start (or restart) the auto-detection timer.
+   adminStartDetectionTimer: () -> (variant {
+                                      Err: text;
+                                      Ok: text;
+                                    });
+   /// Admin: stop the auto-detection timer. Manual runDepositDetection and
+   /// adminCreditManualDeposit still work while it is stopped.
+   adminStopDetectionTimer: () -> (variant {
+                                     Err: text;
+                                     Ok: text;
+                                   });
    /// Admin: retry the sweep from a per-user deposit address to the pool.
    /// Use when creditDeposit credited the game but sweepToPool failed
    /// (Debug.print'd "Sweep failed for ..."). Looks up the principal,
@@ -124,10 +135,11 @@ type PonziMathSol =
    calculateCompoundedROI: () -> (float64) query;
    calculateEarnings: (game: GameRecord) -> (float64) query;
    checkDepositRateLimit: () -> (bool) query;
-   claimBackerRepayment: () -> (variant {
-                                  Err: text;
-                                  Ok: float64;
-                                });
+   claimBackerRepayment: (targetAddress: opt text) ->
+    (variant {
+       Err: text;
+       Ok: float64;
+     });
    getActiveGameCount: () -> (nat) query;
    getAllActiveGames: () -> (vec GameRecord) query;
    getAllBackerRepayments: () -> (vec record {
@@ -145,6 +157,14 @@ type PonziMathSol =
    getCurrentRoundId: () -> (nat) query;
    getDaysActive: () -> (nat) query;
    getDepositAddressFor: (p: principal) -> (opt text) query;
+   /// Status of the auto-detection timer and the open-intent backlog.
+   getDetectionStatus: () ->
+    (record {
+       inProgress: bool;
+       intervalSeconds: nat;
+       openIntents: nat;
+       timerArmed: bool;
+     }) query;
    getGameById: (gameId: nat) -> (opt GameRecord) query;
    getGameResetHistory: () -> (vec GameResetRecord) query;
    getGeneralLedger: () -> (vec GeneralLedgerEntry) query;
@@ -200,10 +220,12 @@ type PonziMathSol =
              intentId: nat;
            };
      });
-   /// Admin-callable detection sweep. Iterates every known deposit
-   /// address, fetches new signatures past the per-address cursor,
-   /// credits matching intents, sweeps to pool. Returns the count of
-   /// new GameRecords created (zero is normal when nothing arrived).
+   /// Admin-callable manual detection sweep. Scans EVERY known deposit
+   /// address (not just those with open intents) so the operator can use it
+   /// for diagnostics / recovery. Returns the count of new GameRecords
+   /// created (zero is normal when nothing arrived). Shares the
+   /// detectionInProgress guard with the auto-detection timer so the two
+   /// never run concurrently.
    runDepositDetection: () -> (variant {
                                  Err: text;
                                  Ok: nat;
@@ -217,14 +239,16 @@ type PonziMathSol =
        u64Le_1: vec nat8;
        u64Le_1B: vec nat8;
      }) query;
-   settleCompoundingGame: (gameId: nat) -> (variant {
-                                              Err: text;
-                                              Ok: float64;
-                                            });
-   withdrawEarnings: (gameId: nat) -> (variant {
-                                         Err: text;
-                                         Ok: float64;
-                                       });
+   settleCompoundingGame: (gameId: nat, targetAddress: opt text) ->
+    (variant {
+       Err: text;
+       Ok: float64;
+     });
+   withdrawEarnings: (gameId: nat, targetAddress: opt text) ->
+    (variant {
+       Err: text;
+       Ok: float64;
+     });
  };
 type PlatformStats = 
  record {

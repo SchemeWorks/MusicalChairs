@@ -264,6 +264,16 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'adminStartDetectionTimer' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminStopDetectionTimer' : IDL.Func(
+        [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [],
+      ),
     'adminSweepDepositAddress' : IDL.Func(
         [IDL.Text],
         [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
@@ -293,7 +303,7 @@ export const idlFactory = ({ IDL }) => {
     'calculateEarnings' : IDL.Func([GameRecord], [IDL.Float64], ['query']),
     'checkDepositRateLimit' : IDL.Func([], [IDL.Bool], ['query']),
     'claimBackerRepayment' : IDL.Func(
-        [],
+        [IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
         [],
       ),
@@ -321,6 +331,18 @@ export const idlFactory = ({ IDL }) => {
     'getDepositAddressFor' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getDetectionStatus' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'intervalSeconds' : IDL.Nat,
+            'openIntents' : IDL.Nat,
+            'timerArmed' : IDL.Bool,
+            'inProgress' : IDL.Bool,
+          }),
+        ],
         ['query'],
       ),
     'getGameById' : IDL.Func([IDL.Nat], [IDL.Opt(GameRecord)], ['query']),
@@ -435,12 +457,12 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'settleCompoundingGame' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Nat, IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
         [],
       ),
     'withdrawEarnings' : IDL.Func(
-        [IDL.Nat],
+        [IDL.Nat, IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
         [],
       ),

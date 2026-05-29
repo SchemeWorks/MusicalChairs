@@ -13,6 +13,9 @@ export interface WalletState {
   walletType: WalletType;
   identity: Identity | null;
   principal: string | null;
+  // Base58 Solana pubkey for SIWS sessions (null for every other wallet type).
+  // Needed as the payout target for SOL withdrawals — see useWithdrawSolGameEarnings.
+  solanaPubkey: string | null;
   isConnected: boolean;
   isConnecting: boolean;
   isInitializing: boolean;
@@ -133,6 +136,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [walletType, setWalletType] = useState<WalletType>('none');
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [principal, setPrincipal] = useState<string | null>(null);
+  const [solanaPubkey, setSolanaPubkey] = useState<string | null>(null);
   const [isConnecting, setIsConnecting] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
@@ -205,6 +209,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
         if (connection) {
           setIdentity(connection.identity);
           setPrincipal(connection.principal);
+          setSolanaPubkey(connection.solanaPubkey);
           setWalletType('siws');
         } else {
           // Session expired or saved state was corrupted — downgrade cleanly.
@@ -417,6 +422,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
     setIdentity(connection.identity);
     setPrincipal(connection.principal);
+    setSolanaPubkey(connection.solanaPubkey);
     setWalletType('siws');
   };
 
@@ -445,6 +451,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     setWalletType('none');
     setIdentity(null);
     setPrincipal(null);
+    setSolanaPubkey(null);
     localStorage.removeItem('musical-chairs-wallet-type');
 
     // Reload to clear all cached state
@@ -505,6 +512,7 @@ export function WalletProvider({ children }: WalletProviderProps) {
     walletType,
     identity,
     principal,
+    solanaPubkey,
     isConnected,
     isConnecting,
     isInitializing,
