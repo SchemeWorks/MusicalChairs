@@ -1,0 +1,449 @@
+type TrustedOriginsResponse = record {trusted_origins: vec text;};
+type StandardRecord = 
+ record {
+   name: text;
+   url: text;
+ };
+type SchnorrAlgorithm = 
+ variant {
+   bip340secp256k1;
+   ed25519;
+ };
+type RoundSummary = 
+ record {
+   endReason: opt text;
+   endTime: opt int;
+   eventCount: nat;
+   roundId: nat;
+   seedReserveCarried: float64;
+   startTime: int;
+ };
+type Provider = 
+ variant {
+   devnet;
+   mainnet;
+ };
+type PonziMathSol = 
+ service {
+   adminClearAllBackerPositions: () -> (variant {
+                                          Err: text;
+                                          Ok;
+                                        });
+   /// Admin: manually credit an unmatched / TTL-expired SOL deposit.
+   /// `lamports` is the gross detected amount; cover charge is
+   /// computed at the standard 4% rate. Used to clear admin-review
+   /// entries flagged by creditDeposit when no intent matched.
+   adminCreditManualDeposit: (player: principal, plan: GamePlan, lamports:
+    nat64) -> (variant {
+                 Err: text;
+                 Ok: nat;
+               });
+   /// Admin-callable: derive the pool address via threshold-Schnorr and
+   /// cache it. Idempotent — subsequent calls just return the cached
+   /// value. Must be called once before bootstrap() so the operator can
+   /// fund the pool.
+   adminDerivePoolAddress: () -> (variant {
+                                    Err: text;
+                                    Ok: text;
+                                  });
+   adminForceReset: (reason: text) -> (variant {
+                                         Err: text;
+                                         Ok;
+                                       });
+   adminGetActivePlansSnapshot: () -> (vec ActivePlanSnapshot) query;
+   adminGetAllIntents: () -> (vec DepositIntent) query;
+   adminGetCurrentRoundId: () -> (nat) query;
+   adminGetEventsByRound: (roundId: nat) -> (vec GeneralLedgerEntry) query;
+   adminGetEventsForGame: (gameId: nat) -> (vec GeneralLedgerEntry) query;
+   adminGetRoundSummaries: () -> (vec RoundSummary) query;
+   adminIsAdmin: () -> (bool) query;
+   /// Admin: mark the canister as bootstrapped from on-chain state.
+   /// Use when the bootstrap tx broadcast succeeded on Solana but the
+   /// IC-side bookkeeping didn't commit (e.g. decode trap on a stale
+   /// sol-rpc binding). Reads the nonce account, parses the initial
+   /// nonce, sets `lastNonceValue` and flips `bootstrapped := true`.
+   /// Idempotent.
+   adminMarkBootstrapped: () -> (variant {
+                                   Err: text;
+                                   Ok: text;
+                                 });
+   adminMergeBackerPosition: (from: principal, to: principal) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
+   /// Admin: refresh the cached nonce by reading account info on-chain.
+   /// Use to recover from a nonce desync (e.g., broadcast succeeded but
+   /// the local nonce-refresh read failed). Idempotent.
+   adminRefreshNonce: () -> (variant {
+                               Err: text;
+                               Ok: text;
+                             });
+   /// Admin: record a Series A backer position for `owner` of `amount`
+   /// SOL. Use ONCE at deploy to register the operator's pre-deposited
+   /// pool seed. Mirrors ponzi_math.addBackerMoney's bookkeeping but
+   /// skips the synchronous transfer-from (the SOL is already on the
+   /// pool address, deposited out-of-band by the operator).
+   adminRegisterSeriesABacker: (owner: principal, amount: float64) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
+   /// Admin: update solTreasuryAddress (the destination of payManagementSol).
+   adminSetSolTreasuryAddress: (addr: text) -> (variant {
+                                                  Err: text;
+                                                  Ok;
+                                                });
+   /// Admin: retry the sweep from a per-user deposit address to the pool.
+   /// Use when creditDeposit credited the game but sweepToPool failed
+   /// (Debug.print'd "Sweep failed for ..."). Looks up the principal,
+   /// reads the current on-chain balance, and reissues the sweep tx.
+   /// Safe to call repeatedly — if the balance is already at dust,
+   /// returns an error rather than building a no-op tx.
+   adminSweepDepositAddress: (address: text) ->
+    (variant {
+       Err: text;
+       Ok: text;
+     });
+   /// Admin: compute the difference between the pool address's actual
+   /// on-chain balance and the sum of internal accounting (pot +
+   /// roundSeedReserve + repayments + coverChargeAccrual). If positive
+   /// (untracked dust), send it to the testAdmin's deposit address.
+   /// No-op otherwise.
+   adminSweepUntracked: () -> (variant {
+                                 Err: text;
+                                 Ok: text;
+                               });
+   bootstrap: (recentBlockhashOverride: opt text) ->
+    (variant {
+       Err: text;
+       Ok: text;
+     });
+   calculateCompounded30DayEarnings: (game: GameRecord) -> (float64) query;
+   calculateCompoundedEarnings: (game: GameRecord) -> (float64) query;
+   calculateCompoundedROI: () -> (float64) query;
+   calculateEarnings: (game: GameRecord) -> (float64) query;
+   checkDepositRateLimit: () -> (bool) query;
+   claimBackerRepayment: () -> (variant {
+                                  Err: text;
+                                  Ok: float64;
+                                });
+   getActiveGameCount: () -> (nat) query;
+   getAllActiveGames: () -> (vec GameRecord) query;
+   getAllBackerRepayments: () -> (vec record {
+                                        BackerKey;
+                                        float64;
+                                      }) query;
+   getAllGames: () -> (vec GameRecord) query;
+   getAvailableBalance: () -> (float64) query;
+   getBackerPositions: () -> (vec BackerPosition) query;
+   getBackerRepaymentBalance: () -> (float64) query;
+   getBackerRepaymentBalanceFor: (user: principal) -> (float64) query;
+   getCanisterSolBalance: () -> (nat64);
+   getCoverChargeAccrualLamports: () -> (nat64) query;
+   getCoverChargeBalance: () -> (nat) query;
+   getCurrentRoundId: () -> (nat) query;
+   getDaysActive: () -> (nat) query;
+   getDepositAddressFor: (p: principal) -> (opt text) query;
+   getGameById: (gameId: nat) -> (opt GameRecord) query;
+   getGameResetHistory: () -> (vec GameResetRecord) query;
+   getGeneralLedger: () -> (vec GeneralLedgerEntry) query;
+   getGeneralLedgerPage: (offset: nat, limit: nat) ->
+    (record {
+       entries: vec GeneralLedgerEntry;
+       total: nat;
+     }) query;
+   getGeneralLedgerStats: () ->
+    (record {
+       entryCount: nat;
+       netFlow: float64;
+       totalInflows: float64;
+       totalOutflows: float64;
+     }) query;
+   getMaxDepositLimit: () -> (float64) query;
+   getMyDepositAddress: () -> (opt text) query;
+   getMyPendingIntents: () -> (vec DepositIntent) query;
+   getNonceAccountAddress: () -> (opt text) query;
+   getOldestSeriesABacker: () -> (opt BackerPosition) query;
+   getOrCreateDepositAddress: () -> (variant {
+                                       Err: text;
+                                       Ok: text;
+                                     });
+   getPlatformStats: () -> (PlatformStats) query;
+   getPoolAddress: () -> (opt text) query;
+   getRoundSeedReserve: () -> (float64) query;
+   getSolTreasuryAddress: () -> (text) query;
+   getTotalBackerDebt: () -> (float64) query;
+   getTotalDeposits: () -> (float64) query;
+   getTotalWithdrawals: () -> (float64) query;
+   getUserGames: () -> (vec GameRecord) query;
+   getUserGamesFor: (user: principal) -> (vec GameRecord) query;
+   icrc10_supported_standards: () -> (vec StandardRecord) query;
+   icrc21_canister_call_consent_message: (request: ConsentMessageRequest) ->
+    (ConsentMessageResponse);
+   icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
+   isBootstrapped: () -> (bool) query;
+   isCriticalSectionBusy: () -> (bool) query;
+   payManagementSol: () -> (variant {
+                              Err: text;
+                              Ok: text;
+                            });
+   prepareSolDeposit: (args:
+    record {
+      expectedAmountLamports: nat64;
+      plan: GamePlan;
+    }) ->
+    (variant {
+       Err: text;
+       Ok: record {
+             depositAddress: text;
+             intentId: nat;
+           };
+     });
+   /// Admin-callable detection sweep. Iterates every known deposit
+   /// address, fetches new signatures past the per-address cursor,
+   /// credits matching intents, sweeps to pool. Returns the count of
+   /// new GameRecords created (zero is normal when nothing arrived).
+   runDepositDetection: () -> (variant {
+                                 Err: text;
+                                 Ok: nat;
+                               });
+   selfTestBase58: () -> (bool) query;
+   selfTestSolTx: () ->
+    (record {
+       compactU16_128: vec nat8;
+       compactU16_300: vec nat8;
+       compactU16_42: vec nat8;
+       u64Le_1: vec nat8;
+       u64Le_1B: vec nat8;
+     }) query;
+   settleCompoundingGame: (gameId: nat) -> (variant {
+                                              Err: text;
+                                              Ok: float64;
+                                            });
+   withdrawEarnings: (gameId: nat) -> (variant {
+                                         Err: text;
+                                         Ok: float64;
+                                       });
+ };
+type PlatformStats = 
+ record {
+   activeGames: nat;
+   daysActive: nat;
+   potBalance: float64;
+   totalDeposits: float64;
+   totalWithdrawals: float64;
+ };
+type LineDisplayPage = record {lines: vec text;};
+type KeyId = 
+ record {
+   algorithm: SchnorrAlgorithm;
+   name: text;
+ };
+type Icrc21Error = 
+ variant {
+   ConsentMessageUnavailable: record {description: text;};
+   GenericError: record {
+                   description: text;
+                   error_code: nat;
+                 };
+   UnsupportedCanisterCall: record {description: text;};
+ };
+type GeneralLedgerEvent = 
+ variant {
+   backdatedGameCreated:
+    record {
+      admin: principal;
+      amount: float64;
+      gameId: nat;
+      player: principal;
+      startTime: int;
+    };
+   backerDeposit:
+    record {
+      amount: float64;
+      backer: principal;
+      entitlement: float64;
+    };
+   backerRepaymentClaim: record {
+                           amount: float64;
+                           backer: principal;
+                         };
+   coverChargeAccrued: record {
+                         amountE8s: nat;
+                         gameId: nat;
+                         player: principal;
+                       };
+   coverChargeSwept:
+    record {
+      amountE8s: nat;
+      blockIndex: nat;
+      toBackend: principal;
+    };
+   deposit:
+    record {
+      coverCharge: float64;
+      gameId: nat;
+      gross: float64;
+      isCompounding: bool;
+      netToPot: float64;
+      plan: GamePlan;
+      player: principal;
+    };
+   gameReset: record {
+                reason: text;
+                seedReserveCarried: float64;
+              };
+   seriesBPromotion:
+    record {
+      entitlement: float64;
+      owner: principal;
+      underwater: float64;
+    };
+   settlement:
+    record {
+      gameId: nat;
+      grossEarnings: float64;
+      isInsolvent: bool;
+      netToPlayer: float64;
+      player: principal;
+      potDeduction: float64;
+      toll: float64;
+    };
+   tollDistribution:
+    record {
+      toAllBackers: float64;
+      toOldestSeriesA: float64;
+      toOtherSeriesA: float64;
+      toSeedReserve: float64;
+      tollAmount: float64;
+    };
+   withdrawal:
+    record {
+      gameId: nat;
+      grossEarnings: float64;
+      isInsolvent: bool;
+      netToPlayer: float64;
+      player: principal;
+      potDeduction: float64;
+      toll: float64;
+    };
+ };
+type GeneralLedgerEntry = 
+ record {
+   event: GeneralLedgerEvent;
+   id: nat;
+   roundId: nat;
+   timestamp: int;
+ };
+type GameResetRecord = 
+ record {
+   reason: text;
+   resetTime: int;
+ };
+type GameRecord = 
+ record {
+   accumulatedEarnings: float64;
+   amount: float64;
+   id: nat;
+   isActive: bool;
+   isCompounding: bool;
+   lastUpdateTime: int;
+   plan: GamePlan;
+   player: principal;
+   startTime: int;
+   totalWithdrawn: float64;
+ };
+type GamePlan = 
+ variant {
+   compounding15Day;
+   compounding30Day;
+   simple21Day;
+ };
+type DeviceSpec = 
+ variant {
+   GenericDisplay;
+   LineDisplay: record {
+                  characters_per_line: nat16;
+                  lines_per_page: nat16;
+                };
+ };
+type DepositIntent = 
+ record {
+   createdAt: int;
+   expectedAmountLamports: nat64;
+   expiresAt: int;
+   fulfilled: bool;
+   id: nat;
+   plan: GamePlan;
+   "principal": principal;
+ };
+type ConsentMessageSpec = 
+ record {
+   device_spec: opt DeviceSpec;
+   metadata: ConsentMessageMetadata;
+ };
+type ConsentMessageResponse = 
+ variant {
+   Err: Icrc21Error;
+   Ok: ConsentInfo;
+ };
+type ConsentMessageRequest = 
+ record {
+   arg: blob;
+   method: text;
+   user_preferences: ConsentMessageSpec;
+ };
+type ConsentMessageMetadata = 
+ record {
+   language: text;
+   utc_offset_minutes: opt int16;
+ };
+type ConsentMessage = 
+ variant {
+   GenericDisplayMessage: text;
+   LineDisplayMessage: record {pages: vec LineDisplayPage;};
+ };
+type ConsentInfo = 
+ record {
+   consent_message: ConsentMessage;
+   metadata: ConsentMessageMetadata;
+ };
+type BackerType = 
+ variant {
+   seriesA;
+   seriesB;
+ };
+type BackerPosition = 
+ record {
+   amount: float64;
+   backerType: BackerType;
+   entitlement: float64;
+   firstDepositDate: opt int;
+   isActive: bool;
+   owner: principal;
+   startTime: int;
+ };
+type BackerKey = 
+ record {
+   principal;
+   BackerType;
+ };
+type ActivePlanSnapshot = 
+ record {
+   currentExitToll: float64;
+   currentGrossEarnings: float64;
+   currentNetClaimable: float64;
+   daysElapsed: float64;
+   daysToMaturity: float64;
+   game: GameRecord;
+   isMatured: bool;
+   wouldBeInsolvent: bool;
+ };
+service : (initArgs: record {
+                       backendPrincipal: principal;
+                       keyId: KeyId;
+                       solRpcProvider: Provider;
+                       solTreasuryAddress: text;
+                       testAdmin: principal;
+                     }) -> PonziMathSol

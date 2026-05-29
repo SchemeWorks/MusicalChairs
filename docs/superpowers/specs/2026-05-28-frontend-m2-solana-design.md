@@ -1,0 +1,320 @@
+# Frontend M2 — Solana Chain Fusion — Design Spec
+
+**Date:** 2026-05-28
+**Scope:** The frontend half of Solana chain fusion. Backend M0 (`siws_provider`), M1 (`ponzi_math_sol`), and M2 (shenanigans observer) are deployed on devnet as of 2026-05-28 via [PR #92](https://github.com/SchemeWorks/musicalchairs/pull/92). This spec covers the React app changes that surface SOL deposits, withdrawals, and SIWS sign-in to end users.
+**Predecessor:** [`2026-05-25-solana-chain-fusion-design.md`](2026-05-25-solana-chain-fusion-design.md) — the parent spec covering the whole chain fusion design. This document expands its §"Frontend changes" section (around line 461).
+**Out of scope:** Real-SOL mainnet (M3), Send-via-Phantom one-click flow (V2 follow-up), account linking II↔SIWS (V2+).
+
+---
+
+## Goal
+
+A Phantom (devnet) user signs in with their Solana wallet, sees a derived deposit address, sends devnet SOL, sees the shenanigans observer mint Ponzi Points, and sees the chat announce their join with the right denomination. This exercises the full M0 + M1 + M2 + Frontend M2 chain end-to-end.
+
+## Non-goals
+
+- Mainnet SOL handling.
+- Bridging ICP and SOL principals for the same human (each is a separate game account, per parent spec line 25).
+- Refactoring the existing `BuyPP*` widgets to be denomination-agnostic.
+- Per-row chain badges in chat (parent spec line 498 forbids them — denomination renders on the amount only).
+
+---
+
+## Architecture
+
+The change is additive on top of the multi-wallet infrastructure already in place. [`useWallet.tsx`](frontend/src/hooks/useWallet.tsx) already tracks `walletType: 'siws'`, [`WalletConnectModal.tsx`](frontend/src/components/WalletConnectModal.tsx) already lists Phantom, and [`WalletDropdown.tsx`](frontend/src/components/WalletDropdown.tsx) already truncates a base58 pubkey from `localStorage`. What's missing is the implementation behind the `siws` wallet type and the SOL-denominated game UX.
+
+### Three new modules
+
+1. **`solana/` subtree** under `frontend/src/` — self-contained Solana integration boundary. Houses the `@solana/wallet-adapter` provider tree, the `signInWithSolana()` orchestrator, and the lamport / base58 helpers. Bundle-isolated for code-splitting.
+2. **`usePonziMathSolActor.ts`** — mirrors [`usePonziMathActor.ts`](frontend/src/hooks/usePonziMathActor.ts). Same pattern: anonymous read actor + authenticated actor created from `useWallet`'s identity. Pulls IDL from generated `frontend/src/declarations/ponzi_math_sol/`.
+3. **`BuySOLFlyout.tsx` / `BuySOLWidget.tsx`** — clones of the BuyPP pair, calling `ponzi_math_sol.prepareSolDeposit({ plan, expectedAmountLamports })` instead of the ICP path. Renders a deposit address + QR (`solana:<addr>?amount=<sol>`) using the existing `qrcode.react` dependency.
+
+### Code-split (Option C — eager on returning SIWS)
+
+A `solana/lazy.ts` module exports `loadSolanaProviderTree()` returning a dynamic `import('./SolanaProviderTree')`. App boot reads `localStorage.getItem('musical-chairs-siws-pubkey')` — if present, the import is fired in the background during idle. When the SIWS button or `BuySOLFlyout` needs the provider, `React.lazy` resolves immediately from cache. II-only users with no prior SIWS history never trigger the import.
+
+**Why C over A**: smoother re-auth UX when a returning SIWS user's delegation has expired. The cost — ~200 KB gzipped of bandwidth per returning session — is acceptable for users who already opted into the chain. A is strictly simpler (~10 lines), but A is a subset of C; the boot-check hook can be added incrementally without rework.
+
+### Cross-package boundary
+
+`DelegationIdentity` + `Ed25519KeyIdentity` come from `@dfinity/identity`. `Actor` + `HttpAgent` come from `@dfinity/agent`. Both from the `@dfinity/*` family — no mixing with `@icp-sdk/*`. The Oisy integration memo (memory `project_oisy_integration`) warned about the Certificate mismatch that comes from mixing those families; this spec stays inside `@dfinity/*` exclusively.
+
+---
+
+## Components
+
+### New files
+
+```
+frontend/src/
+├── solana/
+│   ├── SolanaProviderTree.tsx       # ConnectionProvider + WalletProvider + WalletModalProvider wrapper
+│   ├── signInWithSolana.ts          # Orchestrator: Phantom signMessage → siws_provider.siws_login → DelegationIdentity
+│   ├── lazy.ts                      # loadSolanaProviderTree() entry point; idle prefetch hook
+│   ├── lamports.ts                  # formatSOL (9 decimals), parseSOL, lamportsToString
+│   └── base58.ts                    # truncateSolanaPubkey, isValidSolanaAddress (base58 + length)
+├── hooks/
+│   ├── usePonziMathSolActor.ts      # mirrors usePonziMathActor.ts
+│   └── useSiwsProviderActor.ts      # anonymous-only; used only during sign-in
+├── components/Shenanigans/
+│   ├── BuySOLFlyout.tsx             # mirrors BuyPPFlyout
+│   └── BuySOLWidget.tsx             # mirrors BuyPPWidget shell
+└── declarations/
+    ├── ponzi_math_sol/              # generated by `dfx generate ponzi_math_sol`
+    └── siws_provider/               # generated by `dfx generate siws_provider`
+```
+
+### Existing files touched
+
+| File | Change |
+|---|---|
+| [`useWallet.tsx`](frontend/src/hooks/useWallet.tsx) | Implement the SIWS branch of `connect()`: lazy-load `solana/signInWithSolana`, run it, set `walletType='siws'` + identity + principal. Add idle prefetch hook for Option C. Add `PONZI_MATH_SOL_CANISTER_ID` + `SIWS_PROVIDER_CANISTER_ID` to `PLUG_WHITELIST`. |
+| [`WalletConnectModal.tsx`](frontend/src/components/WalletConnectModal.tsx) | Wire the existing Phantom button to call `connect('siws')`. |
+| [`WalletDropdown.tsx`](frontend/src/components/WalletDropdown.tsx) | Already renders base58 pubkey for SIWS. Add: `formatSOL` import, withdrawal-target picker entry. **Skip on-chain SOL balance row in V1** (would require a Solana RPC call from the frontend boot path — user can check Phantom for SOL holdings). Consolidate any locally-defined `truncateSolanaPubkey` into the new `solana/base58.ts` and re-import. |
+| [`App.tsx`](frontend/src/App.tsx) | Add a new DEVNET chip render (separate from the existing Admin Tools "Charles" chip), guarded by `walletType==='siws'`. Conditional render of `BuyPPWidget` vs `BuySOLWidget` based on `walletType` (auto-select by auth source). |
+| [`gameConstants.ts`](frontend/src/lib/gameConstants.ts) | Add `PP_PER_SOL_SIMPLE`, `PP_PER_SOL_COMPOUND_15`, `PP_PER_SOL_COMPOUND_30`, `PP_PER_SOL_BACKER`. **Source the actual numbers from the M2 deploy's live MintConfig at planning time**, not from the parent spec's reference table — the live ICP rates may have drifted since the spec was written, and the SOL rates should match the 30× ratio against the *current* live ICP rates. |
+| [`SignupRow.tsx`](frontend/src/components/trollbox/rows/SignupRow.tsx) + [`RoundResultRow.tsx`](frontend/src/components/trollbox/rows/RoundResultRow.tsx) | Read `item.denomination`; pick `formatICP` / `formatSOL`; suffix `' ICP'` / `' SOL'`. |
+| [`GameTracking.tsx`](frontend/src/components/GameTracking.tsx) | Read `game.denomination`; pick formatter for hero P/L, deposit/earned tiles, and per-position card. Withdraw confirmation dialog gains a "Withdraw to" picker when game is SOL-denominated. |
+| [`useQueries.ts`](frontend/src/hooks/useQueries.ts) | Add `useGetUserSolGames`, `useWithdrawSolGameEarnings(target?: string)`, `useSettleSolCompoundingGame(target?: string)`, `usePrepareSolDeposit`. |
+| [`canister_ids.json`](canister_ids.json) | Verify `ponzi_math_sol` and `siws_provider` IDs flow through to frontend via `CANISTER_ID_PONZI_MATH_SOL` / `CANISTER_ID_SIWS_PROVIDER` env vars. |
+| [`dfx.json`](dfx.json) | Ensure `ponzi_math_sol` + `siws_provider` are listed so `dfx generate` produces declarations. |
+
+### Outside frontend
+
+None. Backend is untouched (per the M2 backend sealed rule).
+
+---
+
+## Data flow
+
+### Flow 1: Sign in with Solana
+
+```
+User clicks "Sign in with Solana" in WalletConnectModal
+  └─> useWallet.connect('siws')
+       └─> dynamic import('@/solana/signInWithSolana')   # Suspense if not preloaded
+            └─> open Solana WalletModalProvider; user picks Phantom (auto-detected)
+                 └─> wallet.connect() → wallet.publicKey (base58 string)
+                      ├─> localStorage.setItem('musical-chairs-siws-pubkey', pubkey)
+                      └─> siws_provider.siws_prepare_login(pubkey) → SiwsMessage { message: text }
+                           └─> wallet.signMessage(utf8(message)) → Uint8Array signature
+                                └─> sessionKey = Ed25519KeyIdentity.generate()
+                                     └─> siws_provider.siws_login(message, signature, pubkey, sessionKey.getPublicKey().toDer())
+                                          → SignedDelegation
+                                          └─> identity = DelegationIdentity.fromDelegation(sessionKey, [delegation])
+                                               └─> useWallet sets walletType='siws', identity, principal=identity.getPrincipal()
+                                                    └─> existing useEffect rebuilds all authenticated actors
+```
+
+### Flow 2: Deposit SOL (paste/scan-only V1)
+
+```
+User clicks "Buy SOL" in BuySOLWidget
+  └─> BuySOLFlyout opens; user picks plan + types SOL amount
+       └─> ponzi_math_sol.prepareSolDeposit({ plan, expectedAmountLamports })
+            → { depositAddress: base58, intentId: nat }
+            └─> Flyout renders:
+                ├─ deposit address (truncated + copy button + full on hover)
+                ├─ QR code: `solana:<depositAddress>?amount=<sol>` via QRCodeCanvas
+                ├─ intentId
+                └─ ⚠️ "Devnet SOL only" callout
+       └─> user sends devnet SOL from Phantom (mobile QR-scan or desktop paste)
+            └─> ponzi_math_sol observer (backend timer) detects the deposit
+                 └─> credits the position
+                      └─> shenanigans observer mints PP
+                           └─> chat #signup item appears with denomination=#sol
+```
+
+Frontend does not poll Solana. The position appears in `GameTracking` when the canister observer confirms.
+
+### Flow 3: Withdraw SOL (with target picker)
+
+```
+User clicks "Withdraw" on a SOL PositionCard in GameTracking
+  └─> WithdrawDialog opens with extra "Withdraw to" field
+       ├─ default value: SIWS pubkey from useWallet
+       ├─ override input: base58 paste, validate length + charset on blur
+       └─ Confirm
+            └─> ponzi_math_sol.withdrawGameEarnings(gameId, ?targetAddress)
+                 # null → canister uses caller's SIWS pubkey
+                 # Some(addr) → canister sends to addr
+                 └─> success → triggerConfetti + reinvest dialog
+                 └─> error → toast with Err.message
+```
+
+**Verify during planning:** the actual `ponzi_math_sol.withdrawGameEarnings` candid signature accepts an override target. If it doesn't, this is a backend gap that needs a separate session.
+
+### Flow 4: Chat denomination
+
+```
+ChatItem from backend: { kind, ..., denomination: { #icp | #sol } }
+  └─> ChatItemRow dispatcher unchanged
+       └─> SignupRow / RoundResultRow:
+            ├─ denomination #icp → formatICP(e8s) + ' ICP'
+            └─ denomination #sol → formatSOL(lamports) + ' SOL'
+```
+
+No per-row chain badge — denomination only appears on the amount string.
+
+### Derived data invariants
+
+- `walletType==='siws'` ⇔ `localStorage['musical-chairs-siws-pubkey']` present ⇔ identity is `DelegationIdentity`. Logout clears all three atomically.
+- A user's PP balance is principal-keyed and denomination-neutral. An II principal and a SIWS principal of the same human are two separate accounts (parent spec line 25).
+- `formatSOL` always operates on `bigint` lamports — never `number`. Lamport totals can exceed `Number.MAX_SAFE_INTEGER`.
+
+---
+
+## Error handling
+
+### Sign-in errors
+
+| Failure | Source | UX |
+|---|---|---|
+| Phantom not installed | wallet-adapter modal | Adapter modal shows install link natively — no custom handling needed |
+| User rejects `wallet.connect()` | adapter | Close modal, no state change |
+| User rejects `wallet.signMessage()` | inside `signInWithSolana` | Toast "Sign-in cancelled" + clear `musical-chairs-siws-pubkey` |
+| `siws_provider.siws_prepare_login` Err | canister | Toast with `Err.message` |
+| `siws_provider.siws_login` Err | canister | Toast "Sign-in failed: <reason>" + Retry button |
+| Adapter chunk download fails | Suspense boundary | `errorElement`: "Couldn't load Solana support. Check your connection and reload." |
+| DelegationIdentity expired mid-session | actor call | Trigger `useWallet.disconnect()` + re-sign-in prompt (adapter already cached) |
+
+### Deposit errors
+
+| Failure | UX |
+|---|---|
+| `prepareSolDeposit` Err (rate-limit, amount<min, plan invalid) | Inline error in flyout; inputs stay editable |
+| Network blip | React Query retry; UI in loading state |
+| User sends real SOL to a devnet-derived address | Mitigated by devnet chip + callout. No recovery mechanism. |
+
+### Withdrawal errors
+
+| Failure | UX |
+|---|---|
+| Target address fails base58 / length | Inline `aria-invalid` + helper "Not a valid Solana address" |
+| Override is a PDA / off-curve | Out of scope V1. Base58 length check only. |
+| Canister Err (not matured, frozen) | Toast with Err.message (same as ICP path) |
+| Solana RPC down (canister-side) | Canister returns Err; toast |
+| Delegation expires while dialog open | Confirm fails → close dialog → re-sign-in prompt |
+
+### Boundary invariants enforced in code
+
+- Anonymous principal must never call `siws_login` or `prepareSolDeposit`. Frontend guards with `walletType !== 'none'` checks; backend rejects anonymous regardless (canister-security pattern from `feedback`-level memos).
+- `formatSOL(bigint)` only — no `number` overload.
+- SOL-side `useQueries` hooks always use the SOL actor; never accidentally route SOL operations through the ICP actor.
+
+### Explicitly not handled in V1
+
+- Phantom switching to mainnet mid-session (sign-in proves pubkey ownership regardless of cluster — no impact).
+- Phantom getting disconnected after sign-in (DelegationIdentity is independent; deposits and withdrawals continue working).
+- Account linking errors when a human signs into both II and SIWS — they have two separate accounts; this is by design.
+
+---
+
+## Testing
+
+### Unit
+
+- `formatSOL(lamports: bigint)` — boundary cases: 0, 1 lamport, 1 SOL, `Number.MAX_SAFE_INTEGER + 1n`, values that round.
+- `parseSOL(text: string) → bigint` — scientific notation, whitespace, negative rejection, decimal overflow past 9 places.
+- `isValidSolanaAddress(s: string)` — base58 charset, 32-44 length window, rejects ICP principals.
+- `signInWithSolana(wallet, siwsActor)` with mocked Phantom + canister — happy path, signature rejection, canister Err. Confirms `DelegationIdentity` constructed correctly and `Ed25519KeyIdentity` session key matches the delegated pubkey.
+
+### Integration (Vitest + RTL on the existing harness)
+
+- `BuySOLFlyout` renders deposit address + QR after `prepareSolDeposit` mock resolves.
+- `BuySOLFlyout` shows inline error when `prepareSolDeposit` returns Err.
+- `WithdrawDialog` on a SOL position pre-fills target with SIWS pubkey, accepts override, blocks Confirm on invalid address.
+- `SignupRow` + `RoundResultRow` swap between formatICP / formatSOL based on `denomination` variant.
+- `WalletConnectModal` → clicking Phantom → SIWS sign-in flow invoked (adapter mocked).
+
+### End-to-end smoke (the load-bearing test)
+
+Run on devnet with real Phantom (devnet cluster) + deployed canisters:
+
+1. Open app cold. II button + Phantom button visible.
+2. Click Phantom → wallet-adapter modal → select Phantom → signMessage prompt → approve.
+3. Verify: header chip shows truncated base58 pubkey + DEVNET tag; WalletDropdown shows full pubkey.
+4. Verify: `BuySOLWidget` visible (not `BuyPPWidget`, per auto-select-by-auth).
+5. Click Buy SOL → pick Simple 21-Day → enter 1 SOL → see deposit address + QR.
+6. Send 1 devnet SOL from Phantom (manual paste, V1 has no Send-via-Phantom button).
+7. Wait ~10-30 s for shenanigans observer → chat shows "{name} joined with 1 SOL on the Simple 21-Day Plan".
+8. Position appears in `GameTracking` with SOL denomination; hero P/L renders via `formatSOL`.
+9. At maturity: withdraw dialog target picker pre-fills SIWS pubkey, allows override; canister honors the target.
+
+### Manual matrix (walk through before merging)
+
+| Scenario | Expected |
+|---|---|
+| II user (existing) | `BuyPPWidget` shown, no Phantom dance, no DEVNET chip |
+| II ghost (no deposits) | Unchanged UI |
+| SIWS ghost (signed in, no SOL deposit) | Same homepage as II ghost + `BuySOLWidget` + DEVNET chip |
+| SIWS depositor (mid-flow) | Position card with SOL formatting; chat shows SOL amounts |
+| Same human signs into II then SIWS | Two separate principal-keyed accounts; PP balances independent |
+| Returning SIWS with valid delegation | Boot loads cached identity, no adapter download, no spinner |
+| Returning SIWS with expired delegation | Adapter prefetched (Option C) — re-sign-in click resolves instantly |
+| Network down during adapter chunk load | Suspense errorElement copy renders; II flow still usable |
+
+### During implementation
+
+Per CLAUDE.md, run `preview_start` and exercise the SIWS sign-in + `BuySOLFlyout` flows in-browser before each commit. Vitest cannot catch wallet-adapter integration bugs.
+
+---
+
+## Decisions log
+
+| Decision | Choice | Rationale |
+|---|---|---|
+| Buy widget routing | Auto-select by auth source | Cleanest mental model: your wallet is your denomination. II principal and SIWS principal yield separate accounts anyway, so showing both widgets to one user would confuse the deposit-routing |
+| Ghost UX | Same layout as II ghosts | The empty `BuySOLWidget` itself communicates "deposit to start" — no special welcome state needed |
+| Deposit send path | Paste/scan + QR only in V1 | Avoids pulling in `@solana/web3.js` Transaction class for V1; QR already gives mobile Phantom users one-tap UX. Send-via-Phantom defers cleanly to a follow-up PR |
+| Referral surface | Denomination-agnostic | Backend is principal→principal already; PP is shared. Matches parent spec line 498's "no chain badge in chat" decision |
+| Withdrawal default target | User's SIWS pubkey | "Send back to your wallet" matches the user's mental model. Parent spec's wording "deposit address" was sloppy |
+| Devnet indicator | Header DEVNET chip + BuySOLFlyout callout | Visible at the dangerous moments without dominating the UI |
+| Wallet adapter code-split | Option C — eager on returning SIWS | Smoother re-auth UX for returning users; cost is ~200 KB once per session for an already-opted-in user. A is a strict subset; can degrade to A trivially if C becomes problematic |
+
+---
+
+## Verification gaps (confirm during planning, not blocking design)
+
+1. `ponzi_math_sol.withdrawGameEarnings` candid signature — does it accept an `?targetAddress` parameter? If not, the withdrawal-override UX needs a backend change in a separate session, and V1 ships withdraw-to-pubkey-only.
+2. `ponzi_math_sol.prepareSolDeposit` candid — confirm input shape matches `{ plan, expectedAmountLamports }`.
+3. Shenanigans chat items in candid expose `denomination: { #icp; #sol }` — confirm the M2 deploy actually shipped this field.
+4. SOL-side game records from the `getUserGames`-equivalent include `denomination`.
+5. `dfx generate ponzi_math_sol` and `dfx generate siws_provider` run as part of the existing build pipeline, or need to be added.
+6. Live `MintConfig` values on the M2 deploy — read them at planning time to seed the `PP_PER_SOL_*` constants accurately rather than guessing from the parent spec's reference table.
+
+---
+
+## Risks
+
+| Risk | Mitigation |
+|---|---|
+| Wallet adapter chunk fails to load offline / behind firewalls | Suspense errorElement copy + clear instruction to reload; II flow remains available so the user isn't locked out |
+| Phantom on mainnet at sign-in time | No problem for sign-in (sign proves pubkey ownership regardless of cluster) but operator must remember to switch to devnet before depositing — covered by the DEVNET chip + callout |
+| Real-SOL deposit to devnet-derived address | No recovery. Mitigation is the DEVNET chip + callout (parent spec accepts this for V1 operator-only) |
+| `DelegationIdentity` re-auth chains break if `@dfinity/identity` minor versions drift | Pin `@dfinity/identity` + `@dfinity/agent` at the same major-minor in `package.json`; the existing II flow uses these so the version is already constrained |
+| `signInWithSolana` orchestration produces a delegation that the IC rejects | The end-to-end smoke test catches this. If it happens, the bug is most likely in the message format expected by `siws_provider.siws_login` vs what Phantom signed — diff carefully against the parent spec line 471 sketch |
+| Auto-select by auth confuses a user who wants both denominations | Out of scope for V1. If pressure mounts, V2 can add a "switch wallet" hint in `WalletDropdown` |
+
+---
+
+## Out of scope (deferred)
+
+- **M3 real-SOL mainnet** — separate session. Flip `ponzi_math_sol` to mainnet RPC; remove devnet chip; fund SOL pot.
+- **Send-via-Phantom one-click** — V2 follow-up. ~+1 day of work, cleanly separable.
+- **Account linking** (II + Solana wallet → same principal) — V2 if ever.
+- **Per-row chain badge in chat** — explicitly rejected by parent spec line 498.
+- **Off-curve address rejection in withdrawal picker** — if it becomes a real footgun, V2 follow-up.
+- **On-chain SOL balance display in `WalletDropdown`** — V2 follow-up. Would require a Solana RPC call on the frontend boot path; users can check Phantom for their SOL balance.
+- **Two M1 follow-ups** noted in the project memory: `runDepositDetection`'s `gid > 0` exclusion and `unwrapMultiSend` `Inconsistent` hard-error path — separate small session.
+
+---
+
+## Memory pointers consulted
+
+- `project_ponzi_math_sol_m1_state` — M1 / M2 deployed state, canister IDs
+- `project_shenanigans_deploy_lineage` — V8 / M2 deploy
+- `feedback_deploy_safety` — no deploys without explicit approval (frontend deploys overwrite the asset canister)
+- `project_oisy_integration` — `@dfinity/agent` vs `@icp-sdk/core/agent` Certificate mismatch; this design stays inside `@dfinity/*`
+- `project_ui_glossary` — header chip semantics; real name behind WalletDropdown via `getUserProfile`

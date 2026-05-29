@@ -146,11 +146,14 @@ type MintConfig =
    activityRequiresDeposit: bool;
    activityWindowDays: opt nat;
    backerPpPerIcp: nat;
+   backerPpPerSol: nat;
    cascadeInitialBps: nat;
    cascadePassthroughBps: nat;
    cashOutDelaySeconds: nat;
    compounding15DayPpPerIcp: nat;
+   compounding15DayPpPerSol: nat;
    compounding30DayPpPerIcp: nat;
+   compounding30DayPpPerSol: nat;
    minDepositPp: nat;
    observerIntervalSeconds: nat;
    referralL1Bps: nat;
@@ -158,6 +161,7 @@ type MintConfig =
    referralL3Bps: nat;
    signupGiftPp: nat;
    simple21DayPpPerIcp: nat;
+   simple21DayPpPerSol: nat;
  };
 type LineDisplayPage = record {lines: vec text;};
 type Icrc21Error = 
@@ -181,6 +185,11 @@ type DeviceSpec =
                   characters_per_line: nat16;
                   lines_per_page: nat16;
                 };
+ };
+type Denomination = 
+ variant {
+   icp;
+   sol;
  };
 type ConsentMessageSpec = 
  record {
@@ -238,12 +247,17 @@ type ChatItemKind =
                line: text;
                triggerKind: text;
              };
-   roundResult: record {
-                  gameId: nat;
-                  winner: principal;
-                  winnerPpUnits: nat;
-                };
-   signup: record {newUser: principal;};
+   roundResult:
+    record {
+      denomination: Denomination;
+      gameId: nat;
+      winner: principal;
+      winnerPpUnits: nat;
+    };
+   signup: record {
+             denomination: Denomination;
+             newUser: principal;
+           };
    spellCast:
     record {
       affectedCount: opt nat;
@@ -447,7 +461,10 @@ service : {
       intervalSeconds: nat;
       missedBackerMintsCount: nat;
       missedGameMintsCount: nat;
+      ponziMathSolPrincipal: opt principal;
       running: bool;
+      solBackerSeenCount: nat;
+      solGameIdCursor: nat;
     }) query;
   /// Issue (or return existing) short referral code for the caller.
   /// Deterministic on the principal + time-derived nonce; retries on the
@@ -546,6 +563,11 @@ service : {
     });
   /// One-shot catch-up primer. Admin only. Call immediately after the
   /// cutover upgrade completes, before unpausing user traffic.
+  /// One-shot catch-up primer. Admin only. Call immediately after the
+  /// cutover upgrade completes, before unpausing user traffic. M2:
+  /// also seeds the SOL-side cursors if ponziMathSolPrincipal is set
+  /// (otherwise the SOL block is a no-op — admin can call this again
+  /// after configuring the SOL principal to back-fill cursors).
   primeObserverCursors: () -> ();
   /// Idempotent referral registration. First call sets the chain entry;
   /// subsequent calls for the same caller are no-ops. Self-referral rejected.
@@ -597,10 +619,13 @@ service : {
   setActivityRequiresDeposit: (b: bool) -> ();
   setActivityWindowDays: (d: opt nat) -> ();
   setBackerPpPerIcp: (v: nat) -> ();
+  setBackerPpPerSol: (v: nat) -> ();
   setCascadeBps: (initial: nat, passthrough: nat) -> ();
   setCashOutDelaySeconds: (v: nat) -> ();
   setCompounding15DayPpPerIcp: (v: nat) -> ();
+  setCompounding15DayPpPerSol: (v: nat) -> ();
   setCompounding30DayPpPerIcp: (v: nat) -> ();
+  setCompounding30DayPpPerSol: (v: nat) -> ();
   /// Caller commits their custom title string into the active-title map.
   /// Must be called within 5 minutes of a successful #customTitle cast.
   setCustomTitle: (title: text) -> (variant {
@@ -624,11 +649,17 @@ service : {
                                            Err: text;
                                            Ok;
                                          });
+  /// M2: configure the SOL-side ponzi_math canister. null until set;
+  /// while null, the SOL-side observer branch no-ops. Admin only.
+  /// Mirrors the setHousePrincipal pattern (anonymous-principal guard
+  /// + admin guard).
+  setPonziMathSolPrincipal: (p: principal) -> ();
   /// Deprecated. The deductive cascade ignores referralL[1-3]Bps.
   /// Use setCascadeBps(initial, passthrough) instead.
   setReferralBps: (_l1: nat, _l2: nat, _l3: nat) -> ();
   setSignupGiftPp: (v: nat) -> ();
   setSimple21DayPpPerIcp: (v: nat) -> ();
+  setSimple21DayPpPerSol: (v: nat) -> ();
   stopObserver: () -> ();
   updateShenaniganConfig: (config: ShenaniganConfig) -> ();
 }

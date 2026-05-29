@@ -6,7 +6,6 @@ import { ICP_TRANSFER_FEE, useLedger, E8S_PER_ICP } from '../hooks/useLedger';
 import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetCoverChargeBalance, usePayManagement, useBackendICPBalance, isCoverChargeAdmin, useICPBalance, useSendPp, useGetCustomTitle } from '../hooks/useQueries';
 import { formatICP } from '../lib/formatICP';
 import { oisySigner } from '../lib/oisySigner';
-import { truncateSolanaPubkey } from '../lib/siwsSigner';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
 
 interface WalletDropdownProps {
@@ -19,6 +18,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const { principal, walletType } = useWallet();
 
   const [copied, setCopied] = useState(false);
+  const [pubkeyCopied, setPubkeyCopied] = useState(false);
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
 
@@ -453,8 +453,14 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         {walletType === 'siws' && siwsPubkey && (
           <div className="mt-3">
             <div className="mc-label mb-1">Solana Pubkey</div>
-            <div className="mc-card p-2 text-xs mc-text-muted font-mono truncate" title={siwsPubkey}>
-              {truncateSolanaPubkey(siwsPubkey)}
+            <div className="flex gap-2">
+              <div className="mc-card flex-1 p-2 text-xs mc-text-muted font-mono truncate" title={siwsPubkey}>
+                {siwsPubkey}
+              </div>
+              <button onClick={async () => { await navigator.clipboard.writeText(siwsPubkey); setPubkeyCopied(true); setTimeout(() => setPubkeyCopied(false), 2000); }}
+                className="mc-btn-secondary px-2 py-1 rounded-lg" aria-label="Copy Solana pubkey">
+                {pubkeyCopied ? <Check className="h-3 w-3 mc-text-green" /> : <Copy className="h-3 w-3" />}
+              </button>
             </div>
           </div>
         )}

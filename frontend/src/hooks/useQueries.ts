@@ -6,12 +6,19 @@ import { useReadActor } from './useReadActor';
 import { useShenaniganActor, useReadShenaniganActor } from './useShenaniganActor';
 import { usePonziMathActor } from './usePonziMathActor';
 import { useReadPonziMath } from './useReadPonziMath';
+import { usePonziMathSolActor } from './usePonziMathSolActor';
+import { useReadPonziMathSol } from './useReadPonziMathSol';
 import { useWallet, PLUG_WHITELIST, IC_HOST } from './useWallet';
 import type { WalletType } from './useWallet';
 import { useLedger, BACKEND_CANISTER_ID, ICP_LEDGER_CANISTER_ID, icrcLedgerIDL } from './useLedger';
 import { useReadPpLedger, useAuthPpLedger, shenanigansOwner, principalToChipSubaccount, ppUnitsToWhole, wholePpToUnits } from './usePpLedger';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 import { UserProfile, GameRecord, GamePlan, PlatformStats, ShenaniganType, ShenaniganOutcome, ShenaniganStats, ShenaniganRecord, BackerPosition, BackerKey, GeneralLedgerEntry, ActivePlanSnapshot, RoundSummary, ShenaniganConfig, ActiveSpellEffects, ponziMathIdlFactory } from '../backend';
+import type {
+  SolGameRecord,
+  SolGamePlan,
+  SolDepositIntent,
+} from '../backend';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import type { ChatItem, MintMultiplierSource } from '../declarations/shenanigans/shenanigans.did';
@@ -2339,6 +2346,77 @@ export function useAdminClearFlavorPool() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shenanigans', 'flavorPools'] });
+    },
+  });
+}
+
+// ============================================================================
+// SOL hooks — backed by ponzi_math_sol on the IC, talking to Solana devnet
+// ============================================================================
+
+export function useGetUserSolGames() {
+  const actor = useReadPonziMathSol();
+  const { principal, walletType } = useWallet();
+
+  return useQuery<SolGameRecord[]>({
+    queryKey: ['userSolGames', principal],
+    queryFn: async () => {
+      if (!principal) throw new Error('No principal');
+      const allGames = await actor.getUserGamesFor(Principal.fromText(principal));
+      return allGames.filter((g) => g.isActive);
+    },
+    enabled: walletType === 'siws' && !!principal,
+    refetchInterval: 5000,
+  });
+}
+
+export function useGetMyDepositAddress() {
+  const actor = useReadPonziMathSol();
+  const { principal, walletType } = useWallet();
+
+  return useQuery<string | null>({
+    queryKey: ['mySolDepositAddress', principal],
+    queryFn: async () => {
+      if (!principal) return null;
+      const result = await actor.getDepositAddressFor(Principal.fromText(principal));
+      // Candid `?Text` round-trips as `[] | [string]` in JS
+      return Array.isArray(result) && result.length === 1 ? result[0] : null;
+    },
+    enabled: walletType === 'siws' && !!principal,
+  });
+}
+
+export function useGetMyPendingSolIntents() {
+  const { actor } = usePonziMathSolActor();
+  const { principal, walletType } = useWallet();
+
+  return useQuery<SolDepositIntent[]>({
+    queryKey: ['mySolPendingIntents', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyPendingIntents();
+    },
+    enabled: walletType === 'siws' && !!actor && !!principal,
+    refetchInterval: 10_000,
+  });
+}
+
+export function usePrepareSolDeposit() {
+  const { actor } = usePonziMathSolActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { plan: SolGamePlan; expectedAmountLamports: bigint }) => {
+      if (!actor) throw new Error('SOL actor not ready');
+      const result = await actor.prepareSolDeposit({
+        plan: args.plan,
+        expectedAmountLamports: args.expectedAmountLamports,
+      });
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok; // { intentId: bigint; depositAddress: string }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mySolPendingIntents'] });
     },
   });
 }

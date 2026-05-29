@@ -52,6 +52,17 @@ export const PP_PER_ICP_COMPOUND_15 = 2_000;
 export const PP_PER_ICP_COMPOUND_30 = 3_000;
 export const PP_PER_ICP_SEED_ROUND = 4_000;
 
+// SOL-side PP rates — values match the live ponzi_math_sol MintConfig at deploy
+// time (2026-05-28). Admin-tunable post-deploy via `shenanigans.setMintConfig`,
+// so these constants are display-only — the actual mint amount is decided by
+// the observer against whatever the canister has stored.
+//
+// Source: `dfx canister --network ic call shenanigans getMintConfig` at plan time.
+// If the values drift, update here for display accuracy.
+export const PP_PER_SOL_SIMPLE = 6_000;
+export const PP_PER_SOL_COMPOUND_15 = 12_000;
+export const PP_PER_SOL_COMPOUND_30 = 18_000;
+
 // ── Referral (MLM) — PP only ────────────────────────────────────────
 export const REFERRAL_L1_RATE = 0.08;           //  8 % of referred's PP earnings
 export const REFERRAL_L2_RATE = 0.05;           //  5 %

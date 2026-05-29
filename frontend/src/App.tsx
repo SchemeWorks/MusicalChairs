@@ -289,7 +289,7 @@ function LetterReveal({
 
 export default function App() {
   const { identity, principal, isInitializing, isAuthenticated } = useInternetIdentity();
-  const { isOpen: isWalletDropdownOpen, openWallet, closeWallet } = useWallet();
+  const { isOpen: isWalletDropdownOpen, openWallet, closeWallet, walletType } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const [adminPanelTab, setAdminPanelTab] = useState<'godView' | 'tuning'>('godView');
@@ -508,6 +508,23 @@ export default function App() {
                         <CharlesIcon className="h-4 w-4" />
                         <span className="hidden sm:inline">Charles</span>
                       </button>
+                    )}
+
+                    {/* DEVNET chip — SIWS users only. Reminds them ponzi_math_sol
+                        polls Solana devnet RPC, so mainnet SOL sent to their
+                        deposit address is unrecoverable. */}
+                    {walletType === 'siws' && (
+                      <span
+                        title="Connected to Solana devnet. Real SOL sent to a devnet-derived address is unrecoverable."
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+                        style={{
+                          background: 'rgba(255, 200, 0, 0.12)',
+                          border: '1px solid rgba(255, 200, 0, 0.5)',
+                          color: 'rgba(255, 200, 0, 0.95)',
+                        }}
+                      >
+                        DEVNET
+                      </span>
                     )}
 
                     {/* Wallet */}
