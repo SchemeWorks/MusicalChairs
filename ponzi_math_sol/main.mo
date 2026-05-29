@@ -395,30 +395,6 @@ persistent actor class PonziMathSol(initArgs : {
         Float.fromInt(Float.toInt(value * multiplier)) / multiplier;
     };
 
-    func validateEightDecimals(value : Float) : Bool {
-        let multiplier = 100000000.0;
-        let rounded = Float.fromInt(Float.toInt(value * multiplier)) / multiplier;
-        rounded == value;
-    };
-
-    func formatICP(value : Float) : Text {
-        let intValue = Float.toInt(value);
-        if (Float.fromInt(intValue) == value) {
-            Int.toText(intValue);
-        } else {
-            let textValue = Float.toText(value);
-            let parts = Iter.toArray(Text.split(textValue, #char '.'));
-            switch (parts.size()) {
-                case (1) { parts[0] };
-                case (2) {
-                    let trimmed = Text.trimEnd(parts[1], #char '0');
-                    if (trimmed == "") { parts[0] } else { parts[0] # "." # trimmed };
-                };
-                case (_) { textValue };
-            };
-        };
-    };
-
 
     // ========================================================================
     // General Ledger event recording
@@ -2193,7 +2169,12 @@ persistent actor class PonziMathSol(initArgs : {
     /// - Unmatched deposits (no intent, or TTL expired) log via Debug.print
     ///   and return Ok(0) without advancing cursor — admin resolves later
     ///   via adminCreditManualDeposit (Task 20).
-    func creditDeposit(sig : DetectedSignature) : async { #Ok : Nat; #Err : Text } {
+    // Returns #Ok(?gameId): ?gid identifies the GameRecord created by a genuine
+    // credit (gid can be 0 — the first game on a fresh canister, i.e. the M3
+    // mainnet case), and null means the signature was a non-deposit / unmatched
+    // tx that only advanced the cursor. The optional disambiguates "credited
+    // game 0" from "no credit" — a plain Nat would collide on 0.
+    func creditDeposit(sig : DetectedSignature) : async { #Ok : ?Nat; #Err : Text } {
         // 1. Fetch transaction details.
         // We use encoding = base64 (the default binary form).  The sol-rpc
         // canister returns the full meta (preBalances/postBalances) which is
@@ -2246,7 +2227,7 @@ persistent actor class PonziMathSol(initArgs : {
             // All balance deltas are non-positive → outbound or no-op tx.
             // Advance the cursor without crediting (matches our own sweeps).
             lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
-            return #Ok(0);
+            return #Ok(null);  // no game credited: outbound / no-op tx
         };
 
         // 3. Find an open intent for this principal that matches the amount
@@ -2277,7 +2258,7 @@ persistent actor class PonziMathSol(initArgs : {
                 // the tick that observes it, before this branch is reached.)
                 Debug.print("Unmatched deposit on " # sig.address # ": " # Nat64.toText(inboundLamports) # " lamports sig=" # sig.signature # " (cursor advanced)");
                 lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
-                return #Ok(0);
+                return #Ok(null);  // no game credited: no matching open intent
             };
             case (?i) { i };
         };
@@ -2374,7 +2355,7 @@ persistent actor class PonziMathSol(initArgs : {
         // 7. Advance the per-address cursor — only here, after all mutations.
         lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
 
-        #Ok(gameId);
+        #Ok(?gameId);
     };
 
     public query func getPoolAddress() : async ?Text { poolAddress };
@@ -2509,7 +2490,12 @@ persistent actor class PonziMathSol(initArgs : {
         let sigs = await scanAddress(address, principal);
         for (sig in sigs.vals()) {
             switch (await creditDeposit(sig)) {
-                case (#Ok(gid)) { if (gid > 0) { credits += 1 } };
+                // ?gid (incl. gid 0, the first game on a fresh canister) is a
+                // real credit; null is a non-deposit / unmatched tx that only
+                // advanced the cursor. Counting any #Ok(?_) fixes the prior
+                // `if (gid > 0)` off-by-one that dropped game 0 from the count.
+                case (#Ok(?_gid)) { credits += 1 };
+                case (#Ok(null)) {};
                 case (#Err(e)) {
                     Debug.print("creditDeposit error for " # sig.signature # ": " # e);
                 };
