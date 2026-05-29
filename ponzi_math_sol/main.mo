@@ -15,6 +15,7 @@ import Debug "mo:base/Debug";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
 import Cycles "mo:base/ExperimentalCycles";
+import Timer "mo:base/Timer";
 
 import Icrc21 "icrc21";
 
@@ -293,8 +294,22 @@ persistent actor class PonziMathSol(initArgs : {
     // that covers the heaviest methods; unused cycles are refunded.
     transient let RPC_CYCLES : Nat = 20_000_000_000;
 
-    // Intent TTL — 10 minutes.
-    transient let INTENT_TTL_NS : Int = 10 * 60 * 1_000_000_000;
+    // Intent TTL — 2 hours. Long enough for Solana finality plus a human
+    // switching to their wallet to send the SOL. Deposit detection polls
+    // every DETECTION_INTERVAL_SECONDS, so a funded intent is matched well
+    // within this window. (Was 10 minutes, which expired before manual
+    // detection was ever triggered — the deposit-not-credited root cause.)
+    transient let INTENT_TTL_NS : Int = 2 * 60 * 60 * 1_000_000_000;
+
+    // Deposit-detection auto-poll. The recurring timer scans ONLY addresses
+    // with an open, non-expired intent (runDetectionForOpenIntents), so an
+    // idle canister makes zero RPC outcalls per tick. detectionTimerId is a
+    // plain var: it survives upgrades as a STALE id, so postupgrade re-arms
+    // (the IC clears all timers on upgrade). detectionInProgress is the
+    // overlap guard, transient (resets on upgrade, safe by construction).
+    transient let DETECTION_INTERVAL_SECONDS : Nat = 60;
+    var detectionTimerId : ?Timer.TimerId = null;
+    transient var detectionInProgress : Bool = false;
 
     // Transient concurrency state — resets on upgrade (safe by construction)
     transient var callerLocks = principalMapNat.empty<Bool>();
@@ -1962,6 +1977,9 @@ persistent actor class PonziMathSol(initArgs : {
                 case (?n) {
                     lastNonceValue := ?n;
                     bootstrapped := true;
+                    // Arm the recurring deposit-detection timer on first
+                    // bootstrap (fresh install). Upgrades re-arm via postupgrade.
+                    startDetectionTimer<system>();
                     #Ok("bootstrapped; nonce-account=" # nonce # " initial-nonce=" # n # " tx=" # txSig);
                 };
                 case (null) {
@@ -2009,7 +2027,12 @@ persistent actor class PonziMathSol(initArgs : {
             },
         );
         switch (SolRpc.unwrapMultiSignatures(res)) {
-            case (#Err(_)) { [] };
+            case (#Err(e)) {
+                // Log instead of silently returning [] — a real RPC/consensus
+                // failure would otherwise look identical to "no new deposits".
+                Debug.print("scanAddress getSignaturesForAddress failed for " # address # ": " # e);
+                [];
+            };
             case (#Ok(sigs)) {
                 // Reverse so we process oldest-first.
                 let buf = Buffer.Buffer<DetectedSignature>(sigs.size());
@@ -2448,27 +2471,147 @@ persistent actor class PonziMathSol(initArgs : {
         Iter.toArray(natMap.vals(pendingIntents));
     };
 
-    /// Admin-callable detection sweep. Iterates every known deposit
-    /// address, fetches new signatures past the per-address cursor,
-    /// credits matching intents, sweeps to pool. Returns the count of
-    /// new GameRecords created (zero is normal when nothing arrived).
-    public shared ({ caller }) func runDepositDetection() : async { #Ok : Nat; #Err : Text } {
-        requireAdmin(caller);
-        if (not bootstrapped) { return #Err("Not bootstrapped") };
-
+    /// Scan one deposit address for new signatures and credit any that match
+    /// an open intent. Returns the number of GameRecords created. Shared by
+    /// the manual admin sweep and the auto-detection timer.
+    func scanAndCredit(address : Text, principal : Principal) : async Nat {
         var credits : Nat = 0;
-        for ((address, principal) in textMap.entries(addressToPrincipal)) {
-            let sigs = await scanAddress(address, principal);
-            for (sig in sigs.vals()) {
-                switch (await creditDeposit(sig)) {
-                    case (#Ok(gid)) { if (gid > 0) { credits += 1 } };
-                    case (#Err(e)) {
-                        Debug.print("creditDeposit error for " # sig.signature # ": " # e);
-                    };
+        let sigs = await scanAddress(address, principal);
+        for (sig in sigs.vals()) {
+            switch (await creditDeposit(sig)) {
+                case (#Ok(gid)) { if (gid > 0) { credits += 1 } };
+                case (#Err(e)) {
+                    Debug.print("creditDeposit error for " # sig.signature # ": " # e);
                 };
             };
         };
-        #Ok(credits);
+        credits;
+    };
+
+    /// Auto-detection pass: scan ONLY the deposit addresses that currently
+    /// have an open, non-expired intent. This bounds RPC cost to active
+    /// deposit flows — when there are no pending intents the tick makes zero
+    /// outcalls. An open intent's address keeps being scanned every tick
+    /// until the deposit is credited or the intent expires, giving free
+    /// retry across transient RPC failures / not-yet-confirmed transactions.
+    func runDetectionForOpenIntents() : async Nat {
+        let now = Time.now();
+        // Distinct deposit addresses with a live intent (dedups multiple
+        // intents from the same principal).
+        var toScan = textMap.empty<Principal>();
+        for (intent in natMap.vals(pendingIntents)) {
+            if (not intent.fulfilled and now <= intent.expiresAt) {
+                switch (principalMapNat.get(depositAddresses, intent.principal)) {
+                    case (?addr) { toScan := textMap.put(toScan, addr, intent.principal) };
+                    case (null) {};
+                };
+            };
+        };
+        var credits : Nat = 0;
+        for ((address, principal) in textMap.entries(toScan)) {
+            credits += await scanAndCredit(address, principal);
+        };
+        credits;
+    };
+
+    /// Admin-callable manual detection sweep. Scans EVERY known deposit
+    /// address (not just those with open intents) so the operator can use it
+    /// for diagnostics / recovery. Returns the count of new GameRecords
+    /// created (zero is normal when nothing arrived). Shares the
+    /// detectionInProgress guard with the auto-detection timer so the two
+    /// never run concurrently.
+    public shared ({ caller }) func runDepositDetection() : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (not bootstrapped) { return #Err("Not bootstrapped") };
+        if (detectionInProgress) { return #Err("Detection already in progress") };
+        detectionInProgress := true;
+        try {
+            var credits : Nat = 0;
+            for ((address, principal) in textMap.entries(addressToPrincipal)) {
+                credits += await scanAndCredit(address, principal);
+            };
+            #Ok(credits);
+        } catch (e) {
+            #Err("Detection failed: " # Error.message(e));
+        } finally {
+            detectionInProgress := false;
+        };
+    };
+
+    /// Timer callback — runs the cheap open-intents pass. Guarded against
+    /// overlapping runs and against running before bootstrap. Errors are
+    /// caught and logged (never trapped) so a bad tick doesn't kill the
+    /// recurring timer. The guard is released in `finally` so a trap in the
+    /// post-await continuation can't wedge it permanently.
+    func detectionTick() : async () {
+        if (detectionInProgress) return;
+        if (not bootstrapped) return;
+        detectionInProgress := true;
+        try {
+            ignore await runDetectionForOpenIntents();
+        } catch (e) {
+            Debug.print("Detection tick error: " # Error.message(e));
+        } finally {
+            detectionInProgress := false;
+        };
+    };
+
+    /// (Re)arm the recurring detection timer. Cancels any existing timer
+    /// first, so it is idempotent. Requires <system> capability.
+    func startDetectionTimer<system>() {
+        switch (detectionTimerId) {
+            case (?tid) { Timer.cancelTimer(tid) };
+            case (null) {};
+        };
+        let tid = Timer.recurringTimer<system>(#seconds(DETECTION_INTERVAL_SECONDS), detectionTick);
+        detectionTimerId := ?tid;
+    };
+
+    /// Re-arm the recurring detection timer on every canister upgrade. The IC
+    /// clears all pending timers on upgrade, so detectionTimerId survives in
+    /// stable state pointing at a dead timer. Without this, after an upgrade
+    /// deposits silently stop auto-crediting. Only arms if already
+    /// bootstrapped; a fresh install arms via bootstrap().
+    system func postupgrade() {
+        if (bootstrapped) { startDetectionTimer<system>() };
+    };
+
+    /// Admin: start (or restart) the auto-detection timer.
+    public shared ({ caller }) func adminStartDetectionTimer() : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        if (not bootstrapped) { return #Err("Not bootstrapped") };
+        startDetectionTimer<system>();
+        #Ok("Detection timer armed (" # Nat.toText(DETECTION_INTERVAL_SECONDS) # "s interval)");
+    };
+
+    /// Admin: stop the auto-detection timer. Manual runDepositDetection and
+    /// adminCreditManualDeposit still work while it is stopped.
+    public shared ({ caller }) func adminStopDetectionTimer() : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        switch (detectionTimerId) {
+            case (?tid) { Timer.cancelTimer(tid); detectionTimerId := null; #Ok("Detection timer stopped") };
+            case (null) { #Ok("Detection timer was not running") };
+        };
+    };
+
+    /// Status of the auto-detection timer and the open-intent backlog.
+    public query func getDetectionStatus() : async {
+        timerArmed : Bool;
+        intervalSeconds : Nat;
+        inProgress : Bool;
+        openIntents : Nat;
+    } {
+        let now = Time.now();
+        var openCount : Nat = 0;
+        for (intent in natMap.vals(pendingIntents)) {
+            if (not intent.fulfilled and now <= intent.expiresAt) { openCount += 1 };
+        };
+        {
+            timerArmed = detectionTimerId != null;
+            intervalSeconds = DETECTION_INTERVAL_SECONDS;
+            inProgress = detectionInProgress;
+            openIntents = openCount;
+        };
     };
 
     /// Admin: refresh the cached nonce by reading account info on-chain.
