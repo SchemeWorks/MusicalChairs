@@ -977,7 +977,29 @@ persistent actor class PonziMathSol(initArgs : {
     // withdrawEarnings — simple-plan payout, applies tiered exit toll
     // ========================================================================
 
-    public shared ({ caller }) func withdrawEarnings(gameId : Nat) : async { #Ok : Float; #Err : Text } {
+    /// Resolve a SOL payout destination: prefer a caller-supplied target
+    /// address (validated as a plausible Solana pubkey), else fall back to the
+    /// caller's canister-derived deposit address. The deposit address is
+    /// canister-controlled, so for a real withdrawal the caller MUST pass their
+    /// own wallet (e.g. the SIWS Phantom pubkey) as targetAddress to receive
+    /// funds they can actually spend.
+    func resolvePayoutDestination(caller : Principal, targetAddress : ?Text) : { #Ok : Text; #Err : Text } {
+        switch (targetAddress) {
+            case (?addr) {
+                if (Base58.isPlausibleSolanaAddress(addr)) { #Ok(addr) } else {
+                    #Err("Invalid target Solana address: " # addr);
+                };
+            };
+            case (null) {
+                switch (principalMapNat.get(depositAddresses, caller)) {
+                    case (?addr) { #Ok(addr) };
+                    case (null) { #Err("No target address provided and no deposit address on file; pass a Solana address or call getOrCreateDepositAddress first.") };
+                };
+            };
+        };
+    };
+
+    public shared ({ caller }) func withdrawEarnings(gameId : Nat, targetAddress : ?Text) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
@@ -1045,14 +1067,14 @@ persistent actor class PonziMathSol(initArgs : {
                     let solFee : Nat64 = 5_000; // Solana network fee floor
                     if (netLamports > solFee) {
                         let payoutLamports : Nat64 = netLamports - solFee;
-                        let destination = switch (principalMapNat.get(depositAddresses, caller)) {
-                            case (?addr) { addr };
-                            case (null) {
+                        let destination = switch (resolvePayoutDestination(caller, targetAddress)) {
+                            case (#Ok(addr)) { addr };
+                            case (#Err(e)) {
                                 gameRecords := natMap.put(gameRecords, gameId, originalGame);
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
-                                return #Err("Caller has no deposit address; cannot pay out. Call getOrCreateDepositAddress first.");
+                                return #Err(e);
                             };
                         };
                         switch (await sendSolPayout(destination, payoutLamports)) {
@@ -1095,7 +1117,7 @@ persistent actor class PonziMathSol(initArgs : {
     // settleCompoundingGame — compounding-plan payout at maturity
     // ========================================================================
 
-    public shared ({ caller }) func settleCompoundingGame(gameId : Nat) : async { #Ok : Float; #Err : Text } {
+    public shared ({ caller }) func settleCompoundingGame(gameId : Nat, targetAddress : ?Text) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
@@ -1178,14 +1200,14 @@ persistent actor class PonziMathSol(initArgs : {
                     let solFee : Nat64 = 5_000;
                     if (netLamports > solFee) {
                         let payoutLamports : Nat64 = netLamports - solFee;
-                        let destination = switch (principalMapNat.get(depositAddresses, caller)) {
-                            case (?addr) { addr };
-                            case (null) {
+                        let destination = switch (resolvePayoutDestination(caller, targetAddress)) {
+                            case (#Ok(addr)) { addr };
+                            case (#Err(e)) {
                                 gameRecords := natMap.put(gameRecords, gameId, originalGame);
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
-                                return #Err("Caller has no deposit address; cannot pay out. Call getOrCreateDepositAddress first.");
+                                return #Err(e);
                             };
                         };
                         switch (await sendSolPayout(destination, payoutLamports)) {
@@ -1228,7 +1250,7 @@ persistent actor class PonziMathSol(initArgs : {
     // claimBackerRepayment — transfers backer's accrued repayment balance
     // ========================================================================
 
-    public shared ({ caller }) func claimBackerRepayment() : async { #Ok : Float; #Err : Text } {
+    public shared ({ caller }) func claimBackerRepayment(targetAddress : ?Text) : async { #Ok : Float; #Err : Text } {
         requireAuthenticated(caller);
         acquireCallerLock(caller);
         acquireGlobalLock();
@@ -1255,12 +1277,12 @@ persistent actor class PonziMathSol(initArgs : {
                 return #Err("Claimable balance is below the Solana network fee; wait until your balance grows past 5,000 lamports");
             };
             let payoutLamports : Nat64 = netLamports - solFee;
-            let destination = switch (principalMapNat.get(depositAddresses, caller)) {
-                case (?addr) { addr };
-                case (null) {
+            let destination = switch (resolvePayoutDestination(caller, targetAddress)) {
+                case (#Ok(addr)) { addr };
+                case (#Err(e)) {
                     backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), aBalance);
                     backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), bBalance);
-                    return #Err("Caller has no deposit address; call getOrCreateDepositAddress first.");
+                    return #Err(e);
                 };
             };
             switch (await sendSolPayout(destination, payoutLamports)) {
