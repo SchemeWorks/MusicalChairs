@@ -51,16 +51,16 @@ PP is the real ICRC-1 `pp_ledger` token (symbol "PP", 8 decimals, transfer fee 0
 ## Backend design (`ponzi_math_sol`)
 
 ### State (new)
-- **Escrow account:** a dedicated subaccount of the `ponzi_math_sol` principal on `pp_ledger`. Balance is queryable from the ledger; the canister additionally tracks `escrowReservedUnits : Nat` (PP held against open buy-intents). `available = ledgerBalance(escrow) − escrowReservedUnits`.
-- **Tiers:** ordered `Tier = { ratePpUnitsPer0_1Sol : Nat; ppUnitsTotal : Nat; ppUnitsSold : Nat }`, consumed **top-down in Charles's configured order** (he lists them best-deal-first — highest PP per 0.1 SOL at the top — so early buyers get the better rate). Active tier = the first with `ppUnitsSold < ppUnitsTotal`.
-- **Buy-intents:** new variant in the intent system:
-  `#buyPP { buyer : Principal; reserved : [{ tierIndex : Nat; ppUnits : Nat }]; ppUnitsReservedTotal : Nat; quotedLamports : Nat; depositAddress : Text; expiresAt : Int }`.
+- **Escrow account:** a dedicated subaccount of the `ponzi_math_sol` principal on `pp_ledger`. Balance is read live via `icrc1_balance_of`; reserved PP is tracked **per-tier** and summed on demand (`deskReservedTotal()`). `available = ledgerBalance(escrow) − reservedTotal`.
+- **Tiers:** ordered `DeskTier = { ratePpUnitsPer0_1Sol : Nat; ppUnitsTotal : Nat; ppUnitsSold : Nat; ppUnitsReserved : Nat }`, consumed **top-down in Charles's configured order** (he lists them best-deal-first — highest PP per 0.1 SOL at the top — so early buyers get the better rate). Active tier = the first with `ppUnitsSold + ppUnitsReserved < ppUnitsTotal`.
+- **Buy-intents:** a **separate `pendingBuyIntents` map** (a flat `BuyIntent` record) — *not* a new arm on the existing `DepositIntent`, which is what keeps the whole feature additive and migration-free:
+  `BuyIntent = { id : Nat; buyer : Principal; reserved : [{ tierIndex : Nat; ppUnits : Nat; ratePpUnitsPer0_1Sol : Nat }]; ppUnitsReservedTotal : Nat; quotedLamports : Nat64; expiresAt : Int; fulfilled : Bool }`. Each reservation leg carries its **locked rate** so later tier edits never change an open quote.
 
 ### Admin methods (gated to Charles's principal via the existing admin gate)
 - `deskDepositInventory(ppUnits)` — pulls PP from Charles via `icrc2_transfer_from` (he `icrc2_approve`s the canister first) into the escrow subaccount.
-- `deskWithdrawInventory(ppUnits, toAccount)` — returns unsold (unreserved) PP from escrow to Charles. Must not draw below `escrowReservedUnits`.
+- `deskWithdrawInventory(ppUnits, toOwner)` — returns unsold (unreserved) PP from escrow to Charles. Must not draw below the reserved total.
 - `deskAddTier / deskUpdateTier / deskRemoveTier / deskReorderTiers` — manage the ladder. Editing a tier never touches PP already reserved by open intents (reservations carry their own locked rate). Reducing a tier's `ppUnitsTotal` is clamped to ≥ `ppUnitsSold + reserved-in-this-tier`.
-- `deskWithdrawSol(toAddress)` — existing withdraw path; sends pooled SOL to Charles's Phantom.
+- `adminWithdrawDeskProceeds(toAddress)` — sends accrued desk SOL revenue (tracked separately from the game pot via `deskProceedsAccrualLamports`) from the pool to Charles's Phantom via the existing `sendSolPayout` primitive.
 - Refund controls (see Edge cases).
 
 ### Public methods
@@ -114,7 +114,7 @@ The core simplifier: a buy-intent locks the **rate + reserved PP**, not a fixed 
 - **Quote TTL ≈ 15 min** — a dedicated buy-quote TTL, separate from the 2h deposit TTL. Safe to keep short because the 60s detection timer auto-matches payments. On expiry the reservation returns to the pool.
 - **Tier edits / races** — an open intent locked its rate at confirm-time, so later tier edits never change it. Two buyers racing for the last chunk are resolved first-to-lock; the loser is re-quoted against remaining inventory.
 - **Inventory exhaustion** — `quoteBuyPP` returns `cappedByInventory = true` and the partial fillable amount; the UI shows "only X PP available."
-- **Refund path (the one place SOL must go back)** — excess SOL beyond the reserved cap, or a payment landing after TTL (reservation already released), is logged and refunded to the **captured sender address** via the existing withdraw path (one-click in the office for the MVP; auto-refund is a later enhancement). The observer must capture the source address from the incoming Solana transfer.
+- **Refund path (the one place SOL must go back)** — excess SOL beyond the reserved cap, or a payment landing after TTL (reservation already released), is refunded via the existing pool→address withdraw (`adminRefundDeskSol`). The observer deliberately does **not** decode the transfer's `accountKeys`, so the sender pubkey isn't available — refunds are therefore **admin-directed to an address the buyer supplies** (Charles enters/confirms the destination in his office). Auto-refund-to-sender would require decoding accountKeys and is deferred.
 - **Minimum buy** — small configurable lamport floor to avoid dust intents.
 - **PP transfer failure on settlement** — handled by transfer-first-then-record: state mutations roll back and the intent stays open/retryable; the buyer's SOL is safe in the pool and refundable.
 
@@ -123,7 +123,7 @@ The core simplifier: a buy-intent locks the **rate + reserved PP**, not a fixed 
 Internal: `ppDesk` / "PP Desk". User-facing should follow the established VC/MLM register (Seed Round, Series A, Carried Interest, Front-End Load) — **not** casino language. Candidates: **Founder's Allocation**, **Private Placement**, **Direct Allocation**, **Founder's Round**. Working title in this doc: *Founder's Allocation Desk*. Charles to pick the final string.
 
 ## Implementation notes / to verify during build
-- Confirm the exact admin-gating helper in `ponzi_math_sol` and reuse it for all `desk*` admin methods.
-- Confirm the observer can extract the **sender** pubkey from a matched incoming transfer (needed for refunds); if not directly available, capture it during RPC parsing.
-- Adding `#buyPP` plus the new desk state to `ponzi_math_sol` is a stable-state change → requires an explicit migration (`with migration = Migration.runVN`), enumerating every current intent/state variant per the project's migration discipline. Backend deploy only with explicit permission.
+- Admin gate = `requireAdmin(caller)` (traps non-admins); reuse it for all `desk*` admin methods. (Verified at `ponzi_math_sol/main.mo:378`.)
+- The observer does **not** extract the sender pubkey (it intentionally avoids decoding `accountKeys`), so refunds are admin-directed to a buyer-supplied address — not auto-to-sender.
+- The desk is **pure-additive** (separate `pendingBuyIntents` map + new stable `var`s + additive `GeneralLedgerEvent` arms), so it needs **no migration module** (`ponzi_math_sol` has none); only *modifying* an existing stored record would. Backend deploy only with explicit permission; rebase onto the deployed commit first.
 - Reuse the existing post-PartyDEX-buy "Deposit to Side Pocket" prompt for the desk's success state.
