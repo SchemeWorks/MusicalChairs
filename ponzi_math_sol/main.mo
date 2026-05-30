@@ -20,6 +20,7 @@ import Timer "mo:base/Timer";
 import Icrc21 "icrc21";
 
 import Base58 "Base58";
+import PpLedger "PpLedger";
 import SolRpc "SolRpc";
 import SolSigner "SolSigner";
 import SolTx "SolTx";
@@ -35,6 +36,7 @@ persistent actor class PonziMathSol(initArgs : {
     transient let TEST_ADMIN : Principal = initArgs.testAdmin;
     transient let solRpc : SolRpc.RpcActor = actor(SolRpc.SOL_RPC_CANISTER_ID);
     transient let ic : actor { raw_rand : () -> async Blob } = actor "aaaaa-aa";
+    transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
 
     // SOL-side config — captured at init, then mirrored to mutable state
     // below so admin can update it post-deploy.
@@ -207,6 +209,9 @@ persistent actor class PonziMathSol(initArgs : {
             underwater : Float;
             entitlement : Float;
         };
+        #deskSale : { buyer : Principal; ppUnitsCredited : Nat; lamportsReceived : Nat; intentId : Nat };
+        #deskProceedsWithdrawal : { toAddress : Text; lamports : Nat; txSig : Text };
+        #deskRefund : { toAddress : Text; lamports : Nat; txSig : Text };
     };
 
     // ========================================================================
@@ -264,6 +269,23 @@ persistent actor class PonziMathSol(initArgs : {
     var depositAddresses = principalMapNat.empty<Text>();
     var addressToPrincipal = textMap.empty<Principal>();
 
+    // Desk PP inventory lives in a fixed subaccount of THIS canister on pp_ledger.
+    // Bytes spell "PPDESK" then zero-padded to 32. Distinct from the default
+    // (null) subaccount so desk inventory never mixes with any other PP the
+    // canister might hold.
+    transient let DESK_ESCROW_SUBACCOUNT : Blob = Blob.fromArray([
+        0x50, 0x50, 0x44, 0x45, 0x53, 0x4b, // "PPDESK"
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    ]);
+
+    func deskEscrowAccount() : PpLedger.Account {
+        { owner = Principal.fromActor(Self); subaccount = ?DESK_ESCROW_SUBACCOUNT };
+    };
+
+    public query func getDeskEscrowAccount() : async { owner : Principal; subaccount : Blob } {
+        { owner = Principal.fromActor(Self); subaccount = DESK_ESCROW_SUBACCOUNT };
+    };
+
     // Deposit-detection cursors per address.
     var lastSeenSignature = textMap.empty<Text>();
 
@@ -279,6 +301,42 @@ persistent actor class PonziMathSol(initArgs : {
     };
     var pendingIntents = natMap.empty<DepositIntent>();
     var nextIntentId : Nat = 0;
+
+    // ===== Founder's Allocation Desk (buy PP with SOL) =====
+    public type DeskTier = {
+        ratePpUnitsPer0_1Sol : Nat; // PP-units per 0.1 SOL (=1e8 lamports)
+        ppUnitsTotal : Nat;
+        ppUnitsSold : Nat;
+        ppUnitsReserved : Nat;      // held against open buy intents
+    };
+    var deskTiers : [DeskTier] = [];
+
+    public type BuyReservation = {
+        tierIndex : Nat;
+        ppUnits : Nat;
+        ratePpUnitsPer0_1Sol : Nat; // LOCKED at quote time
+    };
+    public type BuyIntent = {
+        id : Nat;
+        principal : Principal;
+        reserved : [BuyReservation];
+        ppUnitsReservedTotal : Nat;
+        quotedLamports : Nat64;
+        createdAt : Int;
+        expiresAt : Int;
+        fulfilled : Bool;
+    };
+    var pendingBuyIntents = natMap.empty<BuyIntent>();
+    var nextBuyIntentId : Nat = 0;
+
+    // Desk SOL revenue, tracked separately from the game pot (mirrors
+    // coverChargeAccrualLamports). Physically lives on the pool address after
+    // sweep; this counter bounds adminWithdrawDeskProceeds.
+    var deskProceedsAccrualLamports : Nat64 = 0;
+
+    transient let DESK_BUY_INTENT_TTL_NS : Int = 15 * 60 * 1_000_000_000;
+    transient let MIN_BUY_LAMPORTS : Nat64 = 10_000_000; // 0.01 SOL
+    transient let PP_S : Nat = 100_000_000; // PP unit scale; 0.1 SOL = 1e8 lamports
 
     // Cover charge accrual in lamports. Lives on the pool address until
     // payManagementSol sweeps it.
@@ -2247,6 +2305,40 @@ persistent actor class PonziMathSol(initArgs : {
 
         let intent = switch (matched) {
             case (null) {
+                // Before treating as unmatched: try an open buy intent for this
+                // principal, amount within ±5%, not expired. On match, settle by
+                // releasing escrowed PP, then sweep + advance cursor like a deposit.
+                var matchedBuy : ?BuyIntent = null;
+                for (bi in natMap.vals(pendingBuyIntents)) {
+                    if (bi.principal == sig.principal and not bi.fulfilled) {
+                        let tol = bpsApply(bi.quotedLamports, 500);
+                        let lo : Nat64 = if (bi.quotedLamports > tol) { bi.quotedLamports - tol } else { 0 };
+                        let hi : Nat64 = bi.quotedLamports + tol;
+                        if (inboundLamports >= lo and inboundLamports <= hi and Time.now() <= bi.expiresAt) {
+                            matchedBuy := ?bi;
+                        };
+                    };
+                };
+                switch (matchedBuy) {
+                    case (?bi) {
+                        switch (await settleBuyIntent(bi, inboundLamports)) {
+                            case (#Ok(_pp)) {
+                                switch (await sweepToPool(sig.address, derivationPathForPrincipal(sig.principal), inboundLamports)) {
+                                    case (#Err(e)) { Debug.print("Desk sweep failed " # sig.signature # ": " # e) };
+                                    case (#Ok(_)) {};
+                                };
+                                lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+                                return #Ok(null);
+                            };
+                            case (#Err(e)) {
+                                // Leave cursor UNADVANCED → retried next tick (e.g. transient ledger error).
+                                Debug.print("Desk settle failed " # sig.signature # ": " # e);
+                                return #Err(e);
+                            };
+                        };
+                    };
+                    case (null) {};
+                };
                 // Unmatched deposit: confirmed inbound, but no open intent
                 // matches the amount. Advance the cursor anyway — otherwise we
                 // re-scan it every tick AND, critically, a stale deposit could
@@ -2467,6 +2559,8 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
+    public query func deskListTiers() : async [DeskTier] { deskTiers };
+
     public query ({ caller }) func getMyPendingIntents() : async [DepositIntent] {
         var out = List.nil<DepositIntent>();
         for (intent in natMap.vals(pendingIntents)) {
@@ -2480,6 +2574,410 @@ persistent actor class PonziMathSol(initArgs : {
     public query ({ caller }) func adminGetAllIntents() : async [DepositIntent] {
         requireAdmin(caller);
         Iter.toArray(natMap.vals(pendingIntents));
+    };
+
+    // Append a tier. Charles lists best-deal-first (highest rate at the top).
+    public shared ({ caller }) func deskAddTier(ratePpUnitsPer0_1Sol : Nat, ppUnitsTotal : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ratePpUnitsPer0_1Sol == 0) { return #Err("Rate must be > 0") };
+        if (ppUnitsTotal == 0) { return #Err("Quantity must be > 0") };
+        let tier : DeskTier = { ratePpUnitsPer0_1Sol; ppUnitsTotal; ppUnitsSold = 0; ppUnitsReserved = 0 };
+        deskTiers := Array.append(deskTiers, [tier]);
+        #Ok(deskTiers.size() - 1 : Nat);
+    };
+
+    // Update a tier's rate and/or total. Total cannot drop below sold+reserved.
+    public shared ({ caller }) func deskUpdateTier(index : Nat, ratePpUnitsPer0_1Sol : Nat, ppUnitsTotal : Nat) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        if (index >= deskTiers.size()) { return #Err("No such tier") };
+        if (ratePpUnitsPer0_1Sol == 0) { return #Err("Rate must be > 0") };
+        let t = deskTiers[index];
+        if (ppUnitsTotal < t.ppUnitsSold + t.ppUnitsReserved) {
+            return #Err("Total cannot be below already sold+reserved");
+        };
+        let updated = { t with ratePpUnitsPer0_1Sol; ppUnitsTotal };
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) { if (i == index) { updated } else { deskTiers[i] } });
+        #Ok();
+    };
+
+    // Remove a tier. Blocked while ANY tier has reserved PP, so open intents' tierIndex stays valid.
+    public shared ({ caller }) func deskRemoveTier(index : Nat) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        if (index >= deskTiers.size()) { return #Err("No such tier") };
+        for (t in deskTiers.vals()) {
+            if (t.ppUnitsReserved > 0) { return #Err("Cannot restructure tiers while buy intents are open; wait for them to settle or expire (max 15 min)") };
+        };
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size() - 1 : Nat, func(i) { if (i < index) { deskTiers[i] } else { deskTiers[i + 1] } });
+        #Ok();
+    };
+
+    // Replace the full ordered list (reorder/bulk edit). Blocked while reservations exist.
+    public shared ({ caller }) func deskReorderTiers(newOrder : [DeskTier]) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        for (t in deskTiers.vals()) {
+            if (t.ppUnitsReserved > 0) { return #Err("Cannot reorder while buy intents are open") };
+        };
+        for (t in newOrder.vals()) {
+            if (t.ratePpUnitsPer0_1Sol == 0 or t.ppUnitsTotal < t.ppUnitsSold) { return #Err("Invalid tier in new order") };
+        };
+        deskTiers := newOrder;
+        #Ok();
+    };
+
+    func deskReservedTotal() : Nat {
+        var sum : Nat = 0;
+        for (t in deskTiers.vals()) { sum += t.ppUnitsReserved };
+        sum;
+    };
+
+    // Charles must icrc2_approve THIS canister as spender on pp_ledger first,
+    // then call this to pull `ppUnits` from his wallet into the escrow subaccount.
+    public shared ({ caller }) func deskDepositInventory(ppUnits : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ppUnits == 0) { return #Err("Amount must be > 0") };
+        try {
+            let res = await ppLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = deskEscrowAccount();
+                amount = ppUnits;
+                fee = null; // pp_ledger fee is 0
+                memo = null;
+                created_at_time = null;
+            });
+            switch (res) {
+                case (#Ok(block)) { #Ok(block) };
+                case (#Err(e)) { #Err("transfer_from failed: " # debug_show (e)) };
+            };
+        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+    };
+
+    // Return unsold, unreserved PP from escrow to `toOwner`.
+    public shared ({ caller }) func deskWithdrawInventory(ppUnits : Nat, toOwner : Principal) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ppUnits == 0) { return #Err("Amount must be > 0") };
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        let available : Nat = if (bal > reserved) { bal - reserved } else { 0 };
+        if (ppUnits > available) { return #Err("Only " # Nat.toText(available) # " PP available (rest is reserved)") };
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
+                to = { owner = toOwner; subaccount = null };
+                amount = ppUnits;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+            switch (res) {
+                case (#Ok(block)) { #Ok(block) };
+                case (#Err(e)) { #Err("transfer failed: " # debug_show (e)) };
+            };
+        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+    };
+
+    public func deskInventory() : async { balanceUnits : Nat; reservedUnits : Nat; availableUnits : Nat } {
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        { balanceUnits = bal; reservedUnits = reserved; availableUnits = if (bal > reserved) { bal - reserved } else { 0 } };
+    };
+
+    public type QuoteLeg = { tierIndex : Nat; ppUnits : Nat; lamports : Nat64; ratePpUnitsPer0_1Sol : Nat };
+    public type DeskQuote = { ppUnitsOut : Nat; legs : [QuoteLeg]; cappedByInventory : Bool };
+
+    // Pure: walk tiers top-down spending `lamports` against each tier's available PP.
+    func computeQuote(lamports : Nat64) : DeskQuote {
+        var remaining : Nat = Nat64.toNat(lamports);
+        var totalPp : Nat = 0;
+        var legs = List.nil<QuoteLeg>();
+        var i : Nat = 0;
+        while (i < deskTiers.size() and remaining > 0) {
+            let t = deskTiers[i];
+            let availablePp : Nat = if (t.ppUnitsTotal > t.ppUnitsSold + t.ppUnitsReserved) {
+                t.ppUnitsTotal - t.ppUnitsSold - t.ppUnitsReserved : Nat;
+            } else { 0 };
+            if (availablePp > 0) {
+                let maxLamportsForTier : Nat = availablePp * PP_S / t.ratePpUnitsPer0_1Sol;
+                let spend : Nat = Nat.min(remaining, maxLamportsForTier);
+                let ppFromTier : Nat = spend * t.ratePpUnitsPer0_1Sol / PP_S;
+                if (ppFromTier > 0) {
+                    totalPp += ppFromTier;
+                    legs := List.push({ tierIndex = i; ppUnits = ppFromTier; lamports = Nat64.fromNat(spend); ratePpUnitsPer0_1Sol = t.ratePpUnitsPer0_1Sol }, legs);
+                    remaining -= spend;
+                };
+            };
+            i += 1;
+        };
+        { ppUnitsOut = totalPp; legs = List.toArray(List.reverse(legs)); cappedByInventory = remaining > 0 };
+    };
+
+    public query func quoteBuyPP(lamports : Nat64) : async DeskQuote { computeQuote(lamports) };
+
+    // Add (+) or release (-) reserved PP on the named tiers.
+    func applyReservation(legs : [QuoteLeg], release : Bool) {
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) {
+            var t = deskTiers[i];
+            for (leg in legs.vals()) {
+                if (leg.tierIndex == i) {
+                    if (release) {
+                        let newReserved : Nat = if (t.ppUnitsReserved > leg.ppUnits) { t.ppUnitsReserved - leg.ppUnits } else { 0 };
+                        t := { t with ppUnitsReserved = newReserved };
+                    } else {
+                        t := { t with ppUnitsReserved = t.ppUnitsReserved + leg.ppUnits };
+                    };
+                };
+            };
+            t;
+        });
+    };
+
+    // Core reserve+create, shared by the public method and the test shim.
+    // NO auth/lock/bootstrap checks here — callers add those.
+    func reserveBuyIntentFor(buyer : Principal, lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        let quote = computeQuote(lamports);
+        if (quote.ppUnitsOut == 0) { return #Err("Desk has no inventory available") };
+        // Best-effort over-reservation guard. Two distinct principals can race
+        // past this check (separate caller locks, plus an await before the reserve
+        // mutates state), transiently reserving beyond the escrow balance. That is
+        // bounded and self-healing: settlement's icrc1_transfer from escrow is the
+        // authoritative backstop (a short escrow simply fails that fill with #Err),
+        // and expiry releases the phantom reservation. Acceptable for an admin-
+        // stocked OTC desk; a global lock here would serialize every buyer through
+        // a threshold-Ed25519 derivation await for a mostly-theoretical race.
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        if (bal < deskReservedTotal() + quote.ppUnitsOut) {
+            return #Err("Insufficient desk inventory to reserve this buy");
+        };
+        let depositAddr = switch (principalMapNat.get(depositAddresses, buyer)) {
+            case (?a) { a };
+            case (null) {
+                let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(buyer));
+                depositAddresses := principalMapNat.put(depositAddresses, buyer, addr);
+                addressToPrincipal := textMap.put(addressToPrincipal, addr, buyer);
+                addr;
+            };
+        };
+        applyReservation(quote.legs, false);
+        let now = Time.now();
+        let reserved : [BuyReservation] = Array.map<QuoteLeg, BuyReservation>(quote.legs, func(l) {
+            { tierIndex = l.tierIndex; ppUnits = l.ppUnits; ratePpUnitsPer0_1Sol = l.ratePpUnitsPer0_1Sol };
+        });
+        let intent : BuyIntent = {
+            id = nextBuyIntentId; principal = buyer; reserved;
+            ppUnitsReservedTotal = quote.ppUnitsOut; quotedLamports = lamports;
+            createdAt = now; expiresAt = now + DESK_BUY_INTENT_TTL_NS; fulfilled = false;
+        };
+        pendingBuyIntents := natMap.put(pendingBuyIntents, nextBuyIntentId, intent);
+        let intentId = nextBuyIntentId;
+        nextBuyIntentId += 1;
+        #Ok({ intentId; depositAddress = depositAddr; ppUnitsReserved = quote.ppUnitsOut; legs = quote.legs; expiresAt = intent.expiresAt });
+    };
+
+    public shared ({ caller }) func createBuyIntent(lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        requireAuthenticated(caller);
+        if (lamports < MIN_BUY_LAMPORTS) { return #Err("Minimum buy is 0.01 SOL (10,000,000 lamports)") };
+        if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
+        acquireCallerLock(caller);
+        try {
+            // I-1 guard: the desk and the game-deposit flow share one per-user deposit
+            // address and the same ±5% observer match window, and game-deposit intents
+            // are matched FIRST in creditDeposit. So if the caller has an open, non-
+            // expired game deposit whose amount band overlaps this buy's band, the
+            // buyer's SOL would be consumed as a game deposit instead of the buy. Reject
+            // here (inside the lock, so prepareSolDeposit can't race a new one in).
+            let buyTol = bpsApply(lamports, 500);
+            let buyLo : Nat64 = if (lamports > buyTol) { lamports - buyTol } else { 0 };
+            let buyHi : Nat64 = lamports + buyTol;
+            let nowT = Time.now();
+            for (di in natMap.vals(pendingIntents)) {
+                if (di.principal == caller and not di.fulfilled and nowT <= di.expiresAt) {
+                    let dTol = bpsApply(di.expectedAmountLamports, 500);
+                    let dLo : Nat64 = if (di.expectedAmountLamports > dTol) { di.expectedAmountLamports - dTol } else { 0 };
+                    let dHi : Nat64 = di.expectedAmountLamports + dTol;
+                    if (buyLo <= dHi and dLo <= buyHi) {
+                        return #Err("You have an open deposit of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
+                    };
+                };
+            };
+            await reserveBuyIntentFor(caller, lamports);
+        } finally {
+            releaseCallerLock(caller);
+        };
+    };
+
+    // TEST/diagnostic (TEST_ADMIN only): create a buy intent for `buyer`, bypassing
+    // auth/lock so the reserve+settle path is testable on a local replica. Gated to a
+    // NON-bootstrapped canister so it is structurally inert in production — a
+    // bootstrapped (mainnet) canister rejects it, making "local testing only" enforced
+    // rather than merely documented.
+    public shared ({ caller }) func adminTestCreateBuyIntent(buyer : Principal, lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        await reserveBuyIntentFor(buyer, lamports);
+    };
+
+    // TEST/diagnostic (TEST_ADMIN only): drive settleBuyIntent directly with a
+    // simulated inbound amount, bypassing the Solana observer. Gated to a
+    // NON-bootstrapped canister so it is structurally inert in production.
+    public shared ({ caller }) func adminTestSettleBuyIntent(intentId : Nat, inboundLamports : Nat64) : async { #Ok : Nat; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        switch (natMap.get(pendingBuyIntents, intentId)) {
+            case (null) { #Err("No such buy intent") };
+            case (?bi) { if (bi.fulfilled) { #Err("Already fulfilled") } else { await settleBuyIntent(bi, inboundLamports) } };
+        };
+    };
+
+    // Credit PP for a matched buy payment. Pure-computes the proportional fill,
+    // transfers PP from escrow FIRST, and ONLY on transfer success mutates
+    // tier/intent/accrual. A failed transfer leaves the intent open for retry.
+    func settleBuyIntent(intent : BuyIntent, inboundLamports : Nat64) : async { #Ok : Nat; #Err : Text } {
+        // 1. Walk locked legs, consume inboundLamports → creditPp + per-leg filled.
+        var remaining : Nat = Nat64.toNat(inboundLamports);
+        var creditPp : Nat = 0;
+        let filled = Array.map<BuyReservation, Nat>(intent.reserved, func(leg) {
+            let legLamports : Nat = leg.ppUnits * PP_S / leg.ratePpUnitsPer0_1Sol;
+            let spend : Nat = Nat.min(remaining, legLamports);
+            let ppFilled : Nat = if (spend >= legLamports) { leg.ppUnits } else { spend * leg.ratePpUnitsPer0_1Sol / PP_S };
+            remaining := if (remaining > spend) { remaining - spend } else { 0 };
+            creditPp += ppFilled;
+            ppFilled;
+        });
+        if (creditPp == 0) { return #Err("Zero fill") };
+        // 2. Transfer PP escrow → buyer FIRST.
+        let xfer = try {
+            await ppLedger.icrc1_transfer({
+                from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
+                to = { owner = intent.principal; subaccount = null };
+                amount = creditPp;
+                fee = null; memo = null; created_at_time = null;
+            });
+        } catch (e) { #Err(#GenericError({ error_code = 0; message = Error.message(e) })) };
+        switch (xfer) {
+            case (#Err(e)) { return #Err("PP transfer failed: " # debug_show (e)) };
+            case (#Ok(_)) {};
+        };
+        // 3. On success: release each leg's full reservation, add filled to sold.
+        // INVARIANT (load-bearing — do NOT break): there must be NO `await` between the
+        // icrc1_transfer above and the `fulfilled = true` write below. The next await
+        // (sweepToPool, in the caller) is the commit point that durably persists
+        // `fulfilled`; an await inserted here would let a trap in its continuation roll
+        // back `fulfilled` while the ledger transfer already committed — a replay /
+        // double-credit window. Keep this tail synchronous.
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) {
+            var t = deskTiers[i];
+            var j : Nat = 0;
+            for (leg in intent.reserved.vals()) {
+                if (leg.tierIndex == i) {
+                    let rel : Nat = if (t.ppUnitsReserved > leg.ppUnits) { t.ppUnitsReserved - leg.ppUnits } else { 0 };
+                    t := { t with ppUnitsReserved = rel; ppUnitsSold = t.ppUnitsSold + filled[j] };
+                };
+                j += 1;
+            };
+            t;
+        });
+        pendingBuyIntents := natMap.put(pendingBuyIntents, intent.id, { intent with fulfilled = true });
+        // Books the full matched inbound as proceeds. A payment only reaches here if it
+        // matched within ±5% of the quote, so any overpay is bounded to that tolerance
+        // and kept as desk proceeds (the buyer received the full reserved PP). Larger
+        // overpays never match → fall through to unmatched and are refundable. No
+        // micro-refund leg for the in-tolerance remainder.
+        deskProceedsAccrualLamports += inboundLamports;
+        recordLedger(#deskSale({ buyer = intent.principal; ppUnitsCredited = creditPp; lamportsReceived = Nat64.toNat(inboundLamports); intentId = intent.id }));
+        #Ok(creditPp);
+    };
+
+    public query ({ caller }) func getMyPendingBuyIntents() : async [BuyIntent] {
+        var out = List.nil<BuyIntent>();
+        for (intent in natMap.vals(pendingBuyIntents)) {
+            if (intent.principal == caller and not intent.fulfilled) { out := List.push(intent, out) };
+        };
+        List.toArray(out);
+    };
+
+    public query ({ caller }) func adminGetAllBuyIntents() : async [BuyIntent] {
+        requireAdmin(caller);
+        Iter.toArray(natMap.vals(pendingBuyIntents));
+    };
+
+    // Release reservations for expired, unfulfilled buy intents (PP returns to the pool).
+    func releaseExpiredBuyIntents() {
+        let now = Time.now();
+        for (bi in natMap.vals(pendingBuyIntents)) {
+            if (not bi.fulfilled and now > bi.expiresAt) {
+                let legs = Array.map<BuyReservation, QuoteLeg>(bi.reserved, func(r) {
+                    { tierIndex = r.tierIndex; ppUnits = r.ppUnits; lamports = 0 : Nat64; ratePpUnitsPer0_1Sol = r.ratePpUnitsPer0_1Sol };
+                });
+                applyReservation(legs, true);
+                pendingBuyIntents := natMap.put(pendingBuyIntents, bi.id, { bi with fulfilled = true });
+            };
+        };
+    };
+
+    // Withdraw accrued desk SOL revenue from the pool to Charles's address.
+    public shared ({ caller }) func adminWithdrawDeskProceeds(toAddress : Text) : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        if (deskProceedsAccrualLamports == 0) { return #Err("No desk proceeds to withdraw") };
+        let amount = deskProceedsAccrualLamports;
+        switch (await sendSolPayout(toAddress, amount)) {
+            case (#Ok(txSig)) {
+                deskProceedsAccrualLamports := 0;
+                recordLedger(#deskProceedsWithdrawal({ toAddress; lamports = Nat64.toNat(amount); txSig }));
+                #Ok(txSig);
+            };
+            case (#Err(e)) { #Err(e) };
+        };
+    };
+
+    // Refund SOL to a buyer-supplied address, drawn from MATCHED desk proceeds so it can
+    // never dip into commingled game-pot SOL — the accrual counter bounds it. The observer
+    // can't extract the sender, so Charles supplies the address. Records a distinct
+    // #deskRefund event (NOT #deskProceedsWithdrawal) so refunds are not conflated with
+    // revenue withdrawals in the ledger.
+    // OPERATOR NOTES: (1) refunds net against the SAME counter as adminWithdrawDeskProceeds,
+    // so issue refunds BEFORE withdrawing proceeds. (2) This is for refunding proceeds the
+    // desk actually took in; an OUT-OF-tolerance overpay (>±5%, never matched/settled) is
+    // not counted here — it stays on the buyer's per-user deposit address and is recovered
+    // via the existing deposit-address recovery path, not this method.
+    public shared ({ caller }) func adminRefundDeskSol(toAddress : Text, lamports : Nat64) : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        if (lamports == 0 or lamports > deskProceedsAccrualLamports) { return #Err("Amount exceeds accrued desk proceeds") };
+        switch (await sendSolPayout(toAddress, lamports)) {
+            case (#Ok(txSig)) {
+                let newAccrual : Nat64 = if (deskProceedsAccrualLamports > lamports) { deskProceedsAccrualLamports - lamports } else { 0 };
+                deskProceedsAccrualLamports := newAccrual;
+                recordLedger(#deskRefund({ toAddress; lamports = Nat64.toNat(lamports); txSig }));
+                #Ok(txSig);
+            };
+            case (#Err(e)) { #Err(e) };
+        };
+    };
+
+    public func deskStats() : async {
+        inventoryUnits : Nat; reservedUnits : Nat; availableUnits : Nat;
+        proceedsLamports : Nat; openBuyIntents : Nat; tierCount : Nat; totalSoldUnits : Nat;
+    } {
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        var open : Nat = 0;
+        for (bi in natMap.vals(pendingBuyIntents)) { if (not bi.fulfilled) { open += 1 } };
+        var sold : Nat = 0;
+        for (t in deskTiers.vals()) { sold += t.ppUnitsSold };
+        {
+            inventoryUnits = bal; reservedUnits = reserved;
+            availableUnits = if (bal > reserved) { bal - reserved } else { 0 };
+            proceedsLamports = Nat64.toNat(deskProceedsAccrualLamports);
+            openBuyIntents = open; tierCount = deskTiers.size(); totalSoldUnits = sold;
+        };
     };
 
     /// Scan one deposit address for new signatures and credit any that match
@@ -2511,6 +3009,7 @@ persistent actor class PonziMathSol(initArgs : {
     /// until the deposit is credited or the intent expires, giving free
     /// retry across transient RPC failures / not-yet-confirmed transactions.
     func runDetectionForOpenIntents() : async Nat {
+        releaseExpiredBuyIntents();
         let now = Time.now();
         // Distinct deposit addresses with a live intent (dedups multiple
         // intents from the same principal).
@@ -2519,6 +3018,14 @@ persistent actor class PonziMathSol(initArgs : {
             if (not intent.fulfilled and now <= intent.expiresAt) {
                 switch (principalMapNat.get(depositAddresses, intent.principal)) {
                     case (?addr) { toScan := textMap.put(toScan, addr, intent.principal) };
+                    case (null) {};
+                };
+            };
+        };
+        for (bi in natMap.vals(pendingBuyIntents)) {
+            if (not bi.fulfilled and now <= bi.expiresAt) {
+                switch (principalMapNat.get(depositAddresses, bi.principal)) {
+                    case (?addr) { toScan := textMap.put(toScan, addr, bi.principal) };
                     case (null) {};
                 };
             };
