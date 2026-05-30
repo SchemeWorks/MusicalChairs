@@ -209,6 +209,8 @@ persistent actor class PonziMathSol(initArgs : {
             underwater : Float;
             entitlement : Float;
         };
+        #deskSale : { buyer : Principal; ppUnitsCredited : Nat; lamportsReceived : Nat; intentId : Nat };
+        #deskProceedsWithdrawal : { toAddress : Text; lamports : Nat; txSig : Text };
     };
 
     // ========================================================================
@@ -298,6 +300,42 @@ persistent actor class PonziMathSol(initArgs : {
     };
     var pendingIntents = natMap.empty<DepositIntent>();
     var nextIntentId : Nat = 0;
+
+    // ===== Founder's Allocation Desk (buy PP with SOL) =====
+    public type DeskTier = {
+        ratePpUnitsPer0_1Sol : Nat; // PP-units per 0.1 SOL (=1e8 lamports)
+        ppUnitsTotal : Nat;
+        ppUnitsSold : Nat;
+        ppUnitsReserved : Nat;      // held against open buy intents
+    };
+    var deskTiers : [DeskTier] = [];
+
+    public type BuyReservation = {
+        tierIndex : Nat;
+        ppUnits : Nat;
+        ratePpUnitsPer0_1Sol : Nat; // LOCKED at quote time
+    };
+    public type BuyIntent = {
+        id : Nat;
+        principal : Principal;
+        reserved : [BuyReservation];
+        ppUnitsReservedTotal : Nat;
+        quotedLamports : Nat64;
+        createdAt : Int;
+        expiresAt : Int;
+        fulfilled : Bool;
+    };
+    var pendingBuyIntents = natMap.empty<BuyIntent>();
+    var nextBuyIntentId : Nat = 0;
+
+    // Desk SOL revenue, tracked separately from the game pot (mirrors
+    // coverChargeAccrualLamports). Physically lives on the pool address after
+    // sweep; this counter bounds adminWithdrawDeskProceeds.
+    var deskProceedsAccrualLamports : Nat64 = 0;
+
+    transient let DESK_BUY_INTENT_TTL_NS : Int = 15 * 60 * 1_000_000_000;
+    transient let MIN_BUY_LAMPORTS : Nat64 = 10_000_000; // 0.01 SOL
+    transient let PP_S : Nat = 100_000_000; // PP unit scale; 0.1 SOL = 1e8 lamports
 
     // Cover charge accrual in lamports. Lives on the pool address until
     // payManagementSol sweeps it.
@@ -2485,6 +2523,8 @@ persistent actor class PonziMathSol(initArgs : {
             releaseCallerLock(caller);
         };
     };
+
+    public query func deskListTiers() : async [DeskTier] { deskTiers };
 
     public query ({ caller }) func getMyPendingIntents() : async [DepositIntent] {
         var out = List.nil<DepositIntent>();
