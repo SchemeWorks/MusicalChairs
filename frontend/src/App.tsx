@@ -14,6 +14,7 @@ import LogoutButton from './components/LogoutButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ShenanigansAdminPanel from './components/ShenanigansAdminPanel';
 import CharlesGodView from './components/CharlesGodView';
+import PpDeskPanel from './components/PpDeskPanel';
 import GameStatusBar from './components/GameStatusBar';
 import { Toaster } from '@/components/ui/sonner';
 import { Wallet, Dices, AlertTriangle, Users, Wrench, Tent, DollarSign, Rocket, Landmark, Dice5, BookOpen, CircleDollarSign, ChevronDown } from 'lucide-react';
@@ -292,7 +293,7 @@ export default function App() {
   const { isOpen: isWalletDropdownOpen, openWallet, closeWallet, walletType } = useWallet();
   const { data: userProfile, isLoading: profileLoading, isFetched } = useGetCallerUserProfile();
   const [showAdminPanel, setShowAdminPanel] = useState(false);
-  const [adminPanelTab, setAdminPanelTab] = useState<'godView' | 'tuning'>('godView');
+  const [adminPanelTab, setAdminPanelTab] = useState<'godView' | 'tuning' | 'desk'>('godView');
   const [activeTab, setActiveTab] = useState<TabType>('profitCenter');
   const walletButtonRef = useRef<HTMLButtonElement>(null);
   const [showDocsPage, setShowDocsPage] = useState(() => window.location.hash.startsWith('#docs'));
@@ -757,10 +758,20 @@ export default function App() {
                       >
                         Tuning
                       </button>
+                      <button
+                        onClick={() => setAdminPanelTab('desk')}
+                        className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          adminPanelTab === 'desk'
+                            ? 'bg-[var(--mc-gold)]/20 mc-text-gold border border-[var(--mc-gold)]/40'
+                            : 'mc-text-muted hover:mc-text-dim hover:bg-white/5'
+                        }`}
+                      >
+                        Desk
+                      </button>
                     </div>
                   </div>
 
-                  {adminPanelTab === 'godView' ? <CharlesGodView /> : <ShenanigansAdminPanel />}
+                  {adminPanelTab === 'godView' ? <CharlesGodView /> : adminPanelTab === 'tuning' ? <ShenanigansAdminPanel /> : <PpDeskPanel />}
                 </div>
               </ErrorBoundary>
             ) : (
