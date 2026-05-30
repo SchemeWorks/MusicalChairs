@@ -2589,6 +2589,64 @@ persistent actor class PonziMathSol(initArgs : {
         #Ok();
     };
 
+    func deskReservedTotal() : Nat {
+        var sum : Nat = 0;
+        for (t in deskTiers.vals()) { sum += t.ppUnitsReserved };
+        sum;
+    };
+
+    // Charles must icrc2_approve THIS canister as spender on pp_ledger first,
+    // then call this to pull `ppUnits` from his wallet into the escrow subaccount.
+    public shared ({ caller }) func deskDepositInventory(ppUnits : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ppUnits == 0) { return #Err("Amount must be > 0") };
+        try {
+            let res = await ppLedger.icrc2_transfer_from({
+                spender_subaccount = null;
+                from = { owner = caller; subaccount = null };
+                to = deskEscrowAccount();
+                amount = ppUnits;
+                fee = null; // pp_ledger fee is 0
+                memo = null;
+                created_at_time = null;
+            });
+            switch (res) {
+                case (#Ok(block)) { #Ok(block) };
+                case (#Err(e)) { #Err("transfer_from failed: " # debug_show (e)) };
+            };
+        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+    };
+
+    // Return unsold, unreserved PP from escrow to `toOwner`.
+    public shared ({ caller }) func deskWithdrawInventory(ppUnits : Nat, toOwner : Principal) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ppUnits == 0) { return #Err("Amount must be > 0") };
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        let available : Nat = if (bal > reserved) { bal - reserved } else { 0 };
+        if (ppUnits > available) { return #Err("Only " # Nat.toText(available) # " PP available (rest is reserved)") };
+        try {
+            let res = await ppLedger.icrc1_transfer({
+                from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
+                to = { owner = toOwner; subaccount = null };
+                amount = ppUnits;
+                fee = null;
+                memo = null;
+                created_at_time = null;
+            });
+            switch (res) {
+                case (#Ok(block)) { #Ok(block) };
+                case (#Err(e)) { #Err("transfer failed: " # debug_show (e)) };
+            };
+        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+    };
+
+    public func deskInventory() : async { balanceUnits : Nat; reservedUnits : Nat; availableUnits : Nat } {
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        { balanceUnits = bal; reservedUnits = reserved; availableUnits = if (bal > reserved) { bal - reserved } else { 0 } };
+    };
+
     /// Scan one deposit address for new signatures and credit any that match
     /// an open intent. Returns the number of GameRecords created. Shared by
     /// the manual admin sweep and the auto-detection timer.
