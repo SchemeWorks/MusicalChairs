@@ -476,7 +476,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               </div>
             )}
             <div className="mt-3 text-[10px] mc-text-muted italic text-center">
-              Withdrawals are sent to your connected Phantom wallet on Solana devnet.
+              Withdrawals are sent to your connected Phantom wallet.
             </div>
           </div>
         )}

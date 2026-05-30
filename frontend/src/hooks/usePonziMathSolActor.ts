@@ -5,7 +5,7 @@ import { useWallet } from './useWallet';
 import { ponziMathSolIdlFactory, PonziMathSolService } from '../backend';
 import { getOisySignerAgent, createOisyActor } from '../lib/oisySigner';
 
-// ponzi_math_sol canister ID. Devnet RPC config lives on the canister itself.
+// ponzi_math_sol canister ID. Mainnet RPC config lives on the canister itself.
 const PONZI_MATH_SOL_CANISTER_ID = 'spc6q-xyaaa-aaaac-qg2ma-cai';
 
 const HOST = 'https://icp0.io';
