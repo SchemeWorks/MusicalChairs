@@ -5135,6 +5135,22 @@ persistent actor Self {
         ponziMathSolPrincipal := ?p;
     };
 
+    /// M3: reset ALL SOL-side observer state to a clean slate. Used once during
+    /// the mainnet cutover, after ponzi_math_sol is reinstalled (fresh, gameId
+    /// restarts at 0) and before the first real deposit, so the observer picks
+    /// up mainnet game 0 and re-reads backer positions from zero. SOL-only:
+    /// does NOT touch the ICP cursor or ICP backerSeen (unlike
+    /// primeObserverCursors). Admin only.
+    public shared ({ caller }) func adminResetSolObserverState() : async () {
+        requireAdmin(caller);
+        solGameIdCursor := 0;
+        solBackerSeen := principalMap.empty<BackerSeen>();
+        solGameMintRetries := natMap.empty<Nat>();
+        missedSolGameMints := natMap.empty<Text>();
+        solBackerMintRetries := principalMap.empty<Nat>();
+        missedSolBackerMints := principalMap.empty<Text>();
+    };
+
     public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {
         requireAdmin(caller);
         if (initial > 10_000 or passthrough > 10_000) {
