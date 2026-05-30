@@ -4,12 +4,12 @@
  * auto-selects between the two by `walletType` (SIWS → BuySOL, else BuyPP).
  */
 
-import BuySOLFlyout from './BuySOLFlyout';
+import BuyPpDeskFlyout from './BuyPpDeskFlyout';
 
 export default function BuySOLWidget() {
   return (
     <div className="mc-buy-pp-widget">
-      <BuySOLFlyout variant="widget" />
+      <BuyPpDeskFlyout variant="widget" />
     </div>
   );
 }

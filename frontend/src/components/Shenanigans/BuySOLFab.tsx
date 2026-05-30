@@ -10,7 +10,7 @@
 
 import { useState } from 'react';
 import { Zap } from 'lucide-react';
-import BuySOLFlyout from './BuySOLFlyout';
+import BuyPpDeskFlyout from './BuyPpDeskFlyout';
 
 export default function BuySOLFab() {
   const [open, setOpen] = useState(false);
@@ -36,7 +36,7 @@ export default function BuySOLFab() {
             onClick={() => setOpen(false)}
           />
           <div className="mc-buy-pp-sheet lg:hidden" role="dialog" aria-label="Buy PP with SOL">
-            <BuySOLFlyout variant="sheet" onClose={() => setOpen(false)} />
+            <BuyPpDeskFlyout variant="sheet" onClose={() => setOpen(false)} />
           </div>
         </>
       )}
