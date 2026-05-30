@@ -2647,6 +2647,37 @@ persistent actor class PonziMathSol(initArgs : {
         { balanceUnits = bal; reservedUnits = reserved; availableUnits = if (bal > reserved) { bal - reserved } else { 0 } };
     };
 
+    public type QuoteLeg = { tierIndex : Nat; ppUnits : Nat; lamports : Nat64; ratePpUnitsPer0_1Sol : Nat };
+    public type DeskQuote = { ppUnitsOut : Nat; legs : [QuoteLeg]; cappedByInventory : Bool };
+
+    // Pure: walk tiers top-down spending `lamports` against each tier's available PP.
+    func computeQuote(lamports : Nat64) : DeskQuote {
+        var remaining : Nat = Nat64.toNat(lamports);
+        var totalPp : Nat = 0;
+        var legs = List.nil<QuoteLeg>();
+        var i : Nat = 0;
+        while (i < deskTiers.size() and remaining > 0) {
+            let t = deskTiers[i];
+            let availablePp : Nat = if (t.ppUnitsTotal > t.ppUnitsSold + t.ppUnitsReserved) {
+                t.ppUnitsTotal - t.ppUnitsSold - t.ppUnitsReserved : Nat;
+            } else { 0 };
+            if (availablePp > 0) {
+                let maxLamportsForTier : Nat = availablePp * PP_S / t.ratePpUnitsPer0_1Sol;
+                let spend : Nat = Nat.min(remaining, maxLamportsForTier);
+                let ppFromTier : Nat = spend * t.ratePpUnitsPer0_1Sol / PP_S;
+                if (ppFromTier > 0) {
+                    totalPp += ppFromTier;
+                    legs := List.push({ tierIndex = i; ppUnits = ppFromTier; lamports = Nat64.fromNat(spend); ratePpUnitsPer0_1Sol = t.ratePpUnitsPer0_1Sol }, legs);
+                    remaining -= spend;
+                };
+            };
+            i += 1;
+        };
+        { ppUnitsOut = totalPp; legs = List.toArray(List.reverse(legs)); cappedByInventory = remaining > 0 };
+    };
+
+    public query func quoteBuyPP(lamports : Nat64) : async DeskQuote { computeQuote(lamports) };
+
     /// Scan one deposit address for new signatures and credit any that match
     /// an open intent. Returns the number of GameRecords created. Shared by
     /// the manual admin sweep and the auto-detection timer.
