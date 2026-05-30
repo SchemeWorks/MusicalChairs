@@ -55,11 +55,11 @@ export default function PpDeskPanel() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="flex items-end gap-2">
             <div className="flex-1"><Field label="Deposit PP (whole)" value={depositPp} onChange={setDepositPp} placeholder="500000" /></div>
-            <button className="mc-btn-primary" disabled={deposit.isPending || num(depositPp) === 0} onClick={() => deposit.mutate({ units: wholePpToUnits(Math.trunc(num(depositPp))) })}>{deposit.isPending ? <LoadingSpinner /> : 'Deposit'}</button>
+            <button className="mc-btn-primary" disabled={deposit.isPending || num(depositPp) === 0} onClick={() => deposit.mutate({ units: wholePpToUnits(Math.trunc(num(depositPp))) }, { onSuccess: () => setDepositPp('') })}>{deposit.isPending ? <LoadingSpinner /> : 'Deposit'}</button>
           </div>
           <div className="flex items-end gap-2">
             <div className="flex-1"><Field label="Withdraw PP (whole)" value={withdrawPpAmt} onChange={setWithdrawPpAmt} placeholder="100000" /></div>
-            <button className="mc-btn-secondary" disabled={withdrawPp.isPending || num(withdrawPpAmt) === 0} onClick={() => withdrawPp.mutate({ units: wholePpToUnits(Math.trunc(num(withdrawPpAmt))), to: Principal.fromText(principal) })}>{withdrawPp.isPending ? <LoadingSpinner /> : 'Withdraw'}</button>
+            <button className="mc-btn-secondary" disabled={withdrawPp.isPending || num(withdrawPpAmt) === 0} onClick={() => withdrawPp.mutate({ units: wholePpToUnits(Math.trunc(num(withdrawPpAmt))), to: Principal.fromText(principal) }, { onSuccess: () => setWithdrawPpAmt('') })}>{withdrawPp.isPending ? <LoadingSpinner /> : 'Withdraw'}</button>
           </div>
         </div>
       </div>
