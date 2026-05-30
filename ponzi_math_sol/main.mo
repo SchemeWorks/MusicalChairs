@@ -2888,6 +2888,69 @@ persistent actor class PonziMathSol(initArgs : {
         Iter.toArray(natMap.vals(pendingBuyIntents));
     };
 
+    // Release reservations for expired, unfulfilled buy intents (PP returns to the pool).
+    func releaseExpiredBuyIntents() {
+        let now = Time.now();
+        for (bi in natMap.vals(pendingBuyIntents)) {
+            if (not bi.fulfilled and now > bi.expiresAt) {
+                let legs = Array.map<BuyReservation, QuoteLeg>(bi.reserved, func(r) {
+                    { tierIndex = r.tierIndex; ppUnits = r.ppUnits; lamports = 0 : Nat64; ratePpUnitsPer0_1Sol = r.ratePpUnitsPer0_1Sol };
+                });
+                applyReservation(legs, true);
+                pendingBuyIntents := natMap.put(pendingBuyIntents, bi.id, { bi with fulfilled = true });
+            };
+        };
+    };
+
+    // Withdraw accrued desk SOL revenue from the pool to Charles's address.
+    public shared ({ caller }) func adminWithdrawDeskProceeds(toAddress : Text) : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        if (deskProceedsAccrualLamports == 0) { return #Err("No desk proceeds to withdraw") };
+        let amount = deskProceedsAccrualLamports;
+        switch (await sendSolPayout(toAddress, amount)) {
+            case (#Ok(txSig)) {
+                deskProceedsAccrualLamports := 0;
+                recordLedger(#deskProceedsWithdrawal({ toAddress; lamports = Nat64.toNat(amount); txSig }));
+                #Ok(txSig);
+            };
+            case (#Err(e)) { #Err(e) };
+        };
+    };
+
+    // Refund SOL from the pool to a buyer-provided address (excess/late payments).
+    // The observer can't extract the sender, so Charles supplies the address.
+    public shared ({ caller }) func adminRefundDeskSol(toAddress : Text, lamports : Nat64) : async { #Ok : Text; #Err : Text } {
+        requireAdmin(caller);
+        if (lamports == 0 or lamports > deskProceedsAccrualLamports) { return #Err("Amount exceeds accrued desk proceeds") };
+        switch (await sendSolPayout(toAddress, lamports)) {
+            case (#Ok(txSig)) {
+                let newAccrual : Nat64 = if (deskProceedsAccrualLamports > lamports) { deskProceedsAccrualLamports - lamports } else { 0 };
+                deskProceedsAccrualLamports := newAccrual;
+                recordLedger(#deskProceedsWithdrawal({ toAddress; lamports = Nat64.toNat(lamports); txSig }));
+                #Ok(txSig);
+            };
+            case (#Err(e)) { #Err(e) };
+        };
+    };
+
+    public func deskStats() : async {
+        inventoryUnits : Nat; reservedUnits : Nat; availableUnits : Nat;
+        proceedsLamports : Nat; openBuyIntents : Nat; tierCount : Nat; totalSoldUnits : Nat;
+    } {
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        let reserved = deskReservedTotal();
+        var open : Nat = 0;
+        for (bi in natMap.vals(pendingBuyIntents)) { if (not bi.fulfilled) { open += 1 } };
+        var sold : Nat = 0;
+        for (t in deskTiers.vals()) { sold += t.ppUnitsSold };
+        {
+            inventoryUnits = bal; reservedUnits = reserved;
+            availableUnits = if (bal > reserved) { bal - reserved } else { 0 };
+            proceedsLamports = Nat64.toNat(deskProceedsAccrualLamports);
+            openBuyIntents = open; tierCount = deskTiers.size(); totalSoldUnits = sold;
+        };
+    };
+
     /// Scan one deposit address for new signatures and credit any that match
     /// an open intent. Returns the number of GameRecords created. Shared by
     /// the manual admin sweep and the auto-detection timer.
@@ -2917,6 +2980,7 @@ persistent actor class PonziMathSol(initArgs : {
     /// until the deposit is credited or the intent expires, giving free
     /// retry across transient RPC failures / not-yet-confirmed transactions.
     func runDetectionForOpenIntents() : async Nat {
+        releaseExpiredBuyIntents();
         let now = Time.now();
         // Distinct deposit addresses with a live intent (dedups multiple
         // intents from the same principal).
