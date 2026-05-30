@@ -20,6 +20,7 @@ import Timer "mo:base/Timer";
 import Icrc21 "icrc21";
 
 import Base58 "Base58";
+import PpLedger "PpLedger";
 import SolRpc "SolRpc";
 import SolSigner "SolSigner";
 import SolTx "SolTx";
@@ -35,6 +36,7 @@ persistent actor class PonziMathSol(initArgs : {
     transient let TEST_ADMIN : Principal = initArgs.testAdmin;
     transient let solRpc : SolRpc.RpcActor = actor(SolRpc.SOL_RPC_CANISTER_ID);
     transient let ic : actor { raw_rand : () -> async Blob } = actor "aaaaa-aa";
+    transient let ppLedger : PpLedger.LedgerActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
 
     // SOL-side config — captured at init, then mirrored to mutable state
     // below so admin can update it post-deploy.
@@ -263,6 +265,23 @@ persistent actor class PonziMathSol(initArgs : {
     transient let textMap = OrderedMap.Make<Text>(Text.compare);
     var depositAddresses = principalMapNat.empty<Text>();
     var addressToPrincipal = textMap.empty<Principal>();
+
+    // Desk PP inventory lives in a fixed subaccount of THIS canister on pp_ledger.
+    // Bytes spell "PPDESK" then zero-padded to 32. Distinct from the default
+    // (null) subaccount so desk inventory never mixes with any other PP the
+    // canister might hold.
+    transient let DESK_ESCROW_SUBACCOUNT : Blob = Blob.fromArray([
+        0x50, 0x50, 0x44, 0x45, 0x53, 0x4b, // "PPDESK"
+        0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+    ]);
+
+    func deskEscrowAccount() : PpLedger.Account {
+        { owner = Principal.fromActor(Self); subaccount = ?DESK_ESCROW_SUBACCOUNT };
+    };
+
+    public query func getDeskEscrowAccount() : async { owner : Principal; subaccount : Blob } {
+        { owner = Principal.fromActor(Self); subaccount = DESK_ESCROW_SUBACCOUNT };
+    };
 
     // Deposit-detection cursors per address.
     var lastSeenSignature = textMap.empty<Text>();
