@@ -84,7 +84,7 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
   const msRemaining = locked ? Number(locked.expiresAt / 1_000_000n) - nowMs : 0;
   const expired = locked != null && msRemaining <= 0;
   const qrPayload = locked ? `solana:${locked.depositAddress}?amount=${formatSOL(locked.quotedLamports)}` : null;
-  const canLock = isConnected && !!principal && lamports > 0n && !!quote && quote.ppUnitsOut > 0n && !createIntent.isPending;
+  const canLock = isConnected && !!principal && lamports > 0n && !!quote && quote.ppUnitsOut > 0n && !createIntent.isPending && ppBalances !== undefined;
 
   return (
     <div className={variant === 'sheet' ? 'p-5' : ''}>
