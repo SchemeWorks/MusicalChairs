@@ -1,6 +1,7 @@
 /**
- * Desktop sticky sidebar widget for SIWS users — drops `BuySOLFlyout` into
- * the same `mc-shenanigans-sidebar` slot that `BuyPPWidget` uses. `App.tsx`
+ * Desktop sticky sidebar widget for SIWS users — renders `BuyPpDeskFlyout`
+ * (the Founder's Allocation desk buy flyout) into the same
+ * `mc-shenanigans-sidebar` slot that `BuyPPWidget` uses. `App.tsx`
  * auto-selects between the two by `walletType` (SIWS → BuySOL, else BuyPP).
  */
 

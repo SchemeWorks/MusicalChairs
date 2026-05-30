@@ -13,6 +13,7 @@ const PONZI_MATH_SOL_CANISTER_ID = 'spc6q-xyaaa-aaaac-qg2ma-cai';
 const invalidate = (qc: ReturnType<typeof useQueryClient>) => {
   qc.invalidateQueries({ queryKey: ['deskTiers'] });
   qc.invalidateQueries({ queryKey: ['deskStats'] });
+  qc.invalidateQueries({ queryKey: ['ppBalances'] });
 };
 
 export function useDeskTiers() {
