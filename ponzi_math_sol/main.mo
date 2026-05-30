@@ -2541,6 +2541,54 @@ persistent actor class PonziMathSol(initArgs : {
         Iter.toArray(natMap.vals(pendingIntents));
     };
 
+    // Append a tier. Charles lists best-deal-first (highest rate at the top).
+    public shared ({ caller }) func deskAddTier(ratePpUnitsPer0_1Sol : Nat, ppUnitsTotal : Nat) : async { #Ok : Nat; #Err : Text } {
+        requireAdmin(caller);
+        if (ratePpUnitsPer0_1Sol == 0) { return #Err("Rate must be > 0") };
+        if (ppUnitsTotal == 0) { return #Err("Quantity must be > 0") };
+        let tier : DeskTier = { ratePpUnitsPer0_1Sol; ppUnitsTotal; ppUnitsSold = 0; ppUnitsReserved = 0 };
+        deskTiers := Array.append(deskTiers, [tier]);
+        #Ok(deskTiers.size() - 1 : Nat);
+    };
+
+    // Update a tier's rate and/or total. Total cannot drop below sold+reserved.
+    public shared ({ caller }) func deskUpdateTier(index : Nat, ratePpUnitsPer0_1Sol : Nat, ppUnitsTotal : Nat) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        if (index >= deskTiers.size()) { return #Err("No such tier") };
+        if (ratePpUnitsPer0_1Sol == 0) { return #Err("Rate must be > 0") };
+        let t = deskTiers[index];
+        if (ppUnitsTotal < t.ppUnitsSold + t.ppUnitsReserved) {
+            return #Err("Total cannot be below already sold+reserved");
+        };
+        let updated = { t with ratePpUnitsPer0_1Sol; ppUnitsTotal };
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) { if (i == index) { updated } else { deskTiers[i] } });
+        #Ok();
+    };
+
+    // Remove a tier. Blocked while ANY tier has reserved PP, so open intents' tierIndex stays valid.
+    public shared ({ caller }) func deskRemoveTier(index : Nat) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        if (index >= deskTiers.size()) { return #Err("No such tier") };
+        for (t in deskTiers.vals()) {
+            if (t.ppUnitsReserved > 0) { return #Err("Cannot restructure tiers while buy intents are open; wait for them to settle or expire (max 15 min)") };
+        };
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size() - 1 : Nat, func(i) { if (i < index) { deskTiers[i] } else { deskTiers[i + 1] } });
+        #Ok();
+    };
+
+    // Replace the full ordered list (reorder/bulk edit). Blocked while reservations exist.
+    public shared ({ caller }) func deskReorderTiers(newOrder : [DeskTier]) : async { #Ok : (); #Err : Text } {
+        requireAdmin(caller);
+        for (t in deskTiers.vals()) {
+            if (t.ppUnitsReserved > 0) { return #Err("Cannot reorder while buy intents are open") };
+        };
+        for (t in newOrder.vals()) {
+            if (t.ratePpUnitsPer0_1Sol == 0 or t.ppUnitsTotal < t.ppUnitsSold) { return #Err("Invalid tier in new order") };
+        };
+        deskTiers := newOrder;
+        #Ok();
+    };
+
     /// Scan one deposit address for new signatures and credit any that match
     /// an open intent. Returns the number of GameRecords created. Shared by
     /// the manual admin sweep and the auto-detection timer.
