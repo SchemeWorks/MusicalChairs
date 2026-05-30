@@ -89,7 +89,7 @@ export default function BuySOLFlyout({ onClose, variant = 'widget' }: Props) {
       <h2 className="font-display text-lg mc-text-primary mb-3">Buy Ponzi Points with SOL</h2>
 
       <div className="mc-status-amber p-3 mb-4 text-xs font-bold">
-        ⚠️ DEVNET SOL ONLY — Do NOT send real SOL. The canister polls Solana devnet RPC; mainnet SOL sent here is lost.
+        Send mainnet SOL only. Deposits are detected automatically within ~60 seconds and credited to your selected plan.
       </div>
 
       <label className="block mb-2">
@@ -137,7 +137,7 @@ export default function BuySOLFlyout({ onClose, variant = 'widget' }: Props) {
 
       {addressToShow && (
         <div className="mc-card p-3 space-y-2">
-          <div className="mc-label">Send devnet SOL to this address</div>
+          <div className="mc-label">Send SOL to this address</div>
           <div className="flex items-center gap-2">
             <code className="text-xs font-mono mc-text-dim truncate flex-1" title={addressToShow}>
               {addressToShow}

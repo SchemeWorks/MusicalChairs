@@ -2351,7 +2351,7 @@ export function useAdminClearFlavorPool() {
 }
 
 // ============================================================================
-// SOL hooks — backed by ponzi_math_sol on the IC, talking to Solana devnet
+// SOL hooks — backed by ponzi_math_sol on the IC, talking to Solana mainnet-beta
 // ============================================================================
 
 export function useGetUserSolGames() {

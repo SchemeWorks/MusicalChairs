@@ -510,23 +510,6 @@ export default function App() {
                       </button>
                     )}
 
-                    {/* DEVNET chip — SIWS users only. Reminds them ponzi_math_sol
-                        polls Solana devnet RPC, so mainnet SOL sent to their
-                        deposit address is unrecoverable. */}
-                    {walletType === 'siws' && (
-                      <span
-                        title="Connected to Solana devnet. Real SOL sent to a devnet-derived address is unrecoverable."
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
-                        style={{
-                          background: 'rgba(255, 200, 0, 0.12)',
-                          border: '1px solid rgba(255, 200, 0, 0.5)',
-                          color: 'rgba(255, 200, 0, 0.95)',
-                        }}
-                      >
-                        DEVNET
-                      </span>
-                    )}
-
                     {/* Wallet */}
                     <button
                       ref={walletButtonRef}
