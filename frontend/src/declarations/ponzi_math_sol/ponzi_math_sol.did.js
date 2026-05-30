@@ -117,6 +117,11 @@ export const idlFactory = ({ IDL }) => {
       'blockIndex' : IDL.Nat,
       'amountE8s' : IDL.Nat,
     }),
+    'deskRefund' : IDL.Record({
+      'txSig' : IDL.Text,
+      'lamports' : IDL.Nat,
+      'toAddress' : IDL.Text,
+    }),
     'backerDeposit' : IDL.Record({
       'backer' : IDL.Principal,
       'amount' : IDL.Float64,

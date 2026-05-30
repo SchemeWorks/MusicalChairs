@@ -182,6 +182,13 @@ export type GeneralLedgerEvent = {
     }
   } |
   {
+    'deskRefund' : {
+      'txSig' : string,
+      'lamports' : bigint,
+      'toAddress' : string,
+    }
+  } |
+  {
     'backerDeposit' : {
       'backer' : Principal,
       'amount' : number,

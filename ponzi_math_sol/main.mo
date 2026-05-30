@@ -211,6 +211,7 @@ persistent actor class PonziMathSol(initArgs : {
         };
         #deskSale : { buyer : Principal; ppUnitsCredited : Nat; lamportsReceived : Nat; intentId : Nat };
         #deskProceedsWithdrawal : { toAddress : Text; lamports : Nat; txSig : Text };
+        #deskRefund : { toAddress : Text; lamports : Nat; txSig : Text };
     };
 
     // ========================================================================
@@ -2784,6 +2785,26 @@ persistent actor class PonziMathSol(initArgs : {
         if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
         acquireCallerLock(caller);
         try {
+            // I-1 guard: the desk and the game-deposit flow share one per-user deposit
+            // address and the same ±5% observer match window, and game-deposit intents
+            // are matched FIRST in creditDeposit. So if the caller has an open, non-
+            // expired game deposit whose amount band overlaps this buy's band, the
+            // buyer's SOL would be consumed as a game deposit instead of the buy. Reject
+            // here (inside the lock, so prepareSolDeposit can't race a new one in).
+            let buyTol = bpsApply(lamports, 500);
+            let buyLo : Nat64 = if (lamports > buyTol) { lamports - buyTol } else { 0 };
+            let buyHi : Nat64 = lamports + buyTol;
+            let nowT = Time.now();
+            for (di in natMap.vals(pendingIntents)) {
+                if (di.principal == caller and not di.fulfilled and nowT <= di.expiresAt) {
+                    let dTol = bpsApply(di.expectedAmountLamports, 500);
+                    let dLo : Nat64 = if (di.expectedAmountLamports > dTol) { di.expectedAmountLamports - dTol } else { 0 };
+                    let dHi : Nat64 = di.expectedAmountLamports + dTol;
+                    if (buyLo <= dHi and dLo <= buyHi) {
+                        return #Err("You have an open deposit of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
+                    };
+                };
+            };
             await reserveBuyIntentFor(caller, lamports);
         } finally {
             releaseCallerLock(caller);
@@ -2917,8 +2938,16 @@ persistent actor class PonziMathSol(initArgs : {
         };
     };
 
-    // Refund SOL from the pool to a buyer-provided address (excess/late payments).
-    // The observer can't extract the sender, so Charles supplies the address.
+    // Refund SOL to a buyer-supplied address, drawn from MATCHED desk proceeds so it can
+    // never dip into commingled game-pot SOL — the accrual counter bounds it. The observer
+    // can't extract the sender, so Charles supplies the address. Records a distinct
+    // #deskRefund event (NOT #deskProceedsWithdrawal) so refunds are not conflated with
+    // revenue withdrawals in the ledger.
+    // OPERATOR NOTES: (1) refunds net against the SAME counter as adminWithdrawDeskProceeds,
+    // so issue refunds BEFORE withdrawing proceeds. (2) This is for refunding proceeds the
+    // desk actually took in; an OUT-OF-tolerance overpay (>±5%, never matched/settled) is
+    // not counted here — it stays on the buyer's per-user deposit address and is recovered
+    // via the existing deposit-address recovery path, not this method.
     public shared ({ caller }) func adminRefundDeskSol(toAddress : Text, lamports : Nat64) : async { #Ok : Text; #Err : Text } {
         requireAdmin(caller);
         if (lamports == 0 or lamports > deskProceedsAccrualLamports) { return #Err("Amount exceeds accrued desk proceeds") };
@@ -2926,7 +2955,7 @@ persistent actor class PonziMathSol(initArgs : {
             case (#Ok(txSig)) {
                 let newAccrual : Nat64 = if (deskProceedsAccrualLamports > lamports) { deskProceedsAccrualLamports - lamports } else { 0 };
                 deskProceedsAccrualLamports := newAccrual;
-                recordLedger(#deskProceedsWithdrawal({ toAddress; lamports = Nat64.toNat(lamports); txSig }));
+                recordLedger(#deskRefund({ toAddress; lamports = Nat64.toNat(lamports); txSig }));
                 #Ok(txSig);
             };
             case (#Err(e)) { #Err(e) };
