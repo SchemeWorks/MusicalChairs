@@ -2678,6 +2678,111 @@ persistent actor class PonziMathSol(initArgs : {
 
     public query func quoteBuyPP(lamports : Nat64) : async DeskQuote { computeQuote(lamports) };
 
+    // Add (+) or release (-) reserved PP on the named tiers.
+    func applyReservation(legs : [QuoteLeg], release : Bool) {
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) {
+            var t = deskTiers[i];
+            for (leg in legs.vals()) {
+                if (leg.tierIndex == i) {
+                    if (release) {
+                        let newReserved : Nat = if (t.ppUnitsReserved > leg.ppUnits) { t.ppUnitsReserved - leg.ppUnits } else { 0 };
+                        t := { t with ppUnitsReserved = newReserved };
+                    } else {
+                        t := { t with ppUnitsReserved = t.ppUnitsReserved + leg.ppUnits };
+                    };
+                };
+            };
+            t;
+        });
+    };
+
+    // Core reserve+create, shared by the public method and the test shim.
+    // NO auth/lock/bootstrap checks here — callers add those.
+    func reserveBuyIntentFor(buyer : Principal, lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        let quote = computeQuote(lamports);
+        if (quote.ppUnitsOut == 0) { return #Err("Desk has no inventory available") };
+        // Best-effort over-reservation guard. Two distinct principals can race
+        // past this check (separate caller locks, plus an await before the reserve
+        // mutates state), transiently reserving beyond the escrow balance. That is
+        // bounded and self-healing: settlement's icrc1_transfer from escrow is the
+        // authoritative backstop (a short escrow simply fails that fill with #Err),
+        // and expiry releases the phantom reservation. Acceptable for an admin-
+        // stocked OTC desk; a global lock here would serialize every buyer through
+        // a threshold-Ed25519 derivation await for a mostly-theoretical race.
+        let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
+        if (bal < deskReservedTotal() + quote.ppUnitsOut) {
+            return #Err("Insufficient desk inventory to reserve this buy");
+        };
+        let depositAddr = switch (principalMapNat.get(depositAddresses, buyer)) {
+            case (?a) { a };
+            case (null) {
+                let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(buyer));
+                depositAddresses := principalMapNat.put(depositAddresses, buyer, addr);
+                addressToPrincipal := textMap.put(addressToPrincipal, addr, buyer);
+                addr;
+            };
+        };
+        applyReservation(quote.legs, false);
+        let now = Time.now();
+        let reserved : [BuyReservation] = Array.map<QuoteLeg, BuyReservation>(quote.legs, func(l) {
+            { tierIndex = l.tierIndex; ppUnits = l.ppUnits; ratePpUnitsPer0_1Sol = l.ratePpUnitsPer0_1Sol };
+        });
+        let intent : BuyIntent = {
+            id = nextBuyIntentId; principal = buyer; reserved;
+            ppUnitsReservedTotal = quote.ppUnitsOut; quotedLamports = lamports;
+            createdAt = now; expiresAt = now + DESK_BUY_INTENT_TTL_NS; fulfilled = false;
+        };
+        pendingBuyIntents := natMap.put(pendingBuyIntents, nextBuyIntentId, intent);
+        let intentId = nextBuyIntentId;
+        nextBuyIntentId += 1;
+        #Ok({ intentId; depositAddress = depositAddr; ppUnitsReserved = quote.ppUnitsOut; legs = quote.legs; expiresAt = intent.expiresAt });
+    };
+
+    public shared ({ caller }) func createBuyIntent(lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        requireAuthenticated(caller);
+        if (lamports < MIN_BUY_LAMPORTS) { return #Err("Minimum buy is 0.01 SOL (10,000,000 lamports)") };
+        if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
+        acquireCallerLock(caller);
+        try {
+            await reserveBuyIntentFor(caller, lamports);
+        } finally {
+            releaseCallerLock(caller);
+        };
+    };
+
+    // TEST/diagnostic (TEST_ADMIN only): create a buy intent for `buyer`, bypassing
+    // auth/lock so the reserve+settle path is testable on a local replica. Gated to a
+    // NON-bootstrapped canister so it is structurally inert in production — a
+    // bootstrapped (mainnet) canister rejects it, making "local testing only" enforced
+    // rather than merely documented.
+    public shared ({ caller }) func adminTestCreateBuyIntent(buyer : Principal, lamports : Nat64) : async {
+        #Ok : { intentId : Nat; depositAddress : Text; ppUnitsReserved : Nat; legs : [QuoteLeg]; expiresAt : Int };
+        #Err : Text;
+    } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        await reserveBuyIntentFor(buyer, lamports);
+    };
+
+    public query ({ caller }) func getMyPendingBuyIntents() : async [BuyIntent] {
+        var out = List.nil<BuyIntent>();
+        for (intent in natMap.vals(pendingBuyIntents)) {
+            if (intent.principal == caller and not intent.fulfilled) { out := List.push(intent, out) };
+        };
+        List.toArray(out);
+    };
+
+    public query ({ caller }) func adminGetAllBuyIntents() : async [BuyIntent] {
+        requireAdmin(caller);
+        Iter.toArray(natMap.vals(pendingBuyIntents));
+    };
+
     /// Scan one deposit address for new signatures and credit any that match
     /// an open intent. Returns the number of GameRecords created. Shared by
     /// the manual admin sweep and the auto-detection timer.
