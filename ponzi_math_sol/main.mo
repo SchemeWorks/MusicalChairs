@@ -2304,6 +2304,40 @@ persistent actor class PonziMathSol(initArgs : {
 
         let intent = switch (matched) {
             case (null) {
+                // Before treating as unmatched: try an open buy intent for this
+                // principal, amount within ±5%, not expired. On match, settle by
+                // releasing escrowed PP, then sweep + advance cursor like a deposit.
+                var matchedBuy : ?BuyIntent = null;
+                for (bi in natMap.vals(pendingBuyIntents)) {
+                    if (bi.principal == sig.principal and not bi.fulfilled) {
+                        let tol = bpsApply(bi.quotedLamports, 500);
+                        let lo : Nat64 = if (bi.quotedLamports > tol) { bi.quotedLamports - tol } else { 0 };
+                        let hi : Nat64 = bi.quotedLamports + tol;
+                        if (inboundLamports >= lo and inboundLamports <= hi and Time.now() <= bi.expiresAt) {
+                            matchedBuy := ?bi;
+                        };
+                    };
+                };
+                switch (matchedBuy) {
+                    case (?bi) {
+                        switch (await settleBuyIntent(bi, inboundLamports)) {
+                            case (#Ok(_pp)) {
+                                switch (await sweepToPool(sig.address, derivationPathForPrincipal(sig.principal), inboundLamports)) {
+                                    case (#Err(e)) { Debug.print("Desk sweep failed " # sig.signature # ": " # e) };
+                                    case (#Ok(_)) {};
+                                };
+                                lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+                                return #Ok(null);
+                            };
+                            case (#Err(e)) {
+                                // Leave cursor UNADVANCED → retried next tick (e.g. transient ledger error).
+                                Debug.print("Desk settle failed " # sig.signature # ": " # e);
+                                return #Err(e);
+                            };
+                        };
+                    };
+                    case (null) {};
+                };
                 // Unmatched deposit: confirmed inbound, but no open intent
                 // matches the amount. Advance the cursor anyway — otherwise we
                 // re-scan it every tick AND, critically, a stale deposit could
@@ -2770,6 +2804,77 @@ persistent actor class PonziMathSol(initArgs : {
         await reserveBuyIntentFor(buyer, lamports);
     };
 
+    // TEST/diagnostic (TEST_ADMIN only): drive settleBuyIntent directly with a
+    // simulated inbound amount, bypassing the Solana observer. Gated to a
+    // NON-bootstrapped canister so it is structurally inert in production.
+    public shared ({ caller }) func adminTestSettleBuyIntent(intentId : Nat, inboundLamports : Nat64) : async { #Ok : Nat; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        switch (natMap.get(pendingBuyIntents, intentId)) {
+            case (null) { #Err("No such buy intent") };
+            case (?bi) { if (bi.fulfilled) { #Err("Already fulfilled") } else { await settleBuyIntent(bi, inboundLamports) } };
+        };
+    };
+
+    // Credit PP for a matched buy payment. Pure-computes the proportional fill,
+    // transfers PP from escrow FIRST, and ONLY on transfer success mutates
+    // tier/intent/accrual. A failed transfer leaves the intent open for retry.
+    func settleBuyIntent(intent : BuyIntent, inboundLamports : Nat64) : async { #Ok : Nat; #Err : Text } {
+        // 1. Walk locked legs, consume inboundLamports → creditPp + per-leg filled.
+        var remaining : Nat = Nat64.toNat(inboundLamports);
+        var creditPp : Nat = 0;
+        let filled = Array.map<BuyReservation, Nat>(intent.reserved, func(leg) {
+            let legLamports : Nat = leg.ppUnits * PP_S / leg.ratePpUnitsPer0_1Sol;
+            let spend : Nat = Nat.min(remaining, legLamports);
+            let ppFilled : Nat = if (spend >= legLamports) { leg.ppUnits } else { spend * leg.ratePpUnitsPer0_1Sol / PP_S };
+            remaining := if (remaining > spend) { remaining - spend } else { 0 };
+            creditPp += ppFilled;
+            ppFilled;
+        });
+        if (creditPp == 0) { return #Err("Zero fill") };
+        // 2. Transfer PP escrow → buyer FIRST.
+        let xfer = try {
+            await ppLedger.icrc1_transfer({
+                from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
+                to = { owner = intent.principal; subaccount = null };
+                amount = creditPp;
+                fee = null; memo = null; created_at_time = null;
+            });
+        } catch (e) { #Err(#GenericError({ error_code = 0; message = Error.message(e) })) };
+        switch (xfer) {
+            case (#Err(e)) { return #Err("PP transfer failed: " # debug_show (e)) };
+            case (#Ok(_)) {};
+        };
+        // 3. On success: release each leg's full reservation, add filled to sold.
+        // INVARIANT (load-bearing — do NOT break): there must be NO `await` between the
+        // icrc1_transfer above and the `fulfilled = true` write below. The next await
+        // (sweepToPool, in the caller) is the commit point that durably persists
+        // `fulfilled`; an await inserted here would let a trap in its continuation roll
+        // back `fulfilled` while the ledger transfer already committed — a replay /
+        // double-credit window. Keep this tail synchronous.
+        deskTiers := Array.tabulate<DeskTier>(deskTiers.size(), func(i) {
+            var t = deskTiers[i];
+            var j : Nat = 0;
+            for (leg in intent.reserved.vals()) {
+                if (leg.tierIndex == i) {
+                    let rel : Nat = if (t.ppUnitsReserved > leg.ppUnits) { t.ppUnitsReserved - leg.ppUnits } else { 0 };
+                    t := { t with ppUnitsReserved = rel; ppUnitsSold = t.ppUnitsSold + filled[j] };
+                };
+                j += 1;
+            };
+            t;
+        });
+        pendingBuyIntents := natMap.put(pendingBuyIntents, intent.id, { intent with fulfilled = true });
+        // Books the full matched inbound as proceeds. A payment only reaches here if it
+        // matched within ±5% of the quote, so any overpay is bounded to that tolerance
+        // and kept as desk proceeds (the buyer received the full reserved PP). Larger
+        // overpays never match → fall through to unmatched and are refundable. No
+        // micro-refund leg for the in-tolerance remainder.
+        deskProceedsAccrualLamports += inboundLamports;
+        recordLedger(#deskSale({ buyer = intent.principal; ppUnitsCredited = creditPp; lamportsReceived = Nat64.toNat(inboundLamports); intentId = intent.id }));
+        #Ok(creditPp);
+    };
+
     public query ({ caller }) func getMyPendingBuyIntents() : async [BuyIntent] {
         var out = List.nil<BuyIntent>();
         for (intent in natMap.vals(pendingBuyIntents)) {
@@ -2820,6 +2925,14 @@ persistent actor class PonziMathSol(initArgs : {
             if (not intent.fulfilled and now <= intent.expiresAt) {
                 switch (principalMapNat.get(depositAddresses, intent.principal)) {
                     case (?addr) { toScan := textMap.put(toScan, addr, intent.principal) };
+                    case (null) {};
+                };
+            };
+        };
+        for (bi in natMap.vals(pendingBuyIntents)) {
+            if (not bi.fulfilled and now <= bi.expiresAt) {
+                switch (principalMapNat.get(depositAddresses, bi.principal)) {
+                    case (?addr) { toScan := textMap.put(toScan, addr, bi.principal) };
                     case (null) {};
                 };
             };
