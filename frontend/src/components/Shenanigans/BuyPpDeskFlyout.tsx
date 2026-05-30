@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Check, Copy, ArrowRight, X } from 'lucide-react';
 import { useWallet } from '../../hooks/useWallet';
-import { useAllowance, useApproveForDeposits, useDepositChips } from '../../hooks/useQueries';
+import { useAllowance, useApproveForDeposits, useDepositChips, useGetPonziPoints } from '../../hooks/useQueries';
 import { useQuoteBuyPP, useCreateBuyIntent, useGetMyPendingBuyIntents, type CreateBuyIntentResult } from '../../hooks/useBuyPpDesk';
 import { formatSOL, parseSOL } from '../../solana/lamports';
 import { formatPpUnits, effectiveRatePer0_1Sol, formatCountdown } from '../../lib/ppDesk';
@@ -16,15 +16,17 @@ interface Props { onClose?: () => void; variant?: 'widget' | 'sheet'; }
 export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) {
   const { isConnected, principal } = useWallet();
   const [solInput, setSolInput] = useState('');
-  const [locked, setLocked] = useState<(CreateBuyIntentResult & { quotedLamports: bigint }) | null>(null);
+  const [locked, setLocked] = useState<(CreateBuyIntentResult & { quotedLamports: bigint; walletBefore: number }) | null>(null);
   const [copied, setCopied] = useState(false);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const [justBoughtPpUnits, setJustBoughtPpUnits] = useState<bigint>(0n);
+  const [justBought, setJustBought] = useState<number>(0);
+  const [pendingCredit, setPendingCredit] = useState<{ walletBefore: number; until: number } | null>(null);
 
   const lamports = useMemo(() => {
     try { return solInput.trim() ? parseSOL(solInput) : 0n; } catch { return 0n; }
   }, [solInput]);
 
+  const { data: ppBalances } = useGetPonziPoints();
   const { data: quote, isFetching: quoteFetching } = useQuoteBuyPP(locked ? 0n : lamports);
   const createIntent = useCreateBuyIntent();
   const { data: pendingIntents } = useGetMyPendingBuyIntents();
@@ -38,13 +40,19 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
   useEffect(() => {
     if (!locked || !pendingIntents) return;
     const stillOpen = pendingIntents.some((bi) => bi.id === locked.intentId);
-    const expiresMs = Number(locked.expiresAt / 1_000_000n);
     if (!stillOpen) {
-      if (Date.now() < expiresMs + 5_000) setJustBoughtPpUnits(locked.ppUnitsReserved);
+      setPendingCredit({ walletBefore: locked.walletBefore, until: Date.now() + 30_000 });
       setLocked(null);
       setSolInput('');
     }
   }, [pendingIntents, locked]);
+
+  useEffect(() => {
+    if (!pendingCredit || !ppBalances) return;
+    const delta = ppBalances.walletPoints - pendingCredit.walletBefore;
+    if (delta > 0) { setJustBought(delta); setPendingCredit(null); }
+    else if (Date.now() > pendingCredit.until) { setPendingCredit(null); } // expired/unfilled: no false success
+  }, [ppBalances, pendingCredit]);
 
   const { data: allowance } = useAllowance();
   const approveDeposits = useApproveForDeposits();
@@ -52,17 +60,19 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
   const depositPending = approveDeposits.isPending || depositChips.isPending;
   const handleDeposit = async () => {
     try {
-      const have = (allowance?.allowance ?? 0n) >= justBoughtPpUnits;
+      const neededUnits = BigInt(Math.round(justBought * 1e8));
+      const have = (allowance?.allowance ?? 0n) >= neededUnits;
       if (!have) await approveDeposits.mutateAsync(undefined);
-      await depositChips.mutateAsync(Number(justBoughtPpUnits) / 1e8);
-      setJustBoughtPpUnits(0n);
+      await depositChips.mutateAsync(justBought);
+      setJustBought(0);
     } catch { /* toasts surface failure; keep prompt for retry */ }
   };
 
   const handleLock = async () => {
     if (lamports <= 0n) return;
+    if (createIntent.isPending) return;
     const res = await createIntent.mutateAsync(lamports).catch(() => null);
-    if (res) { setLocked({ ...res, quotedLamports: lamports }); setNowMs(Date.now()); }
+    if (res) { setLocked({ ...res, quotedLamports: lamports, walletBefore: ppBalances?.walletPoints ?? 0 }); setNowMs(Date.now()); }
   };
 
   const handleCopy = async () => {
@@ -83,18 +93,18 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
         ⚠️ DEVNET SOL ONLY — the canister polls Solana devnet. Mainnet SOL sent here is lost.
       </div>
 
-      {justBoughtPpUnits > 0n && (
+      {justBought > 0 && (
         <div className="mc-buy-pp-deposit-prompt">
           <div className="flex items-start gap-2 mb-2">
             <Check className="h-4 w-4 mc-text-gold flex-shrink-0 mt-0.5" />
             <div className="flex-1 leading-tight">
-              <div className="text-sm font-bold mc-text-primary">Bought {formatPpUnits(justBoughtPpUnits)} PP</div>
+              <div className="text-sm font-bold mc-text-primary">Bought {justBought.toLocaleString()} PP</div>
               <div className="text-[11px] mc-text-muted mt-0.5">Deposit to your side pocket to use them for shenanigans.</div>
             </div>
-            <button type="button" onClick={() => setJustBoughtPpUnits(0n)} className="p-1 rounded hover:bg-white/5 mc-text-muted -mt-1 -mr-1" aria-label="Keep in wallet"><X className="h-3 w-3" /></button>
+            <button type="button" onClick={() => setJustBought(0)} className="p-1 rounded hover:bg-white/5 mc-text-muted -mt-1 -mr-1" aria-label="Keep in wallet"><X className="h-3 w-3" /></button>
           </div>
           <button type="button" onClick={handleDeposit} disabled={depositPending} className="mc-buy-pp-deposit-button">
-            {depositPending ? <LoadingSpinner /> : (<><span>Deposit {formatPpUnits(justBoughtPpUnits)} PP → Side Pocket</span><ArrowRight className="h-4 w-4" /></>)}
+            {depositPending ? <LoadingSpinner /> : (<><span>Deposit {justBought.toLocaleString()} PP → Side Pocket</span><ArrowRight className="h-4 w-4" /></>)}
           </button>
         </div>
       )}
