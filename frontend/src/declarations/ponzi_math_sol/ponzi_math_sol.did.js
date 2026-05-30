@@ -35,6 +35,21 @@ export const idlFactory = ({ IDL }) => {
     'wouldBeInsolvent' : IDL.Bool,
     'currentExitToll' : IDL.Float64,
   });
+  const BuyReservation = IDL.Record({
+    'ppUnits' : IDL.Nat,
+    'ratePpUnitsPer0_1Sol' : IDL.Nat,
+    'tierIndex' : IDL.Nat,
+  });
+  const BuyIntent = IDL.Record({
+    'id' : IDL.Nat,
+    'quotedLamports' : IDL.Nat64,
+    'principal' : IDL.Principal,
+    'expiresAt' : IDL.Int,
+    'fulfilled' : IDL.Bool,
+    'createdAt' : IDL.Int,
+    'reserved' : IDL.Vec(BuyReservation),
+    'ppUnitsReservedTotal' : IDL.Nat,
+  });
   const DepositIntent = IDL.Record({
     'id' : IDL.Nat,
     'principal' : IDL.Principal,
@@ -82,6 +97,12 @@ export const idlFactory = ({ IDL }) => {
       'gameId' : IDL.Nat,
       'amount' : IDL.Float64,
     }),
+    'deskSale' : IDL.Record({
+      'intentId' : IDL.Nat,
+      'ppUnitsCredited' : IDL.Nat,
+      'lamportsReceived' : IDL.Nat,
+      'buyer' : IDL.Principal,
+    }),
     'withdrawal' : IDL.Record({
       'netToPlayer' : IDL.Float64,
       'player' : IDL.Principal,
@@ -104,6 +125,11 @@ export const idlFactory = ({ IDL }) => {
     'backerRepaymentClaim' : IDL.Record({
       'backer' : IDL.Principal,
       'amount' : IDL.Float64,
+    }),
+    'deskProceedsWithdrawal' : IDL.Record({
+      'txSig' : IDL.Text,
+      'lamports' : IDL.Nat,
+      'toAddress' : IDL.Text,
     }),
     'settlement' : IDL.Record({
       'netToPlayer' : IDL.Float64,
@@ -128,6 +154,18 @@ export const idlFactory = ({ IDL }) => {
     'roundId' : IDL.Nat,
     'eventCount' : IDL.Nat,
     'seedReserveCarried' : IDL.Float64,
+  });
+  const QuoteLeg = IDL.Record({
+    'ppUnits' : IDL.Nat,
+    'lamports' : IDL.Nat64,
+    'ratePpUnitsPer0_1Sol' : IDL.Nat,
+    'tierIndex' : IDL.Nat,
+  });
+  const DeskTier = IDL.Record({
+    'ratePpUnitsPer0_1Sol' : IDL.Nat,
+    'ppUnitsTotal' : IDL.Nat,
+    'ppUnitsReserved' : IDL.Nat,
+    'ppUnitsSold' : IDL.Nat,
   });
   const BackerType = IDL.Variant({
     'seriesA' : IDL.Null,
@@ -199,6 +237,11 @@ export const idlFactory = ({ IDL }) => {
   const TrustedOriginsResponse = IDL.Record({
     'trusted_origins' : IDL.Vec(IDL.Text),
   });
+  const DeskQuote = IDL.Record({
+    'legs' : IDL.Vec(QuoteLeg),
+    'ppUnitsOut' : IDL.Nat,
+    'cappedByInventory' : IDL.Bool,
+  });
   const PonziMathSol = IDL.Service({
     'adminClearAllBackerPositions' : IDL.Func(
         [],
@@ -225,6 +268,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(ActivePlanSnapshot)],
         ['query'],
       ),
+    'adminGetAllBuyIntents' : IDL.Func([], [IDL.Vec(BuyIntent)], ['query']),
     'adminGetAllIntents' : IDL.Func([], [IDL.Vec(DepositIntent)], ['query']),
     'adminGetCurrentRoundId' : IDL.Func([], [IDL.Nat], ['query']),
     'adminGetEventsByRound' : IDL.Func(
@@ -251,6 +295,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminRefreshNonce' : IDL.Func(
         [],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminRefundDeskSol' : IDL.Func(
+        [IDL.Text, IDL.Nat64],
         [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
         [],
       ),
@@ -284,6 +333,32 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
         [],
       ),
+    'adminTestCreateBuyIntent' : IDL.Func(
+        [IDL.Principal, IDL.Nat64],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'expiresAt' : IDL.Int,
+              'intentId' : IDL.Nat,
+              'legs' : IDL.Vec(QuoteLeg),
+              'depositAddress' : IDL.Text,
+              'ppUnitsReserved' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'adminTestSettleBuyIntent' : IDL.Func(
+        [IDL.Nat, IDL.Nat64],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'adminWithdrawDeskProceeds' : IDL.Func(
+        [IDL.Text],
+        [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
+        [],
+      ),
     'bootstrap' : IDL.Func(
         [IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],
@@ -305,6 +380,79 @@ export const idlFactory = ({ IDL }) => {
     'claimBackerRepayment' : IDL.Func(
         [IDL.Opt(IDL.Text)],
         [IDL.Variant({ 'Ok' : IDL.Float64, 'Err' : IDL.Text })],
+        [],
+      ),
+    'createBuyIntent' : IDL.Func(
+        [IDL.Nat64],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'expiresAt' : IDL.Int,
+              'intentId' : IDL.Nat,
+              'legs' : IDL.Vec(QuoteLeg),
+              'depositAddress' : IDL.Text,
+              'ppUnitsReserved' : IDL.Nat,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
+        [],
+      ),
+    'deskAddTier' : IDL.Func(
+        [IDL.Nat, IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'deskDepositInventory' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'deskInventory' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'balanceUnits' : IDL.Nat,
+            'reservedUnits' : IDL.Nat,
+            'availableUnits' : IDL.Nat,
+          }),
+        ],
+        [],
+      ),
+    'deskListTiers' : IDL.Func([], [IDL.Vec(DeskTier)], ['query']),
+    'deskRemoveTier' : IDL.Func(
+        [IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'deskReorderTiers' : IDL.Func(
+        [IDL.Vec(DeskTier)],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'deskStats' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'inventoryUnits' : IDL.Nat,
+            'totalSoldUnits' : IDL.Nat,
+            'openBuyIntents' : IDL.Nat,
+            'proceedsLamports' : IDL.Nat,
+            'reservedUnits' : IDL.Nat,
+            'availableUnits' : IDL.Nat,
+            'tierCount' : IDL.Nat,
+          }),
+        ],
+        [],
+      ),
+    'deskUpdateTier' : IDL.Func(
+        [IDL.Nat, IDL.Nat, IDL.Nat],
+        [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
+        [],
+      ),
+    'deskWithdrawInventory' : IDL.Func(
+        [IDL.Nat, IDL.Principal],
+        [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
     'getActiveGameCount' : IDL.Func([], [IDL.Nat], ['query']),
@@ -331,6 +479,16 @@ export const idlFactory = ({ IDL }) => {
     'getDepositAddressFor' : IDL.Func(
         [IDL.Principal],
         [IDL.Opt(IDL.Text)],
+        ['query'],
+      ),
+    'getDeskEscrowAccount' : IDL.Func(
+        [],
+        [
+          IDL.Record({
+            'owner' : IDL.Principal,
+            'subaccount' : IDL.Vec(IDL.Nat8),
+          }),
+        ],
         ['query'],
       ),
     'getDetectionStatus' : IDL.Func(
@@ -372,6 +530,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getMaxDepositLimit' : IDL.Func([], [IDL.Float64], ['query']),
     'getMyDepositAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+    'getMyPendingBuyIntents' : IDL.Func([], [IDL.Vec(BuyIntent)], ['query']),
     'getMyPendingIntents' : IDL.Func([], [IDL.Vec(DepositIntent)], ['query']),
     'getNonceAccountAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
     'getOldestSeriesABacker' : IDL.Func(
@@ -437,6 +596,7 @@ export const idlFactory = ({ IDL }) => {
         ],
         [],
       ),
+    'quoteBuyPP' : IDL.Func([IDL.Nat64], [DeskQuote], ['query']),
     'runDepositDetection' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],

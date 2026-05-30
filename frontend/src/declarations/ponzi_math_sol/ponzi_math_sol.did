@@ -18,6 +18,13 @@ type RoundSummary =
    seedReserveCarried: float64;
    startTime: int;
  };
+type QuoteLeg = 
+ record {
+   lamports: nat64;
+   ppUnits: nat;
+   ratePpUnitsPer0_1Sol: nat;
+   tierIndex: nat;
+ };
 type Provider = 
  variant {
    devnet;
@@ -51,6 +58,7 @@ type PonziMathSol =
                                          Ok;
                                        });
    adminGetActivePlansSnapshot: () -> (vec ActivePlanSnapshot) query;
+   adminGetAllBuyIntents: () -> (vec BuyIntent) query;
    adminGetAllIntents: () -> (vec DepositIntent) query;
    adminGetCurrentRoundId: () -> (nat) query;
    adminGetEventsByRound: (roundId: nat) -> (vec GeneralLedgerEntry) query;
@@ -79,6 +87,11 @@ type PonziMathSol =
                                Err: text;
                                Ok: text;
                              });
+   adminRefundDeskSol: (toAddress: text, lamports: nat64) ->
+    (variant {
+       Err: text;
+       Ok: text;
+     });
    /// Admin: record a Series A backer position for `owner` of `amount`
    /// SOL. Use ONCE at deploy to register the operator's pre-deposited
    /// pool seed. Mirrors ponzi_math.addBackerMoney's bookkeeping but
@@ -125,6 +138,28 @@ type PonziMathSol =
                                  Err: text;
                                  Ok: text;
                                });
+   adminTestCreateBuyIntent: (buyer: principal, lamports: nat64) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          depositAddress: text;
+          expiresAt: int;
+          intentId: nat;
+          legs: vec QuoteLeg;
+          ppUnitsReserved: nat;
+        };
+     });
+   adminTestSettleBuyIntent: (intentId: nat, inboundLamports: nat64) ->
+    (variant {
+       Err: text;
+       Ok: nat;
+     });
+   adminWithdrawDeskProceeds: (toAddress: text) ->
+    (variant {
+       Err: text;
+       Ok: text;
+     });
    bootstrap: (recentBlockhashOverride: opt text) ->
     (variant {
        Err: text;
@@ -139,6 +174,62 @@ type PonziMathSol =
     (variant {
        Err: text;
        Ok: float64;
+     });
+   createBuyIntent: (lamports: nat64) ->
+    (variant {
+       Err: text;
+       Ok:
+        record {
+          depositAddress: text;
+          expiresAt: int;
+          intentId: nat;
+          legs: vec QuoteLeg;
+          ppUnitsReserved: nat;
+        };
+     });
+   deskAddTier: (ratePpUnitsPer0_1Sol: nat, ppUnitsTotal: nat) ->
+    (variant {
+       Err: text;
+       Ok: nat;
+     });
+   deskDepositInventory: (ppUnits: nat) -> (variant {
+                                              Err: text;
+                                              Ok: nat;
+                                            });
+   deskInventory: () ->
+    (record {
+       availableUnits: nat;
+       balanceUnits: nat;
+       reservedUnits: nat;
+     });
+   deskListTiers: () -> (vec DeskTier) query;
+   deskRemoveTier: (index: nat) -> (variant {
+                                      Err: text;
+                                      Ok;
+                                    });
+   deskReorderTiers: (newOrder: vec DeskTier) -> (variant {
+                                                    Err: text;
+                                                    Ok;
+                                                  });
+   deskStats: () ->
+    (record {
+       availableUnits: nat;
+       inventoryUnits: nat;
+       openBuyIntents: nat;
+       proceedsLamports: nat;
+       reservedUnits: nat;
+       tierCount: nat;
+       totalSoldUnits: nat;
+     });
+   deskUpdateTier: (index: nat, ratePpUnitsPer0_1Sol: nat, ppUnitsTotal:
+    nat) -> (variant {
+               Err: text;
+               Ok;
+             });
+   deskWithdrawInventory: (ppUnits: nat, toOwner: principal) ->
+    (variant {
+       Err: text;
+       Ok: nat;
      });
    getActiveGameCount: () -> (nat) query;
    getAllActiveGames: () -> (vec GameRecord) query;
@@ -157,6 +248,11 @@ type PonziMathSol =
    getCurrentRoundId: () -> (nat) query;
    getDaysActive: () -> (nat) query;
    getDepositAddressFor: (p: principal) -> (opt text) query;
+   getDeskEscrowAccount: () ->
+    (record {
+       owner: principal;
+       subaccount: blob;
+     }) query;
    /// Status of the auto-detection timer and the open-intent backlog.
    getDetectionStatus: () ->
     (record {
@@ -182,6 +278,7 @@ type PonziMathSol =
      }) query;
    getMaxDepositLimit: () -> (float64) query;
    getMyDepositAddress: () -> (opt text) query;
+   getMyPendingBuyIntents: () -> (vec BuyIntent) query;
    getMyPendingIntents: () -> (vec DepositIntent) query;
    getNonceAccountAddress: () -> (opt text) query;
    getOldestSeriesABacker: () -> (opt BackerPosition) query;
@@ -220,6 +317,7 @@ type PonziMathSol =
              intentId: nat;
            };
      });
+   quoteBuyPP: (lamports: nat64) -> (DeskQuote) query;
    /// Admin-callable manual detection sweep. Scans EVERY known deposit
    /// address (not just those with open intents) so the operator can use it
    /// for diagnostics / recovery. Returns the count of new GameRecords
@@ -314,6 +412,19 @@ type GeneralLedgerEvent =
       plan: GamePlan;
       player: principal;
     };
+   deskProceedsWithdrawal:
+    record {
+      lamports: nat;
+      toAddress: text;
+      txSig: text;
+    };
+   deskSale:
+    record {
+      buyer: principal;
+      intentId: nat;
+      lamportsReceived: nat;
+      ppUnitsCredited: nat;
+    };
    gameReset: record {
                 reason: text;
                 seedReserveCarried: float64;
@@ -392,6 +503,19 @@ type DeviceSpec =
                   lines_per_page: nat16;
                 };
  };
+type DeskTier = 
+ record {
+   ppUnitsReserved: nat;
+   ppUnitsSold: nat;
+   ppUnitsTotal: nat;
+   ratePpUnitsPer0_1Sol: nat;
+ };
+type DeskQuote = 
+ record {
+   cappedByInventory: bool;
+   legs: vec QuoteLeg;
+   ppUnitsOut: nat;
+ };
 type DepositIntent = 
  record {
    createdAt: int;
@@ -432,6 +556,23 @@ type ConsentInfo =
  record {
    consent_message: ConsentMessage;
    metadata: ConsentMessageMetadata;
+ };
+type BuyReservation = 
+ record {
+   ppUnits: nat;
+   ratePpUnitsPer0_1Sol: nat;
+   tierIndex: nat;
+ };
+type BuyIntent = 
+ record {
+   createdAt: int;
+   expiresAt: int;
+   fulfilled: bool;
+   id: nat;
+   ppUnitsReservedTotal: nat;
+   "principal": principal;
+   quotedLamports: nat64;
+   "reserved": vec BuyReservation;
  };
 type BackerType = 
  variant {

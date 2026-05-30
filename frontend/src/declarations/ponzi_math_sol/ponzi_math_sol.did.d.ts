@@ -24,6 +24,21 @@ export interface BackerPosition {
 }
 export type BackerType = { 'seriesA' : null } |
   { 'seriesB' : null };
+export interface BuyIntent {
+  'id' : bigint,
+  'quotedLamports' : bigint,
+  'principal' : Principal,
+  'expiresAt' : bigint,
+  'fulfilled' : boolean,
+  'createdAt' : bigint,
+  'reserved' : Array<BuyReservation>,
+  'ppUnitsReservedTotal' : bigint,
+}
+export interface BuyReservation {
+  'ppUnits' : bigint,
+  'ratePpUnitsPer0_1Sol' : bigint,
+  'tierIndex' : bigint,
+}
 export interface ConsentInfo {
   'metadata' : ConsentMessageMetadata,
   'consent_message' : ConsentMessage,
@@ -55,6 +70,17 @@ export interface DepositIntent {
   'fulfilled' : boolean,
   'createdAt' : bigint,
   'plan' : GamePlan,
+}
+export interface DeskQuote {
+  'legs' : Array<QuoteLeg>,
+  'ppUnitsOut' : bigint,
+  'cappedByInventory' : boolean,
+}
+export interface DeskTier {
+  'ratePpUnitsPer0_1Sol' : bigint,
+  'ppUnitsTotal' : bigint,
+  'ppUnitsReserved' : bigint,
+  'ppUnitsSold' : bigint,
 }
 export type DeviceSpec = { 'GenericDisplay' : null } |
   {
@@ -130,6 +156,14 @@ export type GeneralLedgerEvent = {
     }
   } |
   {
+    'deskSale' : {
+      'intentId' : bigint,
+      'ppUnitsCredited' : bigint,
+      'lamportsReceived' : bigint,
+      'buyer' : Principal,
+    }
+  } |
+  {
     'withdrawal' : {
       'netToPlayer' : number,
       'player' : Principal,
@@ -155,6 +189,13 @@ export type GeneralLedgerEvent = {
     }
   } |
   { 'backerRepaymentClaim' : { 'backer' : Principal, 'amount' : number } } |
+  {
+    'deskProceedsWithdrawal' : {
+      'txSig' : string,
+      'lamports' : bigint,
+      'toAddress' : string,
+    }
+  } |
   {
     'settlement' : {
       'netToPlayer' : number,
@@ -214,6 +255,7 @@ export interface PonziMathSol {
       { 'Err' : string }
   >,
   'adminGetActivePlansSnapshot' : ActorMethod<[], Array<ActivePlanSnapshot>>,
+  'adminGetAllBuyIntents' : ActorMethod<[], Array<BuyIntent>>,
   'adminGetAllIntents' : ActorMethod<[], Array<DepositIntent>>,
   'adminGetCurrentRoundId' : ActorMethod<[], bigint>,
   'adminGetEventsByRound' : ActorMethod<[bigint], Array<GeneralLedgerEntry>>,
@@ -244,6 +286,11 @@ export interface PonziMathSol {
    * / the local nonce-refresh read failed). Idempotent.
    */
   'adminRefreshNonce' : ActorMethod<[], { 'Ok' : string } | { 'Err' : string }>,
+  'adminRefundDeskSol' : ActorMethod<
+    [string, bigint],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
   /**
    * / Admin: record a Series A backer position for `owner` of `amount`
    * / SOL. Use ONCE at deploy to register the operator's pre-deposited
@@ -306,6 +353,29 @@ export interface PonziMathSol {
     { 'Ok' : string } |
       { 'Err' : string }
   >,
+  'adminTestCreateBuyIntent' : ActorMethod<
+    [Principal, bigint],
+    {
+        'Ok' : {
+          'expiresAt' : bigint,
+          'intentId' : bigint,
+          'legs' : Array<QuoteLeg>,
+          'depositAddress' : string,
+          'ppUnitsReserved' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'adminTestSettleBuyIntent' : ActorMethod<
+    [bigint, bigint],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'adminWithdrawDeskProceeds' : ActorMethod<
+    [string],
+    { 'Ok' : string } |
+      { 'Err' : string }
+  >,
   'bootstrap' : ActorMethod<
     [[] | [string]],
     { 'Ok' : string } |
@@ -319,6 +389,70 @@ export interface PonziMathSol {
   'claimBackerRepayment' : ActorMethod<
     [[] | [string]],
     { 'Ok' : number } |
+      { 'Err' : string }
+  >,
+  'createBuyIntent' : ActorMethod<
+    [bigint],
+    {
+        'Ok' : {
+          'expiresAt' : bigint,
+          'intentId' : bigint,
+          'legs' : Array<QuoteLeg>,
+          'depositAddress' : string,
+          'ppUnitsReserved' : bigint,
+        }
+      } |
+      { 'Err' : string }
+  >,
+  'deskAddTier' : ActorMethod<
+    [bigint, bigint],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'deskDepositInventory' : ActorMethod<
+    [bigint],
+    { 'Ok' : bigint } |
+      { 'Err' : string }
+  >,
+  'deskInventory' : ActorMethod<
+    [],
+    {
+      'balanceUnits' : bigint,
+      'reservedUnits' : bigint,
+      'availableUnits' : bigint,
+    }
+  >,
+  'deskListTiers' : ActorMethod<[], Array<DeskTier>>,
+  'deskRemoveTier' : ActorMethod<
+    [bigint],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'deskReorderTiers' : ActorMethod<
+    [Array<DeskTier>],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'deskStats' : ActorMethod<
+    [],
+    {
+      'inventoryUnits' : bigint,
+      'totalSoldUnits' : bigint,
+      'openBuyIntents' : bigint,
+      'proceedsLamports' : bigint,
+      'reservedUnits' : bigint,
+      'availableUnits' : bigint,
+      'tierCount' : bigint,
+    }
+  >,
+  'deskUpdateTier' : ActorMethod<
+    [bigint, bigint, bigint],
+    { 'Ok' : null } |
+      { 'Err' : string }
+  >,
+  'deskWithdrawInventory' : ActorMethod<
+    [bigint, Principal],
+    { 'Ok' : bigint } |
       { 'Err' : string }
   >,
   'getActiveGameCount' : ActorMethod<[], bigint>,
@@ -335,6 +469,10 @@ export interface PonziMathSol {
   'getCurrentRoundId' : ActorMethod<[], bigint>,
   'getDaysActive' : ActorMethod<[], bigint>,
   'getDepositAddressFor' : ActorMethod<[Principal], [] | [string]>,
+  'getDeskEscrowAccount' : ActorMethod<
+    [],
+    { 'owner' : Principal, 'subaccount' : Uint8Array | number[] }
+  >,
   /**
    * / Status of the auto-detection timer and the open-intent backlog.
    */
@@ -365,6 +503,7 @@ export interface PonziMathSol {
   >,
   'getMaxDepositLimit' : ActorMethod<[], number>,
   'getMyDepositAddress' : ActorMethod<[], [] | [string]>,
+  'getMyPendingBuyIntents' : ActorMethod<[], Array<BuyIntent>>,
   'getMyPendingIntents' : ActorMethod<[], Array<DepositIntent>>,
   'getNonceAccountAddress' : ActorMethod<[], [] | [string]>,
   'getOldestSeriesABacker' : ActorMethod<[], [] | [BackerPosition]>,
@@ -396,6 +535,7 @@ export interface PonziMathSol {
     { 'Ok' : { 'intentId' : bigint, 'depositAddress' : string } } |
       { 'Err' : string }
   >,
+  'quoteBuyPP' : ActorMethod<[bigint], DeskQuote>,
   /**
    * / Admin-callable manual detection sweep. Scans EVERY known deposit
    * / address (not just those with open intents) so the operator can use it
@@ -433,6 +573,12 @@ export interface PonziMathSol {
 }
 export type Provider = { 'mainnet' : null } |
   { 'devnet' : null };
+export interface QuoteLeg {
+  'ppUnits' : bigint,
+  'lamports' : bigint,
+  'ratePpUnitsPer0_1Sol' : bigint,
+  'tierIndex' : bigint,
+}
 export interface RoundSummary {
   'startTime' : bigint,
   'endTime' : [] | [bigint],
