@@ -17,6 +17,7 @@ export const PLAN_DAYS_COMPOUND_30 = 30;
 
 // ── Deposit Limits ───────────────────────────────────────────────────
 export const MIN_DEPOSIT_ICP = 0.1;
+export const MIN_DEPOSIT_SOL = 0.01;   // SOL plan-deposit floor (matches ponzi_math_sol MIN_DEPOSIT_LAMPORTS = 10_000_000)
 export const SIMPLE_MAX_DEPOSIT_POT_FRACTION = 0.2;   // 20 % of AUM
 export const SIMPLE_MAX_DEPOSIT_FLOOR_ICP = 5;         // or 5 ICP, whichever is greater
 export const DEPOSIT_RATE_LIMIT = 3;                   // positions per hour

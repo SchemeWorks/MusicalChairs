@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatSOL, parseSOL, LAMPORTS_PER_SOL } from './lamports';
+import { formatSOL, parseSOL, formatSolFloat, LAMPORTS_PER_SOL } from './lamports';
 
 describe('formatSOL', () => {
   it('formats 0 lamports as "0.0000"', () => {
@@ -51,5 +51,27 @@ describe('parseSOL', () => {
 
   it('throws on non-numeric input', () => {
     expect(() => parseSOL('abc')).toThrow(/invalid/i);
+  });
+});
+
+describe('formatSolFloat', () => {
+  it('formats 0 as "0.0000"', () => {
+    expect(formatSolFloat(0)).toBe('0.0000');
+  });
+
+  it('formats 1.5 SOL as "1.5000"', () => {
+    expect(formatSolFloat(1.5)).toBe('1.5000');
+  });
+
+  it('formats 0.001 SOL as "0.0010"', () => {
+    expect(formatSolFloat(0.001)).toBe('0.0010');
+  });
+
+  it('returns "0.0000" for NaN', () => {
+    expect(formatSolFloat(NaN)).toBe('0.0000');
+  });
+
+  it('returns "0.0000" for negative input', () => {
+    expect(formatSolFloat(-1)).toBe('0.0000');
   });
 });

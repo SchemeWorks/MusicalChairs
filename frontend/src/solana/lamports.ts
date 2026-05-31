@@ -19,6 +19,13 @@ export function formatSOL(lamports: bigint): string {
   return `${whole}.${fractional.slice(0, displayWidth)}`;
 }
 
+// Display a SOL amount supplied as a float (e.g. an ROI projection) by reusing
+// formatSOL's lamport formatting. Guards NaN / non-finite / non-positive input.
+export function formatSolFloat(value: number): string {
+  if (!isFinite(value) || value <= 0) return formatSOL(0n);
+  return formatSOL(BigInt(Math.round(value * Number(LAMPORTS_PER_SOL))));
+}
+
 // Inverse of formatSOL — input is a decimal SOL string, output is bigint lamports.
 export function parseSOL(input: string): bigint {
   const trimmed = input.trim();
