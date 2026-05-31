@@ -10,10 +10,15 @@ import {
   useAdminGetEventsForGame,
   useGetAllGames,
   useGetProfileFor,
+  useGetGameStats,
 } from '../hooks/useQueries';
 import type { ActivePlanSnapshot, GameRecord, GamePlan, GeneralLedgerEntry, GeneralLedgerEvent, RoundSummary } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import { formatICP } from '../lib/formatICP';
+import {
+  DAILY_RATE_SIMPLE, DAILY_RATE_COMPOUND_15, DAILY_RATE_COMPOUND_30,
+  PLAN_DAYS_SIMPLE, PLAN_DAYS_COMPOUND_15, PLAN_DAYS_COMPOUND_30,
+} from '../lib/gameConstants';
 
 /* ================================================================
    Helpers
@@ -40,6 +45,25 @@ function planAccent(plan: GamePlan): string {
   if ('compounding15Day' in plan) return 'mc-text-cyan';
   if ('compounding30Day' in plan) return 'mc-text-purple';
   return 'mc-text-dim';
+}
+
+/**
+ * Projected payout if the plan is held to full term — the headline "what they
+ * pull out of the pot at maturity." This is the same maturity math the
+ * create-plan ROI calculator uses (useQueries.calculate{Simple,Compounding}ROI),
+ * but fed with the plan's stored gross `amount`, which is exactly the base the
+ * backend snapshot accrues on (see computeActivePlanSnapshot in ponzi_math).
+ * So it lands at d = full plan length: the ceiling the live "Net" climbs toward.
+ *
+ * Gross of the exit toll / jackpot fee — Charles wants the take, not the fee
+ * breakdown. (Principal is consumed in this game; players only ever extract
+ * earnings, so this earnings figure IS the withdrawal.)
+ */
+function maturityPayout(plan: GamePlan, amount: number): number {
+  if ('simple21Day' in plan) return amount * DAILY_RATE_SIMPLE * PLAN_DAYS_SIMPLE;
+  if ('compounding15Day' in plan) return amount * (Math.pow(1 + DAILY_RATE_COMPOUND_15, PLAN_DAYS_COMPOUND_15) - 1);
+  if ('compounding30Day' in plan) return amount * (Math.pow(1 + DAILY_RATE_COMPOUND_30, PLAN_DAYS_COMPOUND_30) - 1);
+  return 0;
 }
 
 // nanos (bigint) → JS Date
@@ -99,8 +123,8 @@ function ActivePlansTable({ snapshots }: { snapshots: ActivePlanSnapshot[] }) {
         <div className="col-span-1 text-right">Deposit</div>
         <div className="col-span-2">Progress</div>
         <div className="col-span-1 text-right">Gross</div>
-        <div className="col-span-1 text-right">Toll</div>
         <div className="col-span-1 text-right">Net</div>
+        <div className="col-span-1 text-right" title="Projected payout if held to full maturity (before exit toll)">@Maturity</div>
         <div className="col-span-1 text-right">Status</div>
       </div>
 
@@ -117,7 +141,8 @@ function ActivePlansTable({ snapshots }: { snapshots: ActivePlanSnapshot[] }) {
 }
 
 function PlanRow({ snapshot, expanded, onToggle }: { snapshot: ActivePlanSnapshot; expanded: boolean; onToggle: () => void }) {
-  const { game, currentGrossEarnings, currentExitToll, currentNetClaimable, daysElapsed, daysToMaturity, isMatured, wouldBeInsolvent } = snapshot;
+  const { game, currentGrossEarnings, currentNetClaimable, daysElapsed, daysToMaturity, isMatured, wouldBeInsolvent } = snapshot;
+  const maturedPayout = maturityPayout(game.plan, game.amount);
   const maturity = daysElapsed + daysToMaturity;
   const pct = maturity > 0 ? Math.min(100, (daysElapsed / maturity) * 100) : 0;
 
@@ -155,11 +180,14 @@ function PlanRow({ snapshot, expanded, onToggle }: { snapshot: ActivePlanSnapsho
         <div className="col-span-1 text-right text-xs mc-text-gold font-mono">
           {formatICP(currentGrossEarnings)}
         </div>
-        <div className="col-span-1 text-right text-xs mc-text-purple font-mono">
-          {formatICP(currentExitToll)}
-        </div>
-        <div className="col-span-1 text-right text-xs mc-text-green font-mono font-bold">
+        <div className="col-span-1 text-right text-xs mc-text-green font-mono">
           {formatICP(currentNetClaimable)}
+        </div>
+        <div
+          className="col-span-1 text-right text-xs mc-text-cyan font-mono font-bold"
+          title="Projected payout if held to full maturity (before exit toll)"
+        >
+          {formatICP(maturedPayout)}
         </div>
         <div className="col-span-1 text-right">
           {wouldBeInsolvent ? (
@@ -448,6 +476,7 @@ export default function CharlesGodView() {
   const { data: currentRoundId } = useAdminGetCurrentRoundId(isAdmin === true);
   const { data: summaries = [] } = useAdminGetRoundSummaries(isAdmin === true);
   const { data: allGames = [], isLoading: rosterLoading, error: rosterErr } = useGetAllGames(isAdmin === true);
+  const { data: gameStats } = useGetGameStats();
 
   if (adminLoading) {
     return <div className="flex justify-center py-12"><LoadingSpinner /></div>;
@@ -467,6 +496,11 @@ export default function CharlesGodView() {
   const insolvent = snapshots.filter(s => s.wouldBeInsolvent).length;
   const totalDeposited = snapshots.reduce((acc, s) => acc + s.game.amount, 0);
   const totalClaimable = snapshots.reduce((acc, s) => acc + s.currentNetClaimable, 0);
+  // Total owed if EVERY in-flight plan rode to full term — the future liability
+  // the live "claimable" hides. Compared against AUM below: when it exceeds the
+  // pot, the pot can't cover all maturities (some hit insolvency / reset).
+  const totalMatured = snapshots.reduce((acc, s) => acc + maturityPayout(s.game.plan, s.game.amount), 0);
+  const aum = gameStats?.potBalance ?? 0;
 
   return (
     <div className="space-y-6">
@@ -479,12 +513,18 @@ export default function CharlesGodView() {
       </div>
 
       {/* Top stats */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <StatCard label="Round" value={currentRoundId !== undefined ? `#${currentRoundId.toString()}` : '—'} accent="mc-text-purple" />
         <StatCard label="In-flight" value={snapshots.length.toString()} accent="mc-text-green" />
         <StatCard label="Matured" value={matured.toString()} accent="mc-text-gold" />
         <StatCard label="Insolvent" value={insolvent.toString()} accent={insolvent > 0 ? 'mc-text-danger' : 'mc-text-dim'} />
         <StatCard label="Total claimable" value={`${formatICP(totalClaimable)} / ${formatICP(totalDeposited)}`} accent="mc-text-cyan" />
+        <StatCard
+          label="Matured liability"
+          value={`${formatICP(totalMatured)} / ${formatICP(aum)}`}
+          accent={totalMatured > aum ? 'mc-text-danger' : 'mc-text-gold'}
+          title="Total payout owed if every in-flight plan rides to full maturity, vs current AUM (pot). When it exceeds AUM, the pot can't cover all maturities."
+        />
       </div>
 
       {/* Tab bar */}
@@ -773,9 +813,9 @@ function SortableHeader({
   );
 }
 
-function StatCard({ label, value, accent }: { label: string; value: string; accent: string }) {
+function StatCard({ label, value, accent, title }: { label: string; value: string; accent: string; title?: string }) {
   return (
-    <div className="mc-card p-3">
+    <div className="mc-card p-3" title={title}>
       <div className="mc-text-muted mb-1 uppercase tracking-wider text-[10px]">{label}</div>
       <div className={`font-bold ${accent} font-mono text-sm`}>{value}</div>
     </div>
