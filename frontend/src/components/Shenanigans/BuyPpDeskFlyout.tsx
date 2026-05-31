@@ -88,7 +88,13 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
 
   return (
     <div className={variant === 'sheet' ? 'p-5' : ''}>
-      <h2 className="font-display text-lg mc-text-primary mb-2">Founder's Allocation</h2>
+      <div className="flex items-center gap-2 mb-3">
+        <img src="/pp-coin.png" alt="PP" className="w-8 h-8 mc-buy-pp-coin" draggable={false} />
+        <div className="leading-tight">
+          <div className="text-xs mc-text-muted uppercase tracking-wider">Founder's Allocation</div>
+          <div className="text-base font-bold mc-text-primary">Buy PP</div>
+        </div>
+      </div>
       <div className="mc-status-amber p-3 mb-4 text-xs font-bold">
         ⚠️ DEVNET SOL ONLY — the canister polls Solana devnet. Mainnet SOL sent here is lost.
       </div>

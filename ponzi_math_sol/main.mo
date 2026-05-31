@@ -335,7 +335,6 @@ persistent actor class PonziMathSol(initArgs : {
     var deskProceedsAccrualLamports : Nat64 = 0;
 
     transient let DESK_BUY_INTENT_TTL_NS : Int = 15 * 60 * 1_000_000_000;
-    transient let MIN_BUY_LAMPORTS : Nat64 = 10_000_000; // 0.01 SOL
     transient let PP_S : Nat = 100_000_000; // PP unit scale; 0.1 SOL = 1e8 lamports
 
     // Cover charge accrual in lamports. Lives on the pool address until
@@ -2791,7 +2790,8 @@ persistent actor class PonziMathSol(initArgs : {
         #Err : Text;
     } {
         requireAuthenticated(caller);
-        if (lamports < MIN_BUY_LAMPORTS) { return #Err("Minimum buy is 0.01 SOL (10,000,000 lamports)") };
+        // No minimum buy on SOL — any amount that yields >= 1 PP unit is allowed
+        // (the quote's ppUnitsOut == 0 check below is the only natural floor).
         if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
         acquireCallerLock(caller);
         try {

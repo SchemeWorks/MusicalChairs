@@ -152,7 +152,7 @@ export default function BuyPPFlyout({ onClose, variant = 'widget' }: Props) {
             draggable={false}
           />
           <div className="leading-tight">
-            <div className="text-xs mc-text-muted uppercase tracking-wider">Top off your bag</div>
+            <div className="text-xs mc-text-muted uppercase tracking-wider">Founder's Allocation</div>
             <div className="text-base font-bold mc-text-primary">Buy PP</div>
           </div>
         </div>
