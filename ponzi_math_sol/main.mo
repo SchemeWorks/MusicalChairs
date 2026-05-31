@@ -2690,8 +2690,18 @@ persistent actor class PonziMathSol(initArgs : {
         var remaining : Nat = Nat64.toNat(lamports);
         var totalPp : Nat = 0;
         var legs = List.nil<QuoteLeg>();
-        var i : Nat = 0;
-        while (i < deskTiers.size() and remaining > 0) {
+        // Consume BEST-DEAL-FIRST: the highest PP-per-0.1-SOL tier (most PP for
+        // the buyer) is sold first, regardless of the order tiers were added.
+        // As the best tier sells out the next-best becomes active. `order` holds
+        // storage indices sorted by rate descending; legs carry the ORIGINAL
+        // storage index so reservation/settlement stay valid.
+        let order = Array.sort<Nat>(
+            Array.tabulate<Nat>(deskTiers.size(), func(k) { k }),
+            func(a : Nat, b : Nat) { Nat.compare(deskTiers[b].ratePpUnitsPer0_1Sol, deskTiers[a].ratePpUnitsPer0_1Sol) },
+        );
+        var oi : Nat = 0;
+        while (oi < order.size() and remaining > 0) {
+            let i = order[oi];
             let t = deskTiers[i];
             let availablePp : Nat = if (t.ppUnitsTotal > t.ppUnitsSold + t.ppUnitsReserved) {
                 t.ppUnitsTotal - t.ppUnitsSold - t.ppUnitsReserved : Nat;
@@ -2706,7 +2716,7 @@ persistent actor class PonziMathSol(initArgs : {
                     remaining -= spend;
                 };
             };
-            i += 1;
+            oi += 1;
         };
         { ppUnitsOut = totalPp; legs = List.toArray(List.reverse(legs)); cappedByInventory = remaining > 0 };
     };
