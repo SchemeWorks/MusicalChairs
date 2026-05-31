@@ -95,6 +95,25 @@ export default function SolInvestPanel({ planId, onNavigateToProfitCenter }: Sol
     }
   }, [flow, solGames]);
 
+  // While opening or in the manual fallback, poke the canister to scan for the
+  // deposit — immediately, then every 6s for ~36s — so the position opens within
+  // seconds of the transfer landing rather than waiting for the 60s timer (which
+  // still backstops). pokeMyDeposit is self-only, cooldown'd, and open-intent-
+  // gated, so an early/no-op poke is cheap and harmless.
+  useEffect(() => {
+    if (flow.kind !== 'opening' && flow.kind !== 'manual') return;
+    const poke = () => { pokeMut.mutateAsync().catch(() => {}); };
+    poke();
+    let tries = 0;
+    const id = setInterval(() => {
+      tries += 1;
+      poke();
+      if (tries >= 6) clearInterval(id);
+    }, 6000);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [flow.kind]);
+
   const handleCopy = async (text: string) => {
     let ok = false;
     try {
@@ -125,8 +144,8 @@ export default function SolInvestPanel({ planId, onNavigateToProfitCenter }: Sol
     const baselineGames = solGames?.length ?? 0;
     try {
       await sendSolDeposit({ toAddress: prepared.depositAddress, lamports, expectedPubkey: solanaPubkey });
-      try { await pokeMut.mutateAsync(); } catch { /* best-effort; the 60s timer is the backstop */ }
-      setFlow({ kind: 'opening', lamports, baselineGames });
+      setFlow({ kind: 'opening', lamports, baselineGames }); // the opening effect pokes for a fast credit
+
     } catch (e) {
       setFlow({ kind: 'manual', depositAddress: prepared.depositAddress, lamports, baselineGames, note: friendlyWalletError(e) });
     }

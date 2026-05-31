@@ -45,9 +45,18 @@ async function acquireConnectedAdapter(expectedPubkey: string) {
   return adapter;
 }
 
-// Build + sign + send + confirm the exact deposit transfer via the connected
-// wallet. Returns the confirmed transaction signature. Throws on rejection /
-// failure (caller falls back to the manual deposit-address flow).
+// Build + sign + SUBMIT the exact deposit transfer via the connected wallet.
+// Returns the submitted transaction signature. Throws on rejection / failure
+// (caller falls back to the manual deposit-address flow).
+//
+// We deliberately do NOT browser-confirm the transaction. web3.js
+// confirmTransaction waits on a `signatureSubscribe` over wss://, which the
+// asset-canister CSP doesn't allow (connect-src sources are scheme-specific, so
+// an https:// allowance does not cover wss://) — it would always fall through to
+// a "block height exceeded" expiry after ~60-90s even when the tx landed fine.
+// The ICP canister observer is the source of truth: it detects the deposit
+// (pokeMyDeposit + the 60s timer) and opens the position. We only need the tx
+// submitted; getLatestBlockhash + sendTransaction are plain https calls.
 export async function sendSolDeposit(params: {
   toAddress: string;
   lamports: bigint;
@@ -55,14 +64,12 @@ export async function sendSolDeposit(params: {
 }): Promise<string> {
   const adapter = await acquireConnectedAdapter(params.expectedPubkey);
   const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
-  const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('confirmed');
+  const { blockhash } = await connection.getLatestBlockhash('confirmed');
   const tx = buildSolTransferTx({
     fromPubkey: new PublicKey(params.expectedPubkey),
     toPubkey: new PublicKey(params.toAddress),
     lamports: params.lamports,
     recentBlockhash: blockhash,
   });
-  const signature = await adapter.sendTransaction(tx, connection);
-  await connection.confirmTransaction({ signature, blockhash, lastValidBlockHeight }, 'confirmed');
-  return signature;
+  return await adapter.sendTransaction(tx, connection);
 }
