@@ -2421,6 +2421,27 @@ export function usePrepareSolDeposit() {
   });
 }
 
+// User-triggered immediate scan of the caller's own deposit address. Called
+// by SolInvestPanel right after the wallet confirms the SOL transfer so the
+// position opens in ~seconds instead of waiting for the 60s detection timer.
+// Backend is abuse-bounded (self-only, cooldown'd, open-intent-gated).
+export function usePokeMyDeposit() {
+  const { actor } = usePonziMathSolActor();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('SOL actor not ready');
+      const result = await actor.pokeMyDeposit();
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok; // bigint — number of games credited (0 or more)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mySolPendingIntents'] });
+      queryClient.invalidateQueries({ queryKey: ['userSolGames'] });
+    },
+  });
+}
+
 // Cash out a SOL position to the user's OWN Solana wallet. Simple positions
 // route through withdrawEarnings; compounding positions through
 // settleCompoundingGame — the backend rejects the wrong method per game type
