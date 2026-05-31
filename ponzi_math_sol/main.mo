@@ -343,7 +343,7 @@ persistent actor class PonziMathSol(initArgs : {
 
     // Min deposit gate — 0.05 SOL (50_000_000 lamports). Mirrors
     // ponzi_math's 0.1 ICP gate at deploy-time prices.
-    transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 50_000_000;
+    transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 10_000_000;
 
     // Cycles budget attached to every sol-rpc canister call.
     // The sol-rpc canister (tghme-zyaaa-aaaar-qarca-cai) charges 5-20G per
@@ -2501,7 +2501,7 @@ persistent actor class PonziMathSol(initArgs : {
     }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
         requireAuthenticated(caller);
         if (args.expectedAmountLamports < MIN_DEPOSIT_LAMPORTS) {
-            return #Err("Minimum deposit is 0.05 SOL (50,000,000 lamports)");
+            return #Err("Minimum deposit is 0.01 SOL (10,000,000 lamports)");
         };
         if (not bootstrapped) {
             return #Err("Canister not bootstrapped yet — operator must run bootstrap() first");
