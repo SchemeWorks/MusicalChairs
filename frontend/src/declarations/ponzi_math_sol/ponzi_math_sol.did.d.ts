@@ -537,6 +537,16 @@ export interface PonziMathSol {
   'isBootstrapped' : ActorMethod<[], boolean>,
   'isCriticalSectionBusy' : ActorMethod<[], boolean>,
   'payManagementSol' : ActorMethod<[], { 'Ok' : string } | { 'Err' : string }>,
+  /**
+   * / User-triggered detection for the CALLER's own deposit address only.
+   * / Lets the frontend get a near-instant credit right after the user's
+   * / wallet confirms the SOL transfer, instead of waiting for the 60s timer.
+   * / Abuse-bounded: makes ZERO RPC outcalls unless the caller has an open,
+   * / unexpired intent (deposit or buy), and is rate-limited to once per
+   * / POKE_COOLDOWN_NS per caller. Shares the detectionInProgress guard with
+   * / the auto-timer so the two never run concurrently.
+   */
+  'pokeMyDeposit' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
   'prepareSolDeposit' : ActorMethod<
     [{ 'expectedAmountLamports' : bigint, 'plan' : GamePlan }],
     { 'Ok' : { 'intentId' : bigint, 'depositAddress' : string } } |

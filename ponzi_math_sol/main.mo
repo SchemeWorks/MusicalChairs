@@ -368,6 +368,11 @@ persistent actor class PonziMathSol(initArgs : {
     var detectionTimerId : ?Timer.TimerId = null;
     transient var detectionInProgress : Bool = false;
 
+    // Per-caller cooldown for user-triggered pokeMyDeposit scans (5s). Transient:
+    // resetting on upgrade is harmless (worst case one extra allowed poke).
+    transient let POKE_COOLDOWN_NS : Int = 5_000_000_000;
+    transient var pokeTimestamps = principalMapNat.empty<Int>();
+
     // Transient concurrency state — resets on upgrade (safe by construction)
     transient var callerLocks = principalMapNat.empty<Bool>();
     transient var globalCriticalLock : Bool = false;
@@ -3066,6 +3071,65 @@ persistent actor class PonziMathSol(initArgs : {
             #Ok(credits);
         } catch (e) {
             #Err("Detection failed: " # Error.message(e));
+        } finally {
+            detectionInProgress := false;
+        };
+    };
+
+    /// User-triggered detection for the CALLER's own deposit address only.
+    /// Lets the frontend get a near-instant credit right after the user's
+    /// wallet confirms the SOL transfer, instead of waiting for the 60s timer.
+    /// Abuse-bounded: makes ZERO RPC outcalls unless the caller has an open,
+    /// unexpired intent (deposit or buy), and is rate-limited to once per
+    /// POKE_COOLDOWN_NS per caller. Shares the detectionInProgress guard with
+    /// the auto-timer so the two never run concurrently.
+    public shared ({ caller }) func pokeMyDeposit() : async { #Ok : Nat; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not bootstrapped) { return #Err("Not bootstrapped") };
+
+        let now = Time.now();
+
+        // Per-caller cooldown — cheap, before any work.
+        switch (principalMapNat.get(pokeTimestamps, caller)) {
+            case (?last) {
+                if (now - last < POKE_COOLDOWN_NS) {
+                    return #Err("Please wait a few seconds before checking again");
+                };
+            };
+            case (null) {};
+        };
+
+        // Open-intent gate: only scan if the caller has an open, unexpired
+        // intent. Otherwise return #Ok(0) with ZERO RPC outcalls.
+        var hasOpen = false;
+        for (intent in natMap.vals(pendingIntents)) {
+            if (intent.principal == caller and not intent.fulfilled and now <= intent.expiresAt) {
+                hasOpen := true;
+            };
+        };
+        if (not hasOpen) {
+            for (bi in natMap.vals(pendingBuyIntents)) {
+                if (bi.principal == caller and not bi.fulfilled and now <= bi.expiresAt) {
+                    hasOpen := true;
+                };
+            };
+        };
+        if (not hasOpen) { return #Ok(0) };
+
+        if (detectionInProgress) { return #Err("Detection busy — try again shortly") };
+
+        let addr = switch (principalMapNat.get(depositAddresses, caller)) {
+            case (?a) { a };
+            case (null) { return #Ok(0) };
+        };
+
+        pokeTimestamps := principalMapNat.put(pokeTimestamps, caller, now);
+        detectionInProgress := true;
+        try {
+            let credits = await scanAndCredit(addr, caller);
+            #Ok(credits);
+        } catch (e) {
+            #Err("Scan failed: " # Error.message(e));
         } finally {
             detectionInProgress := false;
         };
