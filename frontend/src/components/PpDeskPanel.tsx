@@ -69,12 +69,17 @@ export default function PpDeskPanel() {
         <h3 className="font-display text-lg mc-text-gold mb-1">Price Ladder</h3>
         <p className="text-[11px] mc-text-muted mb-3">Top = best deal. Rate is whole PP per 0.1 SOL; quantity is whole PP. Early buyers get the top tier.</p>
         <div className="space-y-2 mb-4">
-          {(tiers ?? []).map((t, i) => (
-            <div key={i} className="mc-card p-3 flex flex-wrap items-center gap-3 text-sm">
-              <span className="mc-text-muted">#{i}</span>
+          {(tiers ?? [])
+            .map((t, storageIdx) => ({ t, storageIdx }))
+            .sort((a, b) =>
+              a.t.ratePpUnitsPer0_1Sol > b.t.ratePpUnitsPer0_1Sol ? -1
+                : a.t.ratePpUnitsPer0_1Sol < b.t.ratePpUnitsPer0_1Sol ? 1 : 0)
+            .map(({ t, storageIdx }, rank) => (
+            <div key={storageIdx} className="mc-card p-3 flex flex-wrap items-center gap-3 text-sm">
+              <span className={rank === 0 ? 'mc-text-gold font-bold' : 'mc-text-muted'}>{rank === 0 ? 'BEST' : `#${rank + 1}`}</span>
               <span className="mc-text-primary font-bold">{unitsToTierRate(t.ratePpUnitsPer0_1Sol).toLocaleString()} PP / 0.1 SOL</span>
               <span className="mc-text-muted">{formatPpUnits(t.ppUnitsSold)} / {formatPpUnits(t.ppUnitsTotal)} sold · {formatPpUnits(t.ppUnitsReserved)} reserved</span>
-              <button className="mc-btn-secondary text-xs ml-auto" disabled={removeTier.isPending} onClick={() => removeTier.mutate({ index: BigInt(i) })}>Remove</button>
+              <button className="mc-btn-secondary text-xs ml-auto" disabled={removeTier.isPending} onClick={() => removeTier.mutate({ index: BigInt(storageIdx) })}>Remove</button>
             </div>
           ))}
           {(tiers ?? []).length === 0 && <div className="mc-text-muted text-sm">No tiers yet — add one below to open the desk.</div>}
