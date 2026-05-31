@@ -79,10 +79,19 @@ export function useShenaniganActor(): UseShenaniganActorResult {
           return;
         }
 
-        // For II or anonymous, create standard HTTP agent
+        // For II / SIWS, the authed actor REQUIRES the delegation identity.
+        // During the connect window `principal` can be set before `identity`
+        // propagates; building an anonymous actor here makes auto-fired update
+        // calls (e.g. registerReferral) trap "Anonymous principal not allowed".
+        // Leave the actor null until the identity is ready — consumers gate on
+        // a non-null actor. (Mirrors useAuthPpLedger.)
+        if (!identity) {
+          setActor(null);
+          return;
+        }
         const agent = new HttpAgent({
           host: HOST,
-          identity: identity || undefined,
+          identity,
         });
 
         // Fetch root key for local development

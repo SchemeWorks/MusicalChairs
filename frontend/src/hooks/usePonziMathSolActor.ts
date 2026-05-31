@@ -49,9 +49,17 @@ export function usePonziMathSolActor(): UsePonziMathSolActorResult {
           return;
         }
 
+        // Auth actor requires the delegation identity (II/SIWS); don't build an
+        // anonymous actor during the connect window — auto-fired update calls
+        // would trap. Leave it null until the identity is ready. (See
+        // useShenaniganActor / useAuthPpLedger for the same guard.)
+        if (!identity) {
+          setActor(null);
+          return;
+        }
         const agent = new HttpAgent({
           host: HOST,
-          identity: identity || undefined,
+          identity,
         });
 
         if (process.env.DFX_NETWORK !== 'ic') {
