@@ -4,7 +4,8 @@ import { useCountUp } from '../hooks/useCountUp';
 import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP, validateICPInput, restrictToEightDecimals } from '../lib/formatICP';
-import { COVER_CHARGE_RATE, pct } from '../lib/gameConstants';
+import { COVER_CHARGE_RATE, pct, PP_PER_SOL_SIMPLE, PP_PER_SOL_COMPOUND_15, PP_PER_SOL_COMPOUND_30 } from '../lib/gameConstants';
+import SolInvestPanel from './SolInvestPanel';
 import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { oisySigner } from '../lib/oisySigner';
 import { Sprout, Flame, Rocket, Gem, BarChart3, AlertTriangle, Dices, Wallet, TrendingUp, ChevronRight } from 'lucide-react';
@@ -80,6 +81,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
     comp15Day: mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : 0,
     comp30Day: mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0,
   };
+
+  // SIWS users deposit SOL — show SOL-denominated PP rates in the plan cards/strips.
+  const isSiws = walletType === 'siws';
+  const ppUnit = isSiws ? 'SOL' : 'ICP';
+  const ppSimpleDisplay = isSiws ? PP_PER_SOL_SIMPLE : ppRates.simple21Day;
+  const ppComp15Display = isSiws ? PP_PER_SOL_COMPOUND_15 : ppRates.comp15Day;
+  const ppComp30Display = isSiws ? PP_PER_SOL_COMPOUND_30 : ppRates.comp30Day;
   // For Oisy users the rate-limit query is disabled; treat undefined as "allowed"
   // (the backend will enforce rate limits on deposit if exceeded).
   const isRateLimited = walletType === 'oisy' ? false : canDeposit === false;
@@ -256,8 +264,8 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           </span>
           <span className="text-xs mc-text-dim hidden sm:inline">
             {selectedPlan === '15-day-compounding'
-              ? `15 days · 12%/day · ${ppRates.comp15Day.toLocaleString()} PP/ICP`
-              : `30 days · 9%/day · ${ppRates.comp30Day.toLocaleString()} PP/ICP`}
+              ? `15 days · 12%/day · ${ppComp15Display.toLocaleString()} PP/${ppUnit}`
+              : `30 days · 9%/day · ${ppComp30Display.toLocaleString()} PP/${ppUnit}`}
           </span>
           <span className="ml-auto text-xs mc-text-muted hover:mc-text-primary transition-colors">Change</span>
         </div>
@@ -286,7 +294,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• 21 days of 11% daily returns</li>
                 <li>• Withdraw your earnings anytime</li>
                 <li>• Carried Interest: 12% / 7.5% / 3% based on timing</li>
-                <li>• Ponzi Points: {ppRates.simple21Day.toLocaleString()} PP per ICP</li>
+                <li>• Ponzi Points: {ppSimpleDisplay.toLocaleString()} PP per {ppUnit}</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-green opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -307,7 +315,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
                 <li>• Enhanced returns through compounding</li>
                 <li>• Choose 15 or 30-day lockup</li>
                 <li>• Carried Interest: 9% (15-day) or 13% (30-day)</li>
-                <li>• Ponzi Points: {ppRates.comp15Day.toLocaleString()}–{ppRates.comp30Day.toLocaleString()} PP per ICP</li>
+                <li>• Ponzi Points: {ppComp15Display.toLocaleString()}–{ppComp30Display.toLocaleString()} PP per {ppUnit}</li>
               </ul>
               <div className="mt-4 flex items-center justify-center gap-1 text-xs mc-text-purple opacity-0 group-hover:opacity-100 transition-opacity">
                 Select <ChevronRight className="h-3 w-3" />
@@ -331,7 +339,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               </p>
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 12% compounding daily for 15 days</li>
-                <li>• {ppRates.comp15Day.toLocaleString()} Ponzi Points per ICP</li>
+                <li>• {ppComp15Display.toLocaleString()} Ponzi Points per {ppUnit}</li>
                 <li>• Funds locked until maturity</li>
                 <li>• Carried Interest: 9% at maturity</li>
               </ul>
@@ -352,7 +360,7 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
               </p>
               <ul className="text-xs mc-text-muted space-y-1.5">
                 <li>• 9% compounding daily for 30 days</li>
-                <li>• {ppRates.comp30Day.toLocaleString()} Ponzi Points per ICP</li>
+                <li>• {ppComp30Display.toLocaleString()} Ponzi Points per {ppUnit}</li>
                 <li>• Funds locked until maturity</li>
                 <li>• Carried Interest: 13% at maturity</li>
               </ul>
@@ -363,8 +371,13 @@ export default function GamePlans({ onNavigateToProfitCenter }: GamePlansProps) 
           </div>
         )}
 
-        {/* ============ PHASE 3: Amount + ROI + CTA ============ */}
-        {phase === 3 && (
+        {/* ============ PHASE 3: SIWS → SOL deposit panel ============ */}
+        {phase === 3 && walletType === 'siws' && (
+          <SolInvestPanel planId={selectedPlan} onNavigateToProfitCenter={onNavigateToProfitCenter} />
+        )}
+
+        {/* ============ PHASE 3: Amount + ROI + CTA (ICP wallets) ============ */}
+        {phase === 3 && walletType !== 'siws' && (
           <div className="space-y-6">
             {/* Empty wallet CTA */}
             {walletBalance < minDeposit && (
