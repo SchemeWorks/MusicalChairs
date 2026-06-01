@@ -11,6 +11,7 @@ import {
   useGetAllGames,
   useGetProfileFor,
   useGetGameStats,
+  useGetRosterPpBalances,
 } from '../hooks/useQueries';
 import type { ActivePlanSnapshot, GameRecord, GamePlan, GeneralLedgerEntry, GeneralLedgerEvent, RoundSummary } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
@@ -79,6 +80,23 @@ function formatTime(ns: bigint): string {
     hour: '2-digit',
     minute: '2-digit',
   });
+}
+
+// Compact, date-only stamp for dense tables (roster). Full timestamp goes in the
+// cell's title attribute so Charles can still get the exact moment on hover.
+function formatTimeCompact(ns: bigint): string {
+  if (ns === 0n) return '—';
+  return nanosToDate(ns).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
+// Whole-number PP with thousands separators; em-dash for a zero balance so the
+// eye skips empty pockets and lands on the players actually holding points.
+function formatPp(n: number): string {
+  if (!n) return '—';
+  return Math.round(n).toLocaleString();
 }
 
 /** Resolve a principal to its display name (or a truncated principal fallback). */
@@ -590,10 +608,15 @@ type RosterRow = {
   net: number; // totalWithdrawn - totalDeposited (negative = still in the hole)
   firstSeenNs: bigint;
   lastActivityNs: bigint;
+  // PP balances, merged in from pp_ledger after aggregation (0 until loaded).
+  chipPoints: number; // side pocket — PP held in the player's chip subaccount
+  walletPoints: number; // loose PP in the player's own wallet
 };
 
 type SortKey =
   | 'principal'
+  | 'sidePocket'
+  | 'wallet'
   | 'games'
   | 'active'
   | 'deposited'
@@ -607,6 +630,8 @@ type SortDir = 'asc' | 'desc';
 // asc for text. Matches what a spreadsheet user would expect.
 const NATURAL_DIR: Record<SortKey, SortDir> = {
   principal: 'asc',
+  sidePocket: 'desc',
+  wallet: 'desc',
   games: 'desc',
   active: 'desc',
   deposited: 'desc',
@@ -632,6 +657,8 @@ function aggregateRoster(games: GameRecord[]): RosterRow[] {
         net: 0,
         firstSeenNs: g.startTime,
         lastActivityNs: g.lastUpdateTime,
+        chipPoints: 0,
+        walletPoints: 0,
       };
       byPrincipal.set(key, row);
     }
@@ -654,6 +681,10 @@ function compareRows(a: RosterRow, b: RosterRow, key: SortKey, dir: SortDir): nu
   switch (key) {
     case 'principal':
       return sign * a.principalText.localeCompare(b.principalText);
+    case 'sidePocket':
+      return sign * (a.chipPoints - b.chipPoints);
+    case 'wallet':
+      return sign * (a.walletPoints - b.walletPoints);
     case 'games':
       return sign * (a.gamesCount - b.gamesCount);
     case 'active':
@@ -677,7 +708,22 @@ function RosterTable({ games }: { games: GameRecord[] }) {
   const [filter, setFilter] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
 
-  const rows = useMemo(() => aggregateRoster(games), [games]);
+  const baseRows = useMemo(() => aggregateRoster(games), [games]);
+
+  // Fetch each player's PP balances (side pocket + wallet) from pp_ledger.
+  // RosterTable only renders for admins, so this is always enabled here.
+  const principalTexts = useMemo(() => baseRows.map(r => r.principalText), [baseRows]);
+  const { data: ppBalances } = useGetRosterPpBalances(principalTexts, true);
+
+  // Merge PP balances onto the aggregated rows so they sort/filter as first-class
+  // columns. Missing entries (still loading) read as 0.
+  const rows = useMemo(() => {
+    if (!ppBalances) return baseRows;
+    return baseRows.map(r => {
+      const pp = ppBalances.get(r.principalText);
+      return pp ? { ...r, chipPoints: pp.chipPoints, walletPoints: pp.walletPoints } : r;
+    });
+  }, [baseRows, ppBalances]);
 
   const filteredSorted = useMemo(() => {
     const q = filter.trim().toLowerCase();
@@ -738,6 +784,8 @@ function RosterTable({ games }: { games: GameRecord[] }) {
             <tr className="text-[10px] uppercase tracking-wider mc-text-muted border-b border-white/10">
               <th className="text-left py-2 px-2 font-normal">Player</th>
               <SortableHeader label="Principal" k="principal" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="left" />
+              <SortableHeader label="Side Pocket" k="sidePocket" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" title="PP held in the player's position (chip subaccount)" />
+              <SortableHeader label="Wallet PP" k="wallet" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" title="Loose PP in the player's own wallet" />
               <SortableHeader label="Games" k="games" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
               <SortableHeader label="Active" k="active" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
               <SortableHeader label="Deposited" k="deposited" sortKey={sortKey} sortDir={sortDir} onClick={onHeaderClick} align="right" />
@@ -767,6 +815,8 @@ function RosterTable({ games }: { games: GameRecord[] }) {
                     )}
                   </button>
                 </td>
+                <td className="py-2 px-2 text-right font-mono mc-text-cyan">{formatPp(row.chipPoints)}</td>
+                <td className="py-2 px-2 text-right font-mono mc-text-cyan">{formatPp(row.walletPoints)}</td>
                 <td className="py-2 px-2 text-right font-mono mc-text-primary">{row.gamesCount}</td>
                 <td className="py-2 px-2 text-right font-mono">
                   <span className={row.activeGamesCount > 0 ? 'mc-text-green' : 'mc-text-muted'}>
@@ -778,8 +828,8 @@ function RosterTable({ games }: { games: GameRecord[] }) {
                 <td className={`py-2 px-2 text-right font-mono ${row.net >= 0 ? 'mc-text-green' : 'mc-text-danger'}`}>
                   {row.net >= 0 ? '+' : ''}{formatICP(row.net)}
                 </td>
-                <td className="py-2 px-2 text-right mc-text-dim">{formatTime(row.firstSeenNs)}</td>
-                <td className="py-2 px-2 text-right mc-text-dim">{formatTime(row.lastActivityNs)}</td>
+                <td className="py-2 px-2 text-right mc-text-dim whitespace-nowrap" title={formatTime(row.firstSeenNs)}>{formatTimeCompact(row.firstSeenNs)}</td>
+                <td className="py-2 px-2 text-right mc-text-dim whitespace-nowrap" title={formatTime(row.lastActivityNs)}>{formatTimeCompact(row.lastActivityNs)}</td>
               </tr>
             ))}
           </tbody>
@@ -790,7 +840,7 @@ function RosterTable({ games }: { games: GameRecord[] }) {
 }
 
 function SortableHeader({
-  label, k, sortKey, sortDir, onClick, align,
+  label, k, sortKey, sortDir, onClick, align, title,
 }: {
   label: string;
   k: SortKey;
@@ -798,10 +848,11 @@ function SortableHeader({
   sortDir: SortDir;
   onClick: (k: SortKey) => void;
   align: 'left' | 'right';
+  title?: string;
 }) {
   const active = sortKey === k;
   return (
-    <th className={`py-2 px-2 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`}>
+    <th className={`py-2 px-2 font-normal ${align === 'right' ? 'text-right' : 'text-left'}`} title={title}>
       <button
         onClick={() => onClick(k)}
         className={`inline-flex items-center gap-1 hover:mc-text-primary transition-colors ${active ? 'mc-text-primary' : ''}`}
