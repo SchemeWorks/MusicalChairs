@@ -282,7 +282,17 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const withdrawMutation = useWithdrawGameEarnings();
   const settleMutation = useSettleCompoundingGame();
   const solWithdrawMutation = useWithdrawSolGameEarnings();
-  const netPL = portfolio.totalEarnings - portfolio.totalDeposits;
+  // The Profit Center is single-denomination per session: SIWS users transact in
+  // SOL, everyone else in ICP. The running tally + positions follow the active
+  // wallet. (A SIWS principal never holds ICP positions and vice-versa.)
+  const isSiws = walletType === 'siws';
+  const tallyDeposits = isSiws ? solPortfolio.totalDeposits : portfolio.totalDeposits;
+  const tallyEarned = isSiws ? solPortfolio.totalEarnings : portfolio.totalEarnings;
+  const netPL = tallyEarned - tallyDeposits;
+  const tallyUnit = isSiws ? 'SOL' : 'ICP';
+  // Format a (non-negative) tally amount in the active denomination. Net P/L
+  // prepends its own sign and passes the magnitude, since it can go negative.
+  const fmtTallyAmt = (v: number) => (isSiws ? formatSolFloat(v) : formatICPDisplay(v));
 
   // Collapse state — both sections start closed
   const [feesExpanded, setFeesExpanded] = useState(false);
@@ -380,82 +390,90 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               netPL >= 0 ? 'mc-text-green mc-glow-green' : 'mc-text-danger'
             }`}>
               {netPL >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
-              {netPL >= 0 ? '+' : ''}{formatICPDisplay(netPL)} ICP
+              {netPL >= 0 ? '+' : '-'}{fmtTallyAmt(Math.abs(netPL))} {tallyUnit}
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Deposited</div>
-              <div className="text-xl font-bold mc-text-primary">{formatICPDisplay(portfolio.totalDeposits)} ICP</div>
+              <div className="text-xl font-bold mc-text-primary">{fmtTallyAmt(tallyDeposits)} {tallyUnit}</div>
             </div>
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Earned</div>
-              <div className="text-xl font-bold mc-text-green mc-glow-green">{formatICPDisplay(portfolio.totalEarnings)} ICP</div>
+              <div className="text-xl font-bold mc-text-green mc-glow-green">{fmtTallyAmt(tallyEarned)} {tallyUnit}</div>
             </div>
           </div>
         </div>
 
-        {/* Positions */}
+        {/* Positions — SIWS users hold SOL positions; everyone else holds ICP.
+            One unified section so a SOL user never sees an empty ICP card. */}
         <div className="mc-card-elevated">
           <h2 className="font-display text-lg mc-text-primary mb-4">Your Positions</h2>
 
-          {!hasGames ? (
-            <EmptyState onNavigate={onNavigateToGameSetup} />
-          ) : (
-            <div className="space-y-3">
-              {[...portfolio.games].sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game)).map(({ game, earnings }) => (
-                <PositionCard
-                  key={game.id.toString()}
-                  game={game}
-                  earnings={earnings}
-                  onWithdraw={handleWithdrawClick}
-                  withdrawPending={withdrawMutation.isPending || settleMutation.isPending}
-                />
-              ))}
-            </div>
-          )}
+          {isSiws ? (
+            <>
+              {solGames.length > 0 ? (
+                <div className="space-y-3">
+                  {[...solPortfolio.games]
+                    .sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game))
+                    .map(({ game, earnings }) => (
+                      <PositionCard
+                        key={game.id.toString()}
+                        game={game}
+                        earnings={earnings}
+                        denomination="SOL"
+                        settleLabel="Settle"
+                        withdrawDisabled={!solanaPubkey}
+                        withdrawDisabledTitle="Reconnect your Solana wallet to withdraw"
+                        onWithdraw={(g) => handleSolWithdraw(g as SolGameRecord)}
+                        withdrawPending={
+                          solWithdrawMutation.isPending &&
+                          solWithdrawMutation.variables?.gameId === game.id
+                        }
+                      />
+                    ))}
+                </div>
+              ) : (
+                <EmptyState onNavigate={onNavigateToGameSetup} />
+              )}
 
-          {(withdrawMutation.isError || settleMutation.isError) && (
-            <div className="mc-status-red p-3 mt-3 text-center text-sm">
-              {withdrawMutation.error?.message || settleMutation.error?.message || 'Withdrawal failed'}
-            </div>
+              {solWithdrawMutation.isError && (
+                <div className="mt-3 mc-status-red p-2 text-xs text-center">
+                  {solWithdrawMutation.error?.message || 'SOL withdrawal failed'}
+                </div>
+              )}
+              {solGames.length > 0 && (
+                <div className="mt-3 text-[10px] mc-text-muted italic text-center">
+                  Withdrawals are sent to your connected Phantom wallet.
+                </div>
+              )}
+            </>
+          ) : (
+            <>
+              {!hasGames ? (
+                <EmptyState onNavigate={onNavigateToGameSetup} />
+              ) : (
+                <div className="space-y-3">
+                  {[...portfolio.games].sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game)).map(({ game, earnings }) => (
+                    <PositionCard
+                      key={game.id.toString()}
+                      game={game}
+                      earnings={earnings}
+                      onWithdraw={handleWithdrawClick}
+                      withdrawPending={withdrawMutation.isPending || settleMutation.isPending}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {(withdrawMutation.isError || settleMutation.isError) && (
+                <div className="mc-status-red p-3 mt-3 text-center text-sm">
+                  {withdrawMutation.error?.message || settleMutation.error?.message || 'Withdrawal failed'}
+                </div>
+              )}
+            </>
           )}
         </div>
-
-        {/* SOL Positions (SIWS-authed users only) */}
-        {walletType === 'siws' && solGames.length > 0 && (
-          <div className="mc-card-elevated">
-            <h2 className="font-display text-lg mc-text-primary mb-4">Your SOL Positions</h2>
-            <div className="space-y-3">
-              {[...solPortfolio.games]
-                .sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game))
-                .map(({ game, earnings }) => (
-                  <PositionCard
-                    key={game.id.toString()}
-                    game={game}
-                    earnings={earnings}
-                    denomination="SOL"
-                    settleLabel="Settle"
-                    withdrawDisabled={!solanaPubkey}
-                    withdrawDisabledTitle="Reconnect your Solana wallet to withdraw"
-                    onWithdraw={(g) => handleSolWithdraw(g as SolGameRecord)}
-                    withdrawPending={
-                      solWithdrawMutation.isPending &&
-                      solWithdrawMutation.variables?.gameId === game.id
-                    }
-                  />
-                ))}
-            </div>
-            {solWithdrawMutation.isError && (
-              <div className="mt-3 mc-status-red p-2 text-xs text-center">
-                {solWithdrawMutation.error?.message || 'SOL withdrawal failed'}
-              </div>
-            )}
-            <div className="mt-3 text-[10px] mc-text-muted italic text-center">
-              Withdrawals are sent to your connected Phantom wallet.
-            </div>
-          </div>
-        )}
 
         {/* Fee disclosure */}
         <div className="mc-house-card">
