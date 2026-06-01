@@ -1,7 +1,10 @@
 import { Connection, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
+import { SOLANA_RPC_ENDPOINT } from './rpc';
 
-// Devnet for now; flips to a mainnet endpoint at the M3 cutover.
-export const SOLANA_RPC_ENDPOINT = 'https://api.devnet.solana.com';
+// Re-exported for backward compatibility with existing importers. The canonical
+// definition lives in ./rpc (dependency-free) so app-wide code can import the
+// endpoint without pulling @solana/web3.js into the main bundle.
+export { SOLANA_RPC_ENDPOINT };
 
 // Pure: build a single-instruction SOL transfer. lamports is passed as Number
 // at the SystemProgram boundary — exact for deposit-sized amounts (< 2^53) and
