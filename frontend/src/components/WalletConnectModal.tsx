@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useWallet, WalletType } from '../hooks/useWallet';
 import { X, Wallet, ExternalLink, Loader2, Check, AlertCircle } from 'lucide-react';
@@ -46,6 +46,24 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const { connect, isConnecting } = useWallet();
   const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Lock background scroll while the modal is open. The backdrop is a fixed
+  // `backdrop-filter: blur()` overlay; scrolling the page behind it forces the
+  // GPU to re-rasterize the blur every frame against the moving (and animated
+  // mc-splash-bg) content underneath, which flickers. Locking scroll keeps the
+  // backdrop static. The modal itself stays scrollable via its own overflow-y-auto
+  // container. Mirrors the pattern in TrollboxPanel.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, [isOpen]);
 
   const isPlugInstalled = typeof window !== 'undefined' && !!window.ic?.plug;
   // Phantom injects `window.phantom.solana.isPhantom` in modern installs; very
