@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useActor } from './useActor';
@@ -1336,6 +1336,43 @@ export function useGetPonziPoints() {
     },
     enabled: !!principal,
     refetchInterval: 5000,
+  });
+}
+
+// Roster PP balances — chip (side pocket) + wallet PP for a batch of principals.
+// Admin-only (Charles God view roster). Reads pp_ledger directly per principal:
+// chip subaccount lives under the shenanigans owner, wallet is the principal's
+// own account. Returns a map keyed by principal text → { chipPoints, walletPoints }.
+export type RosterPp = { chipPoints: number; walletPoints: number };
+
+export function useGetRosterPpBalances(principalTexts: string[], enabled: boolean) {
+  const ledger = useReadPpLedger();
+  // Stable key independent of array identity/order so we don't refetch on every
+  // re-render of the roster (which re-derives the principal list each pass).
+  const sortedKey = useMemo(() => [...principalTexts].sort().join(','), [principalTexts]);
+
+  return useQuery({
+    queryKey: ['rosterPpBalances', sortedKey],
+    queryFn: async () => {
+      const principals = sortedKey ? sortedKey.split(',') : [];
+      const entries = await Promise.all(
+        principals.map(async (text): Promise<[string, RosterPp]> => {
+          const p = Principal.fromText(text);
+          const [chipUnits, walletUnits] = await Promise.all([
+            ledger.icrc1_balance_of({
+              owner: shenanigansOwner(),
+              subaccount: [principalToChipSubaccount(p)],
+            }),
+            ledger.icrc1_balance_of({ owner: p, subaccount: [] }),
+          ]);
+          return [text, { chipPoints: ppUnitsToWhole(chipUnits), walletPoints: ppUnitsToWhole(walletUnits) }];
+        })
+      );
+      return new Map<string, RosterPp>(entries);
+    },
+    enabled: enabled && !!sortedKey,
+    refetchInterval: 15000,
+    placeholderData: (prev) => prev,
   });
 }
 
