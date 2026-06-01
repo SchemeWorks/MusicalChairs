@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames, useWithdrawSolGameEarnings } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
-import { formatSOL, formatSolFloat } from '../solana/lamports';
+import { formatSolFloat } from '../solana/lamports';
 import { GameRecord, GamePlan, SolGameRecord } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -278,6 +278,7 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const comp15PpPerIcp = mintConfig ? Number(mintConfig.compounding15DayPpPerIcp) : 0;
   const comp30PpPerIcp = mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0;
   const portfolio = useLivePortfolio(games);
+  const solPortfolio = useLivePortfolio(solGames);
   const withdrawMutation = useWithdrawGameEarnings();
   const settleMutation = useSettleCompoundingGame();
   const solWithdrawMutation = useWithdrawSolGameEarnings();
@@ -426,59 +427,24 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           <div className="mc-card-elevated">
             <h2 className="font-display text-lg mc-text-primary mb-4">Your SOL Positions</h2>
             <div className="space-y-3">
-              {solGames.map((game) => {
-                // SolGameRecord shape: id (Nat), plan (variant), amount (Float SOL),
-                // accumulatedEarnings (Float SOL), isCompounding (Bool), startTime (Int ns).
-                const deposit = game.amount;
-                const earnings = game.accumulatedEarnings;
-                // Convert Float SOL → bigint lamports for formatSOL. Float precision loss
-                // is acceptable for display since lamports are not user-input here. Clamp
-                // non-finite/negative Floats to 0 so a malformed backend value renders as
-                // "0.0000 SOL" rather than throwing inside .map() and white-screening the panel.
-                const toLamports = (sol: number) =>
-                  BigInt(Math.max(0, Math.round(Number.isFinite(sol) ? sol * 1_000_000_000 : 0)));
-                const solPending =
-                  solWithdrawMutation.isPending &&
-                  solWithdrawMutation.variables?.gameId === game.id;
-                return (
-                  <div key={game.id.toString()} className="mc-card p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-display text-sm mc-text-primary">
-                        {getPlanName(game.plan)}
-                      </span>
-                      <span className="text-xs mc-text-muted">#{game.id.toString()}</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div>
-                        <div className="mc-label">Deposited</div>
-                        <div className="mc-text-primary font-bold">{formatSOL(toLamports(deposit))} SOL</div>
-                      </div>
-                      <div>
-                        <div className="mc-label">Accrued</div>
-                        <div className="mc-text-green font-bold">{formatSOL(toLamports(earnings))} SOL</div>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                      <Button
-                        onClick={() => handleSolWithdraw(game)}
-                        disabled={solPending || !solanaPubkey}
-                        size="sm"
-                        variant="secondary"
-                        title={
-                          !solanaPubkey
-                            ? 'Reconnect your Solana wallet to withdraw'
-                            : game.isCompounding
-                              ? 'Settle this compounding position to your Phantom wallet'
-                              : 'Withdraw to your Phantom wallet'
-                        }
-                      >
-                        <ArrowDownCircle className="h-3 w-3 mr-1" />
-                        {solPending ? 'Processing…' : game.isCompounding ? 'Settle' : 'Withdraw'}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })}
+              {[...solPortfolio.games]
+                .sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game))
+                .map(({ game, earnings }) => (
+                  <PositionCard
+                    key={game.id.toString()}
+                    game={game}
+                    earnings={earnings}
+                    denomination="SOL"
+                    settleLabel="Settle"
+                    withdrawDisabled={!solanaPubkey}
+                    withdrawDisabledTitle="Reconnect your Solana wallet to withdraw"
+                    onWithdraw={(g) => handleSolWithdraw(g as SolGameRecord)}
+                    withdrawPending={
+                      solWithdrawMutation.isPending &&
+                      solWithdrawMutation.variables?.gameId === game.id
+                    }
+                  />
+                ))}
             </div>
             {solWithdrawMutation.isError && (
               <div className="mt-3 mc-status-red p-2 text-xs text-center">
