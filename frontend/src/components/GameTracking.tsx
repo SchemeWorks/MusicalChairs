@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames, useWithdrawSolGameEarnings } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
-import { formatSOL } from '../solana/lamports';
+import { formatSOL, formatSolFloat } from '../solana/lamports';
 import { GameRecord, GamePlan, SolGameRecord } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -125,11 +125,19 @@ function PositionCard({
   earnings,
   onWithdraw,
   withdrawPending,
+  denomination = 'ICP',
+  withdrawDisabled = false,
+  withdrawDisabledTitle,
+  settleLabel = 'Withdraw',
 }: {
   game: GameRecord;
   earnings: number;
   onWithdraw: (game: GameRecord) => void;
   withdrawPending: boolean;
+  denomination?: 'ICP' | 'SOL';
+  withdrawDisabled?: boolean;
+  withdrawDisabledTitle?: string;
+  settleLabel?: string;
 }) {
   const name = getPlanName(game.plan);
   const accent = getPlanAccent(game.plan);
@@ -138,9 +146,11 @@ function PositionCard({
   const hasEarnings = earnings > 0;
   // A matured Simple position with 0 earnings can still be closed (backend marks inactive)
   const isMaturedSimpleClose = !game.isCompounding && daysActive(game.startTime) >= getPlanDuration(game) && !hasEarnings;
-  const buttonEnabled = canWithdraw && (hasEarnings || isMaturedSimpleClose);
+  const buttonEnabled = canWithdraw && (hasEarnings || isMaturedSimpleClose) && !withdrawDisabled;
   const timeRem = getTimeRemaining(game);
   const tollInfo = getExitTollInfo(game);
+  const fmt = denomination === 'SOL' ? formatSolFloat : formatICP;
+  const unit = denomination;
 
   return (
     <div className={`mc-card ${accent} p-4 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg`}>
@@ -161,13 +171,13 @@ function PositionCard({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
         <div>
           <div className="mc-label">Deposit</div>
-          <div className="text-base font-bold mc-text-primary">{formatICP(game.amount)} ICP</div>
+          <div className="text-base font-bold mc-text-primary">{fmt(game.amount)} {unit}</div>
           <div className="text-xs mc-text-muted">{formatDate(game.startTime)}</div>
         </div>
         <div className="text-center">
           <div className="mc-label">Earnings</div>
           <div className="text-lg sm:text-xl font-bold mc-text-green mc-glow-green">
-            {formatICP(earnings)} ICP
+            {fmt(earnings)} {unit}
           </div>
           <div className="text-xs mc-text-muted">{game.isCompounding ? 'before carry' : 'live'}</div>
         </div>
@@ -210,14 +220,14 @@ function PositionCard({
               ? 'mc-btn-primary'
               : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
           }`}
-          title={!canWithdraw ? 'Locked until maturity' : isMaturedSimpleClose ? 'Close matured position' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
+          title={withdrawDisabled ? withdrawDisabledTitle : !canWithdraw ? 'Locked until maturity' : isMaturedSimpleClose ? 'Close matured position' : !hasEarnings ? 'No earnings yet' : 'Withdraw'}
         >
           {!canWithdraw ? (
             <span className="flex items-center gap-1"><Lock className="h-3 w-3" />{timeRem.days}d {timeRem.hours}h {timeRem.minutes}m</span>
           ) : isMaturedSimpleClose ? (
             <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Close</span>
           ) : (
-            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Withdraw</span>
+            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />{game.isCompounding ? settleLabel : 'Withdraw'}</span>
           )}
         </button>
       </div>
