@@ -1,4 +1,4 @@
-import { useICPBalance, useGetUserGames, useGetPonziPoints, useGetGameStats, useGetUserSolGames } from '../hooks/useQueries';
+import { useICPBalance, useGetUserGames, useGetPonziPoints, useGetGameStats, useGetUserSolGames, useSolBalance, useGetSolGameStats } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
 import { formatICP } from '../lib/formatICP';
@@ -21,19 +21,25 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
   const solGamesQuery = useGetUserSolGames();
   const isSiws = walletType === 'siws';
   const solGames: SolGameRecord[] = isSiws ? (solGamesQuery.data ?? []) : [];
+  const { data: solBalance } = useSolBalance();
+  const { data: solGameStats } = useGetSolGameStats();
   const portfolio = useLivePortfolio(games);
   const solPortfolio = useLivePortfolio(solGames);
 
-  // SIWS sessions are SOL-denominated; everyone else is ICP. P/L and the
-  // position count follow the active wallet so they don't contradict the
-  // Profit Center's running tally. (Balance + AUM remain ICP figures.)
+  // SIWS sessions are SOL-denominated; everyone else is ICP. Every per-user and
+  // protocol figure follows the active wallet so the bar never contradicts the
+  // Profit Center's running tally.
   const ponziPoints = ponziData?.totalPoints || 0;
-  const potBalance = gameStats?.potBalance || 0;
+  const balance = isSiws ? (solBalance ?? 0) : (icpBalance ?? 0);
+  const potBalance = isSiws ? (solGameStats?.potBalance ?? 0) : (gameStats?.potBalance || 0);
   const activeGames = isSiws ? solGames.length : (games?.length || 0);
   const netPL = isSiws
     ? solPortfolio.totalEarnings - solPortfolio.totalDeposits
     : portfolio.totalEarnings - portfolio.totalDeposits;
   const isUp = netPL >= 0;
+  const unit = isSiws ? 'SOL' : 'ICP';
+  // Format a non-negative amount in the active denomination.
+  const fmtAmt = (v: number) => (isSiws ? formatSolFloat(v) : formatICP(v));
   const netPLDisplay = isSiws
     ? `${isUp ? '+' : '-'}${formatSolFloat(Math.abs(netPL))}`
     : `${isUp ? '+' : ''}${formatICP(netPL)}`;
@@ -43,7 +49,7 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
       {/* Balance */}
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">Balance</span>
-        <span className="mc-status-bar-value mc-text-primary">{formatICP(icpBalance ?? 0)}</span>
+        <span className="mc-status-bar-value mc-text-primary">{fmtAmt(balance)}</span>
       </div>
 
       {/* Net P/L — hero stat */}
@@ -85,8 +91,8 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
       <div className="mc-status-bar-stat">
         <span className="mc-status-bar-label">AUM</span>
         <span className="mc-status-bar-value mc-text-gold">
-          <span className="sm:hidden">{potBalance >= 10 ? potBalance.toFixed(1) : formatICP(potBalance)}</span>
-          <span className="hidden sm:inline">{formatICP(potBalance)} ICP</span>
+          <span className="sm:hidden">{potBalance >= 10 ? potBalance.toFixed(1) : fmtAmt(potBalance)}</span>
+          <span className="hidden sm:inline">{fmtAmt(potBalance)} {unit}</span>
         </span>
       </div>
     </div>

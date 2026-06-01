@@ -18,7 +18,9 @@ import type {
   SolGameRecord,
   SolGamePlan,
   SolDepositIntent,
+  SolPlatformStats,
 } from '../backend';
+import { SOLANA_RPC_ENDPOINT } from '../solana/rpc';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import type { ChatItem, MintMultiplierSource } from '../declarations/shenanigans/shenanigans.did';
@@ -124,6 +126,21 @@ export function useGetGameStats() {
     queryKey: ['gameStats'],
     queryFn: async () => actor.getPlatformStats(),
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
+  });
+}
+
+// SOL platform stats — mirrors useGetGameStats but reads the ponzi_math_sol
+// canister. potBalance / totalDeposits / totalWithdrawals are Float SOL. Gated
+// to SIWS sessions since only they surface SOL-denominated AUM.
+export function useGetSolGameStats() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+
+  return useQuery<SolPlatformStats>({
+    queryKey: ['solGameStats'],
+    queryFn: async () => actor.getPlatformStats(),
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
   });
 }
 
@@ -274,6 +291,27 @@ export function useICPBalance() {
     },
     enabled: !!principal,
     refetchInterval: 5000,
+  });
+}
+
+// Connected Solana wallet balance, in SOL. Plain `getBalance` JSON-RPC call to
+// the configured Solana endpoint (CSP allows it; same host as the deposit flow).
+// web3.js is dynamically imported so it stays out of the main chunk for ICP-only
+// sessions. Gated to SIWS sessions with a connected pubkey.
+export function useSolBalance() {
+  const { walletType, solanaPubkey } = useWallet();
+
+  return useQuery<number>({
+    queryKey: ['solBalance', solanaPubkey],
+    queryFn: async () => {
+      if (!solanaPubkey) throw new Error('No Solana pubkey');
+      const { Connection, PublicKey } = await import('@solana/web3.js');
+      const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
+      const lamports = await connection.getBalance(new PublicKey(solanaPubkey));
+      return lamports / 1_000_000_000;
+    },
+    enabled: walletType === 'siws' && !!solanaPubkey,
+    refetchInterval: 10_000,
   });
 }
 
