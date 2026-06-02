@@ -5175,6 +5175,42 @@ persistent actor Self {
         };
     };
 
+    // Active run for a player (null if none). For the UI to resume state.
+    public query func getActiveExitRun(player : Principal) : async ?ExitRun {
+        principalMap.get(activeExitRuns, player);
+    };
+
+    // Per-round clout board: ranked by best consecutive-window average (bps).
+    // Only qualified players (>= windowSize runs that round) appear.
+    // roundId = null -> current round.
+    public query func getExitLiquidityLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitBestWindowAvg, target)) {
+            case null { [] };
+            case (?m) {
+                let entries = Iter.toArray(principalMap.entries(m));
+                let sorted = Array.sort<(Principal, Nat)>(entries, func(a, b) = Nat.compare(b.1, a.1));
+                let cap = if (limit < sorted.size()) { limit } else { sorted.size() };
+                Array.subArray(sorted, 0, cap);
+            };
+        };
+    };
+
+    // Lifetime vanity: biggest single run (bps) for a player. Off-rank.
+    public query func getExitBiggestRun(player : Principal) : async Nat {
+        switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+    };
+
+    // A player's completed-run count for a round (qualifying progress).
+    // roundId = null -> current round.
+    public query func getExitRunCount(player : Principal, roundId : ?Nat) : async Nat {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitRunCount, target)) {
+            case null { 0 };
+            case (?m) { switch (principalMap.get(m, player)) { case (?n) n; case null 0 } };
+        };
+    };
+
     /// Returns mint totals for the specified round, sorted descending.
     /// Pass null for the current round. Limit caps the result size.
     public query func getRoundMintLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
