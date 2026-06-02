@@ -726,6 +726,15 @@ persistent actor Self {
     // Vanity, lifetime: biggest single run score ever (bps). Off-rank.
     var exitBiggestRunBps = principalMap.empty<Nat>();
 
+    // Access flag: false = admin-only (limited access), true = open to all.
+    // Flip via setExitLiquidityPublic once the feature is verified on mainnet.
+    var exitLiquidityPublic : Bool = false;
+
+    // Exit Liquidity is admin-only until exitLiquidityPublic is flipped on.
+    func exitLiquidityAllowed(caller : Principal) : Bool {
+        exitLiquidityPublic or isAdminPrincipal(caller)
+    };
+
     /// Strategic Reserve cosmetic. Principal → nanosecond-precision deadline.
     /// While `now < deadline`, the principal renders with a purple leaderboard
     /// name. Seeded by #strategicReserve spell; queried via getStrategicReserveStatus.
@@ -3190,6 +3199,9 @@ persistent actor Self {
     public shared ({ caller }) func startExitRun() : async ExitRun {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
         markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
 
         switch (principalMap.get(activeExitRuns, caller)) {
             case (?_) { throw Error.reject("You already have a run in progress. Finish it first.") };
@@ -3231,6 +3243,9 @@ persistent actor Self {
     public shared ({ caller }) func exitRunDecision(decision : ExitDecision) : async ExitRunResult {
         if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
         markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
 
         let cfg = exitLiquidityConfig;
         let roundId = await readCurrentRoundIdCached();
@@ -5324,6 +5339,15 @@ persistent actor Self {
 
     public query func getExitLiquidityConfig() : async ExitLiquidityConfig {
         exitLiquidityConfig;
+    };
+
+    public shared ({ caller }) func setExitLiquidityPublic(isPublic : Bool) : async () {
+        requireAdmin(caller);
+        exitLiquidityPublic := isPublic;
+    };
+
+    public query func getExitLiquidityPublic() : async Bool {
+        exitLiquidityPublic;
     };
     public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
         requireAdmin(caller);
