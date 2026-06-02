@@ -39,10 +39,15 @@ export default function ExitLiquidityGame() {
   const onDecide = async (decision: ExitDecision) => {
     try {
       const result = await decide.mutateAsync(decision);
-      const ended = result.rotated || ('exit' in decision) || Number(result.finalStage) >= stageCount;
-      if (ended) {
-        setLastResult(result);
-        if (!result.rotated && Number(result.runScoreBps) > 20000) triggerConfetti();
+      // Always record the latest result. The render keys off `activeRun`
+      // (server-authoritative) and only shows the splash once the run is gone,
+      // so an ongoing decision's result stays masked until the run truly ends.
+      setLastResult(result);
+      // Confetti only on an explicit winning Cash Out — never inferred from
+      // `finalStage`, which can't distinguish "advanced to the last stage"
+      // from "cleared it" (both report finalStage === stageCount, rotated=false).
+      if (!result.rotated && 'exit' in decision && Number(result.runScoreBps) > 20000) {
+        triggerConfetti();
       }
     } catch (e) { toast.error(prettifyCanisterError(e).message); }
   };
