@@ -11,6 +11,8 @@ import type { TabType } from '../App';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import OnboardingTour from './OnboardingTour';
 import { useWallet } from '../hooks/useWallet';
+import { useGetExitLiquidityPublic } from '../hooks/useQueries';
+import { isCharles } from '../lib/charles';
 
 function ShenanigansComingSoon() {
   return (
@@ -118,6 +120,10 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
   const { principal } = useWallet();
   const shenanigansEnabled = !!principal;
 
+  // Exit Liquidity tab is admin-only until the backend opens it to everyone.
+  const { data: exitLiquidityPublic } = useGetExitLiquidityPublic();
+  const showExitLiquidity = (!!principal && isCharles(principal)) || !!exitLiquidityPublic;
+
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 769);
     check();
@@ -152,7 +158,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
       case 'seedRound': return <div className={cls}><HouseDashboard /></div>;
       case 'mlm': return <div className={cls}><ReferralSection onTabChange={handleTabChange} /></div>;
       case 'shenanigans': return <div className={cls}>{shenanigansEnabled ? <Shenanigans /> : <ShenanigansComingSoon />}</div>;
-      case 'exitLiquidity': return <div className={cls}>{shenanigansEnabled ? <ExitLiquidity /> : <ShenanigansComingSoon />}</div>;
+      case 'exitLiquidity': return <div className={cls}>{showExitLiquidity && shenanigansEnabled ? <ExitLiquidity /> : <ShenanigansComingSoon />}</div>;
       default: return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} onTabChange={handleTabChange} visible={activeTab === 'profitCenter'} /></div>;
     }
   };
@@ -188,7 +194,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
       {/* === Mobile Bottom Tabs — all 5 tabs === */}
       {isMobile && (
         <nav className="mc-bottom-tabs">
-          {navItems.map((item) => {
+          {navItems.filter(item => item.id !== 'exitLiquidity' || showExitLiquidity).map((item) => {
             const isActive = activeTab === item.id;
             const badge = badges?.[item.id];
             return (

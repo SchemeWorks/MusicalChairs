@@ -2493,6 +2493,16 @@ export function useGetExitLiquidityConfig() {
   });
 }
 
+export function useGetExitLiquidityPublic() {
+  const actor = useReadShenaniganActor();
+  return useQuery<boolean>({
+    queryKey: ['exitLiquidity', 'public'],
+    queryFn: async () => actor.getExitLiquidityPublic(),
+    enabled: !!actor,
+    staleTime: 60_000,
+  });
+}
+
 export function useGetActiveExitRun(principal?: string) {
   const actor = useReadShenaniganActor();
   return useQuery<ExitRun | null>({

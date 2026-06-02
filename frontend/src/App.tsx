@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
-import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral, useGetExitLiquidityPublic } from './hooks/useQueries';
 import { useLivePortfolio } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
@@ -303,6 +303,10 @@ export default function App() {
   );
   const { data: publicStats } = useGetPublicStats();
 
+  // Exit Liquidity tab is admin-only until the backend opens it to everyone.
+  const { data: exitLiquidityPublic } = useGetExitLiquidityPublic();
+  const showExitLiquidity = (!!principal && isCharles(principal)) || !!exitLiquidityPublic;
+
   // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #side-pocket
   useEffect(() => {
     const onHashChange = () => {
@@ -427,7 +431,7 @@ export default function App() {
                   including from Charles's Office (clicking a tab exits the office). */}
               {showDashboard && (
                 <nav className="mc-header-tabs">
-                  {headerNavItems.map(item => {
+                  {headerNavItems.filter(item => item.id !== 'exitLiquidity' || showExitLiquidity).map(item => {
                     const isActive = activeTab === item.id;
                     const badge = badges[item.id];
                     return (
