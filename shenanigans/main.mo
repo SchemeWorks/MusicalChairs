@@ -3233,11 +3233,11 @@ persistent actor Self {
         markActive(caller);
 
         let cfg = exitLiquidityConfig;
+        let roundId = await readCurrentRoundIdCached();
         let run = switch (principalMap.get(activeExitRuns, caller)) {
             case (?r) r;
             case null { throw Error.reject("No run in progress. Start one first.") };
         };
-        let roundId = await readCurrentRoundIdCached();
 
         // #exit: bank all riding and finish (no rotation roll — exiting is safe).
         if (decision == #exit) {
@@ -5316,6 +5316,9 @@ persistent actor Self {
 
     public shared ({ caller }) func setExitLiquidityConfig(cfg : ExitLiquidityConfig) : async () {
         requireAdmin(caller);
+        if (cfg.bankFractionPct > 100) { Debug.trap("bankFractionPct must be <= 100") };
+        if (cfg.windowSize == 0) { Debug.trap("windowSize must be >= 1") };
+        if (cfg.stageCount == 0) { Debug.trap("stageCount must be >= 1") };
         exitLiquidityConfig := cfg;
     };
 
