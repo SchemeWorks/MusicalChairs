@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, BookOpen, ArrowLeft, X } from 'lucide-react';
+import { ChevronRight, Dices, Rocket, DollarSign, Landmark, Users, Dice5, Wallet, Flame, Shield, Zap, AlertTriangle, BookOpen, ArrowLeft, X, TrendingUp } from 'lucide-react';
 import {
   DAILY_RATE_SIMPLE, DAILY_RATE_COMPOUND_15, DAILY_RATE_COMPOUND_30,
   PLAN_DAYS_SIMPLE, PLAN_DAYS_COMPOUND_15, PLAN_DAYS_COMPOUND_30,
@@ -342,6 +342,17 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
             <p>Poison Pill gives the caster <span className="mc-text-gold font-bold">one</span> charge that absorbs the next hostile spell aimed at them within 24 hours. The shielded spell shows as "fail" to the attacker — they still pay the cost, the shield charge is consumed, no damage lands. Contagion and Wealth Tax respect shields per-target (shielded victims skipped, others still hit). Cease & Desist and Crossline Poach bypass shields by design.</p>
           </div>
         </div>
+      </>
+    ),
+  },
+  {
+    id: 'exit-liquidity',
+    title: 'Exit Liquidity',
+    subtitle: 'Ride the rotations, bank your gains, climb the Cap Table.',
+    icon: <TrendingUp className="h-5 w-5 mc-text-green" />,
+    content: (
+      <>
+        <p>Commit Ponzi Points, ride a position through up to five rotations, and take distributions before the music stops. Banked gains are safe; whatever's still riding is forfeit if the rotation catches you. The only payout is your rank on the Cap Table — best 25-run average wins. Discipline is rewarded. Greed is exit liquidity.</p>
       </>
     ),
   },
