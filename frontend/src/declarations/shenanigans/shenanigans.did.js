@@ -408,6 +408,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
         ['query'],
       ),
+    'getExitLiquidityPublic' : IDL.Func([], [IDL.Bool], ['query']),
     'getExitRunCount' : IDL.Func(
         [IDL.Principal, IDL.Opt(IDL.Nat)],
         [IDL.Nat],
@@ -611,6 +612,7 @@ export const idlFactory = ({ IDL }) => {
         [],
       ),
     'setExitLiquidityConfig' : IDL.Func([ExitLiquidityConfig], [], []),
+    'setExitLiquidityPublic' : IDL.Func([IDL.Bool], [], []),
     'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setMyDisplayName' : IDL.Func(

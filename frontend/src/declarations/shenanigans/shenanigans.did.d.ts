@@ -434,6 +434,7 @@ export interface _SERVICE {
     [[] | [bigint], bigint],
     Array<[Principal, bigint]>
   >,
+  'getExitLiquidityPublic' : ActorMethod<[], boolean>,
   'getExitRunCount' : ActorMethod<[Principal, [] | [bigint]], bigint>,
   /**
    * / Returns the hardcoded default lines for a known pool name. Useful for
@@ -695,6 +696,7 @@ export interface _SERVICE {
       { 'Err' : string }
   >,
   'setExitLiquidityConfig' : ActorMethod<[ExitLiquidityConfig], undefined>,
+  'setExitLiquidityPublic' : ActorMethod<[boolean], undefined>,
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   /**

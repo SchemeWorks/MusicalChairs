@@ -471,6 +471,7 @@ service : {
           principal;
           nat;
         }) query;
+  getExitLiquidityPublic: () -> (bool) query;
   getExitRunCount: (player: principal, roundId: opt nat) -> (nat) query;
   /// Returns the hardcoded default lines for a known pool name. Useful for
   /// the admin UI to show "this is what defaults look like" without
@@ -682,6 +683,7 @@ service : {
                                       Ok;
                                     });
   setExitLiquidityConfig: (cfg: ExitLiquidityConfig) -> ();
+  setExitLiquidityPublic: (isPublic: bool) -> ();
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
   /// Set the caller's preferred display name. Used by effectiveDisplayName
