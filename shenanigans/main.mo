@@ -3140,6 +3140,51 @@ persistent actor Self {
         };
     };
 
+    // Records a completed run's score into the per-round rolling window,
+    // updates the qualifying count, best consecutive-window average, and the
+    // lifetime vanity max. Returns (qualified, bestWindowAvgBps).
+    func finalizeExitRun(player : Principal, roundId : Nat, runScoreBps : Nat, cfg : ExitLiquidityConfig) : (Bool, Nat) {
+        // Run count (per round).
+        let countMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitRunCount, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let newCount = (switch (principalMap.get(countMap, player)) { case (?n) n; case null 0 }) + 1;
+        exitRunCount := natMap.put(exitRunCount, roundId, principalMap.put(countMap, player, newCount));
+
+        // Rolling buffer of the last windowSize scores (per round).
+        let scoresMap : OrderedMap.Map<Principal, [Nat]> = switch (natMap.get(exitRecentScores, roundId)) {
+            case (?m) m; case null principalMap.empty<[Nat]>();
+        };
+        let prior : [Nat] = switch (principalMap.get(scoresMap, player)) { case (?a) a; case null [] };
+        // Append, then keep only the trailing windowSize entries.
+        let appended = Array.append<Nat>(prior, [runScoreBps]);
+        let buf : [Nat] = if (appended.size() <= cfg.windowSize) { appended }
+            else { Array.subArray<Nat>(appended, appended.size() - cfg.windowSize, cfg.windowSize) };
+        exitRecentScores := natMap.put(exitRecentScores, roundId, principalMap.put(scoresMap, player, buf));
+
+        // Vanity max (lifetime).
+        let priorMax = switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+        if (runScoreBps > priorMax) {
+            exitBiggestRunBps := principalMap.put(exitBiggestRunBps, player, runScoreBps);
+        };
+
+        // Best consecutive-window average: only once the buffer is full (qualified).
+        if (newCount >= cfg.windowSize and buf.size() == cfg.windowSize) {
+            var sum : Nat = 0;
+            for (s in buf.vals()) { sum += s };
+            let windowAvg = sum / cfg.windowSize;
+            let bwMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitBestWindowAvg, roundId)) {
+                case (?m) m; case null principalMap.empty<Nat>();
+            };
+            let priorBest = switch (principalMap.get(bwMap, player)) { case (?n) n; case null 0 };
+            let best = if (windowAvg > priorBest) { windowAvg } else { priorBest };
+            exitBestWindowAvg := natMap.put(exitBestWindowAvg, roundId, principalMap.put(bwMap, player, best));
+            (true, best);
+        } else {
+            (false, 0);
+        };
+    };
+
     // Starts a run: rejects if one is already in flight, burns the buy-in,
     // tallies it toward PP-burned boards, and opens the run at stage 1.
     public shared ({ caller }) func startExitRun() : async ExitRun {
@@ -3177,6 +3222,68 @@ persistent actor Self {
         };
         activeExitRuns := principalMap.put(activeExitRuns, caller, run);
         run;
+    };
+
+    // Advances the caller's run. #exit banks everything and ends (safe).
+    // #bank locks bankFractionPct of riding, then rolls the rotation to advance.
+    // #ride keeps the whole stack riding, then rolls the rotation to advance.
+    // A rotation forfeits ridingBps; the run ends with score = bankedBps.
+    public shared ({ caller }) func exitRunDecision(decision : ExitDecision) : async ExitRunResult {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+
+        let cfg = exitLiquidityConfig;
+        let run = switch (principalMap.get(activeExitRuns, caller)) {
+            case (?r) r;
+            case null { throw Error.reject("No run in progress. Start one first.") };
+        };
+        let roundId = await readCurrentRoundIdCached();
+
+        // #exit: bank all riding and finish (no rotation roll — exiting is safe).
+        if (decision == #exit) {
+            let score = run.bankedBps + run.ridingBps;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // #bank: lock a fraction of riding before the roll.
+        var banked = run.bankedBps;
+        var riding = run.ridingBps;
+        if (decision == #bank) {
+            let locked = (riding * cfg.bankFractionPct) / 100;
+            banked += locked;
+            riding -= locked;
+        };
+
+        // Rotation roll for the advance out of the current stage.
+        // Hazard rises with stage: base + (stage-1)*step, capped at 95%.
+        let rawHazard = cfg.baseHazardPct + (run.stage - 1) * cfg.hazardStepPct;
+        let hazardPct = if (rawHazard > 95) { 95 } else { rawHazard };
+        let roll = Int.abs(Time.now()) % 100;  // house RNG style; consistent with existing spells
+
+        if (roll < hazardPct) {
+            // Rotated: forfeit riding, finish with banked.
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, banked, cfg);
+            return { runScoreBps = banked; rotated = true; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // Survived: grow riding, advance a stage.
+        let grownRiding = (riding * cfg.stageStepBps) / 10000;
+        let nextStage = run.stage + 1;
+
+        if (nextStage > cfg.stageCount) {
+            // Cleared the final stage: auto-exit (bank everything).
+            let score = banked + grownRiding;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = cfg.stageCount; qualified; bestWindowAvgBps = best };
+        };
+
+        let advanced : ExitRun = { startedAt = run.startedAt; stage = nextStage; bankedBps = banked; ridingBps = grownRiding };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, advanced);
+        { runScoreBps = banked; rotated = false; finalStage = nextStage; qualified = false; bestWindowAvgBps = 0 };
     };
 
     // ================================================================
