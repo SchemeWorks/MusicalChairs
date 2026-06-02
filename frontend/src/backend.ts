@@ -39,6 +39,7 @@ export type {
   ActivePlanSnapshot as SolActivePlanSnapshot,
   RoundSummary as SolRoundSummary,
   DepositIntent as SolDepositIntent,
+  BackerIntent as SolBackerIntent,
   _SERVICE as PonziMathSolService,
 } from './declarations/ponzi_math_sol';
 

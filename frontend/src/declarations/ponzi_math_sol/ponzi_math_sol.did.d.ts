@@ -12,6 +12,14 @@ export interface ActivePlanSnapshot {
   'wouldBeInsolvent' : boolean,
   'currentExitToll' : number,
 }
+export interface BackerIntent {
+  'id' : bigint,
+  'principal' : Principal,
+  'expectedAmountLamports' : bigint,
+  'expiresAt' : bigint,
+  'fulfilled' : boolean,
+  'createdAt' : bigint,
+}
 export type BackerKey = [Principal, BackerType];
 export interface BackerPosition {
   'startTime' : bigint,
@@ -510,6 +518,7 @@ export interface PonziMathSol {
   >,
   'getMaxDepositLimit' : ActorMethod<[], number>,
   'getMyDepositAddress' : ActorMethod<[], [] | [string]>,
+  'getMyPendingBackerIntents' : ActorMethod<[], Array<BackerIntent>>,
   'getMyPendingBuyIntents' : ActorMethod<[], Array<BuyIntent>>,
   'getMyPendingIntents' : ActorMethod<[], Array<DepositIntent>>,
   'getNonceAccountAddress' : ActorMethod<[], [] | [string]>,
@@ -547,6 +556,18 @@ export interface PonziMathSol {
    * / the auto-timer so the two never run concurrently.
    */
   'pokeMyDeposit' : ActorMethod<[], { 'Ok' : bigint } | { 'Err' : string }>,
+  /**
+   * / Self-serve Series A backing for SIWS/SOL users — the SOL analog of
+   * / ponzi_math.addBackerMoney. Creates a BackerIntent; the next matching SOL
+   * / landing on the caller's deposit address registers/merges their Series A
+   * / position (in creditDeposit). NO Front-End Load (matches the ICP + admin
+   * / backer paths). Min 0.05 SOL.
+   */
+  'prepareBackerDeposit' : ActorMethod<
+    [{ 'expectedAmountLamports' : bigint }],
+    { 'Ok' : { 'intentId' : bigint, 'depositAddress' : string } } |
+      { 'Err' : string }
+  >,
   'prepareSolDeposit' : ActorMethod<
     [{ 'expectedAmountLamports' : bigint, 'plan' : GamePlan }],
     { 'Ok' : { 'intentId' : bigint, 'depositAddress' : string } } |

@@ -302,6 +302,21 @@ persistent actor class PonziMathSol(initArgs : {
     var pendingIntents = natMap.empty<DepositIntent>();
     var nextIntentId : Nat = 0;
 
+    // Series A backer-deposit intents. Parallel to pendingIntents/pendingBuyIntents
+    // (the upgrade-safe "new stable var" pattern — no migration). A BackerIntent
+    // means "the next matching SOL landing on this principal's deposit address
+    // registers a Series A backer position", not a game. Shares nextIntentId so
+    // ids are globally unique across the three intent kinds.
+    public type BackerIntent = {
+        id : Nat;
+        principal : Principal;
+        expectedAmountLamports : Nat64;
+        createdAt : Int;
+        expiresAt : Int;
+        fulfilled : Bool;
+    };
+    var pendingBackerIntents = natMap.empty<BackerIntent>();
+
     // ===== Founder's Allocation Desk (buy PP with SOL) =====
     public type DeskTier = {
         ratePpUnitsPer0_1Sol : Nat; // PP-units per 0.1 SOL (=1e8 lamports)
@@ -344,6 +359,11 @@ persistent actor class PonziMathSol(initArgs : {
     // Min deposit gate — 0.05 SOL (50_000_000 lamports). Mirrors
     // ponzi_math's 0.1 ICP gate at deploy-time prices.
     transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 10_000_000;
+
+    // Min Series A backer deposit — 0.05 SOL (50_000_000 lamports). Mirrors
+    // adminRegisterSeriesABacker's 0.05 SOL floor so the self-serve and admin
+    // backer paths share the same minimum.
+    transient let MIN_BACKER_LAMPORTS : Nat64 = 50_000_000;
 
     // Cycles budget attached to every sol-rpc canister call.
     // The sol-rpc canister (tghme-zyaaa-aaaar-qarca-cai) charges 5-20G per
@@ -2309,6 +2329,81 @@ persistent actor class PonziMathSol(initArgs : {
 
         let intent = switch (matched) {
             case (null) {
+                // Before treating as unmatched: try an open Series A backer
+                // intent for this principal, amount within ±5%, not expired.
+                // On match, register/merge the Series A position (NO Front-End
+                // Load — mirrors addBackerMoney / adminRegisterSeriesABacker),
+                // sweep, advance cursor. Checked before buy intents.
+                var matchedBacker : ?BackerIntent = null;
+                for (bi in natMap.vals(pendingBackerIntents)) {
+                    if (bi.principal == sig.principal and not bi.fulfilled) {
+                        let tol = bpsApply(bi.expectedAmountLamports, 500); // 5%
+                        let lo : Nat64 = if (bi.expectedAmountLamports > tol) { bi.expectedAmountLamports - tol } else { 0 };
+                        let hi : Nat64 = bi.expectedAmountLamports + tol;
+                        if (inboundLamports >= lo and inboundLamports <= hi and Time.now() <= bi.expiresAt) {
+                            matchedBacker := ?bi;
+                        };
+                    };
+                };
+                switch (matchedBacker) {
+                    case (?bi) {
+                        let depositSol = lamportsToSol(inboundLamports);
+                        let entitlement = depositSol * 1.24; // Series A 24% bonus
+                        switch (backerKeyMap.get(backerPositions, (bi.principal, #seriesA))) {
+                            case (null) {
+                                let pos : BackerPosition = {
+                                    owner = bi.principal;
+                                    amount = depositSol;
+                                    entitlement;
+                                    startTime = Time.now();
+                                    isActive = true;
+                                    backerType = #seriesA;
+                                    firstDepositDate = ?Time.now();
+                                };
+                                backerPositions := backerKeyMap.put(backerPositions, (bi.principal, #seriesA), pos);
+                            };
+                            case (?existing) {
+                                let updated : BackerPosition = {
+                                    existing with
+                                    amount = existing.amount + depositSol;
+                                    entitlement = existing.entitlement + entitlement;
+                                };
+                                backerPositions := backerKeyMap.put(backerPositions, (bi.principal, #seriesA), updated);
+                            };
+                        };
+                        // No cover charge on backer deposits: full gross to pot.
+                        platformStats := {
+                            platformStats with
+                            potBalance = platformStats.potBalance + depositSol;
+                        };
+                        recordLedger(#backerDeposit({ backer = bi.principal; amount = depositSol; entitlement }));
+
+                        // Rate-limit bookkeeping (mirrors the game-credit path).
+                        let bnow = Time.now();
+                        let bOneHourAgo = bnow - 3_600_000_000_000;
+                        switch (principalMapNat.get(depositTimestamps, bi.principal)) {
+                            case (null) {
+                                depositTimestamps := principalMapNat.put(depositTimestamps, bi.principal, List.push(bnow, List.nil()));
+                            };
+                            case (?ts) {
+                                let filtered = List.filter<Int>(ts, func(t) { t > bOneHourAgo });
+                                depositTimestamps := principalMapNat.put(depositTimestamps, bi.principal, List.push(bnow, filtered));
+                            };
+                        };
+
+                        // Mark intent fulfilled.
+                        pendingBackerIntents := natMap.put(pendingBackerIntents, bi.id, { bi with fulfilled = true });
+
+                        // Sweep deposit address → pool (pot already credited).
+                        switch (await sweepToPool(sig.address, derivationPathForPrincipal(bi.principal), inboundLamports)) {
+                            case (#Err(e)) { Debug.print("Backer sweep failed " # sig.signature # ": " # e) };
+                            case (#Ok(_)) {};
+                        };
+                        lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+                        return #Ok(null); // backer credited, no game id
+                    };
+                    case (null) {};
+                };
                 // Before treating as unmatched: try an open buy intent for this
                 // principal, amount within ±5%, not expired. On match, settle by
                 // releasing escrowed PP, then sweep + advance cursor like a deposit.
@@ -2561,6 +2656,76 @@ persistent actor class PonziMathSol(initArgs : {
         } finally {
             releaseCallerLock(caller);
         };
+    };
+
+    /// Self-serve Series A backing for SIWS/SOL users — the SOL analog of
+    /// ponzi_math.addBackerMoney. Creates a BackerIntent; the next matching SOL
+    /// landing on the caller's deposit address registers/merges their Series A
+    /// position (in creditDeposit). NO Front-End Load (matches the ICP + admin
+    /// backer paths). Min 0.05 SOL.
+    public shared ({ caller }) func prepareBackerDeposit(args : {
+        expectedAmountLamports : Nat64;
+    }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
+        requireAuthenticated(caller);
+        if (args.expectedAmountLamports < MIN_BACKER_LAMPORTS) {
+            return #Err("Minimum Series A backing is 0.05 SOL (50,000,000 lamports)");
+        };
+        if (not bootstrapped) {
+            return #Err("Canister not bootstrapped yet — operator must run bootstrap() first");
+        };
+
+        acquireCallerLock(caller);
+        try {
+            // Per-user rate limit — shares the 3-positions-per-hour gate.
+            let currentTime = Time.now();
+            let oneHourAgo = currentTime - 3_600_000_000_000;
+            switch (principalMapNat.get(depositTimestamps, caller)) {
+                case (null) {};
+                case (?timestamps) {
+                    let filtered = List.filter<Int>(timestamps, func(t) { t > oneHourAgo });
+                    if (List.size(filtered) >= 3) {
+                        return #Err("You can only open 3 positions per hour");
+                    };
+                };
+            };
+
+            // Ensure the user has a deposit address (same logic as prepareSolDeposit).
+            let depositAddr = switch (principalMapNat.get(depositAddresses, caller)) {
+                case (?a) { a };
+                case (null) {
+                    let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(caller));
+                    depositAddresses := principalMapNat.put(depositAddresses, caller, addr);
+                    addressToPrincipal := textMap.put(addressToPrincipal, addr, caller);
+                    addr;
+                };
+            };
+
+            let intent : BackerIntent = {
+                id = nextIntentId;
+                principal = caller;
+                expectedAmountLamports = args.expectedAmountLamports;
+                createdAt = currentTime;
+                expiresAt = currentTime + INTENT_TTL_NS;
+                fulfilled = false;
+            };
+            pendingBackerIntents := natMap.put(pendingBackerIntents, nextIntentId, intent);
+            let intentId = nextIntentId;
+            nextIntentId += 1;
+
+            #Ok({ intentId; depositAddress = depositAddr });
+        } finally {
+            releaseCallerLock(caller);
+        };
+    };
+
+    public query ({ caller }) func getMyPendingBackerIntents() : async [BackerIntent] {
+        var out = List.nil<BackerIntent>();
+        for (intent in natMap.vals(pendingBackerIntents)) {
+            if (intent.principal == caller and not intent.fulfilled) {
+                out := List.push(intent, out);
+            };
+        };
+        List.toArray(out);
     };
 
     public query func deskListTiers() : async [DeskTier] { deskTiers };
@@ -3045,6 +3210,14 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
+        for (bi in natMap.vals(pendingBackerIntents)) {
+            if (not bi.fulfilled and now <= bi.expiresAt) {
+                switch (principalMapNat.get(depositAddresses, bi.principal)) {
+                    case (?addr) { toScan := textMap.put(toScan, addr, bi.principal) };
+                    case (null) {};
+                };
+            };
+        };
         var credits : Nat = 0;
         for ((address, principal) in textMap.entries(toScan)) {
             credits += await scanAndCredit(address, principal);
@@ -3109,6 +3282,13 @@ persistent actor class PonziMathSol(initArgs : {
         };
         if (not hasOpen) {
             for (bi in natMap.vals(pendingBuyIntents)) {
+                if (bi.principal == caller and not bi.fulfilled and now <= bi.expiresAt) {
+                    hasOpen := true;
+                };
+            };
+        };
+        if (not hasOpen) {
+            for (bi in natMap.vals(pendingBackerIntents)) {
                 if (bi.principal == caller and not bi.fulfilled and now <= bi.expiresAt) {
                     hasOpen := true;
                 };

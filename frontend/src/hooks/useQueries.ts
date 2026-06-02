@@ -18,6 +18,7 @@ import type {
   SolGameRecord,
   SolGamePlan,
   SolDepositIntent,
+  SolBackerIntent,
   SolPlatformStats,
 } from '../backend';
 import { SOLANA_RPC_ENDPOINT } from '../solana/rpc';
@@ -2473,6 +2474,44 @@ export function useGetMyPendingSolIntents() {
     },
     enabled: walletType === 'siws' && !!actor && !!principal,
     refetchInterval: 10_000,
+  });
+}
+
+// ----- Self-serve SOL Series A backing — mirrors the ICP addBackerMoney path,
+// but over the async SOL deposit-detection flow (prepare intent -> send SOL ->
+// detection credits the Series A position). -----
+
+export function usePrepareBackerDeposit() {
+  const { actor } = usePonziMathSolActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { expectedAmountLamports: bigint }) => {
+      if (!actor) throw new Error('SOL actor not ready');
+      const result = await actor.prepareBackerDeposit({
+        expectedAmountLamports: args.expectedAmountLamports,
+      });
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok; // { intentId: bigint; depositAddress: string }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mySolPendingBackerIntents'] });
+    },
+  });
+}
+
+export function useGetMyPendingBackerIntents() {
+  const { actor } = usePonziMathSolActor();
+  const { principal, walletType } = useWallet();
+
+  return useQuery<SolBackerIntent[]>({
+    queryKey: ['mySolPendingBackerIntents', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyPendingBackerIntents();
+    },
+    enabled: walletType === 'siws' && !!actor && !!principal,
+    refetchInterval: 5_000,
   });
 }
 

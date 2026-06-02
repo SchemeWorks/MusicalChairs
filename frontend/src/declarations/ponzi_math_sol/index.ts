@@ -7,6 +7,7 @@ export { idlFactory, init } from './ponzi_math_sol.did.js';
 
 export type {
   ActivePlanSnapshot,
+  BackerIntent,
   BackerKey,
   BackerPosition,
   BuyIntent,

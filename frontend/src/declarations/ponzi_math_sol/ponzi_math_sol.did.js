@@ -190,6 +190,14 @@ export const idlFactory = ({ IDL }) => {
     'resetTime' : IDL.Int,
     'reason' : IDL.Text,
   });
+  const BackerIntent = IDL.Record({
+    'id' : IDL.Nat,
+    'principal' : IDL.Principal,
+    'expectedAmountLamports' : IDL.Nat64,
+    'expiresAt' : IDL.Int,
+    'fulfilled' : IDL.Bool,
+    'createdAt' : IDL.Int,
+  });
   const PlatformStats = IDL.Record({
     'daysActive' : IDL.Nat,
     'potBalance' : IDL.Float64,
@@ -535,6 +543,11 @@ export const idlFactory = ({ IDL }) => {
       ),
     'getMaxDepositLimit' : IDL.Func([], [IDL.Float64], ['query']),
     'getMyDepositAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
+    'getMyPendingBackerIntents' : IDL.Func(
+        [],
+        [IDL.Vec(BackerIntent)],
+        ['query'],
+      ),
     'getMyPendingBuyIntents' : IDL.Func([], [IDL.Vec(BuyIntent)], ['query']),
     'getMyPendingIntents' : IDL.Func([], [IDL.Vec(DepositIntent)], ['query']),
     'getNonceAccountAddress' : IDL.Func([], [IDL.Opt(IDL.Text)], ['query']),
@@ -586,6 +599,19 @@ export const idlFactory = ({ IDL }) => {
     'pokeMyDeposit' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
+        [],
+      ),
+    'prepareBackerDeposit' : IDL.Func(
+        [IDL.Record({ 'expectedAmountLamports' : IDL.Nat64 })],
+        [
+          IDL.Variant({
+            'Ok' : IDL.Record({
+              'intentId' : IDL.Nat,
+              'depositAddress' : IDL.Text,
+            }),
+            'Err' : IDL.Text,
+          }),
+        ],
         [],
       ),
     'prepareSolDeposit' : IDL.Func(
