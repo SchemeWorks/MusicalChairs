@@ -3140,6 +3140,45 @@ persistent actor Self {
         };
     };
 
+    // Starts a run: rejects if one is already in flight, burns the buy-in,
+    // tallies it toward PP-burned boards, and opens the run at stage 1.
+    public shared ({ caller }) func startExitRun() : async ExitRun {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+
+        switch (principalMap.get(activeExitRuns, caller)) {
+            case (?_) { throw Error.reject("You already have a run in progress. Finish it first.") };
+            case null {};
+        };
+
+        let cfg = exitLiquidityConfig;
+
+        // Burn the buy-in (traps on failure, mirroring the cast path).
+        switch (await burnFrom(caller, cfg.buyInUnits, "exit-liquidity-buyin")) {
+            case (#Err(msg)) { Debug.trap("Buy-in burn failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        // Tally toward existing PP-burned leaderboards (lifetime + per-round).
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) { case null 0; case (?n) n };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + cfg.buyInUnits);
+        let roundId = await readCurrentRoundIdCached();
+        let rb : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppBurnedPerPlayerPerRound, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let rbPrior = switch (principalMap.get(rb, caller)) { case (?n) n; case null 0 };
+        ppBurnedPerPlayerPerRound := natMap.put(ppBurnedPerPlayerPerRound, roundId, principalMap.put(rb, caller, rbPrior + cfg.buyInUnits));
+
+        let run : ExitRun = {
+            startedAt = Time.now();
+            stage = 1;
+            bankedBps = 0;
+            ridingBps = cfg.baseMultiplierBps;
+        };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, run);
+        run;
+    };
+
     // ================================================================
     // Spell effect dispatch
     // ================================================================
