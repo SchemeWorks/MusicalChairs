@@ -8,14 +8,19 @@ export { SOLANA_RPC_ENDPOINT };
 
 // Pure: build a single-instruction SOL transfer. lamports is passed as Number
 // at the SystemProgram boundary — exact for deposit-sized amounts (< 2^53) and
-// type-safe across @solana/web3.js versions.
+// type-safe across @solana/web3.js versions. recentBlockhash is OPTIONAL: the
+// preferred Phantom path leaves it unset and lets the wallet fill it in.
 export function buildSolTransferTx(params: {
   fromPubkey: PublicKey;
   toPubkey: PublicKey;
   lamports: bigint;
-  recentBlockhash: string;
+  recentBlockhash?: string;
 }): Transaction {
-  const tx = new Transaction({ feePayer: params.fromPubkey, recentBlockhash: params.recentBlockhash });
+  const tx = new Transaction(
+    params.recentBlockhash
+      ? { feePayer: params.fromPubkey, recentBlockhash: params.recentBlockhash }
+      : { feePayer: params.fromPubkey },
+  );
   tx.add(
     SystemProgram.transfer({
       fromPubkey: params.fromPubkey,
@@ -24,6 +29,17 @@ export function buildSolTransferTx(params: {
     }),
   );
   return tx;
+}
+
+// The injected Phantom provider, if present. Phantom exposes
+// `signAndSendTransaction`, which supplies a recent blockhash AND broadcasts via
+// Phantom's own RPC — so the app needs no RPC at all for the user's payment.
+function getPhantomProvider(): any {
+  if (typeof window === 'undefined') return undefined;
+  const w = window as any;
+  if (w?.phantom?.solana?.isPhantom) return w.phantom.solana;
+  if (w?.solana?.isPhantom) return w.solana;
+  return undefined;
 }
 
 // Re-acquire the connected wallet at send time. The SIWS session persists only
@@ -65,14 +81,39 @@ export async function sendSolDeposit(params: {
   lamports: bigint;
   expectedPubkey: string;
 }): Promise<string> {
+  const fromPubkey = new PublicKey(params.expectedPubkey);
+  const tx = buildSolTransferTx({
+    fromPubkey,
+    toPubkey: new PublicKey(params.toAddress),
+    lamports: params.lamports,
+  });
+
+  // Preferred path: Phantom's signAndSendTransaction. The WALLET supplies the
+  // recent blockhash and broadcasts through its own RPC — so the app needs no
+  // Solana RPC at all (the public mainnet endpoint 403s browser blockhash
+  // fetches, and broadcasting a user's payment is the wallet's responsibility,
+  // not ours). This is the correct shape for a wallet-driven transfer.
+  const phantom = getPhantomProvider();
+  if (phantom?.signAndSendTransaction) {
+    if (!phantom.isConnected) {
+      await phantom.connect();
+    }
+    const connectedPk = phantom.publicKey?.toString?.();
+    if (connectedPk && connectedPk !== params.expectedPubkey) {
+      throw new Error('Connected wallet does not match your session — reconnect your wallet and retry.');
+    }
+    const result = await phantom.signAndSendTransaction(tx);
+    // Phantom returns { signature } (older builds may return the string directly).
+    return typeof result === 'string' ? result : result.signature;
+  }
+
+  // Fallback for non-Phantom wallets (e.g. Solflare): the app fetches a
+  // blockhash and the adapter submits via the configured RPC. On mainnet the
+  // public endpoint 403s, so this throws and the caller drops to the manual
+  // deposit-address flow — which always works.
   const adapter = await acquireConnectedAdapter(params.expectedPubkey);
   const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
   const { blockhash } = await connection.getLatestBlockhash('confirmed');
-  const tx = buildSolTransferTx({
-    fromPubkey: new PublicKey(params.expectedPubkey),
-    toPubkey: new PublicKey(params.toAddress),
-    lamports: params.lamports,
-    recentBlockhash: blockhash,
-  });
+  tx.recentBlockhash = blockhash;
   return await adapter.sendTransaction(tx, connection);
 }
