@@ -5,7 +5,9 @@
 // dragging the web3.js bundle into the main chunk. web3.js-using callers
 // (sendSolDeposit) import this same constant.
 //
-// Devnet for now; flips to a mainnet endpoint at the M3 cutover. The M3 flip must
-// update this constant AND the asset-canister CSP `connect-src` together (see
-// frontend/public/.ic-assets.json), or browser fetches to the new host are blocked.
-export const SOLANA_RPC_ENDPOINT = 'https://api.devnet.solana.com';
+// Mainnet-beta as of the M3 cutover (2026-06-01). This constant AND the
+// asset-canister CSP `connect-src` (frontend/public/.ic-assets.json) must stay
+// in sync, or browser fetches to this host are blocked. The public endpoint is
+// rate-limited; swap to a dedicated provider (Helius/QuickNode) if volume grows
+// — remember to update the CSP connect-src to match the new host.
+export const SOLANA_RPC_ENDPOINT = 'https://api.mainnet-beta.solana.com';
