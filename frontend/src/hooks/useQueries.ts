@@ -22,6 +22,7 @@ import type {
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import type { ChatItem, MintMultiplierSource } from '../declarations/shenanigans/shenanigans.did';
+import type { ExitRun, ExitDecision, ExitRunResult, ExitLiquidityConfig } from '../declarations/shenanigans/shenanigans.did';
 import { TROLLBOX_POLL_MS, TROLLBOX_PIN_POLL_MS, TROLLBOX_MUTE_POLL_MS, TROLLBOX_FETCH_LIMIT } from '../components/trollbox/trollboxConstants';
 import { buildReferralLink, getStoredReferrer } from '../lib/referral';
 import { isCharles } from '../lib/charles';
@@ -2476,6 +2477,103 @@ export function useWithdrawSolGameEarnings() {
       queryClient.invalidateQueries({ queryKey: ['userSolGames'] });
       queryClient.invalidateQueries({ queryKey: ['mySolPendingIntents'] });
       queryClient.invalidateQueries({ queryKey: ['mySolDepositAddress'] });
+    },
+  });
+}
+
+// ===== Exit Liquidity =====
+
+export function useGetExitLiquidityConfig() {
+  const actor = useReadShenaniganActor();
+  return useQuery<ExitLiquidityConfig>({
+    queryKey: ['exitLiquidity', 'config'],
+    queryFn: async () => actor.getExitLiquidityConfig(),
+    enabled: !!actor,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useGetActiveExitRun(principal?: string) {
+  const actor = useReadShenaniganActor();
+  return useQuery<ExitRun | null>({
+    queryKey: ['exitLiquidity', 'activeRun', principal],
+    queryFn: async () => {
+      if (!principal) return null;
+      const res = await actor.getActiveExitRun(Principal.fromText(principal));
+      return res[0] ?? null;
+    },
+    enabled: !!actor && !!principal,
+  });
+}
+
+export function useGetExitRunCount(principal?: string, roundId?: number) {
+  const actor = useReadShenaniganActor();
+  return useQuery<bigint>({
+    queryKey: ['exitLiquidity', 'runCount', principal, roundId],
+    queryFn: async () => {
+      if (!principal) return 0n;
+      const arg: [] | [bigint] = roundId !== undefined ? [BigInt(roundId)] : [];
+      return actor.getExitRunCount(Principal.fromText(principal), arg);
+    },
+    enabled: !!actor && !!principal,
+    staleTime: 10_000,
+  });
+}
+
+export function useGetExitBiggestRun(principal?: string) {
+  const actor = useReadShenaniganActor();
+  return useQuery<bigint>({
+    queryKey: ['exitLiquidity', 'biggestRun', principal],
+    queryFn: async () => {
+      if (!principal) return 0n;
+      return actor.getExitBiggestRun(Principal.fromText(principal));
+    },
+    enabled: !!actor && !!principal,
+    staleTime: 10_000,
+  });
+}
+
+export function useGetExitLiquidityLeaderboard(roundId?: number, limit = 25) {
+  const actor = useReadShenaniganActor();
+  return useQuery<[Principal, bigint][]>({
+    queryKey: ['exitLiquidity', 'leaderboard', roundId, limit],
+    queryFn: async () => {
+      const arg: [] | [bigint] = roundId !== undefined ? [BigInt(roundId)] : [];
+      return actor.getExitLiquidityLeaderboard(arg, BigInt(limit));
+    },
+    enabled: !!actor,
+    staleTime: 15_000,
+  });
+}
+
+export function useStartExitRun() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation<ExitRun, Error>({
+    mutationFn: async () => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      return actor.startExitRun();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exitLiquidity', 'activeRun'] });
+      queryClient.invalidateQueries({ queryKey: ['ponziPointsBalance'] });
+    },
+  });
+}
+
+export function useExitRunDecision() {
+  const { actor } = useShenaniganActor();
+  const queryClient = useQueryClient();
+  return useMutation<ExitRunResult, Error, ExitDecision>({
+    mutationFn: async (decision: ExitDecision) => {
+      if (!actor) throw new Error('Shenanigans actor not available');
+      return actor.exitRunDecision(decision);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['exitLiquidity', 'activeRun'] });
+      queryClient.invalidateQueries({ queryKey: ['exitLiquidity', 'leaderboard'] });
+      queryClient.invalidateQueries({ queryKey: ['exitLiquidity', 'runCount'] });
+      queryClient.invalidateQueries({ queryKey: ['exitLiquidity', 'biggestRun'] });
     },
   });
 }
