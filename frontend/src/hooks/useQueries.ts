@@ -20,6 +20,9 @@ import type {
   SolDepositIntent,
   SolBackerIntent,
   SolPlatformStats,
+  SolBackerPosition,
+  SolBackerKey,
+  SolGeneralLedgerEntry,
 } from '../backend';
 import { SOLANA_RPC_ENDPOINT } from '../solana/rpc';
 import { Principal } from '@dfinity/principal';
@@ -2512,6 +2515,88 @@ export function useGetMyPendingBackerIntents() {
     },
     enabled: walletType === 'siws' && !!actor && !!principal,
     refetchInterval: 5_000,
+  });
+}
+
+// ----- SOL Seed Round parity: backer positions / repayments / ledger / claim
+// for SIWS sessions, mirroring the ICP useGetBackerPositions / useGetGeneralLedger
+// / useClaimBackerRepayment so HouseDashboard can render the whole Seed Round page
+// in SOL terms. Backend methods already exist on ponzi_math_sol. -----
+
+export function useGetSolBackerPositions() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<SolBackerPosition[]>({
+    queryKey: ['solBackerPositions'],
+    queryFn: async () => {
+      try { return (await actor.getBackerPositions()) || []; }
+      catch (e) { console.error('Failed to fetch SOL backer positions:', e); return []; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolAllBackerRepayments() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<Array<[SolBackerKey, number]>>({
+    queryKey: ['solAllBackerRepayments'],
+    queryFn: async () => actor.getAllBackerRepayments(),
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolGeneralLedger() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<SolGeneralLedgerEntry[]>({
+    queryKey: ['solGeneralLedger'],
+    queryFn: async () => {
+      try { return (await actor.getGeneralLedger()) || []; }
+      catch (e) { console.error('Failed to fetch SOL general ledger:', e); return []; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolGeneralLedgerStats() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  const empty = { totalInflows: 0, totalOutflows: 0, netFlow: 0, entryCount: BigInt(0) };
+  return useQuery({
+    queryKey: ['solGeneralLedgerStats'],
+    queryFn: async () => {
+      try { return (await actor.getGeneralLedgerStats()) || empty; }
+      catch (e) { console.error('Failed to fetch SOL ledger stats:', e); return empty; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: empty,
+  });
+}
+
+export function useClaimSolBackerRepayment() {
+  const { actor } = usePonziMathSolActor();
+  const { solanaPubkey } = useWallet();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('SOL actor not ready');
+      if (!solanaPubkey) throw new Error('No connected Solana wallet address — reconnect Phantom to claim.');
+      const result = await actor.claimBackerRepayment([solanaPubkey]); // opt text -> user's wallet
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['solBackerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['solAllBackerRepayments'] });
+    },
   });
 }
 
