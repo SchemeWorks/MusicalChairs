@@ -8,6 +8,10 @@ export default defineConfig(({ mode }) => {
   
   const DFX_NETWORK = env.DFX_NETWORK || 'local';
   const CANISTER_ID_BACKEND = env.CANISTER_ID_BACKEND || 'uxrrr-q7777-77774-qaaaq-cai';
+  // Browser Solana RPC (domain-locked Helius key in .env.local). Exposed via
+  // define because Vite's native import.meta.env loads from envDir=root('frontend'),
+  // but our env files live at the repo root where this loadEnv reads.
+  const VITE_SOLANA_RPC_URL = env.VITE_SOLANA_RPC_URL || '';
   
   return {
     root: 'frontend',
@@ -34,6 +38,7 @@ export default defineConfig(({ mode }) => {
     define: {
       'process.env.DFX_NETWORK': JSON.stringify(DFX_NETWORK),
       'process.env.CANISTER_ID_BACKEND': JSON.stringify(CANISTER_ID_BACKEND),
+      'process.env.VITE_SOLANA_RPC_URL': JSON.stringify(VITE_SOLANA_RPC_URL),
       global: 'globalThis',
     },
     optimizeDeps: {

@@ -15,6 +15,6 @@
 // (Helius/QuickNode) for reliable reads. Whatever host this resolves to MUST be
 // in the asset-canister CSP connect-src (frontend/public/.ic-assets.json) or the
 // browser fetch is blocked.
-const ENV_RPC = import.meta.env.VITE_SOLANA_RPC_URL as string | undefined;
+const ENV_RPC = process.env.VITE_SOLANA_RPC_URL;
 export const SOLANA_RPC_ENDPOINT =
   ENV_RPC && ENV_RPC.trim() ? ENV_RPC.trim() : 'https://api.mainnet-beta.solana.com';
