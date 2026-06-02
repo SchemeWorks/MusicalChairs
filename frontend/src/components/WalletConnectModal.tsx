@@ -85,6 +85,21 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', chains: ['solana', 'icp'], installed: true, comingSoon: true },
   ];
 
+  // Map raw wallet errors to clear, on-brand copy. The notable one: a Ledger
+  // can't sign the off-chain SIWS sign-in message (a Phantom/Ledger limitation,
+  // not our message — it surfaces as ledgerUnknownSignError / 0x6a81), so steer
+  // to a hot wallet instead of showing a cryptic device code.
+  const friendlyConnectError = (err: any): string => {
+    const raw = (err?.message ?? String(err ?? '')).toString();
+    if (/ledger|0x6a81/i.test(raw)) {
+      return "Ledger can't sign our sign-in message yet — Solana hardware support is in the works. For now, step in with a hot wallet (Phantom), or use Internet Identity / Plug.";
+    }
+    if (/reject|denied|cancel|0x6985/i.test(raw)) {
+      return 'Connection cancelled.';
+    }
+    return raw || 'Failed to connect wallet';
+  };
+
   const handleConnect = async (walletType: WalletType) => {
     setError(null);
     setSelectedWallet(walletType);
@@ -93,7 +108,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
       onClose();
     } catch (err: any) {
       console.error('Connection error:', err);
-      setError(err.message || 'Failed to connect wallet');
+      setError(friendlyConnectError(err));
       setSelectedWallet(null);
     }
   };
