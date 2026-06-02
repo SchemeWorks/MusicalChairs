@@ -651,6 +651,37 @@ persistent actor Self {
     // Prestige stat — surfaced in Hall of Fame.
     var karmaReceivedPerPlayer = principalMap.empty<Nat>();
 
+    // ===== Exit Liquidity — PP-sink judgment game (clout-only) =====
+    // All score math is integer bps (10000 = 1.0x).
+    type ExitLiquidityConfig = {
+        buyInUnits : Nat;        // PP units burned to start a run
+        stageCount : Nat;        // max rotations per run
+        baseMultiplierBps : Nat; // riding value entering stage 1
+        stageStepBps : Nat;      // riding *= stageStepBps/10000 per survived advance
+        baseHazardPct : Nat;     // rotation chance on the 1->2 advance
+        hazardStepPct : Nat;     // hazard added per later stage
+        bankFractionPct : Nat;   // portion of riding locked by a "bank" decision
+        windowSize : Nat;        // consecutive runs for ranking + qualifying gate
+    };
+
+    // One in-flight run per player. Deleted on completion.
+    type ExitRun = {
+        startedAt : Int;
+        stage : Nat;             // current stage, 1-based
+        bankedBps : Nat;         // locked, safe from rotation
+        ridingBps : Nat;         // at risk; forfeited on rotation
+    };
+
+    type ExitDecision = { #bank; #ride; #exit };
+
+    type ExitRunResult = {
+        runScoreBps : Nat;       // = bankedBps at completion
+        rotated : Bool;          // true if ended by rotation
+        finalStage : Nat;
+        qualified : Bool;        // run count this round >= windowSize
+        bestWindowAvgBps : Nat;  // 0 until qualified
+    };
+
     // Active spell-effect state — see type docs above. All empty on first
     // deploy; orthogonal persistence carries values across upgrades.
     var customDisplayNames = principalMap.empty<DisplayNameOverride>();
@@ -672,6 +703,28 @@ persistent actor Self {
     var mintMultiplierSources = principalMap.empty<[MintMultiplierSource]>();
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
+
+    // Exit Liquidity config — admin-tunable; starting defaults below.
+    var exitLiquidityConfig : ExitLiquidityConfig = {
+        buyInUnits = 1_000_000_000;  // 10 PP
+        stageCount = 5;
+        baseMultiplierBps = 10000;   // 1.0x
+        stageStepBps = 16000;        // x1.6 per advance
+        baseHazardPct = 15;
+        hazardStepPct = 12;
+        bankFractionPct = 50;
+        windowSize = 25;
+    };
+    // In-flight runs, one per player.
+    var activeExitRuns = principalMap.empty<ExitRun>();
+    // Per round -> player -> rolling buffer of the last `windowSize` run scores (bps).
+    var exitRecentScores = natMap.empty<OrderedMap.Map<Principal, [Nat]>>();
+    // Per round -> player -> best consecutive-window average (bps). Set only once qualified.
+    var exitBestWindowAvg = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Per round -> player -> total completed runs this round (qualifying gate).
+    var exitRunCount = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Vanity, lifetime: biggest single run score ever (bps). Off-rank.
+    var exitBiggestRunBps = principalMap.empty<Nat>();
 
     /// Strategic Reserve cosmetic. Principal → nanosecond-precision deadline.
     /// While `now < deadline`, the principal renders with a purple leaderboard
@@ -5077,6 +5130,15 @@ persistent actor Self {
     public shared ({ caller }) func setBackerPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
+    };
+
+    public shared ({ caller }) func setExitLiquidityConfig(cfg : ExitLiquidityConfig) : async () {
+        requireAdmin(caller);
+        exitLiquidityConfig := cfg;
+    };
+
+    public query func getExitLiquidityConfig() : async ExitLiquidityConfig {
+        exitLiquidityConfig;
     };
     public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
         requireAdmin(caller);
