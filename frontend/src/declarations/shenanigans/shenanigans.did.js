@@ -42,6 +42,24 @@ export const idlFactory = ({ IDL }) => {
     'outcome' : ShenaniganOutcome,
     'ppDeltaCaster' : IDL.Int,
   });
+  const ExitDecision = IDL.Variant({
+    'bank' : IDL.Null,
+    'exit' : IDL.Null,
+    'ride' : IDL.Null,
+  });
+  const ExitRunResult = IDL.Record({
+    'bestWindowAvgBps' : IDL.Nat,
+    'finalStage' : IDL.Nat,
+    'runScoreBps' : IDL.Nat,
+    'qualified' : IDL.Bool,
+    'rotated' : IDL.Bool,
+  });
+  const ExitRun = IDL.Record({
+    'startedAt' : IDL.Int,
+    'ridingBps' : IDL.Nat,
+    'bankedBps' : IDL.Nat,
+    'stage' : IDL.Nat,
+  });
   const MintMultiplier = IDL.Record({
     'expiresAt' : IDL.Int,
     'multiplierBps' : IDL.Nat,
@@ -132,6 +150,16 @@ export const idlFactory = ({ IDL }) => {
     'author' : IDL.Principal,
     'timestamp' : IDL.Int,
     'reactions' : IDL.Vec(Reaction),
+  });
+  const ExitLiquidityConfig = IDL.Record({
+    'hazardStepPct' : IDL.Nat,
+    'buyInUnits' : IDL.Nat,
+    'bankFractionPct' : IDL.Nat,
+    'baseMultiplierBps' : IDL.Nat,
+    'stageStepBps' : IDL.Nat,
+    'stageCount' : IDL.Nat,
+    'windowSize' : IDL.Nat,
+    'baseHazardPct' : IDL.Nat,
   });
   const MintConfig = IDL.Record({
     'compounding15DayPpPerIcp' : IDL.Nat,
@@ -295,6 +323,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'adminMuteUser' : IDL.Func([IDL.Principal, IDL.Nat], [], []),
     'adminPostAsReginald' : IDL.Func([IDL.Text], [IDL.Nat], []),
+    'adminResetSolObserverState' : IDL.Func([], [], []),
     'adminSeedRankCache' : IDL.Func([], [IDL.Nat], []),
     'adminSeedSignupAnnounced' : IDL.Func([], [IDL.Nat], []),
     'adminSetFlavorPool' : IDL.Func([IDL.Text, IDL.Vec(IDL.Text)], [], []),
@@ -327,6 +356,12 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
+      ),
+    'exitRunDecision' : IDL.Func([ExitDecision], [ExitRunResult], []),
+    'getActiveExitRun' : IDL.Func(
+        [IDL.Principal],
+        [IDL.Opt(ExitRun)],
+        ['query'],
       ),
     'getActiveShield' : IDL.Func(
         [IDL.Principal],
@@ -366,6 +401,18 @@ export const idlFactory = ({ IDL }) => {
         ['query'],
       ),
     'getEchoStatus' : IDL.Func([IDL.Principal], [IDL.Opt(IDL.Int)], ['query']),
+    'getExitBiggestRun' : IDL.Func([IDL.Principal], [IDL.Nat], ['query']),
+    'getExitLiquidityConfig' : IDL.Func([], [ExitLiquidityConfig], ['query']),
+    'getExitLiquidityLeaderboard' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Nat],
+        [IDL.Vec(IDL.Tuple(IDL.Principal, IDL.Nat))],
+        ['query'],
+      ),
+    'getExitRunCount' : IDL.Func(
+        [IDL.Principal, IDL.Opt(IDL.Nat)],
+        [IDL.Nat],
+        ['query'],
+      ),
     'getFlavorPoolDefaults' : IDL.Func(
         [IDL.Text],
         [IDL.Vec(IDL.Text)],
@@ -563,6 +610,7 @@ export const idlFactory = ({ IDL }) => {
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
         [],
       ),
+    'setExitLiquidityConfig' : IDL.Func([ExitLiquidityConfig], [], []),
     'setHousePrincipal' : IDL.Func([IDL.Principal], [], []),
     'setMinDepositPp' : IDL.Func([IDL.Nat], [], []),
     'setMyDisplayName' : IDL.Func(
@@ -581,6 +629,7 @@ export const idlFactory = ({ IDL }) => {
     'setSignupGiftPp' : IDL.Func([IDL.Nat], [], []),
     'setSimple21DayPpPerIcp' : IDL.Func([IDL.Nat], [], []),
     'setSimple21DayPpPerSol' : IDL.Func([IDL.Nat], [], []),
+    'startExitRun' : IDL.Func([], [ExitRun], []),
     'stopObserver' : IDL.Func([], [], []),
     'updateShenaniganConfig' : IDL.Func([ShenaniganConfig], [], []),
   });

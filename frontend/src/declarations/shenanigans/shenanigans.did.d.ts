@@ -98,6 +98,32 @@ export type DeviceSpec = { 'GenericDisplay' : null } |
     }
   };
 export interface DisplayNameOverride { 'expiresAt' : bigint, 'name' : string }
+export type ExitDecision = { 'bank' : null } |
+  { 'exit' : null } |
+  { 'ride' : null };
+export interface ExitLiquidityConfig {
+  'hazardStepPct' : bigint,
+  'buyInUnits' : bigint,
+  'bankFractionPct' : bigint,
+  'baseMultiplierBps' : bigint,
+  'stageStepBps' : bigint,
+  'stageCount' : bigint,
+  'windowSize' : bigint,
+  'baseHazardPct' : bigint,
+}
+export interface ExitRun {
+  'startedAt' : bigint,
+  'ridingBps' : bigint,
+  'bankedBps' : bigint,
+  'stage' : bigint,
+}
+export interface ExitRunResult {
+  'bestWindowAvgBps' : bigint,
+  'finalStage' : bigint,
+  'runScoreBps' : bigint,
+  'qualified' : boolean,
+  'rotated' : boolean,
+}
 export type Icrc21Error = {
     'GenericError' : { 'description' : string, 'error_code' : bigint }
   } |
@@ -288,6 +314,15 @@ export interface _SERVICE {
   'adminMuteUser' : ActorMethod<[Principal, bigint], undefined>,
   'adminPostAsReginald' : ActorMethod<[string], bigint>,
   /**
+   * / M3: reset ALL SOL-side observer state to a clean slate. Used once during
+   * / the mainnet cutover, after ponzi_math_sol is reinstalled (fresh, gameId
+   * / restarts at 0) and before the first real deposit, so the observer picks
+   * / up mainnet game 0 and re-reads backer positions from zero. SOL-only:
+   * / does NOT touch the ICP cursor or ICP backerSeen (unlike
+   * / primeObserverCursors). Admin only.
+   */
+  'adminResetSolObserverState' : ActorMethod<[], undefined>,
+  /**
    * / One-shot deploy-time backfill: populate previousRankEntries with each
    * / known principal's current rank. Prevents #rankUp spam after the trollbox
    * / deploys. Idempotent — safe to call multiple times. Admin-only.
@@ -346,6 +381,8 @@ export interface _SERVICE {
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'exitRunDecision' : ActorMethod<[ExitDecision], ExitRunResult>,
+  'getActiveExitRun' : ActorMethod<[Principal], [] | [ExitRun]>,
   /**
    * / Read the caller's (or any principal's) active Magic Mirror shield, if any.
    * / Returns null when no shield is active or it has expired.
@@ -391,6 +428,13 @@ export interface _SERVICE {
    * / Echo status for `p`. Returns deadline while active, null otherwise.
    */
   'getEchoStatus' : ActorMethod<[Principal], [] | [bigint]>,
+  'getExitBiggestRun' : ActorMethod<[Principal], bigint>,
+  'getExitLiquidityConfig' : ActorMethod<[], ExitLiquidityConfig>,
+  'getExitLiquidityLeaderboard' : ActorMethod<
+    [[] | [bigint], bigint],
+    Array<[Principal, bigint]>
+  >,
+  'getExitRunCount' : ActorMethod<[Principal, [] | [bigint]], bigint>,
   /**
    * / Returns the hardcoded default lines for a known pool name. Useful for
    * / the admin UI to show "this is what defaults look like" without
@@ -650,6 +694,7 @@ export interface _SERVICE {
     { 'Ok' : null } |
       { 'Err' : string }
   >,
+  'setExitLiquidityConfig' : ActorMethod<[ExitLiquidityConfig], undefined>,
   'setHousePrincipal' : ActorMethod<[Principal], undefined>,
   'setMinDepositPp' : ActorMethod<[bigint], undefined>,
   /**
@@ -688,6 +733,7 @@ export interface _SERVICE {
   'setSignupGiftPp' : ActorMethod<[bigint], undefined>,
   'setSimple21DayPpPerIcp' : ActorMethod<[bigint], undefined>,
   'setSimple21DayPpPerSol' : ActorMethod<[bigint], undefined>,
+  'startExitRun' : ActorMethod<[], ExitRun>,
   'stopObserver' : ActorMethod<[], undefined>,
   'updateShenaniganConfig' : ActorMethod<[ShenaniganConfig], undefined>,
 }

@@ -173,6 +173,38 @@ type Icrc21Error =
                  };
    UnsupportedCanisterCall: record {description: text;};
  };
+type ExitRunResult = 
+ record {
+   bestWindowAvgBps: nat;
+   finalStage: nat;
+   qualified: bool;
+   rotated: bool;
+   runScoreBps: nat;
+ };
+type ExitRun = 
+ record {
+   bankedBps: nat;
+   ridingBps: nat;
+   stage: nat;
+   startedAt: int;
+ };
+type ExitLiquidityConfig = 
+ record {
+   bankFractionPct: nat;
+   baseHazardPct: nat;
+   baseMultiplierBps: nat;
+   buyInUnits: nat;
+   hazardStepPct: nat;
+   stageCount: nat;
+   stageStepBps: nat;
+   windowSize: nat;
+ };
+type ExitDecision = 
+ variant {
+   bank;
+   exit;
+   ride;
+ };
 type DisplayNameOverride = 
  record {
    expiresAt: int;
@@ -347,6 +379,13 @@ service : {
                                                });
   adminMuteUser: (user: principal, durationSeconds: nat) -> ();
   adminPostAsReginald: (line: text) -> (nat);
+  /// M3: reset ALL SOL-side observer state to a clean slate. Used once during
+  /// the mainnet cutover, after ponzi_math_sol is reinstalled (fresh, gameId
+  /// restarts at 0) and before the first real deposit, so the observer picks
+  /// up mainnet game 0 and re-reads backer positions from zero. SOL-only:
+  /// does NOT touch the ICP cursor or ICP backerSeen (unlike
+  /// primeObserverCursors). Admin only.
+  adminResetSolObserverState: () -> ();
   /// One-shot deploy-time backfill: populate previousRankEntries with each
   /// known principal's current rank. Prevents #rankUp spam after the trollbox
   /// deploys. Idempotent — safe to call multiple times. Admin-only.
@@ -393,6 +432,8 @@ service : {
                                          Err: text;
                                          Ok: nat;
                                        });
+  exitRunDecision: (decision: ExitDecision) -> (ExitRunResult);
+  getActiveExitRun: (player: principal) -> (opt ExitRun) query;
   /// Read the caller's (or any principal's) active Magic Mirror shield, if any.
   /// Returns null when no shield is active or it has expired.
   getActiveShield: (p: principal) ->
@@ -423,6 +464,14 @@ service : {
   getCustomTitle: (p: principal) -> (opt text) query;
   /// Echo status for `p`. Returns deadline while active, null otherwise.
   getEchoStatus: (p: principal) -> (opt int) query;
+  getExitBiggestRun: (player: principal) -> (nat) query;
+  getExitLiquidityConfig: () -> (ExitLiquidityConfig) query;
+  getExitLiquidityLeaderboard: (roundId: opt nat, limit: nat) ->
+   (vec record {
+          principal;
+          nat;
+        }) query;
+  getExitRunCount: (player: principal, roundId: opt nat) -> (nat) query;
   /// Returns the hardcoded default lines for a known pool name. Useful for
   /// the admin UI to show "this is what defaults look like" without
   /// duplicating the lists in the frontend.
@@ -632,6 +681,7 @@ service : {
                                       Err: text;
                                       Ok;
                                     });
+  setExitLiquidityConfig: (cfg: ExitLiquidityConfig) -> ();
   setHousePrincipal: (p: principal) -> ();
   setMinDepositPp: (v: nat) -> ();
   /// Set the caller's preferred display name. Used by effectiveDisplayName
@@ -660,6 +710,7 @@ service : {
   setSignupGiftPp: (v: nat) -> ();
   setSimple21DayPpPerIcp: (v: nat) -> ();
   setSimple21DayPpPerSol: (v: nat) -> ();
+  startExitRun: () -> (ExitRun);
   stopObserver: () -> ();
   updateShenaniganConfig: (config: ShenaniganConfig) -> ();
 }
