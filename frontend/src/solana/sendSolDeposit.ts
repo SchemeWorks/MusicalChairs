@@ -82,17 +82,23 @@ export async function sendSolDeposit(params: {
   expectedPubkey: string;
 }): Promise<string> {
   const fromPubkey = new PublicKey(params.expectedPubkey);
+
+  // A recent blockhash is REQUIRED to build/sign the tx. Phantom does NOT supply
+  // one for signAndSendTransaction — its provider serializes the tx client-side
+  // first ("Transaction recentBlockhash required" otherwise) — so we must fetch
+  // it ourselves. The configured RPC (SOLANA_RPC_ENDPOINT) is the domain-locked
+  // Helius endpoint; the public mainnet endpoint 403s browser calls.
+  const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
+  const { blockhash } = await connection.getLatestBlockhash('confirmed');
   const tx = buildSolTransferTx({
     fromPubkey,
     toPubkey: new PublicKey(params.toAddress),
     lamports: params.lamports,
+    recentBlockhash: blockhash,
   });
 
-  // Preferred path: Phantom's signAndSendTransaction. The WALLET supplies the
-  // recent blockhash and broadcasts through its own RPC — so the app needs no
-  // Solana RPC at all (the public mainnet endpoint 403s browser blockhash
-  // fetches, and broadcasting a user's payment is the wallet's responsibility,
-  // not ours). This is the correct shape for a wallet-driven transfer.
+  // Preferred path: Phantom's signAndSendTransaction — Phantom BROADCASTS via its
+  // own RPC (reliable submit), so Helius is used only for the blockhash above.
   const phantom = getPhantomProvider();
   if (phantom?.signAndSendTransaction) {
     if (!phantom.isConnected) {
@@ -107,13 +113,8 @@ export async function sendSolDeposit(params: {
     return typeof result === 'string' ? result : result.signature;
   }
 
-  // Fallback for non-Phantom wallets (e.g. Solflare): the app fetches a
-  // blockhash and the adapter submits via the configured RPC. On mainnet the
-  // public endpoint 403s, so this throws and the caller drops to the manual
-  // deposit-address flow — which always works.
+  // Fallback for non-Phantom wallets (e.g. Solflare): adapter submits via the
+  // same RPC connection.
   const adapter = await acquireConnectedAdapter(params.expectedPubkey);
-  const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
-  const { blockhash } = await connection.getLatestBlockhash('confirmed');
-  tx.recentBlockhash = blockhash;
   return await adapter.sendTransaction(tx, connection);
 }
