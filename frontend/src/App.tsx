@@ -28,7 +28,7 @@ import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 import { captureReferrerFromUrl } from './lib/referral';
 
-export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
+export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans' | 'exitLiquidity';
 
 const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode; glowClass?: string }> = [
   { id: 'profitCenter', label: 'Profit Center', icon: <DollarSign className="h-4 w-4" /> },
@@ -36,6 +36,7 @@ const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode;
   { id: 'seedRound', label: 'Seed Round', icon: <Landmark className="h-4 w-4" /> },
   { id: 'mlm', label: 'MLM', icon: <Users className="h-4 w-4" /> },
   { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
+  { id: 'exitLiquidity', label: 'Exit Liquidity', icon: <CircleDollarSign className="h-4 w-4" /> },
 ];
 
 const howItWorks: { step: string; title: string; body: string; color: string; fine?: string }[] = [
@@ -373,6 +374,7 @@ export default function App() {
     seedRound: null,
     mlm: hasNewReferralActivity ? 'gold' : null,
     shenanigans: canCastShenanigan ? 'purple' : null,
+    exitLiquidity: null,
   };
 
   // isAuthenticated comes from useInternetIdentity (wraps useWallet.isConnected)

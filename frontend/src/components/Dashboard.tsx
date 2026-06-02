@@ -5,7 +5,8 @@ import GameTracking from './GameTracking';
 import ReferralSection from './ReferralSection';
 import HouseDashboard from './HouseDashboard';
 import Shenanigans from './Shenanigans';
-import { DollarSign, Rocket, Landmark, Users, Dice5, RefreshCw } from 'lucide-react';
+import ExitLiquidity from './ExitLiquidity';
+import { DollarSign, Rocket, Landmark, Users, Dice5, RefreshCw, CircleDollarSign } from 'lucide-react';
 import type { TabType } from '../App';
 import { usePullToRefresh } from '../hooks/usePullToRefresh';
 import OnboardingTour from './OnboardingTour';
@@ -39,6 +40,7 @@ const navItems: NavItem[] = [
   { id: 'seedRound', mobileLabel: 'Seed', icon: <Landmark className="h-5 w-5" /> },
   { id: 'mlm', mobileLabel: 'MLM', icon: <Users className="h-5 w-5" /> },
   { id: 'shenanigans', mobileLabel: 'Spells', icon: <Dice5 className="h-5 w-5" />, activeClass: 'active-green', glowClass: 'mc-icon-glow-green' },
+  { id: 'exitLiquidity', mobileLabel: 'Exit Liq', icon: <CircleDollarSign className="h-5 w-5" /> },
 ];
 
 const profitCenterSubtitles = [
@@ -77,6 +79,12 @@ const shenanigansSubtitles = [
   "The real game is played here",
 ];
 
+const exitLiquiditySubtitles = [
+  "Time the top. You won't. Try anyway.",
+  "Don't be the one still holding when the music stops.",
+  "Discipline is rewarded. Greed is exit liquidity.",
+];
+
 const pickRandom = (arr: string[]) => arr[Math.floor(Math.random() * arr.length)];
 
 const sectionSubtitles: Record<TabType, string> = {
@@ -85,6 +93,7 @@ const sectionSubtitles: Record<TabType, string> = {
   seedRound: pickRandom(seedRoundSubtitles),
   mlm: pickRandom(mlmSubtitles),
   shenanigans: pickRandom(shenanigansSubtitles),
+  exitLiquidity: pickRandom(exitLiquiditySubtitles),
 };
 
 const sectionLabels: Record<TabType, string> = {
@@ -93,6 +102,7 @@ const sectionLabels: Record<TabType, string> = {
   seedRound: 'Seed Round',
   mlm: 'MLM',
   shenanigans: 'Shenanigans',
+  exitLiquidity: 'Exit Liquidity',
 };
 
 interface DashboardProps {
@@ -142,6 +152,7 @@ export default function Dashboard({ activeTab, onTabChange, badges }: DashboardP
       case 'seedRound': return <div className={cls}><HouseDashboard /></div>;
       case 'mlm': return <div className={cls}><ReferralSection onTabChange={handleTabChange} /></div>;
       case 'shenanigans': return <div className={cls}>{shenanigansEnabled ? <Shenanigans /> : <ShenanigansComingSoon />}</div>;
+      case 'exitLiquidity': return <div className={cls}>{shenanigansEnabled ? <ExitLiquidity /> : <ShenanigansComingSoon />}</div>;
       default: return <div className={cls}><GameTracking onNavigateToGameSetup={handleNavigateToGameSetup} onTabChange={handleTabChange} visible={activeTab === 'profitCenter'} /></div>;
     }
   };
