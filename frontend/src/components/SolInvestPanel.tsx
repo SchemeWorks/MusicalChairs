@@ -171,11 +171,8 @@ export default function SolInvestPanel({ planId, onNavigateToProfitCenter }: Sol
     );
   }
 
-  const Devnet = (
-    <div className="mc-status-amber p-3 text-center text-xs font-bold">
-      <AlertTriangle className="h-4 w-4 inline mr-1" /> DEVNET — uses devnet SOL only. This position is funded on Solana devnet.
-    </div>
-  );
+  // Mainnet-beta as of the M3 cutover — no devnet warning.
+  const Devnet = null;
 
   if (flow.kind === 'opened') {
     return (
@@ -236,7 +233,7 @@ export default function SolInvestPanel({ planId, onNavigateToProfitCenter }: Sol
           <div className="text-center">
             <div className="mc-label">Send exactly</div>
             <div className="text-2xl font-bold mc-text-gold">{formatSOL(flow.lamports)} SOL</div>
-            <div className="text-xs mc-text-dim mt-1">devnet SOL from your wallet — the position opens automatically within ~a minute.</div>
+            <div className="text-xs mc-text-dim mt-1">SOL from your wallet — the position opens automatically within ~a minute.</div>
           </div>
           <div className="mc-label">Deposit address</div>
           <div className="flex items-center gap-2">
