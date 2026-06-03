@@ -356,8 +356,8 @@ persistent actor class PonziMathSol(initArgs : {
     // payManagementSol sweeps it.
     var coverChargeAccrualLamports : Nat64 = 0;
 
-    // Min deposit gate — 0.05 SOL (50_000_000 lamports). Mirrors
-    // ponzi_math's 0.1 ICP gate at deploy-time prices.
+    // Min deposit gate — 0.01 SOL (10_000_000 lamports). Lowered from 0.05 SOL
+    // for the SIWS self-serve invest flow (frontend MIN_DEPOSIT_SOL = 0.01).
     transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 10_000_000;
 
     // Min Series A backer deposit — 0.05 SOL (50_000_000 lamports). Mirrors
@@ -2347,6 +2347,19 @@ persistent actor class PonziMathSol(initArgs : {
                 };
                 switch (matchedBacker) {
                     case (?bi) {
+                        // CRITICAL-1 guard (UNCOMPILED — run `dfx build` before deploy):
+                        // the credit path runs under `detectionInProgress` only, NOT
+                        // `globalCriticalLock`. A concurrent withdraw/settle holding the
+                        // global lock snapshots `platformStats` and, on a payout-failure
+                        // rollback, restores that snapshot — erasing this credit's
+                        // potBalance increment (the deposit's SOL is in the pool but the
+                        // books understate it). Bail (the signature is re-scanned next
+                        // tick) BEFORE mutating any state. There is no `await` between
+                        // here and the platformStats write below, so this check and that
+                        // write are one atomic region — the lock cannot change in between.
+                        if (globalCriticalLock) {
+                            return #Err("Critical section busy — backer credit deferred to next detection tick");
+                        };
                         let depositSol = lamportsToSol(inboundLamports);
                         let entitlement = depositSol * 1.24; // Series A 24% bonus
                         switch (backerKeyMap.get(backerPositions, (bi.principal, #seriesA))) {
@@ -2452,6 +2465,16 @@ persistent actor class PonziMathSol(initArgs : {
                 return #Ok(null);  // no game credited: no matching open intent
             };
             case (?i) { i };
+        };
+
+        // CRITICAL-1 guard (UNCOMPILED — run `dfx build` before deploy): same
+        // rationale as the backer path above. This credit is NOT under
+        // `globalCriticalLock`, so a concurrent withdraw/settle's payout-failure
+        // rollback (`platformStats := originalStats`) would erase this credit's
+        // potBalance increment. Bail (re-scanned next tick) before mutating any
+        // state. No `await` between here and the platformStats write below.
+        if (globalCriticalLock) {
+            return #Err("Critical section busy — deposit credit deferred to next detection tick");
         };
 
         // 4. Compute cover charge + net.
@@ -2595,6 +2618,56 @@ persistent actor class PonziMathSol(initArgs : {
         principalMapNat.get(depositAddresses, p);
     };
 
+    // HIGH-1 helper (UNCOMPILED — run `dfx build` before deploy): band-overlap
+    // guard shared by the three intent entry points. creditDeposit matches one
+    // inbound SOL transfer against open intents in the order deposit → backer →
+    // buy, all sharing one per-user deposit address and the same ±5% match
+    // window. Opening an intent of one kind whose amount band overlaps an open
+    // intent of ANOTHER kind makes a single transfer ambiguous — it could be
+    // credited as the wrong product. Each entry point passes which of the OTHER
+    // two kinds to inspect (its own kind is skipped, so multiple same-kind
+    // intents stay allowed). Callers must hold the per-caller lock so a
+    // concurrent prepare can't slip a new overlapping intent in after the check.
+    func bandOverlapsOpenIntents(
+        p : Principal,
+        lo : Nat64,
+        hi : Nat64,
+        checkDeposit : Bool,
+        checkBacker : Bool,
+        checkBuy : Bool,
+    ) : Bool {
+        let nowT = Time.now();
+        func overlaps(elo : Nat64, ehi : Nat64) : Bool { lo <= ehi and elo <= hi };
+        if (checkDeposit) {
+            for (di in natMap.vals(pendingIntents)) {
+                if (di.principal == p and not di.fulfilled and nowT <= di.expiresAt) {
+                    let t = bpsApply(di.expectedAmountLamports, 500);
+                    let elo : Nat64 = if (di.expectedAmountLamports > t) { di.expectedAmountLamports - t } else { 0 };
+                    if (overlaps(elo, di.expectedAmountLamports + t)) { return true };
+                };
+            };
+        };
+        if (checkBacker) {
+            for (bi in natMap.vals(pendingBackerIntents)) {
+                if (bi.principal == p and not bi.fulfilled and nowT <= bi.expiresAt) {
+                    let t = bpsApply(bi.expectedAmountLamports, 500);
+                    let elo : Nat64 = if (bi.expectedAmountLamports > t) { bi.expectedAmountLamports - t } else { 0 };
+                    if (overlaps(elo, bi.expectedAmountLamports + t)) { return true };
+                };
+            };
+        };
+        if (checkBuy) {
+            for (yi in natMap.vals(pendingBuyIntents)) {
+                if (yi.principal == p and not yi.fulfilled and nowT <= yi.expiresAt) {
+                    let t = bpsApply(yi.quotedLamports, 500);
+                    let elo : Nat64 = if (yi.quotedLamports > t) { yi.quotedLamports - t } else { 0 };
+                    if (overlaps(elo, yi.quotedLamports + t)) { return true };
+                };
+            };
+        };
+        false;
+    };
+
     public shared ({ caller }) func prepareSolDeposit(args : {
         plan : GamePlan;
         expectedAmountLamports : Nat64;
@@ -2624,6 +2697,17 @@ persistent actor class PonziMathSol(initArgs : {
                         return #Err("You can only open 3 positions per hour");
                     };
                 };
+            };
+
+            // HIGH-1 cross-kind ambiguity guard: block if an open BACKER or BUY
+            // intent of a similar amount exists for this caller — one transfer must
+            // not be routable to two different products. (Same-kind deposits stay
+            // allowed.) Inside the caller lock so a concurrent prepare can't race.
+            let dTol = bpsApply(args.expectedAmountLamports, 500);
+            let dLo : Nat64 = if (args.expectedAmountLamports > dTol) { args.expectedAmountLamports - dTol } else { 0 };
+            let dHi : Nat64 = args.expectedAmountLamports + dTol;
+            if (bandOverlapsOpenIntents(caller, dLo, dHi, false, true, true)) {
+                return #Err("You have an open Series A backing or PP buy of a similar SOL amount; finish or let it expire first (the two would be indistinguishable on-chain).");
             };
 
             // Ensure the user has a deposit address.
@@ -2687,6 +2771,17 @@ persistent actor class PonziMathSol(initArgs : {
                         return #Err("You can only open 3 positions per hour");
                     };
                 };
+            };
+
+            // HIGH-1 cross-kind ambiguity guard: block if an open DEPOSIT or BUY
+            // intent of a similar amount exists. Without this, a 0.05 SOL deposit-
+            // intent band and a 0.05 SOL backer-intent band overlap, and creditDeposit
+            // (deposit matched FIRST) would open a game instead of a Series A position.
+            let bTol = bpsApply(args.expectedAmountLamports, 500);
+            let bLo : Nat64 = if (args.expectedAmountLamports > bTol) { args.expectedAmountLamports - bTol } else { 0 };
+            let bHi : Nat64 = args.expectedAmountLamports + bTol;
+            if (bandOverlapsOpenIntents(caller, bLo, bHi, true, false, true)) {
+                return #Err("You have an open deposit or PP buy of a similar SOL amount; finish or let it expire first (the two would be indistinguishable on-chain).");
             };
 
             // Ensure the user has a deposit address (same logic as prepareSolDeposit).
@@ -2965,25 +3060,19 @@ persistent actor class PonziMathSol(initArgs : {
         if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
         acquireCallerLock(caller);
         try {
-            // I-1 guard: the desk and the game-deposit flow share one per-user deposit
-            // address and the same ±5% observer match window, and game-deposit intents
-            // are matched FIRST in creditDeposit. So if the caller has an open, non-
-            // expired game deposit whose amount band overlaps this buy's band, the
-            // buyer's SOL would be consumed as a game deposit instead of the buy. Reject
-            // here (inside the lock, so prepareSolDeposit can't race a new one in).
+            // I-1 guard (now via the shared bandOverlapsOpenIntents helper): the desk,
+            // game-deposit, and Series A backer flows share one per-user deposit address
+            // and the same ±5% observer match window. creditDeposit matches deposit →
+            // backer → buy, so an open DEPOSIT or BACKER intent of a similar amount would
+            // consume this buyer's SOL as the wrong product. Reject here (inside the lock,
+            // so a concurrent prepare can't race a new overlapping intent in). Originally
+            // checked deposit intents only; extended to backer intents when self-serve
+            // Series A backing shipped.
             let buyTol = bpsApply(lamports, 500);
             let buyLo : Nat64 = if (lamports > buyTol) { lamports - buyTol } else { 0 };
             let buyHi : Nat64 = lamports + buyTol;
-            let nowT = Time.now();
-            for (di in natMap.vals(pendingIntents)) {
-                if (di.principal == caller and not di.fulfilled and nowT <= di.expiresAt) {
-                    let dTol = bpsApply(di.expectedAmountLamports, 500);
-                    let dLo : Nat64 = if (di.expectedAmountLamports > dTol) { di.expectedAmountLamports - dTol } else { 0 };
-                    let dHi : Nat64 = di.expectedAmountLamports + dTol;
-                    if (buyLo <= dHi and dLo <= buyHi) {
-                        return #Err("You have an open deposit of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
-                    };
-                };
+            if (bandOverlapsOpenIntents(caller, buyLo, buyHi, true, true, false)) {
+                return #Err("You have an open deposit or Series A backing of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
             };
             await reserveBuyIntentFor(caller, lamports);
         } finally {
@@ -3015,6 +3104,45 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { #Err("No such buy intent") };
             case (?bi) { if (bi.fulfilled) { #Err("Already fulfilled") } else { await settleBuyIntent(bi, inboundLamports) } };
         };
+    };
+
+    // TEST/diagnostic (TEST_ADMIN, non-bootstrapped only): force globalCriticalLock so
+    // a local test can simulate "a withdraw is mid critical-section" WITHOUT a real
+    // sol-rpc payout. Sets the lock and returns WITHOUT releasing it, so the NEXT
+    // message observes it held; call with `false` to release. Inert on a bootstrapped
+    // (mainnet) canister so it can never wedge production. (Supports the CRITICAL-1
+    // guard test — see ponzi_math_sol/scripts/test-critical1-guard.sh.)
+    public shared ({ caller }) func adminTestSetGlobalLock(held : Bool) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        globalCriticalLock := held;
+        #Ok;
+    };
+
+    // TEST/diagnostic (TEST_ADMIN, non-bootstrapped only): exercise creditDeposit's
+    // CRITICAL-1 guard + potBalance write in isolation, bypassing the sol-rpc
+    // getTransaction the real path needs. Mirrors EXACTLY the guard and the
+    // platformStats mutation from creditDeposit's matched-deposit branch (minus the
+    // game record + sweep). Returns the post-credit potBalance, or the busy error if
+    // the guard fired. A test asserts: with the lock held (adminTestSetGlobalLock true)
+    // this returns #Err and leaves potBalance unchanged; with it free, potBalance grows.
+    public shared ({ caller }) func adminTestGuardedPotCredit(inboundLamports : Nat64) : async { #Ok : Float; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        // EXACT copy of creditDeposit's CRITICAL-1 guard (keep in sync):
+        if (globalCriticalLock) {
+            return #Err("Critical section busy — deposit credit deferred to next detection tick");
+        };
+        let coverChargeLamports = bpsApply(inboundLamports, COVER_CHARGE_RATE_LAMPORTS_BPS);
+        let netLamports = inboundLamports - coverChargeLamports;
+        let netSol = lamportsToSol(netLamports);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + lamportsToSol(inboundLamports);
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + netSol;
+        };
+        #Ok(platformStats.potBalance);
     };
 
     // Credit PP for a matched buy payment. Pure-computes the proportional fill,
@@ -3271,6 +3399,11 @@ persistent actor class PonziMathSol(initArgs : {
             };
             case (null) {};
         };
+        // HIGH-2a: stamp the poke NOW — right after the cooldown passes — rather
+        // than after the `detectionInProgress` early-return below. Otherwise a caller
+        // could bypass the cooldown entirely whenever detection happens to be busy,
+        // re-scanning the three intent maps on every call.
+        pokeTimestamps := principalMapNat.put(pokeTimestamps, caller, now);
 
         // Open-intent gate: only scan if the caller has an open, unexpired
         // intent. Otherwise return #Ok(0) with ZERO RPC outcalls.
@@ -3303,7 +3436,6 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { return #Ok(0) };
         };
 
-        pokeTimestamps := principalMapNat.put(pokeTimestamps, caller, now);
         detectionInProgress := true;
         try {
             let credits = await scanAndCredit(addr, caller);
