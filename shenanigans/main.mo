@@ -421,7 +421,11 @@ persistent actor Self {
     // lazily pruned in setCooldownExpiry after expiry — no background sweep.
     var spellCooldowns = principalMap.empty<[(Nat, Int)]>();
 
-    // Spell cast history — reset at migration; bounded to last 500 entries
+    // Spell cast history — append-only: one ShenaniganRecord per cast, never
+    // pruned. getRecentShenanigans caps its READ at 20 (entriesRev) and
+    // adminBackfillSpellTallies replays the whole history, so nothing trims the
+    // underlying map; it grows unbounded over the canister's life. Revisit with
+    // a ring-buffer bound if cast volume ever makes the stable footprint matter.
     var shenanigans = natMap.empty<ShenaniganRecord>();
     var shenaniganStats = principalMap.empty<ShenaniganStats>();
     var nextShenaniganId : Nat = 0;
@@ -591,6 +595,16 @@ persistent actor Self {
     // Observer lock to prevent concurrent ticks
     transient var observerRunning : Bool = false;
     var observerTimerId : ?Timer.TimerId = null;
+
+    // Per-caster in-flight lock for castShenanigan. Without it, N concurrent
+    // ingress casts by one caller all pass the success-cooldown check before
+    // any of them sets it (the cooldown is read early and written only on a
+    // successful outcome), so a cooldown-gated profit spell like Bear Raid
+    // could be fired repeatedly within a single block. Transient so a mid-cast
+    // upgrade can't strand a lock; acquired after the pre-cast gates, released
+    // on the single normal return and in a catch that re-raises (a Debug.trap
+    // rolls the set back automatically).
+    transient var castingInFlight = principalMap.empty<Bool>();
 
     // Per-game mint retry counters. A failed mintWithEffects (#Err) increments;
     // a successful mint clears the entry. After MAX_MINT_RETRIES consecutive
@@ -989,6 +1003,15 @@ persistent actor Self {
     ];
     transient let REFERRAL_CODE_LEN : Nat = 6;
     transient let CASCADE_DEPTH_CAP : Nat = 10;
+    // Safety cap on victims/recipients processed by a single AoE cast
+    // (Contagion / Bear Raid / Stimulus Check). Each processed holder costs
+    // 1–2 inter-canister calls; without a cap, an ever-growing active-holder
+    // set would eventually push one cast past the per-message instruction
+    // limit and trap, making the spell permanently uncastable. The 10-day
+    // activity filter already trims the pool; this is the hard backstop. When
+    // it bites, the loop logs how many holders were skipped (no silent
+    // truncation). Raise as the economy scales / batching lands.
+    transient let AOE_MAX_VICTIMS : Nat = 200;
 
     func natToBase62(input : Nat, length : Nat) : Text {
         var modulus : Nat = 1;
@@ -1274,6 +1297,14 @@ persistent actor Self {
         if (not bootstrapped) return;
         observerRunning := true;
         try {
+            // Keep the round-id cache fresh so observer mints get bucketed into
+            // the TRUE current round. mintInternal reads cachedCurrentRoundId
+            // directly and never refreshes it; without this the only thing that
+            // advances the cache is a user spell-cast (castShenanigan), so during
+            // quiet stretches every deposit mint lands in a stale round bucket and
+            // getRoundMintLeaderboard reports the wrong round. (Burn bucketing is
+            // already correct — castShenanigan refreshes before bucketing.)
+            let _ = await readCurrentRoundIdCached();
             await processNewGames(#icp);
             await processNewGames(#sol);
             await processBackerDeltas(#icp);
@@ -1340,7 +1371,6 @@ persistent actor Self {
                     switch (principalMap.get(signupGiftClaimed, game.player)) {
                         case (?_) {}; // already claimed
                         case (null) {
-                            signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
@@ -1355,6 +1385,12 @@ persistent actor Self {
                             };
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
+                                    // Mark claimed only AFTER the gift mint commits, so a
+                                    // transient ledger error leaves the gift retryable on the
+                                    // next tick instead of permanently denying it (the deposit
+                                    // mint below is already at-least-once). Set BEFORE the
+                                    // cascade so a cascade failure can't re-trigger the gift.
+                                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
@@ -2925,6 +2961,21 @@ persistent actor Self {
             };
         };
 
+        // Per-caster in-flight guard — reject a second concurrent cast from the
+        // same caller. Checked-and-set in one synchronous slice (no await
+        // between the get and the put), so of any casts racing through here
+        // exactly one acquires the lock and the rest are rejected. This closes
+        // the success-cooldown bypass: the cooldown is read before the first
+        // await and written only on success, so without this, N concurrent
+        // ingress casts would all pass the early cooldown check. Released on the
+        // single normal return below and in the effects catch; a Debug.trap
+        // (e.g. the burn-failed trap) rolls the set back automatically.
+        switch (principalMap.get(castingInFlight, caller)) {
+            case (?_) { throw Error.reject("A cast is already in progress — wait for it to finish.") };
+            case null {};
+        };
+        castingInFlight := principalMap.put(castingInFlight, caller, true);
+
         let isAggressive = switch (shenaniganType) {
             case (#moneyTrickster) { true };
             case (#aoeSkim) { true };
@@ -2943,18 +2994,24 @@ persistent actor Self {
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
 
         // Most Wanted bonus: if the target was a recent successful Bear Raider,
-        // every spell cast against them gets +20pp success modifier (pile-on).
+        // every AGGRESSIVE spell cast against them gets +20pp success modifier
+        // (pile-on). Gated to aggressive spells so the two beneficial targeted
+        // spells (Slush Fund gift, Insider Tip buff) don't get an unintended
+        // success boost when aimed at a Most-Wanted player — the mechanic is a
+        // penalty piled onto the raider, not a discount on gifting them.
         var mostWantedBonus : Int = 0;
-        switch (target) {
-            case (?t) {
-                switch (principalMap.get(mostWantedUntil, t)) {
-                    case (?deadline) {
-                        if (Time.now() < deadline) { mostWantedBonus := 20 };
+        if (isAggressive) {
+            switch (target) {
+                case (?t) {
+                    switch (principalMap.get(mostWantedUntil, t)) {
+                        case (?deadline) {
+                            if (Time.now() < deadline) { mostWantedBonus := 20 };
+                        };
+                        case null {};
                     };
-                    case null {};
                 };
+                case null {};
             };
-            case null {};
         };
 
         let outcome = determineOutcomeWithMod(config, modPct + mostWantedBonus);
@@ -2977,7 +3034,16 @@ persistent actor Self {
         if (actualBurnedUnits > 0) {
             let burnMemo = "cast-" # Nat.toText(castId);
             switch (await burnFrom(caller, actualBurnedUnits, burnMemo)) {
-                case (#Err(msg)) { Debug.trap("Burn failed: " # msg) };
+                // Release the in-flight lock before surfacing the failure, and
+                // use throw (not Debug.trap): the lock was committed at the burn
+                // await, so a trap here rolls back only this slice and would
+                // strand the lock; a throw completes the call with the release
+                // applied. (Previously this was Debug.trap, safe only because no
+                // lock was held.)
+                case (#Err(msg)) {
+                    castingInFlight := principalMap.delete(castingInFlight, caller);
+                    throw Error.reject("Burn failed: " # msg);
+                };
                 case (#Ok(_)) {};
             };
         };
@@ -3005,16 +3071,25 @@ persistent actor Self {
         let casterBal : Nat = casterBalPre - actualBurnedUnits;
         let targetBal : Nat = targetBalForRoll;
 
-        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = switch (outcome) {
-            case (#success) {
-                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
-            };
-            case (#backfire) {
-                await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
-            };
-            case (#fail) {
-                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
-            };
+        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = try {
+            switch (outcome) {
+                case (#success) {
+                    await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
+                };
+                case (#backfire) {
+                    await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
+                };
+                case (#fail) {
+                    { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                };
+            }
+        } catch (e) {
+            // An uncaught, trap-free error (e.g. a rejected getChipBalance inside
+            // an AoE effect) would otherwise strand the in-flight lock and lock
+            // the caller out of all casting until the next upgrade. Release the
+            // lock and re-raise so the caller still sees the failure.
+            castingInFlight := principalMap.delete(castingInFlight, caller);
+            throw e;
         };
 
         // Record the actual amount paid (after clamp), not the nominal
@@ -3077,6 +3152,9 @@ persistent actor Self {
             };
             spellsCastPerPlayer := principalMap.put(spellsCastPerPlayer, caller, prior + 1);
         };
+
+        // Release the in-flight lock before returning the outcome (success path).
+        castingInFlight := principalMap.delete(castingInFlight, caller);
 
         {
             outcome;
@@ -3144,9 +3222,17 @@ persistent actor Self {
                 let pool = enumerateHolders(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
+                var processed : Nat = 0; // active holders we've done ledger work for
                 // Activity filter: skip principals inactive for more than 10 days.
-                for (victim in pool.vals()) {
+                // Hard cap on processed victims (AOE_MAX_VICTIMS) bounds the
+                // inter-canister calls so a large holder set can't trap the cast.
+                label aoeLoop for (victim in pool.vals()) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("aoeSkim hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not skimmed this cast");
+                        break aoeLoop;
+                    };
                     if (isRecentlyActive(victim) and not consumeShieldIfActive(victim)) {
+                        processed += 1;
                         let bal = await getChipBalance(victim);
                         let pct = rollPctForPrincipal(pctMin, pctMax, victim);
                         let amount = capAt(bal * pct / 100, ppToUnits(cap));
@@ -3466,9 +3552,17 @@ persistent actor Self {
 
                 // Iterate all known holders. Pay each (except caster) a random 40-50 PP.
                 // Activity filter: skip principals inactive for more than 10 days.
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister mints so a
+                // large holder set can't trap the cast.
                 var othersCount : Nat = 0;
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                var processed : Nat = 0; // active recipients we've minted to
+                label stimLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("stimulusCheck hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not paid this cast");
+                        break stimLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
+                        processed += 1;
                         let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         let res = await mintInternal(holder, perVictimUnits, memo);
@@ -3497,10 +3591,17 @@ persistent actor Self {
 
                 var drained : Nat = 0;
                 var victims : Nat = 0;
+                var processed : Nat = 0; // active non-shielded holders we drained
                 // Activity filter: skip principals inactive for more than 10 days.
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister transfers.
+                label raidLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("bearRaid hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not drained this cast");
+                        break raidLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
                         if (not consumeShieldIfActive(holder)) {
+                            processed += 1;
                             let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                             let perVictimUnits = ppToUnits(perVictim);
                             let res = await chipTransfer(holder, caster, perVictimUnits, memo);
@@ -3898,9 +3999,16 @@ persistent actor Self {
                     case (#Err(msg)) { Debug.print("bearRaid backfire caster-burn failed: " # msg) };
                 };
                 var othersBR : Nat = 0;
+                var processedBR : Nat = 0; // active recipients we've minted to
                 // Activity filter: skip principals inactive for more than 10 days.
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister mints.
+                label raidBackfireLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processedBR >= AOE_MAX_VICTIMS) {
+                        Debug.print("bearRaid backfire hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not paid this cast");
+                        break raidBackfireLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
+                        processedBR += 1;
                         let perVictim = rollPctForPrincipal(perVictimMinBR, perVictimMaxBR, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         switch (await mintInternal(holder, perVictimUnits, memo)) {
