@@ -1,0 +1,423 @@
+[
+  {
+    "id": "F-001",
+    "severity": "HIGH",
+    "category": "ic-platform",
+    "subcategory": "admin-drain / blackhole-readiness",
+    "title": "createBackdatedGame lets TEST_ADMIN mint an already-matured compounding position and drain the shared pot",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "1706-1793", "function": "createBackdatedGame"},
+      {"file": "ponzi_math/main.mo", "lines": "1054-1186", "function": "settleCompoundingGame"}
+    ],
+    "description": "createBackdatedGame (gated only on caller == TEST_ADMIN) accepts an arbitrary past startTimeNanos and sets both startTime and lastUpdateTime to it, so the position is born already matured. TEST_ADMIN funds it with their own icrc2_transfer_from, then immediately calls settleCompoundingGame (owner==caller satisfied) to extract compounded earnings paid out of the SHARED potBalance, which is funded by every other player's net deposits.",
+    "mechanism": "settleCompoundingGame earnings = amount*((1+rate)^maturityDays - 1). 30-day: (1.09)^30-1 ~= 12.27, toll 13%; net ~= 10.67*amount. The admin's deposit added only 0.96*amount to the pot (4% cover charge). On the insolvency path (earnings > pot), the payout is scaled to the entire pot. Net extraction is strongly positive and bounded only by pot size.",
+    "exploit_scenario": {
+      "preconditions": ["TEST_ADMIN key", "the hatch block is present (it is, at the audited commit)", "non-empty pot of other players' deposits"],
+      "sequence": ["createBackdatedGame(#compounding30Day, A, true, now - 31 days)", "settleCompoundingGame(thatId)"],
+      "observable_outcome": "Up to the entire pot is paid to TEST_ADMIN; round resets",
+      "attacker_gain": "~ +9.67 ICP per 1 ICP of admin capital (30-day), bounded by current pot",
+      "victim_loss": "Every other depositor whose net deposit funded the pot"
+    },
+    "has_poc": true,
+    "theoretical": false,
+    "recommendation": "This is an intended PRE-BLACKHOLE TEST HATCH. The entire block (lines 1699-1946) MUST be deleted and the code redeployed BEFORE controllers are removed; if it survives blackhole, TEST_ADMIN retains an unlimited pot-drain forever, contradicting the trustless-after-blackhole goal. Until then, TEST_ADMIN must be a cold/discardable key. Consider gating createBackdatedGame behind a compile-time flag so a build that forgets to delete it cannot ship.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-002",
+    "severity": "MEDIUM-HIGH",
+    "category": "ic-platform",
+    "subcategory": "cycle-DoS / unbounded-iteration",
+    "title": "Round-reset and promotion paths iterate ALL historical games (never pruned); can eventually trap withdraw/settle and disable adminForceReset",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "631-669", "function": "triggerGameReset"},
+      {"file": "ponzi_math/main.mo", "lines": "520-576", "function": "selectPromotionCandidate"},
+      {"file": "ponzi_math/main.mo", "lines": "1937-1946", "function": "adminForceReset"}
+    ],
+    "description": "gameRecords grows by one permanent entry per createGame and is never pruned (nextGameId is monotonic, triggerGameReset only flips isActive=false). triggerGameReset iterates every game (active + all historical) and selectPromotionCandidate iterates every game + all backers. Both run on the insolvency/pot-empty path inside withdrawEarnings/settleCompoundingGame, exactly when activity peaks.",
+    "mechanism": "As N_games grows unbounded over the canister's life, these O(N_games) update-path loops grow toward the ~5B instruction/message limit. Once exceeded, the reset traps, so the triggering withdraw/settle traps, the round can never close, and no one can be paid. adminForceReset hits the same loop, so the documented manual recovery hatch also fails. Because the canister is intended to be blackholed (no future upgrade), this becomes UNFIXABLE post-blackhole.",
+    "exploit_scenario": {
+      "preconditions": ["Long-lived canister OR a sybil attacker minting many cheap 0.1-ICP games across principals/rounds"],
+      "sequence": ["Accumulate ~10^5-10^6 game records over time", "Any insolvent withdrawEarnings/settleCompoundingGame triggers promoteAndReset -> full scans -> instruction-limit trap"],
+      "observable_outcome": "withdraw/settle/reset permanently trap; round un-resettable; payouts frozen",
+      "attacker_gain": "Denial of service (no direct theft)",
+      "victim_loss": "All players (funds frozen in canister)"
+    },
+    "has_poc": false,
+    "theoretical": false,
+    "recommendation": "Maintain a stable index of ACTIVE game ids (e.g. an OrderedSet<Nat> updated on create/close) and have triggerGameReset + selectPromotionCandidate iterate only active positions (bounded by activeGames). Keep getAllGames/getGameById reading the full history map. Fix BEFORE blackhole, since it cannot be fixed afterward. Adding a stable field is upgrade-safe; backfill the index from gameRecords once on the upgrade that introduces it.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-003",
+    "severity": "HIGH",
+    "category": "ic-platform",
+    "subcategory": "admin-drain / accounting-undercount",
+    "title": "adminClearAllBackerPositions + adminSweepUntracked converts user-owed backer repayment balances into an admin withdrawal, off-ledger",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "1863-1873", "function": "adminClearAllBackerPositions"},
+      {"file": "ponzi_math/main.mo", "lines": "1882-1930", "function": "adminSweepUntracked"}
+    ],
+    "description": "adminSweepUntracked sends (actualBalance - internalAccounting - fee) to TEST_ADMIN, where internalAccounting includes sum(backerRepayments). adminClearAllBackerPositions zeroes backerRepayments WITHOUT paying those users and WITHOUT reducing potBalance. After the clear, the formerly-owed balances drop out of 'internal', so they read as 'untracked' surplus that the sweep pays to TEST_ADMIN. adminSweepUntracked records no ledger event, so the movement is unauditable.",
+    "mechanism": "backerRepayments are real user-claimable ICP. Clearing them reduces internal accounting while the on-ledger balance is unchanged, manufacturing a positive 'untracked' delta the sweep then withdraws.",
+    "exploit_scenario": {
+      "preconditions": ["TEST_ADMIN key", "non-zero accrued backerRepayments"],
+      "sequence": ["adminClearAllBackerPositions()", "adminSweepUntracked()"],
+      "observable_outcome": "Backer-owed ICP is transferred to TEST_ADMIN; claimBackerRepayment now returns 'No repayment balance'; no ledger entry recorded",
+      "attacker_gain": "All accrued backer repayment balances",
+      "victim_loss": "Series A and Series B backers"
+    },
+    "has_poc": true,
+    "theoretical": false,
+    "recommendation": "Same removal requirement as F-001 (delete the hatch block before blackhole). Independently: adminSweepUntracked should refuse to run while any backerRepayments are non-zero, and MUST recordLedger so any sweep is auditable. If a reconciliation hatch is genuinely needed pre-blackhole, route proceeds back to the pot (re-credit users), not to the admin.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-004",
+    "severity": "MEDIUM",
+    "category": "cdp-domain",
+    "subcategory": "fund-accounting / distribution-leak",
+    "title": "distributeExitToll drops the oldest-Series-A slice when backers exist but none are Series A, breaking the solvency invariant",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "477-486", "function": "distributeExitToll"}
+    ],
+    "description": "The toll's 50% backer half is split 35/25/40 (or 60/0/40). The oldest-Series-A slice is credited only inside `case (?b)`. When the backer set has >=1 backer but NO Series A (e.g. only Series B promotion positions), oldestBacker stays null, the `case (null) {}` arm credits nobody, yet toOldest (0.60*backerHalf) was already carved out. The slice is deducted from the pot (via actualPotDeduction = earnings) but credited to no internal field, so it becomes untracked canister balance.",
+    "mechanism": "Only the 40% all-backers slice reaches the lone Series B backer; 60% of the backer half = 30% of the whole toll is dropped. internal accounting decreases by more than the ICP that leaves, so actual exceeds internal by ~0.30 ICP per 1 ICP of toll, far above the 10 e8s invariant tolerance. The #tollDistribution event also reports the dropped amount as distributed.",
+    "exploit_scenario": {
+      "preconditions": ["A round closes with a Series B promotion but zero Series A backers (no one called addBackerMoney that round)", "A subsequent withdrawal/settlement pays a toll"],
+      "sequence": ["distributeExitToll(toll) runs with an all-Series-B backer set", "60% of the backer half is computed but credited nowhere"],
+      "observable_outcome": "verify-fee-invariant.sh fails (actual - internal grows by 30% of the toll); Series B backers are shorted; post-blackhole the dropped value is permanently stuck (adminSweepUntracked is a pre-blackhole hatch)",
+      "attacker_gain": "None (not attacker-exploitable for theft)",
+      "victim_loss": "Series B backers (under-paid); next round (under-seeded); accounting integrity"
+    },
+    "has_poc": true,
+    "theoretical": false,
+    "recommendation": "FIXED in working tree: the `case (null)` arm now routes the orphaned slice to roundSeedReserve (the same tracked sink the zero-backers branch uses), and the returned TollDistributionDetails reflects the actual credit (toSeedReserve += orphaned, toOldestSeriesA = creditedToOldest). Conservation now holds in all backer-set compositions.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-005",
+    "severity": "INFORMATIONAL",
+    "category": "cdp-domain",
+    "subcategory": "economic / deposit-cap-asymmetry",
+    "title": "Compounding plans are intentionally uncapped while simple plans are capped (by design, not a bug)",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "759-764", "function": "createGame"}
+    ],
+    "description": "The max-deposit guard Float.max(potBalance*0.2, 5.0) runs only inside `if (not isCompounding)`. Compounding deposits are uncapped. Initially flagged as a possible oversight; confirmed BY DESIGN by the protocol owner (2026-06-03).",
+    "mechanism": "The asymmetry is principled. Simple plans withdraw continuously (11%/day, any time), so a large simple position can drain the pot quickly and is capped. Compounding plans are maturity-locked (no early exit; settle only at 15/30 days), so a compounding deposit's net enters the pot immediately as exit liquidity for everyone else (simple withdrawals + earlier-maturing compounders) while the depositor cannot touch it until maturity. A late, large compounding position is therefore a likely-losing bet that primarily funds earlier players; capping it would REDUCE the exit liquidity that benefits earlier entrants, contrary to the ponzi's early-player-wins structure.",
+    "exploit_scenario": {
+      "preconditions": ["A whale who can both predict/inject post-deposit inflows AND avoid being front-run by earlier maturities and simple withdrawals"],
+      "sequence": ["Deposit large compounding near a predictable inflow", "be first to settle at maturity while the pot is still full"],
+      "observable_outcome": "Whale wins only in the narrow, self-financed, market-timed case; otherwise insolvency scaling haircuts them and they lose principal",
+      "attacker_gain": "Speculative; requires timing the ponzi and risking full principal with no early exit",
+      "victim_loss": "None in the typical case (the whale is exit liquidity for earlier players)"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "No change. Confirmed intended by the protocol owner: the locked compounding plan is exit liquidity for earlier players, so capping it would hurt them; the cap on the liquid simple plan is the correct asymmetry. Residual: a sophisticated whale could in principle market-time inflows and front-run maturities, but that is speculation against the house, not a protocol defect.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-006",
+    "severity": "MEDIUM",
+    "category": "cdp-domain",
+    "subcategory": "economic / unenforced-entitlement",
+    "title": "BackerPosition.entitlement is cosmetic; getTotalBackerDebt presents it to users as real debt while payouts are uncapped",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "86-94", "function": "BackerPosition"},
+      {"file": "ponzi_math/main.mo", "lines": "1430-1434", "function": "getTotalBackerDebt"},
+      {"file": "ponzi_math/main.mo", "lines": "1192-1248", "function": "claimBackerRepayment"}
+    ],
+    "description": "entitlement (amount*1.24 for A, underwater*1.16 for B) is written at creation and summed by getTotalBackerDebt for the 'debt' display, but is never read by any payout path. Actual backer income is backerRepayments, fed solely by the toll split, and claimBackerRepayment pays the full accrued balance with no entitlement ceiling and no decrement.",
+    "mechanism": "Two disconnected quantities: a displayed promise (entitlement) and the real, uncapped claim (backerRepayments). A backer can be paid far more (over many high-toll rounds) or far less (low volume) than entitlement, while getTotalBackerDebt shows a static figure that materially misstates the true ongoing obligation.",
+    "exploit_scenario": {
+      "preconditions": ["Backer holds a position across many rounds"],
+      "sequence": ["Tolls accrue to backerRepayments over time", "backer claims more than entitlement, position never retires"],
+      "observable_outcome": "getTotalBackerDebt understates true obligations; users shown a fictional 'debt'",
+      "attacker_gain": "Not theft; an accounting-integrity / disclosure issue",
+      "victim_loss": "Users relying on the 'debt' figure"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Product decision. Either make entitlement a real cap (decrement on claim, retire on completion) or rename the getTotalBackerDebt UI label so a static entitlement figure is not presented as outstanding debt. May be 'sleazy but intended'; at minimum document that backer income is uncapped toll-share.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-007",
+    "severity": "MEDIUM",
+    "category": "cdp-domain",
+    "subcategory": "economic / perpetual-rent",
+    "title": "Backer positions persist across rounds and grant a perpetual toll claim; oldest-Series-A rank is seizable for 0.1 ICP",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "631-669", "function": "triggerGameReset"},
+      {"file": "ponzi_math/main.mo", "lines": "449-497", "function": "distributeExitToll"}
+    ],
+    "description": "triggerGameReset does not clear backerPositions/backerRepayments, so a backer bought once (addBackerMoney, full amount to pot, no skim) earns a share of every future exit toll forever. The split rewards the oldest Series A by firstDepositDate with 35-60% of every toll's backer half, and firstDepositDate is set once and preserved on merge, making 'oldest' a permanently-held rank.",
+    "mechanism": "One-time cost (0.1 ICP min), perpetual unbounded reward. The first-ever backer locks in the oldest-Series-A rank and collects 60% (sole) then >=35% of every toll's backer half indefinitely, with no decay, no per-round fee, no entitlement cap.",
+    "exploit_scenario": {
+      "preconditions": ["Be the first to call addBackerMoney"],
+      "sequence": ["addBackerMoney(0.1)", "collect 60% (then >=35%) of every future toll's backer half via claimBackerRepayment"],
+      "observable_outcome": "Large multiple of the 0.1 ICP cost extracted from future tolls over the canister's life",
+      "attacker_gain": "Perpetual toll rent",
+      "victim_loss": "Future players (whose tolls fund it) and later backers (diluted)"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Confirm whether perpetual cross-round backer rent is intended (it may be the point of 'Series A backer'). If not: clear/decay positions on reset, cap cumulative payout at entitlement (ties to F-006), or charge per-round maintenance. Document that 'oldest Series A' is a winner-take-most perpetual rank seizable for 0.1 ICP.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-008",
+    "severity": "MEDIUM",
+    "category": "ic-platform",
+    "subcategory": "admin-drain / rounding-dust",
+    "title": "adminSweepUntracked pays float-rounding dust and any positive drift to TEST_ADMIN rather than back to the pot",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "1897-1918", "function": "adminSweepUntracked"}
+    ],
+    "description": "internalE8s truncates each Float obligation toward zero, and Float accounting drift means the on-ledger balance can sit slightly above 'internal' by genuine value owed to users. adminSweepUntracked treats every positive discrepancy as admin profit and pays it to caller (TEST_ADMIN), not to a protocol/treasury sink.",
+    "mechanism": "Float-vs-integer reconciliation always leaves small persistent discrepancies; the sweep monetizes them to the admin. Unbounded over the canister's life.",
+    "exploit_scenario": {
+      "preconditions": ["TEST_ADMIN key", "accumulated rounding drift"],
+      "sequence": ["Periodically call adminSweepUntracked"],
+      "observable_outcome": "Admin pockets the drift",
+      "attacker_gain": "Small per call, unbounded over time",
+      "victim_loss": "Protocol equity / users"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Remove with the hatch block before blackhole (F-001). If kept pre-blackhole, route proceeds to the pot (re-credit users) rather than to the admin, and add a ledger event.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-009",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "icrc-transfer-hygiene / fee-fragility",
+    "title": "Hardcoded ICP_TRANSFER_FEE=10_000 with fee=null desynchronizes if the ledger fee ever changes",
+    "locations": [
+      {"file": "ponzi_math/ledger.mo", "lines": "31", "function": "ICP_TRANSFER_FEE"},
+      {"file": "ponzi_math/main.mo", "lines": "996-997, 1133-1135, 1209-1212, 1262-1269, 1905-1908", "function": "payout paths"}
+    ],
+    "description": "Outbound transfers compute transferAmount = e8s - ICP_TRANSFER_FEE and submit with fee=null, relying on the ledger applying its own default fee. Correct only while the ledger fee equals the hardcoded 10_000. ICP's fee is governance-settable.",
+    "mechanism": "If the real fee drops, recipients are shorted (dust accumulates). If it rises, the canister over-spends per transfer relative to its accounting and can hit InsufficientFunds near the balance edge. Below-fee threshold guards also use the stale constant.",
+    "exploit_scenario": {
+      "preconditions": ["ICP ledger fee changes via governance"],
+      "sequence": ["Any payout after the change"],
+      "observable_outcome": "Per-transfer over/under-pay; occasional traps when near-empty",
+      "attacker_gain": "None (not attacker-driven)",
+      "victim_loss": "Recipients (shorted) or pot (over-spend)"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Query icrc1_fee() (already in the LedgerActor interface, ledger.mo:153) at transfer time (or cache + refresh) and use the live fee for both the pre-subtraction and the below-fee guards. Note: this canister is meant to be blackholed, so it cannot be patched later; prefer fixing before blackhole.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-010",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "icrc-transfer-hygiene / dedup",
+    "title": "created_at_time=null on all transfers: a lost reply after a ledger-executed payout enables a caller-driven double-pay",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "999-1023, 1137-1161, 1218-1239, 1274-1300", "function": "outbound transfers"}
+    ],
+    "description": "All transfers pass created_at_time=null (no ledger dedup window). The money paths are single calls inside the global lock with explicit success/err handling and rollback. Residual risk: the ledger commits the payout but the reply is dropped (SysTransient); the catch rolls internal state back to pre-payout and returns #Err; a caller retry pays again.",
+    "mechanism": "Rollback restores gameRecords/platformStats/backerRepayments/roundSeedReserve to pre-call, but the recipient already received ICP. A blind retry double-pays. Magnitude bounded to one position's net; no automatic retry exists; global lock prevents concurrent double-execution.",
+    "exploit_scenario": {
+      "preconditions": ["A transfer commits but its reply is lost", "caller/frontend blindly retries"],
+      "sequence": ["withdrawEarnings -> ledger pays -> reply lost -> rollback -> #Err", "retry withdrawEarnings -> paid again"],
+      "observable_outcome": "Canister over-pays for the same earnings",
+      "attacker_gain": "Opportunistic, low probability, one position's net per occurrence",
+      "victim_loss": "Pot"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Set a deterministic created_at_time + stable memo per logical operation so a same-window retry collapses to one block. For full safety, on SysTransient/SysUnknown do not roll back; mark 'needs reconciliation' and re-check the ledger block before re-paying. At minimum document that withdraw/settle/claim must be retried by re-reading state, never blind-retried.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-011",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "cycle-DoS / unbounded-query",
+    "title": "Unbounded full-collection query replies can exceed the ~3 MiB / instruction limits as history grows",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "1317, 1398, 1426, 1463, 1493, 1561, 1667", "function": "getAllGames / getBackerPositions / getAllBackerRepayments / getGeneralLedger / getGeneralLedgerStats / adminGetRoundSummaries / adminGetActivePlansSnapshot"}
+    ],
+    "description": "These materialize entire growing collections into a reply. generalLedger and gameRecords grow without bound. Tens of thousands of fat GeneralLedgerEntry values exceed the query response cap, failing the query. getGeneralLedgerPage already exists as the bounded ledger escape hatch; the others have none.",
+    "mechanism": "Reply size or per-message instruction budget exceeded => query traps/fails. Read-only, no fund impact, but degrades admin god-view and any frontend calling the full-collection queries.",
+    "exploit_scenario": {
+      "preconditions": ["Long operation"],
+      "sequence": ["Call getGeneralLedger / getAllGames after many entries"],
+      "observable_outcome": "Query stops returning",
+      "attacker_gain": "None",
+      "victim_loss": "Availability of those reads"
+    },
+    "has_poc": false,
+    "theoretical": false,
+    "recommendation": "Point callers at getGeneralLedgerPage; add offset/limit pagination for getAllGames / getBackerPositions / getAllBackerRepayments; maintain running aggregates in recordLedger for getGeneralLedgerStats / adminGetRoundSummaries instead of full scans.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-012",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "upgrade-safety / variant-evolution",
+    "title": "GeneralLedgerEvent / GameRecord / BackerPosition are append-only across upgrades; removing the #backdatedGameCreated arm when deleting hatches would brick the upgrade",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "123-193", "function": "GeneralLedgerEvent"},
+      {"file": "ponzi_math/main.mo", "lines": "1780-1786", "function": "createBackdatedGame ledger write"}
+    ],
+    "description": "With no migration.mo, upgrades rely on Motoko implicit stable compatibility. Adding a variant arm or optional field is safe; removing/renaming an arm or retyping a payload makes the new type incompatible with persisted values and traps at decode AFTER stop has drained the canister.",
+    "mechanism": "generalLedger persists GeneralLedgerEntry values whose event is a 12-arm variant; persisted entries may carry an arm the new code drops. The realistic trap: deleting the hatch block (F-001) also deletes the #backdatedGameCreated arm while old entries from testing still reference it.",
+    "exploit_scenario": {
+      "preconditions": ["A future upgrade removes/renames an existing event arm or record field", "persisted entries use it"],
+      "sequence": ["Upgrade -> stop drains -> post-upgrade decode traps"],
+      "observable_outcome": "Canister bricked, real ICP custodied, emergency reinstall = data loss",
+      "attacker_gain": "None (self-inflicted)",
+      "victim_loss": "All players"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Document arms as append-only. When deleting the hatch block, KEEP the #backdatedGameCreated arm (and any other arm with historical entries) even though its producer is gone. Same append-only rule for GameRecord/BackerPosition fields. Consider an explicit migration scaffold for the first breaking change. (See MEMORY: migration_variant_set_drift, candid_sized_int_decode.)",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-013",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "upgrade-safety / init-args",
+    "title": "TEST_ADMIN / BACKEND_PRINCIPAL are transient init args re-supplied each upgrade; a wrong arg silently rotates privileged principals",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "19-24", "function": "initArgs / BACKEND_PRINCIPAL / TEST_ADMIN"}
+    ],
+    "description": "Both are `transient let` bound from constructor args, not baked into stable state, so they are re-read from whatever dfx supplies on each upgrade. Supplying different principals (operator error, stale arg file) silently changes the sole sweeper/destination (BACKEND) and the test-admin god account (TEST_ADMIN) with no migration event or guard.",
+    "mechanism": "No persisted-vs-new mismatch detection for transient args; the new value just takes effect. TEST_ADMIN gates every fund-moving hatch; BACKEND is the cover-charge sweep destination.",
+    "exploit_scenario": {
+      "preconditions": ["Upgrade run with a stale/templated argument file"],
+      "sequence": ["dfx deploy --argument (wrong principals)"],
+      "observable_outcome": "Unintended principal gains admin/sweep powers; cover charges route elsewhere",
+      "attacker_gain": "Requires controlling deploy args (not remote)",
+      "victim_loss": "Protocol custody"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Persist these into stable state on first init and ignore later constructor args, OR add a post-upgrade assertion that supplied principals match the previously-seen stable copies (trap/log on change). Pin the deploy argument file. (See MEMORY: deploy_safety.)",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-014",
+    "severity": "LOW",
+    "category": "cdp-domain",
+    "subcategory": "economic / promotion-farming",
+    "title": "Series B promotions accrete onto a persistent loser and keep them in the all-backers toll split",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "520-576", "function": "selectPromotionCandidate"},
+      {"file": "ponzi_math/main.mo", "lines": "581-609", "function": "applySeriesBPromotion"}
+    ],
+    "description": "At each insolvency reset a random underwater player is granted (or merged into) a Series B position. Selection prefers zero-backer losers but falls back to all underwater players. A reliably-underwater player can be re-promoted and stay in the all-backers 40% split permanently.",
+    "mechanism": "Being any backer entitles you to the 40% per-capita slice of every future toll. Series B is handed to losers free. Per-capita weight caps at one Series B key (merge sums cosmetic entitlement, not weight), and staying underwater costs real burned deposits, so the upside is small.",
+    "exploit_scenario": {
+      "preconditions": ["Keep a losing position each round to stay underwater"],
+      "sequence": ["Get promoted (randomly) -> join the all-backers split -> collect per-capita toll share"],
+      "observable_outcome": "Persistent loser becomes a persistent backer",
+      "attacker_gain": "Small, bounded by per-key weight and burned deposits",
+      "victim_loss": "Other backers (dilution)"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Likely acceptable (Series B is a consolation prize). If concerned, exclude players who already hold any backer position from the phase-2 fallback too, and/or weight selection against repeat winners.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-015",
+    "severity": "LOW",
+    "category": "cdp-domain",
+    "subcategory": "economic / toll-timing",
+    "title": "Exit toll tier is a single snapshot of position age applied to the whole gross, so patient players pay only the 3% floor",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "381-395", "function": "calculateExitToll"},
+      {"file": "ponzi_math/main.mo", "lines": "949-954", "function": "withdrawEarnings"}
+    ],
+    "description": "The simple-plan toll tier (12% <7d, 7.5% 7-14d, 3% >=14d) is computed from days-since-start at withdrawal time and applied to all accumulated earnings, not weighted per accrual window. A player who waits past day 14 pays 3% on the full 21-day yield, including earnings that accrued in the high-toll early window.",
+    "mechanism": "Single age-based rate on the whole gross. The higher early tiers only bite players who withdraw early. Rational play, not a fund-safety bug.",
+    "exploit_scenario": {
+      "preconditions": ["Patience"],
+      "sequence": ["Deposit, wait to day >=14, withdraw once at 3%"],
+      "observable_outcome": "Floor toll on all earnings",
+      "attacker_gain": "Toll difference vs an early-withdraw schedule",
+      "victim_loss": "Backers + seed (lower toll volume)"
+    },
+    "has_poc": false,
+    "theoretical": false,
+    "recommendation": "Confirm intended semantics. If early yield should be taxed at early rates, compute the toll per accrual window, not as a single snapshot. Plausibly intended given the 'Carried Interest' framing; document either way. CONFIRMED adjacent-SAFE: positions cannot earn past 21 days (calculateEarnings caps via remainingAllowedTime; closePosition flips isActive=false; closed games are rejected).",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-016",
+    "severity": "LOW",
+    "category": "ic-platform",
+    "subcategory": "admin-griefing",
+    "title": "adminForceReset / adminClearAllBackerPositions can destroy user entitlements without moving funds",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "1937-1946", "function": "adminForceReset"},
+      {"file": "ponzi_math/main.mo", "lines": "1863-1873", "function": "adminClearAllBackerPositions"}
+    ],
+    "description": "adminForceReset unconditionally closes all active games and sets potBalance := roundSeedReserve, discarding the rest of the pot's attribution; players with open positions lose their claim (ICP stays in canister). adminClearAllBackerPositions destroys all backer entitlements and pending repayments. Destruction/griefing, not direct theft, but combined with F-003 the stranded value becomes sweepable.",
+    "mechanism": "triggerGameReset closes active games with no payout; the obligation records are erased while ICP remains in the canister.",
+    "exploit_scenario": {
+      "preconditions": ["TEST_ADMIN key"],
+      "sequence": ["adminForceReset('x') mid-round"],
+      "observable_outcome": "Every live position closes worthless; funds remain in-canister (then sweepable per F-003)",
+      "attacker_gain": "Indirect (via F-003)",
+      "victim_loss": "Active players"
+    },
+    "has_poc": true,
+    "theoretical": false,
+    "recommendation": "Remove with the hatch block before blackhole. No standalone fix beyond deletion; adminForceReset is a legitimate stuck-state recovery hatch pre-blackhole but must not survive it.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-017",
+    "severity": "INFORMATIONAL",
+    "category": "cdp-domain",
+    "subcategory": "fund-accounting / defense-in-depth",
+    "title": "A Series A position with null firstDepositDate would also have dropped the oldest slice (was unreachable; now defended by the F-004 fix)",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "451-473", "function": "distributeExitToll"}
+    ],
+    "description": "The oldest-selection loop skips Series A backers with null firstDepositDate, but the otherSeriesA filter's `case (null) { true }` arm would include them, so a single null-fdd Series A would have dropped its 35% slice. Verified UNREACHABLE at the audited commit: every Series A write sets firstDepositDate = ?Time.now() and the only merge yields null only if both inputs are null (impossible).",
+    "mechanism": "Asymmetry between the oldest-selection loop and the otherSeriesA filter; harmless only because null-fdd Series A is unconstructible.",
+    "exploit_scenario": {
+      "preconditions": ["A future code path creates a Series A position without firstDepositDate"],
+      "sequence": ["distributeExitToll with that backer"],
+      "observable_outcome": "35% slice dropped (same class as F-004)",
+      "attacker_gain": "None",
+      "victim_loss": "Backers"
+    },
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "The F-004 fix already neutralizes this (orphaned slice -> seed). For belt-and-suspenders, make firstDepositDate non-optional or fall back to startTime in the oldest-selection.",
+    "prior_audit_status": "NEW"
+  },
+  {
+    "id": "F-018",
+    "severity": "INFORMATIONAL",
+    "category": "ic-platform",
+    "subcategory": "code-hygiene",
+    "title": "Pre-existing M0155 'operator may trap' warnings on guarded Nat subtractions; unused Nat64 import",
+    "locations": [
+      {"file": "ponzi_math/main.mo", "lines": "989-991, 1130, 1603", "function": "withdrawEarnings / settleCompoundingGame / computeActivePlanSnapshot"},
+      {"file": "ponzi_math/main.mo", "lines": "6", "function": "imports"}
+    ],
+    "description": "moc emits M0155 on `activeGames - 1` and similar Nat subtractions. All are guarded by `> 0` (or `> ICP_TRANSFER_FEE`) checks, so they cannot underflow in practice. Nat64 is imported but unused.",
+    "mechanism": "Nat subtraction traps on underflow; moc warns conservatively even when guarded.",
+    "exploit_scenario": {"preconditions": [], "sequence": [], "observable_outcome": "None (guarded)", "attacker_gain": "None", "victim_loss": "None"},
+    "has_poc": false,
+    "theoretical": true,
+    "recommendation": "Optional hygiene: use Nat.sub or make the guards explicit at the subtraction site; delete the unused Nat64 import. No behavior change.",
+    "prior_audit_status": "NEW"
+  }
+]
