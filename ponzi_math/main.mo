@@ -20,8 +20,27 @@ persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
     testAdmin : Principal;
 }) = Self {
-    transient let BACKEND_PRINCIPAL : Principal = initArgs.backendPrincipal;
-    transient let TEST_ADMIN : Principal = initArgs.testAdmin;
+    // Privileged principals are pinned to their first-init values (Audit F-013).
+    // On the very first install storedBackend/storedTestAdmin are null, so we
+    // adopt the constructor args and persist them below; on every later upgrade
+    // the persisted values win and the constructor args are IGNORED, so a stale
+    // or wrong --argument on a redeploy cannot silently rotate the cover-charge
+    // sweep destination (BACKEND_PRINCIPAL) or the test-admin god account
+    // (TEST_ADMIN). A deliberate rotation would require an explicit, code-reviewed
+    // admin method, which intentionally does not exist.
+    var storedBackend : ?Principal = null;
+    var storedTestAdmin : ?Principal = null;
+    transient let BACKEND_PRINCIPAL : Principal = switch (storedBackend) {
+        case (?p) { p };
+        case (null) { initArgs.backendPrincipal };
+    };
+    transient let TEST_ADMIN : Principal = switch (storedTestAdmin) {
+        case (?p) { p };
+        case (null) { initArgs.testAdmin };
+    };
+    // Persist on first init (no-op on every later start).
+    if (storedBackend == null) { storedBackend := ?BACKEND_PRINCIPAL };
+    if (storedTestAdmin == null) { storedTestAdmin := ?TEST_ADMIN };
     transient let icpLedger : Ledger.LedgerActor = actor(Ledger.ICP_LEDGER_CANISTER_ID);
     transient let ic : actor { raw_rand : () -> async Blob } = actor "aaaaa-aa";
 
@@ -222,6 +241,14 @@ persistent actor class PonziMath(initArgs : {
     var nextGeneralLedgerId : Nat = 0;
     var currentRoundId : Nat = 1;
 
+    // Index of currently-active game ids, maintained incrementally so the
+    // round-reset and promotion paths never scan the full, never-pruned
+    // gameRecords history (Audit F-002). A drift guard falls back to a full
+    // scan if this index ever disagrees with platformStats.activeGames, so
+    // correctness never depends on the index being perfectly maintained.
+    var activeGameIds = natMap.empty<()>();
+    var activeGameIndexBackfilled : Bool = false;
+
     // Transient concurrency state — resets on upgrade (safe by construction)
     transient var callerLocks = principalMapNat.empty<Bool>();
     transient var globalCriticalLock : Bool = false;
@@ -357,6 +384,15 @@ persistent actor class PonziMath(initArgs : {
         };
     };
 
+    // Query the ICP ledger's current transfer fee, falling back to the known
+    // default if the ledger query fails (Audit F-009). Used by every payout
+    // path so a future governance fee change cannot make the canister
+    // over/under-pay or trap. Callers hold the global lock across this await,
+    // so it cannot interleave another critical operation.
+    func liveIcpFee() : async Nat {
+        try { await icpLedger.icrc1_fee() } catch (_) { Ledger.ICP_TRANSFER_FEE };
+    };
+
     // ========================================================================
     // General Ledger event recording
     // ========================================================================
@@ -480,10 +516,25 @@ persistent actor class PonziMath(initArgs : {
             } else {
                 backerRepaymentAmount * 0.35;
             };
+        // Credit the senior (oldest Series A) slice. When NO Series A backer
+        // exists — e.g. the backer set is entirely Series B promotion
+        // positions — oldestBacker is null and this slice has no recipient.
+        // Leaving the null arm empty would carve the slice out of the backer
+        // half but route it nowhere, silently dropping 35-60% of the backer
+        // half (up to 30% of the whole toll) into untracked canister balance
+        // and breaking the solvency invariant by far more than the 10 e8s
+        // rounding tolerance. Redirect the orphaned slice to the seed reserve —
+        // the same tracked sink the zero-backers branch above uses — so 100%
+        // of every toll always lands in a tracked destination.
+        var creditedToOldest : Float = 0.0;
         switch (oldestBacker) {
-            case (null) {};
-            case (?b) { creditBackerRepayment((b.owner, b.backerType), toOldest) };
+            case (null) { roundSeedReserve += toOldest };
+            case (?b) {
+                creditBackerRepayment((b.owner, b.backerType), toOldest);
+                creditedToOldest := toOldest;
+            };
         };
+        let orphanedToSeed = toOldest - creditedToOldest;
 
         var toOthers : Float = 0.0;
         if (otherSeriesA.size() > 0) {
@@ -496,10 +547,13 @@ persistent actor class PonziMath(initArgs : {
         let toAll = perAll * Float.fromInt(allBackers.size());
         for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
 
+        // toSeedReserve reflects the actual seed credit: the base 50% plus any
+        // orphaned senior slice redirected above. toOldestSeriesA reflects what
+        // was actually credited to a backer (0.0 when there was no Series A).
         {
             tollAmount;
-            toSeedReserve = seedAmount;
-            toOldestSeriesA = toOldest;
+            toSeedReserve = seedAmount + orphanedToSeed;
+            toOldestSeriesA = creditedToOldest;
             toOtherSeriesA = toOthers;
             toAllBackers = toAll;
         };
@@ -511,6 +565,42 @@ persistent actor class PonziMath(initArgs : {
     // (amount - totalWithdrawn) * 1.16.
     // ========================================================================
 
+    // Lazily backfill activeGameIds from gameRecords the first time a consumer
+    // needs it (Audit F-002). After the upgrade that introduces the index this
+    // runs once (cheap while history is small) and sets the flag; later calls
+    // are no-ops. Idempotent and self-healing: it rebuilds from the source of
+    // truth (gameRecords.isActive), so a fresh install stays correct too.
+    func ensureActiveIndexBackfilled() {
+        if (not activeGameIndexBackfilled) {
+            for ((gid, game) in natMap.entries(gameRecords)) {
+                if (game.isActive) { activeGameIds := natMap.put(activeGameIds, gid, ()) };
+            };
+            activeGameIndexBackfilled := true;
+        };
+    };
+
+    // Returns all currently-active game records. Reads via the activeGameIds
+    // index when its size agrees with the activeGames counter; otherwise falls
+    // back to a full history scan so correctness never depends on the index
+    // being perfectly maintained (Audit F-002).
+    func activeGamesSnapshot() : [GameRecord] {
+        ensureActiveIndexBackfilled();
+        var acc = List.nil<GameRecord>();
+        if (natMap.size(activeGameIds) == platformStats.activeGames) {
+            for ((gid, _) in natMap.entries(activeGameIds)) {
+                switch (natMap.get(gameRecords, gid)) {
+                    case (?g) { if (g.isActive) { acc := List.push(g, acc) } };
+                    case (null) {};
+                };
+            };
+        } else {
+            for (g in natMap.vals(gameRecords)) {
+                if (g.isActive) { acc := List.push(g, acc) };
+            };
+        };
+        List.toArray(acc);
+    };
+
     // Pick a Series B promotion candidate from the current round's losers.
     // Eligibility (phase 1): underwater players who currently have ZERO entries
     // in backerPositions. If none qualify (phase 2 — every underwater player
@@ -519,16 +609,15 @@ persistent actor class PonziMath(initArgs : {
     // Returns null if no one is underwater.
     func selectPromotionCandidate() : async ?{ owner : Principal; underwater : Float } {
         var underwaterByPlayer = principalMapNat.empty<Float>();
-        for (g in natMap.vals(gameRecords)) {
-            if (g.isActive) {
-                let loss = g.amount - g.totalWithdrawn;
-                if (loss > 0.0) {
-                    let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
-                        case (null) { 0.0 };
-                        case (?v) { v };
-                    };
-                    underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
+        // Iterate active games via the index (drift-guarded). (Audit F-002.)
+        for (g in activeGamesSnapshot().vals()) {
+            let loss = g.amount - g.totalWithdrawn;
+            if (loss > 0.0) {
+                let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
+                    case (null) { 0.0 };
+                    case (?v) { v };
                 };
+                underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
             };
         };
 
@@ -637,16 +726,17 @@ persistent actor class PonziMath(initArgs : {
         gameResetHistory := intMap.put(gameResetHistory, now, resetRecord);
 
         // Mark every active game as closed-by-reset. Preserve all other fields.
-        for ((gid, game) in natMap.entries(gameRecords)) {
-            if (game.isActive) {
-                let closed : GameRecord = {
-                    game with
-                    isActive = false;
-                    lastUpdateTime = now;
-                };
-                gameRecords := natMap.put(gameRecords, gid, closed);
+        // Iterate the active-id index (drift-guarded) instead of the full,
+        // never-pruned history. (Audit F-002.)
+        for (game in activeGamesSnapshot().vals()) {
+            let closed : GameRecord = {
+                game with
+                isActive = false;
+                lastUpdateTime = now;
             };
+            gameRecords := natMap.put(gameRecords, game.id, closed);
         };
+        activeGameIds := natMap.empty<()>();
 
         // Carry the seed reserve into the new round's pot.
         let newPot = roundSeedReserve;
@@ -824,6 +914,7 @@ persistent actor class PonziMath(initArgs : {
                 totalWithdrawn = 0.0;
             };
             gameRecords := natMap.put(gameRecords, gameId, newGame);
+            activeGameIds := natMap.put(activeGameIds, gameId, ()); // Audit F-002
             platformStats := {
                 platformStats with
                 totalDeposits = platformStats.totalDeposits + amount;
@@ -957,6 +1048,7 @@ persistent actor class PonziMath(initArgs : {
                     let originalStats = platformStats;
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
+                    let originalActiveIds = activeGameIds; // Audit F-002
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -982,6 +1074,7 @@ persistent actor class PonziMath(initArgs : {
                         isActive = if (willClose) false else game.isActive;
                     };
                     gameRecords := natMap.put(gameRecords, gameId, updatedGame);
+                    if (willClose) { activeGameIds := natMap.delete(activeGameIds, gameId) }; // Audit F-002
                     platformStats := {
                         platformStats with
                         totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
@@ -993,14 +1086,15 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let netEarningsE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (netEarningsE8s > Ledger.ICP_TRANSFER_FEE) {
-                        let transferAmount : Nat = netEarningsE8s - Ledger.ICP_TRANSFER_FEE;
+                    let icpFee = await liveIcpFee(); // Audit F-009: live ledger fee
+                    if (netEarningsE8s > icpFee) {
+                        let transferAmount : Nat = netEarningsE8s - icpFee;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
                                 amount = transferAmount;
-                                fee = null;
+                                fee = ?icpFee;
                                 memo = null;
                                 created_at_time = null;
                             });
@@ -1009,6 +1103,7 @@ persistent actor class PonziMath(initArgs : {
                             platformStats := originalStats;
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
+                            activeGameIds := originalActiveIds; // Audit F-002
                             return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
                         switch (transferResult) {
@@ -1017,6 +1112,7 @@ persistent actor class PonziMath(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                activeGameIds := originalActiveIds; // Audit F-002
                                 return #Err(transferErrorMessage(err));
                             };
                             case (#Ok(_)) {};
@@ -1099,6 +1195,7 @@ persistent actor class PonziMath(initArgs : {
                     let originalStats = platformStats;
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
+                    let originalActiveIds = activeGameIds; // Audit F-002
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -1123,6 +1220,7 @@ persistent actor class PonziMath(initArgs : {
                         lastUpdateTime = Time.now();
                     };
                     gameRecords := natMap.put(gameRecords, gameId, settled);
+                    activeGameIds := natMap.delete(activeGameIds, gameId); // Audit F-002
                     platformStats := {
                         platformStats with
                         totalWithdrawals = platformStats.totalWithdrawals + actualNetEarnings;
@@ -1131,14 +1229,15 @@ persistent actor class PonziMath(initArgs : {
                     };
 
                     let payoutE8s = Int.abs(Float.toInt(actualNetEarnings * 100_000_000.0));
-                    if (payoutE8s > Ledger.ICP_TRANSFER_FEE) {
-                        let transferAmount : Nat = payoutE8s - Ledger.ICP_TRANSFER_FEE;
+                    let icpFee = await liveIcpFee(); // Audit F-009: live ledger fee
+                    if (payoutE8s > icpFee) {
+                        let transferAmount : Nat = payoutE8s - icpFee;
                         let transferResult = try {
                             await icpLedger.icrc1_transfer({
                                 from_subaccount = null;
                                 to = { owner = caller; subaccount = null };
                                 amount = transferAmount;
-                                fee = null;
+                                fee = ?icpFee;
                                 memo = null;
                                 created_at_time = null;
                             });
@@ -1147,6 +1246,7 @@ persistent actor class PonziMath(initArgs : {
                             platformStats := originalStats;
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
+                            activeGameIds := originalActiveIds; // Audit F-002
                             return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
                         switch (transferResult) {
@@ -1155,6 +1255,7 @@ persistent actor class PonziMath(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                activeGameIds := originalActiveIds; // Audit F-002
                                 return #Err(transferErrorMessage(err));
                             };
                             case (#Ok(_)) {};
@@ -1206,10 +1307,11 @@ persistent actor class PonziMath(initArgs : {
             if (balance <= 0.0) { return #Err("No repayment balance to claim") };
 
             let balanceE8s = Int.abs(Float.toInt(roundToEightDecimals(balance) * 100_000_000.0));
-            if (balanceE8s <= Ledger.ICP_TRANSFER_FEE) {
+            let icpFee = await liveIcpFee(); // Audit F-009: live ledger fee
+            if (balanceE8s <= icpFee) {
                 return #Err("Claimable balance is below the network fee (0.0001 ICP); wait until your balance grows past the fee");
             };
-            let transferAmount : Nat = balanceE8s - Ledger.ICP_TRANSFER_FEE;
+            let transferAmount : Nat = balanceE8s - icpFee;
 
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesA), 0.0);
             backerRepayments := backerKeyMap.put(backerRepayments, (caller, #seriesB), 0.0);
@@ -1219,7 +1321,7 @@ persistent actor class PonziMath(initArgs : {
                     from_subaccount = null;
                     to = { owner = caller; subaccount = null };
                     amount = transferAmount;
-                    fee = null;
+                    fee = ?icpFee;
                     memo = null;
                     created_at_time = null;
                 });
@@ -1266,7 +1368,11 @@ persistent actor class PonziMath(initArgs : {
         acquireGlobalLock();
         try {
             let amount = coverChargeBalance;
-            let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+            let icpFee = await liveIcpFee(); // Audit F-009: live ledger fee
+            if (amount <= icpFee) {
+                return #Err("Accumulated balance below transfer fee");
+            };
+            let transferAmount : Nat = amount - icpFee;
 
             coverChargeBalance := 0;
 
@@ -1275,7 +1381,7 @@ persistent actor class PonziMath(initArgs : {
                     from_subaccount = null;
                     to = { owner = BACKEND_PRINCIPAL; subaccount = null };
                     amount = transferAmount;
-                    fee = null;
+                    fee = ?icpFee;
                     memo = null;
                     created_at_time = null;
                 });
@@ -1316,6 +1422,31 @@ persistent actor class PonziMath(initArgs : {
 
     public query func getAllGames() : async [GameRecord] {
         Iter.toArray(natMap.vals(gameRecords));
+    };
+
+    // Paginated alternative to getAllGames for callers that risk the ~3 MiB
+    // query response cap as the game history grows (Audit F-011). `offset` is
+    // the 0-based starting gameId; `limit` caps the entry count. `total` is the
+    // full game count (nextGameId) so callers can drive a paginator.
+    public query func getAllGamesPage(offset : Nat, limit : Nat) : async {
+        entries : [GameRecord];
+        total : Nat;
+    } {
+        let total = nextGameId;
+        if (offset >= total or limit == 0) {
+            return { entries = []; total };
+        };
+        let endId = if (offset + limit > total) { total } else { offset + limit };
+        var result = List.nil<GameRecord>();
+        var id = offset;
+        while (id < endId) {
+            switch (natMap.get(gameRecords, id)) {
+                case (?g) { result := List.push(g, result) };
+                case (null) {};
+            };
+            id += 1;
+        };
+        { entries = List.toArray(List.reverse(result)); total };
     };
 
     public query func getAllActiveGames() : async [GameRecord] {
@@ -1770,6 +1901,7 @@ persistent actor class PonziMath(initArgs : {
                 totalWithdrawn = 0.0;
             };
             gameRecords := natMap.put(gameRecords, gameId, newGame);
+            activeGameIds := natMap.put(activeGameIds, gameId, ()); // Audit F-002
             platformStats := {
                 platformStats with
                 totalDeposits = platformStats.totalDeposits + amount;
