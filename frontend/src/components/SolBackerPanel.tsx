@@ -20,7 +20,7 @@ const MIN_LAMPORTS = parseSOL(String(MIN_BACKER_SOL));
 
 type Flow =
   | { kind: 'input' }
-  | { kind: 'awaitingWallet'; lamports: bigint }
+  | { kind: 'awaitingWallet'; lamports: bigint; depositAddress?: string; intentId?: bigint }
   | { kind: 'opening'; lamports: bigint; intentId: bigint }
   | { kind: 'manual'; depositAddress: string; lamports: bigint; intentId: bigint; note?: string }
   | { kind: 'opened'; lamports: bigint };
@@ -42,6 +42,10 @@ export default function SolBackerPanel() {
   const [solInput, setSolInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [flow, setFlow] = useState<Flow>({ kind: 'input' });
+  // Monotonic id for the active one-click op. Bumped on each start AND on cancel,
+  // so a slow/hung sendSolDeposit that finally settles after the user bailed can't
+  // stomp the UI (its captured gen no longer matches opGenRef.current).
+  const opGenRef = useRef(0);
 
   const ppPerSol = mintConfig ? Number(mintConfig.backerPpPerSol) : 0;
 
@@ -109,19 +113,46 @@ export default function SolBackerPanel() {
 
   const handleOneClick = async () => {
     if (!canDeposit || !solanaPubkey) return;
+    const gen = ++opGenRef.current;
     setFlow({ kind: 'awaitingWallet', lamports });
     let prepared: { intentId: bigint; depositAddress: string };
     try {
       prepared = await prepareMut.mutateAsync({ expectedAmountLamports: lamports });
     } catch {
-      setFlow({ kind: 'input' }); // prepareMut.isError surfaces the message in the input view
+      if (opGenRef.current === gen) setFlow({ kind: 'input' }); // prepareMut.isError surfaces the message in the input view
       return;
     }
+    if (opGenRef.current !== gen) return; // cancelled while preparing
+    // Stash the prepared address + intentId in the spinner state so Cancel can drop
+    // to the manual view (and the credit detector still has the intent) if the wallet hangs.
+    setFlow({ kind: 'awaitingWallet', lamports, depositAddress: prepared.depositAddress, intentId: prepared.intentId });
     try {
       await sendSolDeposit({ toAddress: prepared.depositAddress, lamports, expectedPubkey: solanaPubkey });
+      if (opGenRef.current !== gen) return; // user bailed; ignore the late success
       setFlow({ kind: 'opening', lamports, intentId: prepared.intentId });
     } catch (e) {
-      setFlow({ kind: 'manual', depositAddress: prepared.depositAddress, lamports, intentId: prepared.intentId, note: friendlyWalletError(e) });
+      if (opGenRef.current !== gen) return; // user bailed; ignore the late failure
+      setFlow({ kind: 'manual', depositAddress: prepared.depositAddress, lamports, intentId: prepared.intentId, note: `${friendlyWalletError(e)} Send manually below — your Series A position still registers.` });
+    }
+  };
+
+  // Escape hatch from the "Confirm in your wallet…" spinner (e.g. Phantom popup
+  // hung or dismissed without resolving). We can't truly abort the wallet promise,
+  // so we bump opGenRef (its late settle is ignored) and drop to the manual view
+  // when an address was prepared — the detector keeps polling, so a transfer the
+  // user DID approve still registers. Copy avoids implying a (double-)send is needed.
+  const handleCancelWallet = () => {
+    opGenRef.current += 1;
+    if (flow.kind === 'awaitingWallet' && flow.depositAddress && flow.intentId !== undefined) {
+      setFlow({
+        kind: 'manual',
+        depositAddress: flow.depositAddress,
+        lamports: flow.lamports,
+        intentId: flow.intentId,
+        note: "Stopped waiting on your wallet. If you already approved the transfer in Phantom, your Series A position registers automatically — don't send again. Otherwise, send manually below or start over.",
+      });
+    } else {
+      setFlow({ kind: 'input' });
     }
   };
 
@@ -165,6 +196,7 @@ export default function SolBackerPanel() {
         <Loader2 className="h-8 w-8 mc-text-gold mx-auto animate-spin" />
         <p className="text-sm mc-text-primary font-bold">Confirm the transfer in your wallet…</p>
         <p className="text-xs mc-text-dim">Approve the {formatSOL(flow.lamports)} SOL transfer in Phantom.</p>
+        <button onClick={handleCancelWallet} className="mc-btn-secondary px-4 py-1.5 rounded-full text-xs mt-1">Cancel</button>
       </div>
     );
   }
@@ -184,7 +216,7 @@ export default function SolBackerPanel() {
     return (
       <div className="mc-card p-4 space-y-3 max-w-md mx-auto">
         {flow.note && (
-          <div className="mc-status-red p-2 text-xs text-center">{flow.note} Send manually below — your Series A position still registers.</div>
+          <div className="mc-status-red p-2 text-xs text-center">{flow.note}</div>
         )}
         <div className="text-center">
           <div className="mc-label">Send exactly</div>

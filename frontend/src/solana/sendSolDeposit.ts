@@ -31,6 +31,31 @@ export function buildSolTransferTx(params: {
   return tx;
 }
 
+// Reject a hung promise after `ms`. Used to bound the pre-broadcast blockhash
+// fetch so a slow/unreachable RPC can't leave the deposit UI stuck on "Confirm
+// in your wallet…" forever with no wallet prompt ever appearing.
+//
+// SAFETY: only ever apply this to PRE-broadcast steps. Timing out the wallet's
+// signAndSendTransaction would be dangerous — the timeout could fire AFTER the
+// transaction actually broadcast, so the user would retry and double-deposit.
+export function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
+const BLOCKHASH_TIMEOUT_MS = 20_000;
+
 // The injected Phantom provider, if present. Phantom exposes
 // `signAndSendTransaction`, which supplies a recent blockhash AND broadcasts via
 // Phantom's own RPC — so the app needs no RPC at all for the user's payment.
@@ -89,7 +114,11 @@ export async function sendSolDeposit(params: {
   // it ourselves. The configured RPC (SOLANA_RPC_ENDPOINT) is the domain-locked
   // Helius endpoint; the public mainnet endpoint 403s browser calls.
   const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
-  const { blockhash } = await connection.getLatestBlockhash('confirmed');
+  const { blockhash } = await withTimeout(
+    connection.getLatestBlockhash('confirmed'),
+    BLOCKHASH_TIMEOUT_MS,
+    'Could not reach Solana to prepare the transfer (network slow or RPC unavailable). Use the manual deposit address below instead.',
+  );
   const tx = buildSolTransferTx({
     fromPubkey,
     toPubkey: new PublicKey(params.toAddress),

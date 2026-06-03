@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -45,6 +46,21 @@ export default defineConfig(({ mode }) => {
       esbuildOptions: {
         define: {
           global: 'globalThis',
+        },
+      },
+    },
+    test: {
+      // @solana/web3.js pulls in rpc-websockets, whose CJS build `require()`s an
+      // ESM-only `uuid` — fatal under Vitest's default Node externalization
+      // (ERR_REQUIRE_ESM). Pre-bundling these with esbuild (the deps optimizer)
+      // resolves the nested ESM/CJS interop so the deposit-builder tests
+      // (sendSolDeposit.test.ts) can load @solana/web3.js.
+      deps: {
+        optimizer: {
+          ssr: {
+            enabled: true,
+            include: ['@solana/web3.js', 'rpc-websockets'],
+          },
         },
       },
     },
