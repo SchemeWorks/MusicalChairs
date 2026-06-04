@@ -602,13 +602,21 @@ persistent actor class PonziMathSol(initArgs : {
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
 
-        // Only OPEN positions (lifetime repaid < entitlement) take part — in
-        // crediting AND in the per-head counts, so a position closing stops it
-        // diluting the rest. Any slice that can't reach a backer (a capped-out
-        // recipient, or the orphaned senior slice when there is no Series A) is
-        // redirected to the seed reserve — the same tracked sink the no-backers
-        // branch uses — so 100% of every toll always lands in a tracked
-        // destination and the solvency invariant holds.
+        // Only OPEN positions (lifetime repaid < entitlement) take part. The
+        // backer half splits 35 / 45 / 20:
+        //   - 35% SENIOR bonus to the single oldest open Series A (kept).
+        //   - 45% SERIES A POOL, shared PROPORTIONAL to each open A's remaining
+        //     entitlement. Sybil-neutral: splitting a stake across N wallets
+        //     yields N remainders summing to the same total, so total take is
+        //     unchanged, and all open A close at the same rate (when the pool
+        //     exceeds total remaining they all cap out together).
+        //   - 20% SERIES B POOL, shared PER-HEAD across open B (B is assigned by
+        //     promotion and can't be Sybil'd, so egalitarian is fine).
+        // An absent tier's pool folds into the other so backer money stays with
+        // backers. The senior slice (when there is no Series A) and any
+        // capped-out overshoot go to the seed reserve — the same tracked sink
+        // the no-backers branch uses — so 100% of every toll always lands in a
+        // tracked destination and the solvency invariant holds.
         let allBackers = List.toArray(
             List.filter(
                 List.fromArray(Iter.toArray(backerKeyMap.vals(backerPositions))),
@@ -633,7 +641,24 @@ persistent actor class PonziMathSol(initArgs : {
                 func(b : BackerPosition) : Bool { b.backerType == #seriesA },
             )
         );
+        let seriesBBackers = List.toArray(
+            List.filter(
+                List.fromArray(allBackers),
+                func(b : BackerPosition) : Bool { b.backerType == #seriesB },
+            )
+        );
 
+        let seniorAmt = backerRepaymentAmount * 0.35;
+        var aPoolAmt = backerRepaymentAmount * 0.45;
+        var bPoolAmt = backerRepaymentAmount * 0.20;
+        // Fold an absent tier's pool into the other (at least one is non-empty
+        // here — the all-empty case returned above).
+        if (seriesBBackers.size() == 0) { aPoolAmt += bPoolAmt; bPoolAmt := 0.0 };
+        if (seriesABackers.size() == 0) { bPoolAmt += aPoolAmt; aPoolAmt := 0.0 };
+
+        var overshootToSeed : Float = 0.0;
+
+        // --- 35% senior bonus: single oldest open Series A ---
         var oldestBacker : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in seriesABackers.vals()) {
@@ -647,69 +672,59 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
-
-        let otherSeriesA = List.toArray(
-            List.filter(
-                List.fromArray(seriesABackers),
-                func(b : BackerPosition) : Bool {
-                    switch (oldestBacker) {
-                        case (null) { true };
-                        case (?oldest) { b.owner != oldest.owner };
-                    };
-                },
-            )
-        );
-
-        // Overshoot from capped-out recipients (and the orphaned senior slice)
-        // accumulates here and is added to the seed reserve at the end.
-        var overshootToSeed : Float = 0.0;
-
-        // If there's only one Series A backer (no "others"), the 25% portion
-        // also goes to that lone backer. Total to oldest in that case: 60%.
-        let toOldest : Float =
-            if (otherSeriesA.size() == 0) {
-                backerRepaymentAmount * 0.60;
-            } else {
-                backerRepaymentAmount * 0.35;
-            };
         var creditedToOldest : Float = 0.0;
         switch (oldestBacker) {
-            // No Series A backer (set is all Series B): the senior slice has no
-            // recipient — redirect it to the seed reserve instead of dropping it.
-            case (null) { overshootToSeed += toOldest };
+            // No Series A: senior slice has no recipient — route to seed reserve.
+            case (null) { overshootToSeed += seniorAmt };
             case (?b) {
-                let over = creditBackerRepayment(b, toOldest);
-                creditedToOldest := toOldest - over;
+                let over = creditBackerRepayment(b, seniorAmt);
+                creditedToOldest := seniorAmt - over;
                 overshootToSeed += over;
             };
         };
 
-        var toOthers : Float = 0.0;
-        if (otherSeriesA.size() > 0) {
-            let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
-            for (b in otherSeriesA.vals()) {
-                let over = creditBackerRepayment(b, perBacker);
-                toOthers += perBacker - over;
-                overshootToSeed += over;
+        // --- 45% Series A pool: proportional to remaining entitlement ---
+        var creditedAPool : Float = 0.0;
+        if (aPoolAmt > 0.0) {
+            var totalRemainingA : Float = 0.0;
+            for (b in seriesABackers.vals()) { totalRemainingA += remainingEntitlement(b) };
+            if (totalRemainingA > 0.0) {
+                for (b in seriesABackers.vals()) {
+                    let share = remainingEntitlement(b) / totalRemainingA * aPoolAmt;
+                    let over = creditBackerRepayment(b, share);
+                    creditedAPool += share - over;
+                    overshootToSeed += over;
+                };
+            } else {
+                overshootToSeed += aPoolAmt;
             };
         };
 
-        let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
-        var toAll : Float = 0.0;
-        for (b in allBackers.vals()) {
-            let over = creditBackerRepayment(b, perAll);
-            toAll += perAll - over;
-            overshootToSeed += over;
+        // --- 20% Series B pool: per-head across open B ---
+        var creditedBPool : Float = 0.0;
+        if (bPoolAmt > 0.0 and seriesBBackers.size() > 0) {
+            let perB = bPoolAmt / Float.fromInt(seriesBBackers.size());
+            for (b in seriesBBackers.vals()) {
+                let over = creditBackerRepayment(b, perB);
+                creditedBPool += perB - over;
+                overshootToSeed += over;
+            };
+        } else if (bPoolAmt > 0.0) {
+            overshootToSeed += bPoolAmt;
         };
 
         roundSeedReserve += overshootToSeed;
 
+        // Ledger fields keep their stored names (stable type) but now mean:
+        //   toOldestSeriesA = senior bonus credited
+        //   toOtherSeriesA  = Series A pool credited (proportional, all open A)
+        //   toAllBackers    = Series B pool credited (per-head)
         {
             tollAmount;
             toSeedReserve = seedAmount + overshootToSeed;
             toOldestSeriesA = creditedToOldest;
-            toOtherSeriesA = toOthers;
-            toAllBackers = toAll;
+            toOtherSeriesA = creditedAPool;
+            toAllBackers = creditedBPool;
         };
     };
 
