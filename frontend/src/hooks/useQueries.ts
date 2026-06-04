@@ -148,6 +148,20 @@ export function useGetSolGameStats() {
   });
 }
 
+// Whether self-serve Series A backing is open (admin-gated, default off). The
+// SOL backer panel reads this to show the form vs a "not open yet" message.
+export function useIsSelfServeBackingEnabled() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+
+  return useQuery<boolean>({
+    queryKey: ['selfServeBackingEnabled'],
+    queryFn: async () => actor.isSelfServeBackingEnabled(),
+    enabled: walletType === 'siws',
+    staleTime: 30000,
+  });
+}
+
 // Public stats — no auth required, uses read actor for splash page
 export function useGetPublicStats() {
   const actor = useReadPonziMath();

@@ -302,6 +302,7 @@ type PonziMathSol =
    icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
    isBootstrapped: () -> (bool) query;
    isCriticalSectionBusy: () -> (bool) query;
+   isSelfServeBackingEnabled: () -> (bool) query;
    payManagementSol: () -> (variant {
                               Err: text;
                               Ok: text;

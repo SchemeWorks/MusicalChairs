@@ -11,19 +11,19 @@ Canister IDs (mainnet): `ponzi_math_sol` `spc6q-xyaaa-aaaac-qg2ma-cai` · `shena
 
 ---
 
-## 0. GATING DECISION — resolve before shipping `ponzi_math_sol`
+## 0. Self-serve Series A — DECIDED: ships gated OFF
 
-This branch's `ponzi_math_sol` includes the **new self-serve Series A backer** feature (`prepareBackerDeposit`, commit `fcd3e7d`) — *not previously deployed*. Deploying this branch **activates self-serve Series A**, which has an open tokenomics issue:
+This branch's `ponzi_math_sol` includes the **new self-serve Series A backer** feature (`prepareBackerDeposit`, commit `fcd3e7d`). **Decision (2026-06-03): ship it gated OFF.** A persistent flag `selfServeBackingEnabled` defaults to `false`, so `prepareBackerDeposit` rejects and the SOL backer panel renders a placeholder. The CRITICAL-1 / observer / HIGH-1 fixes ship now; self-serve stays dark until the economics below are settled, then an admin opens it with one call (§2). The deferred tokenomics issue:
 
 `distributeExitToll` pays the backer half of every exit toll **flat, not by stake**: oldest Series A backer gets 35% (60% if sole), 25% splits among other Series A, 40% splits **equally across ALL backers**. Since self-serve Series A is open to any SIWS principal for ≥0.05 SOL, an attacker can spin up N cheap wallets, each capturing a perpetual *equal* share of the 40%/25% buckets — **Sybil dilution** of legitimate (and original) backers. Existing older backers keep the 35% "oldest" slot, but per-capita shares dilute.
 
-**Decide one before enabling self-serve Series A:**
+**Before opening self-serve (`adminSetSelfServeBacking '(true)'`), pick one:**
 1. Cap self-serve Series A (per-principal already merges to one position; add a global/aggregate cap).
 2. Make the backer-half **stake-weighted** so a 0.05 SOL Sybil earns proportionally ~nothing.
-3. Keep Series A **admin-only** (ship the audit fixes without `prepareBackerDeposit`).
+3. Keep Series A **admin-only** (never open self-serve; remove the panel).
 4. Give self-serve users a **separate, non-senior** tier.
 
-**If you want the CRITICAL-1 fix out NOW without this decision:** the CRITICAL-1 lock guard and the observer dedup are *independent* of the self-serve feature. Cherry-pick those onto the currently-deployed state and ship them alone; defer `prepareBackerDeposit` + HIGH-1 until the decision lands.
+All audit fixes (CRITICAL-1, observer dedup, HIGH-1 guards) ship together in this deploy; only the self-serve *entry point* is gated off, so no cherry-pick is needed.
 
 ---
 
@@ -46,9 +46,13 @@ dfx canister --network ic call ponzi_math_sol getMyPendingIntents      # + any b
 
 ---
 
-## 2. `ponzi_math_sol` upgrade — pure code change (NO new stable state)
+## 2. `ponzi_math_sol` upgrade — additive stable var, default-OFF self-serve
 
-My edits add **no persistent vars** (guards/helper/test-shims only; `globalCriticalLock` etc. are `transient`). So this is a plain upgrade; stable layout is unchanged. Snapshot-protected (per `ponzi_math_deploy_lineage`):
+My edits add **one persistent var** (`selfServeBackingEnabled : Bool = false`) plus guards/helper/test-shims (`globalCriticalLock` etc. are `transient`). The new var is additive (default-on-upgrade), so the upgrade is compatible. **Self-serve Series A ships OFF** — `prepareBackerDeposit` rejects and the panel shows a placeholder until you run (after settling §0's economics):
+```bash
+dfx canister --network ic call ponzi_math_sol adminSetSelfServeBacking '(true)'
+```
+Snapshot-protected upgrade (per `ponzi_math_deploy_lineage`):
 
 ```bash
 dfx canister --network ic stop ponzi_math_sol

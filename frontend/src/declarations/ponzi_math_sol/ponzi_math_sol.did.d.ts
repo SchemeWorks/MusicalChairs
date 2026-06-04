@@ -545,6 +545,7 @@ export interface PonziMathSol {
   'icrc28_trusted_origins' : ActorMethod<[], TrustedOriginsResponse>,
   'isBootstrapped' : ActorMethod<[], boolean>,
   'isCriticalSectionBusy' : ActorMethod<[], boolean>,
+  'isSelfServeBackingEnabled' : ActorMethod<[], boolean>,
   'payManagementSol' : ActorMethod<[], { 'Ok' : string } | { 'Err' : string }>,
   /**
    * / User-triggered detection for the CALLER's own deposit address only.

@@ -365,6 +365,13 @@ persistent actor class PonziMathSol(initArgs : {
     // backer paths share the same minimum.
     transient let MIN_BACKER_LAMPORTS : Nat64 = 50_000_000;
 
+    // Self-serve Series A gate. Default OFF: prepareBackerDeposit rejects until an
+    // admin flips it via adminSetSelfServeBacking. Holds self-serve Series A dark
+    // after deploy until the toll-distribution economics are settled (distributeExitToll
+    // pays the backer half FLAT per-head, not by stake, so self-serve + free SIWS
+    // identities = Sybil dilution). Persistent var → the choice survives upgrades.
+    var selfServeBackingEnabled : Bool = false;
+
     // Cycles budget attached to every sol-rpc canister call.
     // The sol-rpc canister (tghme-zyaaa-aaaar-qarca-cai) charges 5-20G per
     // call depending on method and response size. 20G is a defensive buffer
@@ -2751,6 +2758,9 @@ persistent actor class PonziMathSol(initArgs : {
         expectedAmountLamports : Nat64;
     }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
         requireAuthenticated(caller);
+        if (not selfServeBackingEnabled) {
+            return #Err("Series A backing isn't open yet — check back soon.");
+        };
         if (args.expectedAmountLamports < MIN_BACKER_LAMPORTS) {
             return #Err("Minimum Series A backing is 0.05 SOL (50,000,000 lamports)");
         };
@@ -2821,6 +2831,19 @@ persistent actor class PonziMathSol(initArgs : {
             };
         };
         List.toArray(out);
+    };
+
+    // Whether self-serve Series A backing is open (prepareBackerDeposit). The
+    // frontend reads this to show/hide the SOL backer panel; the backend gate above
+    // is the authoritative check.
+    public query func isSelfServeBackingEnabled() : async Bool { selfServeBackingEnabled };
+
+    // Admin: open/close self-serve Series A backing. Default closed; flip on only
+    // once the toll-distribution economics are Sybil-safe (see the flag's note).
+    public shared ({ caller }) func adminSetSelfServeBacking(enabled : Bool) : async { #Ok; #Err : Text } {
+        requireAdmin(caller);
+        selfServeBackingEnabled := enabled;
+        #Ok;
     };
 
     public query func deskListTiers() : async [DeskTier] { deskTiers };

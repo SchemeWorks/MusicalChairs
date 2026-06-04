@@ -591,6 +591,7 @@ export const idlFactory = ({ IDL }) => {
       ),
     'isBootstrapped' : IDL.Func([], [IDL.Bool], ['query']),
     'isCriticalSectionBusy' : IDL.Func([], [IDL.Bool], ['query']),
+    'isSelfServeBackingEnabled' : IDL.Func([], [IDL.Bool], ['query']),
     'payManagementSol' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Text, 'Err' : IDL.Text })],

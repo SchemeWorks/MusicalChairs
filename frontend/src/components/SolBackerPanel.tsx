@@ -6,6 +6,7 @@ import {
   useGetMyPendingBackerIntents,
   usePokeMyDeposit,
   useGetMintConfig,
+  useIsSelfServeBackingEnabled,
 } from '../hooks/useQueries';
 import { usePonziMathSolActor } from '../hooks/usePonziMathSolActor';
 import { useWallet } from '../hooks/useWallet';
@@ -38,6 +39,7 @@ export default function SolBackerPanel() {
   const pokeMut = usePokeMyDeposit();
   const { data: pendingBackerIntents } = useGetMyPendingBackerIntents();
   const { data: mintConfig } = useGetMintConfig();
+  const { data: selfServeEnabled, isLoading: flagLoading } = useIsSelfServeBackingEnabled();
 
   const [solInput, setSolInput] = useState('');
   const [copied, setCopied] = useState(false);
@@ -168,10 +170,22 @@ export default function SolBackerPanel() {
   const handleCheckNow = () => { pokeMut.mutateAsync().catch(() => {}); };
   const handleStartOver = () => { setFlow({ kind: 'input' }); setSolInput(''); prepareMut.reset(); pokeMut.reset(); };
 
-  if (!actor) {
+  if (!actor || flagLoading) {
     return (
       <div className="mc-card p-6 text-center">
         <p className="text-sm mc-text-dim">Connecting your Solana session…</p>
+      </div>
+    );
+  }
+
+  // Self-serve Series A is admin-gated (default off) until the toll-distribution
+  // economics are Sybil-safe. Show a placeholder instead of a form that would reject.
+  if (selfServeEnabled !== true) {
+    return (
+      <div className="mc-card p-6 text-center max-w-md mx-auto space-y-2">
+        <Gem className="h-8 w-8 mc-text-cyan mx-auto opacity-60" />
+        <div className="font-display text-lg mc-text-primary">Series A isn't open to the public yet.</div>
+        <p className="text-sm mc-text-dim">Founder's allocation only for now — self-serve Series A backing opens soon.</p>
       </div>
     );
   }
