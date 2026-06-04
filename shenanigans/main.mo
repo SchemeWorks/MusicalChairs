@@ -82,10 +82,11 @@ persistent actor Self {
     /// Detailed cast outcome. `ppDeltaCaster` is the net PP unit change for
     /// the caster *excluding* the spell cost burn — negative means the caster
     /// also paid the backfire penalty; positive means they net-gained from
-    /// theft. `affectedTarget` is the specific principal hit (Money Trickster,
-    /// Purse Cutter, etc.) or null for self-buffs / fails. `affectedCount`
-    /// counts how many distinct victims were touched (AoE Skim and Whale
-    /// Rebalance set this > 1).
+    /// theft, already net of the 15% winnings burn (WINNINGS_BURN_BPS) skimmed
+    /// off a successful caster's gains. `affectedTarget` is the specific
+    /// principal hit (Money Trickster, Purse Cutter, etc.) or null for
+    /// self-buffs / fails. `affectedCount` counts how many distinct victims
+    /// were touched (AoE Skim and Whale Rebalance set this > 1).
     public type ShenaniganOutcomeDetail = {
         outcome : ShenaniganOutcome;
         ppDeltaCaster : Int;
@@ -104,7 +105,8 @@ persistent actor Self {
         cost : Float;
         // Optional outcome detail captured at cast time. `ppDelta` is the net
         // PP-unit change attributable to the spell effect (excludes the cost
-        // burn — positive for caster gain, negative for caster loss).
+        // burn, but net of the 15% winnings burn on a successful caster's
+        // gains — positive for caster gain, negative for caster loss).
         // `affectedCount` is the number of distinct principals materially hit
         // (AoE/Whale Rebalance set > 1). `renameDetail` is populated only on
         // successful pool-pick Cease & Desist casts (wired up by a later
@@ -1051,6 +1053,12 @@ persistent actor Self {
     ];
     transient let REFERRAL_CODE_LEN : Nat = 6;
     transient let CASCADE_DEPTH_CAP : Nat = 10;
+
+    // Winnings burn: fraction (in bps) of a successful caster's net winnings
+    // that is burned — "carried interest." Applied at the single post-effect
+    // chokepoint in castShenanigan. Tunable here; promoting to MintConfig would
+    // require a migration, so it stays a compile-time constant for now.
+    transient let WINNINGS_BURN_BPS : Nat = 1_500; // 15%
 
     func natToBase62(input : Nat, length : Nat) : Text {
         var modulus : Nat = 1;
@@ -3079,6 +3087,32 @@ persistent actor Self {
             };
         };
 
+        // Winnings burn (carried interest): on a successful cast, skim 15% of
+        // the caster's net winnings and burn it (burnFrom → ledger minting
+        // account, reducing PP supply). Only positive caster gains qualify —
+        // fails, backfires, and zero-delta buffs are untouched. The reported
+        // delta is netted (casterDelta) so the toast and live feed show what the
+        // caster actually kept. Deliberately NOT added to ppBurnedPerPlayer /
+        // the burn leaderboards — that tally is cast-cost + karma burns only.
+        // Third-party gains (Stimulus payouts to other holders, Slush Fund's
+        // target gift) never touch ppDeltaCaster, so they're exempt for free.
+        // On burn failure (caster drained by a concurrent inbound cast during
+        // the await, or ledger briefly unavailable) we log and keep the gross
+        // delta so the reported number always matches reality (burnFrom catches
+        // internally and never throws).
+        var casterDelta : Int = detail.ppDeltaCaster;
+        if (outcome == #success and detail.ppDeltaCaster > 0) {
+            let cutUnits : Nat = Int.abs(detail.ppDeltaCaster) * WINNINGS_BURN_BPS / 10_000;
+            if (cutUnits > 0) {
+                switch (await burnFrom(caller, cutUnits, "winnings-burn-" # Nat.toText(castId))) {
+                    case (#Ok(_)) { casterDelta := detail.ppDeltaCaster - cutUnits };
+                    case (#Err(msg)) {
+                        Debug.print("winnings-burn failed for cast " # Nat.toText(castId) # ": " # msg);
+                    };
+                };
+            };
+        };
+
         // Record the actual amount paid (after clamp), not the nominal
         // config cost — keeps stats and history honest about what was burned.
         let actualCostFloat = Float.fromInt(actualBurnedUnits) / Float.fromInt(PpLedger.PP_UNIT_SCALE);
@@ -3090,7 +3124,7 @@ persistent actor Self {
             outcome;
             timestamp = Time.now();
             cost = actualCostFloat;
-            ppDelta = ?detail.ppDeltaCaster;
+            ppDelta = ?casterDelta;
             affectedCount = ?detail.affectedCount;
             renameDetail = detail.renameDetail;
             shieldDeflected = ?detail.shieldDeflected;
@@ -3105,7 +3139,7 @@ persistent actor Self {
                 shenaniganType;
                 target;
                 outcome;
-                ppDelta = ?detail.ppDeltaCaster;
+                ppDelta = ?casterDelta;
                 affectedCount = ?detail.affectedCount;
                 renameDetail = detail.renameDetail;
                 shieldDeflected = ?detail.shieldDeflected;
@@ -3142,7 +3176,7 @@ persistent actor Self {
 
         {
             outcome;
-            ppDeltaCaster = detail.ppDeltaCaster;
+            ppDeltaCaster = casterDelta;
             affectedTarget = detail.affectedTarget;
             affectedCount = detail.affectedCount;
             shieldDeflected = detail.shieldDeflected;
