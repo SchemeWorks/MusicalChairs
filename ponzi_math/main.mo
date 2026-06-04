@@ -1640,17 +1640,29 @@ persistent actor class PonziMath(initArgs : {
         Iter.toArray(backerKeyMap.entries(backerLifetimeRepaid));
     };
 
+    // Total gross promised entitlement across ALL positions (incl. closed) —
+    // a lifetime "promised" stat, unchanged by the cap.
     public query func getTotalBackerDebt() : async Float {
         var total = 0.0;
         for (b in backerKeyMap.vals(backerPositions)) { total += b.entitlement };
         total;
     };
 
+    // True OUTSTANDING liability under the cap: Σ remaining (entitlement −
+    // lifetime) over open positions; closed positions contribute 0.
+    public query func getOutstandingBackerDebt() : async Float {
+        var total = 0.0;
+        for (b in backerKeyMap.vals(backerPositions)) { total += remainingEntitlement(b) };
+        total;
+    };
+
+    // Oldest OPEN Series-A backer — the actual recipient of the senior toll
+    // slice. Filters out closed positions so the display tracks distribution.
     public query func getOldestSeriesABacker() : async ?BackerPosition {
         var oldest : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in backerKeyMap.vals(backerPositions)) {
-            if (b.backerType == #seriesA) {
+            if (b.backerType == #seriesA and isBackerOpen(b)) {
                 switch (b.firstDepositDate) {
                     case (null) {};
                     case (?date) {
