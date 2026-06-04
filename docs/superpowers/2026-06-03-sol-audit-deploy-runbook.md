@@ -25,6 +25,8 @@ This branch's `ponzi_math_sol` includes the **new self-serve Series A backer** f
 
 All audit fixes (CRITICAL-1, observer dedup, HIGH-1 guards) ship together in this deploy; only the self-serve *entry point* is gated off, so no cherry-pick is needed.
 
+> **Update (2026-06-03, backer cap-and-close):** `distributeExitToll` now enforces the promised "principal + 24% then close" ceiling — a position stops receiving toll once its cumulative lifetime repayment reaches its `entitlement`, and closed positions are dropped from the per-head counts (see §2a). This **bounds each backer's TOTAL payout** but does **not** remove the per-head Sybil *advantage* (a splitter still gets paid faster and jumps the senior queue). So the §0 decision still stands: cap-and-close caps the prize, **stake-weighting (option 2)** is still the lever that neutralises per-head Sybil. Treat them as complementary, not substitutes.
+
 ---
 
 ## 1. Pre-flight (all canisters)
@@ -67,6 +69,27 @@ dfx canister --network ic call ponzi_math_sol getPlatformStats   # potBalance / 
 # rollback if mismatch:  dfx canister --network ic snapshot load ponzi_math_sol <snapshot-id>
 ```
 Note: the two test shims are gated `not bootstrapped`; mainnet is bootstrapped, so they're **inert** (immediate `#Err`). Safe to ship, or strip before build if you prefer a clean prod surface.
+
+---
+
+## 2a. `ponzi_math_sol` — backer cap-and-close (second additive var, NO migration)
+
+This change adds **one more persistent var** — `backerLifetimeRepaid : OrderedMap<BackerKey, Float>` (the cumulative lifetime repayment high-water mark). It is a new top-level stable field, so the upgrade stays **migration-free / compatible** — verified with `moc --stable-compatible` (HEAD→working-tree diff is exactly this one `stable var`, plus cosmetic type-hash renames). **Do NOT attach a migration module.** Same snapshot-protected `--mode upgrade --wasm-memory-persistence keep` procedure as §2.
+
+What changed in behaviour:
+- `distributeExitToll` now credits each position **capped at its remaining entitlement**; overshoot is routed to `roundSeedReserve` (the same tracked sink as the no-backers branch — solvency invariant `pot + seedReserve + Σrepayments` preserved). Closed positions (lifetime ≥ entitlement) are excluded from **both** crediting and the per-head counts, so closing one stops it diluting the rest.
+- Bonus fix folded in: the SOL build previously **dropped** the 35–60% senior slice when the backer set was all Series-B (no Series-A → orphaned slice credited to nobody and not seeded — a real solvency leak). It now routes to `roundSeedReserve`, matching `ponzi_math` (ICP).
+- New: `getBackerLifetimeRepaid : query → [(BackerKey, Float)]` (audit/reconcile), `adminSetBackerLifetimeRepaid(owner, backerType, amount)` (TEST_ADMIN — backfill lever; joins the pre-launch hatch to remove before blackhole).
+
+> ### ⚠️ LIVE-FUNDS GATE — backfill before trusting the cap on existing backers
+> `backerLifetimeRepaid` initialises **empty** on upgrade, so every pre-existing backer reads as **0 lifetime-repaid** → the cap thinks they've been paid nothing and will let them collect their **full entitlement again**. Before the cap is meaningful for current mainnet backers, **the owner must pick one (requires explicit sign-off):**
+> 1. **Backfill** — for each live position set `adminSetBackerLifetimeRepaid(owner, type, Σclaims + currentUnclaimed)`, reconstructed from `#backerRepaymentClaim` ledger events + `getAllBackerRepayments`. (Caveat: claims collapse Series A+B into one principal-keyed amount, so a backer holding *both* types needs a manual A/B split.) Verify with `getBackerLifetimeRepaid`.
+> 2. **One-time reset** — `adminClearAllBackerPositions` then re-register with fresh entitlements (only sane if all live positions are smoke-test sock-puppets).
+> 3. **Accept the reset semantics** — knowingly let existing backers' caps start from 0 now (they get up to a fresh principal+24% from this point).
+>
+> Pick #1 if any backer is a real counterparty; #2/#3 only for test positions. Do this **before** opening self-serve or relying on auto-close. `getBackerLifetimeRepaid` + `getBackerPositions` lets you confirm `remaining = entitlement − lifetime` per position.
+
+**ICP (`ponzi_math`) got the identical fix** on its own branch (the gap was shared — same uncapped `creditBackerRepayment`/`distributeExitToll`/`claimBackerRepayment`). It is a separate canister + separate deploy with the **same migration-free additive var and the same backfill gate**. NB: branch it off the **deployed** ICP commit `011612f` (current `feat/sol-self-serve-backer` tip for `ponzi_math/main.mo`), **not** `main` — `main` is ~166/34 lines behind and still lacks the deployed audit hardening (F-002/F-009/orphan-slice).
 
 ---
 
