@@ -29,6 +29,12 @@ Reminder: `castLimit` is **not enforced anywhere in the backend** — cooldown i
 
 ---
 
+## Global mechanic: winnings burn (carried interest) — 2026-06-04 🟢
+
+Every successful cast that nets the **caster** PP has 15% of those winnings burned (`WINNINGS_BURN_BPS = 1_500` in `main.mo`, applied at the single post-effect chokepoint in `castShenanigan`, right after the effect dispatch). Hits both stolen wins (MEV Attack, Contagion, Wealth Tax, Tender Offer, Bear Raid) and the caster's own minted win (Stimulus Check). The reported `ppDelta` is netted, so the toast and live feed already show the post-burn number — no UI/candid/migration change. Exempt by design: third-party gains (Stimulus payouts to other holders, Slush Fund's target gift) — they never touch `ppDeltaCaster` — and the cut is **not** counted toward the PP-burned leaderboard. Tune via the constant; promoting it to admin config would need a migration.
+
+---
+
 ## #10 — Whitelisted
 
 ### Current state

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
-import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral } from './hooks/useQueries';
+import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral, useGetExitLiquidityPublic } from './hooks/useQueries';
 import { computeLiveEarnings } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
@@ -28,7 +28,7 @@ import { formatICP } from './lib/formatICP';
 import { isCharles, CharlesIcon } from './lib/charles';
 import { captureReferrerFromUrl } from './lib/referral';
 
-export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans';
+export type TabType = 'profitCenter' | 'invest' | 'seedRound' | 'mlm' | 'shenanigans' | 'exitLiquidity';
 
 const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode; glowClass?: string }> = [
   { id: 'profitCenter', label: 'Profit Center', icon: <DollarSign className="h-4 w-4" /> },
@@ -36,6 +36,7 @@ const headerNavItems: Array<{ id: TabType; label: string; icon: React.ReactNode;
   { id: 'seedRound', label: 'Seed Round', icon: <Landmark className="h-4 w-4" /> },
   { id: 'mlm', label: 'MLM', icon: <Users className="h-4 w-4" /> },
   { id: 'shenanigans', label: 'Shenanigans', icon: <Dice5 className="h-4 w-4" />, glowClass: 'mc-icon-glow-green' },
+  { id: 'exitLiquidity', label: 'Exit Liquidity', icon: <CircleDollarSign className="h-4 w-4" /> },
 ];
 
 const howItWorks: { step: string; title: string; body: string; color: string; fine?: string }[] = [
@@ -302,6 +303,10 @@ export default function App() {
   );
   const { data: publicStats } = useGetPublicStats();
 
+  // Exit Liquidity tab is admin-only until the backend opens it to everyone.
+  const { data: exitLiquidityPublic } = useGetExitLiquidityPublic();
+  const showExitLiquidity = (!!principal && isCharles(principal)) || !!exitLiquidityPublic;
+
   // Sync docs / bank-page visibility with hash — allows direct linking to #docs, #docs-fees, #bank, or #side-pocket
   useEffect(() => {
     const onHashChange = () => {
@@ -379,6 +384,7 @@ export default function App() {
     seedRound: null,
     mlm: hasNewReferralActivity ? 'gold' : null,
     shenanigans: canCastShenanigan ? 'purple' : null,
+    exitLiquidity: null,
   };
 
   // isAuthenticated comes from useInternetIdentity (wraps useWallet.isConnected)
@@ -431,7 +437,7 @@ export default function App() {
                   including from Charles's Office (clicking a tab exits the office). */}
               {showDashboard && (
                 <nav className="mc-header-tabs">
-                  {headerNavItems.map(item => {
+                  {headerNavItems.filter(item => item.id !== 'exitLiquidity' || showExitLiquidity).map(item => {
                     const isActive = activeTab === item.id;
                     const badge = badges[item.id];
                     return (

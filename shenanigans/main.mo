@@ -82,10 +82,11 @@ persistent actor Self {
     /// Detailed cast outcome. `ppDeltaCaster` is the net PP unit change for
     /// the caster *excluding* the spell cost burn — negative means the caster
     /// also paid the backfire penalty; positive means they net-gained from
-    /// theft. `affectedTarget` is the specific principal hit (Money Trickster,
-    /// Purse Cutter, etc.) or null for self-buffs / fails. `affectedCount`
-    /// counts how many distinct victims were touched (AoE Skim and Whale
-    /// Rebalance set this > 1).
+    /// theft, already net of the 15% winnings burn (WINNINGS_BURN_BPS) skimmed
+    /// off a successful caster's gains. `affectedTarget` is the specific
+    /// principal hit (Money Trickster, Purse Cutter, etc.) or null for
+    /// self-buffs / fails. `affectedCount` counts how many distinct victims
+    /// were touched (AoE Skim and Whale Rebalance set this > 1).
     public type ShenaniganOutcomeDetail = {
         outcome : ShenaniganOutcome;
         ppDeltaCaster : Int;
@@ -104,7 +105,8 @@ persistent actor Self {
         cost : Float;
         // Optional outcome detail captured at cast time. `ppDelta` is the net
         // PP-unit change attributable to the spell effect (excludes the cost
-        // burn — positive for caster gain, negative for caster loss).
+        // burn, but net of the 15% winnings burn on a successful caster's
+        // gains — positive for caster gain, negative for caster loss).
         // `affectedCount` is the number of distinct principals materially hit
         // (AoE/Whale Rebalance set > 1). `renameDetail` is populated only on
         // successful pool-pick Cease & Desist casts (wired up by a later
@@ -421,7 +423,11 @@ persistent actor Self {
     // lazily pruned in setCooldownExpiry after expiry — no background sweep.
     var spellCooldowns = principalMap.empty<[(Nat, Int)]>();
 
-    // Spell cast history — reset at migration; bounded to last 500 entries
+    // Spell cast history — append-only: one ShenaniganRecord per cast, never
+    // pruned. getRecentShenanigans caps its READ at 20 (entriesRev) and
+    // adminBackfillSpellTallies replays the whole history, so nothing trims the
+    // underlying map; it grows unbounded over the canister's life. Revisit with
+    // a ring-buffer bound if cast volume ever makes the stable footprint matter.
     var shenanigans = natMap.empty<ShenaniganRecord>();
     var shenaniganStats = principalMap.empty<ShenaniganStats>();
     var nextShenaniganId : Nat = 0;
@@ -601,6 +607,16 @@ persistent actor Self {
     transient var observerRunning : Bool = false;
     var observerTimerId : ?Timer.TimerId = null;
 
+    // Per-caster in-flight lock for castShenanigan. Without it, N concurrent
+    // ingress casts by one caller all pass the success-cooldown check before
+    // any of them sets it (the cooldown is read early and written only on a
+    // successful outcome), so a cooldown-gated profit spell like Bear Raid
+    // could be fired repeatedly within a single block. Transient so a mid-cast
+    // upgrade can't strand a lock; acquired after the pre-cast gates, released
+    // on the single normal return and in a catch that re-raises (a Debug.trap
+    // rolls the set back automatically).
+    transient var castingInFlight = principalMap.empty<Bool>();
+
     // Per-game mint retry counters. A failed mintWithEffects (#Err) increments;
     // a successful mint clears the entry. After MAX_MINT_RETRIES consecutive
     // failures, the observer gives up and advances past the game, recording it
@@ -660,6 +676,37 @@ persistent actor Self {
     // Prestige stat — surfaced in Hall of Fame.
     var karmaReceivedPerPlayer = principalMap.empty<Nat>();
 
+    // ===== Exit Liquidity — PP-sink judgment game (clout-only) =====
+    // All score math is integer bps (10000 = 1.0x).
+    type ExitLiquidityConfig = {
+        buyInUnits : Nat;        // PP units burned to start a run
+        stageCount : Nat;        // max rotations per run
+        baseMultiplierBps : Nat; // riding value entering stage 1
+        stageStepBps : Nat;      // riding *= stageStepBps/10000 per survived advance
+        baseHazardPct : Nat;     // rotation chance on the 1->2 advance
+        hazardStepPct : Nat;     // hazard added per later stage
+        bankFractionPct : Nat;   // portion of riding locked by a "bank" decision
+        windowSize : Nat;        // consecutive runs for ranking + qualifying gate
+    };
+
+    // One in-flight run per player. Deleted on completion.
+    type ExitRun = {
+        startedAt : Int;
+        stage : Nat;             // current stage, 1-based
+        bankedBps : Nat;         // locked, safe from rotation
+        ridingBps : Nat;         // at risk; forfeited on rotation
+    };
+
+    type ExitDecision = { #bank; #ride; #exit };
+
+    type ExitRunResult = {
+        runScoreBps : Nat;       // = bankedBps at completion
+        rotated : Bool;          // true if ended by rotation
+        finalStage : Nat;
+        qualified : Bool;        // run count this round >= windowSize
+        bestWindowAvgBps : Nat;  // 0 until qualified
+    };
+
     // Active spell-effect state — see type docs above. All empty on first
     // deploy; orthogonal persistence carries values across upgrades.
     var customDisplayNames = principalMap.empty<DisplayNameOverride>();
@@ -681,6 +728,37 @@ persistent actor Self {
     var mintMultiplierSources = principalMap.empty<[MintMultiplierSource]>();
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
+
+    // Exit Liquidity config — admin-tunable; starting defaults below.
+    var exitLiquidityConfig : ExitLiquidityConfig = {
+        buyInUnits = 1_000_000_000;  // 10 PP
+        stageCount = 5;
+        baseMultiplierBps = 10000;   // 1.0x
+        stageStepBps = 16000;        // x1.6 per advance
+        baseHazardPct = 15;
+        hazardStepPct = 12;
+        bankFractionPct = 50;
+        windowSize = 25;
+    };
+    // In-flight runs, one per player.
+    var activeExitRuns = principalMap.empty<ExitRun>();
+    // Per round -> player -> rolling buffer of the last `windowSize` run scores (bps).
+    var exitRecentScores = natMap.empty<OrderedMap.Map<Principal, [Nat]>>();
+    // Per round -> player -> best consecutive-window average (bps). Set only once qualified.
+    var exitBestWindowAvg = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Per round -> player -> total completed runs this round (qualifying gate).
+    var exitRunCount = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Vanity, lifetime: biggest single run score ever (bps). Off-rank.
+    var exitBiggestRunBps = principalMap.empty<Nat>();
+
+    // Access flag: false = admin-only (limited access), true = open to all.
+    // Flip via setExitLiquidityPublic once the feature is verified on mainnet.
+    var exitLiquidityPublic : Bool = false;
+
+    // Exit Liquidity is admin-only until exitLiquidityPublic is flipped on.
+    func exitLiquidityAllowed(caller : Principal) : Bool {
+        exitLiquidityPublic or isAdminPrincipal(caller)
+    };
 
     /// Strategic Reserve cosmetic. Principal → nanosecond-precision deadline.
     /// While `now < deadline`, the principal renders with a purple leaderboard
@@ -998,6 +1076,21 @@ persistent actor Self {
     ];
     transient let REFERRAL_CODE_LEN : Nat = 6;
     transient let CASCADE_DEPTH_CAP : Nat = 10;
+    // Safety cap on victims/recipients processed by a single AoE cast
+    // (Contagion / Bear Raid / Stimulus Check). Each processed holder costs
+    // 1–2 inter-canister calls; without a cap, an ever-growing active-holder
+    // set would eventually push one cast past the per-message instruction
+    // limit and trap, making the spell permanently uncastable. The 10-day
+    // activity filter already trims the pool; this is the hard backstop. When
+    // it bites, the loop logs how many holders were skipped (no silent
+    // truncation). Raise as the economy scales / batching lands.
+    transient let AOE_MAX_VICTIMS : Nat = 200;
+
+    // Winnings burn: fraction (in bps) of a successful caster's net winnings
+    // that is burned — "carried interest." Applied at the single post-effect
+    // chokepoint in castShenanigan. Tunable here; promoting to MintConfig would
+    // require a migration, so it stays a compile-time constant for now.
+    transient let WINNINGS_BURN_BPS : Nat = 1_500; // 15%
 
     func natToBase62(input : Nat, length : Nat) : Text {
         var modulus : Nat = 1;
@@ -1283,6 +1376,14 @@ persistent actor Self {
         if (not bootstrapped) return;
         observerRunning := true;
         try {
+            // Keep the round-id cache fresh so observer mints get bucketed into
+            // the TRUE current round. mintInternal reads cachedCurrentRoundId
+            // directly and never refreshes it; without this the only thing that
+            // advances the cache is a user spell-cast (castShenanigan), so during
+            // quiet stretches every deposit mint lands in a stale round bucket and
+            // getRoundMintLeaderboard reports the wrong round. (Burn bucketing is
+            // already correct — castShenanigan refreshes before bucketing.)
+            let _ = await readCurrentRoundIdCached();
             await processNewGames(#icp);
             await processNewGames(#sol);
             await processBackerDeltas(#icp);
@@ -1349,7 +1450,6 @@ persistent actor Self {
                     switch (principalMap.get(signupGiftClaimed, game.player)) {
                         case (?_) {}; // already claimed
                         case (null) {
-                            signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
                             let giftCascade = giftBase * mintConfig.cascadeInitialBps / 10_000;
                             let giftNet : Nat = if (giftBase > giftCascade) { giftBase - giftCascade } else { 0 };
@@ -1364,6 +1464,12 @@ persistent actor Self {
                             };
                             switch (await mintWithEffects(game.player, giftNet, giftEventId)) {
                                 case (#Ok(_)) {
+                                    // Mark claimed only AFTER the gift mint commits, so a
+                                    // transient ledger error leaves the gift retryable on the
+                                    // next tick instead of permanently denying it (the deposit
+                                    // mint below is already at-least-once). Set BEFORE the
+                                    // cascade so a cascade failure can't re-trigger the gift.
+                                    signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
@@ -2951,6 +3057,21 @@ persistent actor Self {
             };
         };
 
+        // Per-caster in-flight guard — reject a second concurrent cast from the
+        // same caller. Checked-and-set in one synchronous slice (no await
+        // between the get and the put), so of any casts racing through here
+        // exactly one acquires the lock and the rest are rejected. This closes
+        // the success-cooldown bypass: the cooldown is read before the first
+        // await and written only on success, so without this, N concurrent
+        // ingress casts would all pass the early cooldown check. Released on the
+        // single normal return below and in the effects catch; a Debug.trap
+        // (e.g. the burn-failed trap) rolls the set back automatically.
+        switch (principalMap.get(castingInFlight, caller)) {
+            case (?_) { throw Error.reject("A cast is already in progress — wait for it to finish.") };
+            case null {};
+        };
+        castingInFlight := principalMap.put(castingInFlight, caller, true);
+
         let isAggressive = switch (shenaniganType) {
             case (#moneyTrickster) { true };
             case (#aoeSkim) { true };
@@ -2969,18 +3090,24 @@ persistent actor Self {
         let modPct : Int = if (isAggressive) { rubberBandMod(casterBalPre, targetBalForRoll) } else { 0 };
 
         // Most Wanted bonus: if the target was a recent successful Bear Raider,
-        // every spell cast against them gets +20pp success modifier (pile-on).
+        // every AGGRESSIVE spell cast against them gets +20pp success modifier
+        // (pile-on). Gated to aggressive spells so the two beneficial targeted
+        // spells (Slush Fund gift, Insider Tip buff) don't get an unintended
+        // success boost when aimed at a Most-Wanted player — the mechanic is a
+        // penalty piled onto the raider, not a discount on gifting them.
         var mostWantedBonus : Int = 0;
-        switch (target) {
-            case (?t) {
-                switch (principalMap.get(mostWantedUntil, t)) {
-                    case (?deadline) {
-                        if (Time.now() < deadline) { mostWantedBonus := 20 };
+        if (isAggressive) {
+            switch (target) {
+                case (?t) {
+                    switch (principalMap.get(mostWantedUntil, t)) {
+                        case (?deadline) {
+                            if (Time.now() < deadline) { mostWantedBonus := 20 };
+                        };
+                        case null {};
                     };
-                    case null {};
                 };
+                case null {};
             };
-            case null {};
         };
 
         let outcome = determineOutcomeWithMod(config, modPct + mostWantedBonus);
@@ -3003,7 +3130,16 @@ persistent actor Self {
         if (actualBurnedUnits > 0) {
             let burnMemo = "cast-" # Nat.toText(castId);
             switch (await burnFrom(caller, actualBurnedUnits, burnMemo)) {
-                case (#Err(msg)) { Debug.trap("Burn failed: " # msg) };
+                // Release the in-flight lock before surfacing the failure, and
+                // use throw (not Debug.trap): the lock was committed at the burn
+                // await, so a trap here rolls back only this slice and would
+                // strand the lock; a throw completes the call with the release
+                // applied. (Previously this was Debug.trap, safe only because no
+                // lock was held.)
+                case (#Err(msg)) {
+                    castingInFlight := principalMap.delete(castingInFlight, caller);
+                    throw Error.reject("Burn failed: " # msg);
+                };
                 case (#Ok(_)) {};
             };
         };
@@ -3031,15 +3167,51 @@ persistent actor Self {
         let casterBal : Nat = casterBalPre - actualBurnedUnits;
         let targetBal : Nat = targetBalForRoll;
 
-        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = switch (outcome) {
-            case (#success) {
-                await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
-            };
-            case (#backfire) {
-                await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
-            };
-            case (#fail) {
-                { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+        let detail : { ppDeltaCaster : Int; affectedTarget : ?Principal; affectedCount : Nat; shieldDeflected : Bool; renameDetail : ?{ oldName : Text; newName : Text } } = try {
+            switch (outcome) {
+                case (#success) {
+                    await applySuccessEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
+                };
+                case (#backfire) {
+                    await applyBackfireEffect(shenaniganType, config, caller, target, casterBal, targetBal, castId);
+                };
+                case (#fail) {
+                    { ppDeltaCaster = 0; affectedTarget = null; affectedCount = 0; shieldDeflected = false; renameDetail = null };
+                };
+            }
+        } catch (e) {
+            // An uncaught, trap-free error (e.g. a rejected getChipBalance inside
+            // an AoE effect) would otherwise strand the in-flight lock and lock
+            // the caller out of all casting until the next upgrade. Release the
+            // lock and re-raise so the caller still sees the failure.
+            castingInFlight := principalMap.delete(castingInFlight, caller);
+            throw e;
+        };
+
+        // Winnings burn (carried interest): on a successful cast, skim 15% of
+        // the caster's net winnings and burn it (burnFrom → ledger minting
+        // account, reducing PP supply). Only positive caster gains qualify —
+        // fails, backfires, and zero-delta buffs are untouched. The reported
+        // delta is netted (casterDelta) so the toast and live feed show what the
+        // caster actually kept. Deliberately NOT added to ppBurnedPerPlayer /
+        // the burn leaderboards — that tally is cast-cost + karma burns only.
+        // Third-party gains (Stimulus payouts to other holders, Slush Fund's
+        // target gift) never touch ppDeltaCaster, so they're exempt for free.
+        // On burn failure (caster drained by a concurrent inbound cast during
+        // the await, or ledger briefly unavailable) we log and keep the gross
+        // delta so the reported number always matches reality — no trap, and
+        // burnFrom catches internally (never throws), so the in-flight lock
+        // released below is never stranded.
+        var casterDelta : Int = detail.ppDeltaCaster;
+        if (outcome == #success and detail.ppDeltaCaster > 0) {
+            let cutUnits : Nat = Int.abs(detail.ppDeltaCaster) * WINNINGS_BURN_BPS / 10_000;
+            if (cutUnits > 0) {
+                switch (await burnFrom(caller, cutUnits, "winnings-burn-" # Nat.toText(castId))) {
+                    case (#Ok(_)) { casterDelta := detail.ppDeltaCaster - cutUnits };
+                    case (#Err(msg)) {
+                        Debug.print("winnings-burn failed for cast " # Nat.toText(castId) # ": " # msg);
+                    };
+                };
             };
         };
 
@@ -3054,7 +3226,7 @@ persistent actor Self {
             outcome;
             timestamp = Time.now();
             cost = actualCostFloat;
-            ppDelta = ?detail.ppDeltaCaster;
+            ppDelta = ?casterDelta;
             affectedCount = ?detail.affectedCount;
             renameDetail = detail.renameDetail;
             shieldDeflected = ?detail.shieldDeflected;
@@ -3069,7 +3241,7 @@ persistent actor Self {
                 shenaniganType;
                 target;
                 outcome;
-                ppDelta = ?detail.ppDeltaCaster;
+                ppDelta = ?casterDelta;
                 affectedCount = ?detail.affectedCount;
                 renameDetail = detail.renameDetail;
                 shieldDeflected = ?detail.shieldDeflected;
@@ -3104,13 +3276,168 @@ persistent actor Self {
             spellsCastPerPlayer := principalMap.put(spellsCastPerPlayer, caller, prior + 1);
         };
 
+        // Release the in-flight lock before returning the outcome (success path).
+        castingInFlight := principalMap.delete(castingInFlight, caller);
+
         {
             outcome;
-            ppDeltaCaster = detail.ppDeltaCaster;
+            ppDeltaCaster = casterDelta;
             affectedTarget = detail.affectedTarget;
             affectedCount = detail.affectedCount;
             shieldDeflected = detail.shieldDeflected;
         };
+    };
+
+    // Records a completed run's score into the per-round rolling window,
+    // updates the qualifying count, best consecutive-window average, and the
+    // lifetime vanity max. Returns (qualified, bestWindowAvgBps).
+    func finalizeExitRun(player : Principal, roundId : Nat, runScoreBps : Nat, cfg : ExitLiquidityConfig) : (Bool, Nat) {
+        // Run count (per round).
+        let countMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitRunCount, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let newCount = (switch (principalMap.get(countMap, player)) { case (?n) n; case null 0 }) + 1;
+        exitRunCount := natMap.put(exitRunCount, roundId, principalMap.put(countMap, player, newCount));
+
+        // Rolling buffer of the last windowSize scores (per round).
+        let scoresMap : OrderedMap.Map<Principal, [Nat]> = switch (natMap.get(exitRecentScores, roundId)) {
+            case (?m) m; case null principalMap.empty<[Nat]>();
+        };
+        let prior : [Nat] = switch (principalMap.get(scoresMap, player)) { case (?a) a; case null [] };
+        // Append, then keep only the trailing windowSize entries.
+        let appended = Array.append<Nat>(prior, [runScoreBps]);
+        let buf : [Nat] = if (appended.size() <= cfg.windowSize) { appended }
+            else { Array.subArray<Nat>(appended, appended.size() - cfg.windowSize, cfg.windowSize) };
+        exitRecentScores := natMap.put(exitRecentScores, roundId, principalMap.put(scoresMap, player, buf));
+
+        // Vanity max (lifetime).
+        let priorMax = switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+        if (runScoreBps > priorMax) {
+            exitBiggestRunBps := principalMap.put(exitBiggestRunBps, player, runScoreBps);
+        };
+
+        // Best consecutive-window average: only once the buffer is full (qualified).
+        if (newCount >= cfg.windowSize and buf.size() == cfg.windowSize) {
+            var sum : Nat = 0;
+            for (s in buf.vals()) { sum += s };
+            let windowAvg = sum / cfg.windowSize;
+            let bwMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitBestWindowAvg, roundId)) {
+                case (?m) m; case null principalMap.empty<Nat>();
+            };
+            let priorBest = switch (principalMap.get(bwMap, player)) { case (?n) n; case null 0 };
+            let best = if (windowAvg > priorBest) { windowAvg } else { priorBest };
+            exitBestWindowAvg := natMap.put(exitBestWindowAvg, roundId, principalMap.put(bwMap, player, best));
+            (true, best);
+        } else {
+            (false, 0);
+        };
+    };
+
+    // Starts a run: rejects if one is already in flight, burns the buy-in,
+    // tallies it toward PP-burned boards, and opens the run at stage 1.
+    public shared ({ caller }) func startExitRun() : async ExitRun {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
+
+        switch (principalMap.get(activeExitRuns, caller)) {
+            case (?_) { throw Error.reject("You already have a run in progress. Finish it first.") };
+            case null {};
+        };
+
+        let cfg = exitLiquidityConfig;
+
+        // Burn the buy-in (traps on failure, mirroring the cast path).
+        switch (await burnFrom(caller, cfg.buyInUnits, "exit-liquidity-buyin")) {
+            case (#Err(msg)) { Debug.trap("Buy-in burn failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        // Tally toward existing PP-burned leaderboards (lifetime + per-round).
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) { case null 0; case (?n) n };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + cfg.buyInUnits);
+        let roundId = await readCurrentRoundIdCached();
+        let rb : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppBurnedPerPlayerPerRound, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let rbPrior = switch (principalMap.get(rb, caller)) { case (?n) n; case null 0 };
+        ppBurnedPerPlayerPerRound := natMap.put(ppBurnedPerPlayerPerRound, roundId, principalMap.put(rb, caller, rbPrior + cfg.buyInUnits));
+
+        let run : ExitRun = {
+            startedAt = Time.now();
+            stage = 1;
+            bankedBps = 0;
+            ridingBps = cfg.baseMultiplierBps;
+        };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, run);
+        run;
+    };
+
+    // Advances the caller's run. #exit banks everything and ends (safe).
+    // #bank locks bankFractionPct of riding, then rolls the rotation to advance.
+    // #ride keeps the whole stack riding, then rolls the rotation to advance.
+    // A rotation forfeits ridingBps; the run ends with score = bankedBps.
+    public shared ({ caller }) func exitRunDecision(decision : ExitDecision) : async ExitRunResult {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
+
+        let cfg = exitLiquidityConfig;
+        let roundId = await readCurrentRoundIdCached();
+        let run = switch (principalMap.get(activeExitRuns, caller)) {
+            case (?r) r;
+            case null { throw Error.reject("No run in progress. Start one first.") };
+        };
+
+        // #exit: bank all riding and finish (no rotation roll — exiting is safe).
+        if (decision == #exit) {
+            let score = run.bankedBps + run.ridingBps;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // #bank: lock a fraction of riding before the roll.
+        var banked = run.bankedBps;
+        var riding = run.ridingBps;
+        if (decision == #bank) {
+            let locked = (riding * cfg.bankFractionPct) / 100;
+            banked += locked;
+            riding -= locked;
+        };
+
+        // Rotation roll for the advance out of the current stage.
+        // Hazard rises with stage: base + (stage-1)*step, capped at 95%.
+        let rawHazard = cfg.baseHazardPct + (run.stage - 1) * cfg.hazardStepPct;
+        let hazardPct = if (rawHazard > 95) { 95 } else { rawHazard };
+        let roll = Int.abs(Time.now()) % 100;  // house RNG style; consistent with existing spells
+
+        if (roll < hazardPct) {
+            // Rotated: forfeit riding, finish with banked.
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, banked, cfg);
+            return { runScoreBps = banked; rotated = true; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // Survived: grow riding, advance a stage.
+        let grownRiding = (riding * cfg.stageStepBps) / 10000;
+        let nextStage = run.stage + 1;
+
+        if (nextStage > cfg.stageCount) {
+            // Cleared the final stage: auto-exit (bank everything).
+            let score = banked + grownRiding;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = cfg.stageCount; qualified; bestWindowAvgBps = best };
+        };
+
+        let advanced : ExitRun = { startedAt = run.startedAt; stage = nextStage; bankedBps = banked; ridingBps = grownRiding };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, advanced);
+        { runScoreBps = banked; rotated = false; finalStage = nextStage; qualified = false; bestWindowAvgBps = 0 };
     };
 
     // ================================================================
@@ -3170,9 +3497,17 @@ persistent actor Self {
                 let pool = enumerateHolders(caster);
                 var total : Nat = 0;
                 var victims : Nat = 0;
+                var processed : Nat = 0; // active holders we've done ledger work for
                 // Activity filter: skip principals inactive for more than 10 days.
-                for (victim in pool.vals()) {
+                // Hard cap on processed victims (AOE_MAX_VICTIMS) bounds the
+                // inter-canister calls so a large holder set can't trap the cast.
+                label aoeLoop for (victim in pool.vals()) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("aoeSkim hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not skimmed this cast");
+                        break aoeLoop;
+                    };
                     if (isRecentlyActive(victim) and not consumeShieldIfActive(victim)) {
+                        processed += 1;
                         let bal = await getChipBalance(victim);
                         let pct = rollPctForPrincipal(pctMin, pctMax, victim);
                         let amount = capAt(bal * pct / 100, ppToUnits(cap));
@@ -3492,9 +3827,17 @@ persistent actor Self {
 
                 // Iterate all known holders. Pay each (except caster) a random 40-50 PP.
                 // Activity filter: skip principals inactive for more than 10 days.
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister mints so a
+                // large holder set can't trap the cast.
                 var othersCount : Nat = 0;
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                var processed : Nat = 0; // active recipients we've minted to
+                label stimLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("stimulusCheck hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not paid this cast");
+                        break stimLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
+                        processed += 1;
                         let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         let res = await mintInternal(holder, perVictimUnits, memo);
@@ -3523,10 +3866,17 @@ persistent actor Self {
 
                 var drained : Nat = 0;
                 var victims : Nat = 0;
+                var processed : Nat = 0; // active non-shielded holders we drained
                 // Activity filter: skip principals inactive for more than 10 days.
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister transfers.
+                label raidLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processed >= AOE_MAX_VICTIMS) {
+                        Debug.print("bearRaid hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not drained this cast");
+                        break raidLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
                         if (not consumeShieldIfActive(holder)) {
+                            processed += 1;
                             let perVictim = rollPctForPrincipal(perVictimMin, perVictimMax, holder);
                             let perVictimUnits = ppToUnits(perVictim);
                             let res = await chipTransfer(holder, caster, perVictimUnits, memo);
@@ -3924,9 +4274,16 @@ persistent actor Self {
                     case (#Err(msg)) { Debug.print("bearRaid backfire caster-burn failed: " # msg) };
                 };
                 var othersBR : Nat = 0;
+                var processedBR : Nat = 0; // active recipients we've minted to
                 // Activity filter: skip principals inactive for more than 10 days.
-                for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                // Hard cap (AOE_MAX_VICTIMS) bounds the inter-canister mints.
+                label raidBackfireLoop for ((holder, _) in principalMap.entries(knownPpHolders)) {
+                    if (processedBR >= AOE_MAX_VICTIMS) {
+                        Debug.print("bearRaid backfire hit AOE_MAX_VICTIMS=" # Nat.toText(AOE_MAX_VICTIMS) # " — remaining active holders not paid this cast");
+                        break raidBackfireLoop;
+                    };
                     if (not Principal.equal(holder, caster) and isRecentlyActive(holder)) {
+                        processedBR += 1;
                         let perVictim = rollPctForPrincipal(perVictimMinBR, perVictimMaxBR, holder);
                         let perVictimUnits = ppToUnits(perVictim);
                         switch (await mintInternal(holder, perVictimUnits, memo)) {
@@ -5002,6 +5359,42 @@ persistent actor Self {
         };
     };
 
+    // Active run for a player (null if none). For the UI to resume state.
+    public query func getActiveExitRun(player : Principal) : async ?ExitRun {
+        principalMap.get(activeExitRuns, player);
+    };
+
+    // Per-round clout board: ranked by best consecutive-window average (bps).
+    // Only qualified players (>= windowSize runs that round) appear.
+    // roundId = null -> current round.
+    public query func getExitLiquidityLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitBestWindowAvg, target)) {
+            case null { [] };
+            case (?m) {
+                let entries = Iter.toArray(principalMap.entries(m));
+                let sorted = Array.sort<(Principal, Nat)>(entries, func(a, b) = Nat.compare(b.1, a.1));
+                let cap = if (limit < sorted.size()) { limit } else { sorted.size() };
+                Array.subArray(sorted, 0, cap);
+            };
+        };
+    };
+
+    // Lifetime vanity: biggest single run (bps) for a player. Off-rank.
+    public query func getExitBiggestRun(player : Principal) : async Nat {
+        switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+    };
+
+    // A player's completed-run count for a round (qualifying progress).
+    // roundId = null -> current round.
+    public query func getExitRunCount(player : Principal, roundId : ?Nat) : async Nat {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitRunCount, target)) {
+            case null { 0 };
+            case (?m) { switch (principalMap.get(m, player)) { case (?n) n; case null 0 } };
+        };
+    };
+
     /// Returns mint totals for the specified round, sorted descending.
     /// Pass null for the current round. Limit caps the result size.
     public query func getRoundMintLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
@@ -5103,6 +5496,27 @@ persistent actor Self {
     public shared ({ caller }) func setBackerPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
+    };
+
+    public shared ({ caller }) func setExitLiquidityConfig(cfg : ExitLiquidityConfig) : async () {
+        requireAdmin(caller);
+        if (cfg.bankFractionPct > 100) { Debug.trap("bankFractionPct must be <= 100") };
+        if (cfg.windowSize == 0) { Debug.trap("windowSize must be >= 1") };
+        if (cfg.stageCount == 0) { Debug.trap("stageCount must be >= 1") };
+        exitLiquidityConfig := cfg;
+    };
+
+    public query func getExitLiquidityConfig() : async ExitLiquidityConfig {
+        exitLiquidityConfig;
+    };
+
+    public shared ({ caller }) func setExitLiquidityPublic(isPublic : Bool) : async () {
+        requireAdmin(caller);
+        exitLiquidityPublic := isPublic;
+    };
+
+    public query func getExitLiquidityPublic() : async Bool {
+        exitLiquidityPublic;
     };
     public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
         requireAdmin(caller);

@@ -236,6 +236,16 @@ persistent actor class PonziMath(initArgs : {
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
     var backerPositions = backerKeyMap.empty<BackerPosition>();
     var backerRepayments = backerKeyMap.empty<Float>();
+    // Cumulative LIFETIME repayment credited per backer position. Unlike
+    // backerRepayments (the UNCLAIMED balance, zeroed on claim) this only ever
+    // grows — it is the high-water mark that enforces the "principal + 24% then
+    // close" cap. Migration-free: a new top-level stable field, so on upgrade it
+    // initialises empty. Existing backers therefore start at 0 lifetime-repaid,
+    // UNDER-counting what they were already paid pre-upgrade; before the cap can
+    // be trusted for pre-existing mainnet backers the owner must either backfill
+    // this map (adminSetBackerLifetimeRepaid) or accept a one-time reset
+    // (adminClearAllBackerPositions). See the deploy runbook.
+    var backerLifetimeRepaid = backerKeyMap.empty<Float>();
     var coverChargeBalance : Nat = 0;
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
@@ -434,12 +444,50 @@ persistent actor class PonziMath(initArgs : {
     // Backer repayment crediting + 35/25/40 exit-toll distribution
     // ========================================================================
 
-    func creditBackerRepayment(key : BackerKey, amount : Float) {
-        let current = switch (backerKeyMap.get(backerRepayments, key)) {
+    // Dust threshold for the entitlement cap: a position with less than this
+    // much headroom left is treated as fully repaid (CLOSED), so a float
+    // residue can't keep a repaid position alive and diluting the rest forever.
+    // 1e-8 ICP = 1 e8s, the smallest representable ICP unit.
+    transient let BACKER_CAP_EPSILON : Float = 1.0e-8;
+
+    func lifetimeRepaidOf(key : BackerKey) : Float {
+        switch (backerKeyMap.get(backerLifetimeRepaid, key)) {
             case (null) { 0.0 };
-            case (?existing) { existing };
+            case (?v) { v };
         };
-        backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
+    };
+
+    // Headroom left under a position's entitlement cap (never negative).
+    func remainingEntitlement(pos : BackerPosition) : Float {
+        let remaining = pos.entitlement - lifetimeRepaidOf((pos.owner, pos.backerType));
+        if (remaining > 0.0) { remaining } else { 0.0 };
+    };
+
+    // A position is OPEN while it still has more than dust headroom. Closed
+    // positions receive no further toll and are dropped from the per-head counts.
+    func isBackerOpen(pos : BackerPosition) : Bool {
+        remainingEntitlement(pos) > BACKER_CAP_EPSILON;
+    };
+
+    // Credit `amount` toward `pos`, CAPPED at its remaining entitlement.
+    // Advances both the unclaimed balance (backerRepayments) and the lifetime
+    // high-water mark (backerLifetimeRepaid) by the credited portion, and
+    // returns the uncredited OVERSHOOT so the caller can route it to a tracked
+    // sink (the seed reserve) rather than over-paying past the cap.
+    func creditBackerRepayment(pos : BackerPosition, amount : Float) : Float {
+        if (amount <= 0.0) { return 0.0 };
+        let key : BackerKey = (pos.owner, pos.backerType);
+        let remaining = remainingEntitlement(pos);
+        let credited = if (amount < remaining) { amount } else { remaining };
+        if (credited > 0.0) {
+            let current = switch (backerKeyMap.get(backerRepayments, key)) {
+                case (null) { 0.0 };
+                case (?existing) { existing };
+            };
+            backerRepayments := backerKeyMap.put(backerRepayments, key, current + credited);
+            backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, key, lifetimeRepaidOf(key) + credited);
+        };
+        amount - credited;
     };
 
     type TollDistributionDetails = {
@@ -462,9 +510,29 @@ persistent actor class PonziMath(initArgs : {
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
 
-        let allBackers = Iter.toArray(backerKeyMap.vals(backerPositions));
+        // Only OPEN positions (lifetime repaid < entitlement) take part. The
+        // backer half splits 35 / 45 / 20:
+        //   - 35% SENIOR bonus to the single oldest open Series A (kept).
+        //   - 45% SERIES A POOL, shared PROPORTIONAL to each open A's remaining
+        //     entitlement. Sybil-neutral: splitting a stake across N wallets
+        //     yields N remainders summing to the same total, so total take is
+        //     unchanged, and all open A close at the same rate (when the pool
+        //     exceeds total remaining they all cap out together).
+        //   - 20% SERIES B POOL, shared PER-HEAD across open B (B is assigned by
+        //     promotion and can't be Sybil'd, so egalitarian is fine).
+        // An absent tier's pool folds into the other so backer money stays with
+        // backers. The senior slice (when there is no Series A) and any
+        // capped-out overshoot go to the seed reserve — the same tracked sink
+        // the no-backers branch uses — so 100% of every toll always lands in a
+        // tracked destination and the solvency invariant holds.
+        let allBackers = List.toArray(
+            List.filter(
+                List.fromArray(Iter.toArray(backerKeyMap.vals(backerPositions))),
+                isBackerOpen,
+            )
+        );
         if (allBackers.size() == 0) {
-            // No backers yet — backer half also flows to seed reserve (not pot).
+            // No OPEN backers — the whole backer half flows to seed reserve.
             roundSeedReserve += backerRepaymentAmount;
             return {
                 tollAmount;
@@ -481,7 +549,24 @@ persistent actor class PonziMath(initArgs : {
                 func(b : BackerPosition) : Bool { b.backerType == #seriesA },
             )
         );
+        let seriesBBackers = List.toArray(
+            List.filter(
+                List.fromArray(allBackers),
+                func(b : BackerPosition) : Bool { b.backerType == #seriesB },
+            )
+        );
 
+        let seniorAmt = backerRepaymentAmount * 0.35;
+        var aPoolAmt = backerRepaymentAmount * 0.45;
+        var bPoolAmt = backerRepaymentAmount * 0.20;
+        // Fold an absent tier's pool into the other (at least one is non-empty
+        // here — the all-empty case returned above).
+        if (seriesBBackers.size() == 0) { aPoolAmt += bPoolAmt; bPoolAmt := 0.0 };
+        if (seriesABackers.size() == 0) { bPoolAmt += aPoolAmt; aPoolAmt := 0.0 };
+
+        var overshootToSeed : Float = 0.0;
+
+        // --- 35% senior bonus: single oldest open Series A ---
         var oldestBacker : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in seriesABackers.vals()) {
@@ -495,67 +580,59 @@ persistent actor class PonziMath(initArgs : {
                 };
             };
         };
-
-        let otherSeriesA = List.toArray(
-            List.filter(
-                List.fromArray(seriesABackers),
-                func(b : BackerPosition) : Bool {
-                    switch (oldestBacker) {
-                        case (null) { true };
-                        case (?oldest) { b.owner != oldest.owner };
-                    };
-                },
-            )
-        );
-
-        // If there's only one Series A backer (no "others"), the 25% portion
-        // also goes to that lone backer. Total to oldest in that case: 60%.
-        let toOldest : Float =
-            if (otherSeriesA.size() == 0) {
-                backerRepaymentAmount * 0.60;
-            } else {
-                backerRepaymentAmount * 0.35;
-            };
-        // Credit the senior (oldest Series A) slice. When NO Series A backer
-        // exists — e.g. the backer set is entirely Series B promotion
-        // positions — oldestBacker is null and this slice has no recipient.
-        // Leaving the null arm empty would carve the slice out of the backer
-        // half but route it nowhere, silently dropping 35-60% of the backer
-        // half (up to 30% of the whole toll) into untracked canister balance
-        // and breaking the solvency invariant by far more than the 10 e8s
-        // rounding tolerance. Redirect the orphaned slice to the seed reserve —
-        // the same tracked sink the zero-backers branch above uses — so 100%
-        // of every toll always lands in a tracked destination.
         var creditedToOldest : Float = 0.0;
         switch (oldestBacker) {
-            case (null) { roundSeedReserve += toOldest };
+            // No Series A: senior slice has no recipient — route to seed reserve.
+            case (null) { overshootToSeed += seniorAmt };
             case (?b) {
-                creditBackerRepayment((b.owner, b.backerType), toOldest);
-                creditedToOldest := toOldest;
+                let over = creditBackerRepayment(b, seniorAmt);
+                creditedToOldest := seniorAmt - over;
+                overshootToSeed += over;
             };
         };
-        let orphanedToSeed = toOldest - creditedToOldest;
 
-        var toOthers : Float = 0.0;
-        if (otherSeriesA.size() > 0) {
-            let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
-            toOthers := perBacker * Float.fromInt(otherSeriesA.size());
-            for (b in otherSeriesA.vals()) { creditBackerRepayment((b.owner, b.backerType), perBacker) };
+        // --- 45% Series A pool: proportional to remaining entitlement ---
+        var creditedAPool : Float = 0.0;
+        if (aPoolAmt > 0.0) {
+            var totalRemainingA : Float = 0.0;
+            for (b in seriesABackers.vals()) { totalRemainingA += remainingEntitlement(b) };
+            if (totalRemainingA > 0.0) {
+                for (b in seriesABackers.vals()) {
+                    let share = remainingEntitlement(b) / totalRemainingA * aPoolAmt;
+                    let over = creditBackerRepayment(b, share);
+                    creditedAPool += share - over;
+                    overshootToSeed += over;
+                };
+            } else {
+                overshootToSeed += aPoolAmt;
+            };
         };
 
-        let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
-        let toAll = perAll * Float.fromInt(allBackers.size());
-        for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
+        // --- 20% Series B pool: per-head across open B ---
+        var creditedBPool : Float = 0.0;
+        if (bPoolAmt > 0.0 and seriesBBackers.size() > 0) {
+            let perB = bPoolAmt / Float.fromInt(seriesBBackers.size());
+            for (b in seriesBBackers.vals()) {
+                let over = creditBackerRepayment(b, perB);
+                creditedBPool += perB - over;
+                overshootToSeed += over;
+            };
+        } else if (bPoolAmt > 0.0) {
+            overshootToSeed += bPoolAmt;
+        };
 
-        // toSeedReserve reflects the actual seed credit: the base 50% plus any
-        // orphaned senior slice redirected above. toOldestSeriesA reflects what
-        // was actually credited to a backer (0.0 when there was no Series A).
+        roundSeedReserve += overshootToSeed;
+
+        // Ledger fields keep their stored names (stable type) but now mean:
+        //   toOldestSeriesA = senior bonus credited
+        //   toOtherSeriesA  = Series A pool credited (proportional, all open A)
+        //   toAllBackers    = Series B pool credited (per-head)
         {
             tollAmount;
-            toSeedReserve = seedAmount + orphanedToSeed;
+            toSeedReserve = seedAmount + overshootToSeed;
             toOldestSeriesA = creditedToOldest;
-            toOtherSeriesA = toOthers;
-            toAllBackers = toAll;
+            toOtherSeriesA = creditedAPool;
+            toAllBackers = creditedBPool;
         };
     };
 
@@ -1049,6 +1126,7 @@ persistent actor class PonziMath(initArgs : {
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
                     let originalActiveIds = activeGameIds; // Audit F-002
+                    let originalLifetime = backerLifetimeRepaid;
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -1104,6 +1182,7 @@ persistent actor class PonziMath(initArgs : {
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
                             activeGameIds := originalActiveIds; // Audit F-002
+                            backerLifetimeRepaid := originalLifetime;
                             return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
                         switch (transferResult) {
@@ -1113,6 +1192,7 @@ persistent actor class PonziMath(initArgs : {
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
                                 activeGameIds := originalActiveIds; // Audit F-002
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err(transferErrorMessage(err));
                             };
                             case (#Ok(_)) {};
@@ -1196,6 +1276,7 @@ persistent actor class PonziMath(initArgs : {
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
                     let originalActiveIds = activeGameIds; // Audit F-002
+                    let originalLifetime = backerLifetimeRepaid;
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -1247,6 +1328,7 @@ persistent actor class PonziMath(initArgs : {
                             backerRepayments := originalRepayments;
                             roundSeedReserve := originalSeedReserve;
                             activeGameIds := originalActiveIds; // Audit F-002
+                            backerLifetimeRepaid := originalLifetime;
                             return #Err("Failed to contact ICP ledger: " # Error.message(e));
                         };
                         switch (transferResult) {
@@ -1256,6 +1338,7 @@ persistent actor class PonziMath(initArgs : {
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
                                 activeGameIds := originalActiveIds; // Audit F-002
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err(transferErrorMessage(err));
                             };
                             case (#Ok(_)) {};
@@ -1558,17 +1641,38 @@ persistent actor class PonziMath(initArgs : {
         Iter.toArray(backerKeyMap.entries(backerRepayments));
     };
 
+    // Lifetime repayment high-water mark per position — the cumulative credited
+    // amount that enforces the entitlement cap (remaining = entitlement −
+    // lifetimeRepaid; a position closes once this reaches its entitlement).
+    // Use alongside getBackerPositions to compute remaining/outstanding debt and
+    // to reconcile a backfill (adminSetBackerLifetimeRepaid).
+    public query func getBackerLifetimeRepaid() : async [(BackerKey, Float)] {
+        Iter.toArray(backerKeyMap.entries(backerLifetimeRepaid));
+    };
+
+    // Total gross promised entitlement across ALL positions (incl. closed) —
+    // a lifetime "promised" stat, unchanged by the cap.
     public query func getTotalBackerDebt() : async Float {
         var total = 0.0;
         for (b in backerKeyMap.vals(backerPositions)) { total += b.entitlement };
         total;
     };
 
+    // True OUTSTANDING liability under the cap: Σ remaining (entitlement −
+    // lifetime) over open positions; closed positions contribute 0.
+    public query func getOutstandingBackerDebt() : async Float {
+        var total = 0.0;
+        for (b in backerKeyMap.vals(backerPositions)) { total += remainingEntitlement(b) };
+        total;
+    };
+
+    // Oldest OPEN Series-A backer — the actual recipient of the senior toll
+    // slice. Filters out closed positions so the display tracks distribution.
     public query func getOldestSeriesABacker() : async ?BackerPosition {
         var oldest : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in backerKeyMap.vals(backerPositions)) {
-            if (b.backerType == #seriesA) {
+            if (b.backerType == #seriesA and isBackerOpen(b)) {
                 switch (b.firstDepositDate) {
                     case (null) {};
                     case (?date) {
@@ -1981,6 +2085,15 @@ persistent actor class PonziMath(initArgs : {
             };
             backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
+            // Move the lifetime high-water mark too, so the merged position's
+            // remaining entitlement (Σentitlement − Σlifetime) is preserved and
+            // the cap stays correct.
+            let fromLifetime = lifetimeRepaidOf((from, #seriesA));
+            if (fromLifetime > 0.0) {
+                backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, (to, #seriesA), lifetimeRepaidOf((to, #seriesA)) + fromLifetime);
+            };
+            backerLifetimeRepaid := backerKeyMap.delete(backerLifetimeRepaid, (from, #seriesA));
+
             #Ok;
         } finally {
             releaseGlobalLock();
@@ -1998,6 +2111,32 @@ persistent actor class PonziMath(initArgs : {
         try {
             backerPositions := backerKeyMap.empty<BackerPosition>();
             backerRepayments := backerKeyMap.empty<Float>();
+            backerLifetimeRepaid := backerKeyMap.empty<Float>();
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    // adminSetBackerLifetimeRepaid — seed/overwrite the lifetime-repaid
+    // high-water mark for one position. backerLifetimeRepaid is a migration-free
+    // addition that starts EMPTY on upgrade, so for backers paid before the cap
+    // existed the owner must backfill their true lifetime-repaid (reconstruct
+    // from #backerRepaymentClaim ledger events + the current unclaimed balance)
+    // before the "principal + 24% then close" cap can be trusted. Setting this
+    // at/above a position's entitlement CLOSES it (excluded from future tolls).
+    // TEST_ADMIN only — part of the pre-launch admin hatch that must be
+    // removed/secured before blackholing (see audit).
+    public shared ({ caller }) func adminSetBackerLifetimeRepaid(
+        owner : Principal,
+        backerType : BackerType,
+        amount : Float,
+    ) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (amount < 0.0) { return #Err("amount must be >= 0") };
+        acquireGlobalLock();
+        try {
+            backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, (owner, backerType), amount);
             #Ok;
         } finally {
             releaseGlobalLock();
