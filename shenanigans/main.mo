@@ -667,6 +667,37 @@ persistent actor Self {
     // Prestige stat — surfaced in Hall of Fame.
     var karmaReceivedPerPlayer = principalMap.empty<Nat>();
 
+    // ===== Exit Liquidity — PP-sink judgment game (clout-only) =====
+    // All score math is integer bps (10000 = 1.0x).
+    type ExitLiquidityConfig = {
+        buyInUnits : Nat;        // PP units burned to start a run
+        stageCount : Nat;        // max rotations per run
+        baseMultiplierBps : Nat; // riding value entering stage 1
+        stageStepBps : Nat;      // riding *= stageStepBps/10000 per survived advance
+        baseHazardPct : Nat;     // rotation chance on the 1->2 advance
+        hazardStepPct : Nat;     // hazard added per later stage
+        bankFractionPct : Nat;   // portion of riding locked by a "bank" decision
+        windowSize : Nat;        // consecutive runs for ranking + qualifying gate
+    };
+
+    // One in-flight run per player. Deleted on completion.
+    type ExitRun = {
+        startedAt : Int;
+        stage : Nat;             // current stage, 1-based
+        bankedBps : Nat;         // locked, safe from rotation
+        ridingBps : Nat;         // at risk; forfeited on rotation
+    };
+
+    type ExitDecision = { #bank; #ride; #exit };
+
+    type ExitRunResult = {
+        runScoreBps : Nat;       // = bankedBps at completion
+        rotated : Bool;          // true if ended by rotation
+        finalStage : Nat;
+        qualified : Bool;        // run count this round >= windowSize
+        bestWindowAvgBps : Nat;  // 0 until qualified
+    };
+
     // Active spell-effect state — see type docs above. All empty on first
     // deploy; orthogonal persistence carries values across upgrades.
     var customDisplayNames = principalMap.empty<DisplayNameOverride>();
@@ -688,6 +719,37 @@ persistent actor Self {
     var mintMultiplierSources = principalMap.empty<[MintMultiplierSource]>();
     var cascadeBoosts = principalMap.empty<CascadeBoost>();
     var goldenUntil = principalMap.empty<Int>();
+
+    // Exit Liquidity config — admin-tunable; starting defaults below.
+    var exitLiquidityConfig : ExitLiquidityConfig = {
+        buyInUnits = 1_000_000_000;  // 10 PP
+        stageCount = 5;
+        baseMultiplierBps = 10000;   // 1.0x
+        stageStepBps = 16000;        // x1.6 per advance
+        baseHazardPct = 15;
+        hazardStepPct = 12;
+        bankFractionPct = 50;
+        windowSize = 25;
+    };
+    // In-flight runs, one per player.
+    var activeExitRuns = principalMap.empty<ExitRun>();
+    // Per round -> player -> rolling buffer of the last `windowSize` run scores (bps).
+    var exitRecentScores = natMap.empty<OrderedMap.Map<Principal, [Nat]>>();
+    // Per round -> player -> best consecutive-window average (bps). Set only once qualified.
+    var exitBestWindowAvg = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Per round -> player -> total completed runs this round (qualifying gate).
+    var exitRunCount = natMap.empty<OrderedMap.Map<Principal, Nat>>();
+    // Vanity, lifetime: biggest single run score ever (bps). Off-rank.
+    var exitBiggestRunBps = principalMap.empty<Nat>();
+
+    // Access flag: false = admin-only (limited access), true = open to all.
+    // Flip via setExitLiquidityPublic once the feature is verified on mainnet.
+    var exitLiquidityPublic : Bool = false;
+
+    // Exit Liquidity is admin-only until exitLiquidityPublic is flipped on.
+    func exitLiquidityAllowed(caller : Principal) : Bool {
+        exitLiquidityPublic or isAdminPrincipal(caller)
+    };
 
     /// Strategic Reserve cosmetic. Principal → nanosecond-precision deadline.
     /// While `now < deadline`, the principal renders with a purple leaderboard
@@ -3200,6 +3262,158 @@ persistent actor Self {
         };
     };
 
+    // Records a completed run's score into the per-round rolling window,
+    // updates the qualifying count, best consecutive-window average, and the
+    // lifetime vanity max. Returns (qualified, bestWindowAvgBps).
+    func finalizeExitRun(player : Principal, roundId : Nat, runScoreBps : Nat, cfg : ExitLiquidityConfig) : (Bool, Nat) {
+        // Run count (per round).
+        let countMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitRunCount, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let newCount = (switch (principalMap.get(countMap, player)) { case (?n) n; case null 0 }) + 1;
+        exitRunCount := natMap.put(exitRunCount, roundId, principalMap.put(countMap, player, newCount));
+
+        // Rolling buffer of the last windowSize scores (per round).
+        let scoresMap : OrderedMap.Map<Principal, [Nat]> = switch (natMap.get(exitRecentScores, roundId)) {
+            case (?m) m; case null principalMap.empty<[Nat]>();
+        };
+        let prior : [Nat] = switch (principalMap.get(scoresMap, player)) { case (?a) a; case null [] };
+        // Append, then keep only the trailing windowSize entries.
+        let appended = Array.append<Nat>(prior, [runScoreBps]);
+        let buf : [Nat] = if (appended.size() <= cfg.windowSize) { appended }
+            else { Array.subArray<Nat>(appended, appended.size() - cfg.windowSize, cfg.windowSize) };
+        exitRecentScores := natMap.put(exitRecentScores, roundId, principalMap.put(scoresMap, player, buf));
+
+        // Vanity max (lifetime).
+        let priorMax = switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+        if (runScoreBps > priorMax) {
+            exitBiggestRunBps := principalMap.put(exitBiggestRunBps, player, runScoreBps);
+        };
+
+        // Best consecutive-window average: only once the buffer is full (qualified).
+        if (newCount >= cfg.windowSize and buf.size() == cfg.windowSize) {
+            var sum : Nat = 0;
+            for (s in buf.vals()) { sum += s };
+            let windowAvg = sum / cfg.windowSize;
+            let bwMap : OrderedMap.Map<Principal, Nat> = switch (natMap.get(exitBestWindowAvg, roundId)) {
+                case (?m) m; case null principalMap.empty<Nat>();
+            };
+            let priorBest = switch (principalMap.get(bwMap, player)) { case (?n) n; case null 0 };
+            let best = if (windowAvg > priorBest) { windowAvg } else { priorBest };
+            exitBestWindowAvg := natMap.put(exitBestWindowAvg, roundId, principalMap.put(bwMap, player, best));
+            (true, best);
+        } else {
+            (false, 0);
+        };
+    };
+
+    // Starts a run: rejects if one is already in flight, burns the buy-in,
+    // tallies it toward PP-burned boards, and opens the run at stage 1.
+    public shared ({ caller }) func startExitRun() : async ExitRun {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
+
+        switch (principalMap.get(activeExitRuns, caller)) {
+            case (?_) { throw Error.reject("You already have a run in progress. Finish it first.") };
+            case null {};
+        };
+
+        let cfg = exitLiquidityConfig;
+
+        // Burn the buy-in (traps on failure, mirroring the cast path).
+        switch (await burnFrom(caller, cfg.buyInUnits, "exit-liquidity-buyin")) {
+            case (#Err(msg)) { Debug.trap("Buy-in burn failed: " # msg) };
+            case (#Ok(_)) {};
+        };
+
+        // Tally toward existing PP-burned leaderboards (lifetime + per-round).
+        let priorBurn = switch (principalMap.get(ppBurnedPerPlayer, caller)) { case null 0; case (?n) n };
+        ppBurnedPerPlayer := principalMap.put(ppBurnedPerPlayer, caller, priorBurn + cfg.buyInUnits);
+        let roundId = await readCurrentRoundIdCached();
+        let rb : OrderedMap.Map<Principal, Nat> = switch (natMap.get(ppBurnedPerPlayerPerRound, roundId)) {
+            case (?m) m; case null principalMap.empty<Nat>();
+        };
+        let rbPrior = switch (principalMap.get(rb, caller)) { case (?n) n; case null 0 };
+        ppBurnedPerPlayerPerRound := natMap.put(ppBurnedPerPlayerPerRound, roundId, principalMap.put(rb, caller, rbPrior + cfg.buyInUnits));
+
+        let run : ExitRun = {
+            startedAt = Time.now();
+            stage = 1;
+            bankedBps = 0;
+            ridingBps = cfg.baseMultiplierBps;
+        };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, run);
+        run;
+    };
+
+    // Advances the caller's run. #exit banks everything and ends (safe).
+    // #bank locks bankFractionPct of riding, then rolls the rotation to advance.
+    // #ride keeps the whole stack riding, then rolls the rotation to advance.
+    // A rotation forfeits ridingBps; the run ends with score = bankedBps.
+    public shared ({ caller }) func exitRunDecision(decision : ExitDecision) : async ExitRunResult {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+        markActive(caller);
+        if (not exitLiquidityAllowed(caller)) {
+            throw Error.reject("Exit Liquidity is in limited access right now. Check back soon.");
+        };
+
+        let cfg = exitLiquidityConfig;
+        let roundId = await readCurrentRoundIdCached();
+        let run = switch (principalMap.get(activeExitRuns, caller)) {
+            case (?r) r;
+            case null { throw Error.reject("No run in progress. Start one first.") };
+        };
+
+        // #exit: bank all riding and finish (no rotation roll — exiting is safe).
+        if (decision == #exit) {
+            let score = run.bankedBps + run.ridingBps;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // #bank: lock a fraction of riding before the roll.
+        var banked = run.bankedBps;
+        var riding = run.ridingBps;
+        if (decision == #bank) {
+            let locked = (riding * cfg.bankFractionPct) / 100;
+            banked += locked;
+            riding -= locked;
+        };
+
+        // Rotation roll for the advance out of the current stage.
+        // Hazard rises with stage: base + (stage-1)*step, capped at 95%.
+        let rawHazard = cfg.baseHazardPct + (run.stage - 1) * cfg.hazardStepPct;
+        let hazardPct = if (rawHazard > 95) { 95 } else { rawHazard };
+        let roll = Int.abs(Time.now()) % 100;  // house RNG style; consistent with existing spells
+
+        if (roll < hazardPct) {
+            // Rotated: forfeit riding, finish with banked.
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, banked, cfg);
+            return { runScoreBps = banked; rotated = true; finalStage = run.stage; qualified; bestWindowAvgBps = best };
+        };
+
+        // Survived: grow riding, advance a stage.
+        let grownRiding = (riding * cfg.stageStepBps) / 10000;
+        let nextStage = run.stage + 1;
+
+        if (nextStage > cfg.stageCount) {
+            // Cleared the final stage: auto-exit (bank everything).
+            let score = banked + grownRiding;
+            activeExitRuns := principalMap.delete(activeExitRuns, caller);
+            let (qualified, best) = finalizeExitRun(caller, roundId, score, cfg);
+            return { runScoreBps = score; rotated = false; finalStage = cfg.stageCount; qualified; bestWindowAvgBps = best };
+        };
+
+        let advanced : ExitRun = { startedAt = run.startedAt; stage = nextStage; bankedBps = banked; ridingBps = grownRiding };
+        activeExitRuns := principalMap.put(activeExitRuns, caller, advanced);
+        { runScoreBps = banked; rotated = false; finalStage = nextStage; qualified = false; bestWindowAvgBps = 0 };
+    };
+
     // ================================================================
     // Spell effect dispatch
     // ================================================================
@@ -5119,6 +5333,42 @@ persistent actor Self {
         };
     };
 
+    // Active run for a player (null if none). For the UI to resume state.
+    public query func getActiveExitRun(player : Principal) : async ?ExitRun {
+        principalMap.get(activeExitRuns, player);
+    };
+
+    // Per-round clout board: ranked by best consecutive-window average (bps).
+    // Only qualified players (>= windowSize runs that round) appear.
+    // roundId = null -> current round.
+    public query func getExitLiquidityLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitBestWindowAvg, target)) {
+            case null { [] };
+            case (?m) {
+                let entries = Iter.toArray(principalMap.entries(m));
+                let sorted = Array.sort<(Principal, Nat)>(entries, func(a, b) = Nat.compare(b.1, a.1));
+                let cap = if (limit < sorted.size()) { limit } else { sorted.size() };
+                Array.subArray(sorted, 0, cap);
+            };
+        };
+    };
+
+    // Lifetime vanity: biggest single run (bps) for a player. Off-rank.
+    public query func getExitBiggestRun(player : Principal) : async Nat {
+        switch (principalMap.get(exitBiggestRunBps, player)) { case (?n) n; case null 0 };
+    };
+
+    // A player's completed-run count for a round (qualifying progress).
+    // roundId = null -> current round.
+    public query func getExitRunCount(player : Principal, roundId : ?Nat) : async Nat {
+        let target : Nat = switch (roundId) { case (?r) r; case null cachedCurrentRoundId };
+        switch (natMap.get(exitRunCount, target)) {
+            case null { 0 };
+            case (?m) { switch (principalMap.get(m, player)) { case (?n) n; case null 0 } };
+        };
+    };
+
     /// Returns mint totals for the specified round, sorted descending.
     /// Pass null for the current round. Limit caps the result size.
     public query func getRoundMintLeaderboard(roundId : ?Nat, limit : Nat) : async [(Principal, Nat)] {
@@ -5220,6 +5470,27 @@ persistent actor Self {
     public shared ({ caller }) func setBackerPpPerIcp(v : Nat) : async () {
         requireAdmin(caller);
         mintConfig := { mintConfig with backerPpPerIcp = v };
+    };
+
+    public shared ({ caller }) func setExitLiquidityConfig(cfg : ExitLiquidityConfig) : async () {
+        requireAdmin(caller);
+        if (cfg.bankFractionPct > 100) { Debug.trap("bankFractionPct must be <= 100") };
+        if (cfg.windowSize == 0) { Debug.trap("windowSize must be >= 1") };
+        if (cfg.stageCount == 0) { Debug.trap("stageCount must be >= 1") };
+        exitLiquidityConfig := cfg;
+    };
+
+    public query func getExitLiquidityConfig() : async ExitLiquidityConfig {
+        exitLiquidityConfig;
+    };
+
+    public shared ({ caller }) func setExitLiquidityPublic(isPublic : Bool) : async () {
+        requireAdmin(caller);
+        exitLiquidityPublic := isPublic;
+    };
+
+    public query func getExitLiquidityPublic() : async Bool {
+        exitLiquidityPublic;
     };
     public shared ({ caller }) func setSimple21DayPpPerSol(v : Nat) : async () {
         requireAdmin(caller);
