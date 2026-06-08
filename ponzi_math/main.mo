@@ -330,6 +330,31 @@ persistent actor class PonziMath(initArgs : {
         };
     };
 
+    // Operator-controlled "sock puppet" accounts that are excluded from the
+    // Series B promotion lottery (selectPromotionCandidate). Making them
+    // ineligible keeps the emergency equity conversion flowing to genuine
+    // underwater players instead of back to the house. ICP only — none of
+    // these principals have played the SOL pot. Rotation = code redeploy,
+    // same as ADMIN_PRINCIPALS.
+    transient let SERIES_B_INELIGIBLE : [Principal] = [
+        Principal.fromText("u7zgw-triai-opf3l-hs7dz-2bf2t-j554r-mnzkx-74hou-6drz5-nati3-bqe"), // beady
+        Principal.fromText("mi66c-zqlu4-4kxd6-2gtp7-szg5v-6a62a-geoty-fahu5-4trje-xyfby-wqe"), // snarfis
+        Principal.fromText("stzp3-bnvwm-zqzjh-o6mv6-ci53m-wj5k6-xyhe7-fnyp2-c64o3-7vokj-bqe"), // steve
+        Principal.fromText("ejapd-r6qrq-bjaqa-3wdjg-yjwqw-tjmh3-v7w2h-6akvm-b46l2-7lxb6-zae"), // ruby
+        Principal.fromText("gcbfr-3yu36-ks7mt-grhik-mk2ff-3wx55-jffxr-julan-rakf4-5icoa-xqe"), // charles
+        Principal.fromText("zegjz-jpi6k-qkand-c2bgf-qw6za-xk4si-nz3gx-qzzia-fk6fg-snepb-tae"), // bill williams
+        Principal.fromText("s6yhm-3daom-q5sxc-kwev2-pak53-766zl-uyy4e-6sa6w-kzm5d-p3hcn-eqe"), // speedie
+        Principal.fromText("in26m-hqr2c-dhmg6-fvp6h-vbxac-n3enk-n6r4k-s7qyd-iydsv-25jad-gqe"), // bnonymoose
+        Principal.fromText("6dgoo-2sebb-f5cfa-v23bz-pc7kd-vpjq6-2dvg5-mgs5w-z4u4c-kfbwy-zae"), // stooge
+    ];
+
+    func isSeriesBIneligible(p : Principal) : Bool {
+        for (x in SERIES_B_INELIGIBLE.vals()) {
+            if (p == x) { return true };
+        };
+        false;
+    };
+
     func validateAmount(amount : Float) {
         if (Float.isNaN(amount)) { Debug.trap("Amount cannot be NaN") };
         if (Float.isNaN(amount - amount) and not Float.isNaN(amount)) {
@@ -698,7 +723,18 @@ persistent actor class PonziMath(initArgs : {
             };
         };
 
-        let allLosers = Iter.toArray(principalMapNat.entries(underwaterByPlayer));
+        // Exclude operator sock-puppet accounts so they can never win the
+        // Series B lottery — applied here so it covers BOTH the no-backer pool
+        // and the all-losers fallback below. If only puppets are underwater,
+        // allLosers is empty and the round resets with no promotion.
+        let allLosers = List.toArray(
+            List.filter(
+                List.fromArray(Iter.toArray(principalMapNat.entries(underwaterByPlayer))),
+                func((p, _) : (Principal, Float)) : Bool {
+                    not isSeriesBIneligible(p);
+                },
+            )
+        );
         if (allLosers.size() == 0) { return null };
 
         let withoutBacker = List.toArray(
