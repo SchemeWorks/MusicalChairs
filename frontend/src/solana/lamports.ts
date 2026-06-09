@@ -28,10 +28,14 @@ export function formatSolFloat(value: number): string {
 
 // Inverse of formatSOL — input is a decimal SOL string, output is bigint lamports.
 export function parseSOL(input: string): bigint {
-  const trimmed = input.trim();
+  let trimmed = input.trim();
   if (trimmed.startsWith('-')) {
     throw new Error('parseSOL: SOL amount cannot be negative');
   }
+  // Normalize user-friendly partial decimals so mid-typing doesn't silently
+  // disable the deposit button: ".5" -> "0.5", "1." -> "1", "." -> "0".
+  if (trimmed.startsWith('.')) trimmed = '0' + trimmed;
+  if (trimmed.endsWith('.')) trimmed = trimmed.slice(0, -1);
   if (!/^\d+(\.\d+)?$/.test(trimmed)) {
     throw new Error(`parseSOL: invalid input '${input}'`);
   }

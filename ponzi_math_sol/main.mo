@@ -239,6 +239,16 @@ persistent actor class PonziMathSol(initArgs : {
     var depositTimestamps = principalMapNat.empty<List.List<Int>>();
     var backerPositions = backerKeyMap.empty<BackerPosition>();
     var backerRepayments = backerKeyMap.empty<Float>();
+    // Cumulative LIFETIME repayment credited per backer position. Unlike
+    // backerRepayments (the UNCLAIMED balance, zeroed on claim) this only ever
+    // grows — it is the high-water mark that enforces the "principal + 24% then
+    // close" cap. Migration-free: a new top-level stable field, so on upgrade it
+    // initialises empty. Existing backers therefore start at 0 lifetime-repaid,
+    // UNDER-counting what they were already paid pre-upgrade; before the cap can
+    // be trusted for pre-existing mainnet backers the owner must either backfill
+    // this map (adminSetBackerLifetimeRepaid) or accept a one-time reset
+    // (adminClearAllBackerPositions). See the deploy runbook.
+    var backerLifetimeRepaid = backerKeyMap.empty<Float>();
     var coverChargeBalance : Nat = 0;
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
@@ -302,6 +312,21 @@ persistent actor class PonziMathSol(initArgs : {
     var pendingIntents = natMap.empty<DepositIntent>();
     var nextIntentId : Nat = 0;
 
+    // Series A backer-deposit intents. Parallel to pendingIntents/pendingBuyIntents
+    // (the upgrade-safe "new stable var" pattern — no migration). A BackerIntent
+    // means "the next matching SOL landing on this principal's deposit address
+    // registers a Series A backer position", not a game. Shares nextIntentId so
+    // ids are globally unique across the three intent kinds.
+    public type BackerIntent = {
+        id : Nat;
+        principal : Principal;
+        expectedAmountLamports : Nat64;
+        createdAt : Int;
+        expiresAt : Int;
+        fulfilled : Bool;
+    };
+    var pendingBackerIntents = natMap.empty<BackerIntent>();
+
     // ===== Founder's Allocation Desk (buy PP with SOL) =====
     public type DeskTier = {
         ratePpUnitsPer0_1Sol : Nat; // PP-units per 0.1 SOL (=1e8 lamports)
@@ -341,9 +366,21 @@ persistent actor class PonziMathSol(initArgs : {
     // payManagementSol sweeps it.
     var coverChargeAccrualLamports : Nat64 = 0;
 
-    // Min deposit gate — 0.05 SOL (50_000_000 lamports). Mirrors
-    // ponzi_math's 0.1 ICP gate at deploy-time prices.
+    // Min deposit gate — 0.01 SOL (10_000_000 lamports). Lowered from 0.05 SOL
+    // for the SIWS self-serve invest flow (frontend MIN_DEPOSIT_SOL = 0.01).
     transient let MIN_DEPOSIT_LAMPORTS : Nat64 = 10_000_000;
+
+    // Min Series A backer deposit — 0.05 SOL (50_000_000 lamports). Mirrors
+    // adminRegisterSeriesABacker's 0.05 SOL floor so the self-serve and admin
+    // backer paths share the same minimum.
+    transient let MIN_BACKER_LAMPORTS : Nat64 = 50_000_000;
+
+    // Self-serve Series A gate. Default OFF: prepareBackerDeposit rejects until an
+    // admin flips it via adminSetSelfServeBacking. Holds self-serve Series A dark
+    // after deploy until the toll-distribution economics are settled (distributeExitToll
+    // pays the backer half FLAT per-head, not by stake, so self-serve + free SIWS
+    // identities = Sybil dilution). Persistent var → the choice survives upgrades.
+    var selfServeBackingEnabled : Bool = false;
 
     // Cycles budget attached to every sol-rpc canister call.
     // The sol-rpc canister (tghme-zyaaa-aaaar-qarca-cai) charges 5-20G per
@@ -499,12 +536,50 @@ persistent actor class PonziMathSol(initArgs : {
     // Backer repayment crediting + 35/25/40 exit-toll distribution
     // ========================================================================
 
-    func creditBackerRepayment(key : BackerKey, amount : Float) {
-        let current = switch (backerKeyMap.get(backerRepayments, key)) {
+    // Dust threshold for the entitlement cap: a position with less than this
+    // much headroom left is treated as fully repaid (CLOSED), so a float
+    // residue can't keep a repaid position alive and diluting the rest forever.
+    // 1e-8 SOL = 10 lamports, far below the 5_000-lamport payout floor.
+    transient let BACKER_CAP_EPSILON : Float = 1.0e-8;
+
+    func lifetimeRepaidOf(key : BackerKey) : Float {
+        switch (backerKeyMap.get(backerLifetimeRepaid, key)) {
             case (null) { 0.0 };
-            case (?existing) { existing };
+            case (?v) { v };
         };
-        backerRepayments := backerKeyMap.put(backerRepayments, key, current + amount);
+    };
+
+    // Headroom left under a position's entitlement cap (never negative).
+    func remainingEntitlement(pos : BackerPosition) : Float {
+        let remaining = pos.entitlement - lifetimeRepaidOf((pos.owner, pos.backerType));
+        if (remaining > 0.0) { remaining } else { 0.0 };
+    };
+
+    // A position is OPEN while it still has more than dust headroom. Closed
+    // positions receive no further toll and are dropped from the per-head counts.
+    func isBackerOpen(pos : BackerPosition) : Bool {
+        remainingEntitlement(pos) > BACKER_CAP_EPSILON;
+    };
+
+    // Credit `amount` toward `pos`, CAPPED at its remaining entitlement.
+    // Advances both the unclaimed balance (backerRepayments) and the lifetime
+    // high-water mark (backerLifetimeRepaid) by the credited portion, and
+    // returns the uncredited OVERSHOOT so the caller can route it to a tracked
+    // sink (the seed reserve) rather than over-paying past the cap.
+    func creditBackerRepayment(pos : BackerPosition, amount : Float) : Float {
+        if (amount <= 0.0) { return 0.0 };
+        let key : BackerKey = (pos.owner, pos.backerType);
+        let remaining = remainingEntitlement(pos);
+        let credited = if (amount < remaining) { amount } else { remaining };
+        if (credited > 0.0) {
+            let current = switch (backerKeyMap.get(backerRepayments, key)) {
+                case (null) { 0.0 };
+                case (?existing) { existing };
+            };
+            backerRepayments := backerKeyMap.put(backerRepayments, key, current + credited);
+            backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, key, lifetimeRepaidOf(key) + credited);
+        };
+        amount - credited;
     };
 
     type TollDistributionDetails = {
@@ -527,9 +602,29 @@ persistent actor class PonziMathSol(initArgs : {
         let backerRepaymentAmount = tollAmount * 0.5;
         roundSeedReserve += seedAmount;
 
-        let allBackers = Iter.toArray(backerKeyMap.vals(backerPositions));
+        // Only OPEN positions (lifetime repaid < entitlement) take part. The
+        // backer half splits 35 / 45 / 20:
+        //   - 35% SENIOR bonus to the single oldest open Series A (kept).
+        //   - 45% SERIES A POOL, shared PROPORTIONAL to each open A's remaining
+        //     entitlement. Sybil-neutral: splitting a stake across N wallets
+        //     yields N remainders summing to the same total, so total take is
+        //     unchanged, and all open A close at the same rate (when the pool
+        //     exceeds total remaining they all cap out together).
+        //   - 20% SERIES B POOL, shared PER-HEAD across open B (B is assigned by
+        //     promotion and can't be Sybil'd, so egalitarian is fine).
+        // An absent tier's pool folds into the other so backer money stays with
+        // backers. The senior slice (when there is no Series A) and any
+        // capped-out overshoot go to the seed reserve — the same tracked sink
+        // the no-backers branch uses — so 100% of every toll always lands in a
+        // tracked destination and the solvency invariant holds.
+        let allBackers = List.toArray(
+            List.filter(
+                List.fromArray(Iter.toArray(backerKeyMap.vals(backerPositions))),
+                isBackerOpen,
+            )
+        );
         if (allBackers.size() == 0) {
-            // No backers yet — backer half also flows to seed reserve (not pot).
+            // No OPEN backers — the whole backer half flows to seed reserve.
             roundSeedReserve += backerRepaymentAmount;
             return {
                 tollAmount;
@@ -546,7 +641,24 @@ persistent actor class PonziMathSol(initArgs : {
                 func(b : BackerPosition) : Bool { b.backerType == #seriesA },
             )
         );
+        let seriesBBackers = List.toArray(
+            List.filter(
+                List.fromArray(allBackers),
+                func(b : BackerPosition) : Bool { b.backerType == #seriesB },
+            )
+        );
 
+        let seniorAmt = backerRepaymentAmount * 0.35;
+        var aPoolAmt = backerRepaymentAmount * 0.45;
+        var bPoolAmt = backerRepaymentAmount * 0.20;
+        // Fold an absent tier's pool into the other (at least one is non-empty
+        // here — the all-empty case returned above).
+        if (seriesBBackers.size() == 0) { aPoolAmt += bPoolAmt; bPoolAmt := 0.0 };
+        if (seriesABackers.size() == 0) { bPoolAmt += aPoolAmt; aPoolAmt := 0.0 };
+
+        var overshootToSeed : Float = 0.0;
+
+        // --- 35% senior bonus: single oldest open Series A ---
         var oldestBacker : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in seriesABackers.vals()) {
@@ -560,49 +672,59 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
-
-        let otherSeriesA = List.toArray(
-            List.filter(
-                List.fromArray(seriesABackers),
-                func(b : BackerPosition) : Bool {
-                    switch (oldestBacker) {
-                        case (null) { true };
-                        case (?oldest) { b.owner != oldest.owner };
-                    };
-                },
-            )
-        );
-
-        // If there's only one Series A backer (no "others"), the 25% portion
-        // also goes to that lone backer. Total to oldest in that case: 60%.
-        let toOldest : Float =
-            if (otherSeriesA.size() == 0) {
-                backerRepaymentAmount * 0.60;
-            } else {
-                backerRepaymentAmount * 0.35;
-            };
+        var creditedToOldest : Float = 0.0;
         switch (oldestBacker) {
-            case (null) {};
-            case (?b) { creditBackerRepayment((b.owner, b.backerType), toOldest) };
+            // No Series A: senior slice has no recipient — route to seed reserve.
+            case (null) { overshootToSeed += seniorAmt };
+            case (?b) {
+                let over = creditBackerRepayment(b, seniorAmt);
+                creditedToOldest := seniorAmt - over;
+                overshootToSeed += over;
+            };
         };
 
-        var toOthers : Float = 0.0;
-        if (otherSeriesA.size() > 0) {
-            let perBacker = backerRepaymentAmount * 0.25 / Float.fromInt(otherSeriesA.size());
-            toOthers := perBacker * Float.fromInt(otherSeriesA.size());
-            for (b in otherSeriesA.vals()) { creditBackerRepayment((b.owner, b.backerType), perBacker) };
+        // --- 45% Series A pool: proportional to remaining entitlement ---
+        var creditedAPool : Float = 0.0;
+        if (aPoolAmt > 0.0) {
+            var totalRemainingA : Float = 0.0;
+            for (b in seriesABackers.vals()) { totalRemainingA += remainingEntitlement(b) };
+            if (totalRemainingA > 0.0) {
+                for (b in seriesABackers.vals()) {
+                    let share = remainingEntitlement(b) / totalRemainingA * aPoolAmt;
+                    let over = creditBackerRepayment(b, share);
+                    creditedAPool += share - over;
+                    overshootToSeed += over;
+                };
+            } else {
+                overshootToSeed += aPoolAmt;
+            };
         };
 
-        let perAll = backerRepaymentAmount * 0.4 / Float.fromInt(allBackers.size());
-        let toAll = perAll * Float.fromInt(allBackers.size());
-        for (b in allBackers.vals()) { creditBackerRepayment((b.owner, b.backerType), perAll) };
+        // --- 20% Series B pool: per-head across open B ---
+        var creditedBPool : Float = 0.0;
+        if (bPoolAmt > 0.0 and seriesBBackers.size() > 0) {
+            let perB = bPoolAmt / Float.fromInt(seriesBBackers.size());
+            for (b in seriesBBackers.vals()) {
+                let over = creditBackerRepayment(b, perB);
+                creditedBPool += perB - over;
+                overshootToSeed += over;
+            };
+        } else if (bPoolAmt > 0.0) {
+            overshootToSeed += bPoolAmt;
+        };
 
+        roundSeedReserve += overshootToSeed;
+
+        // Ledger fields keep their stored names (stable type) but now mean:
+        //   toOldestSeriesA = senior bonus credited
+        //   toOtherSeriesA  = Series A pool credited (proportional, all open A)
+        //   toAllBackers    = Series B pool credited (per-head)
         {
             tollAmount;
-            toSeedReserve = seedAmount;
-            toOldestSeriesA = toOldest;
-            toOtherSeriesA = toOthers;
-            toAllBackers = toAll;
+            toSeedReserve = seedAmount + overshootToSeed;
+            toOldestSeriesA = creditedToOldest;
+            toOtherSeriesA = creditedAPool;
+            toAllBackers = creditedBPool;
         };
     };
 
@@ -1066,6 +1188,7 @@ persistent actor class PonziMathSol(initArgs : {
                     let originalStats = platformStats;
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
+                    let originalLifetime = backerLifetimeRepaid;
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -1112,6 +1235,7 @@ persistent actor class PonziMathSol(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err(e);
                             };
                         };
@@ -1121,6 +1245,7 @@ persistent actor class PonziMathSol(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err("SOL payout failed: " # e);
                             };
                             case (#Ok(_txSig)) {};
@@ -1203,6 +1328,7 @@ persistent actor class PonziMathSol(initArgs : {
                     let originalStats = platformStats;
                     let originalRepayments = backerRepayments;
                     let originalSeedReserve = roundSeedReserve;
+                    let originalLifetime = backerLifetimeRepaid;
 
                     let pot = platformStats.potBalance;
                     let isInsolvent = earnings > pot;
@@ -1245,6 +1371,7 @@ persistent actor class PonziMathSol(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err(e);
                             };
                         };
@@ -1254,6 +1381,7 @@ persistent actor class PonziMathSol(initArgs : {
                                 platformStats := originalStats;
                                 backerRepayments := originalRepayments;
                                 roundSeedReserve := originalSeedReserve;
+                                backerLifetimeRepaid := originalLifetime;
                                 return #Err("SOL payout failed: " # e);
                             };
                             case (#Ok(_txSig)) {};
@@ -1465,17 +1593,38 @@ persistent actor class PonziMathSol(initArgs : {
         Iter.toArray(backerKeyMap.entries(backerRepayments));
     };
 
+    // Lifetime repayment high-water mark per position — the cumulative credited
+    // amount that enforces the entitlement cap (remaining = entitlement −
+    // lifetimeRepaid; a position closes once this reaches its entitlement).
+    // Use alongside getBackerPositions to compute remaining/outstanding debt and
+    // to reconcile a backfill (adminSetBackerLifetimeRepaid).
+    public query func getBackerLifetimeRepaid() : async [(BackerKey, Float)] {
+        Iter.toArray(backerKeyMap.entries(backerLifetimeRepaid));
+    };
+
+    // Total gross promised entitlement across ALL positions (incl. closed) —
+    // a lifetime "promised" stat, unchanged by the cap.
     public query func getTotalBackerDebt() : async Float {
         var total = 0.0;
         for (b in backerKeyMap.vals(backerPositions)) { total += b.entitlement };
         total;
     };
 
+    // True OUTSTANDING liability under the cap: Σ remaining (entitlement −
+    // lifetime) over open positions; closed positions contribute 0.
+    public query func getOutstandingBackerDebt() : async Float {
+        var total = 0.0;
+        for (b in backerKeyMap.vals(backerPositions)) { total += remainingEntitlement(b) };
+        total;
+    };
+
+    // Oldest OPEN Series-A backer — the actual recipient of the senior toll
+    // slice. Filters out closed positions so the display tracks distribution.
     public query func getOldestSeriesABacker() : async ?BackerPosition {
         var oldest : ?BackerPosition = null;
         var oldestTime : Int = 0;
         for (b in backerKeyMap.vals(backerPositions)) {
-            if (b.backerType == #seriesA) {
+            if (b.backerType == #seriesA and isBackerOpen(b)) {
                 switch (b.firstDepositDate) {
                     case (null) {};
                     case (?date) {
@@ -1807,6 +1956,15 @@ persistent actor class PonziMathSol(initArgs : {
             };
             backerRepayments := backerKeyMap.delete(backerRepayments, (from, #seriesA));
 
+            // Move the lifetime high-water mark too, so the merged position's
+            // remaining entitlement (Σentitlement − Σlifetime) is preserved and
+            // the cap stays correct.
+            let fromLifetime = lifetimeRepaidOf((from, #seriesA));
+            if (fromLifetime > 0.0) {
+                backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, (to, #seriesA), lifetimeRepaidOf((to, #seriesA)) + fromLifetime);
+            };
+            backerLifetimeRepaid := backerKeyMap.delete(backerLifetimeRepaid, (from, #seriesA));
+
             #Ok;
         } finally {
             releaseGlobalLock();
@@ -1824,6 +1982,32 @@ persistent actor class PonziMathSol(initArgs : {
         try {
             backerPositions := backerKeyMap.empty<BackerPosition>();
             backerRepayments := backerKeyMap.empty<Float>();
+            backerLifetimeRepaid := backerKeyMap.empty<Float>();
+            #Ok;
+        } finally {
+            releaseGlobalLock();
+        };
+    };
+
+    // adminSetBackerLifetimeRepaid — seed/overwrite the lifetime-repaid
+    // high-water mark for one position. backerLifetimeRepaid is a migration-free
+    // addition that starts EMPTY on upgrade, so for backers paid before the cap
+    // existed the owner must backfill their true lifetime-repaid (reconstruct
+    // from #backerRepaymentClaim ledger events + the current unclaimed balance)
+    // before the "principal + 24% then close" cap can be trusted. Setting this
+    // at/above a position's entitlement CLOSES it (excluded from future tolls).
+    // TEST_ADMIN only — part of the pre-launch admin hatch that must be
+    // removed/secured before blackholing (see audit).
+    public shared ({ caller }) func adminSetBackerLifetimeRepaid(
+        owner : Principal,
+        backerType : BackerType,
+        amount : Float,
+    ) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (amount < 0.0) { return #Err("amount must be >= 0") };
+        acquireGlobalLock();
+        try {
+            backerLifetimeRepaid := backerKeyMap.put(backerLifetimeRepaid, (owner, backerType), amount);
             #Ok;
         } finally {
             releaseGlobalLock();
@@ -2309,6 +2493,94 @@ persistent actor class PonziMathSol(initArgs : {
 
         let intent = switch (matched) {
             case (null) {
+                // Before treating as unmatched: try an open Series A backer
+                // intent for this principal, amount within ±5%, not expired.
+                // On match, register/merge the Series A position (NO Front-End
+                // Load — mirrors addBackerMoney / adminRegisterSeriesABacker),
+                // sweep, advance cursor. Checked before buy intents.
+                var matchedBacker : ?BackerIntent = null;
+                for (bi in natMap.vals(pendingBackerIntents)) {
+                    if (bi.principal == sig.principal and not bi.fulfilled) {
+                        let tol = bpsApply(bi.expectedAmountLamports, 500); // 5%
+                        let lo : Nat64 = if (bi.expectedAmountLamports > tol) { bi.expectedAmountLamports - tol } else { 0 };
+                        let hi : Nat64 = bi.expectedAmountLamports + tol;
+                        if (inboundLamports >= lo and inboundLamports <= hi and Time.now() <= bi.expiresAt) {
+                            matchedBacker := ?bi;
+                        };
+                    };
+                };
+                switch (matchedBacker) {
+                    case (?bi) {
+                        // CRITICAL-1 guard (UNCOMPILED — run `dfx build` before deploy):
+                        // the credit path runs under `detectionInProgress` only, NOT
+                        // `globalCriticalLock`. A concurrent withdraw/settle holding the
+                        // global lock snapshots `platformStats` and, on a payout-failure
+                        // rollback, restores that snapshot — erasing this credit's
+                        // potBalance increment (the deposit's SOL is in the pool but the
+                        // books understate it). Bail (the signature is re-scanned next
+                        // tick) BEFORE mutating any state. There is no `await` between
+                        // here and the platformStats write below, so this check and that
+                        // write are one atomic region — the lock cannot change in between.
+                        if (globalCriticalLock) {
+                            return #Err("Critical section busy — backer credit deferred to next detection tick");
+                        };
+                        let depositSol = lamportsToSol(inboundLamports);
+                        let entitlement = depositSol * 1.24; // Series A 24% bonus
+                        switch (backerKeyMap.get(backerPositions, (bi.principal, #seriesA))) {
+                            case (null) {
+                                let pos : BackerPosition = {
+                                    owner = bi.principal;
+                                    amount = depositSol;
+                                    entitlement;
+                                    startTime = Time.now();
+                                    isActive = true;
+                                    backerType = #seriesA;
+                                    firstDepositDate = ?Time.now();
+                                };
+                                backerPositions := backerKeyMap.put(backerPositions, (bi.principal, #seriesA), pos);
+                            };
+                            case (?existing) {
+                                let updated : BackerPosition = {
+                                    existing with
+                                    amount = existing.amount + depositSol;
+                                    entitlement = existing.entitlement + entitlement;
+                                };
+                                backerPositions := backerKeyMap.put(backerPositions, (bi.principal, #seriesA), updated);
+                            };
+                        };
+                        // No cover charge on backer deposits: full gross to pot.
+                        platformStats := {
+                            platformStats with
+                            potBalance = platformStats.potBalance + depositSol;
+                        };
+                        recordLedger(#backerDeposit({ backer = bi.principal; amount = depositSol; entitlement }));
+
+                        // Rate-limit bookkeeping (mirrors the game-credit path).
+                        let bnow = Time.now();
+                        let bOneHourAgo = bnow - 3_600_000_000_000;
+                        switch (principalMapNat.get(depositTimestamps, bi.principal)) {
+                            case (null) {
+                                depositTimestamps := principalMapNat.put(depositTimestamps, bi.principal, List.push(bnow, List.nil()));
+                            };
+                            case (?ts) {
+                                let filtered = List.filter<Int>(ts, func(t) { t > bOneHourAgo });
+                                depositTimestamps := principalMapNat.put(depositTimestamps, bi.principal, List.push(bnow, filtered));
+                            };
+                        };
+
+                        // Mark intent fulfilled.
+                        pendingBackerIntents := natMap.put(pendingBackerIntents, bi.id, { bi with fulfilled = true });
+
+                        // Sweep deposit address → pool (pot already credited).
+                        switch (await sweepToPool(sig.address, derivationPathForPrincipal(bi.principal), inboundLamports)) {
+                            case (#Err(e)) { Debug.print("Backer sweep failed " # sig.signature # ": " # e) };
+                            case (#Ok(_)) {};
+                        };
+                        lastSeenSignature := textMap.put(lastSeenSignature, sig.address, sig.signature);
+                        return #Ok(null); // backer credited, no game id
+                    };
+                    case (null) {};
+                };
                 // Before treating as unmatched: try an open buy intent for this
                 // principal, amount within ±5%, not expired. On match, settle by
                 // releasing escrowed PP, then sweep + advance cursor like a deposit.
@@ -2357,6 +2629,16 @@ persistent actor class PonziMathSol(initArgs : {
                 return #Ok(null);  // no game credited: no matching open intent
             };
             case (?i) { i };
+        };
+
+        // CRITICAL-1 guard (UNCOMPILED — run `dfx build` before deploy): same
+        // rationale as the backer path above. This credit is NOT under
+        // `globalCriticalLock`, so a concurrent withdraw/settle's payout-failure
+        // rollback (`platformStats := originalStats`) would erase this credit's
+        // potBalance increment. Bail (re-scanned next tick) before mutating any
+        // state. No `await` between here and the platformStats write below.
+        if (globalCriticalLock) {
+            return #Err("Critical section busy — deposit credit deferred to next detection tick");
         };
 
         // 4. Compute cover charge + net.
@@ -2500,6 +2782,56 @@ persistent actor class PonziMathSol(initArgs : {
         principalMapNat.get(depositAddresses, p);
     };
 
+    // HIGH-1 helper (UNCOMPILED — run `dfx build` before deploy): band-overlap
+    // guard shared by the three intent entry points. creditDeposit matches one
+    // inbound SOL transfer against open intents in the order deposit → backer →
+    // buy, all sharing one per-user deposit address and the same ±5% match
+    // window. Opening an intent of one kind whose amount band overlaps an open
+    // intent of ANOTHER kind makes a single transfer ambiguous — it could be
+    // credited as the wrong product. Each entry point passes which of the OTHER
+    // two kinds to inspect (its own kind is skipped, so multiple same-kind
+    // intents stay allowed). Callers must hold the per-caller lock so a
+    // concurrent prepare can't slip a new overlapping intent in after the check.
+    func bandOverlapsOpenIntents(
+        p : Principal,
+        lo : Nat64,
+        hi : Nat64,
+        checkDeposit : Bool,
+        checkBacker : Bool,
+        checkBuy : Bool,
+    ) : Bool {
+        let nowT = Time.now();
+        func overlaps(elo : Nat64, ehi : Nat64) : Bool { lo <= ehi and elo <= hi };
+        if (checkDeposit) {
+            for (di in natMap.vals(pendingIntents)) {
+                if (di.principal == p and not di.fulfilled and nowT <= di.expiresAt) {
+                    let t = bpsApply(di.expectedAmountLamports, 500);
+                    let elo : Nat64 = if (di.expectedAmountLamports > t) { di.expectedAmountLamports - t } else { 0 };
+                    if (overlaps(elo, di.expectedAmountLamports + t)) { return true };
+                };
+            };
+        };
+        if (checkBacker) {
+            for (bi in natMap.vals(pendingBackerIntents)) {
+                if (bi.principal == p and not bi.fulfilled and nowT <= bi.expiresAt) {
+                    let t = bpsApply(bi.expectedAmountLamports, 500);
+                    let elo : Nat64 = if (bi.expectedAmountLamports > t) { bi.expectedAmountLamports - t } else { 0 };
+                    if (overlaps(elo, bi.expectedAmountLamports + t)) { return true };
+                };
+            };
+        };
+        if (checkBuy) {
+            for (yi in natMap.vals(pendingBuyIntents)) {
+                if (yi.principal == p and not yi.fulfilled and nowT <= yi.expiresAt) {
+                    let t = bpsApply(yi.quotedLamports, 500);
+                    let elo : Nat64 = if (yi.quotedLamports > t) { yi.quotedLamports - t } else { 0 };
+                    if (overlaps(elo, yi.quotedLamports + t)) { return true };
+                };
+            };
+        };
+        false;
+    };
+
     public shared ({ caller }) func prepareSolDeposit(args : {
         plan : GamePlan;
         expectedAmountLamports : Nat64;
@@ -2529,6 +2861,17 @@ persistent actor class PonziMathSol(initArgs : {
                         return #Err("You can only open 3 positions per hour");
                     };
                 };
+            };
+
+            // HIGH-1 cross-kind ambiguity guard: block if an open BACKER or BUY
+            // intent of a similar amount exists for this caller — one transfer must
+            // not be routable to two different products. (Same-kind deposits stay
+            // allowed.) Inside the caller lock so a concurrent prepare can't race.
+            let dTol = bpsApply(args.expectedAmountLamports, 500);
+            let dLo : Nat64 = if (args.expectedAmountLamports > dTol) { args.expectedAmountLamports - dTol } else { 0 };
+            let dHi : Nat64 = args.expectedAmountLamports + dTol;
+            if (bandOverlapsOpenIntents(caller, dLo, dHi, false, true, true)) {
+                return #Err("You have an open Series A backing or PP buy of a similar SOL amount; finish or let it expire first (the two would be indistinguishable on-chain).");
             };
 
             // Ensure the user has a deposit address.
@@ -2561,6 +2904,103 @@ persistent actor class PonziMathSol(initArgs : {
         } finally {
             releaseCallerLock(caller);
         };
+    };
+
+    /// Self-serve Series A backing for SIWS/SOL users — the SOL analog of
+    /// ponzi_math.addBackerMoney. Creates a BackerIntent; the next matching SOL
+    /// landing on the caller's deposit address registers/merges their Series A
+    /// position (in creditDeposit). NO Front-End Load (matches the ICP + admin
+    /// backer paths). Min 0.05 SOL.
+    public shared ({ caller }) func prepareBackerDeposit(args : {
+        expectedAmountLamports : Nat64;
+    }) : async { #Ok : { intentId : Nat; depositAddress : Text }; #Err : Text } {
+        requireAuthenticated(caller);
+        if (not selfServeBackingEnabled) {
+            return #Err("Series A backing isn't open yet — check back soon.");
+        };
+        if (args.expectedAmountLamports < MIN_BACKER_LAMPORTS) {
+            return #Err("Minimum Series A backing is 0.05 SOL (50,000,000 lamports)");
+        };
+        if (not bootstrapped) {
+            return #Err("Canister not bootstrapped yet — operator must run bootstrap() first");
+        };
+
+        acquireCallerLock(caller);
+        try {
+            // Per-user rate limit — shares the 3-positions-per-hour gate.
+            let currentTime = Time.now();
+            let oneHourAgo = currentTime - 3_600_000_000_000;
+            switch (principalMapNat.get(depositTimestamps, caller)) {
+                case (null) {};
+                case (?timestamps) {
+                    let filtered = List.filter<Int>(timestamps, func(t) { t > oneHourAgo });
+                    if (List.size(filtered) >= 3) {
+                        return #Err("You can only open 3 positions per hour");
+                    };
+                };
+            };
+
+            // HIGH-1 cross-kind ambiguity guard: block if an open DEPOSIT or BUY
+            // intent of a similar amount exists. Without this, a 0.05 SOL deposit-
+            // intent band and a 0.05 SOL backer-intent band overlap, and creditDeposit
+            // (deposit matched FIRST) would open a game instead of a Series A position.
+            let bTol = bpsApply(args.expectedAmountLamports, 500);
+            let bLo : Nat64 = if (args.expectedAmountLamports > bTol) { args.expectedAmountLamports - bTol } else { 0 };
+            let bHi : Nat64 = args.expectedAmountLamports + bTol;
+            if (bandOverlapsOpenIntents(caller, bLo, bHi, true, false, true)) {
+                return #Err("You have an open deposit or PP buy of a similar SOL amount; finish or let it expire first (the two would be indistinguishable on-chain).");
+            };
+
+            // Ensure the user has a deposit address (same logic as prepareSolDeposit).
+            let depositAddr = switch (principalMapNat.get(depositAddresses, caller)) {
+                case (?a) { a };
+                case (null) {
+                    let addr = await SolSigner.deriveAddress(keyId, derivationPathForPrincipal(caller));
+                    depositAddresses := principalMapNat.put(depositAddresses, caller, addr);
+                    addressToPrincipal := textMap.put(addressToPrincipal, addr, caller);
+                    addr;
+                };
+            };
+
+            let intent : BackerIntent = {
+                id = nextIntentId;
+                principal = caller;
+                expectedAmountLamports = args.expectedAmountLamports;
+                createdAt = currentTime;
+                expiresAt = currentTime + INTENT_TTL_NS;
+                fulfilled = false;
+            };
+            pendingBackerIntents := natMap.put(pendingBackerIntents, nextIntentId, intent);
+            let intentId = nextIntentId;
+            nextIntentId += 1;
+
+            #Ok({ intentId; depositAddress = depositAddr });
+        } finally {
+            releaseCallerLock(caller);
+        };
+    };
+
+    public query ({ caller }) func getMyPendingBackerIntents() : async [BackerIntent] {
+        var out = List.nil<BackerIntent>();
+        for (intent in natMap.vals(pendingBackerIntents)) {
+            if (intent.principal == caller and not intent.fulfilled) {
+                out := List.push(intent, out);
+            };
+        };
+        List.toArray(out);
+    };
+
+    // Whether self-serve Series A backing is open (prepareBackerDeposit). The
+    // frontend reads this to show/hide the SOL backer panel; the backend gate above
+    // is the authoritative check.
+    public query func isSelfServeBackingEnabled() : async Bool { selfServeBackingEnabled };
+
+    // Admin: open/close self-serve Series A backing. Default closed; flip on only
+    // once the toll-distribution economics are Sybil-safe (see the flag's note).
+    public shared ({ caller }) func adminSetSelfServeBacking(enabled : Bool) : async { #Ok; #Err : Text } {
+        requireAdmin(caller);
+        selfServeBackingEnabled := enabled;
+        #Ok;
     };
 
     public query func deskListTiers() : async [DeskTier] { deskTiers };
@@ -2800,25 +3240,19 @@ persistent actor class PonziMathSol(initArgs : {
         if (not bootstrapped) { return #Err("Canister not bootstrapped yet") };
         acquireCallerLock(caller);
         try {
-            // I-1 guard: the desk and the game-deposit flow share one per-user deposit
-            // address and the same ±5% observer match window, and game-deposit intents
-            // are matched FIRST in creditDeposit. So if the caller has an open, non-
-            // expired game deposit whose amount band overlaps this buy's band, the
-            // buyer's SOL would be consumed as a game deposit instead of the buy. Reject
-            // here (inside the lock, so prepareSolDeposit can't race a new one in).
+            // I-1 guard (now via the shared bandOverlapsOpenIntents helper): the desk,
+            // game-deposit, and Series A backer flows share one per-user deposit address
+            // and the same ±5% observer match window. creditDeposit matches deposit →
+            // backer → buy, so an open DEPOSIT or BACKER intent of a similar amount would
+            // consume this buyer's SOL as the wrong product. Reject here (inside the lock,
+            // so a concurrent prepare can't race a new overlapping intent in). Originally
+            // checked deposit intents only; extended to backer intents when self-serve
+            // Series A backing shipped.
             let buyTol = bpsApply(lamports, 500);
             let buyLo : Nat64 = if (lamports > buyTol) { lamports - buyTol } else { 0 };
             let buyHi : Nat64 = lamports + buyTol;
-            let nowT = Time.now();
-            for (di in natMap.vals(pendingIntents)) {
-                if (di.principal == caller and not di.fulfilled and nowT <= di.expiresAt) {
-                    let dTol = bpsApply(di.expectedAmountLamports, 500);
-                    let dLo : Nat64 = if (di.expectedAmountLamports > dTol) { di.expectedAmountLamports - dTol } else { 0 };
-                    let dHi : Nat64 = di.expectedAmountLamports + dTol;
-                    if (buyLo <= dHi and dLo <= buyHi) {
-                        return #Err("You have an open deposit of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
-                    };
-                };
+            if (bandOverlapsOpenIntents(caller, buyLo, buyHi, true, true, false)) {
+                return #Err("You have an open deposit or Series A backing of a similar SOL amount; finish or let it expire before buying PP at this amount (the two would be indistinguishable on-chain).");
             };
             await reserveBuyIntentFor(caller, lamports);
         } finally {
@@ -2850,6 +3284,45 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { #Err("No such buy intent") };
             case (?bi) { if (bi.fulfilled) { #Err("Already fulfilled") } else { await settleBuyIntent(bi, inboundLamports) } };
         };
+    };
+
+    // TEST/diagnostic (TEST_ADMIN, non-bootstrapped only): force globalCriticalLock so
+    // a local test can simulate "a withdraw is mid critical-section" WITHOUT a real
+    // sol-rpc payout. Sets the lock and returns WITHOUT releasing it, so the NEXT
+    // message observes it held; call with `false` to release. Inert on a bootstrapped
+    // (mainnet) canister so it can never wedge production. (Supports the CRITICAL-1
+    // guard test — see ponzi_math_sol/scripts/test-critical1-guard.sh.)
+    public shared ({ caller }) func adminTestSetGlobalLock(held : Bool) : async { #Ok; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        globalCriticalLock := held;
+        #Ok;
+    };
+
+    // TEST/diagnostic (TEST_ADMIN, non-bootstrapped only): exercise creditDeposit's
+    // CRITICAL-1 guard + potBalance write in isolation, bypassing the sol-rpc
+    // getTransaction the real path needs. Mirrors EXACTLY the guard and the
+    // platformStats mutation from creditDeposit's matched-deposit branch (minus the
+    // game record + sweep). Returns the post-credit potBalance, or the busy error if
+    // the guard fired. A test asserts: with the lock held (adminTestSetGlobalLock true)
+    // this returns #Err and leaves potBalance unchanged; with it free, potBalance grows.
+    public shared ({ caller }) func adminTestGuardedPotCredit(inboundLamports : Nat64) : async { #Ok : Float; #Err : Text } {
+        if (caller != TEST_ADMIN) { return #Err("Unauthorized: testAdmin only") };
+        if (bootstrapped) { return #Err("Test shim disabled on a bootstrapped canister") };
+        // EXACT copy of creditDeposit's CRITICAL-1 guard (keep in sync):
+        if (globalCriticalLock) {
+            return #Err("Critical section busy — deposit credit deferred to next detection tick");
+        };
+        let coverChargeLamports = bpsApply(inboundLamports, COVER_CHARGE_RATE_LAMPORTS_BPS);
+        let netLamports = inboundLamports - coverChargeLamports;
+        let netSol = lamportsToSol(netLamports);
+        platformStats := {
+            platformStats with
+            totalDeposits = platformStats.totalDeposits + lamportsToSol(inboundLamports);
+            activeGames = platformStats.activeGames + 1;
+            potBalance = platformStats.potBalance + netSol;
+        };
+        #Ok(platformStats.potBalance);
     };
 
     // Credit PP for a matched buy payment. Pure-computes the proportional fill,
@@ -3045,6 +3518,14 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
+        for (bi in natMap.vals(pendingBackerIntents)) {
+            if (not bi.fulfilled and now <= bi.expiresAt) {
+                switch (principalMapNat.get(depositAddresses, bi.principal)) {
+                    case (?addr) { toScan := textMap.put(toScan, addr, bi.principal) };
+                    case (null) {};
+                };
+            };
+        };
         var credits : Nat = 0;
         for ((address, principal) in textMap.entries(toScan)) {
             credits += await scanAndCredit(address, principal);
@@ -3098,6 +3579,11 @@ persistent actor class PonziMathSol(initArgs : {
             };
             case (null) {};
         };
+        // HIGH-2a: stamp the poke NOW — right after the cooldown passes — rather
+        // than after the `detectionInProgress` early-return below. Otherwise a caller
+        // could bypass the cooldown entirely whenever detection happens to be busy,
+        // re-scanning the three intent maps on every call.
+        pokeTimestamps := principalMapNat.put(pokeTimestamps, caller, now);
 
         // Open-intent gate: only scan if the caller has an open, unexpired
         // intent. Otherwise return #Ok(0) with ZERO RPC outcalls.
@@ -3114,6 +3600,13 @@ persistent actor class PonziMathSol(initArgs : {
                 };
             };
         };
+        if (not hasOpen) {
+            for (bi in natMap.vals(pendingBackerIntents)) {
+                if (bi.principal == caller and not bi.fulfilled and now <= bi.expiresAt) {
+                    hasOpen := true;
+                };
+            };
+        };
         if (not hasOpen) { return #Ok(0) };
 
         if (detectionInProgress) { return #Err("Detection busy — try again shortly") };
@@ -3123,7 +3616,6 @@ persistent actor class PonziMathSol(initArgs : {
             case (null) { return #Ok(0) };
         };
 
-        pokeTimestamps := principalMapNat.put(pokeTimestamps, caller, now);
         detectionInProgress := true;
         try {
             let credits = await scanAndCredit(addr, caller);

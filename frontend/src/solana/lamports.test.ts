@@ -52,6 +52,23 @@ describe('parseSOL', () => {
   it('throws on non-numeric input', () => {
     expect(() => parseSOL('abc')).toThrow(/invalid/i);
   });
+
+  it('normalizes a leading dot (".5" -> 0.5 SOL)', () => {
+    expect(parseSOL('.5')).toBe(500_000_000n);
+  });
+
+  it('normalizes a trailing dot ("1." -> 1 SOL)', () => {
+    expect(parseSOL('1.')).toBe(1_000_000_000n);
+  });
+
+  it('treats a lone dot as zero', () => {
+    expect(parseSOL('.')).toBe(0n);
+  });
+
+  it('still throws on empty / non-numeric after normalization', () => {
+    expect(() => parseSOL('')).toThrow(/invalid/i);
+    expect(() => parseSOL('1.2.3')).toThrow(/invalid/i);
+  });
 });
 
 describe('formatSolFloat', () => {

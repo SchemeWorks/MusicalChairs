@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useActor } from './useActor';
@@ -18,7 +18,13 @@ import type {
   SolGameRecord,
   SolGamePlan,
   SolDepositIntent,
+  SolBackerIntent,
+  SolPlatformStats,
+  SolBackerPosition,
+  SolBackerKey,
+  SolGeneralLedgerEntry,
 } from '../backend';
+import { SOLANA_RPC_ENDPOINT } from '../solana/rpc';
 import { Principal } from '@dfinity/principal';
 import { Actor, HttpAgent } from '@dfinity/agent';
 import type { ChatItem, MintMultiplierSource } from '../declarations/shenanigans/shenanigans.did';
@@ -125,6 +131,35 @@ export function useGetGameStats() {
     queryKey: ['gameStats'],
     queryFn: async () => actor.getPlatformStats(),
     refetchInterval: 5000, // Refetch every 5 seconds for live updates
+  });
+}
+
+// SOL platform stats — mirrors useGetGameStats but reads the ponzi_math_sol
+// canister. potBalance / totalDeposits / totalWithdrawals are Float SOL. Gated
+// to SIWS sessions since only they surface SOL-denominated AUM.
+export function useGetSolGameStats() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+
+  return useQuery<SolPlatformStats>({
+    queryKey: ['solGameStats'],
+    queryFn: async () => actor.getPlatformStats(),
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+  });
+}
+
+// Whether self-serve Series A backing is open (admin-gated, default off). The
+// SOL backer panel reads this to show the form vs a "not open yet" message.
+export function useIsSelfServeBackingEnabled() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+
+  return useQuery<boolean>({
+    queryKey: ['selfServeBackingEnabled'],
+    queryFn: async () => actor.isSelfServeBackingEnabled(),
+    enabled: walletType === 'siws',
+    staleTime: 30000,
   });
 }
 
@@ -275,6 +310,27 @@ export function useICPBalance() {
     },
     enabled: !!principal,
     refetchInterval: 5000,
+  });
+}
+
+// Connected Solana wallet balance, in SOL. Plain `getBalance` JSON-RPC call to
+// the configured Solana endpoint (CSP allows it; same host as the deposit flow).
+// web3.js is dynamically imported so it stays out of the main chunk for ICP-only
+// sessions. Gated to SIWS sessions with a connected pubkey.
+export function useSolBalance() {
+  const { walletType, solanaPubkey } = useWallet();
+
+  return useQuery<number>({
+    queryKey: ['solBalance', solanaPubkey],
+    queryFn: async () => {
+      if (!solanaPubkey) throw new Error('No Solana pubkey');
+      const { Connection, PublicKey } = await import('@solana/web3.js');
+      const connection = new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
+      const lamports = await connection.getBalance(new PublicKey(solanaPubkey));
+      return lamports / 1_000_000_000;
+    },
+    enabled: walletType === 'siws' && !!solanaPubkey,
+    refetchInterval: 10_000,
   });
 }
 
@@ -1299,6 +1355,43 @@ export function useGetPonziPoints() {
     },
     enabled: !!principal,
     refetchInterval: 5000,
+  });
+}
+
+// Roster PP balances — chip (side pocket) + wallet PP for a batch of principals.
+// Admin-only (Charles God view roster). Reads pp_ledger directly per principal:
+// chip subaccount lives under the shenanigans owner, wallet is the principal's
+// own account. Returns a map keyed by principal text → { chipPoints, walletPoints }.
+export type RosterPp = { chipPoints: number; walletPoints: number };
+
+export function useGetRosterPpBalances(principalTexts: string[], enabled: boolean) {
+  const ledger = useReadPpLedger();
+  // Stable key independent of array identity/order so we don't refetch on every
+  // re-render of the roster (which re-derives the principal list each pass).
+  const sortedKey = useMemo(() => [...principalTexts].sort().join(','), [principalTexts]);
+
+  return useQuery({
+    queryKey: ['rosterPpBalances', sortedKey],
+    queryFn: async () => {
+      const principals = sortedKey ? sortedKey.split(',') : [];
+      const entries = await Promise.all(
+        principals.map(async (text): Promise<[string, RosterPp]> => {
+          const p = Principal.fromText(text);
+          const [chipUnits, walletUnits] = await Promise.all([
+            ledger.icrc1_balance_of({
+              owner: shenanigansOwner(),
+              subaccount: [principalToChipSubaccount(p)],
+            }),
+            ledger.icrc1_balance_of({ owner: p, subaccount: [] }),
+          ]);
+          return [text, { chipPoints: ppUnitsToWhole(chipUnits), walletPoints: ppUnitsToWhole(walletUnits) }];
+        })
+      );
+      return new Map<string, RosterPp>(entries);
+    },
+    enabled: enabled && !!sortedKey,
+    refetchInterval: 15000,
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -2399,6 +2492,126 @@ export function useGetMyPendingSolIntents() {
     },
     enabled: walletType === 'siws' && !!actor && !!principal,
     refetchInterval: 10_000,
+  });
+}
+
+// ----- Self-serve SOL Series A backing — mirrors the ICP addBackerMoney path,
+// but over the async SOL deposit-detection flow (prepare intent -> send SOL ->
+// detection credits the Series A position). -----
+
+export function usePrepareBackerDeposit() {
+  const { actor } = usePonziMathSolActor();
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (args: { expectedAmountLamports: bigint }) => {
+      if (!actor) throw new Error('SOL actor not ready');
+      const result = await actor.prepareBackerDeposit({
+        expectedAmountLamports: args.expectedAmountLamports,
+      });
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok; // { intentId: bigint; depositAddress: string }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['mySolPendingBackerIntents'] });
+    },
+  });
+}
+
+export function useGetMyPendingBackerIntents() {
+  const { actor } = usePonziMathSolActor();
+  const { principal, walletType } = useWallet();
+
+  return useQuery<SolBackerIntent[]>({
+    queryKey: ['mySolPendingBackerIntents', principal],
+    queryFn: async () => {
+      if (!actor) return [];
+      return actor.getMyPendingBackerIntents();
+    },
+    enabled: walletType === 'siws' && !!actor && !!principal,
+    refetchInterval: 5_000,
+  });
+}
+
+// ----- SOL Seed Round parity: backer positions / repayments / ledger / claim
+// for SIWS sessions, mirroring the ICP useGetBackerPositions / useGetGeneralLedger
+// / useClaimBackerRepayment so HouseDashboard can render the whole Seed Round page
+// in SOL terms. Backend methods already exist on ponzi_math_sol. -----
+
+export function useGetSolBackerPositions() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<SolBackerPosition[]>({
+    queryKey: ['solBackerPositions'],
+    queryFn: async () => {
+      try { return (await actor.getBackerPositions()) || []; }
+      catch (e) { console.error('Failed to fetch SOL backer positions:', e); return []; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolAllBackerRepayments() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<Array<[SolBackerKey, number]>>({
+    queryKey: ['solAllBackerRepayments'],
+    queryFn: async () => actor.getAllBackerRepayments(),
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolGeneralLedger() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  return useQuery<SolGeneralLedgerEntry[]>({
+    queryKey: ['solGeneralLedger'],
+    queryFn: async () => {
+      try { return (await actor.getGeneralLedger()) || []; }
+      catch (e) { console.error('Failed to fetch SOL general ledger:', e); return []; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: [],
+  });
+}
+
+export function useGetSolGeneralLedgerStats() {
+  const actor = useReadPonziMathSol();
+  const { walletType } = useWallet();
+  const empty = { totalInflows: 0, totalOutflows: 0, netFlow: 0, entryCount: BigInt(0) };
+  return useQuery({
+    queryKey: ['solGeneralLedgerStats'],
+    queryFn: async () => {
+      try { return (await actor.getGeneralLedgerStats()) || empty; }
+      catch (e) { console.error('Failed to fetch SOL ledger stats:', e); return empty; }
+    },
+    enabled: walletType === 'siws',
+    refetchInterval: 5000,
+    placeholderData: empty,
+  });
+}
+
+export function useClaimSolBackerRepayment() {
+  const { actor } = usePonziMathSolActor();
+  const { solanaPubkey } = useWallet();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!actor) throw new Error('SOL actor not ready');
+      if (!solanaPubkey) throw new Error('No connected Solana wallet address — reconnect Phantom to claim.');
+      const result = await actor.claimBackerRepayment([solanaPubkey]); // opt text -> user's wallet
+      if ('Err' in result) throw new Error(result.Err);
+      return result.Ok;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['solBackerPositions'] });
+      queryClient.invalidateQueries({ queryKey: ['solAllBackerRepayments'] });
+    },
   });
 }
 

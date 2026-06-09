@@ -8,6 +8,7 @@ import { ICP_TRANSFER_FEE, E8S_PER_ICP } from '../hooks/useLedger';
 import { UPSTREAM_BACKER_BONUS } from '../lib/gameConstants';
 import { useWallet } from '../hooks/useWallet';
 import { oisySigner } from '../lib/oisySigner';
+import SolBackerPanel from './SolBackerPanel';
 
 export default function AddBackerMoney() {
   const [amount, setAmount] = useState('');
@@ -18,6 +19,13 @@ export default function AddBackerMoney() {
   const { data: mintConfig } = useGetMintConfig();
   const addBackerMoneyMutation = useAddBackerMoney();
   const { walletType } = useWallet();
+
+  // SIWS/SOL users back the project with real SOL via the deposit-detection
+  // flow (ponzi_math_sol.prepareBackerDeposit), not the ICP addBackerMoney pull.
+  // All hooks above run unconditionally before this branch (rules of hooks).
+  if (walletType === 'siws') {
+    return <SolBackerPanel />;
+  }
 
   const ppPerIcp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
 

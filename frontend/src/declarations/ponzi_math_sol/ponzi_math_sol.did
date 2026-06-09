@@ -278,6 +278,7 @@ type PonziMathSol =
      }) query;
    getMaxDepositLimit: () -> (float64) query;
    getMyDepositAddress: () -> (opt text) query;
+   getMyPendingBackerIntents: () -> (vec BackerIntent) query;
    getMyPendingBuyIntents: () -> (vec BuyIntent) query;
    getMyPendingIntents: () -> (vec DepositIntent) query;
    getNonceAccountAddress: () -> (opt text) query;
@@ -301,6 +302,7 @@ type PonziMathSol =
    icrc28_trusted_origins: () -> (TrustedOriginsResponse) query;
    isBootstrapped: () -> (bool) query;
    isCriticalSectionBusy: () -> (bool) query;
+   isSelfServeBackingEnabled: () -> (bool) query;
    payManagementSol: () -> (variant {
                               Err: text;
                               Ok: text;
@@ -316,6 +318,19 @@ type PonziMathSol =
                            Err: text;
                            Ok: nat;
                          });
+   /// Self-serve Series A backing for SIWS/SOL users — the SOL analog of
+   /// ponzi_math.addBackerMoney. Creates a BackerIntent; the next matching SOL
+   /// landing on the caller's deposit address registers/merges their Series A
+   /// position (in creditDeposit). NO Front-End Load (matches the ICP + admin
+   /// backer paths). Min 0.05 SOL.
+   prepareBackerDeposit: (args: record {expectedAmountLamports: nat64;}) ->
+    (variant {
+       Err: text;
+       Ok: record {
+             depositAddress: text;
+             intentId: nat;
+           };
+     });
    prepareSolDeposit: (args:
     record {
       expectedAmountLamports: nat64;
@@ -609,6 +624,15 @@ type BackerKey =
  record {
    principal;
    BackerType;
+ };
+type BackerIntent = 
+ record {
+   createdAt: int;
+   expectedAmountLamports: nat64;
+   expiresAt: int;
+   fulfilled: bool;
+   id: nat;
+   "principal": principal;
  };
 type ActivePlanSnapshot = 
  record {

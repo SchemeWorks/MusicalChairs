@@ -96,7 +96,7 @@ export default function BuyPpDeskFlyout({ onClose, variant = 'widget' }: Props) 
         </div>
       </div>
       <div className="mc-status-amber p-3 mb-4 text-xs font-bold">
-        ⚠️ DEVNET SOL ONLY — the canister polls Solana devnet. Mainnet SOL sent here is lost.
+        Send mainnet SOL only. Your PP is credited automatically once the deposit confirms (~a minute).
       </div>
 
       {justBought > 0 && (

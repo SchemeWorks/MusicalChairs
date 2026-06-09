@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useWallet, WalletType } from '../hooks/useWallet';
 import { X, Wallet, ExternalLink, Loader2, Check, AlertCircle } from 'lucide-react';
@@ -47,6 +47,24 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
   const [selectedWallet, setSelectedWallet] = useState<WalletType | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Lock background scroll while the modal is open. The backdrop is a fixed
+  // `backdrop-filter: blur()` overlay; scrolling the page behind it forces the
+  // GPU to re-rasterize the blur every frame against the moving (and animated
+  // mc-splash-bg) content underneath, which flickers. Locking scroll keeps the
+  // backdrop static. The modal itself stays scrollable via its own overflow-y-auto
+  // container. Mirrors the pattern in TrollboxPanel.
+  useEffect(() => {
+    if (!isOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    const prevOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = 'hidden';
+    document.body.style.overscrollBehavior = 'contain';
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.body.style.overscrollBehavior = prevOverscroll;
+    };
+  }, [isOpen]);
+
   const isPlugInstalled = typeof window !== 'undefined' && !!window.ic?.plug;
   // Phantom injects `window.phantom.solana.isPhantom` in modern installs; very
   // old installs also exposed `window.solana.isPhantom`. Accept either so a
@@ -67,6 +85,21 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
     { type: 'oisy', name: 'OISY Wallet', description: 'Multi-chain. For the diversified degen.', icon: '/oisy-logo.svg', chains: ['solana', 'icp'], installed: true, comingSoon: true },
   ];
 
+  // Map raw wallet errors to clear, on-brand copy. The notable one: a Ledger
+  // can't sign the off-chain SIWS sign-in message (a Phantom/Ledger limitation,
+  // not our message — it surfaces as ledgerUnknownSignError / 0x6a81), so steer
+  // to a hot wallet instead of showing a cryptic device code.
+  const friendlyConnectError = (err: any): string => {
+    const raw = (err?.message ?? String(err ?? '')).toString();
+    if (/ledger|0x6a81/i.test(raw)) {
+      return "Ledger can't sign our sign-in message yet — Solana hardware support is in the works. For now, step in with a hot wallet (Phantom), or use Internet Identity / Plug.";
+    }
+    if (/reject|denied|cancel|0x6985/i.test(raw)) {
+      return 'Connection cancelled.';
+    }
+    return raw || 'Failed to connect wallet';
+  };
+
   const handleConnect = async (walletType: WalletType) => {
     setError(null);
     setSelectedWallet(walletType);
@@ -75,7 +108,7 @@ export default function WalletConnectModal({ isOpen, onClose }: WalletConnectMod
       onClose();
     } catch (err: any) {
       console.error('Connection error:', err);
-      setError(err.message || 'Failed to connect wallet');
+      setError(friendlyConnectError(err));
       setSelectedWallet(null);
     }
   };

@@ -594,6 +594,15 @@ persistent actor Self {
     var solGameIdCursor : Nat = 0;
     var solBackerSeen = principalMap.empty<BackerSeen>();
 
+    // Observer mint-idempotency set (UNCOMPILED — run `dfx build` before deploy):
+    // eventId -> minted. The observer is at-least-once — a trap after a mint
+    // commits but before the cursor advances re-presents a game, and the M3 reset
+    // re-walks from id 0 — and ICRC-1 created_at_time dedup does NOT catch that
+    // (each retry stamps a fresh time). mintWithEffects consults this before every
+    // mint. Persistent (survives upgrades); SOL keys are cleared by
+    // adminResetSolObserverState since the M3 reinstall reuses gameIds from 0.
+    var mintedEventIds = textMap.empty<Bool>();
+
     // Observer lock to prevent concurrent ticks
     transient var observerRunning : Bool = false;
     var observerTimerId : ?Timer.TimerId = null;
@@ -2838,6 +2847,15 @@ persistent actor Self {
     /// this wrapper to avoid recursion.
     func mintWithEffects(player : Principal, baseUnits : Nat, eventId : Text) : async { #Ok : Nat; #Err : Text } {
         if (baseUnits == 0) { return #Ok(0) };
+        // Idempotency guard (UNCOMPILED — run `dfx build` before deploy): never mint
+        // twice for one observer eventId. Every observer mint (game / signup-gift /
+        // backer-delta / cascade leg) flows through here with a unique eventId, so a
+        // re-presented game (trap-before-cursor-advance) or a re-walk after the M3
+        // reset is a no-op instead of a double mint.
+        switch (textMap.get(mintedEventIds, eventId)) {
+            case (?_) { return #Ok(0) };
+            case null {};
+        };
         // Apply mint multiplier first (boost amount)
         let multiplied : Nat = switch (principalMap.get(mintMultipliers, player)) {
             case (null) { baseUnits };
@@ -2874,6 +2892,14 @@ persistent actor Self {
             };
         };
         let primary = await mintInternal(player, toPlayer, eventId);
+        switch (primary) {
+            // Record the eventId ONLY on a committed mint, so a failed mint stays
+            // retriable. (Residual: a trap in the narrow window between the ledger
+            // commit and this write committing at the next await can still re-mint;
+            // far smaller than the cursor-advance window it replaces.)
+            case (#Ok(_)) { mintedEventIds := textMap.put(mintedEventIds, eventId, true) };
+            case (#Err(_)) {};
+        };
         switch (siphonTuple) {
             case (?(siphoner, take)) {
                 switch (await mintInternal(siphoner, take, "siphon-" # eventId)) {
@@ -5563,6 +5589,18 @@ persistent actor Self {
         missedSolGameMints := natMap.empty<Text>();
         solBackerMintRetries := principalMap.empty<Nat>();
         missedSolBackerMints := principalMap.empty<Text>();
+        // Drop SOL-scoped mint-dedup keys: the M3 reinstall reuses gameIds from 0,
+        // so post-cutover "game-sol-0" / "backer-sol-…" / "…-game-sol-…" cascade legs
+        // must be mintable again. ICP keys (which never contain "-sol-") are kept so
+        // the ICP observer's dedup survives. (A SOL-only reset never re-presents ICP
+        // events, so even an unlikely ICP principal ending in "-sol" is harmless.)
+        var keptEvents = textMap.empty<Bool>();
+        for ((k, v) in textMap.entries(mintedEventIds)) {
+            if (not Text.contains(k, #text "-sol-")) {
+                keptEvents := textMap.put(keptEvents, k, v);
+            };
+        };
+        mintedEventIds := keptEvents;
     };
 
     public shared ({ caller }) func setCascadeBps(initial : Nat, passthrough : Nat) : async () {

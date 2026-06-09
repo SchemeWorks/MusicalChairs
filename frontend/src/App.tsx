@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Principal } from '@dfinity/principal';
 import { useInternetIdentity } from './hooks/useInternetIdentity';
 import { useWallet } from './hooks/useWallet';
 import { useGetCallerUserProfile, useGetUserGames, useGetPonziPoints, useGetPublicStats, useGetReferralStats, useRegisterReferral, useGetExitLiquidityPublic } from './hooks/useQueries';
-import { useLivePortfolio } from './hooks/useLiveEarnings';
+import { computeLiveEarnings } from './hooks/useLiveEarnings';
 import LoginButton from './components/LoginButton';
 import ProfileSetup from './components/ProfileSetup';
 import Dashboard from './components/Dashboard';
@@ -336,10 +336,16 @@ export default function App() {
   const { data: games } = useGetUserGames();
   const { data: ponziData } = useGetPonziPoints();
   const { data: referralStats } = useGetReferralStats();
-  const portfolio = useLivePortfolio(games);
-
-  // Profit Center badge: any position has positive earnings (withdrawable)
-  const hasWithdrawableEarnings = portfolio.games.some(g => g.earnings > 0);
+  // Profit Center badge: any position has positive accrued earnings (withdrawable).
+  // Computed directly from `games` rather than via useLivePortfolio's per-second
+  // tick — App only needs this boolean, not the live-climbing number, so subscribing
+  // to the 1s tick here forced the entire app tree to re-render every second
+  // (the source of the page-wide flicker). GameStatusBar still uses useLivePortfolio
+  // for the actual ticking P/L display.
+  const hasWithdrawableEarnings = useMemo(
+    () => (games ?? []).some(g => computeLiveEarnings(g) > 0),
+    [games],
+  );
   // Shenanigans badge: user has enough PP to cast the cheapest shenanigan (500 PP)
   const canCastShenanigan = (ponziData?.totalPoints || 0) >= 500;
   // MLM badge: referral earnings increased since last visit (gold dot)

@@ -1,13 +1,14 @@
 import React, { useState } from 'react';
 import { toast } from 'sonner';
 import { useWallet } from '../hooks/useWallet';
-import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment, useGetUserNames, useGetMintConfig } from '../hooks/useQueries';
-import type { GeneralLedgerEntry } from '../backend';
+import { useGetGeneralLedger, useGetGeneralLedgerStats, useGetBackerPositions, useGetGameStats, useGetAllBackerRepayments, useClaimDealerRepayment, useGetUserNames, useGetMintConfig, useGetSolBackerPositions, useGetSolAllBackerRepayments, useGetSolGeneralLedger, useGetSolGeneralLedgerStats, useClaimSolBackerRepayment } from '../hooks/useQueries';
+import type { GeneralLedgerEntry, BackerPosition, BackerKey } from '../backend';
 import LoadingSpinner from './LoadingSpinner';
 import AddBackerMoney from './AddBackerMoney';
 import ClaimRepaymentToast from './ClaimRepaymentToast';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP } from '../lib/formatICP';
+import { formatSolFloat } from '../solana/lamports';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
@@ -49,8 +50,11 @@ function TabControl({ activeTab, onTabChange, backerCount, ledgerCount }: {
    Backer Info (How Backer Positions Work)
    ================================================================ */
 function BackerInfoCard() {
+  const { walletType } = useWallet();
+  const isSol = walletType === 'siws';
+  const unit = isSol ? 'SOL' : 'ICP';
   const { data: mintConfig } = useGetMintConfig();
-  const ppPerIcp = mintConfig ? Number(mintConfig.backerPpPerIcp) : 0;
+  const ppPerIcp = mintConfig ? Number(isSol ? mintConfig.backerPpPerSol : mintConfig.backerPpPerIcp) : 0;
   const sections = [
     {
       icon: <Info className="h-5 w-5 mc-text-cyan" />,
@@ -83,8 +87,8 @@ function BackerInfoCard() {
       accent: 'mc-accent-green',
       content: (
         <p className="text-xs mc-text-dim">
-          Series A: <strong className="mc-text-green">1.24 ICP back per ICP (24% bonus)</strong>.
-          Series B: <strong className="mc-text-green">1.16 ICP back per ICP (16% bonus)</strong>.
+          Series A: <strong className="mc-text-green">1.24 {unit} back per {unit} (24% bonus)</strong>.
+          Series B: <strong className="mc-text-green">1.16 {unit} back per {unit} (16% bonus)</strong>.
           Repaid automatically through platform fees.
         </p>
       ),
@@ -96,7 +100,7 @@ function BackerInfoCard() {
       content: (
         <div className="text-xs mc-text-dim space-y-1">
           <p>Repayment depends on platform activity. More investors = faster repayment.
-          You also earn <strong className="mc-text-purple">{ppPerIcp.toLocaleString()} Ponzi Points per ICP</strong> deposited.</p>
+          You also earn <strong className="mc-text-purple">{ppPerIcp.toLocaleString()} Ponzi Points per {unit}</strong> deposited.</p>
           <p className="font-accent italic mc-text-muted">Management reserves the right to a modest operational fee on every deposit.</p>
         </div>
       ),
@@ -165,8 +169,19 @@ function describeEvent(entry: GeneralLedgerEntry): { label: string; isInflow: bo
 }
 
 function HouseLedgerRecords() {
-  const { data: ledgerRecords = [], isLoading, error, refetch } = useGetGeneralLedger();
-  const { data: ledgerStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = useGetGeneralLedgerStats();
+  const { walletType } = useWallet();
+  const isSol = walletType === 'siws';
+  const fmt = (n: number) => (isSol ? formatSolFloat(n) : formatICP(n));
+  const unit = isSol ? 'SOL' : 'ICP';
+
+  const icpLedger = useGetGeneralLedger();
+  const solLedger = useGetSolGeneralLedger();
+  const { data: ledgerRecordsRaw = [], isLoading, error, refetch } = isSol ? solLedger : icpLedger;
+  const ledgerRecords = ledgerRecordsRaw as GeneralLedgerEntry[];
+
+  const icpStats = useGetGeneralLedgerStats();
+  const solStats = useGetSolGeneralLedgerStats();
+  const { data: ledgerStats, isLoading: statsLoading, error: statsError, refetch: refetchStats } = isSol ? solStats : icpStats;
 
   if (error || statsError) {
     return (
@@ -195,9 +210,9 @@ function HouseLedgerRecords() {
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: 'Total Inflows', value: `${formatICP(stats.totalInflows)} ICP`, color: 'mc-text-green' },
-          { label: 'Total Outflows', value: `${formatICP(stats.totalOutflows)} ICP`, color: 'mc-text-pink' },
-          { label: 'Net Flow', value: `${formatICP(stats.netFlow)} ICP`, color: 'mc-text-cyan' },
+          { label: 'Total Inflows', value: `${fmt(stats.totalInflows)} ${unit}`, color: 'mc-text-green' },
+          { label: 'Total Outflows', value: `${fmt(stats.totalOutflows)} ${unit}`, color: 'mc-text-pink' },
+          { label: 'Net Flow', value: `${fmt(stats.netFlow)} ${unit}`, color: 'mc-text-cyan' },
           { label: 'Total Records', value: `${Number(stats.entryCount)}`, color: 'mc-text-purple' },
         ].map(s => (
           <div key={s.label} className="mc-card p-3 text-center">
@@ -257,11 +272,24 @@ function HouseLedgerRecords() {
    Backer Positions
    ================================================================ */
 function BackerPositions() {
-  const { principal } = useWallet();
-  const { data: backerPositions = [], isLoading, error, refetch } = useGetBackerPositions();
-  const { data: repaymentEntries = [] } = useGetAllBackerRepayments();
-  const claimRepayment = useClaimDealerRepayment();
-  const rawBackers = Array.isArray(backerPositions) ? backerPositions : [];
+  const { principal, walletType } = useWallet();
+  const isSol = walletType === 'siws';
+  const fmt = (n: number) => (isSol ? formatSolFloat(n) : formatICP(n));
+  const unit = isSol ? 'SOL' : 'ICP';
+
+  const icpBackers = useGetBackerPositions();
+  const solBackers = useGetSolBackerPositions();
+  const { data: backerPositions = [], isLoading, error, refetch } = isSol ? solBackers : icpBackers;
+
+  const icpRepay = useGetAllBackerRepayments();
+  const solRepay = useGetSolAllBackerRepayments();
+  const { data: repaymentEntries = [] } = isSol ? solRepay : icpRepay;
+
+  const claimIcp = useClaimDealerRepayment();
+  const claimSol = useClaimSolBackerRepayment();
+  const claimRepayment = isSol ? claimSol : claimIcp;
+
+  const rawBackers = (Array.isArray(backerPositions) ? backerPositions : []) as BackerPosition[];
   const { data: nameByPrincipal } = useGetUserNames(rawBackers.map(b => b.owner.toString()));
 
   const [claimToast, setClaimToast] = useState<{ amount: number } | null>(null);
@@ -272,7 +300,7 @@ function BackerPositions() {
       triggerConfetti();
       setClaimToast({ amount: Number(paid) });
     } catch (err: any) {
-      toast.error(err?.message || `Claim failed (had ${formatICP(amount)} ICP claimable)`);
+      toast.error(err?.message || `Claim failed (had ${fmt(amount)} ${unit} claimable)`);
     }
   };
 
@@ -280,7 +308,7 @@ function BackerPositions() {
     `${principal}-${'seriesA' in type ? 'A' : 'B'}`;
 
   const repaidByKey = new Map<string, number>(
-    repaymentEntries.map(([[p, t], v]) => [backerKeyId(p.toString(), t), v])
+    (repaymentEntries as Array<[BackerKey, number]>).map(([[p, t], v]) => [backerKeyId(p.toString(), t), v])
   );
 
   if (error) {
@@ -328,11 +356,11 @@ function BackerPositions() {
         <div className="flex flex-col gap-3 lg:w-56">
           <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
             <div className="mc-label mb-1">Outstanding Backer Debt</div>
-            <div className="text-xl font-bold mc-text-danger">{formatICP(outstandingDebt)} ICP</div>
+            <div className="text-xl font-bold mc-text-danger">{fmt(outstandingDebt)} {unit}</div>
           </div>
           <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
             <div className="mc-label mb-1">Total Funds Raised</div>
-            <div className="text-xl font-bold mc-text-cyan">{formatICP(totalHouseMoney)} ICP</div>
+            <div className="text-xl font-bold mc-text-cyan">{fmt(totalHouseMoney)} {unit}</div>
           </div>
         </div>
       </div>
@@ -386,7 +414,7 @@ function BackerPositions() {
                   <div className="md:text-center">
                     <div className="mc-label">Entitlement</div>
                     <div className={`text-xl font-bold ${isSeriesA ? 'mc-text-green' : 'mc-text-gold'}`}>
-                      {formatICP(backer.entitlement)} ICP
+                      {fmt(backer.entitlement)} {unit}
                     </div>
                   </div>
 
@@ -394,19 +422,19 @@ function BackerPositions() {
                   <div>
                     <div className="mc-label mb-1">Repayment</div>
                     <div className="text-sm font-bold mc-text-primary mb-1">
-                      {formatICP(repaid)} / {formatICP(backer.entitlement)} ICP
+                      {fmt(repaid)} / {fmt(backer.entitlement)} {unit}
                     </div>
                     <Progress value={Math.max(0, Math.min(100, repayPct))} className="mb-1 h-2" />
                     <div className="flex justify-between text-xs mc-text-muted">
                       <span>{Math.max(0, repayPct).toFixed(1)}% repaid</span>
-                      <span className="mc-text-danger">Remaining: {formatICP(remaining)} ICP</span>
+                      <span className="mc-text-danger">Remaining: {fmt(remaining)} {unit}</span>
                     </div>
                   </div>
                 </div>
                 {backer.owner.toString() === principal && repaid > 0 && (
                   <div className="mt-3 pt-3 border-t border-white/5 flex items-center justify-between gap-3">
                     <span className="text-xs mc-text-dim">
-                      <span className="mc-text-green font-bold">{formatICP(repaid)} ICP</span> ready to claim
+                      <span className="mc-text-green font-bold">{fmt(repaid)} {unit}</span> ready to claim
                     </span>
                     <button
                       onClick={() => handleClaim(repaid)}
@@ -448,8 +476,14 @@ function BackerPositions() {
    ================================================================ */
 export default function HouseDashboard() {
   const [activeTab, setActiveTab] = useState<'backers' | 'ledger'>('backers');
-  const { data: backerPositions } = useGetBackerPositions();
-  const { data: ledgerRecords } = useGetGeneralLedger();
+  const { walletType } = useWallet();
+  const isSol = walletType === 'siws';
+  const icpBackers = useGetBackerPositions();
+  const solBackers = useGetSolBackerPositions();
+  const icpLedger = useGetGeneralLedger();
+  const solLedger = useGetSolGeneralLedger();
+  const backerPositions = (isSol ? solBackers : icpBackers).data;
+  const ledgerRecords = (isSol ? solLedger : icpLedger).data;
 
   const backerCount = Array.isArray(backerPositions) ? backerPositions.length : 0;
   const ledgerCount = Array.isArray(ledgerRecords) ? ledgerRecords.length : 0;

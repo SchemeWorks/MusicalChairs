@@ -22,6 +22,27 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const [isEditingName, setIsEditingName] = useState(false);
   const [newName, setNewName] = useState('');
 
+  // Robust copy: navigator.clipboard.writeText throws (and silently no-ops the
+  // button) when blocked by permissions-policy / a non-focused document, which
+  // is why the raw call failed in the deployed app. Fall back to a hidden
+  // textarea + execCommand so it works everywhere.
+  const copyText = async (text: string, onOk: () => void) => {
+    let ok = false;
+    try {
+      if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); ok = true; }
+    } catch { ok = false; }
+    if (!ok) {
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { ok = false; }
+    }
+    if (ok) onOk();
+  };
+
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
   const [isMobile, setIsMobile] = useState(false);
@@ -445,7 +466,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
         <div className="mc-label mb-1">Principal ID</div>
         <div className="flex gap-2">
           <div className="mc-card flex-1 p-2 text-xs mc-text-muted font-mono truncate">{principalId}</div>
-          <button onClick={async () => { await navigator.clipboard.writeText(principalId); setCopied(true); setTimeout(() => setCopied(false), 2000); }}
+          <button onClick={() => copyText(principalId, () => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}
             className="mc-btn-secondary px-2 py-1 rounded-lg">
             {copied ? <Check className="h-3 w-3 mc-text-green" /> : <Copy className="h-3 w-3" />}
           </button>
@@ -457,7 +478,7 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
               <div className="mc-card flex-1 p-2 text-xs mc-text-muted font-mono truncate" title={siwsPubkey}>
                 {siwsPubkey}
               </div>
-              <button onClick={async () => { await navigator.clipboard.writeText(siwsPubkey); setPubkeyCopied(true); setTimeout(() => setPubkeyCopied(false), 2000); }}
+              <button onClick={() => copyText(siwsPubkey, () => { setPubkeyCopied(true); setTimeout(() => setPubkeyCopied(false), 2000); })}
                 className="mc-btn-secondary px-2 py-1 rounded-lg" aria-label="Copy Solana pubkey">
                 {pubkeyCopied ? <Check className="h-3 w-3 mc-text-green" /> : <Copy className="h-3 w-3" />}
               </button>
