@@ -15,6 +15,7 @@ import Error "mo:base/Error";
 
 import Ledger "ledger";
 import Icrc21 "icrc21";
+import Promotion "Promotion";
 
 persistent actor class PonziMath(initArgs : {
     backendPrincipal : Principal;
@@ -709,19 +710,26 @@ persistent actor class PonziMath(initArgs : {
     // already has a position), fall back to all underwater players. Uses
     // raw_rand for selection — caller must be in an async update context.
     // Returns null if no one is underwater.
+    //
+    // "Underwater" is the player's NET position aggregated across EVERY position
+    // they opened this round (not per-game, not active-only): a matured plan that
+    // paid out more than their combined stake makes them a net winner, so they
+    // are not a loser even if their other positions are still down. See
+    // Promotion.underwaterLosers.
     func selectPromotionCandidate() : async ?{ owner : Principal; underwater : Float } {
-        var underwaterByPlayer = principalMapNat.empty<Float>();
-        // Iterate active games via the index (drift-guarded). (Audit F-002.)
-        for (g in activeGamesSnapshot().vals()) {
-            let loss = g.amount - g.totalWithdrawn;
-            if (loss > 0.0) {
-                let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
-                    case (null) { 0.0 };
-                    case (?v) { v };
-                };
-                underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
-            };
+        // The current round started at the most recent reset; round 1 has none.
+        let roundStart : Int = switch (intMap.maxEntry(gameResetHistory)) {
+            case (?(t, _)) { t };
+            case (null) { 0 };
         };
+        // Scan the FULL history (active + closed-this-round) so cashed-out
+        // winning plans offset losses; round scoping by startTime keeps it to the
+        // current round. (Supersedes the active-index F-002 scan, which could not
+        // see matured/withdrawn positions.)
+        let netLosers = Promotion.underwaterLosers(
+            Iter.toArray(natMap.vals(gameRecords)),
+            roundStart,
+        );
 
         // Exclude operator sock-puppet accounts so they can never win the
         // Series B lottery — applied here so it covers BOTH the no-backer pool
@@ -729,7 +737,7 @@ persistent actor class PonziMath(initArgs : {
         // allLosers is empty and the round resets with no promotion.
         let allLosers = List.toArray(
             List.filter(
-                List.fromArray(Iter.toArray(principalMapNat.entries(underwaterByPlayer))),
+                List.fromArray(netLosers),
                 func((p, _) : (Principal, Float)) : Bool {
                     not isSeriesBIneligible(p);
                 },
