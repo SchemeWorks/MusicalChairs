@@ -24,6 +24,7 @@ import PpLedger "PpLedger";
 import SolRpc "SolRpc";
 import SolSigner "SolSigner";
 import SolTx "SolTx";
+import Promotion "Promotion";
 
 persistent actor class PonziMathSol(initArgs : {
     backendPrincipal : Principal;
@@ -847,21 +848,19 @@ persistent actor class PonziMathSol(initArgs : {
     // raw_rand for selection — caller must be in an async update context.
     // Returns null if no one is underwater.
     func selectPromotionCandidate() : async ?{ owner : Principal; underwater : Float } {
-        var underwaterByPlayer = principalMapNat.empty<Float>();
-        for (g in natMap.vals(gameRecords)) {
-            if (g.isActive) {
-                let loss = g.amount - g.totalWithdrawn;
-                if (loss > 0.0) {
-                    let prev = switch (principalMapNat.get(underwaterByPlayer, g.player)) {
-                        case (null) { 0.0 };
-                        case (?v) { v };
-                    };
-                    underwaterByPlayer := principalMapNat.put(underwaterByPlayer, g.player, prev + loss);
-                };
-            };
+        // "Underwater" is the player's NET position aggregated across EVERY
+        // position they opened this round (not per-game, not active-only): a
+        // matured plan that paid out more than their combined stake makes them a
+        // net winner, so they are not a loser even if their other positions are
+        // still down. See Promotion.underwaterLosers.
+        let roundStart : Int = switch (intMap.maxEntry(gameResetHistory)) {
+            case (?(t, _)) { t };
+            case (null) { 0 };
         };
-
-        let allLosers = Iter.toArray(principalMapNat.entries(underwaterByPlayer));
+        let allLosers = Promotion.underwaterLosers(
+            Iter.toArray(natMap.vals(gameRecords)),
+            roundStart,
+        );
         if (allLosers.size() == 0) { return null };
 
         let withoutBacker = List.toArray(
