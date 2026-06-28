@@ -104,6 +104,8 @@ Cycle Manager flow:
 5. Display `pp_ledger`, `siws_provider`, `frontend`, and `pp_assets` from latest controlled snapshots.
 6. Display `backend`, `ponzi_math`, `ponzi_math_sol`, and `shenanigans` from direct self-report.
 
+Metric records use `metric_label : opt text` for the optional label field. The original Cycle Manager shape called this field `label`, but `label` is a Motoko keyword in this repo's compiler, so the exported Motoko/Candid ABI uses the non-keyword field name while preserving the same semantics.
+
 ## Metadata Updates
 
 Static metadata lives in two places:

@@ -37,7 +37,7 @@ module {
         key : Text;
         count : Nat64;
         value : Nat;
-        label : ?Text;
+        metric_label : ?Text;
     };
 
     public type CycleManagerTarget = {

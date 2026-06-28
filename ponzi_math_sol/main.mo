@@ -281,7 +281,7 @@ persistent actor class PonziMathSol(initArgs : {
             key;
             count;
             value = Nat64.toNat(count);
-            label = labelValue;
+            metric_label = labelValue;
         };
     };
 
@@ -290,7 +290,7 @@ persistent actor class PonziMathSol(initArgs : {
             key;
             count = 0;
             value;
-            label = labelValue;
+            metric_label = labelValue;
         };
     };
 
@@ -1601,7 +1601,6 @@ persistent actor class PonziMathSol(initArgs : {
             cmGauge("game:cover_charge_balance:cycles", coverChargeBalance, ?"legacy_cover_charge_balance"),
             cmGauge("game:cover_charge_lamports:cycles", Nat64.toNat(coverChargeAccrualLamports), ?"cover_charge_accrual_lamports"),
             cmGauge("game:backer_positions:cycles", backerKeyMap.size(backerPositions), ?"backer_position_count"),
-            cmGauge("game:active_game_index:cycles", natMap.size(activeGameIds), ?"active_game_index_count"),
             cmGauge("timer:deposit_detection:cycles", if (detectionTimerId != null) { 1 } else { 0 }, ?"timer_armed"),
             cmGauge("timer:deposit_detection:instructions", if (detectionInProgress) { 1 } else { 0 }, ?"in_progress"),
             cmGauge("op:sol_deposit_intents:count", openDepositIntents, ?"open_game_intents"),

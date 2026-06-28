@@ -272,7 +272,7 @@ export interface CycleManagerMetric {
   'key' : string,
   'count' : bigint,
   'value' : bigint,
-  'label' : [] | [string],
+  'metric_label' : [] | [string],
 }
 export interface CycleManagerCyclesStatus {
   'heap_memory_bytes' : [] | [bigint],

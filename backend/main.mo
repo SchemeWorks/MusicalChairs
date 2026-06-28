@@ -96,7 +96,7 @@ persistent actor Self {
             key;
             count;
             value = Nat64.toNat(count);
-            label = labelValue;
+            metric_label = labelValue;
         };
     };
 

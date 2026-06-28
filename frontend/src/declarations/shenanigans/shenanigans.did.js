@@ -246,7 +246,7 @@ export const idlFactory = ({ IDL }) => {
     'key' : IDL.Text,
     'count' : IDL.Nat64,
     'value' : IDL.Nat,
-    'label' : IDL.Opt(IDL.Text),
+    'metric_label' : IDL.Opt(IDL.Text),
   });
   const CycleManagerCyclesStatus = IDL.Record({
     'heap_memory_bytes' : IDL.Opt(IDL.Nat64),

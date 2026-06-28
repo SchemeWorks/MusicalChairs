@@ -23,6 +23,8 @@ const EXPECTED_TARGETS = [
   ["pp_assets", "4236a-haaaa-aaaac-qecma-cai", "ControllerStatus"],
 ];
 
+const CONTROLLED_STATUS_TARGETS = EXPECTED_TARGETS.filter(([, , kind]) => kind === "ControllerStatus");
+
 const errors = [];
 const warnings = [];
 
@@ -66,6 +68,17 @@ function callDfx(canisterNameOrId, method) {
     ["canister", "--network", NETWORK, "call", canisterNameOrId, method, "()"],
     { cwd: ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
   );
+}
+
+function countOccurrences(text, needle) {
+  if (!needle) return 0;
+  let count = 0;
+  let index = text.indexOf(needle);
+  while (index !== -1) {
+    count += 1;
+    index = text.indexOf(needle, index + needle.length);
+  }
+  return count;
 }
 
 const dfx = readJson("dfx.json");
@@ -171,6 +184,14 @@ if (existsSync(rel("observatory/types.mo"))) {
     typesMo.includes("controllers : [Principal]"),
     "observatory ControlledStatus must include observed controllers",
   );
+  expect(
+    typesMo.includes("metric_label : ?Text"),
+    "CycleManagerMetric must use Motoko-safe metric_label field",
+  );
+  expect(
+    !/^\s*label\s*:\s*\?Text\s*;/m.test(typesMo),
+    "CycleManagerMetric must not use Motoko keyword field label",
+  );
 }
 
 if (existsSync(rel("frontend/src/declarations/musical_chairs_observatory/musical_chairs_observatory.did"))) {
@@ -188,11 +209,50 @@ if (RUN_LIVE_CHECKS) {
   if (!observatoryId) {
     errors.push(`RUN_LIVE_CHECKS=1 requires ${OBSERVATORY_CANISTER}.${NETWORK} in canister_ids.json`);
   } else {
+    let controlledStatusesOutput = "";
+
     for (const [canister, method] of [
       [OBSERVATORY_CANISTER, "observatory_version"],
       [OBSERVATORY_CANISTER, "cycle_manager_targets"],
-      [OBSERVATORY_CANISTER, "collect_controlled_statuses"],
-      [OBSERVATORY_CANISTER, "controlled_statuses"],
+    ]) {
+      try {
+        callDfx(canister, method);
+      } catch (error) {
+        errors.push(`dfx call ${canister}.${method} failed: ${error.stderr || error.message}`);
+      }
+    }
+
+    try {
+      const collectOutput = callDfx(OBSERVATORY_CANISTER, "collect_controlled_statuses");
+      expect(
+        /variant\s*\{\s*Ok\s*=\s*4(?:\s*:\s*nat)?\s*\}/m.test(collectOutput),
+        `collect_controlled_statuses must return #Ok(4), got: ${collectOutput.trim()}`,
+      );
+      expect(
+        !/variant\s*\{\s*Err\s*=/m.test(collectOutput),
+        `collect_controlled_statuses returned Err: ${collectOutput.trim()}`,
+      );
+    } catch (error) {
+      errors.push(`dfx call ${OBSERVATORY_CANISTER}.collect_controlled_statuses failed: ${error.stderr || error.message}`);
+    }
+
+    try {
+      controlledStatusesOutput = callDfx(OBSERVATORY_CANISTER, "controlled_statuses");
+      for (const [name, canisterId] of CONTROLLED_STATUS_TARGETS) {
+        expect(
+          controlledStatusesOutput.includes(canisterId),
+          `controlled_statuses must include ${name} (${canisterId})`,
+        );
+      }
+      expect(
+        countOccurrences(controlledStatusesOutput, observatoryId) >= CONTROLLED_STATUS_TARGETS.length,
+        `controlled_statuses must show ${observatoryId} as an observed controller for all controlled targets`,
+      );
+    } catch (error) {
+      errors.push(`dfx call ${OBSERVATORY_CANISTER}.controlled_statuses failed: ${error.stderr || error.message}`);
+    }
+
+    for (const [canister, method] of [
       ["backend", "cycles_status"],
       ["backend", "cycle_manager_metrics"],
       ["ponzi_math", "cycles_status"],

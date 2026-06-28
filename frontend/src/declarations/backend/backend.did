@@ -9,7 +9,7 @@ type CycleManagerMetric =
  record {
    count: nat64;
    key: text;
-   label: opt text;
+   metric_label: opt text;
    value: nat;
  };
 type CycleManagerCyclesStatus =
