@@ -2,10 +2,13 @@ import Principal "mo:base/Principal";
 import OrderedMap "mo:base/OrderedMap";
 import Text "mo:base/Text";
 import Nat "mo:base/Nat";
+import Nat64 "mo:base/Nat64";
 import Debug "mo:base/Debug";
 import Error "mo:base/Error";
+import Cycles "mo:base/ExperimentalCycles";
 
 import AccessControl "authorization/access-control";
+import CycleManager "../observatory/types";
 import Icrc21 "icrc21";
 import Ledger "ledger";
 
@@ -47,7 +50,9 @@ persistent actor Self {
 
     // Assign Caller User Role
     public shared ({ caller }) func assignCallerUserRole(user : Principal, role : AccessControl.UserRole) : async () {
+        cmRoleChangeAttempts += 1;
         AccessControl.assignRole(accessControlState, caller, user, role);
+        cmRoleChangeSuccesses += 1;
     };
 
     // Check if Caller is Admin
@@ -68,6 +73,33 @@ persistent actor Self {
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
     var userProfiles = principalMap.empty<UserProfile>();
 
+    transient let CYCLE_MANAGER_LOW_WATERMARK : Nat = 2_000_000_000_000;
+    transient let CYCLE_MANAGER_FREEZE_THRESHOLD_SECS : Nat64 = 2_592_000;
+
+    var cmUserProfileSaves : Nat64 = 0;
+    var cmRoleChangeAttempts : Nat64 = 0;
+    var cmRoleChangeSuccesses : Nat64 = 0;
+    var cmPayManagementAttempts : Nat64 = 0;
+    var cmPayManagementSuccesses : Nat64 = 0;
+    var cmPayManagementFailures : Nat64 = 0;
+    var cmSweepCoverChargeAttempts : Nat64 = 0;
+    var cmSweepCoverChargeSuccesses : Nat64 = 0;
+    var cmSweepCoverChargeFailures : Nat64 = 0;
+    var cmIcpLedgerTransferAttempts : Nat64 = 0;
+    var cmIcpLedgerTransferSuccesses : Nat64 = 0;
+    var cmIcpLedgerTransferFailures : Nat64 = 0;
+    var cmIcpLedgerBalanceQueries : Nat64 = 0;
+    var cmUnauthorizedAdminOperations : Nat64 = 0;
+
+    func cmCounter(key : Text, count : Nat64, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count;
+            value = Nat64.toNat(count);
+            label = labelValue;
+        };
+    };
+
     public query ({ caller }) func getCallerUserProfile() : async ?UserProfile {
         principalMap.get(userProfiles, caller);
     };
@@ -80,6 +112,7 @@ persistent actor Self {
         requireAuthenticated(caller);
         validateTextLength(profile.name, 64, "Display name");
         userProfiles := principalMap.put(userProfiles, caller, profile);
+        cmUserProfileSaves += 1;
     };
 
     // ========================================================================
@@ -113,26 +146,42 @@ persistent actor Self {
         to : Principal,
         amount : Nat,
     ) : async { #Ok : Nat; #Err : Text } {
+        cmPayManagementAttempts += 1;
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            cmUnauthorizedAdminOperations += 1;
+            cmPayManagementFailures += 1;
             return #Err("Unauthorized: admin only");
         };
-        if (amount == 0) { return #Err("Amount must be greater than zero") };
+        if (amount == 0) {
+            cmPayManagementFailures += 1;
+            return #Err("Amount must be greater than zero");
+        };
         if (amount <= Ledger.ICP_TRANSFER_FEE) {
+            cmPayManagementFailures += 1;
             return #Err("Amount must exceed the ledger transfer fee of " # Nat.toText(Ledger.ICP_TRANSFER_FEE) # " e8s");
         };
 
         let ponziMath : PonziMathActor = switch (ponziMathPrincipal) {
-            case (null) { return #Err("ponzi_math principal not set") };
+            case (null) {
+                cmPayManagementFailures += 1;
+                return #Err("ponzi_math principal not set");
+            };
             case (?p) { actor(Principal.toText(p)) };
         };
 
         // Step 1: pull cover charges from ponzi_math. Ignore failures —
         // admin may want to pay out from pre-existing backend balance.
-        let _ = try { await ponziMath.sweepCoverCharges() }
+        cmSweepCoverChargeAttempts += 1;
+        let sweepResult = try { await ponziMath.sweepCoverCharges() }
         catch (_) { #Err("sweep call failed; proceeding with existing backend balance") };
+        switch (sweepResult) {
+            case (#Ok(_)) { cmSweepCoverChargeSuccesses += 1 };
+            case (#Err(_)) { cmSweepCoverChargeFailures += 1 };
+        };
 
         // Step 2: transfer `amount` from backend's balance to `to`.
         let transferAmount : Nat = amount - Ledger.ICP_TRANSFER_FEE;
+        cmIcpLedgerTransferAttempts += 1;
         let transferResult = try {
             await icpLedger.icrc1_transfer({
                 from_subaccount = null;
@@ -143,12 +192,20 @@ persistent actor Self {
                 created_at_time = null;
             });
         } catch (e) {
+            cmIcpLedgerTransferFailures += 1;
+            cmPayManagementFailures += 1;
             return #Err("Failed to contact ICP ledger: " # Error.message(e));
         };
 
         switch (transferResult) {
-            case (#Ok(blockIndex)) { #Ok(blockIndex) };
+            case (#Ok(blockIndex)) {
+                cmIcpLedgerTransferSuccesses += 1;
+                cmPayManagementSuccesses += 1;
+                #Ok(blockIndex);
+            };
             case (#Err(err)) {
+                cmIcpLedgerTransferFailures += 1;
+                cmPayManagementFailures += 1;
                 let msg = switch (err) {
                     case (#InsufficientFunds(_)) { "Backend has insufficient ICP. Sweep may not have funded enough yet." };
                     case (#BadFee(_)) { "Bad fee" };
@@ -168,11 +225,43 @@ persistent actor Self {
     // waiting to be paid out. Admin only.
     public shared ({ caller }) func getBackendICPBalance() : async Nat {
         if (not (AccessControl.hasPermission(accessControlState, caller, #admin))) {
+            cmUnauthorizedAdminOperations += 1;
             Debug.trap("Unauthorized");
         };
+        cmIcpLedgerBalanceQueries += 1;
         try {
             await icpLedger.icrc1_balance_of({ owner = Principal.fromActor(Self); subaccount = null });
         } catch (_) { 0 };
+    };
+
+    public query func cycles_status() : async CycleManager.CycleManagerCyclesStatus {
+        let balance = Cycles.balance();
+        {
+            balance;
+            low_watermark = CYCLE_MANAGER_LOW_WATERMARK;
+            healthy = balance >= CYCLE_MANAGER_LOW_WATERMARK;
+            freeze_threshold_secs = CYCLE_MANAGER_FREEZE_THRESHOLD_SECS;
+            stable_memory_bytes = null;
+            heap_memory_bytes = null;
+            idle_burn_cycles_per_day = null;
+        };
+    };
+
+    public query func cycle_manager_metrics() : async [CycleManager.CycleManagerMetric] {
+        [
+            cmCounter("op:user_profile_save:count", cmUserProfileSaves, null),
+            cmCounter("op:access_control_role_change:count", cmRoleChangeSuccesses, ?"success"),
+            cmCounter("op:access_control_role_change:rejects", cmRoleChangeAttempts - cmRoleChangeSuccesses, ?"failed_or_trapped"),
+            cmCounter("op:pay_management:count", cmPayManagementSuccesses, ?"success"),
+            cmCounter("op:pay_management:rejects", cmPayManagementFailures, ?"failure"),
+            cmCounter("op:sweep_cover_charges:count", cmSweepCoverChargeSuccesses, ?"success"),
+            cmCounter("op:sweep_cover_charges:rejects", cmSweepCoverChargeFailures, ?"failure"),
+            cmCounter("op:icp_ledger_transfer:count", cmIcpLedgerTransferSuccesses, ?"success"),
+            cmCounter("op:icp_ledger_transfer:rejects", cmIcpLedgerTransferFailures, ?"failure"),
+            cmCounter("op:icp_ledger_transfer:cycles", cmIcpLedgerTransferAttempts, ?"attempts"),
+            cmCounter("op:icp_ledger_balance_query:count", cmIcpLedgerBalanceQueries, null),
+            cmCounter("op:admin_unauthorized:rejects", cmUnauthorizedAdminOperations, null),
+        ];
     };
 
     // ICRC-21 Consent Messages

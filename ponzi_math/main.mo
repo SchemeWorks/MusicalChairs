@@ -12,7 +12,9 @@ import Iter "mo:base/Iter";
 import Debug "mo:base/Debug";
 import Blob "mo:base/Blob";
 import Error "mo:base/Error";
+import Cycles "mo:base/ExperimentalCycles";
 
+import CycleManager "../observatory/types";
 import Ledger "ledger";
 import Icrc21 "icrc21";
 import Promotion "Promotion";
@@ -252,6 +254,42 @@ persistent actor class PonziMath(initArgs : {
     var nextGeneralLedgerId : Nat = 0;
     var currentRoundId : Nat = 1;
 
+    transient let CYCLE_MANAGER_LOW_WATERMARK : Nat = 2_000_000_000_000;
+    transient let CYCLE_MANAGER_FREEZE_THRESHOLD_SECS : Nat64 = 2_592_000;
+
+    var cmDeposits : Nat64 = 0;
+    var cmWithdrawals : Nat64 = 0;
+    var cmSettlements : Nat64 = 0;
+    var cmBackerDeposits : Nat64 = 0;
+    var cmBackerRepaymentClaims : Nat64 = 0;
+    var cmCoverChargeAccruals : Nat64 = 0;
+    var cmCoverChargeSweeps : Nat64 = 0;
+    var cmTollDistributions : Nat64 = 0;
+    var cmGameResets : Nat64 = 0;
+    var cmBackdatedGameCreations : Nat64 = 0;
+    var cmSeriesBPromotions : Nat64 = 0;
+    var cmRawRandAttempts : Nat64 = 0;
+    var cmRawRandSuccesses : Nat64 = 0;
+    var cmRawRandFailures : Nat64 = 0;
+
+    func cmCounter(key : Text, count : Nat64, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count;
+            value = Nat64.toNat(count);
+            label = labelValue;
+        };
+    };
+
+    func cmGauge(key : Text, value : Nat, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count = 0;
+            value;
+            label = labelValue;
+        };
+    };
+
     // Index of currently-active game ids, maintained incrementally so the
     // round-reset and promotion paths never scan the full, never-pruned
     // gameRecords history (Audit F-002). A drift guard falls back to a full
@@ -434,6 +472,19 @@ persistent actor class PonziMath(initArgs : {
     // ========================================================================
 
     func recordLedger(event : GeneralLedgerEvent) {
+        switch (event) {
+            case (#deposit(_)) { cmDeposits += 1 };
+            case (#backerDeposit(_)) { cmBackerDeposits += 1 };
+            case (#withdrawal(_)) { cmWithdrawals += 1 };
+            case (#settlement(_)) { cmSettlements += 1 };
+            case (#tollDistribution(_)) { cmTollDistributions += 1 };
+            case (#backerRepaymentClaim(_)) { cmBackerRepaymentClaims += 1 };
+            case (#coverChargeAccrued(_)) { cmCoverChargeAccruals += 1 };
+            case (#coverChargeSwept(_)) { cmCoverChargeSweeps += 1 };
+            case (#gameReset(_)) { cmGameResets += 1 };
+            case (#backdatedGameCreated(_)) { cmBackdatedGameCreations += 1 };
+            case (#seriesBPromotion(_)) { cmSeriesBPromotions += 1 };
+        };
         let entry : GeneralLedgerEntry = {
             id = nextGeneralLedgerId;
             timestamp = Time.now();
@@ -764,15 +815,18 @@ persistent actor class PonziMath(initArgs : {
 
         let pool = if (withoutBacker.size() > 0) { withoutBacker } else { allLosers };
 
+        cmRawRandAttempts += 1;
         let entropy = try {
             await ic.raw_rand();
         } catch (_) {
+            cmRawRandFailures += 1;
             // raw_rand failure: skip promotion this round. The caller
             // (promoteAndReset) still fires triggerGameReset on the null
             // return, so the round closes cleanly and only the Series B
             // grant is lost.
             return null;
         };
+        cmRawRandSuccesses += 1;
         let bytes = Blob.toArray(entropy);
         var seed : Nat = 0;
         var i = 0;
@@ -1545,6 +1599,46 @@ persistent actor class PonziMath(initArgs : {
             platformStats with
             daysActive = Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
         };
+    };
+
+    public query func cycles_status() : async CycleManager.CycleManagerCyclesStatus {
+        let balance = Cycles.balance();
+        {
+            balance;
+            low_watermark = CYCLE_MANAGER_LOW_WATERMARK;
+            healthy = balance >= CYCLE_MANAGER_LOW_WATERMARK and not globalCriticalLock;
+            freeze_threshold_secs = CYCLE_MANAGER_FREEZE_THRESHOLD_SECS;
+            stable_memory_bytes = null;
+            heap_memory_bytes = null;
+            idle_burn_cycles_per_day = null;
+        };
+    };
+
+    public query func cycle_manager_metrics() : async [CycleManager.CycleManagerMetric] {
+        [
+            cmCounter("op:create_game:count", cmDeposits, ?"deposits"),
+            cmCounter("op:withdraw_earnings:count", cmWithdrawals, ?"withdrawals"),
+            cmCounter("op:settle_compounding_game:count", cmSettlements, ?"settlements"),
+            cmCounter("op:backer_deposit:count", cmBackerDeposits, null),
+            cmCounter("op:backer_repayment_claim:count", cmBackerRepaymentClaims, null),
+            cmCounter("op:cover_charge_accrual:count", cmCoverChargeAccruals, null),
+            cmCounter("op:cover_charge_sweep:count", cmCoverChargeSweeps, null),
+            cmCounter("op:toll_distribution:count", cmTollDistributions, null),
+            cmCounter("op:game_reset:count", cmGameResets, null),
+            cmCounter("op:backdated_game_created:count", cmBackdatedGameCreations, null),
+            cmCounter("op:series_b_promotion:count", cmSeriesBPromotions, null),
+            cmCounter("call:management_raw_rand:count", cmRawRandSuccesses, ?"success"),
+            cmCounter("call:management_raw_rand:rejects", cmRawRandFailures, ?"failure"),
+            cmCounter("call:management_raw_rand:cycles", cmRawRandAttempts, ?"attempts"),
+            cmGauge("game:active_games:cycles", platformStats.activeGames, ?"active_game_count"),
+            cmGauge("game:total_games:cycles", nextGameId, ?"game_count"),
+            cmGauge("game:round_transitions:cycles", currentRoundId, ?"current_round_id"),
+            cmGauge("ledger:icp:cycles", nextGeneralLedgerId, ?"general_ledger_event_count"),
+            cmGauge("game:cover_charge_balance:cycles", coverChargeBalance, ?"cover_charge_balance_e8s"),
+            cmGauge("game:backer_positions:cycles", backerKeyMap.size(backerPositions), ?"backer_position_count"),
+            cmGauge("game:active_game_index:cycles", natMap.size(activeGameIds), ?"active_game_index_count"),
+            cmGauge("op:critical_section:cycles", if (globalCriticalLock) { 1 } else { 0 }, ?"global_lock_held"),
+        ];
     };
 
     public query func getAllGames() : async [GameRecord] {

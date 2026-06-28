@@ -242,6 +242,21 @@ export const idlFactory = ({ IDL }) => {
     'badOutcomes' : IDL.Nat,
   });
   const StandardRecord = IDL.Record({ 'url' : IDL.Text, 'name' : IDL.Text });
+  const CycleManagerMetric = IDL.Record({
+    'key' : IDL.Text,
+    'count' : IDL.Nat64,
+    'value' : IDL.Nat,
+    'label' : IDL.Opt(IDL.Text),
+  });
+  const CycleManagerCyclesStatus = IDL.Record({
+    'heap_memory_bytes' : IDL.Opt(IDL.Nat64),
+    'balance' : IDL.Nat,
+    'low_watermark' : IDL.Nat,
+    'stable_memory_bytes' : IDL.Opt(IDL.Nat64),
+    'healthy' : IDL.Bool,
+    'idle_burn_cycles_per_day' : IDL.Opt(IDL.Nat),
+    'freeze_threshold_secs' : IDL.Nat64,
+  });
   const ConsentMessageMetadata = IDL.Record({
     'utc_offset_minutes' : IDL.Opt(IDL.Int16),
     'language' : IDL.Text,
@@ -293,6 +308,12 @@ export const idlFactory = ({ IDL }) => {
     'uploadedAt' : IDL.Int,
   });
   return IDL.Service({
+    'cycle_manager_metrics' : IDL.Func(
+        [],
+        [IDL.Vec(CycleManagerMetric)],
+        ['query'],
+      ),
+    'cycles_status' : IDL.Func([], [CycleManagerCyclesStatus], ['query']),
     'addKarmaReaction' : IDL.Func(
         [IDL.Nat, IDL.Text, IDL.Nat],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],
