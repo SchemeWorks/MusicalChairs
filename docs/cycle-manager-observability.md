@@ -66,7 +66,7 @@ By default, the script updates:
 
 Do not add the observatory as a controller of first-party canisters for the standard Cycle Manager path. `backend`, `ponzi_math`, `ponzi_math_sol`, and `shenanigans` self-report directly.
 
-`expected_controllers` is a required-controller set for Cycle Manager audits, not an instruction to replace the full controller list. The setup script preserves existing controllers with `--add-controller`, and collected snapshots include the observed `controllers` list so Cycle Manager can display or audit the complete live set.
+`expected_controllers` is an audit set for Cycle Manager, not an instruction to replace the full controller list. For status-only targets it lists the preserved project controllers plus the observatory. The setup script preserves existing controllers with `--add-controller`, and collected snapshots include the observed `controllers` list so Cycle Manager can display or audit the complete live set.
 
 ## Collection
 

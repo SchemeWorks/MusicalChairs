@@ -44,10 +44,19 @@ shared ({ caller = initialAdmin }) persistent actor class MusicalChairsObservato
     transient let FRONTEND_ID = Principal.fromText("5qu42-fqaaa-aaaac-qecla-cai");
     transient let PP_ASSETS_ID = Principal.fromText("4236a-haaaa-aaaac-qecma-cai");
 
-    transient let PP_LEDGER_EXISTING_CONTROLLERS : [Principal] = [
-        Principal.fromText("6pwpo-d5iaw-mfjrn-owfb3-v4oz6-72woh-pc5t2-cwn73-zrzeq-4bjeh-tqe"),
-        Principal.fromText("cpbhu-5iaaa-aaaad-aalta-cai"),
-        Principal.fromText("ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae"),
+    transient let CHARLES_CONTROLLER = Principal.fromText("6pwpo-d5iaw-mfjrn-owfb3-v4oz6-72woh-pc5t2-cwn73-zrzeq-4bjeh-tqe");
+    transient let CONTROLLER_CANISTER = Principal.fromText("cpbhu-5iaaa-aaaad-aalta-cai");
+    transient let ROBVECTOR_CONTROLLER = Principal.fromText("ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae");
+
+    transient let TWO_PARTY_EXISTING_CONTROLLERS : [Principal] = [
+        CHARLES_CONTROLLER,
+        CONTROLLER_CANISTER,
+    ];
+
+    transient let THREE_PARTY_EXISTING_CONTROLLERS : [Principal] = [
+        CHARLES_CONTROLLER,
+        CONTROLLER_CANISTER,
+        ROBVECTOR_CONTROLLER,
     ];
 
     func nowNat64() : Nat64 {
@@ -106,12 +115,20 @@ shared ({ caller = initialAdmin }) persistent actor class MusicalChairsObservato
         };
     };
 
-    func observatoryControllerOnly() : [Principal] {
-        [Principal.fromActor(Self)];
+    func expectedControllers(existingControllers : [Principal]) : [Principal] {
+        Array.append<Principal>(existingControllers, [Principal.fromActor(Self)]);
     };
 
     func ppLedgerExpectedControllers() : [Principal] {
-        Array.append<Principal>(PP_LEDGER_EXISTING_CONTROLLERS, [Principal.fromActor(Self)]);
+        expectedControllers(THREE_PARTY_EXISTING_CONTROLLERS);
+    };
+
+    func siwsExpectedControllers() : [Principal] {
+        expectedControllers(TWO_PARTY_EXISTING_CONTROLLERS);
+    };
+
+    func assetExpectedControllers() : [Principal] {
+        expectedControllers(THREE_PARTY_EXISTING_CONTROLLERS);
     };
 
     func targets() : [CycleManagerTarget] {
@@ -185,7 +202,7 @@ shared ({ caller = initialAdmin }) persistent actor class MusicalChairsObservato
                 1_000_000_000_000,
                 3_000_000_000_000,
                 ["auth", "solana"],
-                observatoryControllerOnly(),
+                siwsExpectedControllers(),
                 0,
             ),
             target(
@@ -197,7 +214,7 @@ shared ({ caller = initialAdmin }) persistent actor class MusicalChairsObservato
                 1_000_000_000_000,
                 3_000_000_000_000,
                 ["frontend", "assets"],
-                observatoryControllerOnly(),
+                assetExpectedControllers(),
                 0,
             ),
             target(
@@ -209,7 +226,7 @@ shared ({ caller = initialAdmin }) persistent actor class MusicalChairsObservato
                 1_000_000_000_000,
                 3_000_000_000_000,
                 ["assets", "token-media"],
-                observatoryControllerOnly(),
+                assetExpectedControllers(),
                 0,
             ),
         ];
