@@ -4,7 +4,7 @@
   "discovery": {
     "type": "project_observatory",
     "canister_name": "musical_chairs_observatory",
-    "canister_id": "<musical_chairs_observatory.ic>",
+    "canister_id": "fk56k-diaaa-aaaac-qg6mq-cai",
     "methods": {
       "targets": "cycle_manager_targets",
       "collect_controlled_statuses": "collect_controlled_statuses",
@@ -92,7 +92,7 @@
         "6pwpo-d5iaw-mfjrn-owfb3-v4oz6-72woh-pc5t2-cwn73-zrzeq-4bjeh-tqe",
         "cpbhu-5iaaa-aaaad-aalta-cai",
         "ft3ml-xex6k-ppiwj-ie6tc-zwkgb-ybm2x-eat4a-5p2jg-auzl3-latf4-aae",
-        "<musical_chairs_observatory.ic>"
+        "fk56k-diaaa-aaaac-qg6mq-cai"
       ],
       "expected_freeze_threshold_secs": 2592000,
       "metrics_schema_version": 0
@@ -109,7 +109,7 @@
       "topup_cycles": 3000000000000,
       "owner": null,
       "tags": ["auth", "solana"],
-      "expected_controllers": ["<musical_chairs_observatory.ic>"],
+      "expected_controllers": ["fk56k-diaaa-aaaac-qg6mq-cai"],
       "expected_freeze_threshold_secs": 2592000,
       "metrics_schema_version": 0
     },
@@ -125,7 +125,7 @@
       "topup_cycles": 3000000000000,
       "owner": null,
       "tags": ["frontend", "assets"],
-      "expected_controllers": ["<musical_chairs_observatory.ic>"],
+      "expected_controllers": ["fk56k-diaaa-aaaac-qg6mq-cai"],
       "expected_freeze_threshold_secs": 2592000,
       "metrics_schema_version": 0
     },
@@ -141,7 +141,7 @@
       "topup_cycles": 3000000000000,
       "owner": null,
       "tags": ["assets", "token-media"],
-      "expected_controllers": ["<musical_chairs_observatory.ic>"],
+      "expected_controllers": ["fk56k-diaaa-aaaac-qg6mq-cai"],
       "expected_freeze_threshold_secs": 2592000,
       "metrics_schema_version": 0
     }
