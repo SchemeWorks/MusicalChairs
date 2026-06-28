@@ -44,8 +44,25 @@ export interface UserProfile { 'name' : string }
 export type UserRole = { 'admin' : null } |
   { 'user' : null } |
   { 'guest' : null };
+export interface CycleManagerMetric {
+  'key' : string,
+  'count' : bigint,
+  'value' : bigint,
+  'metric_label' : [] | [string],
+}
+export interface CycleManagerCyclesStatus {
+  'heap_memory_bytes' : [] | [bigint],
+  'balance' : bigint,
+  'low_watermark' : bigint,
+  'stable_memory_bytes' : [] | [bigint],
+  'healthy' : boolean,
+  'idle_burn_cycles_per_day' : [] | [bigint],
+  'freeze_threshold_secs' : bigint,
+}
 export interface _SERVICE {
   'assignCallerUserRole' : ActorMethod<[Principal, UserRole], undefined>,
+  'cycle_manager_metrics' : ActorMethod<[], Array<CycleManagerMetric>>,
+  'cycles_status' : ActorMethod<[], CycleManagerCyclesStatus>,
   'getBackendICPBalance' : ActorMethod<[], bigint>,
   'getCallerUserProfile' : ActorMethod<[], [] | [UserProfile]>,
   'getCallerUserRole' : ActorMethod<[], UserRole>,

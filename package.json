@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "generate": "dfx generate backend && dfx generate ponzi_math && dfx generate ponzi_math_sol && dfx generate shenanigans && dfx generate siws_provider",
+    "generate": "dfx generate backend && dfx generate ponzi_math && dfx generate ponzi_math_sol && dfx generate shenanigans && dfx generate siws_provider && dfx generate musical_chairs_observatory",
+    "validate:cycle-manager": "node scripts/validate-cycle-manager-observability.mjs",
     "test": "vitest run",
     "test:watch": "vitest"
   },

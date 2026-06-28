@@ -16,7 +16,9 @@ import Array "mo:base/Array";
 import Buffer "mo:base/Buffer";
 import Char "mo:base/Char";
 import Text "mo:base/Text";
+import Cycles "mo:base/ExperimentalCycles";
 
+import CycleManager "../observatory/types";
 import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
@@ -405,6 +407,27 @@ persistent actor Self {
     transient let natMap = OrderedMap.Make<Nat>(Nat.compare);
     transient let principalMap = OrderedMap.Make<Principal>(Principal.compare);
     transient let textMap = OrderedMap.Make<Text>(Text.compare);
+
+    transient let CYCLE_MANAGER_LOW_WATERMARK : Nat = 2_000_000_000_000;
+    transient let CYCLE_MANAGER_FREEZE_THRESHOLD_SECS : Nat64 = 2_592_000;
+
+    func cmCounter(key : Text, count : Nat64, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count;
+            value = Nat64.toNat(count);
+            metric_label = labelValue;
+        };
+    };
+
+    func cmGauge(key : Text, value : Nat, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count = 0;
+            value;
+            metric_label = labelValue;
+        };
+    };
 
     // Spell configs — PRESERVED across migration (admin-tunable spell definitions)
     var shenaniganConfigs = natMap.empty<ShenaniganConfig>();
@@ -5423,6 +5446,64 @@ persistent actor Self {
     // ================================================================
 
     public query func getMintConfig() : async MintConfig { mintConfig };
+
+    public query func cycles_status() : async CycleManager.CycleManagerCyclesStatus {
+        let balance = Cycles.balance();
+        {
+            balance;
+            low_watermark = CYCLE_MANAGER_LOW_WATERMARK;
+            healthy = balance >= CYCLE_MANAGER_LOW_WATERMARK;
+            freeze_threshold_secs = CYCLE_MANAGER_FREEZE_THRESHOLD_SECS;
+            stable_memory_bytes = null;
+            heap_memory_bytes = null;
+            idle_burn_cycles_per_day = null;
+        };
+    };
+
+    public query func cycle_manager_metrics() : async [CycleManager.CycleManagerMetric] {
+        var totalSpellCasts : Nat = 0;
+        var totalSpellSuccesses : Nat = 0;
+        var totalSpellFailures : Nat = 0;
+        var totalSpellBackfires : Nat = 0;
+        var totalSpellCostPaid : Nat = 0;
+        for (tally in natMap.vals(spellTallies)) {
+            totalSpellCasts += tally.totalCast;
+            totalSpellSuccesses += tally.successes;
+            totalSpellFailures += tally.failures;
+            totalSpellBackfires += tally.backfires;
+            totalSpellCostPaid += tally.totalCostPaidUnits;
+        };
+        var openCashOuts : Nat = 0;
+        for (entry in natMap.vals(cashOuts)) {
+            if (not entry.claimed and not entry.cancelled) { openCashOuts += 1 };
+        };
+
+        [
+            cmCounter("op:spell_cast:count", Nat64.fromNat(totalSpellCasts), null),
+            cmCounter("op:spell_cast_success:count", Nat64.fromNat(totalSpellSuccesses), null),
+            cmCounter("op:spell_cast_failure:count", Nat64.fromNat(totalSpellFailures), null),
+            cmCounter("op:spell_cast_backfire:count", Nat64.fromNat(totalSpellBackfires), null),
+            cmGauge("ledger:pp_spell_cost:cycles", totalSpellCostPaid, ?"total_cost_paid_units"),
+            cmGauge("game:spell_config_count:cycles", natMap.size(shenaniganConfigs), null),
+            cmGauge("game:spell_tally_count:cycles", natMap.size(spellTallies), null),
+            cmGauge("game:spell_history_count:cycles", nextShenaniganId, null),
+            cmGauge("timer:observer:cycles", if (observerTimerId != null) { 1 } else { 0 }, ?"timer_running"),
+            cmGauge("timer:observer_cursor_icp:cycles", gameIdCursor, ?"game_id_cursor"),
+            cmGauge("timer:observer_cursor_sol:cycles", solGameIdCursor, ?"sol_game_id_cursor"),
+            cmGauge("timer:observer_seen_backers:cycles", principalMap.size(backerSeen), ?"icp_backer_seen_count"),
+            cmGauge("timer:observer_seen_sol_backers:cycles", principalMap.size(solBackerSeen), ?"sol_backer_seen_count"),
+            cmGauge("timer:observer_missed_game_mints:cycles", natMap.size(missedGameMints), ?"icp_game_mints"),
+            cmGauge("timer:observer_missed_backer_mints:cycles", principalMap.size(missedBackerMints), ?"icp_backer_mints"),
+            cmGauge("timer:observer_missed_sol_game_mints:cycles", natMap.size(missedSolGameMints), ?"sol_game_mints"),
+            cmGauge("timer:observer_missed_sol_backer_mints:cycles", principalMap.size(missedSolBackerMints), ?"sol_backer_mints"),
+            cmGauge("op:observer_minted_event_ids:cycles", textMap.size(mintedEventIds), null),
+            cmGauge("ledger:pp_known_holders:cycles", principalMap.size(knownPpHolders), null),
+            cmGauge("ledger:pp_cash_out_open:cycles", openCashOuts, null),
+            cmGauge("ledger:pp_cash_out_total:cycles", nextCashOutId, null),
+            cmGauge("game:chat_buffer_size:cycles", chatItems.size(), ?"bounded_500"),
+            cmGauge("game:active_exit_runs:cycles", principalMap.size(activeExitRuns), null),
+        ];
+    };
 
     /// Current observer state — running/paused, cursor positions, and interval.
     /// Surfaced in the admin panel for operational visibility.

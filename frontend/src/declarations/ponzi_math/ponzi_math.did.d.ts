@@ -170,12 +170,29 @@ export interface PlatformStats {
   'activeGames' : bigint,
   'totalDeposits' : number,
 }
+export interface CycleManagerMetric {
+  'key' : string,
+  'count' : bigint,
+  'value' : bigint,
+  'metric_label' : [] | [string],
+}
+export interface CycleManagerCyclesStatus {
+  'heap_memory_bytes' : [] | [bigint],
+  'balance' : bigint,
+  'low_watermark' : bigint,
+  'stable_memory_bytes' : [] | [bigint],
+  'healthy' : boolean,
+  'idle_burn_cycles_per_day' : [] | [bigint],
+  'freeze_threshold_secs' : bigint,
+}
 export interface PonziMath {
   'addBackerMoney' : ActorMethod<
     [number],
     { 'Ok' : bigint } |
       { 'Err' : string }
   >,
+  'cycle_manager_metrics' : ActorMethod<[], Array<CycleManagerMetric>>,
+  'cycles_status' : ActorMethod<[], CycleManagerCyclesStatus>,
   'adminClearAllBackerPositions' : ActorMethod<
     [],
     { 'Ok' : null } |

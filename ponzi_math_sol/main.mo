@@ -17,6 +17,7 @@ import Error "mo:base/Error";
 import Cycles "mo:base/ExperimentalCycles";
 import Timer "mo:base/Timer";
 
+import CycleManager "../observatory/types";
 import Icrc21 "icrc21";
 
 import Base58 "Base58";
@@ -254,6 +255,44 @@ persistent actor class PonziMathSol(initArgs : {
     var generalLedger = natMap.empty<GeneralLedgerEntry>();
     var nextGeneralLedgerId : Nat = 0;
     var currentRoundId : Nat = 1;
+
+    transient let CYCLE_MANAGER_LOW_WATERMARK : Nat = 3_000_000_000_000;
+    transient let CYCLE_MANAGER_FREEZE_THRESHOLD_SECS : Nat64 = 2_592_000;
+
+    var cmDeposits : Nat64 = 0;
+    var cmWithdrawals : Nat64 = 0;
+    var cmSettlements : Nat64 = 0;
+    var cmBackerDeposits : Nat64 = 0;
+    var cmBackerRepaymentClaims : Nat64 = 0;
+    var cmCoverChargeAccruals : Nat64 = 0;
+    var cmCoverChargeSweeps : Nat64 = 0;
+    var cmTollDistributions : Nat64 = 0;
+    var cmGameResets : Nat64 = 0;
+    var cmBackdatedGameCreations : Nat64 = 0;
+    var cmSeriesBPromotions : Nat64 = 0;
+    var cmSolRpcCalls : Nat64 = 0;
+    var cmSolRpcFailures : Nat64 = 0;
+    var cmSolSigningCalls : Nat64 = 0;
+    var cmPpLedgerCalls : Nat64 = 0;
+    var cmPpLedgerFailures : Nat64 = 0;
+
+    func cmCounter(key : Text, count : Nat64, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count;
+            value = Nat64.toNat(count);
+            metric_label = labelValue;
+        };
+    };
+
+    func cmGauge(key : Text, value : Nat, labelValue : ?Text) : CycleManager.CycleManagerMetric {
+        {
+            key;
+            count = 0;
+            value;
+            metric_label = labelValue;
+        };
+    };
 
     // ============== Chain fusion / SOL state ==============
 
@@ -501,6 +540,22 @@ persistent actor class PonziMathSol(initArgs : {
     // ========================================================================
 
     func recordLedger(event : GeneralLedgerEvent) {
+        switch (event) {
+            case (#deposit(_)) { cmDeposits += 1 };
+            case (#backerDeposit(_)) { cmBackerDeposits += 1 };
+            case (#withdrawal(_)) { cmWithdrawals += 1 };
+            case (#settlement(_)) { cmSettlements += 1 };
+            case (#tollDistribution(_)) { cmTollDistributions += 1 };
+            case (#backerRepaymentClaim(_)) { cmBackerRepaymentClaims += 1 };
+            case (#coverChargeAccrued(_)) { cmCoverChargeAccruals += 1 };
+            case (#coverChargeSwept(_)) { cmCoverChargeSweeps += 1 };
+            case (#gameReset(_)) { cmGameResets += 1 };
+            case (#backdatedGameCreated(_)) { cmBackdatedGameCreations += 1 };
+            case (#seriesBPromotion(_)) { cmSeriesBPromotions += 1 };
+            case (#deskSale(_)) {};
+            case (#deskProceedsWithdrawal(_)) {};
+            case (#deskRefund(_)) {};
+        };
         let entry : GeneralLedgerEntry = {
             id = nextGeneralLedgerId;
             timestamp = Time.now();
@@ -782,6 +837,7 @@ persistent actor class PonziMathSol(initArgs : {
         var i : Nat = 0;
         while (i < attempts) {
             Cycles.add<system>(RPC_CYCLES);
+            cmSolRpcCalls += 1;
             let multiRes = await solRpc.jsonRequest(
                 SolRpc.rpcSources(solRpcProvider),
                 null,
@@ -794,7 +850,10 @@ persistent actor class PonziMathSol(initArgs : {
                         case (null) { i += 1 };
                     };
                 };
-                case (#Err(_)) { i += 1 };
+                case (#Err(_)) {
+                    cmSolRpcFailures += 1;
+                    i += 1;
+                };
             };
         };
         null;
@@ -1078,10 +1137,12 @@ persistent actor class PonziMathSol(initArgs : {
         let msgBytes = SolTx.serializeMessage(compiled);
 
         // Pool is the only signer (both feePayer and nonce authority).
+        cmSolSigningCalls += 1;
         let sigs = await SolSigner.signMulti(keyId, [derivationPathPool()], msgBytes);
         let txBytes = SolTx.assembleTransaction(msgBytes, sigs);
 
         Cycles.add<system>(RPC_CYCLES);
+        cmSolRpcCalls += 1;
         let sendRes = await solRpc.sendTransaction(
             SolRpc.rpcSources(solRpcProvider),
             null,
@@ -1095,10 +1156,14 @@ persistent actor class PonziMathSol(initArgs : {
             },
         );
         switch (SolRpc.unwrapMultiSend(sendRes)) {
-            case (#Err(e)) { #Err("sendTransaction failed: " # e) };
+            case (#Err(e)) {
+                cmSolRpcFailures += 1;
+                #Err("sendTransaction failed: " # e);
+            };
             case (#Ok(txSig)) {
                 // Refresh nonce.
                 Cycles.add<system>(RPC_CYCLES);
+                cmSolRpcCalls += 1;
                 let acctRes = await solRpc.getAccountInfo(
                     SolRpc.rpcSources(solRpcProvider),
                     null,
@@ -1117,7 +1182,7 @@ persistent actor class PonziMathSol(initArgs : {
                             case (null) {};
                         };
                     };
-                    case (_) {};
+                    case (_) { cmSolRpcFailures += 1 };
                 };
                 #Ok(txSig);
             };
@@ -1477,6 +1542,80 @@ persistent actor class PonziMathSol(initArgs : {
             platformStats with
             daysActive = Int.abs((Time.now() - 1_773_644_400_000_000_000) / 86_400_000_000_000);
         };
+    };
+
+    public query func cycles_status() : async CycleManager.CycleManagerCyclesStatus {
+        let balance = Cycles.balance();
+        {
+            balance;
+            low_watermark = CYCLE_MANAGER_LOW_WATERMARK;
+            healthy = balance >= CYCLE_MANAGER_LOW_WATERMARK and not globalCriticalLock;
+            freeze_threshold_secs = CYCLE_MANAGER_FREEZE_THRESHOLD_SECS;
+            stable_memory_bytes = null;
+            heap_memory_bytes = null;
+            idle_burn_cycles_per_day = null;
+        };
+    };
+
+    public query func cycle_manager_metrics() : async [CycleManager.CycleManagerMetric] {
+        var openDepositIntents : Nat = 0;
+        for (intent in natMap.vals(pendingIntents)) {
+            if (not intent.fulfilled) { openDepositIntents += 1 };
+        };
+        var openBackerIntents : Nat = 0;
+        for (intent in natMap.vals(pendingBackerIntents)) {
+            if (not intent.fulfilled) { openBackerIntents += 1 };
+        };
+        var openBuyIntents : Nat = 0;
+        for (intent in natMap.vals(pendingBuyIntents)) {
+            if (not intent.fulfilled) { openBuyIntents += 1 };
+        };
+        var deskSold : Nat = 0;
+        var deskReserved : Nat = 0;
+        for (tier in deskTiers.vals()) {
+            deskSold += tier.ppUnitsSold;
+            deskReserved += tier.ppUnitsReserved;
+        };
+
+        [
+            cmCounter("op:sol_deposit_processed:count", cmDeposits, ?"deposits"),
+            cmCounter("op:withdraw_earnings:count", cmWithdrawals, ?"withdrawals"),
+            cmCounter("op:settle_compounding_game:count", cmSettlements, ?"settlements"),
+            cmCounter("op:backer_deposit:count", cmBackerDeposits, null),
+            cmCounter("op:backer_repayment_claim:count", cmBackerRepaymentClaims, null),
+            cmCounter("op:cover_charge_accrual:count", cmCoverChargeAccruals, null),
+            cmCounter("op:pay_management_sol:count", cmCoverChargeSweeps, ?"cover_charge_sweeps"),
+            cmCounter("op:toll_distribution:count", cmTollDistributions, null),
+            cmCounter("op:game_reset:count", cmGameResets, null),
+            cmCounter("op:backdated_game_created:count", cmBackdatedGameCreations, null),
+            cmCounter("op:series_b_promotion:count", cmSeriesBPromotions, null),
+            cmCounter("call:solana_rpc:count", cmSolRpcCalls, ?"attempts"),
+            cmCounter("call:solana_rpc:rejects", cmSolRpcFailures, ?"failure"),
+            cmCounter("call:solana_signing:count", cmSolSigningCalls, null),
+            cmCounter("call:pp_ledger:count", cmPpLedgerCalls, ?"attempts"),
+            cmCounter("call:pp_ledger:rejects", cmPpLedgerFailures, ?"failure"),
+            cmGauge("game:active_games:cycles", platformStats.activeGames, ?"active_game_count"),
+            cmGauge("game:total_games:cycles", nextGameId, ?"game_count"),
+            cmGauge("game:round_transitions:cycles", currentRoundId, ?"current_round_id"),
+            cmGauge("ledger:sol_game:cycles", nextGeneralLedgerId, ?"general_ledger_event_count"),
+            cmGauge("game:cover_charge_balance:cycles", coverChargeBalance, ?"legacy_cover_charge_balance"),
+            cmGauge("game:cover_charge_lamports:cycles", Nat64.toNat(coverChargeAccrualLamports), ?"cover_charge_accrual_lamports"),
+            cmGauge("game:backer_positions:cycles", backerKeyMap.size(backerPositions), ?"backer_position_count"),
+            cmGauge("timer:deposit_detection:cycles", if (detectionTimerId != null) { 1 } else { 0 }, ?"timer_armed"),
+            cmGauge("timer:deposit_detection:instructions", if (detectionInProgress) { 1 } else { 0 }, ?"in_progress"),
+            cmGauge("op:sol_deposit_intents:count", openDepositIntents, ?"open_game_intents"),
+            cmGauge("op:sol_backer_intents:count", openBackerIntents, ?"open_backer_intents"),
+            cmGauge("op:pp_buy_intents:count", openBuyIntents, ?"open_buy_intents"),
+            cmGauge("game:deposit_addresses:cycles", principalMapNat.size(depositAddresses), ?"deposit_address_count"),
+            cmGauge("ledger:pp_desk:cycles", deskTiers.size(), ?"desk_tier_count"),
+            cmGauge("ledger:pp_desk_sold:cycles", deskSold, ?"pp_units_sold"),
+            cmGauge("ledger:pp_desk_reserved:cycles", deskReserved, ?"pp_units_reserved"),
+            cmGauge("ledger:pp_desk_proceeds:cycles", Nat64.toNat(deskProceedsAccrualLamports), ?"proceeds_lamports"),
+            cmGauge("op:critical_section:cycles", if (globalCriticalLock) { 1 } else { 0 }, ?"global_lock_held"),
+            cmGauge("op:sol_bootstrap:cycles", if (bootstrapped) { 1 } else { 0 }, ?"bootstrapped"),
+            cmGauge("op:sol_pool_configured:cycles", if (poolAddress != null) { 1 } else { 0 }, ?"pool_address_configured"),
+            cmGauge("op:sol_nonce_configured:cycles", if (nonceAccountAddress != null) { 1 } else { 0 }, ?"nonce_address_configured"),
+        ];
     };
 
     public query func getAllGames() : async [GameRecord] {
@@ -3079,6 +3218,7 @@ persistent actor class PonziMathSol(initArgs : {
         requireAdmin(caller);
         if (ppUnits == 0) { return #Err("Amount must be > 0") };
         try {
+            cmPpLedgerCalls += 1;
             let res = await ppLedger.icrc2_transfer_from({
                 spender_subaccount = null;
                 from = { owner = caller; subaccount = null };
@@ -3090,20 +3230,28 @@ persistent actor class PonziMathSol(initArgs : {
             });
             switch (res) {
                 case (#Ok(block)) { #Ok(block) };
-                case (#Err(e)) { #Err("transfer_from failed: " # debug_show (e)) };
+                case (#Err(e)) {
+                    cmPpLedgerFailures += 1;
+                    #Err("transfer_from failed: " # debug_show (e));
+                };
             };
-        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+        } catch (e) {
+            cmPpLedgerFailures += 1;
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
     };
 
     // Return unsold, unreserved PP from escrow to `toOwner`.
     public shared ({ caller }) func deskWithdrawInventory(ppUnits : Nat, toOwner : Principal) : async { #Ok : Nat; #Err : Text } {
         requireAdmin(caller);
         if (ppUnits == 0) { return #Err("Amount must be > 0") };
+        cmPpLedgerCalls += 1;
         let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
         let reserved = deskReservedTotal();
         let available : Nat = if (bal > reserved) { bal - reserved } else { 0 };
         if (ppUnits > available) { return #Err("Only " # Nat.toText(available) # " PP available (rest is reserved)") };
         try {
+            cmPpLedgerCalls += 1;
             let res = await ppLedger.icrc1_transfer({
                 from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
                 to = { owner = toOwner; subaccount = null };
@@ -3114,12 +3262,19 @@ persistent actor class PonziMathSol(initArgs : {
             });
             switch (res) {
                 case (#Ok(block)) { #Ok(block) };
-                case (#Err(e)) { #Err("transfer failed: " # debug_show (e)) };
+                case (#Err(e)) {
+                    cmPpLedgerFailures += 1;
+                    #Err("transfer failed: " # debug_show (e));
+                };
             };
-        } catch (e) { #Err("ppLedger call failed: " # Error.message(e)) };
+        } catch (e) {
+            cmPpLedgerFailures += 1;
+            #Err("ppLedger call failed: " # Error.message(e));
+        };
     };
 
     public func deskInventory() : async { balanceUnits : Nat; reservedUnits : Nat; availableUnits : Nat } {
+        cmPpLedgerCalls += 1;
         let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
         let reserved = deskReservedTotal();
         { balanceUnits = bal; reservedUnits = reserved; availableUnits = if (bal > reserved) { bal - reserved } else { 0 } };
@@ -3200,6 +3355,7 @@ persistent actor class PonziMathSol(initArgs : {
         // and expiry releases the phantom reservation. Acceptable for an admin-
         // stocked OTC desk; a global lock here would serialize every buyer through
         // a threshold-Ed25519 derivation await for a mostly-theoretical race.
+        cmPpLedgerCalls += 1;
         let bal = await ppLedger.icrc1_balance_of(deskEscrowAccount());
         if (bal < deskReservedTotal() + quote.ppUnitsOut) {
             return #Err("Insufficient desk inventory to reserve this buy");
@@ -3342,15 +3498,22 @@ persistent actor class PonziMathSol(initArgs : {
         if (creditPp == 0) { return #Err("Zero fill") };
         // 2. Transfer PP escrow → buyer FIRST.
         let xfer = try {
+            cmPpLedgerCalls += 1;
             await ppLedger.icrc1_transfer({
                 from_subaccount = ?DESK_ESCROW_SUBACCOUNT;
                 to = { owner = intent.principal; subaccount = null };
                 amount = creditPp;
                 fee = null; memo = null; created_at_time = null;
             });
-        } catch (e) { #Err(#GenericError({ error_code = 0; message = Error.message(e) })) };
+        } catch (e) {
+            cmPpLedgerFailures += 1;
+            #Err(#GenericError({ error_code = 0; message = Error.message(e) }));
+        };
         switch (xfer) {
-            case (#Err(e)) { return #Err("PP transfer failed: " # debug_show (e)) };
+            case (#Err(e)) {
+                cmPpLedgerFailures += 1;
+                return #Err("PP transfer failed: " # debug_show (e));
+            };
             case (#Ok(_)) {};
         };
         // 3. On success: release each leg's full reservation, add filled to sold.

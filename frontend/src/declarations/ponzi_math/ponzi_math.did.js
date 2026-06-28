@@ -181,12 +181,33 @@ export const idlFactory = ({ IDL }) => {
   const TrustedOriginsResponse = IDL.Record({
     'trusted_origins' : IDL.Vec(IDL.Text),
   });
+  const CycleManagerMetric = IDL.Record({
+    'key' : IDL.Text,
+    'count' : IDL.Nat64,
+    'value' : IDL.Nat,
+    'metric_label' : IDL.Opt(IDL.Text),
+  });
+  const CycleManagerCyclesStatus = IDL.Record({
+    'heap_memory_bytes' : IDL.Opt(IDL.Nat64),
+    'balance' : IDL.Nat,
+    'low_watermark' : IDL.Nat,
+    'stable_memory_bytes' : IDL.Opt(IDL.Nat64),
+    'healthy' : IDL.Bool,
+    'idle_burn_cycles_per_day' : IDL.Opt(IDL.Nat),
+    'freeze_threshold_secs' : IDL.Nat64,
+  });
   const PonziMath = IDL.Service({
     'addBackerMoney' : IDL.Func(
         [IDL.Float64],
         [IDL.Variant({ 'Ok' : IDL.Nat, 'Err' : IDL.Text })],
         [],
       ),
+    'cycle_manager_metrics' : IDL.Func(
+        [],
+        [IDL.Vec(CycleManagerMetric)],
+        ['query'],
+      ),
+    'cycles_status' : IDL.Func([], [CycleManagerCyclesStatus], ['query']),
     'adminClearAllBackerPositions' : IDL.Func(
         [],
         [IDL.Variant({ 'Ok' : IDL.Null, 'Err' : IDL.Text })],

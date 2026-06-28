@@ -11,6 +11,8 @@ export type {
   ShenaniganStats,
   ActiveSpellEffects,
   ShieldState,
+  CycleManagerCyclesStatus,
+  CycleManagerMetric,
   _SERVICE,
 } from './shenanigans.did';
 

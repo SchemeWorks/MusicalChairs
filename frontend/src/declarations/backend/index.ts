@@ -14,5 +14,7 @@ export type {
   LineDisplayPage,
   StandardRecord,
   TrustedOriginsResponse,
+  CycleManagerMetric,
+  CycleManagerCyclesStatus,
   _SERVICE,
 } from './backend.did';

@@ -13,12 +13,31 @@ type RoundSummary =
    seedReserveCarried: float64;
    startTime: int;
  };
+type CycleManagerMetric =
+ record {
+   count: nat64;
+   key: text;
+   metric_label: opt text;
+   value: nat;
+ };
+type CycleManagerCyclesStatus =
+ record {
+   balance: nat;
+   freeze_threshold_secs: nat64;
+   healthy: bool;
+   heap_memory_bytes: opt nat64;
+   idle_burn_cycles_per_day: opt nat;
+   low_watermark: nat;
+   stable_memory_bytes: opt nat64;
+ };
 type PonziMath = 
  service {
    addBackerMoney: (amount: float64) -> (variant {
                                            Err: text;
                                            Ok: nat;
                                          });
+   cycle_manager_metrics: () -> (vec CycleManagerMetric) query;
+   cycles_status: () -> (CycleManagerCyclesStatus) query;
    adminClearAllBackerPositions: () -> (variant {
                                           Err: text;
                                           Ok;

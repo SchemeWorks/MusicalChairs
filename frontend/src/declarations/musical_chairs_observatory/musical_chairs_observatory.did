@@ -1,0 +1,70 @@
+type CycleManagerTargetKind =
+ variant {
+   ControllerStatus;
+   InventoryOnly;
+   SelfReport;
+ };
+type CycleManagerEnvironment =
+ variant {
+   Archived;
+   Local;
+   Production;
+   Staging;
+   Test;
+ };
+type CycleManagerCriticality =
+ variant {
+   Critical;
+   Experimental;
+   Important;
+   Standard;
+ };
+type CycleManagerTarget =
+ record {
+   canister_id: principal;
+   canister_name: text;
+   criticality: CycleManagerCriticality;
+   display_name: text;
+   environment: CycleManagerEnvironment;
+   expected_controllers: vec principal;
+   expected_freeze_threshold_secs: opt nat64;
+   kind: CycleManagerTargetKind;
+   low_threshold_cycles: nat;
+   metrics_schema_version: nat32;
+   owner: opt text;
+   project: text;
+   tags: vec text;
+   topup_cycles: nat;
+ };
+type ControlledStatus =
+ record {
+   canister_id: principal;
+   controllers: vec principal;
+   cycles: nat;
+   freezing_threshold_secs: nat64;
+   idle_cycles_burned_per_day: nat;
+   memory_size: nat;
+   module_hash: opt blob;
+   observed_at: nat64;
+   status: text;
+ };
+type MusicalChairsObservatory =
+ service {
+   add_admin: (admin: principal) -> ();
+   collect_controlled_statuses: () ->
+    (variant {
+       Err: text;
+       Ok: nat;
+     });
+   controlled_status: (canister: principal) -> (opt ControlledStatus) query;
+   controlled_statuses: () -> (vec ControlledStatus) query;
+   cycle_manager_targets: () -> (vec CycleManagerTarget) query;
+   list_admins: () -> (vec principal) query;
+   observatory_version: () -> (text) query;
+   remove_admin: (admin: principal) ->
+    (variant {
+       Err: text;
+       Ok;
+     });
+ };
+service : () -> MusicalChairsObservatory

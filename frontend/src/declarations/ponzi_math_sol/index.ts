@@ -18,6 +18,8 @@ export type {
   ConsentMessageRequest,
   ConsentMessageResponse,
   ConsentMessageSpec,
+  CycleManagerCyclesStatus,
+  CycleManagerMetric,
   DepositIntent,
   DeskQuote,
   DeskTier,

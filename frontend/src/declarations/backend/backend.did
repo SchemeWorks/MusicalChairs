@@ -5,6 +5,23 @@ type UserRole =
    user;
  };
 type UserProfile = record {name: text;};
+type CycleManagerMetric =
+ record {
+   count: nat64;
+   key: text;
+   metric_label: opt text;
+   value: nat;
+ };
+type CycleManagerCyclesStatus =
+ record {
+   balance: nat;
+   freeze_threshold_secs: nat64;
+   healthy: bool;
+   heap_memory_bytes: opt nat64;
+   idle_burn_cycles_per_day: opt nat;
+   low_watermark: nat;
+   stable_memory_bytes: opt nat64;
+ };
 type TrustedOriginsResponse = record {trusted_origins: vec text;};
 type StandardRecord = 
  record {
@@ -62,6 +79,8 @@ type ConsentInfo =
  };
 service : {
   assignCallerUserRole: (user: principal, role: UserRole) -> ();
+  cycle_manager_metrics: () -> (vec CycleManagerMetric) query;
+  cycles_status: () -> (CycleManagerCyclesStatus) query;
   getBackendICPBalance: () -> (nat);
   getCallerUserProfile: () -> (opt UserProfile) query;
   getCallerUserRole: () -> (UserRole) query;

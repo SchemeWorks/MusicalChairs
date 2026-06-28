@@ -16,6 +16,10 @@
       "main": "shenanigans/main.mo",
       "type": "motoko"
     },
+    "musical_chairs_observatory": {
+      "main": "observatory/main.mo",
+      "type": "motoko"
+    },
     "siws_provider": {
       "type": "custom",
       "candid": "https://github.com/kristoferlund/ic-siws/releases/download/v0.1.0/ic_siws_provider.did",
