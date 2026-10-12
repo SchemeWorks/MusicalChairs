@@ -4,13 +4,13 @@
 
 **Goal:** Move Musical Chairs' SOL custody and financial rules into a native Solana program while preserving the ICP-hosted GUI.
 
-**Architecture:** Anchor/Rust program is the financial authority; existing React screens use a native transaction/account adapter. ICP retains asset hosting and, subject to PP scope, social services and an optional finalized-event mirror.
+**Architecture:** Anchor/Rust program is the native SOL game's financial authority; existing React screens use a native transaction/account adapter. ICP retains asset hosting, PP, Shenanigans and social services, with finalized native events feeding ICP rewards/history. The new pool starts fresh; legacy positions retain separate withdrawal/recovery access.
 
 **Tech stack:** Rust/Anchor, checked integer/fixed-point math, generated IDL/client, React/TypeScript/Vite, existing Solana wallet adapters, LiteSVM or an equivalent chosen program test harness, RPC/validator integration and optional Motoko mirror. Exact compatible versions are to be pinned during the toolchain task, not invented here.
 
 **Spec:** [2026-10-12-native-solana-design.md](../specs/2026-10-12-native-solana-design.md).
 
-**Status:** Draft sequencing, interfaces and proposed acceptance checks. D1–D9 in the spec remain unapproved. Later tasks are conditional on their recorded decisions. A final task-level implementation plan should replace this roadmap once the economic and account contracts are frozen. No work has been kicked off.
+**Status:** Draft sequencing, interfaces and proposed acceptance checks. Rob confirmed D1 fresh launch with separate legacy withdrawals and D2 SOL game first with PP/Shenanigans on ICP. D3–D9 still need reviewed contracts/design evidence. Later tasks depend on those contracts. A final task-level implementation plan should replace this roadmap once the economic and account contracts are frozen. No product implementation has been kicked off.
 
 ## Global constraints
 
@@ -19,7 +19,8 @@
 - Preserve all three plan types, Backer tiers, seniority, capped allocations and EEC unless Rob accepts explicit differences.
 - Use Front-End Load, Carried Interest, Jackpot Fee and Emergency Equity Conversion. Do not rename existing `coverCharge` / `exitToll` internals as unrelated cleanup.
 - Never add `@rollup/rollup-darwin-*` directly to package.json.
-- Do not silently drop PP/Shenanigans/desk capabilities; declare PP scope and any explicitly deferred native feature.
+- Keep PP/Shenanigans on ICP and the existing PP desk on its separately identified ICP/Chain Fusion rail. Native PP/desk replacement is deferred.
+- Start a fresh native pool; do not import balances/positions or move legacy reserves. Preserve separately labeled legacy withdrawals and recovery.
 - No deployment, legacy shutdown, migration transfer, mainnet funding or signing is authorized by this plan.
 - Implementation occurs on an isolated `codex/` branch; preserve the current untracked agent/config files.
 
@@ -37,23 +38,24 @@
 
 `1 decisions/oracle → 2 bounded economic design + 3 round design → 4 core program → 5 frontend → 6 PP/social/history → 7 verification → 8 authorized launch`
 
-Tasks 2 and 3 can be investigated independently after task 1, with one coordinator owning the shared account contract. Frontend view-model contracts may be drafted early, but production mutations wait for the frozen IDL. A native PP workstream, if chosen, gets its own dependent spec/plan rather than being hidden inside the SOL program task.
+Tasks 2 and 3 can be investigated independently after task 1, with one coordinator owning the shared account contract. Frontend view-model contracts may be drafted early, but production mutations wait for the frozen IDL. Native PP is deferred; this roadmap includes ICP reward/history integration and separate legacy access, not token migration.
 
 ### Task 1 — Freeze the economic and launch contract
 
 **Owner:** coordinator with economy worker and Rob for product decisions.
 **Files:** create `docs/solana/economics.md`, `docs/solana/parity-matrix.md`, `docs/solana/launch-decisions.md`, `solana/fixtures/economics.json`. These paths are proposed future artifacts, not files that exist now.
-**Inputs:** spec D1–D9; current source at the pinned HEAD; D1 legacy-state audit only if migration is selected.
+**Inputs:** confirmed D1/D2 and open D3–D9; current source at the pinned HEAD; source/deployed capability evidence for separate legacy access.
 **Outputs:** accepted rate/fee/rounding/eligibility contract; vector corpus with inputs, timestamps, expected amounts and accepted legacy differences; a fixed scope for SOL, PP and legacy rails.
 
-- [ ] Record fresh launch vs import and core SOL vs native PP decisions. Resolve SOL-only asset scope without assuming the old design still binds Rob.
+- [x] Record Rob's fresh launch and SOL-game-first decisions, preserving separate legacy withdrawals and ICP PP/Shenanigans. No imports or native PP migration.
+- [ ] Resolve SOL-only asset scope without assuming the old design still binds Rob; document the source and availability of separate legacy payout/recovery routes.
 - [ ] Record source 35/45/20 vs display 35/25/40, gross accrual base, no separate principal refund, fee payer, dust and precision choices.
 - [ ] Capture vectors at 0, 1, 7, 14, 15, 21 and 30 days and one second either side of boundaries; minimum deposits; mixed and absent Backer tiers; partial/zero pot.
 - [ ] Include senior-before-A-weight recalculation, top-up/merge, caps, unclaimed credit and missing-tier fold cases. Compare to current Motoko formulas and identify deliberate divergences.
 - [ ] Freeze operator-account promotion eligibility, no-Backer preference/fallback, loser aggregation and payout-order behavior; classify alternate payout destinations and each manual recovery/proceeds/refund route as preserve/change/legacy-only.
 - [ ] Review and commit the readable contract before implementation of production financial instructions.
 
-Acceptance: every current financial feature is mapped to preserve / explicitly change / separate legacy rail; no executable instruction relies on an unresolved economic choice. A fresh launch needs no balance-import mechanism. A migration decision adds the separate snapshot/funding task below.
+Acceptance: every current financial feature is mapped to preserve / explicitly change / separate legacy rail; no executable instruction relies on an unresolved economic choice. Fresh launch has no import mechanism or access to legacy reserves. Legacy withdrawal access does not imply verified solvency.
 
 ### Task 2 — Prove bounded Backer allocation and integer math
 
@@ -113,7 +115,7 @@ Acceptance: all core behavior, including Backers/EEC, passes source, economic an
 - [ ] Define view models using bigint lamports and wallet pubkey; keep ICP principal for social services separately. Include cluster/program ID in cache keys.
 - [ ] Write failed/rejected/expired/unknown transaction and wallet-switch tests; preserve submission identity so an RPC timeout cannot trigger a duplicate opening.
 - [ ] Build simulation → wallet signing → submission → confirmed/finalized flow; display signature, fee/rent and minimum receive in current panels.
-- [ ] Replace canister prepare/poke/derived-address/manual-transfer behavior on the native rail; preserve legacy recovery separately if launch policy requires it.
+- [ ] Replace canister prepare/poke/derived-address/manual-transfer behavior on the native rail; preserve separately labeled legacy position withdrawal, settlement, Backer claim and recovery actions. Test the same wallet holding both legacy and native positions without cross-credit or mistaken rail selection.
 - [ ] Read positions, Backer claims, pot and round validity from Solana; stale mirror state cannot hide a valid payout or authorize an invalid one.
 - [ ] Verify HTTPS confirmation polling under ICP CSP, RPC failures, wallet rejection, insufficient SOL for fees/rent, wrong cluster and session expiry.
 - [ ] Run `npm test` and `npm run build`; browser-compare major screens to a captured baseline across existing supported viewports and wallets.
@@ -124,14 +126,13 @@ Acceptance: same recognizable layout/branding and complete core financial flows;
 
 **Owner:** ICP/integration worker; depends on PP decision and finalized events.
 **Files:** candidate `solana_indexer/main.mo` plus small source modules and tests, `shenanigans/main.mo` observer adapter, `frontend/src/hooks/useNativeHistory.ts`, feed/admin history views, `dfx.json` only if an ICP mirror is accepted.
-**Inputs:** task 4 versioned events with transaction/instruction/event identity; SIWS ownership mapping; task 1 PP/desk decision.
-**Outputs:** correct histories/PP integration with a disclosed trust boundary, or native PP subproject.
+**Inputs:** task 4 versioned events with transaction/instruction/event identity; SIWS ownership mapping; confirmed ICP PP/Shenanigans scope and separate legacy desk.
+**Outputs:** correct histories and ICP PP integration with a disclosed trust boundary, retaining existing social/desk capabilities.
 
 - [ ] Choose event transport and durable archive/provider recovery; logs alone must not be assumed complete. Track finality, progress cursor, duplicates, gaps, schema version, lag and provider disagreements.
 - [ ] Make finalized-event ingestion idempotent and bounded; validate program, instruction/accounts and source data. Name the RPC/verification trust assumptions; do not label ordinary RPC ingestion trustless.
-- [ ] If PP stays on ICP, mint rewards once for actual event-owner wallets bound to canonical SIWS principals. Validate signed challenge/domain/expiry, prohibit operator-chosen recipients, freeze replay-safe binding/recovery policy and keep historic event ownership fixed across rebinds. Preserve referral/Backer/signup semantics and prevent old/new event namespace collisions.
-- [ ] Resolve the desk explicitly: accepted cross-chain purchase/refund protocol or a visibly deferred native desk. Test stuck inventory, expired receipts, refund/replay and no mixed proceeds/pot accounting.
-- [ ] If PP is native instead, stop this branch of the roadmap and prepare its separate mint/chips/rewards/desk/spells migration spec and plan; integrate only after its acceptance checks pass.
+- [ ] Add native finalized-event rewards alongside existing legacy observers; mint once for actual event-owner wallets bound to canonical SIWS principals. Validate signed challenge/domain/expiry, prohibit operator-chosen recipients, freeze replay-safe binding/recovery policy and keep historic event ownership fixed across rebinds. Preserve referral/Backer/signup semantics and prevent old/new event namespace collisions or duplicate signup grants.
+- [ ] Preserve the existing ICP/Chain Fusion PP desk purchase/proceeds/refund flow, clearly labeled and isolated from the native game pool. Verify legacy desk transactions cannot create native Positions, and native pool funds cannot pay desk refunds or proceeds. Native desk/escrow rewrite remains optional deferred work.
 - [ ] Verify history outage leaves direct core SOL reads/transactions available, and display lag without implying financial failure.
 
 Acceptance: no duplicate PP reward, no fabricated SOL balances, correct social identity mapping, declared desk behavior and recoverable historical gaps. An ICP indexer is optional; preserving existing user-visible history remains a product requirement that can be served by another reviewed solution.
@@ -151,18 +152,18 @@ Acceptance: no duplicate PP reward, no fabricated SOL balances, correct social i
 
 Acceptance: critical financial and liveness issues resolved, core and selected PP scope covered by receipts/tests, and independent review completed. External audit availability/cost should be obtained rather than assumed; agree review scope before relying on it.
 
-### Conditional migration task — only if D1 selects importing existing state
+### Legacy access work — preserve separate withdrawals
 
-**Owner:** coordinator/operator and separate migration reviewer.
-**Files:** proposed `docs/solana/migration.md`, signed snapshot manifest, versioned import/claim tooling and reconciliation fixtures.
+**Owner:** coordinator and frontend/integration reviewer; verify within tasks 1, 5 and 7 rather than as a balance-migration project.
+**Files:** proposed `docs/solana/legacy-access.md`; existing position, claim and recovery views only where needed to distinguish rails.
 
-- [ ] Read current deployed state and finalized source-asset balances without changing them; inventory all liability/reserve/desk/pending/refund buckets.
-- [ ] Establish wallet ownership and II/SIWS mapping, cutoff, valuation if ICP converts to SOL, funded escrow and anti-double-claim rules.
-- [ ] Prove snapshot completeness, rounding/term carryover, paused/pending handling and rollback before funds leave the legacy rail.
-- [ ] Rehearse imports/claims against a nonproduction snapshot and record zero reconciliation drift.
-- [ ] Obtain separate approval for actual pause/import/transfer/retirement actions with pushed readable artifacts and exact hashes.
+- [ ] Verify actual deployed withdrawal, maturity settlement, Backer claim and deposit/desk recovery capabilities without mutating live state.
+- [ ] Preserve the correct ICP or SIWS identity and payout destination for each legacy rail; new native wallet state cannot overwrite the legacy account selection.
+- [ ] Keep legacy histories, pending transfers and recovery accessible; do not present old positions as native PDA accounts or promise guaranteed liquidity.
+- [ ] Test a user with simultaneous legacy and native positions, independent balances/rounds, and failed or unavailable legacy payouts without affecting native access.
+- [ ] Document any proposed future legacy deposit pause/retirement as separately authorized operations. No balance import, reserve transfer or shutdown is included.
 
-No production canister can be classified withdraw-only without checking its actual capabilities. A fresh launch instead documents legacy withdrawal and recovery availability without pretending funds were migrated.
+No production canister can be classified withdraw-only without checking its actual capabilities. Preserved withdrawal access is a required part of the selected product scope; verified solvency and actual payout receipts remain separate evidence.
 
 ### Task 8 — Separately authorized launch
 

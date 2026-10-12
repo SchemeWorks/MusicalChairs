@@ -12,6 +12,8 @@ Success for the SOL game means a Solana wallet signs program instructions, the S
 
 This document recommends a target architecture and records the decisions needed to freeze it. Research and draft planning are authorized. Product code, dependencies, deployments, operational changes, and fund movements have not started.
 
+**Confirmed scope, 2026-10-12:** Rob selected a fresh launch with new SOL deposits and separate legacy withdrawals, and SOL financial game first with PP and Shenanigans staying on ICP. No existing position, balance, Backer entitlement or reserve is imported into the native pool. ICP hosting and the current GUI remain in scope to preserve.
+
 ## 2. What exists today
 
 The current SOL game is **Chain Fusion**, not a native Solana program. `ponzi_math_sol` is Motoko on ICP (`dfx.json:11–13`). It holds the financial records, derives threshold-controlled deposit/pool addresses, observes inbound SOL transfers, and signs outgoing payouts (`ponzi_math_sol/main.mo:788–825, 1114–1188, 2973–3045`). No native Rust/Anchor program was found in the inspected checkout.
@@ -24,7 +26,7 @@ The May 23 Anchor proposal was a thought experiment. The May 25 Chain Fusion des
 
 | Approach | Result | Main tradeoff | Recommendation |
 | --- | --- | --- | --- |
-| Native SOL program; ICP hosting and social services | SOL custody/accounting native; PP remains an ICP financial rail | Preserves the shared social game, but PP sales and rewards stay cross-chain | Recommended first deliverable, subject to Rob's PP scope choice |
+| Native SOL program; ICP hosting and social services | SOL custody/accounting native; PP remains an ICP financial rail | Preserves the shared social game, but PP sales and rewards stay cross-chain | Selected first-release scope |
 | Native SOL program plus native PP financial rails | SOL and PP ownership/transfers/financial rules move to Solana; ICP can host and serve nonfinancial social content | SPL token migration, reward rules, chip custody, purchases, burns and spell effects substantially expand work | Plan as a separate dependent workstream if requested |
 | Continue ICP Chain Fusion and improve transaction UX | Smallest technical change | Financial authority remains ICP | Does not satisfy the requested native SOL program goal |
 
@@ -48,7 +50,7 @@ flowchart LR
 - **Solana:** financial configuration, deposited SOL, position state, payout eligibility, fee/reserve allocation, Backer claims, round transitions and promotion entitlements.
 - **Browser:** typed instruction building, simulation, wallet request, submission, chain confirmation/finality and canonical account reads. Display projections cannot authorize payment.
 - **ICP assets:** retain existing certified static frontend hosting and domain. No hosting-platform migration is proposed.
-- **ICP social services:** existing SIWS identity can continue to support profiles, chat and referrals if PP stays on ICP. A SIWS delegation is not authority to spend native program funds.
+- **ICP social services:** PP, Shenanigans, profiles, chat and referrals remain on ICP, accessed through existing SIWS identities. A SIWS delegation is not authority to spend native program funds.
 - **Optional ICP mirror:** finalized history, feeds, analytics and social reward inputs. No private pool key, balance repair, payout authorization, or off-chain chosen promotion winner. Its ingestion is a separately disclosed trust boundary, especially if it triggers PP issuance.
 
 Solana transactions can combine account mutation and SOL movement atomically; transaction fees may still be charged on failure. PDA-based custody removes the need for an ordinary private pool key. See [Solana transactions](https://solana.com/docs/core/transactions), [PDAs](https://solana.com/docs/core/pda), and [Anchor account constraints](https://www.anchor-lang.com/docs/references/account-constraints). Keeping the browser app on ICP is compatible with this design; see [ICP application architecture](https://docs.internetcomputer.org/getting-started/app-architecture/) and the [official documentation index](https://docs.internetcomputer.org/llms.txt).
@@ -78,7 +80,7 @@ These are current **source rules**, not a verification of deployed state. The pr
 | Payout fees/dust | Canister deducts 5,000 lamports; sometimes skips tiny transfer while updating accounting | Recommend wallet fee payer, fees outside game payout, and no silently lost claim. These are explicit behavior changes |
 | Alternate payout destination | Caller can specify a SOL address for simple/compound payout and Backer claim | Preserve owner-selected destination, default to owner wallet; require wallet signature and explicit transaction review |
 | Manual deposit credit and observer recovery | Canister operator can recover/credit unmatched legacy transfers | Legacy-only. Native program deposits are atomic; unsolicited transfers need an explicit refund/donation policy and cannot create discretionary positions |
-| Desk proceeds and refunds | Canister has separate proceeds withdrawal and refund routes | Preserve on legacy rail; native replacement depends on D2 desk settlement decision, including refund authority and failure recovery |
+| Desk proceeds and refunds | Canister has separate proceeds withdrawal and refund routes | Preserve the existing ICP/Chain Fusion PP desk as a separate rail. Native desk replacement is deferred; never mix desk proceeds with native game funds |
 
 Economic references: `ponzi_math_sol/main.mo:532–589, 595–785, 903–1108, 1226–1453, 2443–2454, 2782–2834, 2973–3080`; eligibility helper `ponzi_math_sol/Promotion.mo:25–57`.
 
@@ -125,7 +127,7 @@ Keepers may advance verifiable state machines and pay transaction fees; they mus
 
 ## 8. Financial conservation and governance
 
-Required proposed invariant: the physical custody lamports, less the protected rent floor, equal the sum of tracked spendable pot, seed reserve, funded unclaimed Backer allocations, management balance, and any explicit pending allocation/migration escrows, plus a separately classified unallocated donation/dust balance. These partitions are disjoint; moving value between them is not new revenue. Future ROI promises and uncredited Backer entitlement do not enter that equality.
+Required proposed invariant: the physical custody lamports, less the protected rent floor, equal the sum of tracked spendable pot, seed reserve, funded unclaimed Backer allocations, management balance, and any explicit pending allocation escrows, plus a separately classified unallocated donation/dust balance. These partitions are disjoint; moving value between them is not new revenue. Future ROI promises and uncredited Backer entitlement do not enter that equality. Legacy liabilities and ICP desk proceeds remain outside the native pool.
 
 Use `u64` for transferable lamport amounts, checked `u128` for intermediate products and appropriate aggregates, and explicit overflow failures. No floats in program accounting or native transaction amounts. Fractional-day compounding displays need a reviewed approximation; maturity payouts can use reproducible fixed-point maturity factors. Pin bit-for-bit oracle outputs and any accepted divergence from legacy Float behavior.
 
@@ -151,28 +153,28 @@ The current asset CSP permits selected HTTPS RPCs but the sender explicitly avoi
 
 PP is an ICRC token owned by ICP principals, including SIWS-derived principals. Shenanigans currently issues deposit/Backer rewards by observing the two financial canisters (`shenanigans/main.mo:1400–1457`). PP wallet/chip transfers and spells are ICP-authoritative; the Founder's Allocation desk sells ICP PP for SOL (`ponzi_math_sol/main.mo:322–407, 3283–3547`).
 
-**If PP stays on ICP:** replace the SOL reward observer with a deduplicated finalized-event consumer and authenticated wallet-to-principal mapping. Use the canonical SIWS-derived principal for the event's actual signing/position-owner pubkey; validate signed domain, challenge nonce, expiry and chain context. Operators cannot choose reward recipients. Event entitlement IDs include cluster/program ID, signature, instruction/event index and schema version. Rebinding cannot move historical rewards or remint an event; any recovery/linking mechanism requires proof of both identities, a recorded versioned policy and separate review. Keep SIWS domain/session protections. Native SOL ownership must not depend on SIWS availability. Social effects may modify ICP PP rewards, but must not modify native SOL entitlements. Describe this honestly as native SOL game plus ICP PP/social services.
+**Selected: PP stays on ICP.** Add a deduplicated finalized-event consumer for the native SOL game alongside the existing legacy reward observer. Use the canonical SIWS-derived principal for the event's actual signing/position-owner pubkey; validate signed domain, challenge nonce, expiry and chain context. Operators cannot choose reward recipients. Event entitlement IDs include cluster/program ID, signature, instruction/event index and schema version. Rebinding cannot move historical rewards or remint an event; any recovery/linking mechanism requires proof of both identities, a recorded versioned policy and separate review. Keep SIWS domain/session protections. Native SOL ownership must not depend on SIWS availability. Social effects may modify ICP PP rewards, but must not modify native SOL entitlements. Describe this honestly as native SOL game plus ICP PP/social services.
 
-The SOL↔ICP PP desk cannot become atomic simply by porting its SOL half. Keep its existing legacy flow explicitly separate during a prototype. Before a first user-facing native release, choose and document either a cross-chain escrow/receipt/refund protocol with a stated trust model, or a visibly unavailable desk on the native rail. Neither choice is currently approved. Hiding or silently removing the desk is not feature parity.
+The SOL↔ICP PP desk cannot become atomic simply by porting its SOL half. Preserve its existing ICP/Chain Fusion purchase, proceeds and refund flow as a clearly identified separate rail, accessible through the existing GUI and SIWS session. It does not deposit into or withdraw from the native game pool, and desk transactions must not create native Positions or share native game accounting. A native desk or new cross-chain escrow protocol is optional future work, deferred from this first release. Existing desk availability and trust assumptions must be accurately represented; hiding or silently removing the desk is not feature parity.
 
-**If PP becomes native:** create a separate specification for mint identity/supply, existing balances and chip custody, transfer/burn/mint authority, deposit rewards, three-level referrals, desk inventory/proceeds, spell costs/effects and payout claims. Decide which PP-changing rules execute in Solana and which rely on a disclosed oracle. Moving only token custody while allowing ICP to mint or choose all financial outcomes does not meet a strict all-financial-logic-on-Solana interpretation. Avoid two independently mintable tokens presented as one balance.
+**Deferred: native PP.** A future native PP project would need a separate specification for mint identity/supply, existing balances and chip custody, transfer/burn/mint authority, deposit rewards, three-level referrals, desk inventory/proceeds, spell costs/effects and payout claims. It is outside this release and is not a prerequisite for the native SOL game. Avoid two independently mintable tokens presented as one balance.
 
 II/SIWS account linking or merging is optional. Neither frontend wallet switching nor a matching display name establishes ownership of both identities.
 
 ## 11. Launch and legacy state
 
-Recommendation pending Rob's answer: launch a new SOL pool without importing legacy liabilities, while preserving a clear legacy withdrawal/recovery path. This is an operational proposal, not permission to pause or retire any existing canister.
+**Selected: fresh launch.** Launch a new SOL pool with new deposits, without importing legacy liabilities. Preserve separate legacy position displays, withdrawals, settlements, Backer claims and recovery paths; clearly label their rail and source of funds. Existing legacy positions do not become native Positions when the same wallet connects. This selection is not permission to pause or retire any existing canister.
 
-If positions migrate instead, separately inventory live finalized funds, open/closed positions, accrued payouts, Backer lifetime credits and unclaimed claims, seed reserve, management, pending deposits/buys/refunds, desk inventory/proceeds and orphaned funds. Freeze a snapshot policy, dual-chain cutoff and user wallet ownership proof; fund claims before accepting imports. Reconcile totals and prevent duplicate entitlement across old/new systems. Existing ICP positions cannot become SOL positions without an explicit valuation/conversion and asset-transfer policy.
+Balance imports, snapshot claims, liability conversion, bridges and legacy-to-native reserve transfers are outside this release. Check actual deployed legacy withdrawal/settlement/recovery capabilities before promising a withdraw-only mode. Any later deposit pause or retirement requires separately authorized operational changes and must preserve recovery. Native launch capital is a separate funding decision; it must not be assumed to come from legacy pots, PP balances or desk proceeds.
 
-No live state, active-user count, legacy solvency, deployed module bytes or current balances were checked in this discovery. Therefore migration costs and launch readiness cannot yet be estimated from production evidence.
+No live state, active-user count, legacy solvency, deployed module bytes or current balances were checked in this discovery. Separate legacy withdrawals describe preserved access, not guaranteed liquidity or verified payout capability. Native and legacy launch readiness cannot yet be established from production evidence.
 
 ## 12. Decisions and proposed readiness criteria
 
 | Decision | Recommendation / unresolved item | Affected work |
 | --- | --- | --- |
-| D1 Launch | Fresh pool with legacy recovery; awaiting Rob | Migration scope and funding |
-| D2 PP | Core SOL first with ICP social game; awaiting Rob | Native token, desk and Shenanigans scope |
+| D1 Launch | **Confirmed by Rob:** fresh pool; legacy positions withdrawable separately; no imports | Separate legacy access and native launch funding |
+| D2 PP | **Confirmed by Rob:** SOL financial game first; PP and Shenanigans stay on ICP | Native finalized-event rewards; existing desk remains a separate rail |
 | D3 Assets | Native SOL first; historical no-stablecoin choice must not be presumed newly accepted | Units, vaults and interface |
 | D4 Economics | Source 35/45/20, all three plans, full Backer/EEC feature parity | Oracle and screens |
 | D5 Rounding/fees | Lamports; wallet pays network fees; legitimate dust retained | Intentional parity differences |
@@ -181,7 +183,7 @@ No live state, active-user count, legacy solvency, deployed module bytes or curr
 | D8 Control | Multisig upgrade authority; narrow config/pause; no arbitrary balance repair | Governance/deployment |
 | D9 Operations | Direct canonical reads; optional lag-aware mirror; permissionless verifiable keepers | UI liveness and history |
 
-Before the production implementation plan is declared frozen, resolve D1/D2 with Rob and turn D3–D9 into reviewed contracts and measured feasibility evidence. These are proposed acceptance criteria for this requested migration, not previously accepted review findings. Unrelated refactors, account linking, hosting migration, marketing and SDK-wide upgrades are optional backlog.
+D1/D2 are settled product scope. Before the production implementation plan is declared frozen, turn D3–D9 into reviewed contracts and measured feasibility evidence. These are proposed acceptance criteria for this requested migration, not previously accepted review findings. Unrelated refactors, account linking, hosting migration, native PP/desk replacement, marketing and SDK-wide upgrades are optional backlog.
 
 Proposed later release evidence: economic oracle and randomized conservation tests; signer/account-substitution tests; complete bounded allocation/round-close proofs under worst-case populations; failed transaction and replay tests; rent/compute measurements; stale-RPC/indexer and randomness outage recovery; matching generated IDL/client; devnet wallet receipts and balances; unchanged visual baseline across major screens; independent fund-flow review; exact reviewed artifact and program authority verification. Mainnet deployment and asset funding require a separate explicit go decision.
 
