@@ -12,8 +12,12 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 | SOL-04 | Done | coordinator; `/root/draft_design_review` | Integrate research, review risks, draft spec and roadmap | SOL-01, SOL-02, SOL-03 | Accepted as discovery drafts with corrections applied; Rob confirmed fresh launch and ICP PP/Shenanigans; no execution/launch approval implied |
 | SOL-05 | Done | `/root/economic_contract` | Recommend native economic contract | SOL-01 | Coordinator checked source/UI drift and integer vectors; selected floor Q18 rather than worker's nearest rounding; explicit precision/fee changes |
 | SOL-06 | Done | `/root/backer_design` | Preserve senior-first capped Backer allocation with bounded work | SOL-01, SOL-02 | Complete batches recommended; coordinator replaced unbounded final merge with scalar watermark/lazy credit, and lifetime scan with dense active membership |
-| SOL-07 | Done | `/root/round_design` | Preserve round reset, candidate completeness and failure recovery | SOL-01, SOL-02 | Frozen current-round lists; coordinator rejected fresh retries/automatic skip and selected one authenticated client-scoped request; outage tradeoff explicit |
+| SOL-07 | Done | `/root/round_design` | Preserve round reset, candidate completeness and failure recovery | SOL-01, SOL-02 | Frozen lists and one authenticated client-scoped request; initial indefinite-wait recommendation superseded by SOL-10 under user's availability requirement; no rerolls |
 | SOL-08 | Done | coordinator; `/root/economic_design_review` | Integrate recommendations into spec and roadmap | SOL-05, SOL-06, SOL-07 | Independent review accepted direction/vectors; width/conservation and request-initiation findings corrected and follow-up confirmed; design only |
+| SOL-09 | Done | `/root/processing_recovery` | Bound processing delays without dropping financial allocations | SOL-06 | Accepted design direction: narrow barrier, captured work-unit budget independent of chunk grouping, sponsor/default-zero optional contribution and self-funded fallback; runtime costs unproved |
+| SOL-10 | Done | `/root/oracle_outage_policy` | Terminal randomness outage policy under no-indefinite-round requirement | SOL-07 | Recommended 600-second one-shot deadline, permissionless skip, no reroll; timely capture protected and pending cash allocations preserved |
+| SOL-11 | Done | `/root/solana_skill_comparison`; coordinator | Assess Foundation/Mindrally skill additions | — | Foundation local copy outdated; Mindrally body already installed locally; update Foundation rather than duplicates; nothing installed |
+| SOL-12 | Done | coordinator; `/root/availability_review` | Update/review pause and outage spec/plan | SOL-09, SOL-10 | Independent review accepted document coherence after permissions, finalize-before-open, defect limits and canonical terminal naming corrections; implementation/runtime readiness unclaimed |
 
 ## Shared dispatch contract
 
@@ -30,6 +34,8 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 - [Draft specification](../superpowers/specs/2026-10-12-native-solana-design.md)
 - [Draft implementation roadmap](../superpowers/plans/2026-10-12-native-solana.md)
 - [Economic/allocation/round recommendation and vectors](native-solana-economics.md)
+- [Processing and randomness recovery](native-solana-availability.md)
+- [Solana skills assessment](solana-skill-assessment.md)
 - Handoffs accepted as research results, not production financial verification.
 - Verification: source cross-checks and documentation structure checks passed. Product tests/builds skipped because no product files changed.
 - No branches merged, programs deployed or funds moved.
@@ -49,3 +55,14 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 - Checked: source references, Decimal precision-100 Q18 factors, independent integer fee/boundary/Backer vectors, exact toll conservation examples, documentation links/structure and diff whitespace. These are design checks, not executable program tests.
 - Review findings addressed: explicit u64/u128/U256 and phase custody equality; exact RNG seed/request marker/collision rules and registered-client authority. Reviewer follow-up accepted these corrections.
 - Remaining acceptance/proof: 1-lamport/remainder/fee/quota changes, allocation barrier and oracle outage policy, operations funding/governance, provider version/source/lifecycle and measured execution costs. No product code/builds/deployments/transactions started.
+
+## Availability pass
+
+- New user requirement: rounds must have an explicit recovery outcome instead of waiting indefinitely for randomness. The prior fail-closed oracle wait is superseded for design purposes.
+- Native `gpt-5.6-luna` workers, repository read-only and public-source browsing; coordinator alone edits docs. No external repository disclosure, product code, deployment, signing, funds or skill installation.
+- Evaluate safe processing resumption and explicit cost/scale limits separately from a terminal no-promotion oracle timeout. No dishonest wall-clock guarantee during a chain halt or without transaction submission.
+- Skill question is advisory: compare current Foundation/Mindrally contents to installed January Solana guidance; do not overwrite skills without an installation/update request.
+- Pass baseline: `9327a53ee6cff11a0f2ec5fad0dcb8e49a5c5203`; source baseline unchanged. SOL-09–SOL-12 dispatch-confirmed native `gpt-5.6-luna`, no external private-content review.
+- Coordinator corrected suggested transaction-count budgeting to verified work units, kept caller contribution explicit/default zero, and replaced indefinite oracle wait with public deadline expiry. Same-output mapping is bounded to 64 counters; canonical terminal reason/event representation is explicit.
+- Independent follow-up accepted cross-document permissions, atomic finalization ordering, preserved-state defect limits and terminal naming. Documentation links/fences and diff whitespace passed; no product tests run because product code is unchanged.
+- Open decisions/proofs: accept timeout/omission and optional cost policy; pin/test provider lifecycle and toolchain compatibility; measure complete/chunked processing costs; governance/launch decisions. Skill refresh is optional groundwork, not an implementation gate.
