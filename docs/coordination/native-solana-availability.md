@@ -3,7 +3,9 @@
 Date: 2026-10-12. Status: recommended design, not approved implementation or measured performance.
 Design-pass baseline: documentation commit `9327a53ee6cff11a0f2ec5fad0dcb8e49a5c5203`; financial source still `f96b33ff95020458be754bfa0d7471b72a7403af`.
 
-Rob explicitly rejected indefinite stuck rounds. This supersedes the prior recommendation to await the same oracle request indefinitely. Native Luna workers SOL-09/SOL-10 examined pauses/outages; SOL-11 assessed skills. Coordinator integration and independent review are recorded on the [board](kanban.md). No product code, skill installation, deployment, signing or funds were changed.
+Rob explicitly rejected indefinite stuck rounds. This supersedes the prior recommendation to await the same oracle request indefinitely. Native Luna workers SOL-09/SOL-10 examined pauses/outages; SOL-11 assessed skills. Coordinator integration and independent review are recorded on the [board](kanban.md). During that availability pass no product code, skill installation, deployment, signing or funds were changed.
+
+Subsequent authorized [defaults pass](native-solana-defaults.md): Foundation skill refreshed; first-release on-chain keeper reward is zero. Sponsor pays shared storage/provider/automatic-B reserve, and sponsor-run keepers or any caller pay their own network fees. Finite captured work and protected on-chain reserve still apply; no product implementation started.
 
 ## 1. Recommended behavior
 
@@ -21,7 +23,7 @@ The deadline removes a mandatory oracle wait, not the need to submit transaction
 | Operation | Ordinary allocation | Closing round | Admission pause |
 | --- | --- | --- | --- |
 | Open game | Allow; gross/net entry accounting and UserRound append only | Reject direct open; finalize-then-open may be composed only when eligible | Reject |
-| Fund/top-up A; mutate Backer registry | Reject | Reject | Reject |
+| Fund/top-up A; discretionary registry mutation | Reject | Reject | Reject |
 | Another game withdrawal/settlement | Wait for previous ticket | Reject | Allow when round Active and no prior ticket; admission pause alone does not block exits |
 | Claim finalized A/B balances | Allow | Allow | Allow |
 | Advance allocation; prune; commit | Allow any payer | Allow any payer | Allow |
@@ -37,17 +39,17 @@ New control names should reflect an admission pause, not a global mutex that dis
 
 Capture `N=active Backers`, registry version, phase/cursors and the resource schedule before accepting payout. For the recommended Discover/Allocate/Prune passes, reserve worst-case **three row visits per member plus constant phase work**; extra snapshot/page creation and swap-delete accounts are accounted separately. Each phase only advances its exact cursor. New normal game deposits do not alter captured N. Prune may remove up to N members; it cannot append fresh ones.
 
-Use a work-unit schedule rather than budgeting for `ceil(N/8)` calls and then allowing one-row calls to exhaust that budget. Reserve page rent and rewards against captured total row/constant work, independent of chunk grouping. A paid chunk earns only its verified newly completed units once, within the remaining ticket reserve. Replayed/no-progress calls earn zero. Return unused reserve to its recorded sponsor/contributor after terminal completion; do not treat it as pot revenue.
+Capture work units rather than budgeting for `ceil(N/8)` calls and allowing one-row calls to exhaust that estimate. First-release reward price is zero: keepers/callers pay their own network fees, with no on-chain progress reward. Reserve shared storage/provider costs separately, independent of chunk grouping; preserve finite row/constant/page bounds. If paid rewards are later accepted, price only verified new units once, never replay/no-progress. Return unused storage/provider reserve to its recorded sponsor/contributor after terminal completion, not pot revenue.
 
 Inline allocation is a measured optimization, not a population cap: test N=0/1/16/17 as candidate boundaries, then select the actual threshold separately for supported transaction formats. Eight rows per chunk is only an initial candidate. Expose `advance_ticket(ticket, rows)` with a proven one-row fallback; callers can reduce chunk size when simulation/resource limits require it. Never publish unmeasured CU/latency guarantees.
 
-Work funding recommendation: reserve funds from a separate sponsor operations vault before accepted payout. If sponsorship is unavailable, the owner may **explicitly opt in** to a bounded work contribution, quoted separately from game fees and protected by `max_work_contribution_lamports` (default zero). Otherwise reject atomically before payout/position mutation. This optional contribution is a new disclosed cost choice, not a silent haircut or already approved policy. No claimant is charged retroactively. Candidate/draw/one winner's B-account/registry-page rent and terminal reset work also need a closing-work reserve.
+Funding recommendation: reserve shared storage/provider/automatic-B costs from a separate sponsor operations vault before accepted payout/close. If unavailable, owner may **explicitly opt in** to a bounded quoted contribution with `max_work_contribution_lamports` default zero; otherwise reject before payout/position mutation. This is a new disclosed cost choice, not approved or a silent haircut. Sponsor reserve is consumed first and opted-in caller covers only shortfall; unused partitions return to their own funder. Candidate/provider and possible automatic B-account/page rent are closing costs; winner need not sign. First-release reserve contains no prepaid keeper network-fee reward.
 
-Reserved funds cannot be withdrawn by another ticket/operator. Fee spikes may make rewards unattractive; any payer can still submit zero-reward/self-funded progress or top up operations funding without receiving economic authority. Top-ups cannot change seed, deadline, recipient weights or custody partitions. A paused or failed sponsor cannot disable the instruction itself. No inactivity lease, private completion credential or admin-only resume path exists.
+Reserved funds cannot be withdrawn by another ticket/operator. Fee spikes may stop sponsor-run keepers; any payer can still submit self-funded progress or top up operations funding without receiving economic authority. Top-ups cannot change seed, deadline, recipient weights or custody partitions. A paused or failed sponsor cannot disable the instruction itself. No inactivity lease, private completion credential or admin-only resume path exists.
 
 Operational objectives: expose last successful cursor progress and estimate remaining work. Alert after 60 seconds without progress; escalate after 300 seconds to replacement keeper, smaller chunks, self-funded progress or operations top-up. These are monitoring defaults, not proven protocol completion times. A signed existing-GUI “Resume processing” action and unsigned transaction builder/CLI should prepare the next valid chunk for any wallet; no secret/operator account is required. A future worker signs its own progress only under separately authorized operational setup.
 
-Do not unlock an incomplete cash ticket, reroute its toll or carry only part of its seed to meet a clock target. Each accepted ticket has a finite captured work path; a deterministic validation/arithmetic failure is a defect to prevent with model/runtime tests and a separately reviewed upgrade recovery, not evidence that timeout can erase liabilities. Such a defect is outside the operational-interruption recovery guarantee: preserve the ticket/claims, expose phase/cursor and concrete transaction/simulation diagnostics, and do not label it repaired by promotion timeout. Test tiny-claim work-cost griefing, missing reward funds, arbitrary phase interruption, one-row progress and replacement keepers. No new minimum/cooldown/population cap is assumed.
+Do not unlock an incomplete cash ticket, reroute its toll or carry only part of its seed to meet a clock target. Each accepted ticket has a finite captured work path; a deterministic validation/arithmetic failure is a defect to prevent with model/runtime tests and a separately reviewed upgrade recovery, not evidence that timeout can erase liabilities. Such a defect is outside the operational-interruption recovery guarantee: preserve the ticket/claims, expose phase/cursor and concrete transaction/simulation diagnostics, and do not label it repaired by promotion timeout. Test tiny-claim work-cost griefing, keeper fee shortage, arbitrary phase interruption, one-row progress and replacement keepers. No new minimum/cooldown/population cap is assumed.
 
 ## 4. Fixed promotion deadline
 
@@ -82,7 +84,7 @@ The [ORAO registered-client guide](https://github.com/orao-network/solana-vrf/tr
 ## 6. Acceptance scenarios
 
 - Normal deposit during ordinary allocation preserves frozen recipients, weights, old toll and conservation; closing-round deposit fails atomically.
-- Inline/chunk paths yield the same accepted integer oracle; 1/4/8-row grouping gives the same allocation and total reward units. Replay earns nothing.
+- Inline/chunk paths yield the same accepted integer oracle; 1/4/8-row grouping gives the same allocation and total verified work units. All first-release progress rewards are zero; replay cannot change credit or units.
 - Work reserve short by one lamport rejects before money/state mutation; optional caller contribution cannot exceed approved maximum. Sponsor withdrawal cannot steal active reserve.
 - Every phase resumes with a replacement/self-funded payer and one-row transaction; admission pause leaves claims/progress/expiration/finalization accessible.
 - Clock at deadline−1/equality/+1 enforces disjoint capture/expire predicates. Timely capture cannot be deadline-skipped; deterministic 64-sample exhaustion can omit promotion only after all samples fail. Valid samples cannot be bypassed; no fresh requests. Late capture cannot mint.

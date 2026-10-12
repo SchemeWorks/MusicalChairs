@@ -1,6 +1,6 @@
 # Solana skills assessment
 
-Date: 2026-10-12. Advisory assessment only; no skills, dependencies or MCP configuration installed/updated.
+Date: 2026-10-12. Initial assessment was advisory; Rob subsequently authorized the Foundation refresh. The verified refresh receipt below supersedes the local-version observations. No product dependencies or MCP configuration changed.
 
 ## Solana Foundation: refresh the existing skill
 
@@ -19,3 +19,16 @@ Any later refresh should preserve the symlink relationship and intentional local
 Coordinator verified the existing `/Users/robertripley/.codex/skills/solana/SKILL.md` resolves into the locally managed `omgskills/repos/Mindrally--skills/solana` directory. Its guidance body matches the reviewed Mindrally material, with local frontmatter differences. Local entrypoint sha256: `3b2da800bb87bfa3ae47f645309426e5bb6cedfbb162595745cf41a0224fcfa2`. It is already available; no duplicate or wholesale second Solana instruction set is recommended.
 
 Review provenance: native Luna public-source comparison plus coordinator reads of both local entrypoints and upstream files. No private repository content was sent to another provider. The skill question was “should we add,” so installation/replacement was not treated as authorized.
+
+## Authorized Foundation refresh receipt
+
+Rob then explicitly requested the refresh. Coordinator read the installer and staged the skill with its `install-skill-from-github.py` helper using the git method and exact public commit `491a19a4f69e1e80cdf0f8fa476066d726894138`; `git ls-remote` confirmed that commit was still upstream main. The downloaded guidance was inspected before replacement; no upstream scripts were executed.
+
+- Installed version: **2.6.0** at existing shared target `/Users/robertripley/.agents/skills/solana-dev`.
+- Existing `/Users/robertripley/.codex/skills/solana-dev` symlink preserved.
+- Full old tree preserved and checksum-verified at `/Users/robertripley/.agents/skill-backups/solana-dev-20261012-c9da2fa`.
+- All **33 upstream files** checksum-matched staged source after installation; entrypoint relative references checked.
+- New `SKILL.md` sha256: `c14678610ab408c6ca09dba6c5e4b1e8d516ee8ab4f48361f6ad47d578b2ad16`.
+- No Mindrally duplicate, toolchain/dependency install, MCP configuration change, GUI change or product implementation. The new skill is available through normal discovery next turn and was read directly for this design pass.
+
+Upstream defaults are references, not proof of Musical Chairs compatibility or authorization for unrelated installation. Existing GUI/wallet boundaries remain the user requirement. Toolchain/provider and transaction-format choices are reviewed separately in the defaults pass.

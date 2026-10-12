@@ -18,6 +18,12 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 | SOL-10 | Done | `/root/oracle_outage_policy` | Terminal randomness outage policy under no-indefinite-round requirement | SOL-07 | Recommended 600-second one-shot deadline, permissionless skip, no reroll; timely capture protected and pending cash allocations preserved |
 | SOL-11 | Done | `/root/solana_skill_comparison`; coordinator | Assess Foundation/Mindrally skill additions | — | Foundation local copy outdated; Mindrally body already installed locally; update Foundation rather than duplicates; nothing installed |
 | SOL-12 | Done | coordinator; `/root/availability_review` | Update/review pause and outage spec/plan | SOL-09, SOL-10 | Independent review accepted document coherence after permissions, finalize-before-open, defect limits and canonical terminal naming corrections; implementation/runtime readiness unclaimed |
+| SOL-13 | Done | coordinator | Refresh existing Foundation skill | SOL-11 | User authorized refresh; v2.6.0 / 491a19a installed at existing target; 33-file parity, symlink and rollback verified |
+| SOL-14 | Done | `/root/default_economics` | Recommend D3–D5 and financial-feature defaults | SOL-08 | Coordinator accepted with source-equivalent operator eligibility/public A on flag difference; worker follow-up confirmed |
+| SOL-15 | Done | `/root/default_controls` | Recommend D8 control/governance defaults | SOL-13 | Coordinator selected 2-of-3/48h G, immediate 2-of-3 P; follow-up checked zero-key sentinel, timelock bypass/trust and prospective snapshots |
+| SOL-16 | Done | `/root/default_operations` | Recommend D6/D7/D9 work funding, keeper and launch-measurement defaults | SOL-12, SOL-13 | Accepted after zero reward/storage-provider reserve separation and automatic B sponsor rent; no unmeasured budget/cap |
+| SOL-17 | Done | `/root/default_integration` | Recommend wallet/toolchain/ICP PP and legacy-access defaults | SOL-13 | Callback 0.4.0 published manifest checked; bridge fabrication trust/PP loss basis/source-round/outbox refinements accepted |
+| SOL-18 | Done | coordinator; `/root/defaults_review` | Integrate/review all remaining recommended defaults | SOL-14–SOL-17 | Independent coherence review accepted after reserve/payer clarification; runtime proofs and actual launch inputs remain explicit; no implementation/launch approval implied |
 
 ## Shared dispatch contract
 
@@ -36,6 +42,7 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 - [Economic/allocation/round recommendation and vectors](native-solana-economics.md)
 - [Processing and randomness recovery](native-solana-availability.md)
 - [Solana skills assessment](solana-skill-assessment.md)
+- [Recommended remaining defaults](native-solana-defaults.md)
 - Handoffs accepted as research results, not production financial verification.
 - Verification: source cross-checks and documentation structure checks passed. Product tests/builds skipped because no product files changed.
 - No branches merged, programs deployed or funds moved.
@@ -66,3 +73,16 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 - Coordinator corrected suggested transaction-count budgeting to verified work units, kept caller contribution explicit/default zero, and replaced indefinite oracle wait with public deadline expiry. Same-output mapping is bounded to 64 counters; canonical terminal reason/event representation is explicit.
 - Independent follow-up accepted cross-document permissions, atomic finalization ordering, preserved-state defect limits and terminal naming. Documentation links/fences and diff whitespace passed; no product tests run because product code is unchanged.
 - Open decisions/proofs: accept timeout/omission and optional cost policy; pin/test provider lifecycle and toolchain compatibility; measure complete/chunked processing costs; governance/launch decisions. Skill refresh is optional groundwork, not an implementation gate.
+
+## Defaults pass — SOL-14–SOL-18
+
+- User authorized Foundation refresh and cheaper-agent recommendations before implementation. Baseline `c9da2faefd6753e89ad04a20c372aa2de5775767`; same documentation branch/workspace and unchanged financial source.
+- Native `gpt-5.6-luna` selected for four bounded investigations and independent review. Workers read only; coordinator owns all shared-document edits. No external provider private-source disclosure, product scaffold, dependencies, builds, transactions or deployments.
+- SOL-14 scope: D3–D5 and unmapped financial features. Acceptance: concrete defaults with source lines, example/divergence and later validation; avoid changing the game to reduce cost.
+- SOL-15 scope: D8 roles, upgrade/config/pause/provider controls. Acceptance: permission/delay matrix, justified defaults and explicit residual upgrade trust; do not invent signers or timelock guarantees.
+- SOL-16 scope: D6/D7/D9 operations. Acceptance: sponsor/contribution/reward/rent/refund contract, finite recovery and proposed measurement envelope; economic admission differences disclosed; no fake measured results.
+- SOL-17 scope: toolchain/wallet/PP/legacy interfaces. Acceptance: retained GUI/adapters, compatible candidate stack and replay-safe finalized-event trust contract, no native PP/desk scope expansion.
+- SOL-18 integration: distinguish confirmed user scope, recommended defaults, implementation proof and launch-only choices. Independent document review before Done; pushed documentation receipt. No request to approve solely local hashes.
+- Dispatch-confirmed model SOL-14–SOL-17: native `gpt-5.6-luna`, read-only. Coordinator checked source minima/quota/promotion/operator eligibility, PP amount-versus-entitlement and round namespace, published Callback crate manifest, and primary governance/RPC/provider references. Proposed persona lessons were reviewed as handoffs only, not installed.
+- SOL-18 independent native `gpt-5.6-luna` review accepted after P2 fixes: imported/zero game liquidity versus mandatory operations reserve; operations top-up/free-withdrawal/locked partitions/refunds and separate fee/rent/authority roles. Frontend v0 and external newer-format bridge handling clarified. Documentation links/fences/table structure/whitespace checked; product builds/tests not run because product source is unchanged.
+- [Recommended defaults](native-solana-defaults.md) resolves D3–D9 for discussion. Remaining work is scoped implementation proof and launch-only identities/capital/endpoints, not an unrelated preparatory project. Foundation refresh receipt is complete; old shared skill tree preserved. No merge, deployment, financial action or product dependency change occurred.
