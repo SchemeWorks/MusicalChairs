@@ -1,6 +1,7 @@
 # Musical Chairs Native Solana Implementation Roadmap
 
-> **For agentic workers:** When approved and frozen, use superpowers:subagent-driven-development or superpowers:executing-plans to implement task-by-task. Steps use checkbox syntax. This draft is not an execution instruction.
+> Update 2026-10-12: Rob accepted the defaults and authorized only the Rust economic model plus local provider/resource probes. [Acceptance and scope](../../solana/launch-decisions.md). Earlier discovery status/evidence paragraphs are historical; no deployment or live financial action is authorized.
+> **For agentic workers:** When approved and frozen, use superpowers:subagent-driven-development or superpowers:executing-plans to implement task-by-task. Steps use checkbox syntax. The accepted host-model/local-probe subset is in execution; later production tasks remain a roadmap.
 
 **Goal:** Move Musical Chairs' SOL custody and financial rules into a native Solana program while preserving the ICP-hosted GUI.
 
@@ -14,7 +15,7 @@
 
 **Current availability contract:** [processing and randomness recovery](../../coordination/native-solana-availability.md). Rob rejects indefinite oracle-stuck rounds; fixed close+600-second promotion expiry supersedes indefinite oracle wait. [Recommended defaults](../../coordination/native-solana-defaults.md) adds zero on-chain keeper rewards, sponsored storage/provider/B rent, 2-of-3/48h governance and explicit bridge trust. [Foundation refresh receipt](../../coordination/solana-skill-assessment.md) is verified; no GUI overhaul.
 
-**Status:** D1/D2 confirmed; D3–D9 have reviewed recommended defaults, not implied approval. Policy acceptance precedes production financial implementation. Compatibility/models/resource measurements are early implementation tasks; actual signers/capital/endpoints are launch inputs. Foundation skill refreshed; no product implementation started.
+**Current status:** Rob accepted D1–D9 and authorized the host Rust economic/allocation/round models and local provider/resource probes. These are implemented on `codex/native-solana-model-probes` with focused tests and independent review. They do not implement native custody or production instructions. SBF/runtime compute, account constraints, provider lifecycle and launch identities/capital/endpoints remain later work. The older research paragraphs below describe the evidence available at discovery time.
 
 **Keeper/budget investigation:** [ICP placement and pilot budget](../../coordination/native-solana-icp-budget.md) uses Rob's ~100 active Backers/1,000 payouts/10 closes monthly. Recommend external fee-only primary with ICP monitor/emergency backup on current modeled signing cost; fully ICP is viable after batching/cycle/latency review. Conditional 12 SOL startup and 0.5–1.5 SOL monthly exclude ICP cycles, subscriptions, audit/development and game liquidity. Actual compiled/storage sizes remain unmeasured.
 
@@ -55,25 +56,27 @@ Tasks 2 and 3 can be investigated independently after task 1, with one coordinat
 ### Task 1 — Freeze the economic and launch contract
 
 **Owner:** coordinator with economy worker and Rob for product decisions.
-**Files:** create `docs/solana/economics.md`, `docs/solana/parity-matrix.md`, `docs/solana/launch-decisions.md`, `solana/fixtures/economics.json`. These paths are proposed future artifacts, not files that exist now.
-**Inputs:** confirmed D1/D2 and recommended defaults register D3–D9; current source at pinned HEAD. Legacy source mapping here, deployed capability evidence at later acceptance/launch.
+**Files:** create `docs/solana/economics.md`, `docs/solana/parity-matrix.md`, `docs/solana/launch-decisions.md`, `solana/fixtures/economics.json`. These artifacts now exist in the accepted host-model pass.
+**Inputs:** accepted D1–D9 defaults register; current source at pinned HEAD. Legacy source mapping here, deployed capability evidence at later acceptance/launch.
 **Outputs:** accepted rate/fee/rounding/eligibility contract; vector corpus with inputs, timestamps, expected amounts and accepted legacy differences; a fixed scope for SOL, PP and legacy rails.
 
 - [x] Record Rob's fresh launch and SOL-game-first decisions, preserving separate legacy withdrawals and ICP PP/Shenanigans. No imports or native PP migration.
-- [ ] Record proposed native SOL-only scope, no operator promotion exclusion, public A on as explicit legacy-flag difference, and zero bootstrap pot/seed; map separate legacy payout/recovery source paths.
-- [ ] Accept source 35/45/20 and gross accrual; fix identified UI drift later. Record no principal refund, 1-lamport arithmetic, remainder carry, floor Q18 factors, wallet-paid fees, >10-lamport Backer-open cutoff and the tightened atomic quota as explicit native differences.
+- [x] Record proposed native SOL-only scope, no operator promotion exclusion, public A on as explicit legacy-flag difference, and zero bootstrap pot/seed; map separate legacy payout/recovery source paths.
+- [x] Accept source 35/45/20 and gross accrual; fix identified UI drift later. Record no principal refund, 1-lamport arithmetic, remainder carry, floor Q18 factors, wallet-paid fees, >10-lamport Backer-open cutoff and the tightened atomic quota as explicit native differences.
 - [ ] Capture vectors at 0, 1, 7, 14, 15, 21 and 30 days and one second either side of boundaries; minimum deposits; mixed and absent Backer tiers; partial/zero pot.
 - [ ] Include senior-before-A-weight recalculation, top-up/merge, caps, unclaimed credit and missing-tier fold cases. Compare to current Motoko formulas and identify deliberate divergences.
-- [ ] Freeze same-rule operator eligibility, no-Backer preference/fallback and owner-signed alternate destinations; native unsolicited SOL stays unallocated with no arbitrary refund/credit/sweep; manual legacy recovery/desk remains separate.
-- [ ] Accept narrowed processing permissions and separate storage/provider/B reserve, zero on-chain rewards, two sponsor keepers and default-zero optional contribution. Schedule resource measurements in implementation; no population cap implied.
-- [ ] Freeze recommended close+600-second promotion deadline, capture <= / expire > boundary, no fresh draws, permissionless no-promotion expiry and explicit withholding risk. User rejects indefinite oracle waits; ten-minute value remains a recommended policy default, not a tested completion time.
-- [ ] Record 2-of-3/48h autonomous governance and immediate admission guardian, future-only versioned schedules/provider tuples, exact Callback dependency candidate, native PP trust/replay contract and launch-only inputs from defaults register.
-- [ ] Record selected pilot workload and provisional host/cost envelope; distinguish cycle charges, consumed SOL fees, reusable/retained rent and deployment-buffer liquidity. No protocol cap, live funding, server order or measured binary size implied.
+- [x] Freeze same-rule operator eligibility, no-Backer preference/fallback and owner-signed alternate destinations; native unsolicited SOL stays unallocated with no arbitrary refund/credit/sweep; manual legacy recovery/desk remains separate.
+- [x] Accept narrowed processing permissions and separate storage/provider/B reserve, zero on-chain rewards, two sponsor keepers and default-zero optional contribution. Schedule resource measurements in implementation; no population cap implied.
+- [x] Freeze recommended close+600-second promotion deadline, capture <= / expire > boundary, no fresh draws, permissionless no-promotion expiry and explicit withholding risk. User rejects indefinite oracle waits; ten-minute value is an accepted policy default, not a wall-clock completion guarantee.
+- [x] Record 2-of-3/48h autonomous governance and immediate admission guardian, future-only versioned schedules/provider tuples, exact Callback dependency candidate, native PP trust/replay contract and launch-only inputs from defaults register.
+- [x] Record selected pilot workload and provisional host/cost envelope; distinguish cycle charges, consumed SOL fees, reusable/retained rent and deployment-buffer liquidity. No protocol cap, live funding, server order or measured binary size implied.
 - [ ] Review and commit the readable contract before implementation of production financial instructions.
 
 Acceptance: every current financial feature is mapped to preserve / explicitly change / separate legacy rail; no executable instruction relies on an unresolved economic choice. Fresh launch has no import mechanism or access to legacy reserves. Legacy withdrawal access does not imply verified solvency.
 
 ### Task 2 — Prove bounded Backer allocation and integer math
+
+Host implementation: `solana/crates/economics` and [allocation contract](../../solana/backer-allocation.md). Host chunk equivalence and cash-conservation tests exist. Cloning maps for host rollback/commit does not prove constant-size SVM commit or compute limits; account layouts and measured inline feasibility remain later work.
 
 **Owner:** economy/program worker; independent review by security reviewer.
 **Files:** proposed `solana/crates/economics/src/{lib.rs,earnings.rs,fees.rs,backers.rs,allocation.rs}`, `solana/crates/economics/tests/{vectors.rs,conservation.rs,backer_transitions.rs,allocation.rs}`, `docs/solana/backer-allocation.md`.
@@ -92,6 +95,8 @@ Acceptance: every current financial feature is mapped to preserve / explicitly c
 Acceptance: exact agreement with the accepted integer oracle; no hidden claim loss or over-cap allocation; no unbounded finalizer; all residue tracked. This is a model/contract proof, not SVM latency proof. If economic parity fails, return a concrete redesign choice before building that rail. Toolchain commands are recorded after task 4 pins compatible versions; this draft does not fabricate test results.
 
 ### Task 3 — Prove bounded round closure and verifiable selection
+
+Host implementation: [round state model](../../solana/round-state-machine.md); SDK/transport evidence: [provider/resource probes](../../solana/provider-resource-probes.md). The host model checks logical bindings; actual SDK PDA/schema checks are isolated in the probe. Neither is SBF account-constraint or live oracle evidence.
 
 **Owner:** program/integration worker, coordinated with task 2.
 **Files:** proposed `solana/crates/economics/src/rounds.rs`, `solana/crates/economics/tests/rounds.rs`, `docs/solana/round-state-machine.md`, `docs/solana/randomness.md`.

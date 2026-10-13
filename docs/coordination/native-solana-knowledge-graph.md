@@ -1,14 +1,14 @@
 # Native Solana knowledge graph maintenance
 
-Date: 2026-10-12. Scope: repository navigation and documentation maintenance, not product implementation or runtime evidence.
+Date: 2026-10-12. Scope: repository navigation, accepted contracts and implemented host models/local probes. Graph output is not runtime or deployment evidence.
 
 ## Existing graph and scoped refresh
 
 The existing repository graph is `graphify-out/graph.json`. Its original report is dated 2026-06-28 at commit `18b7811e2334bdbe8a207b221f4e860302891504`, with 6,304 nodes and 8,344 edges. It contains legacy Motoko concepts, frontend code and historical plans. Source coverage outside this refresh is historical, not reverified at the current branch.
 
-This refresh adds the October native-Solana specification, implementation plan, economics, processing/randomness recovery, defaults, operating budget, discovery, skill assessment and this workflow, plus the repository instructions in `CLAUDE.md`. Capture source SHA256 and line anchors. Label architecture and costs as proposed or estimated; only Rob's recorded D1/D2 choices and pilot scale are confirmed. No native program, runtime transaction, production endpoint or funding result exists merely because it is described in the graph.
+This refresh adds the October native-Solana specification, implementation plan, economics, processing/randomness recovery, defaults, operating budget, discovery, skill assessment and this workflow, plus the repository instructions in `CLAUDE.md`. Capture source SHA256 and line anchors. Rob subsequently accepted D1–D9 defaults and authorized host models/local probes in [launch decisions](../solana/launch-decisions.md). Label policy as accepted, implemented host models as host-tested, and future production controls as accepted-but-unimplemented. Costs and packing fixtures remain estimates or explicitly scoped measurements. No native program, runtime transaction, production endpoint or funding result exists merely because it is described in the graph.
 
-The coordinator preserves the root graph and merges scoped semantic fragments. The durable fragment/receipt is stored under `docs/coordination/evidence/`; generated `graphify-out/` files remain ignored by Git as already configured. Keep the original whole-graph baseline and add scoped freshness metadata instead of replacing it with a current-HEAD claim. Unrelated source changes require their own refresh.
+The coordinator preserves the root graph and merges scoped semantic fragments. The durable planning fragment/receipt is stored under `docs/coordination/evidence/`, and subsequent model/probe fragments under `docs/solana/evidence/`; generated `graphify-out/` files remain ignored by Git as already configured. Keep the original whole-graph baseline and add scoped freshness metadata instead of replacing it with a current-HEAD claim. Unrelated source changes require their own refresh.
 
 ## Implementation handoff workflow
 

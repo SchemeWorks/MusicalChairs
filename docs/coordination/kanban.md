@@ -32,7 +32,23 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 | SOL-24 | Done | coordinator; `/root/oracle_cost_research` | Semantic graph fragment: defaults/budget/discovery/skills/workflow | SOL-22 | Native Luna extraction accepted after label/ID/status corrections; 10 documents merged with scoped hashes/cache, old relationships preserved |
 | SOL-25 | Done | `/root/default_controls`; coordinator | Review unresolved pre-build choices and maintenance workflow | SOL-22 | Independent checks accepted source pins/topology/status/workflow; root-status metadata clarification corrected; no new planning gate or implementation approval |
 
-## Shared dispatch contract
+## Accepted model/probe implementation pass — 2026-10-12
+
+Rob accepted the defaults and authorized the Rust economic model plus local provider/resource probes, cheaper agents, graph maintenance and contextual Solana explanations. No deployment, live signing/broadcast, wallet/funding, frontend migration or production financial entrypoint is authorized.
+
+Managed worktree: `/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs`; branch `codex/native-solana-model-probes`; baseline `38cbf153a5ff46487fdbe80314f93acfa7328e63`. Requested native worker model `gpt-5.6-luna`, selected explicitly per card; a focused `gpt-5.6-terra` round pass followed repeated lifecycle failures; external repository disclosure remains unauthorized. Worktree paths require normal sandbox escalation for writes; approval grants workspace work, not live actions.
+
+| ID | State | Owner | Owned files / scope | Acceptance / evidence |
+| --- | --- | --- | --- | --- |
+| SOL-26 | Done | coordinator | Acceptance, contract/parity docs, workspace/lock, integration | Accepted defaults, local-only scope, pinned Rust1.92/locks, no native production ABI; source/GUI unchanged |
+| SOL-27 | Done | `/root/model_math` (Luna) | earnings/fees/admission, vectors/tests, economics doc | 16 tests; malformed state/time/remainder rollback; fees and checked wide math; compound example typo fixed |
+| SOL-28 | Done | `/root/model_backers` (Luna) | Backers, allocation/conservation/transition tests | 25 tests; caps/lifetime/custody, replay/chunks, saturated oversized continuations, closing payout barrier; A primitive crate-local |
+| SOL-29 | Done | `/root/model_rounds` (Luna); `/root/round_fixes` (Terra) | rounds source/tests/contract | 23 integration +5 unit tests; strict close, position settlement, cash barrier, expiry,64-byte draw, sampler, canonical shared A admission and durable B history |
+| SOL-30 | Done | `/root/provider_resource_probe` (Luna) | standalone provider/resource probe, evidence/doc | 5 tests +locked host SDK/CPI typecheck, exact schema/PDA/unsigned packing snapshot, vendor unchanged; SBF/CU/liveness not established |
+| SOL-31 | Done | native Luna independent reviewers; coordinator | read-only model/probe semantic review | Confirmed findings fixed; third fresh whole-pass pair PASS; coordinator72 economic+5provider tests/fmt/clippy/snapshot green; reviewed host artifacts only |
+| SOL-32 | Done | coordinator; native Luna extraction/review | scoped Rust AST +semantic graph refresh | Independent PASS:497scopednodes831edges6hyperedges/31pins; all6466oldIDs/12hyperedges and8380unrelatedrawedges retained; exact-ID queries;6954nodes9211relationships total |
+
+## Earlier planning-pass dispatch contract
 
 Graph/workflow pass (2026-10-12): existing native `gpt-5.6-luna` workers reused for two disjoint semantic fragments and independent pre-build/graph review. Coordinator updated CLAUDE/plan workflow and pre-build status, then preserved the historical root graph and added 162 nodes/270 relationships/6 hyperedges across 10 scoped documents. Current accumulated graph: 6,466 nodes/8,614 relationships. Source SHA256, exact-node navigation, manifest scope and topology checks passed. Root aggregate and native-only HTML views generated locally; no browser-rendered or product-runtime proof claimed. The original whole-graph baseline remains historical. [Workflow](native-solana-knowledge-graph.md), [durable fragment](evidence/2026-10-12-native-solana-graph-fragment.json), [refresh receipt](evidence/2026-10-12-native-solana-graph-refresh.json). No product implementation/build/deploy/sign/send/funding occurred.
 

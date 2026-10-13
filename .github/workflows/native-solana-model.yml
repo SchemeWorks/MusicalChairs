@@ -1,0 +1,45 @@
+name: Native Solana model
+
+on:
+  push:
+    paths:
+      - "solana/**"
+      - "docs/solana/**"
+      - ".github/workflows/native-solana-model.yml"
+  pull_request:
+    paths:
+      - "solana/**"
+      - "docs/solana/**"
+      - ".github/workflows/native-solana-model.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  economics:
+    name: Economic workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path solana/Cargo.toml --all -- --check
+      - run: cargo test --manifest-path solana/Cargo.toml --workspace --locked
+      - run: cargo clippy --manifest-path solana/Cargo.toml --workspace --all-targets --locked -- -D warnings
+
+  provider-probe:
+    name: Standalone provider/resource probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path Cargo.toml --all -- --check
+        working-directory: solana/probes/provider-resources
+      - run: cargo test --manifest-path Cargo.toml --locked
+        working-directory: solana/probes/provider-resources
+      - run: cargo clippy --manifest-path Cargo.toml --all-targets --locked -- -D warnings
+        working-directory: solana/probes/provider-resources

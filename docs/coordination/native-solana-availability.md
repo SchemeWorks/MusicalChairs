@@ -1,5 +1,6 @@
 # Processing and randomness recovery recommendation
 
+> Update 2026-10-12: Rob accepted the defaults and authorized only the Rust economic model plus local provider/resource probes. [Acceptance and scope](../solana/launch-decisions.md). Earlier discovery status/evidence paragraphs are historical; no deployment or live financial action is authorized.
 Date: 2026-10-12. Status: recommended design, not approved implementation or measured performance.
 Design-pass baseline: documentation commit `9327a53ee6cff11a0f2ec5fad0dcb8e49a5c5203`; financial source still `f96b33ff95020458be754bfa0d7471b72a7403af`.
 

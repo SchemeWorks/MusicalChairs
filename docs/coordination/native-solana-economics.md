@@ -1,5 +1,6 @@
 # Native SOL economic and lifecycle recommendation
 
+> Update 2026-10-12: Rob accepted the defaults and authorized only the Rust economic model plus local provider/resource probes. [Acceptance and scope](../solana/launch-decisions.md). Earlier discovery status/evidence paragraphs are historical; no deployment or live financial action is authorized.
 Date: 2026-10-12. Status: **recommended design, not approved implementation or measured SVM proof**.
 Design-pass checkout: `codex/native-solana-discovery-20261012`, starting commit `f26022ab610d4df611b994698bf60ec1426502c1`. Financial source is unchanged from `f96b33ff95020458be754bfa0d7471b72a7403af`.
 
@@ -79,7 +80,7 @@ GUI defaults transaction fee payer to owner, and first-release personal/A rent p
 | Simple total, exact day 14 | 1,540,000,000 | 46,200,000 | 1,493,800,000 |
 | Simple total, maturity day 21 | 2,310,000,000 | 69,300,000 | 2,240,700,000 |
 | Compound 15, maturity, 1 SOL | 4,473,565,759 | 402,620,918 | 4,070,944,841 |
-| Compound 30, maturity, 1 SOL | 12,267,678,469 | 1,594,798,200 | 10,672,980,269 |
+| Compound 30, maturity, 1 SOL | 12,267,678,469 | 1,594,798,200 | 10,672,880,269 |
 | Owed 100,000,003; pot 50,000,001; toll 1,200 bps | Actual gross 50,000,001 | 6,000,000 | 44,000,001 |
 
 Simple total vectors assume no earlier claims. The 1 SOL entry partitions 40,000,000 management / 960,000,000 pot, with 1,000,000,000 accrual base. A 0.05 SOL A funding grants 62,000,000 entitlement. Sub-minimum 11-lamport helper input earns 1 lamport after a day under native math versus zero after legacy eight-decimal truncation; it is a precision vector, not an admissible deposit.
