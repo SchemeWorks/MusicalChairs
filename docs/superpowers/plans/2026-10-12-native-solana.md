@@ -46,6 +46,8 @@
 
 ## Workstreams and dependencies
 
+**Knowledge graph throughout implementation:** follow [graph maintenance](../../coordination/native-solana-knowledge-graph.md) after each coherent code/document change. Structural Rust/TypeScript extraction and semantic contract extraction are separate; verify scoped source hashes, preserve existing graph relationships, and check queries for the affected mechanism before each workstream handoff. Record stale Motoko/document coverage honestly. Graph maintenance supports navigation and does not replace financial tests or imply deployment proof. Explain relevant Solana concepts at the point of each design/implementation choice, using Rob's ICP/EVM background.
+
 `1 accept economic contract/oracle → 2 integer/allocation model + 3 round/provider contract → 4 bounded native core → 5 preserved GUI → 6 ICP PP/social/history → 7 verification → 8 authorized launch`
 
 Tasks 2 and 3 can be investigated independently after task 1, with one coordinator owning the shared account contract. Frontend view-model contracts may be drafted early, but production mutations wait for the frozen IDL. Native PP is deferred; this roadmap includes ICP reward/history integration and separate legacy access, not token migration.

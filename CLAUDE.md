@@ -39,4 +39,10 @@ Rules:
 - For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
-- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+- After a coherent Rust/TypeScript implementation change, run `graphify update .` for structural extraction. This AST-only command does not refresh semantic design documents or establish complete Motoko coverage.
+- After changing the native-Solana spec, plan or economic/recovery contract, semantically extract the changed documents with the Graphify skill and merge into the existing repository graph. Preserve unrelated nodes, edge direction and hyperedges; record per-file hashes and scoped freshness. Follow [the graph maintenance workflow](docs/coordination/native-solana-knowledge-graph.md).
+- Each implementation handoff records graph maintenance performed, covered files, query checks and any stale coverage. A graph relationship is navigation evidence; verify financial/authority claims against current source and tests.
+
+## Native Solana explanations
+
+Rob's background is extensive ICP development with Solidity coursework and DeFi analysis. When a Solana-specific choice affects implementation or behavior, briefly explain the concept, its closest ICP/EVM comparison and its concrete effect on Musical Chairs. Cover concepts when they arise, such as separate code/data accounts, PDAs versus signing keys, transaction account/compute bounds, rent, cross-program calls, asynchronous randomness and finalized observations. Keep this explanation alongside the relevant decision; distinguish proposed behavior from tested facts.
