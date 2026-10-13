@@ -16,6 +16,8 @@
 
 **Status:** D1/D2 confirmed; D3–D9 have reviewed recommended defaults, not implied approval. Policy acceptance precedes production financial implementation. Compatibility/models/resource measurements are early implementation tasks; actual signers/capital/endpoints are launch inputs. Foundation skill refreshed; no product implementation started.
 
+**Keeper/budget investigation:** [ICP placement and pilot budget](../../coordination/native-solana-icp-budget.md) uses Rob's ~100 active Backers/1,000 payouts/10 closes monthly. Recommend external fee-only primary with ICP monitor/emergency backup on current modeled signing cost; fully ICP is viable after batching/cycle/latency review. Conditional 12 SOL startup and 0.5–1.5 SOL monthly exclude ICP cycles, subscriptions, audit/development and game liquidity. Actual compiled/storage sizes remain unmeasured.
+
 ## Global constraints
 
 - Keep ICP frontend hosting and the recognizable GUI; no visual overhaul.
@@ -30,6 +32,7 @@
 - Proposed launch defaults: public Series A on, initial pot/seed zero; no privileged/excluded operator wallets or manual credits. Owner pays personal/A rent; sponsor pays shared storage and automatic B rent. Work contribution max defaults zero; on-chain keeper reward zero.
 - Governance default: autonomous Squads v4 2-of-3/48h, zero config-authority sentinel/no spending-limit bypass; separate immediate 2-of-3 admission guardian. Pinned active terms/close/provider tuple survive prospective changes.
 - Preserve native PP basis and existing ICP policies through a durable per-leg outbox; ordinary two-RPC observation is trusted infrastructure, not consensus proof. Native payouts never depend on it.
+- ICP keeper keys hold capped fee balances only; no user/pool/G/management/provider/operations-withdrawal role or arbitrary-byte signing endpoint. Hosting choice never changes public recovery permissions or the close deadline.
 
 ## Review focus
 
@@ -63,6 +66,7 @@ Tasks 2 and 3 can be investigated independently after task 1, with one coordinat
 - [ ] Accept narrowed processing permissions and separate storage/provider/B reserve, zero on-chain rewards, two sponsor keepers and default-zero optional contribution. Schedule resource measurements in implementation; no population cap implied.
 - [ ] Freeze recommended close+600-second promotion deadline, capture <= / expire > boundary, no fresh draws, permissionless no-promotion expiry and explicit withholding risk. User rejects indefinite oracle waits; ten-minute value remains a recommended policy default, not a tested completion time.
 - [ ] Record 2-of-3/48h autonomous governance and immediate admission guardian, future-only versioned schedules/provider tuples, exact Callback dependency candidate, native PP trust/replay contract and launch-only inputs from defaults register.
+- [ ] Record selected pilot workload and provisional host/cost envelope; distinguish cycle charges, consumed SOL fees, reusable/retained rent and deployment-buffer liquidity. No protocol cap, live funding, server order or measured binary size implied.
 - [ ] Review and commit the readable contract before implementation of production financial instructions.
 
 Acceptance: every current financial feature is mapped to preserve / explicitly change / separate legacy rail; no executable instruction relies on an unresolved economic choice. Fresh launch has no import mechanism or access to legacy reserves. Legacy withdrawal access does not imply verified solvency.
@@ -124,6 +128,7 @@ Acceptance: complete set for successful promotion, authenticated timely result o
 - [ ] Implement immutable deadline, permissionless promotion expiration and full seed carry only after cash commit. No arbitrary cash abort/credit or winner choice. Direct closing-round open rejects; an atomic expire/finalize/open composition must check eligibility and expected new round/config before accepting funds.
 - [ ] Test wrong signer, substituted PDA, wrong account owner, duplicate mutable aliases, reinitialization, arithmetic overflow, replay, double claims, failure rollback and unauthorized treasury/config changes.
 - [ ] Measure inline candidates N=0/1/16/17 and chunk populations 64/256/1,024, compute/accounts/rent/transaction cost/latency, tiny-claim load and churn. Test arbitrary chunk grouping, replacement keeper, one-row fallback, sponsor fee-budget shortage/spike/top-up and unchanged economics. Preserve zero-slice fast paths without hidden minimum/cooldown/cap. Record measured envelope, not a false ten-minute cash completion promise. Generate/verify IDL/client.
+- [ ] Add N≈100/M≈100 selected-pilot measurements and larger packet/chunk/inline candidates where feasible; count actual keeper signatures/cleanup and price ICP threshold signing separately. If a keeper uses ALT/newer format, isolate it from unchanged GUI signing and retain account/cursor proofs. Replace assumed eight-row count and byte budgets before choosing routine keeper host.
 - [ ] Commit reviewed source, tests and reproducible artifact/build instructions.
 
 Acceptance: all core behavior, including Backers/EEC, passes source, economic and security checks. Deposit/withdraw-only output is an intermediate prototype. No deployment readiness is inferred from passing local tests.
@@ -154,11 +159,15 @@ Acceptance: same recognizable layout/branding and complete core financial flows;
 **Inputs:** task 4 versioned events with transaction/instruction/event identity; SIWS ownership mapping; confirmed ICP PP/Shenanigans scope and separate legacy desk.
 **Outputs:** correct histories and ICP PP integration with a disclosed trust boundary, retaining existing social/desk capabilities.
 
+**Keeper artifacts:** proposed dedicated `native_sol_keeper/` canister with bounded timer/RPC/transaction-journal modules for ICP monitor/backup; external routine worker under `solana/keepers/` if hybrid selected. These are future paths, not installed services. Reuse reviewed SolSigner/SolRpc/SolTx primitives without importing legacy pool authority; verify current provider Candid/key environment before new bindings and leave legacy endpoints unchanged.
+
 - [ ] Implement authenticated relayer descriptor ingress and ICP two-independent-RPC finalized observation, durable archive/gap/outbox recovery. Validate program/accounts/schema/event beneficiary; disagreement remains pending. Decode observed cluster transaction formats via raw-RPC boundary, including external v1 program calls if active; unsupported version stays a recoverable gap, never cursor-skipped. Document residual fabrication/omission trust and separate native source-round namespace from ICP PP bucket cache.
 - [ ] Implement canonical SIWS-bound owner/B-beneficiary rewards alongside legacy observers; gross game/A or B-loss basis, existing rates/cascade/effects/signup dedup, immutable event tuple and policy snapshot. Missing binding retains pending pubkey event; no keeper/operator-selected recipient or rebind/remint.
 - [ ] Add native write-ahead per-leg reward outbox with immutable recipient/amount/fee/memo hash/created_at_time and effect/cascade obligations persisted before await. Verify actual PP ledger dedup/history capability; reconcile Duplicate/unknown receipt before retry, quarantine unresolved expired-window result, and never repeat committed legs or silently drop a mint after retry count. Test ledger commit/canister trap, partial cascade/siphon, gaps, policy update, missing binding and cross-rail signup replay. Native integration does not claim to repair all legacy observer behavior.
 - [ ] Preserve the existing ICP/Chain Fusion PP desk purchase/proceeds/refund flow, clearly labeled and isolated from the native game pool. Verify legacy desk transactions cannot create native Positions, and native pool funds cannot pay desk refunds or proceeds. Native desk/escrow rewrite remains optional deferred work.
 - [ ] Verify history outage leaves direct core SOL reads/transactions available, and display lag without implying financial failure.
+- [ ] Implement chosen active/standby keeper journal, bounded schema-derived signing, adaptive idle polling and batched statuses; re-arm ICP timers after upgrade. Test canister/host/RPC outage, duplicate races, blockhash expiry/unknown broadcasts and public wallet takeover. Budget/refill capped fee addresses separately; no live signer setup/auto-running process is authorized by source implementation.
+- [ ] Measure ICP cycles per signature/RPC/bridge batch and end-to-end progress time at pilot workload, including idle/standby overhead; test that observed sign/cursor latency supports proposed close policy without extending deadline. Same-subnet keepers are not independent subnet failure domains.
 
 Acceptance: no duplicate PP reward, no fabricated SOL balances, correct social identity mapping, declared desk behavior and recoverable historical gaps. An ICP indexer is optional; preserving existing user-visible history remains a product requirement that can be served by another reviewed solution.
 
@@ -198,6 +207,7 @@ No production canister can be classified withdraw-only without checking its actu
 
 - [ ] Publish the reviewed source, reproducible build, program/cluster and chosen authority manifest; publish the explicit scope and fee/insolvency disclosures.
 - [ ] Present concrete deployment, frontend routing, initial liquidity and legacy handling actions for approval; do not infer fund or shutdown authority from a merged PR.
+- [ ] Reprice exact compiled bytes/capacity/upload buffer, account sizes/cleanup/retention, oracle/governance configuration and measured fee/signature counts from current public quotes; publish SOL and cycle/subscription funding breakdown before requesting those funding actions. The 12-SOL pilot estimate is not itself a deployment receipt.
 - [ ] After authorization, deploy verified program bytes, verify actual authorities/accounts, and deploy ICP frontend assets from the approved build.
 - [ ] With separately authorized funds, reconcile initial pool partitions and verify a bounded live lifecycle with finalized receipts and balances.
 - [ ] Monitor reserve mismatch, keeper/draw delay, failed transactions, RPC/mirror lag and frontend served version; keep recovery instructions accessible.
@@ -208,4 +218,4 @@ Acceptance: installed bytes and authority state match reviewed artifacts; select
 
 Use cheaper native workers for bounded inventory, vectors, generated clients and frontend adaptations. External Sonnet program work/review is an option only after provider-specific repository-disclosure authorization and authenticated capability are both confirmed; the rejected review attempt grants neither authorization nor a workaround. Keep the coordinator responsible for shared financial contracts and integration. Do not fan out overlapping account-layout/IDL edits. Increase model capability only for a demonstrated unresolved problem.
 
-PP/legacy scope is confirmed and D3–D9 defaults are recorded. Foundation v2.6.0 refresh is verified; Mindrally was already present. On a later implementation instruction, start accepted oracle/model plus exact provider/toolchain compatibility, then native core, preserved GUI and native PP outbox. Measurements/provider/runtime/ledger proof happen in those tasks; actual voters/funding/endpoints and mainnet go remain launch inputs. No product code/build/test/deploy/financial transaction has started, and no reliable mainnet date/cost estimate is claimed.
+PP/legacy scope is confirmed and D3–D9 defaults are recorded. Foundation v2.6.0 refresh is verified; Mindrally was already present. Pilot host/SOL/cycle budget is now estimated with explicit assumptions and public quotes. On a later implementation instruction, start accepted oracle/model plus provider/toolchain compatibility, then native core, preserved GUI and PP outbox. Measurements/provider/runtime/ledger proof happen there; actual voters/funding/endpoints and mainnet go remain launch inputs. No product code/build/test/deploy/financial transaction started; no exact deployment quote or mainnet date is claimed.

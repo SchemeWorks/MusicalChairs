@@ -24,6 +24,10 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 | SOL-16 | Done | `/root/default_operations` | Recommend D6/D7/D9 work funding, keeper and launch-measurement defaults | SOL-12, SOL-13 | Accepted after zero reward/storage-provider reserve separation and automatic B sponsor rent; no unmeasured budget/cap |
 | SOL-17 | Done | `/root/default_integration` | Recommend wallet/toolchain/ICP PP and legacy-access defaults | SOL-13 | Callback 0.4.0 published manifest checked; bridge fabrication trust/PP loss basis/source-round/outbox refinements accepted |
 | SOL-18 | Done | coordinator; `/root/defaults_review` | Integrate/review all remaining recommended defaults | SOL-14–SOL-17 | Independent coherence review accepted after reserve/payer clarification; runtime proofs and actual launch inputs remain explicit; no implementation/launch approval implied |
+| SOL-19 | Done | `/root/icp_keeper_research` | ICP keeper placement and least-authority design | SOL-18 | Coordinator checked official signing/cycles/subnet/timers; fully ICP viable, fee-only keys; hybrid recommended on pilot counts |
+| SOL-20 | Done | `/root/oracle_cost_research` | Callback provider fees/account lifecycle and setup costs | SOL-18 | Live configured Callback fee 0.0003 SOL, no-callback rent/retention, Squads creation fee 0; coordinator decoded saved public receipt |
+| SOL-21 | Done | `/root/footprint_cost_research` | Resource/transaction count scenarios for operating budget | SOL-18 | Corrected old rent coefficient to live quote, excluded owner costs, counted request creation, conservative two candidate lists; no runtime measurement claim |
+| SOL-22 | Done | coordinator; `/root/icp_budget_review` | Reconcile ICP hosting and SOL budget; update spec/plan | SOL-19–SOL-21 | Independent arithmetic/coherence accepted after all seven documentation clarifications; runtime sizes/counts/latency remain unmeasured; no implementation approval implied |
 
 ## Shared dispatch contract
 
@@ -43,6 +47,16 @@ Source baseline: `main`, `f96b33f` (verify full HEAD during synthesis). Existing
 - [Processing and randomness recovery](native-solana-availability.md)
 - [Solana skills assessment](solana-skill-assessment.md)
 - [Recommended remaining defaults](native-solana-defaults.md)
+- [ICP keeper placement and operating budget](native-solana-icp-budget.md)
+- [Public price/account receipt](evidence/2026-10-12-native-solana-costs.json)
+
+## ICP hosting and operating-budget pass
+
+- User asks whether keepers/other services can run on ICP and for approximate SOL operating costs before implementation. Same branch/workspace, baseline `fb8b5e5419381929f5a1f553c02a2f12de027b3c`; financial source unchanged.
+- SOL-19–SOL-21 use explicitly selected native `gpt-5.6-luna`, repository/public sources read-only; coordinator owns docs. No product code/install/build/deployment/signing/send or fund movement. Public RPC price/account reads are permitted research, not transaction execution.
+- SOL-19 acceptance: official timers/threshold-Ed25519/SOL RPC capability, signing/custody boundaries, failure domains, cycle costs and existing reusable source. SOL-20: exact Callback fees/registration/request rent/retention and governance fees. SOL-21: explicit draft byte budgets and count/fee formulas; declining no evidence is fine, inventing a measured cost is not.
+- SOL-22 acceptance: distinguish deployment peak, locked/reclaimable rent, permanent growth, consumed Solana fees/oracle fees, ICP cycles and paid RPC subscriptions; calculate low/moderate/stress cases and propose a replenishable startup amount. No game liquidity, audit spend or guarantees hidden in operating budget.
+- User selected pilot N≈100 active Backers, P≈1,000 payouts/month, C≈10 closes/month. M=100 participants/close and b=8 are separate modeling assumptions. Native Luna dispatch confirmed SOL-19–SOL-21. Coordinator validated public account owner/discriminator/schema, compared independent rent quotes and checked current CLI default max length; no signed transaction executed.
 - Handoffs accepted as research results, not production financial verification.
 - Verification: source cross-checks and documentation structure checks passed. Product tests/builds skipped because no product files changed.
 - No branches merged, programs deployed or funds moved.

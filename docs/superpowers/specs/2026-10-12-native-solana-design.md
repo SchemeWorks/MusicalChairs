@@ -6,6 +6,8 @@ Companion: [implementation roadmap](../plans/2026-10-12-native-solana.md), [econ
 
 Current [processing/outage recovery](../../coordination/native-solana-availability.md) incorporates Rob's no-indefinite-stuck-round requirement. [Recommended defaults](../../coordination/native-solana-defaults.md) resolves the remaining policy choices for discussion. Rob authorized the Foundation refresh; [verified skill receipt](../../coordination/solana-skill-assessment.md) records v2.6.0 and preserved rollback/symlink.
 
+[ICP placement and pilot budget](../../coordination/native-solana-icp-budget.md) models Rob's selected ~100 active Backers/1,000 payouts/10 closes monthly. ICP keepers are viable; at unmeasured eight-row batching, threshold signing is material, so hybrid primary/ICP-backup is recommended. Conditional startup envelope 12 SOL and monthly 0.5–1.5 SOL are planning allowances, with ICP cycles/subscriptions separate.
+
 ## 1. Product brief
 
 Rob wants Musical Chairs' financial logic on Solana, with the frontend continuing to be hosted on ICP. The existing look, feel, navigation, terminology, and major screens should remain recognizable. Minor changes needed for wallet transactions and accurate chain status are in scope; a visual overhaul is not.
@@ -139,7 +141,7 @@ Replace indefinite oracle wait with permissionless deadline expiration and termi
 
 Preserve strict insolvency (`owed > pot`) and source equality behavior. Zero-pot closure must originate from an owner-authorized eligible positive-earnings/matured claim with minimum receive zero; a permissionless timer must not close an initial empty pot or override equality/refill behavior. Allocation progress, candidate counting, randomness settlement and terminal seed carry are permissionless verifiable operations after that accepted trigger.
 
-Keepers may advance verifiable state machines and pay transaction fees; they must not invent balances, candidate lists or payment authorizations. Availability, retries, chunk limits and incentives need measurement. An ICP keeper is optional operations infrastructure, with no custody key.
+Keepers advance verified state machines and pay fees; no invented balances/candidates/payment authorization. ICP can run timers, derive dedicated fee-only Ed25519 keys, query/sign/submit via SOL RPC and reconcile outcomes. That fee key holds only capped operations SOL, never user/pool/governance/provider/management authority. Recommend an external primary plus ICP monitor/emergency backup for the selected pilot; fully ICP remains an option. If two ICP keepers are chosen, distinct subnets improve failure separation. Re-arm timers and journal stale/unknown transactions; no arbitrary signing endpoint. Public recovery remains callable. [Budget](../../coordination/native-solana-icp-budget.md) makes per-signature cycle cost/latency explicit before implementation.
 
 ## 8. Financial conservation and governance
 
@@ -199,9 +201,11 @@ No live state, active-user count, legacy solvency, deployed module bytes or curr
 | D6 Bounded distribution | Complete batches, normal deposits, public one-row progress; sponsor storage/provider/B rent; zero rewards and default-zero contribution | Policy acceptance and measured envelope |
 | D7 Promotion | User rejects indefinite oracle wait; recommend one close+600s deadline, same request, public no-promotion expiry, no late grant/reroll | Timeout default/fairness acceptance and provider proof |
 | D8 Control | 2-of-3 autonomous governance, 48h delay; separate immediate 2-of-3 admission guardian; future-only schedules | Actual signers/addresses and authority proof later |
-| D9 Operations | Two sponsor keepers, direct finalized reads, HTTPS primary/fallback RPC; authenticated ICP reward outbox and explicit observer trust | Measured costs, PP replay/ledger proofs and launch manifest |
+| D9 Operations | External primary + ICP monitor/backup recommended for pilot; fully ICP option; direct finalized reads and authenticated ICP reward outbox | Measured batching/cycle cost, PP replay/ledger proof and launch manifest |
 
 D1/D2 are settled product scope. D3–D9 now have concrete [recommended defaults](../../coordination/native-solana-defaults.md), without implying Rob accepted them. Policy acceptance precedes production financial implementation; compatibility/resource measurements are early implementation work, not evidence claimed here or separate preparatory projects. Actual launch identities/capital/production endpoints remain launch inputs. Unrelated refactors, account linking, hosting migration, native PP/desk, marketing and SDK-wide upgrades stay optional backlog.
+
+Rob selected a pilot budget scale, not a capacity cap. Provisional account/binary/chunk sizes remain assumptions until implemented/measured. Public price snapshots include ORAO Callback request fee 0.0003 SOL and a lower current rent quote than legacy documentation examples. Reprice actual schemas, executable/buffer and fee envelopes before any mainnet funding. Game capital and legacy reserves do not fund this operations plan.
 
 Proposed later release evidence: economic oracle and randomized conservation tests; signer/account-substitution tests; complete bounded allocation/round-close proofs under worst-case populations; failed transaction and replay tests; rent/compute measurements; stale-RPC/indexer and randomness outage recovery; matching generated IDL/client; devnet wallet receipts and balances; unchanged visual baseline across major screens; independent fund-flow review; exact reviewed artifact and program authority verification. Mainnet deployment and asset funding require a separate explicit go decision.
 
