@@ -73,7 +73,14 @@ fi
 MAGIC="$(od -An -t x1 -N4 "$ARTIFACT" | tr -d '[:space:]')"
 [[ "$MAGIC" == "7f454c46" ]] || { echo "unexpected artifact magic: $MAGIC" >&2; exit 1; }
 ARTIFACT_SHA256="$(shasum -a 256 "$ARTIFACT" | awk '{print $1}')"
-SOURCE_SHA256="$(shasum -a 256 "$SOURCE" | awk '{print $1}')"
 LOCK_SHA256="$(shasum -a 256 "$LOCKFILE" | awk '{print $1}')"
-printf 'sbf_artifact=%s\nartifact_sha256=%s\nsource_sha256=%s\nlock_sha256=%s\n' \
-  "$ARTIFACT" "$ARTIFACT_SHA256" "$SOURCE_SHA256" "$LOCK_SHA256"
+# Canonical source-set digest (spec DR-35): covers the manifest, lockfile, cargo
+# config, every src/**/*.rs file, this wrapper and rust-toolchain.toml.
+SOURCE_SET_OUTPUT="$("$SCRIPT_DIR/source-set-digest.sh" "$RUNTIME_DIR/../..")"
+[[ "$SOURCE_SET_OUTPUT" =~ ^source_set_sha256=[0-9a-f]{64}$ ]] || {
+  echo "unexpected source-set digest output: $SOURCE_SET_OUTPUT" >&2
+  exit 1
+}
+SOURCE_SET_SHA256="${SOURCE_SET_OUTPUT#source_set_sha256=}"
+printf 'sbf_artifact=%s\nartifact_sha256=%s\nsource_set_sha256=%s\nlock_sha256=%s\n' \
+  "$ARTIFACT" "$ARTIFACT_SHA256" "$SOURCE_SET_SHA256" "$LOCK_SHA256"
