@@ -24,8 +24,12 @@ no-log-ix-name = []
 anchor-debug = []
 custom-heap = []
 custom-panic = []
+idl-build = ["anchor-lang/idl-build"]
 
 [dependencies]
-anchor-lang = { version = "=0.32.1", features = ["init-if-needed"] }
+anchor-lang = { version = "=0.32.1", features = ["init-if-needed", "event-cpi"] }
 ethnum = "=1.5.2"
 musical-chairs-economics = { path = "../../crates/economics" }
+
+[dev-dependencies]
+sha2 = "=0.10.9"

@@ -167,6 +167,14 @@ pub fn set_pause(ctx: Context<Pause>, paused: bool) -> Result<()> {
     );
     ctx.accounts.admission.paused = paused;
     ctx.accounts.admission.changed_at = crate::now()?;
+    let guardian_vault = ctx.accounts.admission.guardian_vault;
+    let changed_at = ctx.accounts.admission.changed_at;
+    emit_cpi!(crate::events::AdmissionPauseSet {
+        schema_version: crate::events::SCHEMA_VERSION,
+        paused,
+        guardian_vault,
+        changed_at,
+    });
     Ok(())
 }
 
@@ -187,6 +195,14 @@ pub fn fund_operations(ctx: Context<FundOperations>, amount: u64) -> Result<()> 
         ],
     )?;
     ops.free_balance = crate::checked_add(ops.free_balance, amount)?;
+    let free_balance_after = ops.free_balance;
+    let funder = ctx.accounts.sender.key();
+    emit_cpi!(crate::events::OperationsFunded {
+        schema_version: crate::events::SCHEMA_VERSION,
+        funder,
+        amount,
+        free_balance_after,
+    });
     Ok(())
 }
 
@@ -229,6 +245,14 @@ pub fn withdraw_operations(ctx: Context<WithdrawOperations>, amount: u64) -> Res
         &[signer_seeds],
     )?;
     ops.free_balance = crate::checked_sub(ops.free_balance, amount)?;
+    let free_balance_after = ops.free_balance;
+    let recipient = ctx.accounts.sponsor.key();
+    emit_cpi!(crate::events::OperationsWithdrawn {
+        schema_version: crate::events::SCHEMA_VERSION,
+        recipient,
+        amount,
+        free_balance_after,
+    });
     Ok(())
 }
 
@@ -261,6 +285,14 @@ pub fn withdraw_management(ctx: Context<WithdrawManagement>, amount: u64) -> Res
         amount,
     )?;
     ctx.accounts.pool.management = crate::checked_sub(ctx.accounts.pool.management, amount)?;
+    let management_after = ctx.accounts.pool.management;
+    let recipient = ctx.accounts.recipient.key();
+    emit_cpi!(crate::events::ManagementWithdrawn {
+        schema_version: crate::events::SCHEMA_VERSION,
+        recipient,
+        amount,
+        management_after,
+    });
     Ok(())
 }
 
@@ -624,6 +656,7 @@ pub struct Initialize<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct Pause<'info> {
     #[account(mut, seeds = [ADMISSION_SEED], bump = admission.bump)]
@@ -631,6 +664,7 @@ pub struct Pause<'info> {
     pub guardian: Signer<'info>,
 }
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct FundOperations<'info> {
     #[account(mut)]
@@ -643,6 +677,7 @@ pub struct FundOperations<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct WithdrawOperations<'info> {
     #[account(mut)]
@@ -655,6 +690,7 @@ pub struct WithdrawOperations<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct WithdrawManagement<'info> {
     #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
@@ -930,7 +966,7 @@ mod tests {
             "WrongAccount",
         );
 
-        let (truncated, truncated_vault, _, _) = valid_profile(172_800, [7, 7, 7]);
+        let (truncated, _truncated_vault, _, _) = valid_profile(172_800, [7, 7, 7]);
         let truncated_data = truncated.try_borrow_data().unwrap()[..20].to_vec();
         let (truncated, truncated_vault) = profile_accounts(truncated_data, canonical_key, vault);
         assert_error(

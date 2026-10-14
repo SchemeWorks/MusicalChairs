@@ -313,6 +313,7 @@ pub struct PruneRow<'info> {
     pub moved_backer: UncheckedAccount<'info>,
 }
 
+#[event_cpi]
 #[derive(Accounts)]
 pub struct Commit<'info> {
     #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
@@ -324,6 +325,7 @@ pub struct Commit<'info> {
 /// A claim authenticates the owner signer against the canonical Backer PDA.
 /// GameVault is the only spendable custody source; `destination` remains
 /// unchecked so the handler can reject all protected aliases explicitly.
+#[event_cpi]
 #[derive(Accounts)]
 pub struct ClaimBacker<'info> {
     #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]

@@ -6,20 +6,15 @@ pub mod state;
 pub mod controls;
 pub mod positions;
 pub mod allocation;
+pub mod error;
+pub mod events;
+pub use error::ErrorCode;
+pub use events::*;
 use controls::*;
 use positions::*;
 use allocation::*;
 pub use state::*;
 declare_id!("7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7");
-
-#[error_code]
-pub enum ErrorCode {
-    Overflow, InvalidState, BackwardsTime, QuotaExceeded, NotAuthorized,
-    WrongAccount, WrongOwner, InsufficientOperations, ProtectedDestination,
-    AdmissionPaused, AllocationPending, Closing, MinimumDeposit, MinimumReceive,
-    NotMature, AlreadyClaimed, StaleRound, Replay, InvalidPhase, CursorMismatch,
-    CapExceeded, NotImplemented,
-}
 
 pub fn checked_add(a: u64, b: u64) -> Result<u64> {
     a.checked_add(b).ok_or_else(|| error!(ErrorCode::Overflow))

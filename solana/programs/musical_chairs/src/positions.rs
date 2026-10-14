@@ -10,9 +10,9 @@
 use anchor_lang::prelude::*;
 
 use crate::state::{
-    Admission, Backer, GameVault, Pool, Position, RegistryPage, Ticket, User, UserRound,
+    Admission, Backer, GameVault, Pool, Position, Ticket, User, UserRound,
     ADMISSION_SEED, BACKER_REMAINING_CUTOFF, BACKER_SEED, GAME_VAULT_SEED, OPS_CASH_SEED,
-    OPS_SEED, PAGE_CAPACITY, POOL_SEED, POSITION_SEED, REGISTRY_SEED, TICKET_SEED,
+    OPS_SEED, PAGE_CAPACITY, POOL_SEED, POSITION_SEED, TICKET_SEED,
     USER_ROUND_SEED, USER_SEED,
 };
 
@@ -135,6 +135,7 @@ pub const fn registry_page_index(registry_len: u64) -> u64 {
 /// User-owned open position.  Position is `init`, never `init_if_needed`, so
 /// reusing an owner/nonce PDA fails at the account boundary before state or
 /// custody mutation.
+#[event_cpi]
 #[derive(Accounts)]
 #[instruction(plan: PlanKindArg, gross_lamports: u64, client_nonce: u64)]
 pub struct OpenPosition<'info> {
@@ -187,6 +188,7 @@ pub struct OpenPosition<'info> {
 /// Public same-owner Series-A funding.  The registry page is supplied as an
 /// already provisioned shared account; creating it inside this financial
 /// instruction would make acceptance depend on a later rent budget.
+#[event_cpi]
 #[derive(Accounts)]
 #[instruction(gross_lamports: u64)]
 pub struct FundSeriesA<'info> {
@@ -239,6 +241,7 @@ pub struct FundSeriesA<'info> {
 /// authority.  `destination` is deliberately unchecked at the type level so
 /// the handler can reject protected aliases while permitting any ordinary
 /// system-owned destination selected by the signed owner.
+#[event_cpi]
 #[derive(Accounts)]
 #[instruction(minimum_receive: u64, close_simple: bool)]
 pub struct ClaimPosition<'info> {

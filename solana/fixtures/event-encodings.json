@@ -1,0 +1,256 @@
+[
+  {
+    "name": "AdmissionPauseSet",
+    "discriminator_hex": "aedcf8ecc820dac4",
+    "sample": {
+      "schema_version": "1",
+      "paused": "true",
+      "guardian_vault": "p2Yicb86aZig616Eav2VWG9vuXR5mEqhtzshZYBxzsV",
+      "changed_at": "191"
+    },
+    "body_hex": "01010c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0cbf00000000000000",
+    "data_hex": "aedcf8ecc820dac401010c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0cbf00000000000000"
+  },
+  {
+    "name": "BackerClaimed",
+    "discriminator_hex": "f020a678e5dbd777",
+    "sample": {
+      "schema_version": "1",
+      "owner": "QWmroo4YnnMqYW3cnxWkFdaTxGD3P7vMSzwMHGbUzwF",
+      "round_id": "61",
+      "amount": "62",
+      "a_part": "63",
+      "b_part": "64"
+    },
+    "body_hex": "0106060606060606060606060606060606060606060606060606060606060606063d000000000000003e000000000000003f000000000000004000000000000000",
+    "data_hex": "f020a678e5dbd7770106060606060606060606060606060606060606060606060606060606060606063d000000000000003e000000000000003f000000000000004000000000000000"
+  },
+  {
+    "name": "CandidatesSealed",
+    "discriminator_hex": "b0138da710befa3b",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "81",
+      "close_id": "82",
+      "tag": "3",
+      "count": "83",
+      "digest": "abababababababababababababababababababababababababababababababab"
+    },
+    "body_hex": "0151000000000000005200000000000000035300000000000000abababababababababababababababababababababababababababababababab",
+    "data_hex": "b0138da710befa3b0151000000000000005200000000000000035300000000000000abababababababababababababababababababababababababababababababab"
+  },
+  {
+    "name": "ConfigActivated",
+    "discriminator_hex": "eb742ac171fb8989",
+    "sample": {
+      "schema_version": "1",
+      "version": "181",
+      "round_id": "182"
+    },
+    "body_hex": "01b5000000b600000000000000",
+    "data_hex": "eb742ac171fb898901b5000000b600000000000000"
+  },
+  {
+    "name": "ConfigStaged",
+    "discriminator_hex": "51a9ab631bc6d312",
+    "sample": {
+      "schema_version": "1",
+      "version": "171",
+      "effective_round_id": "172"
+    },
+    "body_hex": "01ab000000ac00000000000000",
+    "data_hex": "51a9ab631bc6d31201ab000000ac00000000000000"
+  },
+  {
+    "name": "DrawCaptured",
+    "discriminator_hex": "296a83e019ed5493",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "101",
+      "close_id": "102",
+      "captured_at": "103"
+    },
+    "body_hex": "01650000000000000066000000000000006700000000000000",
+    "data_hex": "296a83e019ed549301650000000000000066000000000000006700000000000000"
+  },
+  {
+    "name": "DrawRequested",
+    "discriminator_hex": "3bacdb2a1c5e5d4b",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "91",
+      "close_id": "92",
+      "request_account": "US517G5965aydkZ46HS38QLi7UQiSojurfbQfKCELFx",
+      "fee_paid": "93",
+      "request_rent": "94"
+    },
+    "body_hex": "015b000000000000005c0000000000000007070707070707070707070707070707070707070707070707070707070707075d000000000000005e00000000000000",
+    "data_hex": "3bacdb2a1c5e5d4b015b000000000000005c0000000000000007070707070707070707070707070707070707070707070707070707070707075d000000000000005e00000000000000"
+  },
+  {
+    "name": "ManagementWithdrawn",
+    "discriminator_hex": "1f6bce1befaf5645",
+    "sample": {
+      "schema_version": "1",
+      "recipient": "k7FaK87WHGVXzkaoHb7CdVPgkKDQhZ29VLDeBVbDfYn",
+      "amount": "161",
+      "management_after": "162"
+    },
+    "body_hex": "010b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0ba100000000000000a200000000000000",
+    "data_hex": "1f6bce1befaf5645010b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0ba100000000000000a200000000000000"
+  },
+  {
+    "name": "OperationsFunded",
+    "discriminator_hex": "cc703980d21f561f",
+    "sample": {
+      "schema_version": "1",
+      "funder": "cGfHiC6Kgg3FpFZvgwGcswsCRtp4aBP2fzuXRQPizuN",
+      "amount": "141",
+      "free_balance_after": "142"
+    },
+    "body_hex": "0109090909090909090909090909090909090909090909090909090909090909098d000000000000008e00000000000000",
+    "data_hex": "cc703980d21f561f0109090909090909090909090909090909090909090909090909090909090909098d000000000000008e00000000000000"
+  },
+  {
+    "name": "OperationsWithdrawn",
+    "discriminator_hex": "199d63447cb9442c",
+    "sample": {
+      "schema_version": "1",
+      "recipient": "gBxS1f6uyyGPuW5MzGBukidSb71jdsCb5fZaoSzULE5",
+      "amount": "151",
+      "free_balance_after": "152"
+    },
+    "body_hex": "010a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a97000000000000009800000000000000",
+    "data_hex": "199d63447cb9442c010a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a97000000000000009800000000000000"
+  },
+  {
+    "name": "PayoutPaid",
+    "discriminator_hex": "40cfc1b00e66369f",
+    "sample": {
+      "schema_version": "1",
+      "owner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8",
+      "nonce": "31",
+      "round_id": "32",
+      "gross_paid": "33",
+      "toll": "34",
+      "net": "35",
+      "destination": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq",
+      "closing": "true",
+      "close_id": "Some(36)",
+      "ticket_id": "37"
+    },
+    "body_hex": "0103030303030303030303030303030303030303030303030303030303030303031f0000000000000020000000000000002100000000000000220000000000000023000000000000000404040404040404040404040404040404040404040404040404040404040404010124000000000000002500000000000000",
+    "data_hex": "40cfc1b00e66369f0103030303030303030303030303030303030303030303030303030303030303031f0000000000000020000000000000002100000000000000220000000000000023000000000000000404040404040404040404040404040404040404040404040404040404040404010124000000000000002500000000000000"
+  },
+  {
+    "name": "PositionClosed",
+    "discriminator_hex": "9da3e3e40d618a79",
+    "sample": {
+      "schema_version": "1",
+      "owner": "LbUiWL3xVV8hTFYBVdbTNrpDo41NKS6o3LHHuDzjfcY",
+      "nonce": "41",
+      "round_id": "42"
+    },
+    "body_hex": "01050505050505050505050505050505050505050505050505050505050505050529000000000000002a00000000000000",
+    "data_hex": "9da3e3e40d618a7901050505050505050505050505050505050505050505050505050505050505050529000000000000002a00000000000000"
+  },
+  {
+    "name": "PositionOpened",
+    "discriminator_hex": "edaff3e693756579",
+    "sample": {
+      "schema_version": "1",
+      "owner": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi",
+      "nonce": "11",
+      "round_id": "12",
+      "close_id": "None",
+      "plan": "2",
+      "gross": "13",
+      "load": "14",
+      "config_version": "15"
+    },
+    "body_hex": "0101010101010101010101010101010101010101010101010101010101010101010b000000000000000c0000000000000000020d000000000000000e000000000000000f000000",
+    "data_hex": "edaff3e6937565790101010101010101010101010101010101010101010101010101010101010101010b000000000000000c0000000000000000020d000000000000000e000000000000000f000000",
+    "event_cpi_ix_data_hex": "e445a52e51cb9a1dedaff3e6937565790101010101010101010101010101010101010101010101010101010101010101010b000000000000000c0000000000000000020d000000000000000e000000000000000f000000"
+  },
+  {
+    "name": "PromotionApplied",
+    "discriminator_hex": "200abf9bf0df8cbb",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "111",
+      "close_id": "Some(112)",
+      "winner": "YMN9Qj5jPNp7j14VPcML1B6xGgcPWVZUGLFU3Mnyfaf",
+      "loss": "113",
+      "entitlement": "114"
+    },
+    "body_hex": "016f000000000000000170000000000000000808080808080808080808080808080808080808080808080808080808080808710000000000000072000000000000000000000000000000",
+    "data_hex": "200abf9bf0df8cbb016f000000000000000170000000000000000808080808080808080808080808080808080808080808080808080808080808710000000000000072000000000000000000000000000000",
+    "event_cpi_ix_data_hex": "e445a52e51cb9a1d200abf9bf0df8cbb016f000000000000000170000000000000000808080808080808080808080808080808080808080808080808080808080808710000000000000072000000000000000000000000000000"
+  },
+  {
+    "name": "PromotionSkipped",
+    "discriminator_hex": "43a52b0011b62073",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "121",
+      "close_id": "122",
+      "reason": "4",
+      "stage": "5"
+    },
+    "body_hex": "0179000000000000007a000000000000000405",
+    "data_hex": "43a52b0011b620730179000000000000007a000000000000000405"
+  },
+  {
+    "name": "RoundClosed",
+    "discriminator_hex": "2df31c168446afe2",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "71",
+      "close_id": "72",
+      "deadline": "73"
+    },
+    "body_hex": "01470000000000000048000000000000004900000000000000",
+    "data_hex": "2df31c168446afe201470000000000000048000000000000004900000000000000"
+  },
+  {
+    "name": "RoundFinalized",
+    "discriminator_hex": "2bbb11c124f13052",
+    "sample": {
+      "schema_version": "1",
+      "close_id": "131",
+      "new_round": "132",
+      "seed_carried": "133"
+    },
+    "body_hex": "01830000000000000084000000000000008500000000000000",
+    "data_hex": "2bbb11c124f1305201830000000000000084000000000000008500000000000000"
+  },
+  {
+    "name": "SeriesAFunded",
+    "discriminator_hex": "ded16088231ea1fe",
+    "sample": {
+      "schema_version": "1",
+      "owner": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR",
+      "round_id": "21",
+      "close_id": "None",
+      "gross": "22",
+      "entitlement_after": "23"
+    },
+    "body_hex": "010202020202020202020202020202020202020202020202020202020202020202150000000000000000160000000000000017000000000000000000000000000000",
+    "data_hex": "ded16088231ea1fe010202020202020202020202020202020202020202020202020202020202020202150000000000000000160000000000000017000000000000000000000000000000",
+    "event_cpi_ix_data_hex": "e445a52e51cb9a1dded16088231ea1fe010202020202020202020202020202020202020202020202020202020202020202150000000000000000160000000000000017000000000000000000000000000000"
+  },
+  {
+    "name": "TicketCommitted",
+    "discriminator_hex": "21c045b338cccb7e",
+    "sample": {
+      "schema_version": "1",
+      "ticket_id": "51",
+      "round_id": "52",
+      "toll": "53",
+      "credited": "54",
+      "seed": "55"
+    },
+    "body_hex": "0133000000000000003400000000000000350000000000000036000000000000003700000000000000",
+    "data_hex": "21c045b338cccb7e0133000000000000003400000000000000350000000000000036000000000000003700000000000000"
+  }
+]
