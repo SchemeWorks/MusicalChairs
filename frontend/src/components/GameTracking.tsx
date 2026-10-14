@@ -2,7 +2,40 @@ import { useState, useEffect, useRef } from 'react';
 import { useGetUserGames, useWithdrawGameEarnings, useSettleCompoundingGame, isCompoundingPlanUnlocked, getTimeRemaining, useGetPonziPoints, useGetShenaniganConfigs, useGetMintConfig, useGetUserSolGames, useWithdrawSolGameEarnings } from '../hooks/useQueries';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
-import { formatSolFloat } from '../solana/lamports';
+import { formatSolFloat, formatSOL, parseSOL } from '../solana/lamports';
+import { useNativeCloseRecord, useNativeTicket, useNativeTxStatus } from '../hooks/useNativeSolana';
+import {
+  useNativeAvailability,
+  useNativeConfig,
+  useNativePortfolio,
+  useNowSeconds,
+  usePanelNativeAction,
+  usePanelNativeTask,
+  useRequestAccountLength,
+  type NativePortfolio,
+  type NativePositionRow,
+} from '../solana/native/panelsHooks';
+import {
+  PLAN_LABEL,
+  defaultMinimumReceive,
+  describeNativeError,
+  planOfPosition,
+  positionAction,
+  type PositionAction,
+} from '../solana/native/panelsQuote';
+import { describePrepStage, payoutPrereqs, runPrepared, type PrepTx } from '../solana/native/panelsPrereqs';
+import {
+  closingPayoutPlan,
+  nextProcessingStep,
+  requestLooksFulfilled,
+  runPayout,
+  processingOutcome,
+  runProcessingStep,
+  type ProcessingStep,
+} from '../solana/native/panelsClosing';
+import { DRAW_STATE, type NativePool, type NativeTxResult } from '../solana/native/types';
+import type { PayoutRequest } from '../solana/native/client';
+import { NativeTxStatusCard } from './SolInvestPanel';
 import { GameRecord, GamePlan, SolGameRecord } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -257,6 +290,526 @@ function EmptyState({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /* ================================================================
+   Native positions (Musical Chairs program) — IMPL-46c
+   Native is the default SOL rail (DR-22); the legacy ponzi_math_sol list
+   below it is untouched. The two are never merged or summed.
+   ================================================================ */
+
+const lamportsToFloat = (v: bigint) => Number(v) / 1_000_000_000;
+
+const STEP_NOUN: Record<string, string> = {
+  'advance-allocation': 'The allocation step',
+  'provision-page': 'The candidate page',
+  'build-candidates': 'The candidate batch',
+  'request-selection': 'The randomness request',
+  'capture-randomness': 'The capture',
+  'apply-promotion': 'The conversion',
+  'expire-promotion': 'The expiry',
+  'finalize-round': 'The finalization',
+};
+
+const programErrorNameOf = (error: unknown): string | undefined =>
+  (error as { programError?: { name?: string } | null } | null)?.programError?.name;
+
+/**
+ * Allocation run / round close. Shows "allocation run in progress" or "round
+ * closing" with ONE "resume processing" button: each click sends the single next
+ * step (nextProcessingStep reads the Ticket, Pool and CloseRecord) and shows its status.
+ */
+function NativeProcessingBanner({ pool, onNavigateToGameSetup }: { pool: NativePool; onNavigateToGameSetup?: () => void }) {
+  const ticket = useNativeTicket().data ?? null;
+  const closeId = pool.currentCloseId;
+  const close = useNativeCloseRecord(closeId).data ?? null;
+  const config = useNativeConfig(close ? close.configVersion : null).data ?? null;
+  const now = useNowSeconds();
+
+  const drawRequested = !!close && close.drawState === DRAW_STATE.Requested;
+  const requestLength = useRequestAccountLength(close?.requestAccount, drawRequested).data;
+  // "Awaiting randomness": the provider grows the request account when it fulfils it. If that
+  // signal is missing or wrong, the button re-enables 20 s after the request was first seen
+  // and the program itself decides (an unfulfilled capture is rejected before broadcast).
+  const requestedSince = useRef<number | null>(null);
+  if (drawRequested) {
+    if (requestedSince.current === null) requestedSince.current = Date.now();
+  } else {
+    requestedSince.current = null;
+  }
+  const [notReadyUntil, setNotReadyUntil] = useState(0);
+  const hint = drawRequested ? requestLooksFulfilled(requestLength, config) : null;
+  const inFreshWindow = requestedSince.current !== null && Date.now() - requestedSince.current < 20_000;
+  const randomnessReady: boolean | null = !drawRequested
+    ? null
+    : Date.now() < notReadyUntil
+      ? false
+      : hint === false
+        ? (inFreshWindow ? false : null)
+        : hint;
+
+  const step = nextProcessingStep({ pool, close, ticketPhase: ticket?.phase, now, randomnessReady });
+  const stepKey = [
+    step.kind,
+    pool.activeTicket,
+    pool.currentCloseId,
+    ticket?.phase,
+    ticket?.cursor,
+    close?.candidateCursor,
+    close?.provisionedPreferredPages,
+    close?.provisionedFallbackPages,
+    close?.drawState,
+    close?.promotion.kind,
+    close?.finalized,
+  ].join(':');
+
+  const run = usePanelNativeAction((client, vars: { step: ProcessingStep }) => runProcessingStep(client, vars.step));
+  const [sent, setSent] = useState<{ tx: NativeTxResult; key: string; kind: string } | null>(null);
+  const sentStatus = useNativeTxStatus(sent?.tx ?? null);
+  const sentStalled = sentStatus?.status === 'failed' || sentStatus?.status === 'expired';
+  // One step per state: a second click on the same state would only re-send what is already in flight.
+  const alreadySent = !!sent && sent.key === stepKey && !sentStalled;
+
+  const onResume = async () => {
+    setNotReadyUntil(0);
+    try {
+      const tx = await run.mutateAsync({ step });
+      setSent({ tx, key: stepKey, kind: step.kind });
+    } catch (error) {
+      if (programErrorNameOf(error) === 'RequestNotFulfilled') setNotReadyUntil(Date.now() + 5_000);
+    }
+  };
+
+  const closing = closeId !== null;
+  const nothingLeft = step.kind === 'done';
+  if (nothingLeft && !sent) return null;
+
+  const deadlineLeft = close && close.promotion.kind === 'Pending' ? close.promotionDeadline - now : null;
+  const mmss = (s: bigint) => `${s / 60n}:${(s % 60n).toString().padStart(2, '0')}`;
+  const awaitingRandomness = step.kind === 'await-randomness' || (run.isError && programErrorNameOf(run.error) === 'RequestNotFulfilled');
+
+  return (
+    <div className="mc-card mc-accent-gold p-4 mb-4 space-y-2" data-testid="native-processing" data-step={step.kind}>
+      {!nothingLeft && (
+        <>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <div className="font-bold mc-text-gold">
+                {closing ? 'Round closing' : 'Allocation run in progress'} — resume processing
+              </div>
+              <p className="text-xs mc-text-dim mt-0.5">{step.detail}</p>
+              {closing && deadlineLeft !== null && (
+                <p className="text-xs mc-text-muted mt-0.5">
+                  {deadlineLeft > 0n ? `Promotion window: ${mmss(deadlineLeft)} left.` : 'Promotion window closed.'}
+                </p>
+              )}
+            </div>
+            <button
+              type="button"
+              onClick={onResume}
+              disabled={!step.runnable || run.isPending || alreadySent}
+              className="mc-btn-primary px-4 py-2 rounded-lg text-xs font-bold whitespace-nowrap disabled:opacity-50"
+            >
+              {run.isPending ? 'Confirm in your wallet…' : alreadySent ? 'Waiting for the cluster…' : step.label}
+            </button>
+          </div>
+          {awaitingRandomness && !run.isPending && (
+            <div className="mc-status-blue p-2 text-xs">Awaiting randomness. The provider hasn't answered yet; this usually takes a few seconds.</div>
+          )}
+        </>
+      )}
+      {/* Every rejection is visible, whatever step the state has moved on to (the simulation refuses before signing). */}
+      {run.isError && programErrorNameOf(run.error) !== 'RequestNotFulfilled' && (
+        <div className="mc-status-red p-2 text-xs" data-testid="native-processing-error">{describeNativeError(run.error)}</div>
+      )}
+      {sent && (
+        <NativeTxStatusCard
+          tx={sent.tx}
+          status={sentStatus}
+          label={STEP_NOUN[sent.kind] ?? 'The step'}
+          compact
+          onTryAgain={() => setSent(null)}
+          actions={() => {
+            if (!nothingLeft) return null;
+            const landed = sentStatus?.status === 'confirmed' || sentStatus?.status === 'finalized';
+            const outcome = processingOutcome(sent.kind);
+            return (
+              <div className="space-y-2 pt-1" data-testid="native-processing-done">
+                {landed && <p className="text-xs">{outcome.message}</p>}
+                <div className="flex gap-2 flex-wrap">
+                  {landed && outcome.opensNewRound && (
+                    <button type="button" onClick={() => onNavigateToGameSetup?.()} className="mc-btn-primary px-3 py-1 rounded-full text-xs inline-flex items-center gap-1">
+                      <Rocket className="h-3 w-3" /> Open a Position in the new round
+                    </button>
+                  )}
+                  <button type="button" onClick={() => setSent(null)} className="mc-btn-secondary px-3 py-1 rounded-full text-xs">Dismiss</button>
+                </div>
+              </div>
+            );
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+/** One native position, laid out like the legacy PositionCard. */
+export function NativePositionCard({
+  row,
+  pool,
+  busy,
+  onAct,
+}: {
+  row: NativePositionRow;
+  pool: NativePool;
+  busy: boolean;
+  onAct: (row: NativePositionRow, action: PositionAction) => void;
+}) {
+  const { position, quote } = row;
+  const plan = planOfPosition(position.kind) ?? 'Simple';
+  const isCompound = plan !== 'Simple';
+  const accent = isCompound ? 'mc-plan-compound' : 'mc-plan-simple';
+  const action = quote ? positionAction({ position, quote, pool }) : null;
+  const durationDays = Number((position.maturityAt - position.openedAt) / 86_400n) || 1;
+  const days = quote ? Number(quote.elapsedSeconds / 86_400n) : 0;
+  const progress = Math.min(100, Math.round((days / durationDays) * 100));
+  const enabled = !!action && action.enabled && !busy;
+  const left = quote ? quote.secondsToMaturity : 0n;
+  const countdown = `${left / 86_400n}d ${(left % 86_400n) / 3_600n}h ${(left % 3_600n) / 60n}m`;
+  const feeName = isCompound ? 'Jackpot Fee' : 'Carried Interest';
+
+  return (
+    <div className={`mc-card ${accent} p-4 transition-all duration-200 hover:translate-y-[-2px] hover:shadow-lg`} data-testid="native-position" data-nonce={position.nonce.toString()}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <span className="font-bold mc-text-primary">{PLAN_LABEL[plan]}</span>
+          <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isCompound ? 'bg-[var(--mc-purple)]/20 mc-text-purple' : 'bg-[var(--mc-neon-green)]/20 mc-text-green'}`}>
+            {isCompound ? 'Compounding' : 'Simple'}
+          </span>
+          <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 mc-text-cyan uppercase tracking-wider">Native</span>
+        </div>
+        <span className="text-xs mc-text-muted">{days}d active</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
+        <div>
+          <div className="mc-label">Deposit</div>
+          <div className="text-base font-bold mc-text-primary">{formatSOL(position.principal)} SOL</div>
+          <div className="text-xs mc-text-muted">{formatDate(position.openedAt * 1_000_000_000n)}</div>
+        </div>
+        <div className="text-center">
+          <div className="mc-label">Earnings</div>
+          <div className="text-lg sm:text-xl font-bold mc-text-green mc-glow-green">{quote ? formatSOL(quote.owed) : '…'} SOL</div>
+          <div className="text-xs mc-text-muted">{isCompound ? (quote?.matured ? 'ready to settle' : 'at maturity, before fee') : 'live, before carry'}</div>
+        </div>
+        <div className="text-right">
+          <div className="mc-label">{feeName}</div>
+          {quote && (
+            <div className={`inline-block text-sm font-bold px-2 py-0.5 rounded-full ${getTollBadgeClasses(quote.feeBps / 100)}`}>{quote.feeBps / 100}%</div>
+          )}
+          {quote?.nextTier && (
+            <div className="text-xs mc-text-cyan mt-0.5">{fmtCountdown(Number(quote.nextTier.inSeconds) * 1000)} to {quote.nextTier.bps / 100}%</div>
+          )}
+        </div>
+      </div>
+
+      {quote && quote.payable && (
+        <div className="text-xs mc-text-dim mb-3" data-testid="native-quote">
+          If you {isCompound ? 'settle' : 'withdraw'} now: {formatSOL(quote.paidGross)} SOL gross, {feeName} −{formatSOL(quote.fee)} SOL, you receive{' '}
+          <strong className="mc-text-primary">{formatSOL(quote.net)} SOL</strong>.
+          {quote.insolvent && <span className="mc-text-danger font-bold"> This payout closes the round.</span>}
+        </div>
+      )}
+
+      <div className="flex items-end gap-3">
+        <div className="flex-1">
+          <div className="flex justify-between text-xs mc-text-muted mb-1">
+            <span>Day {days} / {durationDays}</span>
+            <span>{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-1.5 bg-white/5" indicatorClassName={isCompound ? 'mc-bg-purple' : 'mc-bg-green'} />
+        </div>
+        <button
+          onClick={() => action && onAct(row, action)}
+          disabled={!enabled}
+          className={`px-4 py-2 rounded-lg text-xs font-bold uppercase transition-all whitespace-nowrap ${
+            enabled ? 'mc-btn-primary' : 'bg-white/5 text-white/30 cursor-not-allowed border border-white/5'
+          }`}
+          title={action?.reason ?? (action?.kind === 'close' ? 'Close matured position' : isCompound ? 'Settle' : 'Withdraw')}
+        >
+          {!action || action.kind === 'none' ? (
+            'Closed'
+          ) : action.kind === 'locked' ? (
+            <span className="flex items-center gap-1"><Lock className="h-3 w-3" />{countdown}</span>
+          ) : action.kind === 'close' ? (
+            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />Close</span>
+          ) : (
+            <span className="flex items-center gap-1"><ArrowDownCircle className="h-3 w-3" />{action.kind === 'settle' ? 'Settle' : 'Withdraw'}</span>
+          )}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** A sent transaction with the noun phrase its status card uses. */
+type SentTx = PrepTx;
+
+/** Confirm sheet for withdraw_simple / settle_compounding, including the payout that closes the round. */
+function NativePayoutSheet({
+  row,
+  pool,
+  maxWorkLamports,
+  maxWorkInvalid,
+  onClose,
+  onSent,
+}: {
+  row: NativePositionRow | null;
+  pool: NativePool;
+  maxWorkLamports: bigint;
+  maxWorkInvalid: boolean;
+  onClose: () => void;
+  onSent: (items: SentTx[]) => void;
+}) {
+  const quote = row?.quote ?? null;
+  const nextCloseRecord = useNativeCloseRecord(pool.nextCloseId).data ?? null;
+  const [stage, setStage] = useState<string | null>(null);
+  // Order: shared snapshot pages the toll's allocation run needs (panelsPrereqs), then the CloseRecord when
+  // this payout closes the round (runPayout), then the payout itself. Each preparatory step is its own
+  // transaction that must land and be visible first.
+  const payout = usePanelNativeTask(
+    async (client, vars: { kind: 'withdraw' | 'settle'; request: PayoutRequest; prepareCloseId: bigint | null }, readers) => {
+      const prepared = await runPrepared(
+        client,
+        readers,
+        (fresh) => payoutPrereqs(fresh),
+        () =>
+          runPayout(client, {
+            ...vars,
+            onStage: (s) => setStage(s === 'provisioning-close-record' ? 'Preparing the close record…' : 'Sending the payout…'),
+          }),
+        { onStage: (s) => s.kind === 'preparing' && setStage(describePrepStage(s, 'the payout')) },
+      );
+      return { pages: prepared.prep, outcome: prepared.result };
+    },
+    (result) => [...result.pages.map((p) => p.tx), result.outcome?.provision, result.outcome?.payout],
+  );
+  useEffect(() => {
+    if (!row) {
+      setStage(null);
+      payout.reset();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [row]);
+
+  if (!row || !quote) return null;
+  const { position } = row;
+  const isCompound = quote.plan !== 'Simple';
+  const feeName = isCompound ? 'Jackpot Fee' : 'Carried Interest';
+  const minimumReceive = defaultMinimumReceive(quote.net);
+  const plan = closingPayoutPlan({
+    owed: quote.owed,
+    pot: pool.pot,
+    accrualPerSecondNumerator: isCompound ? 0n : position.principal * 11n,
+    closeRecordExists: !!nextCloseRecord,
+    nextCloseId: pool.nextCloseId,
+  });
+
+  const confirm = async () => {
+    setStage(null);
+    try {
+      const outcome = await payout.mutateAsync({
+        kind: isCompound ? 'settle' : 'withdraw',
+        request: { nonce: position.nonce, minimumReceive, maxWorkContribution: maxWorkLamports },
+        prepareCloseId: plan.prepareCloseId,
+      });
+      const items: SentTx[] = [
+        ...outcome.pages,
+        ...(outcome.outcome?.provision ? [{ tx: outcome.outcome.provision, label: 'Preparing the close record' }] : []),
+        ...(outcome.outcome?.payout ? [{ tx: outcome.outcome.payout, label: isCompound ? 'Your settlement' : 'Your withdrawal' }] : []),
+      ];
+      // A preparatory step that has not landed means the payout was NOT sent: keep the sheet open and
+      // surface the signatures outside so the user can check them, then confirm again.
+      onSent(items);
+      if (outcome.outcome?.payout) onClose();
+    } catch {
+      // payout.error is rendered below
+    }
+  };
+
+  return (
+    <MobileSheet open={true} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <div className="space-y-4" data-testid="native-payout-sheet">
+        <h2 className="font-display text-lg mc-text-primary">{isCompound ? 'Confirm Settlement' : 'Confirm Withdrawal'}</h2>
+        <div className="text-sm mc-text-dim space-y-1">
+          <div className="flex justify-between"><span>Owed (gross)</span><strong className="mc-text-primary">{formatSOL(quote.owed)} SOL</strong></div>
+          {quote.insolvent && (
+            <div className="flex justify-between"><span>Paid from AUM (gross)</span><strong className="mc-text-primary">{formatSOL(quote.paidGross)} SOL</strong></div>
+          )}
+          <div className="flex justify-between">
+            <span>{feeName} ({quote.feeBps / 100}%)</span>
+            <strong className="mc-text-gold">−{formatSOL(quote.fee)} SOL</strong>
+          </div>
+          <div className="flex justify-between border-t border-white/10 pt-1"><span>You receive (net)</span><strong className="mc-text-green">{formatSOL(quote.net)} SOL</strong></div>
+          <div className="flex justify-between text-xs mc-text-muted">
+            <span>Minimum receive (quote less 1% slippage)</span>
+            <span>{formatSOL(minimumReceive)} SOL</span>
+          </div>
+          {quote.nextTier && (
+            <p className="text-xs mc-text-cyan pt-1">
+              Wait {fmtCountdown(Number(quote.nextTier.inSeconds) * 1000)} to reduce {feeName} to {quote.nextTier.bps / 100}%.
+            </p>
+          )}
+        </div>
+        {plan.closesRound && (
+          <div className="mc-status-red p-3 text-xs space-y-1">
+            <div className="font-bold">This payout closes the round.</div>
+            <p>
+              Owed ({formatSOL(quote.owed)} SOL) exceeds AUM ({formatSOL(pool.pot)} SOL), so it pays out what AUM holds and starts the Emergency Equity Conversion:
+              a randomized selection converts one unprofitable depositor into a Series B Backer. Anyone can then push the remaining steps with "resume processing".
+            </p>
+          </div>
+        )}
+        {plan.prepareCloseId !== null && !nextCloseRecord && (
+          <div className="mc-status-blue p-2 text-xs">
+            First this sends a small transaction to prepare the round's close record (a refundable account deposit paid by your wallet); the payout follows once it confirms.
+          </div>
+        )}
+        {payoutPrereqs(pool).length > 0 && (
+          <div className="mc-status-blue p-2 text-xs">
+            First this sends a small transaction to prepare the allocation snapshot page (a one-time account deposit paid by your wallet); the payout follows once it confirms.
+          </div>
+        )}
+        {stage && <div className="mc-status-blue p-2 text-xs">{stage}</div>}
+        {payout.isError && <div className="mc-status-red p-2 text-xs">{describeNativeError(payout.error)}</div>}
+        {maxWorkInvalid && <div className="mc-status-red p-2 text-xs">Fix the Advanced contribution amount first.</div>}
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" onClick={onClose} className="mc-btn-secondary">Cancel</Button>
+          <Button onClick={confirm} disabled={payout.isPending || maxWorkInvalid} className="mc-btn-primary">
+            {payout.isPending ? 'Processing...' : plan.closesRound ? 'Confirm and close the round' : 'Confirm'}
+          </Button>
+        </div>
+      </div>
+    </MobileSheet>
+  );
+}
+
+/** The native half of "Your Positions": banner, cards, Advanced field, status. */
+function NativePositionsSection({
+  portfolio,
+  onNavigateToGameSetup,
+}: {
+  portfolio: NativePortfolio;
+  onNavigateToGameSetup?: () => void;
+}) {
+  const { pool, active, closed } = portfolio;
+  const [maxWork, setMaxWork] = useState('');
+  const [sheetRow, setSheetRow] = useState<NativePositionRow | null>(null);
+  const [sentTxs, setSentTxs] = useState<SentTx[]>([]);
+  const closeMut = usePanelNativeAction((client, vars: { nonce: bigint }) => client.closeSimplePosition(vars));
+
+  const maxWorkParsed = (() => {
+    if (!maxWork.trim()) return { lamports: 0n, invalid: false };
+    try { return { lamports: parseSOL(maxWork), invalid: false }; } catch { return { lamports: 0n, invalid: true }; }
+  })();
+
+  if (!pool) return null;
+
+  const onAct = async (row: NativePositionRow, action: PositionAction) => {
+    if (action.kind === 'close') {
+      try {
+        const tx = await closeMut.mutateAsync({ nonce: row.position.nonce });
+        setSentTxs([{ tx, label: 'Closing the position' }]);
+      } catch {
+        // closeMut.error is rendered below
+      }
+      return;
+    }
+    if (action.kind === 'withdraw' || action.kind === 'settle') setSheetRow(row);
+  };
+
+  return (
+    <div data-testid="native-positions">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="font-display text-base mc-text-primary">Native positions</h3>
+        <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 mc-text-cyan uppercase tracking-wider">on-chain program</span>
+      </div>
+
+      <NativeProcessingBanner pool={pool} onNavigateToGameSetup={onNavigateToGameSetup} />
+
+      {active.length > 0 ? (
+        <div className="space-y-3">
+          {active.map((row) => (
+            <NativePositionCard key={row.position.nonce.toString()} row={row} pool={pool} busy={closeMut.isPending} onAct={onAct} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-sm mc-text-muted text-center py-4">No open native positions.</p>
+      )}
+
+      <details className="mt-3 text-xs">
+        <summary className="cursor-pointer mc-text-muted hover:mc-text-primary">Advanced</summary>
+        <div className="mt-2 space-y-1">
+          <label className="mc-label" htmlFor="native-max-work">Max work contribution (SOL)</label>
+          <input
+            id="native-max-work"
+            type="text"
+            inputMode="decimal"
+            value={maxWork}
+            onChange={(e) => setMaxWork(e.target.value)}
+            placeholder="0"
+            className="mc-input w-40 text-xs px-2 py-1 font-mono"
+          />
+          <p className="mc-text-muted">Owner contribution to the round's processing costs, 0 by default. Only a payout that closes the round can use it.</p>
+          {maxWorkParsed.invalid && <p className="mc-text-danger">Enter a SOL amount like 0.05.</p>}
+        </div>
+      </details>
+
+      {closeMut.isError && <div className="mc-status-red p-2 mt-3 text-xs text-center">{describeNativeError(closeMut.error)}</div>}
+      {sentTxs.length > 0 && (
+        <div className="mt-3 space-y-2" data-testid="native-sent-txs">
+          {sentTxs.map((item, index) => {
+            const last = index === sentTxs.length - 1;
+            return (
+              <NativeTxStatusCard
+                key={item.tx.signature}
+                tx={item.tx}
+                label={item.label}
+                compact={!last}
+                onTryAgain={() => setSentTxs([])}
+                actions={(view) => (last && view.terminal ? (
+                  <button type="button" onClick={() => setSentTxs([])} className="mc-btn-secondary px-3 py-1 rounded-full text-xs mt-1">Dismiss</button>
+                ) : null)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {closed.length > 0 && (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer mc-text-muted hover:mc-text-primary">Closed native positions ({closed.length})</summary>
+          <div className="mt-2 space-y-1">
+            {closed.map(({ position }) => (
+              <div key={position.nonce.toString()} className="flex justify-between mc-text-muted">
+                <span>{PLAN_LABEL[planOfPosition(position.kind) ?? 'Simple']} · round {position.roundId.toString()}</span>
+                <span>{formatSOL(position.principal)} SOL deposited · {formatSOL(position.netPayout)} SOL received</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      <NativePayoutSheet
+        row={sheetRow}
+        pool={pool}
+        maxWorkLamports={maxWorkParsed.lamports}
+        maxWorkInvalid={maxWorkParsed.invalid}
+        onClose={() => setSheetRow(null)}
+        onSent={(items) => setSentTxs(items)}
+      />
+    </div>
+  );
+}
+
+/* ================================================================
    Main Export
    ================================================================ */
 
@@ -279,6 +832,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   const comp30PpPerIcp = mintConfig ? Number(mintConfig.compounding30DayPpPerIcp) : 0;
   const portfolio = useLivePortfolio(games);
   const solPortfolio = useLivePortfolio(solGames);
+  // Native rail (the Musical Chairs program) is the default SOL view (DR-22) whenever its Pool
+  // exists on the connected cluster; the legacy canister positions stay in their own section.
+  const nativeAvailability = useNativeAvailability();
+  const nativePortfolio = useNativePortfolio();
   const withdrawMutation = useWithdrawGameEarnings();
   const settleMutation = useSettleCompoundingGame();
   const solWithdrawMutation = useWithdrawSolGameEarnings();
@@ -286,8 +843,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   // SOL, everyone else in ICP. The running tally + positions follow the active
   // wallet. (A SIWS principal never holds ICP positions and vice-versa.)
   const isSiws = walletType === 'siws';
-  const tallyDeposits = isSiws ? solPortfolio.totalDeposits : portfolio.totalDeposits;
-  const tallyEarned = isSiws ? solPortfolio.totalEarnings : portfolio.totalEarnings;
+  const showNative = isSiws && nativeAvailability.state === 'native';
+  // Hero tally follows the default rail: native when available, else legacy. Never a sum of the two.
+  const tallyDeposits = showNative ? lamportsToFloat(nativePortfolio.totalDeposits) : isSiws ? solPortfolio.totalDeposits : portfolio.totalDeposits;
+  const tallyEarned = showNative ? lamportsToFloat(nativePortfolio.totalEarned) : isSiws ? solPortfolio.totalEarnings : portfolio.totalEarnings;
   const netPL = tallyEarned - tallyDeposits;
   const tallyUnit = isSiws ? 'SOL' : 'ICP';
   // Format a (non-negative) tally amount in the active denomination. Net P/L
@@ -393,6 +952,9 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
               {netPL >= 0 ? '+' : '-'}{fmtTallyAmt(Math.abs(netPL))} {tallyUnit}
             </div>
           </div>
+          {showNative && (
+            <p className="text-[10px] mc-text-muted mb-2">Native positions only. Legacy (Chain Fusion) positions are tallied in their own section below.</p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Deposited</div>
@@ -412,40 +974,62 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
 
           {isSiws ? (
             <>
-              {solGames.length > 0 ? (
-                <div className="space-y-3">
-                  {[...solPortfolio.games]
-                    .sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game))
-                    .map(({ game, earnings }) => (
-                      <PositionCard
-                        key={game.id.toString()}
-                        game={game}
-                        earnings={earnings}
-                        denomination="SOL"
-                        settleLabel="Settle"
-                        withdrawDisabled={!solanaPubkey}
-                        withdrawDisabledTitle="Reconnect your Solana wallet to withdraw"
-                        onWithdraw={(g) => handleSolWithdraw(g as SolGameRecord)}
-                        withdrawPending={
-                          solWithdrawMutation.isPending &&
-                          solWithdrawMutation.variables?.gameId === game.id
-                        }
-                      />
-                    ))}
-                </div>
-              ) : (
-                <EmptyState onNavigate={onNavigateToGameSetup} />
+              {showNative && (
+                <NativePositionsSection portfolio={nativePortfolio} onNavigateToGameSetup={onNavigateToGameSetup} />
               )}
 
-              {solWithdrawMutation.isError && (
-                <div className="mt-3 mc-status-red p-2 text-xs text-center">
-                  {solWithdrawMutation.error?.message || 'SOL withdrawal failed'}
+              {/* Legacy (Chain Fusion) rail: the existing positions and withdrawals, unchanged. */}
+              {(solGames.length > 0 || !showNative) && (
+                <div className={showNative ? 'mt-6 pt-4 border-t border-white/10' : undefined} data-testid="legacy-positions">
+                  {showNative && (
+                    <div className="mb-3">
+                      <h3 className="font-display text-base mc-text-primary">Legacy (Chain Fusion) positions</h3>
+                      <p className="text-xs mc-text-muted">
+                        Positions opened through the ponzi_math_sol canister. Withdrawals work exactly as before and are not part of the native tally above.
+                        Tally: {formatSolFloat(solPortfolio.totalDeposits)} SOL deposited · {formatSolFloat(solPortfolio.totalEarnings)} SOL earned.
+                      </p>
+                    </div>
+                  )}
+                  {solGames.length > 0 ? (
+                    <div className="space-y-3">
+                      {[...solPortfolio.games]
+                        .sort((a, b) => getPositionUrgency(a.game) - getPositionUrgency(b.game))
+                        .map(({ game, earnings }) => (
+                          <PositionCard
+                            key={game.id.toString()}
+                            game={game}
+                            earnings={earnings}
+                            denomination="SOL"
+                            settleLabel="Settle"
+                            withdrawDisabled={!solanaPubkey}
+                            withdrawDisabledTitle="Reconnect your Solana wallet to withdraw"
+                            onWithdraw={(g) => handleSolWithdraw(g as SolGameRecord)}
+                            withdrawPending={
+                              solWithdrawMutation.isPending &&
+                              solWithdrawMutation.variables?.gameId === game.id
+                            }
+                          />
+                        ))}
+                    </div>
+                  ) : (
+                    <EmptyState onNavigate={onNavigateToGameSetup} />
+                  )}
+
+                  {solWithdrawMutation.isError && (
+                    <div className="mt-3 mc-status-red p-2 text-xs text-center">
+                      {solWithdrawMutation.error?.message || 'SOL withdrawal failed'}
+                    </div>
+                  )}
+                  {solGames.length > 0 && (
+                    <div className="mt-3 text-[10px] mc-text-muted italic text-center">
+                      Withdrawals are sent to your connected Phantom wallet.
+                    </div>
+                  )}
                 </div>
               )}
-              {solGames.length > 0 && (
-                <div className="mt-3 text-[10px] mc-text-muted italic text-center">
-                  Withdrawals are sent to your connected Phantom wallet.
-                </div>
+
+              {showNative && solGames.length === 0 && nativePortfolio.rows.length === 0 && !nativePortfolio.isLoading && (
+                <EmptyState onNavigate={onNavigateToGameSetup} />
               )}
             </>
           ) : (
