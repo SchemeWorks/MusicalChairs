@@ -15,6 +15,7 @@
 //   * claim_backer       pays `funded` plus any `pending` whose allocation run is at or
 //                        below pool.finalized_ticket.
 
+import { describeOrigin } from './panelsCluster';
 import type { NativeBacker, NativeConfigVersion, NativePool, NativePosition, PlanKind } from './types';
 import { POSITION_KIND_COMPOUND_15, POSITION_KIND_COMPOUND_30, POSITION_KIND_SIMPLE } from './types';
 
@@ -426,6 +427,13 @@ export function describeNativeError(error: unknown): string {
   switch (e.name) {
     case 'NativeClusterMismatchError':
       return CLUSTER_MISMATCH_COPY[e.reason ?? ''] ?? 'The connected cluster is not the one this app expects. Nothing was signed.';
+    case 'NativeClusterSwitchedError': {
+      const origin = describeOrigin((error as { origin?: Parameters<typeof describeOrigin>[0] }).origin).label;
+      const step = (error as { step?: string }).step;
+      return step === 'retry'
+        ? `The active Solana cluster changed since this transaction was sent, so it was not re-sent. It was sent on ${origin}; use Check status to read its status there.`
+        : 'The active Solana cluster changed since this wallet connection was prepared. Nothing was signed or sent; try the action again on the current cluster.';
+    }
     case 'NativeClusterNotConfiguredError':
       return "The native game isn't available on this cluster yet.";
     case 'NativeClusterError':

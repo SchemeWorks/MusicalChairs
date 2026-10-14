@@ -9,8 +9,9 @@
 //   * A new transaction is only safe once the status is `failed` or `expired`.
 
 import { describeTransactionError } from './status';
-import { programErrorCopy } from './panelsQuote';
-import type { NativeTxStatus, StatusUpdate } from './types';
+import { describeNativeError, programErrorCopy } from './panelsQuote';
+import { describeOrigin } from './panelsCluster';
+import type { NativeTxResult, NativeTxStatus, StatusUpdate } from './types';
 
 export type StatusTone = 'pending' | 'success' | 'warning' | 'danger';
 
@@ -99,5 +100,63 @@ export function describeTxStatus(update: Pick<StatusUpdate, 'status' | 'error'> 
         canPollAgain: false,
         canRebuild: true,
       };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// The two actions an unknown outcome offers (shared by every panel's status card)
+// ---------------------------------------------------------------------------
+
+export type StatusActionResult =
+  | { ok: true; update: StatusUpdate; note: string | null }
+  | { ok: false; error: string };
+
+const errorText = (error: unknown): string | null => {
+  if (error === null || error === undefined) return null;
+  const text = error instanceof Error ? error.message : typeof error === 'string' ? error : (() => { try { return JSON.stringify(error); } catch { return String(error); } })();
+  return text && text.length > 160 ? `${text.slice(0, 157)}...` : text;
+};
+
+/**
+ * "Check status": the READ-ONLY reconcile() on the transaction's ORIGIN cluster. It re-reads the original
+ * signature's status and never sends, rebuilds, re-signs or changes a nonce, and keeps working after the
+ * app switched its active cluster. A failure is surfaced (never swallowed); a status that stays unknown
+ * says so, with the last RPC error and where it looked.
+ */
+export async function checkTxStatus(tx: Pick<NativeTxResult, 'reconcile' | 'origin'>): Promise<StatusActionResult> {
+  const origin = describeOrigin(tx.origin).label;
+  try {
+    const update = await tx.reconcile();
+    if (update.status === 'unknown') {
+      const detail = errorText(update.error);
+      return {
+        ok: true,
+        update,
+        note: `Still can't tell on ${origin}${detail ? `. Last RPC error: ${detail}` : ''}. Nothing was re-sent.`,
+      };
+    }
+    return { ok: true, update, note: null };
+  } catch (error) {
+    return { ok: false, error: `Could not read the status on ${origin}: ${describeNativeError(error)}` };
+  }
+}
+
+/**
+ * "Resend the same transaction": retransmit the IDENTICAL signed bytes (same signature, so the cluster
+ * cannot apply it twice). Never rebuilds, re-signs or changes the nonce. The adapter refuses it after a
+ * cluster switch (NativeClusterSwitchedError); that is shown with the origin cluster instead of being retried.
+ */
+export async function resendSameTx(tx: Pick<NativeTxResult, 'retry' | 'origin'>): Promise<StatusActionResult> {
+  try {
+    const update = await tx.retry();
+    return {
+      ok: true,
+      update,
+      note: update.status === 'unknown'
+        ? `The same signed transaction was sent again but is still not visible on ${describeOrigin(tx.origin).label}.`
+        : null,
+    };
+  } catch (error) {
+    return { ok: false, error: describeNativeError(error) };
   }
 }

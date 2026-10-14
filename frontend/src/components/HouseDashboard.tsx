@@ -14,7 +14,8 @@ import { useNativeBackers } from '../hooks/useNativeSolana';
 import { useNativeAvailability, usePanelNativeAction } from '../solana/native/panelsHooks';
 import { describeNativeError, quoteBacker } from '../solana/native/panelsQuote';
 import type { NativePool, NativeTxResult } from '../solana/native/types';
-import { NativeTxStatusCard } from './SolInvestPanel';
+import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
+import { railOf } from '../solana/native/panelsRail';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
@@ -177,7 +178,9 @@ function describeEvent(entry: GeneralLedgerEntry): { label: string; isInflow: bo
 function HouseLedgerRecords() {
   const { walletType } = useWallet();
   const isSol = walletType === 'siws';
-  const nativeOn = useNativeAvailability().state === 'native';
+  const ledgerAvailability = useNativeAvailability();
+  const nativeOn = ledgerAvailability.state === 'native';
+  const ledgerRail = isSol ? railOf(ledgerAvailability) : 'inactive';
   const fmt = (n: number) => (isSol ? formatSolFloat(n) : formatICP(n));
   const unit = isSol ? 'SOL' : 'ICP';
 
@@ -217,6 +220,12 @@ function HouseLedgerRecords() {
       {isSol && nativeOn && (
         <p className="text-xs mc-text-muted text-center">
           This ledger lists legacy (Chain Fusion) activity. Activity on the native program is recorded on-chain and is not listed here yet.
+        </p>
+      )}
+      {ledgerRail === 'legacy' && <LegacyRailBanner what="the ledger" />}
+      {ledgerRail === 'loading' && (
+        <p className="text-xs mc-text-muted text-center" data-testid="ledger-verifying">
+          Legacy (Chain Fusion) ledger. Verifying the native program on this cluster…
         </p>
       )}
       {/* Stats row */}
@@ -398,6 +407,10 @@ function BackerPositions() {
   const nativeAvailability = useNativeAvailability();
   const nativePool = nativeAvailability.state === 'native' ? nativeAvailability.pool : null;
   const showNative = isSol && nativePool !== null;
+  // `loading`: the native program is being verified, so no backer list and no claim button yet (a legacy
+  // action must not appear as if native had failed). `legacy` (unavailable): the legacy rail only, labeled.
+  const verifyingNative = isSol && railOf(nativeAvailability) === 'loading';
+  const legacyOnly = isSol && railOf(nativeAvailability) === 'legacy';
 
   const icpBackers = useGetBackerPositions();
   const solBackers = useGetSolBackerPositions();
@@ -467,6 +480,7 @@ function BackerPositions() {
 
   return (
     <div className="space-y-6">
+      {legacyOnly && <LegacyRailBanner what="Series A funding, backers and claims" />}
       {/* Fund the Project — deposit card with warning inline + stats side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4">
         <div className="mc-card-elevated p-6">
@@ -487,6 +501,10 @@ function BackerPositions() {
               <div className="text-xs mc-text-muted mt-1">{nativePool.registryLen.toString()} open Backer{nativePool.registryLen === 1n ? '' : 's'}</div>
             </div>
           </div>
+        ) : verifyingNative ? (
+          <div className="lg:w-56">
+            <NativeRailVerifying what="Backer figures" />
+          </div>
         ) : (
           <div className="flex flex-col gap-3 lg:w-56">
             <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
@@ -504,9 +522,9 @@ function BackerPositions() {
       {showNative && nativePool && <NativeBackerSection pool={nativePool} />}
 
       {/* Backer list. With the native rail on, this is the labeled legacy (Chain Fusion) section. */}
-      {backers.length > 0 ? (
-        <div className={`space-y-3 ${showNative ? 'pt-4 border-t border-white/10' : ''}`} data-testid="legacy-backers">
-          <h3 className="font-display text-base mc-text-primary text-center">{showNative ? 'Legacy (Chain Fusion) backers' : 'Current Backers'}</h3>
+      {verifyingNative ? null : backers.length > 0 ? (
+        <div className={`space-y-3 ${showNative ? 'pt-4 border-t border-white/10' : ''}`} data-testid="legacy-backers" data-rail={showNative || legacyOnly ? 'legacy' : undefined}>
+          <h3 className="font-display text-base mc-text-primary text-center">{showNative || legacyOnly ? 'Legacy (Chain Fusion) backers' : 'Current Backers'}</h3>
           {showNative && (
             <p className="text-xs mc-text-muted text-center">
               Backers of the ponzi_math_sol canister. Claims work exactly as before. Outstanding debt {fmt(outstandingDebt)} {unit} · raised {fmt(totalHouseMoney)} {unit}.

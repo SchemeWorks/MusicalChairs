@@ -313,6 +313,14 @@ describe('error copy', () => {
     expect(describeNativeError(named('SignedTransactionMismatchError', 'raw', { reason: 'signature' }))).toMatch(/valid signature/);
   });
 
+  it('a cluster switch: a re-send is refused with the origin cluster; an action says nothing was signed', () => {
+    const origin = { cluster: { expectedClusterDomain: 'localnet', programId: 'p' }, rpcEndpoint: 'http://127.0.0.1:8899', generation: 0, clusterKey: 'k' };
+    const retry = named('NativeClusterSwitchedError', 'raw', { step: 'retry', origin });
+    expect(describeNativeError(retry)).toMatch(/was not re-sent.*sent on localnet \(127\.0\.0\.1:8899\).*Check status/);
+    const action = named('NativeClusterSwitchedError', 'raw', { step: 'action', origin });
+    expect(describeNativeError(action)).toMatch(/Nothing was signed or sent/);
+  });
+
   it('a wallet rejection that merely contains the word does not hide a typed error', () => {
     // NativeClusterMismatchError text mentions neither, but SignedTransactionMismatchError messages include "rejected"-like words in some wallets
     expect(describeNativeError(named('SignedTransactionMismatchError', 'The wallet rejected the message', { reason: 'signature' }))).toMatch(/valid signature/);

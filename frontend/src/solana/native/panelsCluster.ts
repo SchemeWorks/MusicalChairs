@@ -30,3 +30,27 @@ export function clusterFromEndpoint(endpoint: string, opts: { localMode?: boolea
   if (/(^|[.-])mainnet([.-]|$)/.test(host)) return { cluster: 'mainnet-beta', label: 'mainnet-beta', host };
   return { cluster: 'custom', label: 'custom RPC', host };
 }
+
+/** Where a transaction was sent, for status copy: the cluster name and the RPC HOST (never a path or key). */
+export function describeOrigin(
+  origin: { cluster?: { expectedClusterDomain: Uint8Array | string } | null; rpcEndpoint?: string | null } | null | undefined,
+): { cluster: string; host: string | null; label: string } {
+  const domain = origin?.cluster?.expectedClusterDomain;
+  let host: string | null = null;
+  if (origin?.rpcEndpoint) {
+    try {
+      host = new URL(origin.rpcEndpoint).host;
+    } catch {
+      host = null;
+    }
+  }
+  const cluster =
+    typeof domain === 'string'
+      ? domain
+      : domain
+        ? 'custom deployment'
+        : origin?.rpcEndpoint
+          ? clusterFromEndpoint(origin.rpcEndpoint).label
+          : 'unknown cluster';
+  return { cluster, host, label: host ? `${cluster} (${host})` : cluster };
+}

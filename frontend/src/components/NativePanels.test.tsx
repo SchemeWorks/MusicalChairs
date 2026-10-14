@@ -21,7 +21,9 @@ function tx(status: NativeTxStatus, nonce: bigint | null = 123456789012345678n):
     status$: (async function* () {
       yield { signature: SIG, status } as StatusUpdate;
     })(),
+    origin: { clusterKey: 'k', cluster: { expectedClusterDomain: 'localnet', programId: 'p' }, rpcEndpoint: 'http://127.0.0.1:8899', generation: 0 },
     retry: async () => ({ signature: SIG, status: 'confirmed' }),
+    reconcile: async () => ({ signature: SIG, status: 'confirmed' }),
     safeToRebuild: status === 'failed' || status === 'expired',
   } as unknown as NativeTxResult;
 }
@@ -54,11 +56,36 @@ describe('NativeTxStatusCard', () => {
     expect(render('confirmed', { nonce: null })).not.toContain('Nonce');
   });
 
-  it('unknown offers Check status and never Try again', () => {
+  it('unknown offers Check status (read-only) and a separate guarded resend, and never Try again', () => {
     const html = render('unknown');
     expect(html).toContain('Check status');
+    expect(html).toContain('Resend the same transaction');
     expect(html).not.toContain('Try again');
     expect(html).toContain('Outcome unknown');
+    // the resend is behind a confirmation: its explanation is not shown until it is asked for
+    expect(html).not.toContain('data-testid="tx-resend-confirm"');
+  });
+
+  it('shows where the transaction was sent (cluster and RPC host only)', () => {
+    for (const status of ['submitted', 'unknown', 'finalized'] as const) {
+      expect(render(status), status).toContain('Sent on localnet (127.0.0.1:8899)');
+    }
+  });
+
+  it('only an unknown outcome can be resent; every other status offers no resend', () => {
+    for (const status of ['submitted', 'confirmed', 'finalized', 'failed', 'expired'] as const) {
+      expect(render(status), status).not.toContain('Resend the same transaction');
+    }
+  });
+
+  it('the card never calls the mutating retry() itself: Check status is reconcile, resend is the guarded handler', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('./SolInvestPanel.tsx', import.meta.url), 'utf8');
+    const card = source.slice(source.indexOf('export function NativeTxStatusCard'), source.indexOf('function NativeInvestProjection') > 0 ? source.indexOf('export function NativeInvestProjection') : undefined);
+    expect(card).not.toMatch(/\.retry\(\)/);
+    expect(card).not.toMatch(/\.reconcile\(\)/);
+    expect(card).toMatch(/checkTxStatus\(tx\)/);
+    expect(card).toMatch(/resendSameTx\(tx\)/);
   });
 
   it('failed and expired offer Try again and no Check status', () => {

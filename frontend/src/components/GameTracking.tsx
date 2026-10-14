@@ -35,7 +35,8 @@ import {
 } from '../solana/native/panelsClosing';
 import { DRAW_STATE, type NativePool, type NativeTxResult } from '../solana/native/types';
 import type { PayoutRequest } from '../solana/native/client';
-import { NativeTxStatusCard } from './SolInvestPanel';
+import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
+import { railOf } from '../solana/native/panelsRail';
 import { GameRecord, GamePlan, SolGameRecord } from '../backend';
 import { triggerConfetti } from './ConfettiCanvas';
 import LoadingSpinner from './LoadingSpinner';
@@ -844,6 +845,10 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
   // wallet. (A SIWS principal never holds ICP positions and vice-versa.)
   const isSiws = walletType === 'siws';
   const showNative = isSiws && nativeAvailability.state === 'native';
+  // `loading`: the native program is being verified. No rail is offered yet, in particular no legacy
+  // withdrawal as if native had already failed. `legacy` (unavailable): the legacy rail only, labeled.
+  const verifyingNative = isSiws && railOf(nativeAvailability) === 'loading';
+  const legacyOnly = isSiws && railOf(nativeAvailability) === 'legacy';
   // Hero tally follows the default rail: native when available, else legacy. Never a sum of the two.
   const tallyDeposits = showNative ? lamportsToFloat(nativePortfolio.totalDeposits) : isSiws ? solPortfolio.totalDeposits : portfolio.totalDeposits;
   const tallyEarned = showNative ? lamportsToFloat(nativePortfolio.totalEarned) : isSiws ? solPortfolio.totalEarnings : portfolio.totalEarnings;
@@ -955,6 +960,12 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
           {showNative && (
             <p className="text-[10px] mc-text-muted mb-2">Native positions only. Legacy (Chain Fusion) positions are tallied in their own section below.</p>
           )}
+          {legacyOnly && (
+            <p className="text-[10px] mc-text-muted mb-2" data-testid="tally-legacy-caption">Legacy (Chain Fusion) positions only. The native program isn't available on this cluster.</p>
+          )}
+          {verifyingNative && (
+            <p className="text-[10px] mc-text-muted mb-2" data-testid="tally-verifying-caption">Verifying the native program on this cluster. Until it finishes these are the legacy (Chain Fusion) figures.</p>
+          )}
           <div className="grid grid-cols-2 gap-4">
             <div className="mc-card p-4 text-center">
               <div className="mc-label mb-1">Deposited</div>
@@ -974,20 +985,27 @@ export default function GameTracking({ onNavigateToGameSetup, onTabChange, visib
 
           {isSiws ? (
             <>
+              {verifyingNative && <NativeRailVerifying what="Your positions" />}
+
               {showNative && (
                 <NativePositionsSection portfolio={nativePortfolio} onNavigateToGameSetup={onNavigateToGameSetup} />
               )}
 
-              {/* Legacy (Chain Fusion) rail: the existing positions and withdrawals, unchanged. */}
-              {(solGames.length > 0 || !showNative) && (
-                <div className={showNative ? 'mt-6 pt-4 border-t border-white/10' : undefined} data-testid="legacy-positions">
-                  {showNative && (
+              {/* Legacy (Chain Fusion) rail: the existing positions and withdrawals, unchanged. Hidden while
+                  the native program is being verified. */}
+              {!verifyingNative && (solGames.length > 0 || !showNative) && (
+                <div className={showNative ? 'mt-6 pt-4 border-t border-white/10' : undefined} data-testid="legacy-positions" data-rail="legacy">
+                  {showNative ? (
                     <div className="mb-3">
                       <h3 className="font-display text-base mc-text-primary">Legacy (Chain Fusion) positions</h3>
                       <p className="text-xs mc-text-muted">
                         Positions opened through the ponzi_math_sol canister. Withdrawals work exactly as before and are not part of the native tally above.
                         Tally: {formatSolFloat(solPortfolio.totalDeposits)} SOL deposited · {formatSolFloat(solPortfolio.totalEarnings)} SOL earned.
                       </p>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <LegacyRailBanner what="positions and withdrawals" />
                     </div>
                   )}
                   {solGames.length > 0 ? (

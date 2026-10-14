@@ -19,7 +19,8 @@ import { LOCAL_CLUSTER_MODE } from '../solana/native/localModeFlag';
 import { describeUnavailable, railOf } from '../solana/native/panelsRail';
 import { projectSimpleDailyLamports } from '../solana/native/economics';
 import { describeNativeError, planKindFromInvestId, projectOpen } from '../solana/native/panelsQuote';
-import { describeTxStatus, furtherStatus, shortSignature, type TxStatusView } from '../solana/native/panelsStatus';
+import { checkTxStatus, describeTxStatus, furtherStatus, resendSameTx, shortSignature, type StatusActionResult, type TxStatusView } from '../solana/native/panelsStatus';
+import { describeOrigin } from '../solana/native/panelsCluster';
 import type { NativeConfigVersion, NativeTxResult, PlanKind, StatusUpdate } from '../solana/native/types';
 import { usePonziMathSolActor } from '../hooks/usePonziMathSolActor';
 import { useWallet } from '../hooks/useWallet';
@@ -392,6 +393,31 @@ function LegacySolInvestPanel({ planId, onNavigateToProfitCenter }: SolInvestPan
 /** Display-only reserve for network fees and the one-time rent of the Position, User and UserRound accounts the wallet pays. */
 const NATIVE_FEE_AND_RENT_RESERVE_LAMPORTS = 10_000_000n;
 
+/**
+ * Shown on EVERY legacy-only fallback (invest, Series A, positions, backers, ledger): the native program
+ * is not available on the connected cluster, so what follows is the legacy ponzi_math_sol canister rail.
+ * Native and legacy are never mixed under one unlabeled view (DR-22).
+ */
+export function LegacyRailBanner({ what }: { what: string }) {
+  return (
+    <div className="mc-status-gold p-3 text-xs space-y-0.5" data-testid="legacy-rail-banner" data-rail="legacy">
+      <div className="font-bold">Legacy (Chain Fusion)</div>
+      <p>The native program isn't available on this cluster, so {what} use the legacy ponzi_math_sol canister rail.</p>
+    </div>
+  );
+}
+
+/** While native availability is being verified no rail is offered, in particular no legacy action as if native had failed. */
+export function NativeRailVerifying({ what }: { what: string }) {
+  return (
+    <div className="mc-card p-6 text-center space-y-2" data-testid="native-rail-verifying" data-rail="verifying">
+      <Loader2 className="h-6 w-6 mc-text-gold mx-auto animate-spin" />
+      <p className="text-sm mc-text-primary font-bold">Verifying the native program on this cluster…</p>
+      <p className="text-xs mc-text-dim">{what} appear once it is verified.</p>
+    </div>
+  );
+}
+
 const TONE_CLASS: Record<TxStatusView['tone'], string> = {
   pending: 'mc-status-blue',
   success: 'mc-status-green',
@@ -428,25 +454,51 @@ export function NativeTxStatusCard({
   const latest = status === undefined ? own : status;
   const refresh = useNativeRefresh();
   const [override, setOverride] = useState<StatusUpdate | null>(null);
-  const [checking, setChecking] = useState(false);
+  const [busy, setBusy] = useState<'check' | 'resend' | null>(null);
+  const [confirmResend, setConfirmResend] = useState(false);
+  const [note, setNote] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     setOverride(null);
+    setNote(null);
+    setActionError(null);
+    setConfirmResend(false);
   }, [tx]);
 
   const update = furtherStatus(latest ?? { signature: tx.signature, status: tx.status }, override);
   const view = describeTxStatus(update, { label });
+  const origin = describeOrigin(tx.origin);
 
+  const apply = (result: StatusActionResult) => {
+    if (result.ok) {
+      setOverride(result.update);
+      setNote(result.note);
+      setActionError(null);
+      if (result.update.status !== 'unknown' && result.update.status !== 'submitted') refresh();
+    } else {
+      setNote(null);
+      setActionError(result.error);
+    }
+  };
+  // "Check status" is READ-ONLY (reconcile on the ORIGIN cluster). Resending the same bytes is a separate,
+  // confirmed action, only offered for an unknown outcome.
   const checkAgain = async () => {
-    setChecking(true);
+    setBusy('check');
+    setConfirmResend(false);
     try {
-      const next = await tx.retry();
-      setOverride(next);
-      if (next.status !== 'unknown' && next.status !== 'submitted') refresh();
-    } catch {
-      // retry() reports RPC trouble as `unknown`; nothing to surface here
+      apply(await checkTxStatus(tx));
     } finally {
-      setChecking(false);
+      setBusy(null);
+    }
+  };
+  const resend = async () => {
+    setBusy('resend');
+    setConfirmResend(false);
+    try {
+      apply(await resendSameTx(tx));
+    } finally {
+      setBusy(null);
     }
   };
   const copySignature = async () => {
@@ -473,12 +525,36 @@ export function NativeTxStatusCard({
         </button>
       </div>
       {tx.nonce !== null && <div className="text-[11px] font-mono opacity-80">Nonce {tx.nonce.toString()}</div>}
+      <div className="text-[11px] opacity-80" data-testid="tx-origin" title={tx.origin?.rpcEndpoint ? `RPC host: ${origin.host ?? 'unknown'}` : undefined}>
+        Sent on {origin.label}
+      </div>
+      {note && <p className="text-xs opacity-90" data-testid="tx-status-note">{note}</p>}
+      {actionError && <div className="mc-status-red p-2 text-xs" data-testid="tx-status-error">{actionError}</div>}
       {(view.canPollAgain || (view.canRebuild && onTryAgain)) && (
-        <div className="flex gap-2 flex-wrap pt-1">
+        <div className="flex gap-2 flex-wrap pt-1 items-center">
           {view.canPollAgain && (
-            <button type="button" onClick={checkAgain} disabled={checking} className="mc-btn-secondary px-3 py-1 rounded-full text-xs">
-              {checking ? 'Checking…' : 'Check status'}
+            <button type="button" onClick={checkAgain} disabled={busy !== null} className="mc-btn-secondary px-3 py-1 rounded-full text-xs">
+              {busy === 'check' ? 'Checking…' : 'Check status'}
             </button>
+          )}
+          {view.canPollAgain && !confirmResend && (
+            <button type="button" onClick={() => setConfirmResend(true)} disabled={busy !== null} className="underline text-xs opacity-80 hover:opacity-100">
+              Resend the same transaction
+            </button>
+          )}
+          {view.canPollAgain && confirmResend && (
+            <div className="w-full mc-card p-2 text-xs space-y-1" data-testid="tx-resend-confirm">
+              <p>
+                This re-sends the exact same signed bytes to {origin.label}. Same signature, so the cluster cannot apply it twice. It
+                is never rebuilt, re-signed or given a new nonce. Check status first if you have not.
+              </p>
+              <div className="flex gap-2">
+                <button type="button" onClick={resend} disabled={busy !== null} className="mc-btn-primary px-3 py-1 rounded-full text-xs">
+                  {busy === 'resend' ? 'Resending…' : 'Resend'}
+                </button>
+                <button type="button" onClick={() => setConfirmResend(false)} className="mc-btn-secondary px-3 py-1 rounded-full text-xs">Cancel</button>
+              </div>
+            </div>
           )}
           {view.canRebuild && onTryAgain && (
             <button type="button" onClick={onTryAgain} className="mc-btn-primary px-3 py-1 rounded-full text-xs">
@@ -722,15 +798,11 @@ export default function SolInvestPanel(props: SolInvestPanelProps) {
     case 'native':
       return <NativeInvestPanel {...props} />;
     case 'loading':
-      return (
-        <div className="mc-card p-6 text-center">
-          <p className="text-sm mc-text-dim">Connecting to the native program…</p>
-        </div>
-      );
+      return <NativeRailVerifying what="Deposits" />;
     default:
       // The native program is not verifiable here (the default mainnet endpoint, no cluster, a mismatch,
-      // an uninitialized program): the legacy rail only, no native UI. Local-cluster mode has no legacy
-      // rail (its canister is never reached), so it says what is missing instead of spinning.
+      // an uninitialized program): the legacy rail only, clearly labeled, no native UI. Local-cluster
+      // mode has no legacy rail (its canister is never reached), so it says what is missing instead.
       if (LOCAL_CLUSTER_MODE) {
         return (
           <div className="mc-card p-6 text-center max-w-md mx-auto space-y-2" data-testid="native-unavailable">
@@ -739,6 +811,11 @@ export default function SolInvestPanel(props: SolInvestPanelProps) {
           </div>
         );
       }
-      return <LegacySolInvestPanel {...props} />;
+      return (
+        <div className="space-y-4">
+          <LegacyRailBanner what="deposits" />
+          <LegacySolInvestPanel {...props} />
+        </div>
+      );
   }
 }

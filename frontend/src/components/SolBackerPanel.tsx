@@ -15,7 +15,7 @@ import { triggerConfetti } from './ConfettiCanvas';
 import { formatSOL, formatSolFloat, parseSOL, LAMPORTS_PER_SOL } from '../solana/lamports';
 import { sendSolDeposit } from '../solana/sendSolDeposit';
 import { UPSTREAM_BACKER_BONUS, pct } from '../lib/gameConstants';
-import { NativeTxStatusCard } from './SolInvestPanel';
+import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
 import { backerSplitText } from '../solana/native/economics';
 import { LOCAL_CLUSTER_MODE } from '../solana/native/localModeFlag';
 import { describeUnavailable, railOf } from '../solana/native/panelsRail';
@@ -576,13 +576,9 @@ export default function SolBackerPanel() {
     case 'native':
       return <NativeBackerPanel />;
     case 'loading':
-      return (
-        <div className="mc-card p-6 text-center">
-          <p className="text-sm mc-text-dim">Connecting to the native program…</p>
-        </div>
-      );
+      return <NativeRailVerifying what="Series A funding" />;
     default:
-      // Native not verifiable here: the legacy rail only, no native UI (see SolInvestPanel).
+      // Native not verifiable here: the legacy rail only, clearly labeled, no native UI (see SolInvestPanel).
       if (LOCAL_CLUSTER_MODE) {
         return (
           <div className="mc-card p-6 text-center max-w-md mx-auto space-y-2" data-testid="native-unavailable">
@@ -591,6 +587,11 @@ export default function SolBackerPanel() {
           </div>
         );
       }
-      return <LegacySolBackerPanel />;
+      return (
+        <div className="space-y-4">
+          <LegacyRailBanner what="Series A funding" />
+          <LegacySolBackerPanel />
+        </div>
+      );
   }
 }
