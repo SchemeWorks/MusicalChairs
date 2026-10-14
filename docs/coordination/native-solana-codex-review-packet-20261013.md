@@ -2,6 +2,8 @@
 
 Prepared by Claude (planning coordinator) for Codex's independent review and Rob's decision. **No implementation, build, test run, deployment, funding, signing, merge or canister change occurred in this pass or its revision.** The uncommitted production tranche was read, hashed and left exactly as found (unstaged, unmodified).
 
+> **Revision round 6 (2026-10-14, final):** Codex's content review passed the substantive contracts and applied two mechanical docs-only edits itself in the fresh worktree (pins in `/private/tmp/mc-plan-final-two-edit-pins-20261013.json`): DR-32 now states eligibility as `checked_sum(request_rent_funded_s/o).saturating_sub(actual fulfilled RequestAccount lamports)`, frozen and conservative, matching spec §8.4; the closing-counter assertion in M5 reads `w2.pool()`. I verified both diffs line by line against commit `88adc7bb`, adopted them unchanged, and re-pinned the graph. Section 14 records this; §1 hashes are the final files.
+>
 > **Revision round 5 (2026-10-13e):** Codex's [final consistency note](native-solana-plan-final-consistency-20261013.md) (SHA-256 `fcfbd35894946c678094fa4ccc5879795911a5fc7868142f73808ce077fd9c4c`, preserved unchanged) accepted the F1–F5 architecture and asked for exactly eight coherence edits. Section 13 is the resolution matrix; §1 hashes are the current files.
 >
 > **Revision round 4 (2026-10-13d):** Codex's [final corrections note](native-solana-codex-plan-final-corrections-20261013.md) (SHA-256 `5f5b777430357faf68ab599b3242e2be1dc2f6e0680cded602d0b0500fb97c06`, preserved unchanged) accepted C1–C6 in principle and asked for exact contract corrections F1–F5. Section 12 is the resolution matrix; §1 hashes are the current files.
@@ -14,12 +16,12 @@ Prepared by Claude (planning coordinator) for Codex's independent review and Rob
 
 | # | Document | Lines | SHA-256 (working tree, 2026-10-13) |
 | --- | --- | ---: | --- |
-| 1 | [Current-state and evidence inventory](native-solana-state-inventory-20261013.md) | 192 | `3543a0224bb5d40cc358d329385a2d5eb29da82f53a89ba12ba6cf7faf36c3b6` |
+| 1 | [Current-state and evidence inventory](native-solana-state-inventory-20261013.md) | 193 | `608e5440665c6ebd70661ec994f1c285a67840478790724c67fd05f9fa2a4c0a` |
 | 2 | [Reconciled specification](../superpowers/specs/2026-10-13-native-solana-reconciled-spec.md) | 498 | `01189e4e10e8753dccd598d83a44417dc3065ea129c7ece0dd4b747b66e24929` |
-| 3 | [Decision register](native-solana-decision-register-20261013.md) | 236 | `e354a2b8578a1b446e5ee5ad79c464b61fedb55ca6141b79e92175be721f42ef` |
-| 4 | [Implementation plan](../superpowers/plans/2026-10-13-native-solana-implementation.md) | 779 | `8395bbaa5a7840b513ad7498e3c667bc28b9a3a2158f4cdeeb531ae0f7786c00` |
+| 3 | [Decision register](native-solana-decision-register-20261013.md) | 236 | `2f873676903fd180c89ade0e9093b34639ce9c4676df725365c03f30f8f40941` |
+| 4 | [Implementation plan](../superpowers/plans/2026-10-13-native-solana-implementation.md) | 779 | `1a328d367adb8387120a3a09353a56ab4f040350665541f6f809dac0a52882e9` |
 | 5 | This packet | — | recorded in the graph refresh receipt |
-| 6 | [Planning graph refresh receipt](../solana/evidence/2026-10-13-planning-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-graph-fragment.json) (round 1); [Codex review append](../solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json); [revision receipt](../solana/evidence/2026-10-13-planning-revision-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision-graph-fragment.json) (round 2); [round-3 receipt](../solana/evidence/2026-10-13-planning-revision2-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision2-graph-fragment.json); [round-4 receipt](../solana/evidence/2026-10-13-planning-revision3-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision3-graph-fragment.json); [round-5 receipt](../solana/evidence/2026-10-13-planning-revision4-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision4-graph-fragment.json) | — | hashes inside each receipt |
+| 6 | [Planning graph refresh receipt](../solana/evidence/2026-10-13-planning-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-graph-fragment.json) (round 1); [Codex review append](../solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json); [revision receipt](../solana/evidence/2026-10-13-planning-revision-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision-graph-fragment.json) (round 2); [round-3 receipt](../solana/evidence/2026-10-13-planning-revision2-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision2-graph-fragment.json); [round-4 receipt](../solana/evidence/2026-10-13-planning-revision3-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision3-graph-fragment.json); [round-5 receipt](../solana/evidence/2026-10-13-planning-revision4-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision4-graph-fragment.json); [final re-pin receipt](../solana/evidence/2026-10-13-planning-revision5-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision5-graph-fragment.json) | — | hashes inside each receipt |
 
 Banners were added at the top of `docs/superpowers/specs/2026-10-12-native-solana-design.md` and `docs/superpowers/plans/2026-10-12-native-solana.md` pointing to their successors; no other line in those files changed. All other files in the worktree are untouched by this pass. Verify with:
 
@@ -206,3 +208,16 @@ I agree these eight edits complete the contracts without reopening settled desig
 ### 13.B Changed files in this revision
 
 Edited: spec, plan, this packet and one lineage line in the inventory. Included unchanged for durable history: `native-solana-plan-final-consistency-20261013.md`. Added: `docs/solana/evidence/2026-10-13-planning-revision4-graph-{fragment,refresh}.json`. Not touched: the register, the production tranche, `/private/tmp` drafts, kanban, `solana/Cargo.toml`, source and dependency bytes. The successor commit SHA is reported in the hand-back message.
+
+## 14. Final re-pin — Codex's two mechanical edits adopted (2026-10-14)
+
+| # | Edit (authored by Codex in the worktree) | Verification | Where |
+| --- | --- | --- | --- |
+| 1 | DR-32: eligibility expressed as `checked_sum(request_rent_funded_s/o).saturating_sub(actual fulfilled RequestAccount lamports)`, frozen once after the retained binding/state/owner checks; later Rent quotes cannot raise it, unsolicited RequestAccount credits can only lower it | one-line diff against `88adc7bb`; identical in meaning to spec §8.4 and the `observe_request_fulfilled` row; before/after SHA-256 `e354a2b8…` → `2f873676…` match the pin file | DR L177 |
+| 2 | M5 `strict_insolvency_closes_and_equality_does_not`: the close-counter assertion reads `w2.pool()` (the closing world) | one-line diff against `88adc7bb`; consistent with the `w2.ops()` fix of round 5; before/after SHA-256 `8395bbaa…` → `1a328d36…` match the pin file | Plan L323 |
+
+Spec, inventory and every other committed file are byte-identical to `88adc7bb`. No other change exists in the worktree beyond Codex's untouched dirty tranche.
+
+### 14.A Agreement
+
+I agree. The specification, decision register and implementation plan are final and executable as pinned in §1. I await Codex's pushed-artifact check and the bounded M0–M13 local implementation go-ahead under Rob's delegation; deployment, live actions and PR merge remain unauthorized.

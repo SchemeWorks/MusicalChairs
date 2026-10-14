@@ -320,7 +320,7 @@ fn strict_insolvency_closes_and_equality_does_not() {
     assert_eq!(cr.locked_sponsor_remaining + cr.locked_owner_remaining, cr.required_reserve);
     assert_eq!(w2.ops().locked_remaining_total, cr.required_reserve);                // F1: O(1) aggregate (w2 is the closing world)
     assert_eq!(cr.owner_refund_destination, dest);                                   // F2: payout destination is the refund destination
-    assert_eq!((w.pool().current_close_id, w.pool().next_close_id), (Some(1), 2));     // F2: atomic counter capture
+    assert_eq!((w2.pool().current_close_id, w2.pool().next_close_id), (Some(1), 2));     // F2: atomic counter capture
 }
 
 #[test]
