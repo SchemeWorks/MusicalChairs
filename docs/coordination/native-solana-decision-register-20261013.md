@@ -16,6 +16,8 @@ Each entry is classified as exactly one of:
 
 An entry marked **DEVIATION** proposes a change to an accepted invariant and says so in its first line. There is one such entry (DR-14) and it is a clarification of wording, not a change of behavior.
 
+**Revision 2026-10-13b:** after [Codex's review](native-solana-codex-plan-review-20261013.md), DR-08, DR-11, DR-12, DR-13, DR-14, DR-17, DR-20, DR-23 and DR-24 were amended and DR-29–DR-32 added. Each amended entry starts with "Revised:". Nothing here reopens D1–D9.
+
 Solana notes are attached where a Solana-specific mechanism drove the recommendation. Rob's background is ICP (canisters, stable memory, management-canister threshold signing) plus Solidity; the notes compare to that.
 
 ---
@@ -68,9 +70,9 @@ Solana note: on ICP a canister pays its own cycles implicitly. On Solana every b
 
 **Alternative:** one `Ticket` PDA per payout (rejected: rent churn for no isolation benefit while the barrier exists).
 
-### DR-08 Pre-provisioned reusable `SnapshotPage`s, provisioning permissionless and sponsor-paid — ROUTINE (interacts with DR-12)
+### DR-08 Pre-provisioned reusable `SnapshotPage`s are permanent; provisioning permissionless and sponsor-paid — ROUTINE (interacts with DR-12)
 
-**Recommendation:** keep the draft path: `provision_snapshot_page(page)` is permissionless and paid from reserved operations cash; a payout verifies `pool.snapshot_pages * 8 >= captured_active_len` before accepting cash. Pages are overwritten only by a ticket whose `ticket_id` is greater than the page's recorded one and only after the prior ticket is terminal. This is the first-release storage path; it does not preclude later per-ticket pages.
+**Revised (R3):** keep the draft path: `provision_page(Snapshot, index)` is permissionless and paid from operations cash; a payout verifies `pool.snapshot_pages * 8 >= registry_len` before accepting cash. Pages are overwritten only by a ticket whose `ticket_id` is greater than the page's recorded one and only after the prior ticket is terminal. **Snapshot and registry pages are never closable in the first release**, so `snapshot_pages` is monotonic and the capacity check is a live invariant; the earlier text that allowed closing a terminal snapshot page is withdrawn because a closed middle page would leave a count that admits a payout Discover cannot serve. Reclaiming this rent needs a future reviewed upgrade with a contiguous-prefix scheme.
 
 ### DR-09 Owner work contribution in the ABI from day one, default zero — ROUTINE (accepted policy, draft deferred it)
 
@@ -82,7 +84,7 @@ Solana note: on ICP a canister pays its own cycles implicitly. On Solana every b
 
 ### DR-11 Events via Anchor `emit_cpi!` (self-CPI) for every financial event — ROUTINE (affects ICP bridge decoding)
 
-**Recommendation:** use `emit_cpi!` rather than log-based `emit!` for `PositionOpened`, `SeriesAFunded`, `PayoutPaid`, `TicketCommitted`, `BackerClaimed`, `RoundClosed`, `PromotionApplied`, `PromotionSkipped`, `RoundFinalized`. Event data then lives in an inner-instruction's data, which RPC returns intact under `maxSupportedTransactionVersion`, whereas program logs are truncatable and can be omitted by RPC providers. The ICP ingestion identity tuple (cluster, program, signature, instruction index, inner-instruction index, event schema version) is defined over that representation.
+**Revised (mechanics):** use `emit_cpi!` rather than log-based `emit!` for `PositionOpened`, `SeriesAFunded`, `PayoutPaid`, `TicketCommitted`, `BackerClaimed`, `RoundClosed`, `PromotionApplied`, `PromotionSkipped`, `RoundFinalized`. This requires the `event-cpi` Cargo feature, `#[event_cpi]` on every emitting `Accounts` struct (adding the `event_authority` PDA and program account to each account list), IDL/client fixtures for each event, a decoding test over an executed self-CPI, and inclusion of the extra accounts and CU in M9 packet measurements. Event data then lives in an inner-instruction's data, which RPC returns intact under `maxSupportedTransactionVersion`, whereas program logs are truncatable and can be omitted by RPC providers. The ICP ingestion identity tuple (cluster, program, signature, instruction index, inner-instruction index, event schema version) is defined over that representation.
 
 Solana note: Solana has no canister-to-canister callback or certified query. Events are not stored on chain; they are observed from transaction metadata. The self-CPI pattern makes the event part of the transaction's executed instruction list instead of a log line, which is the closest thing Solana has to a durable, decodable event.
 
@@ -90,17 +92,17 @@ Solana note: Solana has no canister-to-canister callback or certified query. Eve
 
 ## C. Resource locking, refunds and cleanup
 
-### DR-12 Mandatory reserve check order and amounts — ROUTINE, amounts LAUNCH
+### DR-12 Mandatory reserve check order; the closing reserve is computed from captured work — ROUTINE, schedule values LAUNCH
 
-**Recommendation:** before any payout mutates state, the handler checks in this order: (1) no active ticket; (2) snapshot pages provisioned for captured N (DR-08); (3) if the payout would close: `CloseRecord` for `next_close_id` exists, and `ops.free_balance + owner_contribution >= config.close_reserve_lamports`, then moves exactly that amount into `locked_sponsor` / `locked_owner` on the `CloseRecord`; (4) toll > 0 implies ticket work; captured work units recorded. Only then is cash moved. `close_reserve_lamports` (covering provider request fee + pending request rent + one possible automatic B account + candidate-page rent for the captured participant count) is a `ConfigVersion` field supplied at launch from measured sizes.
+**Revised (R2):** before any payout mutates state, the handler checks in this order: (1) no active ticket; (2) snapshot pages cover `registry_len` (DR-08); (3) if the payout would close: `CloseRecord` for `next_close_id` exists, and `required_close_reserve` (spec §8.1: two full candidate sets for the captured participant count minus pages already provisioned, a registry extension page when the tail is full, one automatic B account, pending-request rent, and the provider fee with a headroom margin) is fully lockable sponsor-first then owner up to `max_work_contribution_lamports`; the exact obligation is written to `CloseRecord.required_reserve` with the schedule snapshot; (4) toll > 0 implies ticket work; captured work units recorded. Only then is cash moved. The earlier single `close_reserve_lamports` launch value is withdrawn: a flat allowance either caps population silently or under-reserves. `ConfigVersion` now carries only the schedule inputs (`provider_request_fee_lamports`, `provider_fee_headroom_bps`, request account sizes); account rent comes from `Rent::get()` and program `LEN` constants. If the live provider fee exceeds the captured headroom, `request_round_draw` fails with `ProviderFeeExceeded` and anyone may `top_up_close_reserve(close_id)` before the deadline; otherwise expiry proceeds with that diagnostic stage.
 
 ### DR-13 Beneficial rent attribution with at most two components — ROUTINE
 
-**Recommendation:** every sponsor-created shared account stores `rent_funded_by_ops: u64` and `rent_funded_by_owner: u64` (owner component nonzero only for an opted-in shortfall). `close_shared_account(kind, id)` is permissionless after the account's safe-closure predicate holds (ticket terminal for snapshot pages; promotion terminal for candidate pages; round finalized for participant pages; never for `CloseRecord`, `Backer`, `User`) and returns each component to its funder exactly once (ops free balance; recorded owner refund destination). Account cleanup is never a precondition for cash commit, finalization or reopening.
+**Revised (R3):** every sponsor-created shared account stores `rent_funded_by_ops: u64` and `rent_funded_by_owner: u64` (owner component nonzero only for an opted-in shortfall, and only on program-owned storage). `close_shared_account(kind)` is permissionless **only** for `CandidatePage{close_id, set}` after `CloseRecord(close_id).promotion` is terminal and for `ParticipantPage{round}` after that round's `CloseRecord.finalized`; both predicates derive from the page's own seeds, never from a reusable tag or the current ticket. `Snapshot`, `Registry`, `CloseRecord`, `Backer`, `User` and `Position` are never closable in the first release. Each component returns to its funder exactly once. Account cleanup is never a precondition for cash commit, finalization or reopening.
 
 ### DR-14 Refund of unused locked reserve happens at terminal promotion, not at cleanup — ROUTINE (DEVIATION: wording clarification only)
 
-The accepted text says "refund unused funds exactly once after required work/cleanup" and separately that cleanup must not block cash. **Recommendation:** split the two timers explicitly: the *locked reserve* on a `CloseRecord` is settled once when promotion becomes terminal (consumed provider fee and any B-account rent are deducted; the remainder returns to ops free balance / owner destination); *rent components* on shared accounts return at safe closure under DR-13. No lamport is refunded twice because the two pools are disjoint. This is presented as a deviation only because the accepted sentence can be read as a single refund event; behavior and conservation are unchanged.
+The accepted text says "refund unused funds exactly once after required work/cleanup" and separately that cleanup must not block cash. **Revised:** split the two timers explicitly: the *locked reserve* on a `CloseRecord` is settled once when promotion becomes terminal (amounts transferred to the ORAO Client and rent spent on candidate pages, the registry extension and the B account are deducted by category; the remainder returns to ops free balance / owner destination); *rent components* on closable shared accounts return at safe closure under DR-13. Provider reimbursements go to the ORAO Client, tracked as `ops.provider_prepaid` (DR-32), and are never counted as a close refund or an owner refund. No lamport is refunded twice because the pools are disjoint. This is presented as a deviation only because the accepted sentence can be read as a single refund event; behavior and conservation are unchanged.
 
 ### DR-15 Unsolicited SOL — ROUTINE (accepted, no change)
 
@@ -116,7 +118,7 @@ Plain transfers to `[game-vault]` raise `unallocated_excess` at the next instruc
 
 ### DR-17 ORAO Callback 0.4.0, no client-level callback, direct capture — ROUTINE (accepted candidate)
 
-**Recommendation:** register one ORAO Client owned by the program's `[rng-authority]` PDA (the "State" signer in the SDK); `request_round_draw(close_id)` CPI-requests with the protocol seed; `capture_round_draw(close_id)` reads the fulfilled `RequestAccount` directly and requires `Clock <= deadline`. The runtime probes executed this lifecycle locally; what remains is devnet service latency and mainnet quorum. A request-level callback is not used.
+**Revised (R5):** the pinned SDK distinguishes three roles (`vendor/orao-solana-vrf-cb/src/state/client.rs:14–23`, `instructions/register/mod.rs:85–92`): the Solana account owner is the ORAO program; `Client.owner` is the management authority that can withdraw Client funds or transfer the Client, and registration requires the registered program's upgrade authority to sign as payer, so `Client.owner = G Vault` (accepted G-owned provider client); `Client.state` is the request authority, our `[rng-authority]` PDA, which CPI-signs `request`. The earlier wording "Client owned by RngAuthority" conflated these and is withdrawn. `request_round_draw()` funds the Client from the locked sponsor partition, then CPI-requests with the protocol seed; `capture_round_draw()` reads the fulfilled `RequestAccount` directly and requires `Clock <= deadline`. Registration is a G Squads vault transaction performed at devnet/mainnet stages (launch input), and readback must show the three roles. A request-level callback is not used.
 
 ### DR-18 Keep `expire_promotion` separate from `finalize_round`, and allow a composed client transaction — ROUTINE (accepted)
 
@@ -134,9 +136,9 @@ Composition is at the transaction level (three instructions: `expire_promotion`,
 
 Solana note: unlike a canister whose controllers are read from the canister's own settings, a Solana program's code lives in a `ProgramData` account controlled by the BPF upgradeable loader, and only its `upgrade_authority` can replace code. The initialize check ties application governance to that same key so there is exactly one party that can change code *and* config.
 
-### DR-20 Guardian pause instruction touches `[admission]` and the P vault signer only — ROUTINE (accepted)
+### DR-20 Guardian pause instruction touches `[admission]` and the P vault signer only; Admission stores the authoritative guardian key — ROUTINE (accepted)
 
-Tests assert the instruction's account list contains no `Pool`, `Ticket`, `CloseRecord`, vault, Backer or provider account.
+**Revised (R4):** `Admission.guardian_vault` is the key `set_admission_pause` checks (the draft already stores `Admission.guardian`); `rotate_guardian(new_multisig)` is a G instruction that validates the replacement 2-of-3 / zero-delay profile and writes `Admission.guardian_vault` and the `Pool.guardian_vault` copy atomically. The previous text had rotation writing only `Pool`, which would have left the pause surface authorizing the old key. Tests assert the pause instruction's account list contains no `Pool`, `Ticket`, `CloseRecord`, vault, Backer or provider account, that the old P is rejected and the new P accepted after rotation, and that G can recover a lost P quorum.
 
 ### DR-21 Keeper hosting: external fee-only primary + ICP watchdog — MEASURE (default = hybrid)
 
@@ -148,13 +150,29 @@ Public check on 2026-10-13: 0.32.1 is published and not yanked; 0.32.2 (2026-09-
 
 ### DR-27 Rent figures are dated scenarios under SIMD-0437 — MEASURE / LAUNCH
 
-Solana rent is being cut in five feature-gated steps (6,960 → 6,333 live 2026-09-03 → 5,080 → 2,575 → 1,322 → 696 lamports/byte; steps 3–5 expected with Agave 4.4, Nov 2026). The budget rebuild (plan Task 11) records the active step at measurement time and recomputes at launch; `close_reserve_lamports` and operations funding are launch inputs, not constants. No rent coefficient is hard-coded in the program; the program reads `Rent::get()`.
+Solana rent is being cut in five feature-gated steps (6,960 → 6,333 live 2026-09-03 → 5,080 → 2,575 → 1,322 → 696 lamports/byte; steps 3–5 expected with Agave 4.4, Nov 2026). The budget rebuild (plan Task 11) records the active step at measurement time and recomputes at launch; the close cost schedule values (provider fee, headroom) and operations funding are launch inputs, not constants, and the captured reserve itself is computed per close (DR-12). No rent coefficient is hard-coded in the program; the program reads `Rent::get()`.
 
 Solana note: unlike ICP cycles, which are consumed, Solana rent is a refundable deposit; a rent cut lowers the capital locked in shared pages, not a running cost. It does not change any game rule.
 
 ### DR-28 Keeper transaction format — MEASURE (default = legacy/v0)
 
 v1 transactions (4,096 bytes) are live on mainnet since Agave 4.2; the 96-account limit is not yet active. The GUI keeps legacy/v0 (accepted). A keeper may adopt v1 or address-lookup tables only after Task 11 measures the account-lock bound, which v1 does not relax today, and only without changing program economics or cursor proofs. The ICP bridge decoder must handle observed v1 transactions regardless (accepted).
+
+### DR-29 Six typed allocation instructions instead of one dispatcher — ROUTINE (adopts Codex answer 1)
+
+`discover_rows`, `apply_senior`, `seal_weights`, `allocate_rows`, `prune_rows`, `commit_ticket`, each taking `expected_ticket_id` (and `expected_cursor`, `rows` for the row phases) and a typed `Accounts` struct as the draft already shapes them. Stale calls fail with `StaleTicket`/`StaleCursor`; replaying a completed chunk cannot re-credit. A unified dispatcher remains an optional later refactor only with an equivalent proved remaining-accounts schema. Rationale: typed account validation per phase is simpler to audit and test.
+
+### DR-30 Position accounts are permanent; no rent reclamation in first release — ROUTINE (R1)
+
+The Position PDA is the durable nonce tombstone. Closing it would let a freshly signed retry with the same nonce create and fund a second Position after settlement, which the accepted unknown-outcome protection forbids. `close_position_account` is withdrawn. A stale-round Position is terminal by `round_id < pool.round_id` and needs no write. Compact per-owner tombstones with rent reclamation are **DEFERRED**; locked owner rent is one Position's rent-exempt minimum per opening.
+
+### DR-31 Inline allocation threshold chosen per measured path, never by blanket exclusion — MEASURE
+
+M9 measures a complete inline allocation inside the payout at N = 0, 1, 2, 4, 8, 16, 17 with production accounts. The inline path is enabled for every N up to the largest measured N that fits packet, account-lock and CU limits with margin; the zero-toll and zero-slice shortcuts always stay inline; chunked tickets cover larger N. If the production handlers only support chunks when M9 runs, M9 adds the inline step. A failure at N = 16 does not disable smaller feasible N.
+
+### DR-32 Provider cash attribution: sponsor-only, disclosed consumption — ROUTINE
+
+Provider fee and pending-request rent come only from `locked_sponsor`; the owner partition may fund program-owned storage only. ORAO reimburses excess pending rent to the Client (PROBED: 4,259,520 of 6,173,520 lamports locally), which is G-owned working capital tracked as `ops.provider_prepaid`; G may return it to OpsCash via ORAO `withdraw` under its delay. Expired unfulfilled requests retain their rent provider-side. No Client reimbursement is reported as an owner or close refund. M7/M8 assert these flows with the runtime receipt amounts, not the older public rent scenario.
 
 ---
 
@@ -166,11 +184,11 @@ v1 transactions (4,096 bytes) are live on mainnet since Agave 4.2; the 96-accoun
 
 ### DR-23 Transaction confirmation via HTTPS polling with `confirmed` for progress UI and `finalized` for authoritative state — ROUTINE (accepted)
 
-No WebSocket. Simulation before wallet prompt. Signature retained across unknown outcomes; a client nonce on `open_position` makes retries idempotent.
+No WebSocket. Simulation before wallet prompt. Signature retained across unknown outcomes; a client nonce on `open_position` makes retries idempotent because the Position PDA is permanent (DR-30), so an unknown-outcome retry either finds the Position or creates it once. For `fund_series_a`, which is deliberately repeatable, the client keeps the original signature and resolves finality/history before any deliberate second funding; an explicit retry test covers this without changing the accepted repeatable ABI.
 
 ### DR-24 ICP ingestion canister is a new `native_sol_bridge` canister, not a modification of `shenanigans` observer loops — ROUTINE
 
-**Recommendation:** add one new canister that owns the relayer ingress, two-RPC finalized verification, outbox, cursor and PP-reward legs, and calls the existing PP ledger with the exactly-once contract. `shenanigans` is touched only to expose/whitelist the bridge as an authorized reward source for the SOL plan rates, leaving its legacy observers intact. Rationale: keeps the legacy rail's behavior unchanged and gives the new trust boundary its own upgrade/controller story. Alternative: extend `shenanigans` (rejected: couples a new RPC trust boundary to the PP/spell canister's upgrade cycle).
+**Revised (R6):** add one new canister that owns the relayer ingress, two-RPC finalized verification, the event outbox and cursor. **Reward policy, effect/siphon reservation and ledger-leg execution are owned by Shenanigans**, which already owns the PP minting account and effect state: `reserveNativeReward(event)` (bridge-only, idempotent on event id, computes and freezes every leg once and consumes effects at reservation, no ledger await) and `executeNativeRewardLeg(event_id, leg_index)` (status written before the single transfer; identical fields on retry; `Duplicate` reconciles; out-of-window → `Quarantined`). The earlier `mintFromBridge(leg)` reusing `mintWithEffects` is withdrawn because that helper applies multipliers/siphons dynamically and marks dedup after its await (`shenanigans/main.mo:2871–2935`). Legacy observers are untouched. Isolation of the RPC trust boundary remains the reason for a separate bridge canister; it does not by itself produce exactly-once minting, the protocol above does.
 
 ### DR-25 ICP mirror for history/feeds is served from the same bridge canister's durable event store — ROUTINE
 
@@ -186,7 +204,7 @@ No separate indexer canister in first release; the bridge already stores verifie
 | Management recipient, sponsor recipient | Rob | `initialize` arguments |
 | Program ID (deploy keypair), cluster, genesis `cluster_domain_32` | Operator at deploy | `initialize`; seed derivation |
 | ORAO network state, treasury, registered Client address | Operator after registration | `ConfigVersion` provider tuple |
-| `close_reserve_lamports`, snapshot pages to pre-provision, ops funding amount | Rob from measured sizes | `ConfigVersion`, `fund_operations` |
+| `provider_request_fee_lamports`, `provider_fee_headroom_bps`, snapshot/registry pages to pre-provision, ops funding amount | Rob from measured sizes and the live `NetworkState` | `ConfigVersion`, `fund_operations` |
 | Production RPC endpoints (primary + fallback), CSP `connect-src` origins | Rob/operator | frontend constants, `.ic-assets.json` |
 | Bootstrap pot/seed | fixed at zero unless Rob funds externally with a named receipt | none |
 
@@ -194,7 +212,7 @@ No separate indexer canister in first release; the bridge already stores verifie
 
 ## H. Deferred optional scope (not prerequisites)
 
-Native PP/SPL and native desk; proof-bearing refund of anonymous excess; paid on-chain keeper rewards; frontend v1 transaction / Kit migration; Pinocchio or custom allocation accumulators; additional governance signers, custom timelock wrapper or renounced upgrades; ICP `raw_rand` as an alternative provider; II/SIWS account merging; legacy deposit pause or retirement.
+Native PP/SPL and native desk; Position rent reclamation via compact nonce tombstones (DR-30); snapshot/registry page rent reclamation (DR-08); proof-bearing refund of anonymous excess; paid on-chain keeper rewards; frontend v1 transaction / Kit migration; Pinocchio or custom allocation accumulators; additional governance signers, custom timelock wrapper or renounced upgrades; ICP `raw_rand` as an alternative provider; II/SIWS account merging; legacy deposit pause or retirement.
 
 ---
 

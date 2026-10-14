@@ -53,7 +53,7 @@ Fixture provenance: ORAO executable `solana/probes/runtime/fixtures/orao-callbac
 | --- | --- | --- |
 | cargo-build-sbf | 3.1.0-beta.0; binary SHA-256 `2e999118c4e865e02ed07ad9effc36e4f8f1c2630bb61334fbdb914269170fd6` matches build provenance | OK |
 | platform-tools rustc | 1.84.1-dev | matches provenance |
-| **platform-tools version** | `cargo-build-sbf --version` prints **v1.52**; build provenance records **v1.48** (archive SHA-256 `799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd`, not present in `downloads/`, which is empty); `platform-tools/version.md` holds only commit hashes | **Unresolved pin.** Plan Task 0 must re-pin and re-record before any build; no build is claimed |
+| **platform-tools version** | `cargo-build-sbf --version` prints **v1.52**, which is the builder's *default* tools version when none is requested. The build wrapper passes `--tools-version v1.48 --skip-tools-install` and exports the installed `platform-tools/rust/bin/rustc` (1.84.1-dev) explicitly (`scripts/build-sbf.sh:56–57, 62–70`), so the displayed default does **not** show which compiler was used. Build provenance records v1.48 (archive SHA-256 `799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd`, not present in `downloads/`, which is empty); `platform-tools/version.md` holds only commit hashes | **Corrected 2026-10-13b:** the earlier "unresolved pin" wording over-read the version banner. Plan M0 verifies the installed tree's identity (commit stamps in `version.md` against the v1.48 release, binary hashes) before any re-download, and the prior 88-case runtime evidence is not treated as superseded by the banner alone |
 | LiteSVM | repo runtime probe lock pins 0.7.1; scratch `litesvm-probe/Cargo.toml` pins 0.6.0; no litesvm crate in `cargo-home` | scratch probe is historical |
 | Stray artifacts | `actual-program-output/musical_chairs_runtime_probe_program.so` SHA-256 `f45be9eb…f875` does **not** match the repo artifact; `sbf-output/mc_sbf_runtime_probe.so` unreferenced | historical build outputs; not evidence |
 
@@ -155,10 +155,11 @@ Correction to the handoff text: `createBackdatedGame` exists in `ponzi_math` (IC
 | Worktree `graphify-out/graph.json` | 7,149 nodes, 9,594 links, 21 hyperedges, `built_at_commit 18b7811…`; SHA-256 `513eb4d596ae1c4cb21f8a7079da0176a4607d4b87a6ee319e10b7d95f400d05`; **identical** to `/private/tmp/mc-production-graph-base-20261013/graph.json` |
 | `manifest.json` | 372 entries, per-file `mtime`/`ast_hash`/`semantic_hash`; SHA-256 `08a8a889…b043`; identical to backup |
 | Nodes under `solana/programs/musical_chairs/` or `solana/tests/financial-runtime/` | **0** (uncovered production source) |
-| Nodes for `docs/solana/production-accounts.md` | 0 |
+| Nodes for `docs/solana/production-accounts.md` | 0 at start of the planning pass; covered by the planning fragment since |
+| Codex review artifact | `docs/coordination/native-solana-codex-plan-review-20261013.md`, SHA-256 `d9b59efdeed52842426bc4e4d3213bdda91d888da5266b94481bb8f20bd6b15a`, 126 lines, reviewed commit `db48ce33a40e10d0a1153d738926eb051bb3b033`; preserved unchanged |
 | Required queries run (allocation phases; claim-triggered close/expiry; ICP boundary; costs) | all return relevant nodes from host models and October contracts; ICP-boundary and cost queries surface mostly May 2026 Chain Fusion nodes, which are legacy-rail context, not native design |
 
-Graph maintenance performed by this pass is recorded in `docs/solana/evidence/2026-10-13-planning-graph-refresh.json` (see review packet).
+Graph maintenance performed by this pass is recorded in `docs/solana/evidence/2026-10-13-planning-graph-refresh.json`; Codex's review append is `2026-10-13-codex-plan-review-graph-{fragment,refresh}.json` (7,921 → 7,928 nodes, 11,080 → 11,089 edges, 27 → 28 hyperedges); the revision pass is `2026-10-13-planning-revision-graph-{fragment,refresh}.json` (see review packet).
 
 ## 8. Public snapshot deltas observed 2026-10-13 (public sources only; no private content sent)
 
@@ -184,5 +185,5 @@ Graph maintenance performed by this pass is recorded in `docs/solana/evidence/20
 6. Candidate completeness, promotion apply, expiry and finalization have no production code.
 7. Resource reservation, locked partitions, refunds and cleanup have no production code.
 8. Frontend adapter, IDL, ICP bridge canister and keepers do not exist.
-9. Toolchain pin discrepancy (platform-tools v1.48 vs v1.52) unresolved.
+9. Installed platform-tools identity not yet verified against the v1.48 release stamps (the v1.52 banner is only the builder default; see §4).
 10. Rent economics are changing; every budget number is a dated scenario.
