@@ -94,19 +94,64 @@
   "edge_direction_preserved": true
  },
  "scope": {
-  "covered_files_sha256_at_receipt": {
-   ".github/workflows/native-solana-model.yml": "426bb8ea00bd796ff173b139b8ba39e614d72512ba5aa89e3f56bcf46b78fd2a",
-   "docs/coordination/kanban.md": "15bf8ab0e28b000604d925fceeec9c24ebd36d1102099cdc195d57d3b37eaac1",
-   "docs/coordination/native-solana-icp-budget.md": "79c0ad0811f3cd53bc96c0b344e58681afb79bef58f8e8f7501cd7e3243b788e",
-   "docs/solana/evidence/2026-10-14-m9-measurements.json": "aea3224a7251476e3d0220c370d416cac2ee36c219fbeea77c16b089a70df92b",
-   "docs/solana/evidence/latest-build.json": "e9fe1422b6502cf497e02ea0670db2f33316569f78c1b0e72baf5124676962a6",
-   "docs/solana/measurements-2026-10.md": "65dc125e63230098ba6b83c8924bd5aba0e6c607ebf0b20b4b9d0b6196d21931",
-   "solana/programs/musical_chairs/src/allocation.rs": "515c8305035290ad8dbe8fcc00731cb608dc92c5d93a4f8c0a6eb1c72b5247fc",
-   "solana/programs/musical_chairs/src/positions.rs": "212558059240ee5f3ba86da1b8f2cba3bee451eb45da2e72334a15d574013a42",
-   "solana/tests/financial-runtime/src/measure.rs": "263546c7a023be3f116182a575e046a71addefe8e63b5512a182f454596e625d",
-   "solana/tests/financial-runtime/tests/inline_alloc.rs": "23510675c54bf5e7b1798bd86da18984f9b79ab90d32951dd4efd7438323bafd"
+  "freshness": "AST structural freshness at 3c3003c for solana/** (graphify update); semantic coverage through 37185ea by the coordinator fragment nodes (Compound15/30 inline test, Linux CI); covered-file pins are the exact commit blobs at 37185ea (sources) / ae0e937 (docs); M10 files (threat model, review evidence, program repairs) NOT covered until the M10 refresh",
+  "covered_files_sha256_at_commit": {
+   ".github/workflows/native-solana-model.yml": {
+    "commit": "37185ea",
+    "sha256": "80e15d6b5ba4a508ccca2c8a7334da02a1caff7f487e0012f5fa1f227b81a650"
+   },
+   "docs/coordination/kanban.md": {
+    "commit": "ae0e937",
+    "sha256": "b2fbf926ec5fe47457f6eb98639ce90724fd1f1f40c6b5dd59fc22a4c8bc1c6a"
+   },
+   "docs/coordination/native-solana-icp-budget.md": {
+    "commit": "ae0e937",
+    "sha256": "79c0ad0811f3cd53bc96c0b344e58681afb79bef58f8e8f7501cd7e3243b788e"
+   },
+   "docs/solana/evidence/2026-10-14-m9-measurements.json": {
+    "commit": "ae0e937",
+    "sha256": "aea3224a7251476e3d0220c370d416cac2ee36c219fbeea77c16b089a70df92b"
+   },
+   "docs/solana/evidence/latest-build.json": {
+    "commit": "ae0e937",
+    "sha256": "e9fe1422b6502cf497e02ea0670db2f33316569f78c1b0e72baf5124676962a6"
+   },
+   "docs/solana/measurements-2026-10.md": {
+    "commit": "ae0e937",
+    "sha256": "65dc125e63230098ba6b83c8924bd5aba0e6c607ebf0b20b4b9d0b6196d21931"
+   },
+   "solana/programs/musical_chairs/src/allocation.rs": {
+    "commit": "37185ea",
+    "sha256": "515c8305035290ad8dbe8fcc00731cb608dc92c5d93a4f8c0a6eb1c72b5247fc"
+   },
+   "solana/programs/musical_chairs/src/positions.rs": {
+    "commit": "37185ea",
+    "sha256": "ef3a145f21e21fc80c0016359f246c1e3408f82ed8db1c8eb4e38a81569c3ddc"
+   },
+   "solana/tests/financial-runtime/src/measure.rs": {
+    "commit": "37185ea",
+    "sha256": "263546c7a023be3f116182a575e046a71addefe8e63b5512a182f454596e625d"
+   },
+   "solana/tests/financial-runtime/tests/inline_alloc.rs": {
+    "commit": "37185ea",
+    "sha256": "23510675c54bf5e7b1798bd86da18984f9b79ab90d32951dd4efd7438323bafd"
+   }
   },
-  "freshness": "AST structural freshness at 3c3003c for solana/**; semantic design documents (spec/plan/budget/measurements) represented by coordinator fragment nodes only; M10 files (threat model, review evidence, program repairs) NOT covered until the M10 refresh"
+  "receipt_time_working_tree_sha256": {
+   "note": "hashes of the working tree when the receipt was first written; the workflow, positions.rs and other program files were already DIRTY with the uncommitted IMPL-40a repairs, so these are NOT M9 pins (Codex M9 adjudication)",
+   "files": {
+    ".github/workflows/native-solana-model.yml": "426bb8ea00bd796ff173b139b8ba39e614d72512ba5aa89e3f56bcf46b78fd2a",
+    "docs/coordination/kanban.md": "15bf8ab0e28b000604d925fceeec9c24ebd36d1102099cdc195d57d3b37eaac1",
+    "docs/coordination/native-solana-icp-budget.md": "79c0ad0811f3cd53bc96c0b344e58681afb79bef58f8e8f7501cd7e3243b788e",
+    "docs/solana/evidence/2026-10-14-m9-measurements.json": "aea3224a7251476e3d0220c370d416cac2ee36c219fbeea77c16b089a70df92b",
+    "docs/solana/evidence/latest-build.json": "e9fe1422b6502cf497e02ea0670db2f33316569f78c1b0e72baf5124676962a6",
+    "docs/solana/measurements-2026-10.md": "65dc125e63230098ba6b83c8924bd5aba0e6c607ebf0b20b4b9d0b6196d21931",
+    "solana/programs/musical_chairs/src/allocation.rs": "515c8305035290ad8dbe8fcc00731cb608dc92c5d93a4f8c0a6eb1c72b5247fc",
+    "solana/programs/musical_chairs/src/positions.rs": "212558059240ee5f3ba86da1b8f2cba3bee451eb45da2e72334a15d574013a42",
+    "solana/tests/financial-runtime/src/measure.rs": "263546c7a023be3f116182a575e046a71addefe8e63b5512a182f454596e625d",
+    "solana/tests/financial-runtime/tests/inline_alloc.rs": "23510675c54bf5e7b1798bd86da18984f9b79ab90d32951dd4efd7438323bafd"
+   }
+  }
  },
  "query_checks": [
   {

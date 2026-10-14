@@ -74,7 +74,7 @@ Branch `codex/native-solana-production-core`, continuing from the [M8 handoff](n
   "Complete job": "success"
  },
  "clippy": "success",
- "artifact_vs_macos_pin": "artifact byte-identical to the pinned build",
+ "artifact_vs_macos_pin": "Artifact differs from the local macOS build (Linux b824ec0b… vs pinned d77b23bf…): expected for a different host/path; source set and lock asserted equal to the pins",
  "note": "Linux bytes are not required to equal the macOS bytes; the source set and lock are asserted equal to docs/solana/evidence/latest-build.json",
  "harness": "success",
  "tests_passed_total": 195,
