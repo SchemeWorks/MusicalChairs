@@ -41,7 +41,9 @@ function keypairWallet(keypair: Keypair): NativeWallet {
   };
 }
 
-async function finalized(result: NativeTxResult): Promise<string> {
+/** Wait until the cluster CONFIRMS the transaction (the ladder's `confirmed` step; `finalized`
+ *  follows ~32 slots later). Named for what it waits for; `awaitFinalized` below waits for finality. */
+async function confirmed(result: NativeTxResult): Promise<string> {
   for await (const update of result.status$) {
     if (update.status === 'failed' || update.status === 'expired') {
       throw new Error(`${result.signature}: ${update.status} ${JSON.stringify(update.error, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))}`);
@@ -52,6 +54,18 @@ async function finalized(result: NativeTxResult): Promise<string> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Poll the cluster until the signature is FINALIZED (root), max ~90 s on the local validator. */
+async function awaitFinalized(connection: Connection, signature: string): Promise<void> {
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    const { value } = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const status = value[0];
+    if (status?.err) throw new Error(`${signature} failed: ${JSON.stringify(status.err)}`);
+    if (status?.confirmationStatus === 'finalized') return;
+    await sleep(500);
+  }
+  throw new Error(`${signature} not finalized within the wait`);
+}
 
 describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a round on the local cluster', () => {
   it('insolvent payout -> candidates -> randomized selection -> promotion -> finalize -> open in the next round', async () => {
@@ -71,14 +85,14 @@ describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a rou
     expect(position.principal).toBe(BigInt(LAMPORTS_PER_SOL));
 
     // 1. The CloseRecord must exist before a closing payout; the owner provisions it (caller-funded).
-    await finalized(await client.provisionCloseRecord({ closeId, funding: 'Caller' }));
+    await confirmed(await client.provisionCloseRecord({ closeId, funding: 'Caller' }));
     expect(await client.readCloseRecord(closeId)).not.toBeNull();
 
     // 2. Ten days of accrual on 1 SOL (~1.1 SOL owed) against a 0.1-SOL pot: the payout is insolvent
     //    and closes the round; the owner receives the pot net of Carried Interest.
     const ownerBefore = await connection.getBalance(owner.publicKey);
     const payout = await client.withdrawSimple({ nonce: 1n, minimumReceive: 0n, maxWorkContribution: 0n });
-    await finalized(payout);
+    await confirmed(payout);
     const close1 = (await client.readCloseRecord(closeId))!;
     expect(close1.participantCount).toBe(1n);
     const pool1 = (await client.readPool())!;
@@ -89,13 +103,13 @@ describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a rou
     // 3. Candidate pages for both sets, then build_candidates until the digests are sealed.
     for (const setTag of [0, 1]) {
       for (let index = 0n; index < BigInt(Math.max(1, Number(close1.requiredPagesPerSet))); index += 1n) {
-        await finalized(await client.provisionPage({ page: { kind: 'Candidate', closeId, setTag }, index, funding: 'Caller' }));
+        await confirmed(await client.provisionPage({ page: { kind: 'Candidate', closeId, setTag }, index, funding: 'Caller' }));
       }
     }
     let close = (await client.readCloseRecord(closeId))!;
     let builds = 0;
     while (!close.sealed && builds < 6) {
-      await finalized(await client.buildCandidates({ closeId, rows: 8 }));
+      await confirmed(await client.buildCandidates({ closeId, rows: 8 }));
       close = (await client.readCloseRecord(closeId))!;
       builds += 1;
     }
@@ -103,14 +117,14 @@ describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a rou
     expect(close.preferredCount + close.fallbackCount).toBeGreaterThan(0n);
 
     // 4. Randomness: request through ORAO, the local oracle fulfils, capture.
-    await finalized(await client.requestDraw({ closeId }));
+    await confirmed(await client.requestDraw({ closeId }));
     close = (await client.readCloseRecord(closeId))!;
     expect(close.drawState).toBe(DRAW_STATE.Requested);
     let captured = false;
     for (let attempt = 0; attempt < 20 && !captured; attempt += 1) {
       await sleep(2_000);
       try {
-        await finalized(await client.captureDraw({ closeId }));
+        await confirmed(await client.captureDraw({ closeId }));
         captured = true;
       } catch (error) {
         if (!String(error).includes('6043') && !String(error).includes('RequestNotFulfilled')) throw error;
@@ -121,8 +135,9 @@ describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a rou
     expect(close.drawState).toBe(DRAW_STATE.Captured);
 
     // 5. Promotion (the only candidate is the closing owner), then finalize: round + 1.
-    await finalized(await client.applyPromotion({ closeId }));
-    await finalized(await client.finalizeRound({ closeId }));
+    await confirmed(await client.applyPromotion({ closeId }));
+    const finalizeTx = await client.finalizeRound({ closeId });
+    await confirmed(finalizeTx);
     const pool2 = (await client.readPool())!;
     expect(pool2.roundId).toBe(round + 1n);
     expect(pool2.currentCloseId).toBeNull();
@@ -130,12 +145,15 @@ describe.skipIf(!RPC || !OWNER_KEYPAIR)('native adapter closes and reopens a rou
     expect(closeFinal.finalized).toBe(true);
 
     // 6. The next round opens: participant page 0 of the new round, then a fresh position.
-    await finalized(await client.provisionPage({ page: { kind: 'Participant', round: pool2.roundId }, index: 0n, funding: 'Caller' }));
+    await confirmed(await client.provisionPage({ page: { kind: 'Participant', round: pool2.roundId }, index: 0n, funding: 'Caller' }));
     const open = await client.openPosition({ plan: 'Simple', gross: 100_000_000n });
-    await finalized(open);
+    await confirmed(open);
     const reopened = await client.readPosition(owner.publicKey.toBase58(), open.nonce!);
     expect(reopened).not.toBeNull();
     expect(reopened!.roundId).toBe(pool2.roundId);
-    console.log(`LOCAL_CLUSTER_CLOSE payout=${payout.signature} builds=${builds} promoted=${JSON.stringify(closeFinal.promotion, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))} round=${pool2.roundId} reopen=${open.signature}`);
+    // Finality for the closing payout and the round finalization (the ladder's last step, ~32 slots).
+    await awaitFinalized(connection, payout.signature);
+    await awaitFinalized(connection, finalizeTx.signature);
+    console.log(`LOCAL_CLUSTER_CLOSE finalized=[payout,finalize_round] payout=${payout.signature} builds=${builds} promoted=${JSON.stringify(closeFinal.promotion, (_k, v) => (typeof v === 'bigint' ? v.toString() : v))} round=${pool2.roundId} reopen=${open.signature}`);
   }, 240_000);
 });

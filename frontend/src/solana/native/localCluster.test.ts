@@ -45,7 +45,9 @@ async function airdrop(connection: Connection, to: Keypair, sol: number) {
   await connection.confirmTransaction({ signature, ...latest }, 'confirmed');
 }
 
-async function finalized(result: NativeTxResult): Promise<string> {
+/** Wait until the cluster CONFIRMS the transaction (the ladder's `confirmed` step; `finalized`
+ *  follows ~32 slots later). Named for what it waits for; `awaitFinalized` below waits for finality. */
+async function confirmed(result: NativeTxResult): Promise<string> {
   for await (const update of result.status$) {
     if (update.status === 'failed' || update.status === 'expired') {
       throw new Error(`${result.signature}: ${update.status} ${JSON.stringify(update.error)}`);
@@ -56,6 +58,18 @@ async function finalized(result: NativeTxResult): Promise<string> {
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Poll the cluster until the signature is FINALIZED (root), max ~90 s on the local validator. */
+async function awaitFinalized(connection: Connection, signature: string): Promise<void> {
+  for (let attempt = 0; attempt < 180; attempt += 1) {
+    const { value } = await connection.getSignatureStatuses([signature], { searchTransactionHistory: true });
+    const status = value[0];
+    if (status?.err) throw new Error(`${signature} failed: ${JSON.stringify(status.err)}`);
+    if (status?.confirmationStatus === 'finalized') return;
+    await sleep(500);
+  }
+  throw new Error(`${signature} not finalized within the wait`);
+}
 
 describe('MC_LOCAL_RPC loopback guard', () => {
   it('refuses a non-loopback RPC before anything is signed or sent', () => {
@@ -83,7 +97,7 @@ describe.skipIf(!RPC)('native adapter against the local cluster', () => {
     // 1. Open a 1-SOL Simple position: 4 % Front-End Load to management, 96 % to the pot.
     const open = await client.openPosition({ plan: 'Simple', gross: BigInt(LAMPORTS_PER_SOL) });
     expect(open.nonce).not.toBeNull();
-    await finalized(open);
+    await confirmed(open);
     const position = await client.readPosition(owner.publicKey.toBase58(), open.nonce!);
     expect(position).not.toBeNull();
     expect(position!.principal).toBe(BigInt(LAMPORTS_PER_SOL));
@@ -96,14 +110,14 @@ describe.skipIf(!RPC)('native adapter against the local cluster', () => {
     //    Carried Interest goes straight to the seed and no ticket starts.
     await sleep(4_000);
     const payout1 = await client.withdrawSimple({ nonce: open.nonce!, minimumReceive: 0n, maxWorkContribution: 0n });
-    await finalized(payout1);
+    await confirmed(payout1);
     const pool2 = (await client.readPool())!;
     expect(pool2.seed).toBeGreaterThan(pool1.seed);
     expect(pool2.activeTicket).toBe(0n);
 
     // 3. Series A funding by a second wallet (minimum 0.05 SOL; entitlement 124 %).
     const fund = await backerClient.fundSeriesA({ gross: BigInt(50_000_000) });
-    await finalized(fund);
+    await confirmed(fund);
     const backerAccount = await backerClient.readBacker(backer.publicKey.toBase58(), 0);
     expect(backerAccount).not.toBeNull();
     expect(backerAccount!.entitlement).toBe(BigInt(62_000_000));
@@ -114,13 +128,13 @@ describe.skipIf(!RPC)('native adapter against the local cluster', () => {
     //    phases run through advancePhase until the ticket is IDLE again.
     await sleep(6_000);
     const payout2 = await client.withdrawSimple({ nonce: open.nonce!, minimumReceive: 0n, maxWorkContribution: 0n });
-    await finalized(payout2);
+    await confirmed(payout2);
     let ticket = (await client.readTicket())!;
     const started = ticket.phase !== TICKET_PHASE.Idle;
     let steps = 0;
     while (ticket.phase !== TICKET_PHASE.Idle && steps < 12) {
       const step = await client.advancePhase({ rows: 8 });
-      await finalized(step);
+      await confirmed(step);
       ticket = (await client.readTicket())!;
       steps += 1;
     }
@@ -132,10 +146,13 @@ describe.skipIf(!RPC)('native adapter against the local cluster', () => {
     // 5. The Backer claims its finalized credit.
     if (pool4.fundedClaims > 0n) {
       const claim = await backerClient.claimBacker({});
-      await finalized(claim);
+      await confirmed(claim);
       const pool5 = (await client.readPool())!;
       expect(pool5.fundedClaims).toBe(0n);
     }
-    console.log(`LOCAL_CLUSTER open=${open.signature} payout1=${payout1.signature} fund=${fund.signature} payout2=${payout2.signature} ticketStarted=${started} steps=${steps}`);
+    // Finality (not just confirmation) for the two transactions that move the owner's and the Backer's funds.
+    await awaitFinalized(connection, open.signature);
+    await awaitFinalized(connection, payout2.signature);
+    console.log(`LOCAL_CLUSTER finalized=[open,payout2] open=${open.signature} payout1=${payout1.signature} fund=${fund.signature} payout2=${payout2.signature} ticketStarted=${started} steps=${steps}`);
   }, 180_000);
 });
