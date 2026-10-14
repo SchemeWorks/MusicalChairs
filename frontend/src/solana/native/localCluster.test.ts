@@ -19,6 +19,14 @@ import { TICKET_PHASE, type NativeTxResult } from './types';
 
 const RPC = process.env.MC_LOCAL_RPC;
 
+/** Only an owned loopback validator may ever receive a signed transaction from this test. */
+function assertLoopback(url: string): void {
+  const host = new URL(url).hostname;
+  if (!['127.0.0.1', 'localhost', '[::1]', '::1'].includes(host)) {
+    throw new Error(`MC_LOCAL_RPC must be a loopback validator, got ${host}`);
+  }
+}
+
 function keypairWallet(keypair: Keypair): NativeWallet {
   return {
     get publicKey() {
@@ -49,8 +57,17 @@ async function finalized(result: NativeTxResult): Promise<string> {
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+describe('MC_LOCAL_RPC loopback guard', () => {
+  it('refuses a non-loopback RPC before anything is signed or sent', () => {
+    expect(() => assertLoopback('https://api.mainnet-beta.solana.com')).toThrow(/loopback/);
+    expect(() => assertLoopback('http://127.0.0.1:8899')).not.toThrow();
+    expect(() => assertLoopback('http://localhost:8899')).not.toThrow();
+  });
+});
+
 describe.skipIf(!RPC)('native adapter against the local cluster', () => {
   it('opens, pays out, funds Series A, runs the allocation ticket and claims through the real program', async () => {
+    assertLoopback(RPC!);
     const connection = new Connection(RPC!, 'confirmed');
     const owner = Keypair.generate();
     const backer = Keypair.generate();

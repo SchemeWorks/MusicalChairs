@@ -282,7 +282,11 @@ fn oracle(url: &str, keys_dir: &Path) {
     let network_state = orao::state::network_state::NetworkState::find_address(&orao::id()).0;
     let (rng_authority, _) = provider::rng_authority_address();
     let client = provider::client_address().0;
-    println!("oracle: fulfil authority {} polling {url}", authority.pubkey());
+    // The oracle's payer only pays fees; top it up from the local faucet when it is (nearly) empty.
+    if rpc.get_balance(&payer.pubkey()).unwrap_or(0) < 1_000_000_000 {
+        airdrop(&rpc, &payer.pubkey(), 10_000_000_000);
+    }
+    println!("oracle: fulfil authority {} payer {} polling {url}", authority.pubkey(), payer.pubkey());
     loop {
         let pool_data = rpc.get_account_data(&pda(&[state::POOL_SEED]).0).expect("pool");
         let pool = state::Pool::try_deserialize(&mut &pool_data[..]).expect("pool decode");
@@ -332,15 +336,81 @@ fn status(url: &str) {
     );
 }
 
+/// Export a deterministic CLOSING world as validator genesis accounts (IMPL-46d,
+/// Codex M11 checkpoint): the harness `World` builds — in LiteSVM, with the same
+/// production ELF — genesis + the real ORAO provider setup + one 1-SOL Simple
+/// position opened TEN DAYS before wall time over a 0.1-SOL pot (the harness'
+/// `set_pot_fixture`, a labelled synthetic reduction), so the owner's first
+/// payout on the validator is insolvent and closes the round today.  Every
+/// program / ORAO / Squads account of that world is written as `--account`
+/// JSON; the validator starts from them directly (no `genesis` step).  The
+/// owner keypair is written to `<keys>/owner.json` for the browser's dev-only
+/// local wallet.  Synthetic fixture setup, not a deployment rehearsal.
+fn export_closing_fixture(out: &Path, keys_dir: &Path) {
+    use musical_chairs_financial_runtime::{close::provider_keys, world::World};
+    use musical_chairs_program::positions::PlanKindArg;
+    fs::create_dir_all(out).expect("out dir");
+    fs::create_dir_all(keys_dir).expect("keys dir");
+    let wall_now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).expect("clock").as_secs();
+    let opened_at = wall_now - 10 * 86_400;
+    let mut world = World::genesis_with_provider();
+    let setup = world.provider_setup();
+    assert!(setup.iter().all(|o| o.success), "ORAO provider setup in LiteSVM");
+    // The World's own clock starts after wall-time-minus-ten-days, so the open runs under a
+    // backdated Clock sysvar (the harness' backdated-clock probe): the position's opened_at /
+    // last_accrued_at are the backdated time, which is what the validator's real clock accrues from.
+    let owner = world.owner();
+    world.backdate_clock(opened_at);
+    world.open_position("fixture-open", &owner, PlanKindArg::Simple, 1_000_000_000, 1).expect("fixture open_position");
+    world.restore_clock();
+    world.set_pot_fixture(100_000_000);
+    // Operations free balance funds the close reserve at the closing payout (the harness World's
+    // genesis carries none; the real `genesis` subcommand funds 5 SOL the same way).
+    world.set_ops_free(5_000_000_000);
+    write_keypair(&keys_dir.join("owner.json"), &owner);
+    let fulfill_authority = read_or_create_keypair(&keys_dir.join("fulfill-authority.json"), Some(FULFILL_AUTHORITY_SEED));
+    let pk = provider_keys();
+    let rt = &world.rt;
+    let owner_key = owner.pubkey();
+    let named: Vec<(&str, Pubkey)> = vec![
+        ("pool", rt.pool_address()), ("admission", rt.admission_address()), ("game_vault", rt.game_vault_address()), ("ops", rt.ops_address()),
+        ("ops_cash", rt.ops_cash_address()), ("ticket", rt.ticket_address()), ("rng_authority", rt.rng_authority_address()), ("config_1", rt.config_address(1)),
+        ("participant_page_1_0", rt.participant_address(1, 0)), ("registry_0", rt.registry_address(0)), ("snapshot_0", rt.snapshot_address(0)),
+        ("user_owner", rt.user_address(owner_key)), ("user_round_1_owner", rt.user_round_address(1, owner_key)), ("position_owner_1", rt.position_address(owner_key, 1)),
+        ("orao_network_state", pk.network_state), ("orao_client", pk.client), ("orao_treasury", pk.treasury),
+        ("multisig_g", rt.g_multisig()), ("multisig_p", rt.p_multisig()), ("g_vault", rt.g_vault()),
+    ];
+    let mut args = String::from("--reset --quiet --rpc-port 8899 --faucet-port 9900 \\\n  --upgradeable-program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 <PROGRAM_SO> ");
+    args.push_str(&format!("{} \\\n  --bpf-program {SQUADS_PROGRAM_ID} <STANDIN_SO> \\\n  --bpf-program {} <ORAO_SO>", rt.g_vault(), orao::id()));
+    let mut manifest = Vec::new();
+    for (name, key) in named {
+        let Some(account) = rt.svm.get_account(&key) else { println!("skip {name} ({key}): absent in the world"); continue };
+        let b64 = base64::engine::general_purpose::STANDARD.encode(&account.data);
+        let json = format!(
+            "{{\n  \"pubkey\": \"{key}\",\n  \"account\": {{\n    \"lamports\": {},\n    \"data\": [\"{b64}\", \"base64\"],\n    \"owner\": \"{}\",\n    \"executable\": false,\n    \"rentEpoch\": 0,\n    \"space\": {}\n  }}\n}}\n",
+            account.lamports, account.owner, account.data.len()
+        );
+        let file = out.join(format!("{name}.json"));
+        fs::write(&file, json).expect("account json");
+        args.push_str(&format!(" \\\n  --account {key} {}", file.display()));
+        manifest.push(format!("{name} {key} owner={} lamports={} bytes={}", account.owner, account.lamports, account.data.len()));
+    }
+    args.push('\n');
+    fs::write(out.join("validator-args.txt"), &args).expect("args");
+    fs::write(out.join("manifest.txt"), format!("closing fixture exported at wall {wall_now}; position opened_at {opened_at} (wall - 10 days); pot fixture 100,000,000; owner {owner_key}; fulfil authority {}\n{}\n", fulfill_authority.pubkey(), manifest.join("\n"))).expect("manifest");
+    println!("exported {} accounts to {}\nowner {} (secret in {}/owner.json)\nvalidator args:\n{args}", manifest.len(), out.display(), owner_key, keys_dir.display());
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     match args.get(1).map(String::as_str) {
         Some("status") => status(args.get(2).expect("rpc url")),
+        Some("export-closing-fixture") => export_closing_fixture(Path::new(args.get(2).expect("out dir")), Path::new(args.get(3).expect("keys dir"))),
         Some("fixtures") => fixtures(Path::new(args.get(2).expect("out dir"))),
         Some("genesis") => genesis(args.get(2).expect("rpc url"), Path::new(args.get(3).expect("keys dir"))),
         Some("oracle") => oracle(args.get(2).expect("rpc url"), Path::new(args.get(3).expect("keys dir"))),
         _ => {
-            eprintln!("usage: local_cluster status <rpc_url> | fixtures <out_dir> | genesis <rpc_url> <keys_dir> | oracle <rpc_url> <keys_dir>");
+            eprintln!("usage: local_cluster status <rpc_url> | fixtures <out_dir> | export-closing-fixture <out_dir> <keys_dir> | genesis <rpc_url> <keys_dir> | oracle <rpc_url> <keys_dir>");
             std::process::exit(2);
         }
     }
