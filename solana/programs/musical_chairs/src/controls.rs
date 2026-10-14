@@ -15,6 +15,7 @@ use anchor_lang::solana_program::{
 
 use crate::events::{ConfigActivated, ConfigStaged, SCHEMA_VERSION};
 use crate::state::{
+    BACKER_REMAINING_CUTOFF,
     pages_for, Admission, CandidatePage, CloseRecord, ConfigVersion, GameVault, Ops, ParticipantPage,
     Pool, Promotion, RegistryPage, RentComponents, RngAuthority, SnapshotPage, SnapshotRow, Ticket,
     ADMISSION_SEED, CANDIDATES_SEED, CLOSE_SEED, CONFIG_SEED, DRAW_NOT_REQUESTED, GAME_VAULT_SEED,
@@ -142,6 +143,23 @@ impl ConfigTerms {
         require!(
             self.quota_count == QUOTA_CALLS
                 && u64::from(self.quota_window_s) == QUOTA_WINDOW_SECS,
+            crate::ErrorCode::InvalidState
+        );
+        // Five more rule values are consumed by fixed helpers rather than read
+        // from the config, so a staged configuration may only restate them
+        // (Codex M6 follow-up to the M5 caveat): the Simple rate (economics
+        // hard-codes 11%/day and `simple_owed` rejects any other pinned rate
+        // after activation), the A/B entitlement multipliers
+        // (`fees::series_a_entitlement` 124% / `series_b_entitlement` 116%),
+        // the seed half (`fold_slices` takes toll/2) and the open-registry
+        // cutoff (`BACKER_REMAINING_CUTOFF` = 10). Anything else would be
+        // accepted at staging and then ignored or unusable.
+        require!(
+            self.plan_rates_bps_per_day[0] == 1_100
+                && self.a_entitlement_bps == 12_400
+                && self.b_entitlement_bps == 11_600
+                && self.seed_bps == 5_000
+                && u128::from(self.open_cutoff) == BACKER_REMAINING_CUTOFF,
             crate::ErrorCode::InvalidState
         );
         require!(
@@ -2092,22 +2110,16 @@ mod tests {
         let mut later = terms();
         later.effective_round_id = 9;
         later.front_end_load_bps = 0;
-        later.seed_bps = 0;
         later.a_bps = 5_000;
         later.b_bps = 1_500;
         later.provider_fee_headroom_bps = 10_000;
         later.public_series_a_enabled = true;
         later.validate().unwrap();
-
-        // `seed_bps` is range-checked, not pinned to the launch value.
-        let mut full_seed = terms();
-        full_seed.seed_bps = 10_000;
-        full_seed.validate().unwrap();
     }
 
     #[test]
     fn config_terms_reject_each_bound_once() {
-        let cases: [(&str, fn(&mut ConfigTerms)); 31] = [
+        let cases: [(&str, fn(&mut ConfigTerms)); 41] = [
             ("plan rate over 100%", |t| t.plan_rates_bps_per_day[0] = 10_001),
             ("simple toll over 100%", |t| t.simple_toll_bps[2] = 10_001),
             ("jackpot over 100%", |t| t.jackpot_bps[1] = 10_001),
@@ -2142,6 +2154,18 @@ mod tests {
             ("quota count two", |t| t.quota_count = 2),
             ("quota window one second short", |t| t.quota_window_s = 3_599),
             ("quota window one second long", |t| t.quota_window_s = 3_601),
+            // Consumed by fixed helpers; staging may only restate them (Codex
+            // M6 follow-up): any other value would be ignored or unusable.
+            ("simple rate one bps low", |t| t.plan_rates_bps_per_day[0] = 1_099),
+            ("simple rate one bps high", |t| t.plan_rates_bps_per_day[0] = 1_101),
+            ("a entitlement one bps low", |t| t.a_entitlement_bps = 12_399),
+            ("a entitlement one bps high", |t| t.a_entitlement_bps = 12_401),
+            ("b entitlement one bps low", |t| t.b_entitlement_bps = 11_599),
+            ("b entitlement one bps high", |t| t.b_entitlement_bps = 11_601),
+            ("seed half one bps low", |t| t.seed_bps = 4_999),
+            ("seed half full toll", |t| t.seed_bps = 10_000),
+            ("open cutoff nine", |t| t.open_cutoff = 9),
+            ("open cutoff eleven", |t| t.open_cutoff = 11),
         ];
         for (name, mutate) in cases {
             let mut candidate = terms();

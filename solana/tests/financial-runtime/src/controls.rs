@@ -1944,6 +1944,26 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
     rig.rejected_program(&observation, ErrorCode::InvalidState);
     observations.push(observation);
 
+    // Five more fields are consumed by fixed helpers (Simple rate, A/B
+    // entitlement multipliers, seed half, open cutoff); a staged value other
+    // than the frozen one is rejected at staging with fee-only rollback
+    // (Codex M6 follow-up).
+    let pinned: [(&str, fn(&mut ConfigTerms)); 5] = [
+        ("noncanonical_simple_rate", |t| t.plan_rates_bps_per_day[0] = 1_000),
+        ("noncanonical_a_entitlement", |t| t.a_entitlement_bps = 12_000),
+        ("noncanonical_b_entitlement", |t| t.b_entitlement_bps = 12_000),
+        ("noncanonical_seed_half", |t| t.seed_bps = 4_000),
+        ("noncanonical_open_cutoff", |t| t.open_cutoff = 100),
+    ];
+    for (variant, mutate) in pinned {
+        let mut altered = terms(2);
+        mutate(&mut altered);
+        let instruction = stage_ix(&rig.rt, g_multisig, g_vault, 2, altered);
+        let observation = rig.via_g(label(ROW_STAGE_CONFIG, variant), instruction, &[]);
+        rig.rejected_program(&observation, ErrorCode::InvalidState);
+        observations.push(observation);
+    }
+
     // G stages version 2 for round 2.
     let free_before = rig.ops().free_balance;
     let rent_funded_before = rig.ops().total_rent_funded;
