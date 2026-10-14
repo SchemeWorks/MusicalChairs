@@ -313,14 +313,34 @@ fn oracle(url: &str, keys_dir: &Path) {
     }
 }
 
+/// Decoded Pool / Ops / Ticket summary of the running cluster (read-only).
+fn status(url: &str) {
+    let rpc = RpcClient::new_with_commitment(url.to_string(), CommitmentConfig::confirmed());
+    let pool_data = rpc.get_account_data(&pda(&[state::POOL_SEED]).0).expect("pool");
+    let pool = state::Pool::try_deserialize(&mut &pool_data[..]).expect("pool decode");
+    let ops_data = rpc.get_account_data(&pda(&[state::OPS_SEED]).0).expect("ops");
+    let ops = state::Ops::try_deserialize(&mut &ops_data[..]).expect("ops decode");
+    let ticket_data = rpc.get_account_data(&pda(&[state::TICKET_SEED]).0).expect("ticket");
+    let ticket = state::Ticket::try_deserialize(&mut &ticket_data[..]).expect("ticket decode");
+    let vault = rpc.get_balance(&pda(&[state::GAME_VAULT_SEED]).0).expect("vault");
+    let cash = rpc.get_balance(&pda(&[state::OPS_CASH_SEED]).0).expect("ops cash");
+    println!(
+        "slot {}\npool: round_id {} active_config {} participant_count {} registry_len {} snapshot_pages {} next_close_id {} next_ticket {} active_ticket {}\n      pot {} seed {} management {} pending_toll {} funded_claims {} excess {}  (vault lamports {})\nops:  free {} locked {} unallocated_excess {}  (cash lamports {})\nticket: id {} phase {}",
+        rpc.get_slot().unwrap_or(0), pool.round_id, pool.active_config_version, pool.participant_count, pool.registry_len, pool.snapshot_pages, pool.next_close_id, pool.next_ticket, pool.active_ticket,
+        pool.pot, pool.seed, pool.management, pool.pending_toll, pool.funded_claims, pool.excess, vault,
+        ops.free_balance, ops.locked_remaining_total, ops.unallocated_excess, cash, ticket.id, ticket.phase
+    );
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
     match args.get(1).map(String::as_str) {
+        Some("status") => status(args.get(2).expect("rpc url")),
         Some("fixtures") => fixtures(Path::new(args.get(2).expect("out dir"))),
         Some("genesis") => genesis(args.get(2).expect("rpc url"), Path::new(args.get(3).expect("keys dir"))),
         Some("oracle") => oracle(args.get(2).expect("rpc url"), Path::new(args.get(3).expect("keys dir"))),
         _ => {
-            eprintln!("usage: local_cluster fixtures <out_dir> | genesis <rpc_url> <keys_dir> | oracle <rpc_url> <keys_dir>");
+            eprintln!("usage: local_cluster status <rpc_url> | fixtures <out_dir> | genesis <rpc_url> <keys_dir> | oracle <rpc_url> <keys_dir>");
             std::process::exit(2);
         }
     }
