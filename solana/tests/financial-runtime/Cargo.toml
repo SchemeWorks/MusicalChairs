@@ -15,6 +15,9 @@ serde_json = "=1.0.149"
 sha2 = "=0.10.9"
 solana-loader-v3-interface = { version = "=3.0.0", features = ["bincode"] }
 solana-sdk-ids = "=2.2.1"
+# local-cluster bootstrap binary (M11 browser verification) only: RPC client + base64 for the validator account fixtures
+solana-rpc-client = "=2.3.1"
+base64 = "=0.22.1"
 musical-chairs-program = { path = "../../programs/musical_chairs", features = ["no-entrypoint"] }
 musical-chairs-economics = { path = "../../crates/economics" }
 
