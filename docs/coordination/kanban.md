@@ -145,3 +145,22 @@ User authorized cheaper agents for local compute/account/provider probes and gra
 - Two final native Luna source/evidence reviewers returned PASS for the bounded runtime contract after request-binding/deadline and failure-class corrections. Independent graph reviewer returned PASS: 7,149 nodes, 9,594 directed relationships, 21 hyperedges; 44 source pins and all prior base records preserved.
 - Graphify AST refresh plus scoped native semantic extraction covers 12 sources. Four inferred links connect encoded SVM tests/probe handlers to their contracts; no fabricated SDK calls. Whole-repository/legacy freshness remains historical. [Graph receipt](../solana/evidence/2026-10-13-runtime-graph-refresh.json).
 - No live wallet/signing/broadcast, deployment, governance, funds movement, frontend change or branch merge. Runtime CI execution is not claimed; these are reproducible local gates and independent source/evidence reviews.
+
+## Production account/payout/allocation pass — 2026-10-13
+
+User authorizes production accounts and payout/allocation source plus local testing/graph maintenance; still no deployment. Reuse attached worktree on `codex/native-solana-accounts-payouts`, baseline `c99a636b9f040c9bf0d18d3698328d9bbd33b7b2`; PR123/124 remain open. Native `gpt-5.6-luna` workers explicitly selected. Root owns interfaces/manifests/locks/one build executor/shared docs and graph. Preserve primary checkout untracked files and all frontend/ICP code. Synthetic local actors and in-process transfers are test fixtures, never live wallet/funds authority. No external repository-content providers.
+
+| ID | State | Owner | Task / scope | Acceptance / dependency |
+| --- | --- | --- | --- | --- |
+| SOL-41 | Review | `/root/production_account_contract` (Luna) | account/PDA/custody/init contract, temp handoff | fixed layouts, authenticated first init, no population cap; coordinator freezes shared ABI |
+| SOL-42 | Review | `/root/production_payout_contract` (Luna) | economic payout/admission mapping, temp handoff | exact host parity and actual transfer partitions, nonce/quota/minimum and close barrier |
+| SOL-43 | Review | `/root/production_allocation_contract` (Luna) | bounded allocation/registry/snapshot design, temp handoff | six phases, descending prune, lazy watermark and constant commit |
+| SOL-44 | Ready | state worker (pending) | production state/PDA types and account codecs | coordinator schema freeze; serialization widths/layout tests |
+| SOL-45 | Ready | controls worker (pending) | authenticated init, operations/management, guardian controls | real program accounts/cash movement, threshold profile checks, conserved reserves |
+| SOL-46 | Ready | payout worker (pending) | open/A funding and owner payout instructions | schema/helpers frozen, host vectors, actual SBF transfers/rollback |
+| SOL-47 | Ready | allocation worker (pending) | discover/senior/seal/allocate/prune/commit/claims | schema/helpers frozen, chunk and membership parity, real funds custody |
+| SOL-48 | Ready | test worker; coordinator | actual program SBF/LiteSVM tests and measurements | failing financial tests before handler implementation; one coordinated build executor |
+| SOL-49 | Ready | independent reviewers; coordinator | source/financial/account review and evidence | deterministic local gates then independent high-stakes review; no readiness shortcut |
+| SOL-50 | Ready | graph worker; coordinator | AST + semantic refresh and preservation | retained current base7149/9594/21, portable identities/source pins, exact-ID paths |
+
+Scope includes production account source and the admission/payout/allocation tranche. Production provider/candidate/promotion integration, GUI, ICP bridge, actual Squads execution/loader deployment and launch funding remain later roadmap work; no claim that this tranche alone is a launchable whole game. Source-close barriers must preserve all financial state and remain compatible with the accepted fixed-deadline recovery contract. Optional modernization or economic redesign does not become a required gate.
