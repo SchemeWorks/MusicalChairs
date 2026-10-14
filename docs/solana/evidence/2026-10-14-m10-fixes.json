@@ -156,6 +156,7 @@
  "limits": [
   "LiteSVM 0.7.1 at local default rent; not a cluster measurement",
   "the rent-ratchet row drives the Rent sysvar directly (1/10 then restored) — a schedule change the cluster has never performed upward",
-  "Linux CI for the fixed ELF is the run of the fix commit (recorded in the M10 handoff)"
+  "ECO-3 runtime row covers sync_game (GameVault, pool.excess); sync_ops carries the identical floating-residual change with source proof and the existing OpsCash donation/shortfall rows, but no separate rent-cycle SBF row (narrow limit, disclosed per the Codex M10 review)",
+  "Linux CI for the fixed ELF is the run of commits 7c3d84a/f132fd4 (recorded in the M10 handoff once green); cross-path/host bytes may differ from 8f97e83d… with the exact cause unverified; source set and lock are asserted"
  ]
 }

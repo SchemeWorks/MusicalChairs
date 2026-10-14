@@ -138,7 +138,10 @@ jobs:
         # programs/musical_chairs/idl/musical_chairs.json (M10 review SEC-8).
         env:
           MC_IDL_TOOL_TARGET_DIR: ${{ env.TOOLS }}/idl-tool-target
-        run: bash solana/scripts/check-idl.sh
+        # gen-idl.sh refuses to run without CARGO_HOME (it is the pinned registry cache); the
+        # workflow never declared one, so name the runner's standard cargo home explicitly
+        # (Codex M10 review). Locked generation + byte diff against the committed IDL.
+        run: CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" bash solana/scripts/check-idl.sh
       - name: Run the LiteSVM harness on the fresh artifact
         env:
           MC_FINANCIAL_SBF: ${{ env.TOOLS }}/sbf-output/musical_chairs_program.so

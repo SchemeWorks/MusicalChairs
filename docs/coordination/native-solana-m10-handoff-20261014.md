@@ -75,10 +75,13 @@ repairs: `8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826` (1,3
 ## Caveats a reviewer should know
 
 - Linux CI for the fixed ELF is the run of commit `7c3d84a` / this commit (pins updated together); the
-  Linux ELF will differ from `8f97e83d…` by the known path-derived metadata, with source set `994a9ff4…`
-  and lock `77f859f9…` asserted.
+  Linux ELF bytes may differ from `8f97e83d…` (cross-path/host builds of equal source sets have differed since
+  M7; the exact cause is unverified and no reproducibility experiment is planned), with source set
+  `994a9ff4…` and lock `77f859f9…` asserted.
 - The rent-ratchet row drives the Rent sysvar to one tenth and back; the cluster has never raised the
-  rent floor. LiteSVM still skips rent-state checks for data-less accounts (`tests/transfer_constraints.rs`).
+  rent floor. It exercises the GameVault path (`sync_game`, `pool.excess`); the OpsCash twin (`sync_ops`,
+  `unallocated_excess`) has the same source change plus the existing donation/shortfall rows but no separate
+  rent-cycle SBF row — disclosed as a narrow limit, not a blocker. LiteSVM still skips rent-state checks for data-less accounts (`tests/transfer_constraints.rs`).
 - `cargo fmt --check` shows pre-existing drift in `programs/musical_chairs/src/{allocation,close}.rs` and
   `financial-runtime/src/close.rs` on lines nobody touched in this tranche; CI does not fmt-check those
   crates. Tidy at the next program change (it alters the source set).
