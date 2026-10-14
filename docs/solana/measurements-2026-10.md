@@ -101,7 +101,7 @@ Three open Series A rows are capped and pruned by every ticket (the senior slice
 
 ## 3. Dust claims (owed 1–10 lamports)
 
-Claims of 1..=10 lamports to a rent-exempt destination: 28,099 CU / 514 B each. To a fresh zero-lamport destination LiteSVM accepts every claim (yes); the cluster would refuse them under the rent-state rule and the credit would stay claimable (not asserted locally; see `tests/transfer_constraints.rs`). Finding M9-F1: `claim_backer` has no deliverability preflight (same class as M8-F1).
+Claims of 1..=10 lamports to a rent-exempt destination: 28,099 CU / 514 B each. To a fresh zero-lamport destination LiteSVM accepts every claim (yes); the cluster would refuse them under the rent-state rule and the credit would stay claimable (not asserted locally; see `tests/transfer_constraints.rs`). Finding M9-F1: `claim_backer` has no deliverability preflight (same class as M8-F1). **M9-F1 (decided by Codex, M9 review): accepted and documented, no new deliverability mechanism and no cash-progress gate.** `claim_backer` credits with `validate_destination` only; when the cluster rule refuses the credit the whole transaction fails, the program state is unchanged and the credit remains claimable to a fundable destination — the same accepted limitation as page cleanup (M8-F1). The rule is source-backed (Agave `transition_allowed`, pinned against `credit_is_deliverable` in `tests/transfer_constraints.rs`); the local LiteSVM runtime does not enforce it for data-less accounts, so the refusal is not observable here.
 
 ## 4. Full close path, M = 100 participants
 
@@ -150,6 +150,18 @@ The inline step is implemented as an opt-in: a non-closing `withdraw_simple`/`se
 | 6 | 992 | 24 | 18 | 127,835 | 5,720,039 | 7,479,961 |
 | 7 | 1,025 | 25 | 19 | 137,517 | 5,720,038 | 7,479,962 |
 | 8 | 1,058 | 26 | 20 | 147,005 | 5,940,038 | 7,259,962 |
+
+
+The second inline entry point, a matured `settle_compounding` (Codex M9 correction 1; same ELF, `tests/inline_alloc.rs::matured_compounding_inline_settlement_equals_the_chunked_ticket_for_both_plans`), is byte-identical to its chunked ticket as well and carries the Jackpot toll (`PayoutPaid.toll == gross × jackpot_bps / 10,000`, pins 900 / 1,300 bps; Compound15 402,620,918 as in the positions suite). Pot fixture 100 SOL so both plans stay solvent (a 10-SOL pot routes Compound30 to the closing path, `PageNotProvisioned`); malformed layouts are refused fee-only and the well-formed retry settles:
+
+| plan | N | packet B | keys | writable | CU | gross | Jackpot toll | net | credited | seed |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| compound15 | 1 | 827 | 19 | 13 | 82,013 | 4,473,565,759 | 402,620,918 | 4,070,944,841 | 201,310,457 | 201,310,461 |
+| compound15 | 4 | 926 | 22 | 16 | 109,166 | 4,473,565,759 | 402,620,918 | 4,070,944,841 | 181,179,430 | 221,441,488 |
+| compound15 | 8 | 1058 | 26 | 20 | 146,535 | 4,473,565,759 | 402,620,918 | 4,070,944,841 | 181,179,448 | 221,441,470 |
+| compound30 | 1 | 827 | 19 | 13 | 82,031 | 12,267,678,469 | 1,594,798,200 | 10,672,880,269 | 797,399,100 | 797,399,100 |
+| compound30 | 4 | 926 | 22 | 16 | 109,184 | 12,267,678,469 | 1,594,798,200 | 10,672,880,269 | 717,659,209 | 877,138,991 |
+| compound30 | 8 | 1058 | 26 | 20 | 146,553 | 12,267,678,469 | 1,594,798,200 | 10,672,880,269 | 717,659,229 | 877,138,971 |
 
 At N = 8 the inline payout costs 147,005 CU: under the 200k default compute budget, so no compute-budget instruction is needed (the §5 envelope estimate of 528k was conservative by design). N = 9 with accounts is refused `InvalidState`; a wrong layout is refused before any cash moves; without remaining accounts the chunked ticket starts as before.
 

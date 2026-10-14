@@ -181,3 +181,135 @@ fn nine_backers_with_accounts_is_refused_and_wrong_layouts_move_nothing() {
     w.assert_rejected(&rejected, ErrorCode::DuplicateWritableAccount);
     w.assert_fee_only(&before, &rejected);
 }
+
+// ---------------------------------------------------------------------------
+// Codex M9 correction 1 (IMPL-39c): the SECOND inline entry point.  Step 2(b)
+// exposes the inline ticket through `withdraw_simple` AND `settle_compounding`;
+// the rows above only drive the first.  A matured Compound15 / Compound30
+// settlement with the registry's accounts appended must leave exactly the
+// chunked ticket's state, carry the same Jackpot toll in `PayoutPaid` and
+// `TicketCommitted`, pay the owner the same net, record the real packet/CU,
+// and refuse a malformed remaining-account layout fee-only (the position stays
+// open and the well-formed retry succeeds).  Same production ELF; no rebuild.
+// ---------------------------------------------------------------------------
+
+use musical_chairs_program::positions::PlanKindArg;
+
+fn plan_of(name: &str) -> PlanKindArg {
+    match name {
+        "compound15" => PlanKindArg::Compound15,
+        "compound30" => PlanKindArg::Compound30,
+        other => panic!("unknown plan {other}"),
+    }
+}
+
+/// A matured compounding position (owner, nonce 1) over a pot large enough
+/// to pay it SOLVENTLY (a Compound30 gross exceeds a 10-SOL pot, which would
+/// route the payout to the closing path and need provisioned close pages:
+/// `PageNotProvisioned`), plus N fixture Backers so the Jackpot toll routes
+/// to a non-closing ticket.
+fn compounding_world(plan: &str, days: u64, n: u64, tag: &str) -> World {
+    let mut w = World::genesis_with_position(plan_of(plan), SOL).scoped("financial.inline.compounding", tag);
+    w.set_pot_fixture(100 * SOL);
+    w.install_backer_specs(&specs(n));
+    w.warp_seconds(days * DAY);
+    w
+}
+
+fn settle_ix(w: &World, extra: Vec<AccountMeta>) -> solana_sdk::instruction::Instruction {
+    let owner = w.owner().pubkey();
+    let mut ix = w.payout_instruction(PayoutKind::SettleCompounding, owner, owner, 1, 0, 0, w.dest, CloseRecordArg::Auto);
+    ix.accounts.extend(extra);
+    ix
+}
+
+#[test]
+fn matured_compounding_inline_settlement_equals_the_chunked_ticket_for_both_plans() {
+    // (plan, maturity days, Jackpot fee bps): the fee rates are the frozen
+    // `ConfigTerms` pins `jackpot_bps: [900, 1_300]` (state.rs); the
+    // Compound15 toll additionally equals the positions suite's
+    // `compound_15_maturity_vector` value 402,620,918.
+    for (plan, days, jackpot_bps) in [("compound15", 15u64, 900u64), ("compound30", 30u64, 1_300u64)] {
+        for n in [1u64, 4, 8] {
+            // Chunked reference: the settlement starts the ticket, the keeper drives it to IDLE.
+            let mut chunked = compounding_world(plan, days, n, &format!("{plan}.n{n}.chunked"));
+            let owner = chunked.owner();
+            let dest_before = chunked.lamports(chunked.dest);
+            let paid = chunked.send("settle", vec![settle_ix(&chunked, vec![])], &[&owner]).expect("chunked settlement");
+            let ev = paid.last_event::<PayoutPaid>();
+            assert!(!ev.closing, "{plan} n{n}: non-closing");
+            assert!(ev.toll > 0, "{plan} n{n}: the Jackpot toll is charged at maturity");
+            assert_eq!(ev.toll, ev.gross_paid * jackpot_bps / 10_000, "{plan} n{n}: Jackpot toll = gross × the pinned jackpot_bps");
+            if plan == "compound15" {
+                assert_eq!(ev.toll, 402_620_918, "{plan} n{n}: Jackpot toll pinned by the positions suite");
+            }
+            let reference_event = (ev.gross_paid, ev.toll, ev.net);
+            assert_eq!(chunked.lamports(chunked.dest) - dest_before, ev.net, "{plan} n{n}: owner received the net");
+            assert_eq!(chunked.ticket().phase, state::DISCOVER, "{plan} n{n}: the chunked ticket started");
+            chunked.advance_until_idle(8);
+            let reference = snap(&chunked, n);
+            assert_eq!(reference.pool.2, 0, "{plan} n{n}: the chunked ticket consumed the toll");
+
+            // Inline: the same settlement with the registry's accounts appended.
+            let mut inline = compounding_world(plan, days, n, &format!("{plan}.n{n}.inline"));
+            let owner = inline.owner();
+            let dest_before = inline.lamports(inline.dest);
+            let obs = inline.send("", vec![settle_ix(&inline, inline_metas(&inline, n))], &[&owner]).expect("inline settlement");
+            let ev = obs.last_event::<PayoutPaid>();
+            assert_eq!((ev.gross_paid, ev.toll, ev.net), reference_event, "{plan} n{n}: PayoutPaid gross / Jackpot toll / net equal the chunked run");
+            assert!(!ev.closing && ev.ticket_id != 0, "{plan} n{n}: PayoutPaid carries the committed ticket id");
+            let committed = obs.last_event::<TicketCommitted>();
+            assert_eq!(committed.ticket_id, ev.ticket_id, "{plan} n{n}: TicketCommitted for the same ticket");
+            assert_eq!(committed.toll, ev.toll, "{plan} n{n}: the committed ticket carried the whole Jackpot toll");
+            assert_eq!(inline.lamports(inline.dest) - dest_before, ev.net, "{plan} n{n}: owner received the same net");
+            assert!(inline.position(owner.pubkey(), 1).claimed, "{plan} n{n}: the position is settled");
+            assert_eq!(inline.ticket().phase, state::IDLE, "{plan} n{n}: the ticket is IDLE after the settlement");
+            let actual = snap(&inline, n);
+            assert_eq!(actual.pool, reference.pool, "{plan} n{n}: pool seed / funded_claims / pending_toll / next_ticket / registry_len");
+            assert_eq!(actual.backers, reference.backers, "{plan} n{n}: every Backer account byte-identical");
+            assert_eq!(actual.registry, reference.registry, "{plan} n{n}: registry page byte-identical");
+            assert_eq!(actual.snapshot, reference.snapshot, "{plan} n{n}: snapshot page byte-identical");
+            assert_eq!(actual.ticket, reference.ticket, "{plan} n{n}: ticket workspace byte-identical");
+            assert_eq!(actual.digest, reference.digest, "{plan} n{n}: financial state digest");
+            assert!(obs.fits_legacy_packet, "{plan} n{n}: inline settlement fits the legacy packet ({} B)", obs.packet_bytes);
+            assert!(obs.message_account_count <= 64);
+            println!(
+                "INLINE_COMPOUNDING plan={plan} n={n} packet_bytes={} keys={} writable={} cu={} gross={} toll={} net={} credited={} seed={}",
+                obs.packet_bytes,
+                obs.message_account_count,
+                obs.writable_account_count,
+                obs.compute_units.unwrap_or(0),
+                ev.gross_paid,
+                ev.toll,
+                ev.net,
+                committed.credited,
+                committed.seed
+            );
+        }
+
+        // Malformed layouts on the matured position move nothing and leave it open.
+        // Partial layout (Backers without the pages) → WrongAccount.
+        let mut w = compounding_world(plan, days, 4, &format!("{plan}.n4.partial"));
+        let owner = w.owner();
+        let metas: Vec<AccountMeta> = specs(4).iter().map(|s| AccountMeta::new(w.rt.backer_address(s.series, s.owner), false)).collect();
+        let before = w.snapshot_all();
+        let rejected = w.send("", vec![settle_ix(&w, metas)], &[&owner]).unwrap_err();
+        w.assert_rejected(&rejected, ErrorCode::WrongAccount);
+        w.assert_fee_only(&before, &rejected);
+        assert!(!w.position(owner.pubkey(), 1).claimed, "{plan}: the partial layout settled nothing");
+
+        // One Backer passed twice → DuplicateWritableAccount; then the well-formed inline retry succeeds.
+        let mut w = compounding_world(plan, days, 4, &format!("{plan}.n4.duplicate"));
+        let owner = w.owner();
+        let mut metas = inline_metas(&w, 4);
+        metas[1] = metas[0].clone();
+        let before = w.snapshot_all();
+        let rejected = w.send("", vec![settle_ix(&w, metas)], &[&owner]).unwrap_err();
+        w.assert_rejected(&rejected, ErrorCode::DuplicateWritableAccount);
+        w.assert_fee_only(&before, &rejected);
+        assert!(!w.position(owner.pubkey(), 1).claimed, "{plan}: the duplicate layout settled nothing");
+        w.send("", vec![settle_ix(&w, inline_metas(&w, 4))], &[&owner]).expect("well-formed retry after a malformed layout");
+        assert!(w.position(owner.pubkey(), 1).claimed, "{plan}: the retry settled the position inline");
+        assert_eq!(w.ticket().phase, state::IDLE, "{plan}: the retry committed the ticket");
+    }
+}

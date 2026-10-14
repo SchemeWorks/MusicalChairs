@@ -10,8 +10,8 @@
   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
   "pins": "docs/solana/evidence/latest-build.json",
   "lineage": [
-   "4b134d05… clippy-cleanup ELF: IMPL-39a measurements (chunk/churn/dust/full-close/envelope/keeper)",
-   "d77b23bf… IMPL-39b inline step: inline_alloc rows and the final full run"
+   "4b134d05\u2026 clippy-cleanup ELF: IMPL-39a measurements (chunk/churn/dust/full-close/envelope/keeper)",
+   "d77b23bf\u2026 IMPL-39b inline step: inline_alloc rows and the final full run"
   ]
  },
  "measure_suite": {
@@ -1631,7 +1631,7 @@
  },
  "decision_output_dr31": {
   "chunk_default_rows": 8,
-  "chunk_evidence": "every phase transaction of every N × rows run is within the legacy packet, 64 locks and compute; worst packet 756 B (N=256 rows=8 prune), worst CU 57,410 (N=256 rows=8 prune); one-row fallback executed at every N",
+  "chunk_evidence": "every phase transaction of every N \u00d7 rows run is within the legacy packet, 64 locks and compute; worst packet 756 B (N=256 rows=8 prune), worst CU 57,410 (N=256 rows=8 prune); one-row fallback executed at every N",
   "inline_threshold_envelope": 8,
   "inline_evidence": "measured envelope of a REAL payout with N Backer + page accounts appended: packet fits up to N = 8 (1,058 B, 26 keys); N = 16 is 1,388 B and N = 17 is 1,487 B (> 1,232); estimated inline CU at N = 8: 528,233 conservative / 213,583 marginal (needs a compute-budget instruction above the 200k default; under 1.4M with 62% headroom); REAL inline measurements (IMPL-39b) replaced the estimate: N = 8 costs 147,005 CU, not 528k",
   "inline_step": "IMPLEMENTED (IMPL-39b) and measured: opt-in, non-closing, registry_len <= INLINE_THRESHOLD = 8; real inline payout at N = 8 = 1,058 B / 26 keys / 147,005 CU (fits packet, under the 200k default compute); inline state == chunked state bit for bit for N = 1..8; N = 9 refused; chunks remain the keeper path for larger registries; zero-toll and empty-registry payouts never start a ticket at all (unchanged)",
@@ -1659,8 +1659,8 @@
   "note": "final M9 run on the IMPL-39b ELF; the earlier run on 4b134d05 (175 lib tests, 9,265 observations) is superseded; the inline_envelope family now exercises the real inline path (N <= 8 executed inline, N > 8 refused InvalidState)"
  },
  "limits": [
-  "every number is LiteSVM at the local default rent (3,480 lamports per byte-year × 2-year exemption) and the legacy transaction format; not a cluster measurement",
-  "the inline CU figures are ESTIMATES from per-row phase costs until IMPL-39b measures the real inline path",
+  "every number is LiteSVM at the local default rent (3,480 lamports per byte-year \u00d7 2-year exemption) and the legacy transaction format; not a cluster measurement",
+  "HISTORICAL (superseded by IMPL-39b): the `inline_envelope` family CU figures were ESTIMATES from per-row phase costs; `inline_real_impl39b` (withdraw_simple N = 1..8) and `inline_real_impl39b.compounding_entry_point` (settle_compounding Compound15/30 at N = 1, 4, 8) are actual local SBF evidence measured on the production ELF d77b23bf\u2026 in LiteSVM (still local default rent and legacy format, not a cluster measurement)",
   "LiteSVM does not check rent state for data-less accounts (dust claims to fresh wallets succeed locally; the cluster refuses them)",
   "wall-clock figures in the notes are not evidence"
  ],
@@ -1670,7 +1670,8 @@
    "severity": "documentation / error naming (= M8-F2)",
    "title": "claim_backer has no deliverability preflight",
    "detail": "claims.rs claim_backer credits the destination with validate_destination only (like close_shared_account, M8-F1): a dust claim to a sub-minimum fresh wallet passes the program and fails at the cluster rent rule with the credit left claimable; no loss; inconsistent with the refund path's credit_is_deliverable. Options: accept/document (recommended, mirrors M8-F1) or add the preflight (RefundNotDeliverable-style refusal).",
-   "status": "open for Codex; no code change"
+   "status": "DECIDED by Codex (M9 review of 9f3da9a): accept and document; no new deliverability mechanism, no cash-progress gate; no code change",
+   "decision": "A dust claim to a destination the cluster rent rule would not accept (data-less, ending below the rent-exempt minimum) fails the whole transaction at the runtime; the program state is unchanged, so the credit stays claimable to a fundable destination \u2014 the same accepted limitation as page cleanup (M8-F1). Source-backed cluster rule: Agave `transition_allowed` (RentPaying post-state is allowed only without a credit); the program predicate `credit_is_deliverable` is validated against the rule text in `tests/transfer_constraints.rs`. Local execution: LiteSVM 0.7.1 skips rent-state checks for data-less accounts, so the dust claims in \u00a73 of the measurements SUCCEED locally (`dust_claims` rows) and the cluster refusal is not observable here. Documented in `docs/solana/measurements-2026-10.md` \u00a73 and the M9 handoff."
   }
  ],
  "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged.",
@@ -1678,10 +1679,10 @@
   "card": "IMPL-39b",
   "program": {
    "patch_sha256": "ad3dd8b032f1b4d2edbd9a5e00fcffb7d9cbe4b6196e4e36279271d20c0a6994",
-   "contract": "OPT-IN, non-closing only: a withdraw_simple/settle_compounding that supplies [Backer slot 0..registry_len-1 (registry order), RegistryPage 0, SnapshotPage 0] (all writable) and has 0 < registry_len <= INLINE_THRESHOLD (8) runs Discover→Senior→Seal→Allocate→Prune→Commit in-instruction (allocation::run_inline_ticket over the shared phase functions; prune_inline reuses prune_decision/retire_row); no remaining accounts → today's chunked ticket start; closing payouts never inline; registry_len > 8 with accounts → InvalidState; wrong count → WrongAccount; repeated account → DuplicateWritableAccount",
-   "unit_tests": "262 (248 + 14: M6 goldens inline, stepwise equality for every N 1..8 over 24 seeds × 6 tolls × chunk 1/8, capped registry, mixed inline/chunked sequences, host Book oracle, layout/offer/rejection rules; RED shown with run_inline_ticket stubbed: 12/13 failed; three deliberate breakages (ascending prune, closed-only prune, skipped senior) each caught)",
+   "contract": "OPT-IN, non-closing only: a withdraw_simple/settle_compounding that supplies [Backer slot 0..registry_len-1 (registry order), RegistryPage 0, SnapshotPage 0] (all writable) and has 0 < registry_len <= INLINE_THRESHOLD (8) runs Discover\u2192Senior\u2192Seal\u2192Allocate\u2192Prune\u2192Commit in-instruction (allocation::run_inline_ticket over the shared phase functions; prune_inline reuses prune_decision/retire_row); no remaining accounts \u2192 today's chunked ticket start; closing payouts never inline; registry_len > 8 with accounts \u2192 InvalidState; wrong count \u2192 WrongAccount; repeated account \u2192 DuplicateWritableAccount",
+   "unit_tests": "262 (248 + 14: M6 goldens inline, stepwise equality for every N 1..8 over 24 seeds \u00d7 6 tolls \u00d7 chunk 1/8, capped registry, mixed inline/chunked sequences, host Book oracle, layout/offer/rejection rules; RED shown with run_inline_ticket stubbed: 12/13 failed; three deliberate breakages (ascending prune, closed-only prune, skipped senior) each caught)",
    "clippy": "clean (-D warnings)",
-   "idl": "unchanged 11840ae0… (check-idl clean)"
+   "idl": "unchanged 11840ae0\u2026 (check-idl clean)"
   },
   "elf": {
    "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
@@ -1800,7 +1801,7 @@
     }
    ]
   },
-  "decision": "INLINE_THRESHOLD = 8 CONFIRMED by real execution: the inline payout at N = 8 is 1,058 B / 26 keys / 147,005 CU — under the legacy packet with 174 B to spare and under the 200k DEFAULT compute budget (no compute-budget instruction needed, unlike the conservative 528k envelope estimate); N = 9 is a second page and is refused; the chunked path is untouched. No economics change: inline == chunked bit for bit.",
+  "decision": "INLINE_THRESHOLD = 8 CONFIRMED by real execution: the inline payout at N = 8 is 1,058 B / 26 keys / 147,005 CU \u2014 under the legacy packet with 174 B to spare and under the 200k DEFAULT compute budget (no compute-budget instruction needed, unlike the conservative 528k envelope estimate); N = 9 is a second page and is refused; the chunked path is untouched. No economics change: inline == chunked bit for bit.",
   "envelope_family_on_the_real_path": [
    {
     "row": "n0",
@@ -1851,6 +1852,107 @@
     "message_keys": 39,
     "compute_units": 36944
    }
-  ]
+  ],
+  "compounding_entry_point": {
+   "card": "IMPL-39c (Codex M9 correction 1)",
+   "test": "solana/tests/financial-runtime/tests/inline_alloc.rs::matured_compounding_inline_settlement_equals_the_chunked_ticket_for_both_plans",
+   "elf": {
+    "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+    "bytes": 1395536,
+    "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+    "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+    "build_log_sha256": "96bebb16a4fc9d47e97b5650aae6177f7b6f75eeb190f68758bae6c2eccdae61",
+    "stack_offset_warnings": 0
+   },
+   "fixture": "genesis + one 1-SOL compounding position (nonce 1), pot fixture 100 SOL (a 10-SOL pot routes Compound30 to the closing path: PageNotProvisioned), N fixture Backers (alternating A/B, remaining 1e9 / 20 / 5e6 / 1e9), warp to maturity (15 / 30 days)",
+   "asserted": [
+    "PayoutPaid gross / Jackpot toll / net equal between inline and chunked; toll == gross \u00d7 jackpot_bps / 10_000 with the frozen pins [900, 1_300]; Compound15 toll == 402_620_918 (positions suite pin)",
+    "TicketCommitted.toll == PayoutPaid.toll and same ticket_id; ticket IDLE after the inline settlement",
+    "owner destination delta == net in both runs; position.claimed",
+    "pool (seed, funded_claims, pending_toll, next_ticket, registry_len), every Backer, RegistryPage 0, SnapshotPage 0, Ticket byte-identical; financial digest equal; conservation after every transaction (World)",
+    "malformed layouts on the matured position: partial (Backers only) \u2192 WrongAccount 6005 fee-only, duplicate Backer \u2192 DuplicateWritableAccount 6026 fee-only, position still open; the well-formed inline retry then settles and commits"
+   ],
+   "rows": [
+    {
+     "plan": "compound15",
+     "n": 1,
+     "packet_bytes": 827,
+     "keys": 19,
+     "writable": 13,
+     "compute_units": 82013,
+     "gross_paid": 4473565759,
+     "jackpot_toll": 402620918,
+     "net": 4070944841,
+     "credited": 201310457,
+     "seed": 201310461
+    },
+    {
+     "plan": "compound15",
+     "n": 4,
+     "packet_bytes": 926,
+     "keys": 22,
+     "writable": 16,
+     "compute_units": 109166,
+     "gross_paid": 4473565759,
+     "jackpot_toll": 402620918,
+     "net": 4070944841,
+     "credited": 181179430,
+     "seed": 221441488
+    },
+    {
+     "plan": "compound15",
+     "n": 8,
+     "packet_bytes": 1058,
+     "keys": 26,
+     "writable": 20,
+     "compute_units": 146535,
+     "gross_paid": 4473565759,
+     "jackpot_toll": 402620918,
+     "net": 4070944841,
+     "credited": 181179448,
+     "seed": 221441470
+    },
+    {
+     "plan": "compound30",
+     "n": 1,
+     "packet_bytes": 827,
+     "keys": 19,
+     "writable": 13,
+     "compute_units": 82031,
+     "gross_paid": 12267678469,
+     "jackpot_toll": 1594798200,
+     "net": 10672880269,
+     "credited": 797399100,
+     "seed": 797399100
+    },
+    {
+     "plan": "compound30",
+     "n": 4,
+     "packet_bytes": 926,
+     "keys": 22,
+     "writable": 16,
+     "compute_units": 109184,
+     "gross_paid": 12267678469,
+     "jackpot_toll": 1594798200,
+     "net": 10672880269,
+     "credited": 717659209,
+     "seed": 877138991
+    },
+    {
+     "plan": "compound30",
+     "n": 8,
+     "packet_bytes": 1058,
+     "keys": 26,
+     "writable": 20,
+     "compute_units": 146553,
+     "gross_paid": 12267678469,
+     "jackpot_toll": 1594798200,
+     "net": 10672880269,
+     "credited": 717659229,
+     "seed": 877138971
+    }
+   ],
+   "reading": "The second inline entry point behaves identically to withdraw_simple: CU within 500 of the Simple rows at every N (82,013 / 109,166 / 146,535 vs 82,483 / 109,636 / 147,005), same packet bytes and key counts; Compound30 at N = 8 is 146,553 CU. Fits the legacy packet and the 200k default compute at N = 8."
+  }
  }
 }

@@ -131,8 +131,14 @@ jobs:
         env:
           MC_FINANCIAL_SBF: ${{ env.TOOLS }}/sbf-output/musical_chairs_program.so
           MC_STANDIN_SBF: ${{ github.workspace }}/solana/tests/financial-runtime/standin/squads-vault-standin/artifacts/squads_vault_standin.so
-        run: cargo test --manifest-path solana/tests/financial-runtime/Cargo.toml --locked -- --test-threads=1
+        # Run from inside the crate: cargo reads the committed `.cargo/config.toml` from the working
+        # directory, not from --manifest-path. Those files carry the `--check-cfg` for
+        # `target_os = "solana"` / `feature = "anchor-debug"` that the Anchor macros expand to; the local
+        # executor runs from the crate directories too, so this keeps the lint environment identical.
+        working-directory: solana/tests/financial-runtime
+        run: cargo test --locked -- --test-threads=1
       - name: Clippy (deny warnings)
         run: |
-          cargo clippy --manifest-path solana/programs/musical_chairs/Cargo.toml --locked --all-targets -- -D warnings
-          cargo clippy --manifest-path solana/tests/financial-runtime/Cargo.toml --locked --all-targets -- -D warnings
+          set -euo pipefail
+          (cd solana/programs/musical_chairs && cargo clippy --locked --all-targets -- -D warnings)
+          (cd solana/tests/financial-runtime && cargo clippy --locked --all-targets -- -D warnings)
