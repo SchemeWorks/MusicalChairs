@@ -1,0 +1,148 @@
+{
+ "recorded_at_utc": "2026-10-14T10:15:45.001277+00:00",
+ "card": "IMPL-23",
+ "milestone": "M4 provisioning, rent components, cleanup — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "fe5d3d072550f3bb81d78f4843814d588790b205",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "branch": "codex/native-solana-production-core",
+ "head_at_graph_update": "fe5d3d0",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "53232d7ac08a3416665311e0121ca1f996e798c5b44cdf5cb03fd39ccb6f8f48",
+   "result": "12,576 nodes / 17,859 edges after update (M4 + the M5 program code 4585bb2 which was already in the tree)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m4-fragment-spec.json 1226 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "8734f294bb5102ced57568c2003c4c3c4ec8bc881706992b1314fc3ca534f984"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 11928,
+  "edges": 16580,
+  "hyperedges": 39
+ },
+ "after_graphify_update": {
+  "nodes": 12576,
+  "edges": 17859,
+  "hyperedges": 39
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 0,
+  "note": "same idempotent 16-edge/321-status repair as M0/M2/M3"
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m4-graph-fragment.json",
+  "sha256": "631e06c36ba36be197d8a3b594c456471d279d2343817a45ea38addd57ae23fd",
+  "nodes": 9,
+  "edges": 67,
+  "hyperedges": 1,
+  "attribute_updates": 17,
+  "community": 1226
+ },
+ "after": {
+  "nodes": 12585,
+  "edges": 17942,
+  "hyperedges": 40
+ },
+ "graphify_update_growth_by_source_group": {
+  "docs/solana": 357,
+  "solana/programs/musical_chairs/src": 177,
+  "solana/tests/financial-runtime/src": 108,
+  "docs/coordination": 15
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/controls.rs": "3964f58206d09bf13d0dd308198edc4926849f525b93880ec1dbd07e1c35af0d",
+   "solana/programs/musical_chairs/src/lib.rs": "dcaa8234c2a755e0ac066a2109c0d53557b4099f03e0452793b469b42abb6b20",
+   "solana/programs/musical_chairs/src/error.rs": "d4a45bbeada38683b38a8b34f7a4e5cde0e73371495e5c812ba764532e718cd5",
+   "solana/programs/musical_chairs/src/positions.rs": "b359be56e4e63d4785d4f85a7a6f793fe8397e80ab69a0bf435a71403f977808",
+   "solana/programs/musical_chairs/idl/musical_chairs.json": "0cd6145105270b283e64f2ece6d91c5cf0676901b8fd3f95db7078e671248780",
+   "solana/tests/financial-runtime/src/provisioning.rs": "94b38ca9f62ec21d401987e529f4c84abc203b9549642efb28cf5c8faf1571ae",
+   "solana/tests/financial-runtime/src/runtime.rs": "41377bbb52282506fc1894aca6b31064dc30a01e4f0878efcd6c51ffb208eb80",
+   "solana/tests/financial-runtime/src/controls.rs": "443678ac8a0841cd3160a2218f9cec15acccc291f375b9ef64adea569c9c1721",
+   "solana/tests/financial-runtime/src/financial.rs": "2c22acab6f470c209e0affa8509c2ab3318212dd541d1f574e68647089995aac",
+   "solana/tests/financial-runtime/src/lib.rs": "87d198db7cf2d25249792bb105f2c077671ee692cac15d46c0f9e3f01763563b",
+   "solana/tests/financial-runtime/src/main.rs": "99f56e88daef38f6ca90d2ae10a7c960aa66f7e21eca15cec296fe32618e455a",
+   "docs/coordination/kanban.md": "6227cff96933f2978e3ea4a274f26f82921f3e0464bf5b9222de391680ffdd81",
+   "docs/solana/evidence/2026-10-14-m4-provisioning.json": "9be7008784442bd6c8c71779a36d3de2feda6bc8d0ffd6d36c506a70e71aaf8b",
+   "docs/solana/evidence/2026-10-14-m4-cli.json": "592da54f35b6b5d8a51f2c7e15b5c8d6793051da7553cfe72afa4c8f7635dc18",
+   "docs/solana/evidence/2026-10-14-m4-graph-fragment.json": "631e06c36ba36be197d8a3b594c456471d279d2343817a45ea38addd57ae23fd"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file; semantic coverage is the listed files and the fragment; the M5 program handlers (positions.rs, 4585bb2) are AST-covered here but their semantic fragment belongs to the M5 receipt"
+ },
+ "stale_or_uncovered": [
+  "positions.rs M5 handlers: AST nodes only until the M5 fragment",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only",
+  "allocation phase handlers remain NotImplemented (M6)"
+ ],
+ "checks": {
+  "all_prior_11928_node_ids_retained": true,
+  "all_prior_16580_raw_edge_identities_retained": true,
+  "all_prior_39_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "m4_plan_node_implemented_edges": 9,
+  "labels_file_has_community_1226": true
+ },
+ "query_checks": {
+  "outputs_dir": "/private/tmp/claude-501/-Users-robertripley-coding-musicalchairs/d73d4c44-c753-4322-aea2-96af6a5f7635/scratchpad/impl23-queries",
+  "results": {
+   "explain_close": {
+    "bytes": 691,
+    "sha256": "b7f9db91a9cb878a815438cb84d0baca72b2a2d4c0f0d2aedc449f76e83212c2"
+   },
+   "explain_locked": {
+    "bytes": 1471,
+    "sha256": "4dfd810b98779bdf03e3a298b925c2fb2e51db5b53fcdf881dd0ffbf07e45f30"
+   },
+   "explain_provision": {
+    "bytes": 2126,
+    "sha256": "fbdc294c2b106afd12f1cd78a5d6c241e2f401d08068e11de5a210de62d88e26"
+   },
+   "q_locked": {
+    "bytes": 4906,
+    "sha256": "c43e823753df2ada608a05a8dccba08e7cf4baf41b532363990f208aa0892023"
+   },
+   "q_rent": {
+    "bytes": 993,
+    "sha256": "655aa61e22b08124e74e2efd4ef9a2ed1949790b2f880cd6565a420ae2288775"
+   }
+  },
+  "notes": [
+   "explain by id confirms the provisioning, LockedClose and close_shared_account nodes with their plan and code neighbours",
+   "q_rent and q_locked return the M4 concept nodes and the rent-table node"
+  ]
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "Proof carriers: 2026-10-14-m4-provisioning.json and 2026-10-14-m4-cli.json.",
+  "Community 1226 is a fresh bucket; report/clustering not regenerated after the merge."
+ ]
+}
