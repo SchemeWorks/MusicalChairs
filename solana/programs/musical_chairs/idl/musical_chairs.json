@@ -612,6 +612,69 @@
       ]
     },
     {
+      "name": "close_shared_account",
+      "discriminator": [
+        28,
+        93,
+        106,
+        212,
+        251,
+        156,
+        139,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "page",
+          "writable": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "docs": [
+            "owner component exists; validated as a payout destination by the handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": {
+            "defined": {
+              "name": "PageKind"
+            }
+          }
+        }
+      ]
+    },
+    {
       "name": "commit",
       "discriminator": [
         223,
@@ -1480,16 +1543,16 @@
       ]
     },
     {
-      "name": "provision_registry",
+      "name": "provision_close_record",
       "discriminator": [
-        25,
-        101,
-        109,
-        218,
-        10,
-        249,
-        210,
-        87
+        54,
+        229,
+        117,
+        163,
+        33,
+        7,
+        151,
+        20
       ],
       "accounts": [
         {
@@ -1529,11 +1592,12 @@
           "writable": true
         },
         {
-          "name": "registry_page",
+          "name": "close_record",
           "writable": true
         },
         {
           "name": "payer",
+          "writable": true,
           "signer": true
         },
         {
@@ -1543,22 +1607,30 @@
       ],
       "args": [
         {
-          "name": "index",
+          "name": "close_id",
           "type": "u64"
+        },
+        {
+          "name": "funding",
+          "type": {
+            "defined": {
+              "name": "Funding"
+            }
+          }
         }
       ]
     },
     {
-      "name": "provision_snapshot",
+      "name": "provision_page",
       "discriminator": [
-        9,
-        249,
-        232,
-        212,
-        194,
-        76,
-        186,
-        143
+        196,
+        201,
+        105,
+        210,
+        175,
+        189,
+        240,
+        53
       ],
       "accounts": [
         {
@@ -1599,12 +1671,21 @@
           "writable": true
         },
         {
-          "name": "snapshot_page",
+          "name": "page",
           "writable": true
         },
         {
           "name": "payer",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required for `Candidate`; ignored for every other kind."
+          ],
+          "writable": true,
+          "optional": true
         },
         {
           "name": "system_program",
@@ -1613,8 +1694,24 @@
       ],
       "args": [
         {
+          "name": "kind",
+          "type": {
+            "defined": {
+              "name": "PageKind"
+            }
+          }
+        },
+        {
           "name": "index",
           "type": "u64"
+        },
+        {
+          "name": "funding",
+          "type": {
+            "defined": {
+              "name": "Funding"
+            }
+          }
         }
       ]
     },
@@ -1700,6 +1797,41 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "reconcile_ops_cash",
+      "discriminator": [
+        12,
+        139,
+        25,
+        18,
+        29,
+        21,
+        63,
+        46
+      ],
+      "accounts": [
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        }
+      ],
+      "args": []
     },
     {
       "name": "rotate_guardian",
@@ -2385,6 +2517,19 @@
       ]
     },
     {
+      "name": "CloseRecord",
+      "discriminator": [
+        162,
+        63,
+        4,
+        230,
+        187,
+        128,
+        12,
+        166
+      ]
+    },
+    {
       "name": "ConfigVersion",
       "discriminator": [
         183,
@@ -2905,6 +3050,26 @@
     {
       "code": 6031,
       "name": "WrongGovernanceProfile"
+    },
+    {
+      "code": 6032,
+      "name": "WrongIndex"
+    },
+    {
+      "code": 6033,
+      "name": "NotClosable"
+    },
+    {
+      "code": 6034,
+      "name": "AlreadyClosed"
+    },
+    {
+      "code": 6035,
+      "name": "PageNotProvisioned"
+    },
+    {
+      "code": 6036,
+      "name": "LockNotPermitted"
     }
   ],
   "types": [
@@ -3087,6 +3252,242 @@
                 "u8",
                 32
               ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CloseRecord",
+      "docs": [
+        "Everything one closing payout needs: candidate-set progress, the draw,",
+        "the captured reserve and its by-source spend ledger."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          },
+          {
+            "name": "close_started_at",
+            "type": "u64"
+          },
+          {
+            "name": "promotion_deadline",
+            "type": "u64"
+          },
+          {
+            "name": "closing_ticket_id",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "cash_committed",
+            "type": "bool"
+          },
+          {
+            "name": "participant_count",
+            "type": "u64"
+          },
+          {
+            "name": "candidate_cursor",
+            "type": "u64"
+          },
+          {
+            "name": "preferred_count",
+            "type": "u64"
+          },
+          {
+            "name": "fallback_count",
+            "type": "u64"
+          },
+          {
+            "name": "preferred_digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "fallback_digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "selected_set_tag",
+            "type": "u8"
+          },
+          {
+            "name": "sealed",
+            "type": "bool"
+          },
+          {
+            "name": "draw_state",
+            "type": "u8"
+          },
+          {
+            "name": "protocol_seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "request_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "randomness",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "captured_at",
+            "type": "u64"
+          },
+          {
+            "name": "promotion",
+            "type": {
+              "defined": {
+                "name": "Promotion"
+              }
+            }
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "required_reserve",
+            "type": "u64"
+          },
+          {
+            "name": "reserve_schedule",
+            "type": {
+              "defined": {
+                "name": "ReserveSchedule"
+              }
+            }
+          },
+          {
+            "name": "required_pages_per_set",
+            "type": "u64"
+          },
+          {
+            "name": "existing_preferred_pages",
+            "type": "u64"
+          },
+          {
+            "name": "existing_fallback_pages",
+            "type": "u64"
+          },
+          {
+            "name": "provisioned_preferred_pages",
+            "type": "u64"
+          },
+          {
+            "name": "provisioned_fallback_pages",
+            "type": "u64"
+          },
+          {
+            "name": "registry_extension_required",
+            "type": "bool"
+          },
+          {
+            "name": "locked_sponsor_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "locked_owner_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "approved_provider_fee_cap",
+            "type": "u64"
+          },
+          {
+            "name": "owner_refund_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "spent",
+            "type": {
+              "defined": {
+                "name": "SpentLedger"
+              }
+            }
+          },
+          {
+            "name": "request_rent_funded_s",
+            "docs": [
+              "Sponsor/owner source split of the pending-request rent; equals",
+              "`spent.request_rent_s/o` at request time. There is no singular total."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_funded_o",
+            "type": "u64"
+          },
+          {
+            "name": "reimbursement_observed",
+            "type": "bool"
+          },
+          {
+            "name": "eligible_return_remaining",
+            "docs": [
+              "Zero until `observe_request_fulfilled`; then decremented per return."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "owner_request_rent_refundable_remaining",
+            "docs": [
+              "Zero until observed; then decremented by each owner share paid."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_returned",
+            "type": "u64"
+          },
+          {
+            "name": "reserve_settled",
+            "type": "bool"
+          },
+          {
+            "name": "rent",
+            "type": {
+              "defined": {
+                "name": "RentComponents"
+              }
             }
           }
         ]
@@ -3534,6 +3935,26 @@
       }
     },
     {
+      "name": "Funding",
+      "docs": [
+        "Who pays a page's rent. Frozen Borsh order: `Free` 0, `Caller` 1, `LockedClose` 2."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Free"
+          },
+          {
+            "name": "Caller"
+          },
+          {
+            "name": "LockedClose"
+          }
+        ]
+      }
+    },
+    {
       "name": "GameVault",
       "type": {
         "kind": "struct",
@@ -3756,6 +4177,47 @@
           {
             "name": "total_rent_funded",
             "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PageKind",
+      "docs": [
+        "Which shared page a provisioning or cleanup call addresses. The Borsh",
+        "encoding is part of the client ABI: variant order (`Registry` 0,",
+        "`Snapshot` 1, `Participant` 2, `Candidate` 3) is frozen."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Registry"
+          },
+          {
+            "name": "Snapshot"
+          },
+          {
+            "name": "Participant",
+            "fields": [
+              {
+                "name": "round",
+                "type": "u64"
+              }
+            ]
+          },
+          {
+            "name": "Candidate",
+            "fields": [
+              {
+                "name": "close_id",
+                "type": "u64"
+              },
+              {
+                "name": "set_tag",
+                "type": "u8"
+              }
+            ]
           }
         ]
       }
@@ -4126,6 +4588,46 @@
       }
     },
     {
+      "name": "Promotion",
+      "docs": [
+        "Outcome of the close's Series-B promotion draw."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Applied",
+            "fields": [
+              {
+                "name": "winner",
+                "type": "pubkey"
+              },
+              {
+                "name": "entitlement",
+                "type": "u128"
+              }
+            ]
+          },
+          {
+            "name": "Skipped",
+            "fields": [
+              {
+                "name": "reason",
+                "type": "u8"
+              },
+              {
+                "name": "stage",
+                "type": "u8"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "name": "PromotionApplied",
       "docs": [
         "Ingested by the ICP bridge, which compares descriptor fields against",
@@ -4248,6 +4750,41 @@
           {
             "name": "owner_refund",
             "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveSchedule",
+      "docs": [
+        "Rent and provider prices snapshotted into a `CloseRecord` at close time."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "per_candidate_page_rent",
+            "type": "u64"
+          },
+          {
+            "name": "per_registry_page_rent",
+            "type": "u64"
+          },
+          {
+            "name": "b_account_rent",
+            "type": "u64"
+          },
+          {
+            "name": "pending_request_rent",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee",
+            "type": "u64"
+          },
+          {
+            "name": "headroom_bps",
+            "type": "u16"
           }
         ]
       }
@@ -4420,6 +4957,58 @@
           },
           {
             "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SpentLedger",
+      "docs": [
+        "Spent ledger by category (candidate page, registry page, B account,",
+        "provider fee, pending-request rent) and source (`_s` sponsor, `_o` owner)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "candidate_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "candidate_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "registry_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "registry_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "b_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "b_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_s",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_o",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_o",
             "type": "u64"
           }
         ]
