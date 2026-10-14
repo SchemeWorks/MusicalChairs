@@ -1,0 +1,213 @@
+{
+ "recorded_at_utc": "2026-10-14T07:57:33.824940+00:00",
+ "card": "IMPL-07",
+ "milestone": "M0 close-out graph receipt (+ M1 width parity)",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (preserved as historical coverage; graphify rewrote built_at_commit to the update head)",
+ "built_at_commit_now": "8da631ce97fcc567bc446c139fe5eaa9fc0c6ab3",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-12-model-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision5-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-runtime-graph-refresh.json"
+ ],
+ "branch": "codex/native-solana-production-core",
+ "head_at_graph_update": "8da631ce97fcc567bc446c139fe5eaa9fc0c6ab3",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "72777640c4418c2277ea8819267db4c8b29a4185c55f9cb2aa6e81fa131cbd47",
+   "result": "407 files, 209 re-extracted; 10,849 nodes / 14,451 edges / 1,053 communities; GRAPH_REPORT.md regenerated; graph.html skipped (>5,000 nodes); graphify backed up the prior curated graph to graphify-out/2026-10-14/"
+  },
+  {
+   "cmd": "python m0_graph_repair_merge.py <pre-update backup> validate|apply",
+   "script_sha256": "fe62d2fbdc3c518a85524fa9c1ffad962088168505e5458ccc6810e3dee112d7",
+   "result": "repairs + scoped semantic fragment merged; all assertions passed"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 8071,
+  "edges": 11422,
+  "hyperedges": 36
+ },
+ "after_graphify_update": {
+  "nodes": 10849,
+  "edges": 14451,
+  "hyperedges": 36
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "why": "graphify collapsed same-endpoint multi-edges keeping one relation/location; the lost raw identities (e.g. decides/mutates/rationale_for on register and spec anchors, contains/calls on tranche symbols) are restored verbatim",
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 366,
+  "same_symbol_as_method": "exact (source_file, label) match between prior production_*/runtime_* code nodes and graphify-native AST nodes for the tranche/probe files; 0 unmatched native nodes"
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m0-graph-fragment.json",
+  "sha256": "e16d3316cbb2c7e6a6836650f06563d026dad57e424ad7f3bc21b650245bf214",
+  "nodes": 11,
+  "edges": 86,
+  "hyperedges": 1,
+  "attribute_updates": 19,
+  "community": 1053
+ },
+ "after": {
+  "nodes": 10860,
+  "edges": 14919,
+  "hyperedges": 37
+ },
+ "graphify_update_growth_by_source_group": {
+  "docs/solana": 1675,
+  "docs/coordination": 363,
+  "solana/programs/musical_chairs/src": 156,
+  "solana/probes/runtime/fixtures": 132,
+  "solana/probes/runtime/harness": 119,
+  "docs/superpowers": 110,
+  "solana/fixtures/economics.json": 86,
+  "solana/tests/financial-runtime/src": 70,
+  "solana/probes/runtime/program": 22,
+  "solana/tests/financial-runtime/scripts": 17,
+  "solana/probes/runtime/scripts": 6,
+  "solana/crates/economics/tests": 6,
+  "solana/crates/economics/src": 5,
+  "ponzi_math/scripts": 4,
+  "solana/README.md": 4,
+  "scripts/validate-cycle-manager-observability.mjs": 3,
+  "canister_ids.json": 2,
+  ".superpowers/sdd": 2,
+  ".claude/mc-snapshot.sh": 1,
+  "solana/probes/provider-resources/src": 1,
+  "scripts/setup-observatory-controllers.sh": 1,
+  "scripts/set-pp-ledger-logo.sh": 1,
+  "ponzi_math_sol/scripts": 1,
+  "shenanigans/scripts": 1,
+  "CLAUDE.md": 1
+ },
+ "growth_by_file_type": {
+  "code": 2401,
+  "document": 377,
+  "concept": 11
+ },
+ "growth_caveats": [
+  "~1,670 nodes are JSON-key nodes extracted from docs/solana/evidence receipts, 132 from probe fixtures, 86 from solana/fixtures/economics.json: AST noise useful only for locating receipts",
+  "377 document heading nodes for docs/coordination and docs/superpowers duplicate planning concepts by title (e.g. the DR-35 heading), which makes graphify path label matching ambiguous; query by node id or use explain",
+  "tranche/probe symbols are covered under two id schemes, linked by same_symbol_as (see impl2026_10_14_graph_dual_extraction_caveat)",
+  "1,251 prior nodes were re-clustered into new communities; prior community labels (e.g. 801) are retained in .graphify_labels.json; the regenerated GRAPH_REPORT.md predates the repairs and fragment",
+  "vendored ORAO crate: 0 manifest entries, 0 graph nodes (not covered)"
+ ],
+ "scope": {
+  "covered_source_sha256": {
+   "solana/crates/economics/src/backers.rs": "107f9a27e729283892eb5f495537f39e49f3b7dae3d0e93809133b96db339605",
+   "solana/crates/economics/tests/widths.rs": "a31bc15a9004bee85696a01f3405908e35765b04eb795719e7a5ee9a7cf90f82",
+   "solana/fixtures/economics.json": "be2d8255ce4ddd6caee4b7f4288cae55bcdc8d5a8071463f225622d85419eb7d",
+   "solana/programs/musical_chairs/src/allocation.rs": "6b5517e82ac9a8e8ab336a9f8bb2f1caa53ee4b6c63ff7bef87f71058bd4afc5",
+   "solana/tests/financial-runtime/src/runtime.rs": "48718d181a6eb844a719070a486c1a705afcdca67e503fc5be81e03a93828615",
+   "solana/tests/financial-runtime/src/financial.rs": "2bb68a509e117dfc57a53217f5e8d64327869c3a9ab3e8a776609461626a0e2d",
+   "solana/tests/financial-runtime/scripts/build-sbf.sh": "c8fc2f4477fe1592f9ad6e42fd5fb9a7478f4835c0e10530bb6f95fc05ba5831",
+   "solana/tests/financial-runtime/scripts/source-set-digest.sh": "e54608746e4fd88da1703fe70b2003b6790586b63e7c36b2e6890058fdffed28",
+   "solana/tests/financial-runtime/scripts/source-set-digest-test.sh": "71daf17b492dfaf5845e6d54b3dc0edf46a1212bc8651718db70e17c6af06398",
+   "solana/Cargo.toml": "e6fde7c4ba1cc1671423997fec389a3874204caab58227430d665ca5c875c040",
+   "docs/coordination/kanban.md": "f8d186551d2b5f696c0c672b93ccc265cf4433dfe65754f673adc24cea6ca2ec",
+   "docs/coordination/native-solana-local-implementation-go-ahead-20261014.md": "69ce19e392693a332839d6689c4592fbb5a589c7a3f4a1199dc29dd5100421c0",
+   "docs/solana/evidence/2026-10-14-codex-plan-acceptance.json": "3d71b32dc45dbcf6974b0d933e8f097835bf1be5ac9c78b6b97e8eb364ae97ed",
+   "docs/solana/evidence/2026-10-14-m0-toolchain.json": "ac8bc9e5f5e49694837a3749d425eb224cd13a8e5e894f1e4acabffa41809640",
+   "docs/solana/evidence/2026-10-14-m0-compile-red.json": "63f20377d0b4559af781585f3bae5465a57b27075ae10b32215ef7bc0be94976",
+   "docs/solana/evidence/2026-10-14-m0-stub-build.json": "bb6ab775b1f555b02ecf186e829b98f78cc98bd0e532fb2878197817f0f9ec48",
+   "docs/solana/evidence/2026-10-14-m0-red-baseline.json": "957a285f09b990d7307dd1d135208820e3132b41731596b6d61c0fc35136a91e",
+   "docs/solana/evidence/2026-10-14-m0-red-baseline-cli.json": "c6cec79012bb1cbf6560b356367d27fce67f5d3e4d2888d4e86647424c43509a",
+   "docs/solana/evidence/2026-10-14-m0-graph-fragment.json": "e16d3316cbb2c7e6a6836650f06563d026dad57e424ad7f3bc21b650245bf214"
+  },
+  "manifest_note": "graphify advanced manifest ast_hash/semantic_hash for every re-extracted file (437 entries); only the files listed here were semantically covered by this fragment; other manifest advances are AST-only and must not be read as semantic freshness"
+ },
+ "stale_or_uncovered": [
+  "solana/README.md changed since the prior manifest and was AST re-extracted only",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) not extracted",
+  "crates/economics impl-block methods and harness methods (e.g. seed_allocation, inject_canonical_fixture) are not emitted as symbol nodes by the Rust AST extractor; file-level nodes and the fixtures concept node cover them",
+  "program handler bodies remain NotImplemented; no GREEN relationship exists for any production instruction"
+ ],
+ "checks": {
+  "all_prior_8071_node_ids_retained": true,
+  "all_prior_11422_raw_edge_identities_retained": true,
+  "all_prior_36_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "dr35_helper_edge_present": true,
+  "floor_proportional_calls_pro_rata_edge_present": true,
+  "same_symbol_as_edges": 366,
+  "labels_file_has_community_1053": true
+ },
+ "query_checks": {
+  "outputs_dir": "/private/tmp/claude-501/-Users-robertripley-coding-musicalchairs/d73d4c44-c753-4322-aea2-96af6a5f7635/scratchpad/impl07-queries",
+  "results": {
+   "explain_digest": {
+    "bytes": 1261,
+    "sha256": "e63a60d34f2ef5af035acdb0dea5d64cfd9881732954d25a13924ab59a0e5db1"
+   },
+   "explain_digest_file": {
+    "bytes": 610,
+    "sha256": "e44fcaf0d1a4565072f0d548ece72de1c39c1c2439c7dec9f30f20ad5879b0e2"
+   },
+   "explain_red": {
+    "bytes": 2025,
+    "sha256": "f2046965cad86364a830638914d97fa698927bb668497fc81536251565170c98"
+   },
+   "path_dr35": {
+    "bytes": 402,
+    "sha256": "0d0cfef587ac6b1c4f1d3d4bd0a2a868a402ceb2e808ff2d6011259f18930422"
+   },
+   "path_dual": {
+    "bytes": 156,
+    "sha256": "0f117a91484e17f17212d93794c352287e09b3449ab364b9ad05899a622c9e93"
+   },
+   "path_m1": {
+    "bytes": 406,
+    "sha256": "69022c58199d79c2a55645eacc0572845f4b0de9a73d009057dc54103e13ae88"
+   },
+   "q_provenance": {
+    "bytes": 4658,
+    "sha256": "ddbea24632247bff40cdf2ca46ceb8459ebc305d2f80d30cc41f8e5c1b6d60e6"
+   },
+   "q_red": {
+    "bytes": 4732,
+    "sha256": "838cc9aaea7c901240922e8f567f3c3505c9d803130b47c1704878251083377d"
+   },
+   "q_width": {
+    "bytes": 4690,
+    "sha256": "b2dc29fd2f06b998fda13ff35d89e41baca1f6a123ba8e5b9a5844a03d3361f4"
+   }
+  },
+  "notes": [
+   "explain by id works for every new node (explain_red, explain_digest, explain_digest_file)",
+   "path_m1: plan2026_10_13_m1_host_parity <-implements- impl2026_10_14_m1_width_functions -references-> pro_rata() (2 hops)",
+   "path_dual: floor_proportional() -calls-> pro_rata() (1 hop)",
+   "path_dr35 by label reports no path because the DR-35 title matches both the register concept node and an AST heading node; the edge is confirmed by dr35_helper_edge_present and explain_digest_file"
+  ]
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "Receipts cited by the fragment are the proof carriers: 2026-10-14-m0-{toolchain,compile-red,stub-build,red-baseline}.json.",
+  "Community 1053 is a fresh bucket; report/clustering not regenerated after the merge to avoid another re-cluster."
+ ]
+}
