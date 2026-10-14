@@ -45,7 +45,7 @@ use musical_chairs_economics::{
 };
 use musical_chairs_financial_runtime::world::{code, World, DAY, SOL, START_TIME};
 use musical_chairs_program::{positions::PlanKindArg, state, ErrorCode, PayoutPaid, RoundClosed};
-use solana_sdk::{clock::Clock, signature::Signer};
+use solana_sdk::{clock::Clock, pubkey::Pubkey, signature::Signer};
 
 /// Seed of the 200-case differential sample ("MCPAYOUT").
 const SAMPLED_SEED: u64 = 0x4D43_5041_594F_5554;
@@ -875,12 +875,84 @@ fn toll_with_empty_registry_routes_entirely_to_seed_for_sampled_tolls() {
     );
 }
 
+/// Plan M5 step 4's "only-B folds, caps and dust" cases, executed against the
+/// M6 allocation ticket (discover → senior → seal → allocate → prune → commit)
+/// with the host `Book` driven step by step as the oracle (the same route the
+/// program takes; `Book::allocate` would skip tolls ≤ 4 entirely).  Ignored
+/// as an M6 stub until 2026-10-14; enabled in the IMPL-45 metadata follow-up
+/// (Codex).  Each case is a fresh World with fixture Series B Backers only, so
+/// the senior slice (no A) and the dead A pool route to seed and the B pool is
+/// split per head; caps prune the Backer whose remaining falls to the cutoff;
+/// dust tolls (1..=4) floor every slice to zero and reach the seed whole.
 #[test]
-#[ignore = "M6: only-B folds, caps and dust need the allocation ticket handlers, still NotImplemented"]
 fn only_b_fold_and_dust_cases_route_to_seed() {
-    // Plan M5 step 4 lists "only-B folds/caps/dust" in the production
-    // differential matrix, but those cases flow through discover/seal/allocate/
-    // prune/commit_ticket (milestone 6).  Un-ignore and fill this in with the
-    // host `rounds`/`backers` allocation model as the oracle when they land.
-    todo!("M6: differential allocation cases for only-B folds, caps and dust");
+    use musical_chairs_economics::backers::{BackerKey, Book, Series};
+    use musical_chairs_financial_runtime::world::BackerSpec;
+    use musical_chairs_program::allocation::SERIES_B;
+
+    struct Case {
+        name: &'static str,
+        remaining: &'static [u128],
+        tolls: &'static [u64],
+    }
+    let cases = [
+        Case { name: "only_b_fold_three_equal", remaining: &[1_000_000, 1_000_000, 1_000_000], tolls: &[10_000] },
+        Case { name: "only_b_fold_uneven_heads", remaining: &[1_000_000, 50_000, 7_000_000, 123], tolls: &[10_000, 999_999] },
+        Case { name: "only_b_cap_prunes_small_remaining", remaining: &[30, 1_000_000], tolls: &[10_000] },
+        Case { name: "only_b_cap_exact_cutoff_and_residue", remaining: &[11, 12, 1_000_000], tolls: &[7, 10_000, 33] },
+        Case { name: "only_b_dust_tolls", remaining: &[1_000_000, 1_000_000], tolls: &[1, 2, 3, 4, 5] },
+        Case { name: "only_b_single_head_dust_then_fold", remaining: &[1_000_000], tolls: &[4, 10_000] },
+    ];
+    for case in &cases {
+        let owners: Vec<Pubkey> = (0..case.remaining.len())
+            .map(|i| Pubkey::new_from_array([0xB0 + i as u8; 32]))
+            .collect();
+        let specs: Vec<BackerSpec> = owners
+            .iter()
+            .zip(case.remaining)
+            .map(|(owner, &remaining)| BackerSpec::new(*owner, SERIES_B, remaining))
+            .collect();
+        let mut w = World::with_backer_specs(&specs);
+        let pool0 = w.pool();
+        let mut book = Book::with_pot(u64::MAX / 2);
+        for (id, &remaining) in case.remaining.iter().enumerate() {
+            book.add_backer_with_lifetime(id as u64, Series::B, remaining, 0).expect("host Book Backer");
+        }
+        for (step, &toll) in case.tolls.iter().enumerate() {
+            let ctx = format!("{} ticket {step} (toll {toll})", case.name);
+            w.start_ticket_fixture(toll);
+            w.advance_until_idle(8);
+            book.reserve_toll(toll).unwrap_or_else(|e| panic!("{ctx}: reserve_toll {e:?}"));
+            book.start_ticket(toll).unwrap_or_else(|e| panic!("{ctx}: start_ticket {e:?}"));
+            book.discover_all().unwrap_or_else(|e| panic!("{ctx}: discover {e:?}"));
+            book.apply_senior().unwrap_or_else(|e| panic!("{ctx}: senior {e:?}"));
+            book.seal_weights().unwrap_or_else(|e| panic!("{ctx}: seal {e:?}"));
+            book.allocate_all_current(8).unwrap_or_else(|e| panic!("{ctx}: allocate {e:?}"));
+            book.prune_all().unwrap_or_else(|e| panic!("{ctx}: prune {e:?}"));
+            book.commit().unwrap_or_else(|e| panic!("{ctx}: commit {e:?}"));
+            book.conservation().unwrap_or_else(|e| panic!("{ctx}: Book conservation {e:?}"));
+            w.assert_vault_identity();
+            let pool = w.pool();
+            assert_eq!(pool.pending_toll, 0, "{ctx}: the ticket consumed the toll");
+            assert_eq!(pool.pending_toll, book.pending_toll, "{ctx}: pending toll agrees with the Book");
+            assert_eq!(pool.seed - pool0.seed, book.seed(), "{ctx}: seed delta");
+            assert_eq!(pool.funded_claims - pool0.funded_claims, book.global_funded_claims(), "{ctx}: funded claims delta");
+            let mut live = 0u64;
+            for (id, owner) in owners.iter().enumerate() {
+                let expected = book.backer(BackerKey::new(id as u64, Series::B)).expect("host Book row");
+                let actual = w.backer(*owner, SERIES_B);
+                assert_eq!(actual.pending, expected.pending, "{ctx}: pending of B{id}");
+                assert_eq!(actual.funded, expected.funded, "{ctx}: funded of B{id}");
+                assert_eq!(actual.lifetime, expected.lifetime_credited, "{ctx}: lifetime of B{id}");
+                assert_eq!(actual.entitlement, expected.entitlement, "{ctx}: entitlement of B{id}");
+                assert_eq!(actual.active, expected.active_slot.is_some(), "{ctx}: liveness of B{id}");
+                live += u64::from(actual.active);
+            }
+            assert_eq!(pool.registry_len, live, "{ctx}: live registry rows");
+            // Only-B: nothing can be senior and the A pool is dead, so the
+            // seed delta is never below half the toll plus the senior and A slices.
+            let seed_floor: u64 = toll / 2;
+            assert!(book.seed() >= seed_floor, "{ctx}: seed {} below the half-toll floor {seed_floor}", book.seed());
+        }
+    }
 }

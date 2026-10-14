@@ -106,7 +106,8 @@
    "docs/solana/evidence/2026-10-14-m7-owner-refund.json": "e53c4c62e36f5cfa3d31cdfdb0e60fb61d9b1e00463197e50a85ce416a5295ec",
    "docs/solana/evidence/2026-10-14-m7-graph-fragment.json": "f23cef078b31cffea8b5832f596d217d8049943a52d4d2c116ce31d4707b7ec8"
   },
-  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at this update; semantic coverage is the listed files and the fragment; docs/solana/evidence/2026-10-14-m7-cli.json (4.9 MB) gets no graphify file node and is referenced only from the receipt"
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at this update; semantic coverage is the listed files and the fragment; docs/solana/evidence/2026-10-14-m7-cli.json (4.9 MB) gets no graphify file node and is referenced only from the receipt",
+  "ast_freshness": "HISTORICAL: scope.covered_source_sha256 was pinned at the 276b6a3 tree when `graphify update .` ran; the IMPL-45 commit (5f19cd2) changed 11 files, 8 of them in this scope map (program close.rs, harness close.rs and lib.rs, owner_refund.rs, the M7 receipts, the supplement, kanban). The graph received only the attribute-level IMPL-45 correction fragment; AST nodes for those files are the 276b6a3 versions until the regular M8 graphify update re-extracts them. Do not read the scope map as current."
  },
  "stale_or_uncovered": [
   "docs/solana/evidence/2026-10-14-m7-cli.json: no graphify file node (size)",
@@ -163,5 +164,25 @@
   },
   "note": "attribute-only correction of impl2026_10_14_m7_owner_refund_deferral and impl2026_10_14_m7_contract_supplement plus one node; no graphify update (the committed sources changed only in close.rs bodies/tests already covered); all prior identities retained",
   "graph_json_sha256_after": "876cca109f827677cc7ca3dbb4032f8940ca738f8b305ed3ee89a746e19bf3f3"
+ },
+ "impl45_delta_pins": {
+  "commit": "5f19cd24673f93d09e269465f04f9746b9c5c3bc",
+  "files_changed_in_commit": 11,
+  "sha256_at_5f19cd2": {
+   "docs/coordination/kanban.md": "297c3e99e9a0cf47826dc8525cbdad5d4cd6d319027d9fd033cd5dc8d63a8a01",
+   "docs/coordination/native-solana-m7-contract-supplement-20261014.md": "d86271e42ba7b1d4545e4391c0b3039643670ee90b64acf71405739402c55afa",
+   "docs/solana/evidence/2026-10-14-m7-cli.json": "dd2603b731036318ae5df1ca8083f1288fca61f32fcc6a5725dc472d37b7696f",
+   "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json": "47d057707e00f125d3d945a58805cd9870bb87ac88128fe6324e5ce214d5bafd",
+   "docs/solana/evidence/2026-10-14-m7-graph-fragment-impl45.json": "257f379039cbf2692542a13f8aa7a0e264f4d6d970a55ebc2bc2589f1823017d",
+   "docs/solana/evidence/2026-10-14-m7-graph-refresh.json": "25d46a4868e81c8ff429c0401a80f9043612adeed06fabdcda2290a0a7034684",
+   "docs/solana/evidence/2026-10-14-m7-owner-refund.json": "36c9afb87228aed3397d4ef9eee8b7960d90dce372d614368b28c26887b74490",
+   "solana/programs/musical_chairs/src/close.rs": "28de43747e8fca34832768e7b01ee9c3a8cdfd7ac4cc21f0657eff2da0ee5ec6",
+   "solana/tests/financial-runtime/src/close.rs": "c71762b3c21bc2735e36fcb37634f9e0443948baf2d15366c1803aebf24fd071",
+   "solana/tests/financial-runtime/src/lib.rs": "af3bd4ac429d1d847e1366f56e19ae5cc122d105dd74a567362ed3a043e9fe90",
+   "solana/tests/financial-runtime/tests/owner_refund.rs": "db0ad200a7959f7fd18bfa339ac1fee2aec46c658ca15327a939d680c319f768"
+  },
+  "elf_sha256": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265",
+  "source_set_sha256": "7e703900109d1353666b7c734c7aaa7ccd1bd942e545b59bc9cff86f8135867e",
+  "note": "Codex final IMPL-45 delta PASS at this commit. The receipt files listed here were themselves amended again by the metadata follow-up commit that adds this table (wording corrections, only-B test enablement); their current hashes are in that commit."
  }
 }

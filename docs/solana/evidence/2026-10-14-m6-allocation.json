@@ -1901,5 +1901,19 @@
    "cargo_test_log_sha256": "c222e7718a1c4b2e172c91267706aa06a1fe435893e8f201ffa075301595f4e6"
   },
   "proof_level": "differential equality between the compiled ELF and the host Book over 50 random tickets plus interleaved claims, Series A re-fundings and fixture credits; the worker only compile-checked, the coordinator executed on the main ELF and ran the two mutation checks; no RED exists for this test beyond the mutations"
+ },
+ "payout_props_only_b_enabled_2026_10_14": {
+  "trigger": "Codex IMPL-45 PASS follow-up: payout_props::only_b_fold_and_dust_cases_route_to_seed was still #[ignore]d as an M6-stub dependency",
+  "change": "the todo!() stub became a real differential: six fresh Worlds with fixture Series B Backers only (3 equal heads; 4 uneven heads over two tickets; a 30-remaining cap pruned; 11/12-remaining cutoff rows over tolls 7/10,000/33; dust tolls 1..=5; single head dust then fold), each ticket driven through the program (start_ticket_fixture + advance_until_idle(8)) and the host Book step by step (reserve_toll, start_ticket, discover_all, apply_senior, seal_weights, allocate_all_current, prune_all, commit); per-Backer pending/funded/lifetime/entitlement/active, seed delta, funded_claims delta, pending_toll and live registry length compared exactly; seed ≥ toll/2 asserted",
+  "result": "1 passed (8 payout_props tests now, 0 ignored)",
+  "elf_sha256": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265",
+  "log_sha256": "dbd454eb80858f48da96695d852a419f580f44d9455ba01800ba3c2ee5809728",
+  "mutation_check": {
+   "mutation": "Book.reserve_toll(toll + 1) and Book entitlements + 1 in a temporary copy (removed)",
+   "outcome": "FAILED at the first ticket: pending toll agrees with the Book: left 0, right 1",
+   "log_sha256": "38cfc1c092045f2b4d08177535fe573944ebb290d44eadcf3c7519309dbca02c",
+   "note": "the first mutation copy (toll + 1 only) passed because the test did not yet compare pending_toll; the comparison was added and the mutation then fails"
+  },
+  "honesty": "enabled as a real executed test; no mapping to an equivalent was needed"
  }
 }

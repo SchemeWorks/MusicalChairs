@@ -329,7 +329,7 @@
     "any seed-unpredictability change would reopen the accepted deterministic-seed design (not recommended here)"
    ],
    "status": "Codex: fits the frozen contract; documented as an accepted griefing risk (supplement §4); no seed/provider redesign, no gate",
-   "cost_estimate": "rent-exempt minimum of an empty account 890,880 lamports ≈ 0.00089 SOL (default schedule shared by LiteSVM and the cluster for data-less accounts) + one transaction fee, stranded at the PDA, per close; impact one skipped Series B promotion, no fund loss"
+   "cost_estimate": "LOCAL/DEFAULT-FIXTURE ESTIMATE: the rent-exempt minimum of an empty account under the harness rent fixture is 890,880 lamports ≈ 0.00089 SOL (3,480 lamports per byte-year × 2-year exemption threshold × 128 bytes of account overhead) plus one transaction fee, stranded at the PDA, per close. The cluster figure follows its live rent schedule and is not asserted here. Impact: one skipped Series B promotion, no fund loss."
   },
   {
    "id": "M7-F2",
@@ -355,7 +355,7 @@
  ],
  "limits": [
   "one synthetic ORAO fulfill authority (Ed25519 precompile + Fulfill), no cluster latency or quorum",
-  "LiteSVM 0.7.1 does not check rent state for data-less accounts (IMPL-43 receipt); local rent 6,960 lamports/byte-year",
+  "LiteSVM 0.7.1 does not check rent state for data-less accounts (IMPL-43 receipt); local default rent fixture: 3,480 lamports per byte-year with a 2-year exemption threshold (6,960 lamports per byte incl. the 128-byte overhead)",
   "the Squads stand-in proves application guards only (M3)",
   "mainnet cluster domain not yet defined; two vectors (litesvm fixture, devnet) pinned"
  ],
