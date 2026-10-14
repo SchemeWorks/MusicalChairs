@@ -127,6 +127,18 @@ jobs:
           [[ "$SRC" == "$PIN_SRC" ]] || { echo "::error title=Source set drift::the 19-file source set differs from $PINS; rebuild locally and re-pin" >&2; exit 1; }
           [[ "$LOCK" == "$PIN_LOCK" ]] || { echo "::error title=Lock drift::Cargo.lock differs from $PINS" >&2; exit 1; }
           if [[ "$ART" == "$PIN_ART" ]]; then echo "artifact byte-identical to the pinned build"; else echo "::notice title=Artifact differs from the local build::expected for a different build path/host (see latest-build.json reproducibility); source set and lock match"; fi
+          # A `Stack offset` line is the SBF linker reporting a frame over the 4 KiB stack: a latent
+          # runtime failure (M10 review SEC-8). The build log must be free of it.
+          STACK="$(grep -c 'Stack offset' "$TOOLS/build-sbf.log" || true)"
+          echo "stack_offset_warnings=$STACK"
+          [[ "$STACK" == "0" ]] || { echo "::error title=SBF stack overflow warning::the program build reported $STACK 'Stack offset' line(s)" >&2; grep 'Stack offset' "$TOOLS/build-sbf.log" >&2; exit 1; }
+      - name: Committed IDL matches a fresh generation
+        # solana/scripts/check-idl.sh regenerates the Anchor IDL with the pinned idl-build tool
+        # (host Rust 1.92.0, RUSTC_BOOTSTRAP inside the tool) and diffs it against the committed
+        # programs/musical_chairs/idl/musical_chairs.json (M10 review SEC-8).
+        env:
+          MC_IDL_TOOL_TARGET_DIR: ${{ env.TOOLS }}/idl-tool-target
+        run: bash solana/scripts/check-idl.sh
       - name: Run the LiteSVM harness on the fresh artifact
         env:
           MC_FINANCIAL_SBF: ${{ env.TOOLS }}/sbf-output/musical_chairs_program.so

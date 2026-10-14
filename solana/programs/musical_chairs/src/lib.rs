@@ -44,7 +44,8 @@ pub fn game_accounted(pool: &Pool) -> Result<u128> {
         .chain([pool.funded_claims])
         .try_fold(0u128, |sum, part| sum.checked_add(part).ok_or_else(|| error!(ErrorCode::Overflow)))
 }
-/// Protect current runtime rent and classify unsolicited SOL separately.
+/// Protect current runtime rent and classify unsolicited SOL separately as a
+/// floating, never-spendable residual.
 /// Also refreshes `pool.protected_rent` from the live rent schedule (DR-27),
 /// so the recorded floor can never go stale against a rent-schedule change.
 pub fn sync_game(pool: &mut Pool, vault: &AccountInfo) -> Result<()> {
@@ -52,12 +53,19 @@ pub fn sync_game(pool: &mut Pool, vault: &AccountInfo) -> Result<()> {
     require_keys_eq!(vault.key(), Pubkey::find_program_address(&[GAME_VAULT_SEED], &ID).0, ErrorCode::WrongAccount);
     let rent_floor = Rent::get()?.minimum_balance(vault.data_len());
     let spendable = checked_sub(vault.lamports(), rent_floor)?;
-    let recorded = game_accounted(pool)?;
-    let unaccounted = u128::from(spendable)
-        .checked_sub(recorded)
+    // `excess` floats: it is the residual of the spendable balance over the
+    // OWNED partitions at the live floor, re-derived on every sync rather than
+    // accumulated.  Nothing can spend it, so the economics are unchanged, and
+    // a rent-floor rise within excess classified at a lower floor is absorbed
+    // instead of refusing every instruction (M10 review ECO-3).  The owned
+    // partitions stay protected: a shortfall against them is `InvalidState`.
+    let owned = game_accounted(pool)?
+        .checked_sub(u128::from(pool.excess))
         .ok_or_else(|| error!(ErrorCode::InvalidState))?;
-    let unaccounted = u64::try_from(unaccounted).map_err(|_| error!(ErrorCode::Overflow))?;
-    pool.excess = checked_add(pool.excess, unaccounted)?;
+    let residual = u128::from(spendable)
+        .checked_sub(owned)
+        .ok_or_else(|| error!(ErrorCode::InvalidState))?;
+    pool.excess = u64::try_from(residual).map_err(|_| error!(ErrorCode::Overflow))?;
     pool.protected_rent = rent_floor;
     Ok(())
 }
@@ -89,8 +97,11 @@ pub fn sync_ops(ops: &mut Ops, cash: &AccountInfo) -> Result<()> {
     require!(cash.data_is_empty() && !cash.executable, ErrorCode::WrongAccount);
     let rent_floor = Rent::get()?.minimum_balance(0);
     let available = checked_sub(cash.lamports(), rent_floor)?;
-    let recorded = checked_add(checked_add(ops.free_balance, ops.locked_remaining_total)?, ops.unallocated_excess)?;
-    ops.unallocated_excess = checked_add(ops.unallocated_excess, checked_sub(available, recorded)?)?;
+    // Same floating rule as `sync_game` (M10 review ECO-3): the residual over
+    // the owned partitions (free + locked) at the live floor; a shortfall
+    // against them fails as before.
+    let owned = checked_add(ops.free_balance, ops.locked_remaining_total)?;
+    ops.unallocated_excess = checked_sub(available, owned)?;
     ops.protected_rent = rent_floor;
     Ok(())
 }

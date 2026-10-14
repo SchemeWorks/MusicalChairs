@@ -73,6 +73,14 @@ fn decode<T: AccountDeserialize>(info: &AccountInfo, wrong: Code) -> Result<T> {
 /// A key that differs from the pinned tuple, and a Client that is not this
 /// program's G-owned `RngAuthority` client, are `WrongProviderTuple`; a Client
 /// the ORAO program does not own is `WrongOwner`.
+/// The one ORAO `Client` PDA this program can be registered under: derived
+/// from this program id, the `rng_authority` PDA and the ORAO program id.
+/// Genesis must name exactly this address (M10 review SEC-4).
+pub fn expected_client() -> Pubkey {
+    let (authority, _) = rng_authority_address();
+    Client::find_address(&crate::ID, &authority, &orao::id()).0
+}
+
 pub fn validate_client(
     config: &ConfigVersion,
     governance: &Pubkey,

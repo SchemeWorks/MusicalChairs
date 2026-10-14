@@ -3,12 +3,12 @@
  "commit": "the IMPL-39b commit (inline allocation step; program source = 56df0b9 + allocation.rs/positions.rs/state.rs)",
  "artifact": {
   "path": "solana/programs/musical_chairs/artifacts/musical_chairs_program.so (gitignored; rebuilt by scripts/build-sbf.sh)",
-  "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
-  "bytes": 1395536,
+  "sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "bytes": 1397160,
   "built_on": "macOS arm64, platform-tools v1.48 osx-aarch64, cargo-build-sbf 3.1.0-beta.0, build path /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
   "reproducibility": "byte-identical only for a clean rebuild from the SAME path on the SAME platform tools (M0 receipt); builds from another path or host differ in code bytes with identical source set (M7 receipts) \u2014 CI records its own artifact hash and asserts the source set and lock"
  },
- "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+ "source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
  "source_set_helper": "solana/tests/financial-runtime/scripts/source-set-digest.sh (19 files)",
  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
  "lock_path": "solana/programs/musical_chairs/Cargo.lock",
@@ -41,5 +41,17 @@
   "artifact_sha256": "4b134d05c7385911ccac934ec29b605597215a33ae937f5e18ae86612d83f83c",
   "source_set_sha256": "1d7359b71cf0f67e200a143fb2e71df4b89a6b068b1661338735954da99ac9bf",
   "note": "clippy-cleanup ELF (56df0b9); superseded by the IMPL-39b inline-step ELF"
- }
+ },
+ "lineage": [
+  {
+   "superseded": {
+    "artifact_sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+    "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+    "bytes": 1395536
+   },
+   "by_card": "IMPL-40a",
+   "reason": "M10 security review repairs (SEC-1/ECO-2 toll-table pin, ECO-1/SEC-3 dust-toll seed route, ECO-3 floating excess, SEC-4 genesis client check, SEC-5 require_governance); lock unchanged; Stack offset warnings: 0"
+  }
+ ],
+ "built_at": "IMPL-40a rebuild 2026-10-14 (macOS executor, same pinned tools)"
 }

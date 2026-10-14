@@ -1808,3 +1808,29 @@ impl World {
         self.advance_until_phase(state::IDLE, rows);
     }
 }
+
+// ---------------------------------------------------------------------------
+// IMPL-40b helpers (additive)
+// ---------------------------------------------------------------------------
+
+impl World {
+    /// Re-root this world's labels: every recorded observation (and the scope
+    /// that names later ones) whose label starts with `from` now starts with
+    /// `to`.  Suites whose scene builders hard-code their own root (the close
+    /// `Scene` uses `financial.close.`) use this to publish rows under a
+    /// different one (`financial.review.`) without touching the builder.
+    pub fn relabel_root(&mut self, from: &str, to: &str) {
+        let swap = |label: &mut String| {
+            if let Some(rest) = label.strip_prefix(from) {
+                *label = format!("{to}{rest}");
+            }
+        };
+        swap(&mut self.scope);
+        for observation in &mut self.log {
+            swap(&mut observation.label);
+        }
+        if let Some(last) = self.last.as_mut() {
+            swap(&mut last.label);
+        }
+    }
+}

@@ -26,6 +26,12 @@
 //! envelope and the pilot keeper count, and records compute, packet, key,
 //! writable and declared-byte figures at LiteSVM's local-default rent.  It is a
 //! measurement: see the `measure` module docs for what each row is and is not.
+//!
+//! The IMPL-40b review-gap rows (`review`) close the test gaps the M10 security
+//! and economy reviews found (substituted claim and refund accounts, unprovisioned
+//! pages, pinned config across an activation, exits under pause, wrong OpsCash and
+//! ConfigVersion accounts, the per-Backer ledger walk, the capped inline allocation,
+//! the dust-loss cutoff, the permanent snapshot page); see `review_gaps`.
 
 // `Outcome = Result<Observation, Observation>` carries the full LiteSVM observation on both
 // arms on purpose (labels, logs, account deltas, compute, packet): the harness is evidence
@@ -42,6 +48,7 @@ pub mod measure;
 pub mod positions_suite;
 pub mod provisioning;
 pub mod reserve;
+pub mod review_gaps;
 pub mod runtime;
 pub mod world;
 
@@ -56,6 +63,7 @@ pub use measure::run_measure_suite;
 pub use positions_suite::run_positions_suite;
 pub use provisioning::run_provisioning_suite;
 pub use reserve::run_reserve_suite;
+pub use review_gaps::run_review_suite;
 pub use runtime::{fixtures, FinancialRuntime, Observation};
 
 /// Run the small evidence CLI without making a live transaction claim.
@@ -71,6 +79,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_reserve_suite());
     observations.extend(run_fuzz_suite());
     observations.extend(run_measure_suite());
+    observations.extend(run_review_suite());
     observations
 }
 
@@ -1978,5 +1987,119 @@ mod measure_tests {
             note["k_monthly"]["measured_core"],
             1_000 * ticket_tx + 10 * (build + 4)
         );
+    }
+}
+
+// --- IMPL-40b review gap rows ---
+//
+// One `#[test]` per row of `review_gaps.rs` (the M10 step 2 test gaps found by
+// the security and economy reviews).  Each runs the row against the actual
+// compiled SBF (plus the captured ORAO executable and the test-only Squads
+// stand-in where the row drives a close or a G-signed instruction) and asserts
+// the headline label, internal consistency of every observation (a success has
+// no error, a failure rolled back everything but the fee) and unique labels.
+#[cfg(test)]
+mod review_gap_tests {
+    use crate::controls::{assert_outcomes_consistent, assert_unique_labels};
+    use crate::review_gaps::{self as r, assert_headline};
+    use crate::runtime::Observation;
+
+    fn run_row(name: &str, row: fn() -> Vec<Observation>) {
+        let observations = row();
+        assert_headline(&observations, name);
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+    }
+
+    #[test]
+    fn wrong_owner_refund_is_refused_while_an_owner_remainder_is_locked() {
+        run_row(
+            r::ROW_WRONG_OWNER_REFUND,
+            r::wrong_owner_refund_is_refused_while_an_owner_remainder_is_locked,
+        );
+    }
+
+    #[test]
+    fn claim_backer_substitutions_are_refused() {
+        run_row(
+            r::ROW_CLAIM_SUBSTITUTIONS,
+            r::claim_backer_substitutions_are_refused,
+        );
+    }
+
+    #[test]
+    fn open_and_fund_series_a_need_their_provisioned_pages() {
+        run_row(
+            r::ROW_PAGES_REQUIRED,
+            r::open_and_fund_series_a_need_their_provisioned_pages,
+        );
+    }
+
+    #[test]
+    fn payout_with_registry_beyond_the_snapshot_pages_is_refused_at_runtime() {
+        run_row(
+            r::ROW_REGISTRY_BEYOND_SNAPSHOTS,
+            r::payout_with_registry_beyond_the_snapshot_pages_is_refused_at_runtime,
+        );
+    }
+
+    #[test]
+    fn position_keeps_its_pinned_config_across_a_later_activation() {
+        run_row(
+            r::ROW_PINNED_CONFIG,
+            r::position_keeps_its_pinned_config_across_a_later_activation,
+        );
+    }
+
+    #[test]
+    fn exit_paths_work_while_paused() {
+        run_row(r::ROW_EXITS_WHILE_PAUSED, r::exit_paths_work_while_paused);
+    }
+
+    #[test]
+    fn wrong_ops_cash_and_wrong_config_pda_are_refused() {
+        run_row(
+            r::ROW_WRONG_OPS_CASH_AND_CONFIG,
+            r::wrong_ops_cash_and_wrong_config_pda_are_refused,
+        );
+    }
+
+    #[test]
+    fn fuzz_keeps_per_backer_funded_equal_to_funded_claims() {
+        run_row(
+            r::ROW_FUZZ_BACKER_LEDGER,
+            r::fuzz_keeps_per_backer_funded_equal_to_funded_claims,
+        );
+    }
+
+    #[test]
+    fn inline_eight_capped_rows_matches_the_chunked_ticket() {
+        run_row(
+            r::ROW_INLINE_CAPPED,
+            r::inline_eight_capped_rows_matches_the_chunked_ticket,
+        );
+    }
+
+    #[test]
+    fn dust_loss_candidate_entitlement_cutoff() {
+        run_row(r::ROW_DUST_LOSS, r::dust_loss_candidate_entitlement_cutoff);
+    }
+
+    #[test]
+    fn caller_funded_snapshot_page_is_not_closable() {
+        run_row(
+            r::ROW_CALLER_SNAPSHOT,
+            r::caller_funded_snapshot_page_is_not_closable,
+        );
+    }
+
+    #[test]
+    fn review_suite_aggregates_every_row_with_unique_labels() {
+        let observations = r::run_review_suite();
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+        for row in r::ROW_NAMES {
+            assert_headline(&observations, row);
+        }
     }
 }

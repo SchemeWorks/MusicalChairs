@@ -30,7 +30,6 @@ use anchor_lang::solana_program::system_program;
 use ethnum::U256;
 
 use crate::allocation::{batch_len, read_program_account, write_program_account, SERIES_B};
-use crate::controls::require_vault_signer;
 use crate::events::{
     CandidatesSealed, DrawCaptured, DrawRequested, OwnerRefundDelivered, PromotionApplied,
     PromotionSkipped, RoundFinalized, SCHEMA_VERSION,
@@ -1478,8 +1477,10 @@ pub fn withdraw_provider_return(ctx: Context<WithdrawProviderReturn>, amount: u6
     let a = &mut *ctx.accounts;
     let close = &mut *a.close_record;
     let governance = a.governance.to_account_info();
-    require_vault_signer(&a.governance_multisig.to_account_info(), 0, &governance)?;
-    require_keys_eq!(governance.key(), a.pool.governance, Code::NotAuthorized);
+    // The full G check every other governance instruction uses (profile shape,
+    // vault derivation against `pool.governance`, signature), not only the
+    // vault signer (M10 review SEC-5).
+    crate::controls::require_governance(&a.governance_multisig.to_account_info(), &governance, &a.pool)?;
     let program = a.provider_program.to_account_info();
     let client = a.client.to_account_info();
     let provider_client = provider::validate_client(&a.config, &a.pool.governance, &program, &client)?;

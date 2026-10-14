@@ -2756,6 +2756,25 @@ pub fn g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_o
 
 pub fn withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible() -> Vec<Observation> {
     let row = ROW_WITHDRAW_REJECTS;
+
+    // A degraded G profile (threshold 1 instead of 2-of-3) must be refused with
+    // `WrongGovernanceProfile` like every other G instruction: the pre-fix
+    // program only checked the vault signer here (M10 review SEC-5).  Own
+    // scene so a pre-fix success cannot disturb the tamper rows below.
+    let mut degraded = observed_scene(row, "degraded_g_profile", 173_520);
+    {
+        let w = &mut degraded.w;
+        let eligible = w.close_record(1).eligible_return_remaining;
+        let g_multisig = w.rt.g_multisig();
+        w.rt.install_squads_account(
+            g_multisig,
+            musical_chairs_program::controls::SQUADS_PROGRAM_ID,
+            crate::controls::g_multisig_bytes_with_threshold(1),
+        );
+        let instruction = withdraw_ix(w, 1, eligible);
+        reject_g(w, "degraded_g_profile", instruction, ErrorCode::WrongGovernanceProfile);
+    }
+
     let mut scene = observed_scene(row, "", 173_520);
     let w = &mut scene.w;
     let eligible = w.close_record(1).eligible_return_remaining;
@@ -2766,7 +2785,11 @@ pub fn withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible
         ("wrong_client", |a| a.client = Pubkey::new_from_array([0x91; 32]), ErrorCode::WrongProviderTuple),
         ("wrong_provider_program", |a| a.provider_program = system_program::ID, ErrorCode::WrongProviderTuple),
         ("wrong_destination", |a| a.owner_refund = Pubkey::new_from_array([0x92; 32]), ErrorCode::WrongAccount),
-        ("rogue_multisig", |a| a.governance_multisig = Pubkey::new_from_array([0x93; 32]), ErrorCode::NotAuthorized),
+        // A key with no Squads account behind it fails the profile read first
+        // (`WrongAccount`), exactly like every other G instruction, since M10
+        // SEC-5 routed this instruction through `require_governance` (it was
+        // `NotAuthorized` from the bare vault-signer check before).
+        ("rogue_multisig", |a| a.governance_multisig = Pubkey::new_from_array([0x93; 32]), ErrorCode::WrongAccount),
     ];
     for (index, (name, tamper, expected)) in cases.into_iter().enumerate() {
         let mut accounts = withdraw_accounts(w, 1);

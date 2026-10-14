@@ -521,6 +521,25 @@ impl Rig {
 // Instruction builders
 // ---------------------------------------------------------------------------
 
+/// The ORAO `Client` PDA this program's draws are bound to: derived from the
+/// program id, the `rng_authority` PDA and the ORAO program id, so genesis can
+/// only name this one address (M10 review SEC-4).
+pub(crate) fn expected_provider_client() -> Pubkey {
+    let (authority, _) = musical_chairs_program::provider::rng_authority_address();
+    musical_chairs_program::provider::orao::state::client::Client::find_address(
+        &musical_chairs_program::ID,
+        &authority,
+        &musical_chairs_program::provider::orao::id(),
+    )
+    .0
+}
+
+/// G multisig bytes with a non-canonical threshold (a degraded profile) for
+/// rows that must see `WrongGovernanceProfile` from `require_governance`.
+pub(crate) fn g_multisig_bytes_with_threshold(threshold: u16) -> Vec<u8> {
+    tweak(G_CREATE_KEY, fixtures::squads::GOVERNANCE_TIME_LOCK, |spec| spec.threshold = threshold)
+}
+
 fn initialize_args(rt: &FinancialRuntime, domain: [u8; 32]) -> InitializeArgs {
     InitializeArgs {
         sponsor: rt.sponsor.pubkey(),
@@ -532,7 +551,7 @@ fn initialize_args(rt: &FinancialRuntime, domain: [u8; 32]) -> InitializeArgs {
         provider_program: key(0xE1),
         provider_network_state: key(0xE2),
         provider_treasury: key(0xE3),
-        provider_client: key(0xE4),
+        provider_client: expected_provider_client(),
         public_series_a_enabled: false,
     }
 }
@@ -1198,6 +1217,24 @@ pub fn initialize_rejects_one_of_three_profile() -> Vec<Observation> {
     );
     rig.ok(&observation);
     observations.push(observation);
+    // A genesis `provider_client` that is not the derived ORAO Client PDA is
+    // refused before anything is written (M10 review SEC-4): the old program
+    // accepted any key here and the draw was then disabled for good, because
+    // `RngAuthority.client` is written once and `request_round_draw` compares
+    // against it on every draw.  Fresh uninitialized rig with the canonical G
+    // and P profiles, so only the tuple can fail.
+    let mut fresh = Rig::uninitialized(DEVNET_DOMAIN);
+    let mut wrong_client = initialize_args(&fresh.rt, DEVNET_DOMAIN);
+    wrong_client.provider_client = key(0xE4);
+    let instruction = initialize_ix(&fresh.rt, wrong_client);
+    let observation = fresh.via_g(
+        label(ROW_INITIALIZE_PROFILE, "wrong_provider_client"),
+        instruction,
+        &[&sponsor()],
+    );
+    fresh.rejected_program(&observation, ErrorCode::WrongProviderTuple);
+    observations.push(observation);
+
     observations
 }
 
@@ -1949,7 +1986,7 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
     // than the frozen one is rejected at staging with fee-only rollback
     // (Codex M6 follow-up).
     type Pin = (&'static str, fn(&mut ConfigTerms));
-    let pinned: [Pin; 7] = [
+    let pinned: [Pin; 9] = [
         ("noncanonical_simple_rate", |t| t.plan_rates_bps_per_day[0] = 1_000),
         ("noncanonical_a_entitlement", |t| t.a_entitlement_bps = 12_000),
         ("noncanonical_b_entitlement", |t| t.b_entitlement_bps = 12_000),
@@ -1960,6 +1997,12 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
         // (Codex M7 review, IMPL-42).
         ("noncanonical_deadline_short", |t| t.deadline_seconds = 599),
         ("noncanonical_deadline_long", |t| t.deadline_seconds = 601),
+        // The Carried Interest table is consumed by `simple_toll`, which
+        // refuses any table other than `fees::simple_toll_bps` at payout time;
+        // a divergent staged table would strand every Simple position opened
+        // under it (M10 review SEC-1 / ECO-2), so it may only be restated.
+        ("noncanonical_toll_table", |t| t.simple_toll_bps = [1_200, 750, 250]),
+        ("noncanonical_toll_bounds", |t| t.simple_toll_day_bounds = [7, 15]),
     ];
     for (variant, mutate) in pinned {
         let mut altered = terms(2);

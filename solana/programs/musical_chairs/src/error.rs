@@ -10,7 +10,8 @@
 //! after those (6037, 6038) were appended in M5 for admission; the two after
 //! those (6039, 6040) were appended in M6 for the allocation ticket; the nine
 //! after those (6041..=6049) were appended in M7 for the close, draw and
-//! provider-cash paths.
+//! provider-cash paths; the two after those (6050, 6051) were appended in M7
+//! (IMPL-43) for the deferred owner refund.
 use anchor_lang::prelude::*;
 
 #[error_code]

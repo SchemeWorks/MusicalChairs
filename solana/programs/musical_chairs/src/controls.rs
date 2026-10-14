@@ -7,6 +7,7 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::__private::BpfWriter;
+use musical_chairs_economics::fees;
 use anchor_lang::solana_program::{
     bpf_loader_upgradeable,
     program::{invoke, invoke_signed},
@@ -177,6 +178,23 @@ impl ConfigTerms {
         );
         require!(
             self.page_capacity == PAGE_CAPACITY as u8,
+            crate::ErrorCode::InvalidState
+        );
+        // The Carried Interest table and its tier boundaries are consumed by
+        // `positions::simple_toll`, which refuses any tier other than the
+        // economics crate's (`fees::simple_toll_bps`: 1,200 / 750 / 300 bps
+        // before day 7 / before day 14 / after) at payout time.  A divergent
+        // staged table was therefore accepted here and would strand every
+        // Simple position opened under it (M10 review SEC-1 / ECO-2): the
+        // table may only be restated.
+        require!(
+            self.simple_toll_bps
+                == [
+                    fees::simple_toll_bps(0),
+                    fees::simple_toll_bps(7 * fees::DAY),
+                    fees::simple_toll_bps(14 * fees::DAY)
+                ]
+                && self.simple_toll_day_bounds == [7, 14],
             crate::ErrorCode::InvalidState
         );
         require!(
@@ -413,6 +431,16 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     // provider tuple; it is active from the first round.
     write_genesis_config(&mut ctx.accounts.config, &args, ctx.bumps.config, crate::now()?)?;
 
+    // The draw is bound for good to `RngAuthority.client` (written once here,
+    // compared on every `request_round_draw`), and ORAO's `Client` PDA for this
+    // program is fully determined by the program id, the `rng_authority` PDA
+    // and the ORAO program id.  Any other genesis tuple would disable the draw
+    // until a program upgrade, so it fails closed here (M10 review SEC-4).
+    require_keys_eq!(
+        args.provider_client,
+        crate::provider::expected_client(),
+        crate::ErrorCode::WrongProviderTuple
+    );
     ctx.accounts.rng_authority.bump = ctx.bumps.rng_authority;
     ctx.accounts.rng_authority.client = args.provider_client;
 
@@ -595,7 +623,7 @@ pub fn withdraw_management(ctx: Context<WithdrawManagement>, amount: u64) -> Res
 /// the autonomous 2-of-3, 172,800 s profile, its index-0 vault must be the
 /// recorded `pool.governance`, and that vault must have signed (as a Squads
 /// CPI signer).  `pool.governance` alone is never trusted.
-fn require_governance(
+pub(crate) fn require_governance(
     multisig: &AccountInfo<'_>,
     governance: &AccountInfo<'_>,
     pool: &Pool,
@@ -3040,5 +3068,27 @@ mod tests {
             assert_eq!(ops.try_to_vec().unwrap(), ops_before, "{expected}: ops unchanged");
             assert_eq!(close.try_to_vec().unwrap(), close_before, "{expected}: close unchanged");
         }
+    }
+}
+
+#[cfg(test)]
+mod review_pins {
+    //! M10 review SEC-1 / ECO-2: the Carried Interest table may only be restated.
+    use super::*;
+    use crate::state::ConfigVersion;
+
+    #[test]
+    fn validate_pins_the_simple_toll_table_and_day_bounds() {
+        let canonical = ConfigTerms::from(&ConfigVersion::default_v1());
+        canonical.validate().expect("the canonical table validates");
+        let mut table = canonical;
+        table.simple_toll_bps = [1_200, 750, 250];
+        assert!(table.validate().is_err(), "a divergent late tier would strand every Simple position opened under it");
+        let mut bounds = canonical;
+        bounds.simple_toll_day_bounds = [7, 15];
+        assert!(bounds.validate().is_err(), "a divergent tier boundary mis-tiers days 14..15");
+        let mut early = canonical;
+        early.simple_toll_bps[0] = 1_100;
+        assert!(early.validate().is_err());
     }
 }

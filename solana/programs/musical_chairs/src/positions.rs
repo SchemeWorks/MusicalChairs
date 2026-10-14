@@ -981,10 +981,24 @@ enum TollRoute {
     Ticket,
 }
 
-fn toll_route(toll: u64, registry_len: u64) -> TollRoute {
+/// Where a positive toll goes.  `tiers` are the `(senior, a, b)` basis points
+/// the ticket would pin from the position's config.
+///
+/// Host parity (`Book::allocate` in the economics crate): when every Backer
+/// slice of the half (`toll - toll / 2`) floors to zero, a ticket would credit
+/// nobody and seed the whole toll, so the dust seeds directly and no ticket
+/// is started (M10 review ECO-1 / SEC-3, dust subset).  At the frozen
+/// 35/45/20 split that is every toll of at most 4 lamports; 5 starts a ticket.
+fn toll_route(toll: u64, registry_len: u64, tiers: (u16, u16, u16)) -> TollRoute {
     if toll == 0 {
-        TollRoute::None
-    } else if registry_len == 0 {
+        return TollRoute::None;
+    }
+    if registry_len == 0 {
+        return TollRoute::Seed;
+    }
+    let half = toll - toll / 2;
+    let slice = |bps: u16| u128::from(half) * u128::from(bps) / 10_000;
+    if slice(tiers.0) == 0 && slice(tiers.1) == 0 && slice(tiers.2) == 0 {
         TollRoute::Seed
     } else {
         TollRoute::Ticket
@@ -1242,7 +1256,7 @@ fn payout_preflight(
         require!(record.key() != destination.key(), Code::ProtectedDestination);
     }
 
-    let route = toll_route(fee.toll, a.pool.registry_len);
+    let route = toll_route(fee.toll, a.pool.registry_len, (a.config.senior_bps, a.config.a_bps, a.config.b_bps));
     let inline = inline_offered(route, fee.insolvent, remaining.len());
     if route == TollRoute::Ticket {
         snapshots_cover(a.pool.snapshot_pages, a.pool.registry_len)?;
@@ -2071,11 +2085,15 @@ mod tests {
 
     #[test]
     fn toll_routes_to_nothing_the_seed_or_a_ticket() {
-        assert_eq!(toll_route(0, 0), TollRoute::None);
-        assert_eq!(toll_route(0, 9), TollRoute::None);
-        assert_eq!(toll_route(1, 0), TollRoute::Seed);
-        assert_eq!(toll_route(1, 1), TollRoute::Ticket);
-        assert_eq!(toll_route(13_200_000, 8), TollRoute::Ticket);
+        const T: (u16, u16, u16) = (3_500, 4_500, 2_000);
+        assert_eq!(toll_route(0, 0, T), TollRoute::None);
+        assert_eq!(toll_route(0, 9, T), TollRoute::None);
+        assert_eq!(toll_route(1, 0, T), TollRoute::Seed);
+        // Pin changed in M10 (ECO-1 / SEC-3): a 1-lamport toll with an open
+        // registry used to start a ticket that credited nobody.
+        assert_eq!(toll_route(1, 1, T), TollRoute::Seed);
+        assert_eq!(toll_route(5, 1, T), TollRoute::Ticket);
+        assert_eq!(toll_route(13_200_000, 8, T), TollRoute::Ticket);
     }
 
     #[test]
@@ -2330,5 +2348,34 @@ mod tests {
         let bad = info(registry_page_key(1), crate::ID, serialized(&mislabelled));
         assert_code(load_registry_tail(&bad, 8), Code::PageNotProvisioned);
         assert_eq!(registry_page_index(8), 1);
+    }
+}
+
+#[cfg(test)]
+mod review_dust_route {
+    //! M10 review ECO-1 / SEC-3 (dust subset): parity with the host
+    //! `Book::allocate`, which seeds a toll whose three slices all floor to
+    //! zero instead of starting a ticket.
+    use super::*;
+
+    /// The host rule, restated: a ticket is worth starting iff some slice of
+    /// the Backer half (`toll - toll / 2`) at 35/45/20 is non-zero.
+    fn host_starts_a_ticket(toll: u64) -> bool {
+        let half = toll - toll / 2;
+        half * 35 / 100 != 0 || half * 45 / 100 != 0 || half * 20 / 100 != 0
+    }
+
+    const TIERS: (u16, u16, u16) = (3_500, 4_500, 2_000);
+
+    #[test]
+    fn dust_toll_routes_to_seed_like_the_host_book() {
+        for toll in 1..=64u64 {
+            let expected = if host_starts_a_ticket(toll) { TollRoute::Ticket } else { TollRoute::Seed };
+            assert_eq!(toll_route(toll, 2, TIERS), expected, "toll {toll}");
+        }
+        assert_eq!(toll_route(4, 2, TIERS), TollRoute::Seed);
+        assert_eq!(toll_route(5, 2, TIERS), TollRoute::Ticket);
+        assert_eq!(toll_route(3, 0, TIERS), TollRoute::Seed, "an empty registry seeds everything");
+        assert_eq!(toll_route(0, 2, TIERS), TollRoute::None);
     }
 }
