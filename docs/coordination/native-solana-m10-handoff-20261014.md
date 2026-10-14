@@ -11,7 +11,10 @@ repairs: `8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826` (1,3
 | --- | --- |
 | `ae0e937` | docs(evidence): M9 close-out (Linux CI evidence run 38605447811, M9 graph fragment/refresh, M9 handoff) |
 | `7c3d84a` | fix(program): security review findings (IMPL-40a); test(harness): review-gap rows (IMPL-40b); workflow SEC-8 steps; latest-build.json re-pinned |
-| this commit | docs(solana): threat model, review reports (verbatim), triage + Codex adjudications, M10 receipts, graph fragment/refresh, this handoff; the two Codex M9 metadata fixes (handoff artifact string; M9 refresh scope pinned to commit blobs with the receipt-time dirty hashes separated) |
+| `f132fd4` | docs(solana): threat model, review reports (verbatim), triage + Codex adjudications, M10 receipts, graph fragment/refresh, this handoff; the two Codex M9 metadata fixes (handoff artifact string; M9 refresh scope pinned to commit blobs with the receipt-time dirty hashes separated) |
+| `54f3ff84` | ci: explicit CARGO_HOME for the IDL step (portability; the f132fd4 step had already passed via the toolchain action's GITHUB_ENV export); docs: sync_ops rent-cycle row and cause-unverified byte-difference disclosures; test(harness): instruction-encoding fixture (IMPL-46a) |
+| `73fd37d` | tooling(solana): local-cluster bootstrap binary (IMPL-46d) |
+| this commit | docs: Linux CI evidence for f132fd4 and 54f3ff84 recorded (M10 accepted by Codex at the source / local SBF / threat-model / graph / Linux-CI boundaries; no deployed or live proof), local-cluster recipe, archive pin |
 
 ## What M10 delivered
 
@@ -61,6 +64,10 @@ repairs: `8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826` (1,3
    → 17,042 / 25,745 / 46; every prior node id, hyperedge and edge direction preserved
    ([`evidence/2026-10-14-m10-graph-refresh.json`](../solana/evidence/2026-10-14-m10-graph-refresh.json)).
 
+## Linux CI evidence (GitHub-hosted ubuntu runner, run 38614117412 on f132fd4)
+
+Steps all green: pinned archives verified → build with the pinned tools (`cargo-build-sbf 3.1.0-beta.0`, platform `rustc 1.84.1-dev`) → source set `994a9ff48fa26033…` and lock `77f859f9a7ad4e2b…` equal to the committed pins → `stack_offset_warnings=0` → committed IDL matches a fresh generation (`clean sha256=11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597`) → LiteSVM harness on the Linux ELF `a398d6f4b5fba0fe…` (210 tests: 187 lib incl. the 12 review-gap rows + 23 integration incl. the 3 review-fix rows) → clippy `-D warnings` for both crates. The Linux ELF bytes differ from the macOS `8f97e83d…` (source set and lock pinned; exact cause unverified). The IDL step passed on this run although the workflow declared no `CARGO_HOME`: the `dtolnay/rust-toolchain` setup exports it through `GITHUB_ENV` (Codex read the setup log). Commit `54f3ff84` therefore makes the step self-contained by passing `CARGO_HOME` explicitly — a portability improvement, not the repair of an observed CI failure; its run 38615349220 is green end to end as well (same source set and lock, `idl_check=clean`). Full-M10 CI evidence as Codex's acceptance requires; `https://github.com/SchemeWorks/MusicalChairs/actions/runs/38614117412`.
+
 ## Codex adjudications recorded (no code change)
 
 - **R-1 prospective economics** (SEC-2): NOT pinned — DR-04, spec L248/L296–297 and the
@@ -74,7 +81,7 @@ repairs: `8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826` (1,3
 
 ## Caveats a reviewer should know
 
-- Linux CI for the fixed ELF is the run of commit `7c3d84a` / this commit (pins updated together); the
+- Linux CI for the fixed ELF: runs 38614117412 (f132fd4) and 38615349220 (54f3ff84), both green; the
   Linux ELF bytes may differ from `8f97e83d…` (cross-path/host builds of equal source sets have differed since
   M7; the exact cause is unverified and no reproducibility experiment is planned), with source set
   `994a9ff4…` and lock `77f859f9…` asserted.

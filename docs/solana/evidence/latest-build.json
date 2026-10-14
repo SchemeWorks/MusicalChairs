@@ -33,6 +33,12 @@
     "bytes": 215382214,
     "source": "https://github.com/anza-xyz/agave/releases/download/v3.1.0-beta.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2",
     "verified": "downloaded from the official anza-xyz release on 2026-10-14 by the coordinator and hashed locally; top-level dir solana-release/; cargo-build-sbf at bin/cargo-build-sbf; the SBF SDK at bin/platform-tools-sdk/sbf (not bin/sdk/sbf)"
+   },
+   "agave-v3.1.0-beta.0-macos-aarch64 (solana-test-validator + solana CLI, local M11 verification only)": {
+    "sha256": "de9be527da14757854c47defffffeb0d17d1b7b6c0a4175f46f531aca262bad9",
+    "bytes": 77248568,
+    "source": "https://github.com/anza-xyz/agave/releases/download/v3.1.0-beta.0/solana-release-aarch64-apple-darwin.tar.bz2",
+    "verified": "downloaded from the official anza-xyz release on 2026-10-14 by the coordinator and hashed locally; `solana-test-validator 3.1.0 (src:bd8c57e7; feat:3652419286)`; the plan's Agave 2.3.13 validator pin is superseded by the M0-pinned 3.1.0-beta.0 toolchain the ELF was built with (same runtime feature set as the build tools)"
    }
   }
  },

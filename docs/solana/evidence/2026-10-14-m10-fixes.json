@@ -157,6 +157,62 @@
   "LiteSVM 0.7.1 at local default rent; not a cluster measurement",
   "the rent-ratchet row drives the Rent sysvar directly (1/10 then restored) — a schedule change the cluster has never performed upward",
   "ECO-3 runtime row covers sync_game (GameVault, pool.excess); sync_ops carries the identical floating-residual change with source proof and the existing OpsCash donation/shortfall rows, but no separate rent-cycle SBF row (narrow limit, disclosed per the Codex M10 review)",
-  "Linux CI for the fixed ELF is the run of commits 7c3d84a/f132fd4 (recorded in the M10 handoff once green); cross-path/host bytes may differ from 8f97e83d… with the exact cause unverified; source set and lock are asserted"
- ]
+  "Linux CI (run 38614117412 on f132fd4): production-sbf build with the pinned tools, source set 994a9ff4…/lock 77f859f9… asserted, IDL regeneration clean, 0 stack-offset warnings, 187 + 23 harness tests and clippy green; the Linux ELF bytes differ from the macOS 8f97e83d… with the exact cause unverified"
+ ],
+ "linux_ci": {
+  "recorded_at_utc": "2026-10-14T18:39:01.068115+00:00",
+  "run_id": "38614117412",
+  "url": "https://github.com/SchemeWorks/MusicalChairs/actions/runs/38614117412",
+  "runner": "ubuntu-latest (GitHub-hosted)",
+  "linux_artifact_sha256": "a398d6f4b5fba0fe78c76cc5bcbe79bbbbc725bfd25451eeaab14bb9a161f297",
+  "linux_source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+  "linux_lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "standin_artifact_sha256": "955441aa488074c17af35e1cf191a564977f5a810da91a3622927ee8de0ee7ca",
+  "cargo_build_sbf_version": "cargo-build-sbf 3.1.0-beta.0",
+  "platform_rustc": "rustc 1.84.1-dev",
+  "test_results": [
+   "ok. 187 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 396.87s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.79s",
+   "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.01s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.52s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 144.84s",
+   "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "steps": {
+   "Set up job": "success",
+   "Run actions/checkout@v4": "success",
+   "Run dtolnay/rust-toolchain@1.92.0": "success",
+   "Read the pinned archive hashes": "success",
+   "Restore the pinned toolchain archives": "success",
+   "Download and verify the pinned toolchain archives": "success",
+   "Unpack the toolchain into the job-local directory": "success",
+   "Build the program and the vault stand-in with the pinned tools (provenance guard on)": "success",
+   "Assert the source set and lock against the committed pins; record the artifact hash": "success",
+   "Committed IDL matches a fresh generation": "success",
+   "Run the LiteSVM harness on the fresh artifact": "success",
+   "Clippy (deny warnings)": "success",
+   "Post Restore the pinned toolchain archives": "success",
+   "Post Run actions/checkout@v4": "success",
+   "Complete job": "success"
+  },
+  "clippy": "success",
+  "artifact_vs_macos_pin": "Linux ELF a398d6f4… vs macOS 8f97e83d…: differ; source set and lock asserted equal to the pins; exact cause of cross-host byte differences unverified",
+  "note": "Linux bytes are not required to equal the macOS bytes; the source set and lock are asserted equal to docs/solana/evidence/latest-build.json",
+  "harness": "success",
+  "tests_passed_total": 210,
+  "macos_artifact_sha256_pinned": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "artifact_bytes_equal_macos": false,
+  "idl_check": "clean sha256=11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "stack_offset_warnings": 0,
+  "second_run": {
+   "run_id": "38615349220",
+   "commit": "54f3ff84",
+   "conclusion": "success",
+   "note": "explicit CARGO_HOME for the IDL step (portability improvement; the first run had CARGO_HOME from the dtolnay/rust-toolchain GITHUB_ENV export); same source set / lock pins, idl_check clean"
+  }
+ },
+ "codex_acceptance": "M10 accepted 2026-10-14 at the source / local SBF / threat-model / graph / Linux-CI boundaries (run 38614117412 on f132fd4: Linux ELF a398d6f4…, source set 994a9ff4…, lock 77f859f9…, stack_offset_warnings=0, 210 tests, clippy); no deployed or live proof"
 }
