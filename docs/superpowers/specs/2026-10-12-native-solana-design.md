@@ -1,5 +1,6 @@
 # Musical Chairs native Solana — discovery specification
 
+> **Superseded 2026-10-13:** the [reconciled specification](2026-10-13-native-solana-reconciled-spec.md) consolidates this document with the accepted defaults, economics, availability and host-model contracts and resolves their status wording. This file is retained as evidence history; where they differ, the reconciled specification governs (its section 2 lists each reconciliation).
 > Update 2026-10-13: Rob accepted the defaults and authorized the Rust economic model plus local provider/resource and compiled SBF runtime probes. [Acceptance and scope](../../solana/launch-decisions.md). Earlier discovery status/evidence paragraphs are historical; no deployment or live financial action is authorized.
 Date: 2026-10-12. Status: **draft for discussion, not an approved execution specification**.
 Source inspected initially on `main` at `f96b33ff95020458be754bfa0d7471b72a7403af`; documentation branch: `codex/native-solana-discovery-20261012`. Source files are unchanged on that branch.

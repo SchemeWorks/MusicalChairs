@@ -1,0 +1,632 @@
+# Native Solana Production Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task once Rob authorizes implementation. Steps use checkbox (`- [ ]`) syntax for tracking. **Nothing below is authorized yet.** This plan is for Codex review.
+
+**Goal:** Move the SOL game's custody, accounting, admission, payouts, Backer allocation, promotion and round lifecycle into a native Anchor program, keep the existing ICP-hosted GUI, and feed ICP Ponzi Points from finalized native events.
+
+**Architecture:** One Anchor program with program-owned PDAs is the financial authority (spec §6–§7). The existing React screens call it through a typed adapter and read canonical state from Solana RPC. A new ICP `native_sol_bridge` canister ingests finalized events for PP rewards and history. Keepers continue accepted permissionless work and hold no authority.
+
+**Tech Stack:** Rust 1.92.0 host / Anchor 0.32.1 / Solana SDK 2.3.1 / LiteSVM 0.7.1 (Agave 2.3.13) / cargo-build-sbf 3.1.0-beta.0 + platform-tools (re-pinned in Task 0) / ethnum U256 / `orao-solana-vrf-cb 0.4.0` (`default-features=false, features=["cpi"]`) / existing frontend (web3.js 1.98.4, wallet-adapter 0.15.39, React 18.3.1, Vite 7.3.1, TS 5.6.3, vitest 4.1.7) / Motoko for ICP canisters.
+
+**Spec:** [2026-10-13-native-solana-reconciled-spec.md](../specs/2026-10-13-native-solana-reconciled-spec.md). **Decisions:** [decision register](../../coordination/native-solana-decision-register-20261013.md). **Inventory:** [state inventory](../../coordination/native-solana-state-inventory-20261013.md). **Predecessor roadmap:** [2026-10-12-native-solana.md](2026-10-12-native-solana.md) (its Tasks 1–3 are complete as host models; its Tasks 4–8 are replaced by the milestones below).
+
+## Global Constraints
+
+- Economics exactly as spec §3: Front-End Load `floor(P·400/10_000)`; Simple `floor((P·11·elapsed + remainder)/8_640_000)` with 21-day clamp; Carried Interest 1,200/750/300 bps at `<7 d`, `<14 d`, else; Compound15 `floor(P·4_473_565_759_257_037_859/10^18)` fee 900 bps; Compound30 `floor(P·12_267_678_469_131_246_220/10^18)` fee 1,300 bps; minima 10,000,000 / 50,000,000 lamports; quota 3 successes per rolling 3,600 s with exact-hour expiry; strict `owed > pot` close; toll on actual gross paid; split 35/45/20 with folds, sealed post-senior denominator, >10-lamport open cutoff, residue to seed; A ×124/100; B ×116/100; 600 s immutable deadline; 64 counters.
+- Widths: u64 cash / u128 lifetime, P&L, global funded claims / U256 weighting (spec §3.6).
+- Toolchain: do not upgrade Anchor/SDK/LiteSVM beyond DR-26; no global installs; one build executor at a time; no `@rollup/rollup-darwin-*` in any `package.json`.
+- Naming: user-facing "Front-End Load", "Carried Interest", "Jackpot Fee", "Emergency Equity Conversion"; internal `coverCharge`/`exitToll` identifiers in legacy code are not renamed.
+- Authorization gates: **Local stage** (Milestones 0–13) needs Rob's implementation go-ahead after Codex review. **Devnet stage** (Milestone 14) needs separate authorization for deployment, test-wallet funding and ORAO/Squads registration on devnet. **Mainnet stage** (Milestone 15) needs separate explicit authorization for every deployment, funding and signing action. No milestone pauses, drains or upgrades a legacy canister.
+- Branching: work on a new branch `codex/native-solana-production-core` created from `c99a636` in the fresh worktree; the first commit of Task 0 adopts the uncommitted tranche verbatim (so its hashes in the inventory remain the review baseline) before any fix. Planning docs live on `codex/native-solana-plan-20261013` and are merged forward, never force-pushed.
+- Every milestone ends with: tests green at the pinned toolchain, `graphify update .` plus a scoped semantic fragment for changed docs, a receipt JSON under `docs/solana/evidence/` with per-file SHA-256 and the measured numbers, and a handoff section in the kanban.
+- Explain Solana mechanics in handoffs where a choice depends on them (brief, with ICP/EVM comparison), as the spec does.
+
+---
+
+## Stage map and critical path
+
+```text
+M0 workspace ─► M1 host parity ─► M2 schema freeze ─► M3 controls ─► M4 provisioning
+      ─► M5 admission+payouts ─► M6 allocation+claims ─► M7 close/draw/finalize
+      ─► M8 reserve/refund/cleanup ─► M9 measurement ─► M10 security review ─► [GATE] M14 devnet ─► [GATE] M15 release
+Parallel after M2:  M11 frontend adapter (IDL-driven; live tests after M5)
+Parallel after M5:  M12 ICP bridge (event schema fixed at M2/M5)
+Parallel after M7:  M13 keepers/monitoring
+```
+
+Critical path: M0→M1→M2→M3→M5→M6→M7→M8→M9→M10→M14. Rough effort (agent-driven, one coordinator plus workers; assumes no redesign surprises and that measurements at M9 confirm the eight-row chunk or one-row fallback is acceptable):
+
+| Milestone | Effort | Elapsed dependency |
+| --- | --- | --- |
+| M0 | 1–2 days | — |
+| M1 | 1–2 days | M0 |
+| M2 | 2–3 days | M1 |
+| M3 | 3–5 days | M2 |
+| M4 | 2–4 days | M2 |
+| M5 | 5–8 days | M3, M4 |
+| M6 | 6–10 days | M5 |
+| M7 | 6–10 days | M6 |
+| M8 | 3–5 days | M7 |
+| M9 | 3–5 days | M8 |
+| M10 | 3–5 days | M9 |
+| M11 | 8–12 days | M2 (IDL), M5 (live) |
+| M12 | 8–12 days | M5 (events) |
+| M13 | 5–8 days | M7 |
+| M14 | 5–8 days + waiting | M10, M11, M12, M13, authorization |
+| M15 | 3–5 days + waiting | M14, authorization |
+
+Local stage total roughly 11–17 focused weeks with parallelism; a single sequential executor would be nearer 20 weeks. These are ranges, not commitments; M9 can return a redesign choice that resets later estimates.
+
+---
+
+## Milestone 0 — Workspace, toolchain re-pin, harness compiles (no handler logic)
+
+**Files:** `solana/Cargo.toml` (adopt the two `exclude` entries), `solana/programs/musical_chairs/**` (adopt as-is), `solana/tests/financial-runtime/**` (adopt as-is, then fix compile), `solana/tests/financial-runtime/scripts/build-sbf.sh`, `.github/workflows/native-solana-model.yml` (add a `production-program` job that builds the host harness only; SBF build stays local until Task 9), `docs/solana/evidence/2026-10-NN-m0-toolchain.json`.
+
+**Interfaces produced:** a reproducible `build-sbf.sh` run that records `platform_tools_version`, `cargo_build_sbf_sha256`, `artifact_sha256`, `source_tree_sha256`; a compiling harness binary `musical-chairs-financial-runtime`.
+
+- [ ] **Step 1: Branch and adopt the tranche verbatim**
+
+```bash
+cd /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs
+git checkout -b codex/native-solana-production-core
+git add solana/Cargo.toml solana/programs/musical_chairs solana/tests/financial-runtime docs/solana/production-accounts.md docs/coordination/kanban.md
+git commit -m "chore(solana): adopt uncommitted production account tranche verbatim for review baseline"
+```
+
+Expected: the committed blobs hash exactly as the inventory §5 table.
+
+- [ ] **Step 2: Resolve the platform-tools pin**
+
+Run `"$MC_SBF_BUILDER/bin/cargo-build-sbf" --version` and inspect `"$MC_PLATFORM_TOOLS/version.md"`. Record which version string the installed tree actually is. Either (a) obtain the v1.48 archive whose SHA-256 is `799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd` into `/private/tmp/mc-solana-runtime-tools-20261013/downloads/` and extract it as the pinned tree, or (b) re-pin provenance to the installed version and re-run the runtime probes once to show the 88-case matrix still holds. Write the choice and hashes to `docs/solana/evidence/2026-10-NN-m0-toolchain.json`. Do not install anything globally.
+
+- [ ] **Step 3: Write the failing harness compile check**
+
+Run: `cd solana/tests/financial-runtime && cargo +1.92.0 check --locked`
+Expected: FAIL at `src/runtime.rs:293` with `no method named 'map' found for struct 'Signature'`.
+
+- [ ] **Step 4: Fix the compile error only**
+
+```rust
+// src/runtime.rs:293
+signature: Some(signature.to_string()),
+```
+
+Run the check again. Expected: PASS (warnings allowed for now).
+
+- [ ] **Step 5: Run the deliberate RED suite and record it RED**
+
+Run: `cargo +1.92.0 run --locked --bin musical-chairs-financial-runtime -- all`
+Expected: `open_moves_real_sol`, `claim_moves_real_sol`, `allocation_golden_t10000` FAIL with `NotImplemented` (custom error 6000+ from the program). Save the JSON output as `docs/solana/evidence/2026-10-NN-m0-red-baseline.json`. This is the RED half of the RED→GREEN proof that Milestones 5–6 must flip.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add solana/tests/financial-runtime/src/runtime.rs docs/solana/evidence/2026-10-NN-m0-*.json
+git commit -m "fix(financial-runtime): compile harness; record RED baseline and toolchain pin"
+```
+
+**Graph:** `graphify update .` (AST now covers `solana/programs/musical_chairs/src/*.rs` and the harness); semantic fragment for `production-accounts.md` with status `draft_unimplemented` on the ten stub handlers. **Handoff:** M0 receipt with the pin decision.
+
+---
+
+## Milestone 1 — Host parity: reference model matches the production width contract
+
+**Files:** Modify `solana/crates/economics/src/backers.rs:141` (`a_denominator: u128` → `U256`), `:162` (`global_funded_claims` stays u128), add `solana/crates/economics/tests/widths.rs`; `solana/fixtures/economics.json` gains the three Backer goldens so the SBF harness can read one fixture file.
+
+**Interfaces:** `pub fn backers::sealed_denominator(rows: &[u128], senior_credit: u64) -> U256`, `pub fn backers::pro_rata(slice: u64, weight: u128, denominator: U256) -> Result<u64, Error>` exported for the program to import (production currently re-implements `floor_proportional` in `allocation.rs:149`; after this task it calls the crate).
+
+- [ ] **Step 1: Failing test — denominator above u128**
+
+```rust
+// solana/crates/economics/tests/widths.rs
+use musical_chairs_economics::backers::{pro_rata, sealed_denominator};
+use ethnum::U256;
+
+#[test]
+fn sealed_denominator_sums_past_u128_without_overflow() {
+    let rows = vec![u128::MAX, u128::MAX, 7];
+    let d = sealed_denominator(&rows, 0).expect("U256 sum");
+    assert_eq!(d, U256::from(u128::MAX) * 2 + 7);
+}
+
+#[test]
+fn pro_rata_floors_and_fits_u64() {
+    // slice 2,250 on weights 4,000/10,000 sealed after 1,750 senior -> 2,250 * 2,250 / 8,250 = 613
+    let d = sealed_denominator(&[4_000, 6_000], 1_750).unwrap();
+    assert_eq!(pro_rata(2_250, 4_000 - 1_750, d).unwrap(), 613);
+    assert_eq!(pro_rata(2_250, 6_000, d).unwrap(), 1_636);
+}
+```
+
+Run: `cargo +1.92.0 test --manifest-path solana/Cargo.toml --test widths --locked`
+Expected: FAIL (functions do not exist).
+
+- [ ] **Step 2: Implement** the two functions in `backers.rs` using `ethnum::U256` checked ops; route `allocate_chunk_inner` through them.
+- [ ] **Step 3: Run the full economics workspace**: `cargo +1.92.0 test --manifest-path solana/Cargo.toml --workspace --locked` → 72 prior tests + new ones PASS; `cargo clippy ... -D warnings` PASS; `cargo fmt --check` PASS.
+- [ ] **Step 4: Replace production `floor_proportional` body** with a call into the crate (keep the golden test at `allocation.rs:389–394`). `cargo +1.92.0 check` on the program.
+- [ ] **Step 5: Commit** `feat(economics): U256 sealed denominator shared by host model and program`.
+
+**Graph:** AST update; link `allocation.rs::floor_proportional → economics::pro_rata` (EXTRACTED). **Handoff:** test counts (expected 72 → ≥ 74).
+
+---
+
+## Milestone 2 — Schema freeze and IDL
+
+**Files:** Modify `solana/programs/musical_chairs/src/state.rs` (add `ConfigVersion`, `CloseRecord`, `ParticipantPage`, `CandidatePage`, `RngAuthority`; rent components; `Position.config_version`; `Pool.funded_claims: u128`; move closing fields; replace unused `*_SHARE_BPS` consts with use sites), `src/lib.rs` (new seeds), create `src/events.rs` (all `#[event]` structs from spec §7.5 with `schema_version: u8`), `src/error.rs` (split `ErrorCode` out of `lib.rs`; add `NothingToClaim`, `InsufficientManagement`, `ReserveUnavailable`, `PositionRoundClosed`, `DuplicateWritableAccount`, `LateCapture`, `Collision`, `WrongProviderTuple`, `ConfigNotActivatable`). Create `solana/programs/musical_chairs/idl/musical_chairs.json` (generated) and `solana/scripts/gen-idl.sh`.
+
+**Interfaces produced (consumed by every later milestone):** seeds `POOL_SEED..CANDIDATES_SEED`, `RNG_AUTHORITY_SEED`, `CONFIG_SEED`, `CLOSE_SEED`, `PARTICIPANTS_SEED`; `ConfigVersion { effective_round_id: u64, plan_rates_bps_per_day: [u16;3], plan_durations_s: [u32;3], simple_toll_bps: [u16;3], simple_toll_day_bounds: [u16;2], jackpot_bps: [u16;2], front_end_load_bps: u16, min_game: u64, min_a: u64, quota_count: u8, quota_window_s: u32, seed_bps: u16, senior_bps: u16, a_bps: u16, b_bps: u16, a_entitlement_bps: u16, b_entitlement_bps: u16, open_cutoff: u64, deadline_seconds: u32, close_reserve_lamports: u64, provider_program: Pubkey, provider_network_state: Pubkey, provider_treasury: Pubkey, provider_client: Pubkey, public_series_a_enabled: bool, page_capacity: u8 }`; `CloseRecord` and pages as spec §6; `RentComponents { ops: u64, owner: u64, owner_refund: Pubkey }` embedded.
+
+- [ ] **Step 1: Failing layout tests** in `state.rs` tests module: for each new account, `assert_eq!(T::SPACE, 8 + borsh_len(default))`; a test that `ConfigVersion::default_v1()` encodes the Global Constraints values exactly (400, 10_000_000, 50_000_000, 3, 3600, 5000/3500/4500/2000, 12400, 11600, 10, 600, 8). Run `cargo +1.92.0 test -p musical-chairs-program --lib` → FAIL (types missing).
+- [ ] **Step 2: Add the types** with `#[derive(InitSpace)]`, bump-first layout, and the fields in spec §6. Make `Pool.funded_claims: u128`.
+- [ ] **Step 3: Run tests** → PASS. Build the program host-side (`cargo check`).
+- [ ] **Step 4: Generate the IDL** with the pinned Anchor (`anchor idl build` is unavailable without the CLI; use `anchor-lang`'s `idl-build` feature via `cargo test --features idl-build -- __anchor_private_print_idl` as documented for 0.32, captured by `gen-idl.sh`). Commit the JSON; add a CI step that regenerates and diffs it.
+- [ ] **Step 5: Commit** `feat(program): freeze account schema, events and IDL v1`.
+
+**Graph:** AST update; semantic fragment linking each account node to its spec §6 row (`implements`, EXTRACTED). **Handoff:** IDL SHA-256; account sizes table (first real numbers for DR-27's rent model).
+
+Solana note for the handoff: the IDL is Solana's equivalent of a Candid file, generated from the program; the frontend client in M11 is generated from it, so freezing it here is what lets M11 run in parallel.
+
+---
+
+## Milestone 3 — Authenticated controls under LiteSVM
+
+**Files:** Modify `src/controls.rs` (fix discriminator `:438`, parse `config_authority: Pubkey` `:446`, `InsufficientManagement` `:246`, add `stage_config_version`, `activate_config_version`, `rotate_recipient`, `rotate_guardian`); create `solana/tests/financial-runtime/src/controls.rs` (LiteSVM suite), `solana/tests/financial-runtime/fixtures/squads/{multisig_g.bin,multisig_p.bin,README.md}` (byte-exact `Multisig` accounts built from the pinned Squads v4 source layout, with the derivation documented), `fixtures/loader/{program.bin,programdata.bin}` (loader-shaped fixtures as the runtime probes already do).
+
+**Interfaces:** `controls::validate_profile(&AccountInfo, expected_delay: u32, expected_threshold: u8, expected_members: usize) -> Result<Pubkey /*vault*/>`; `controls::require_vault_signer(multisig, vault_index=0, signer)`.
+
+- [ ] **Step 1: Failing unit test — discriminator derived, not hard-coded**
+
+```rust
+#[test]
+fn multisig_discriminator_matches_anchor_namespace() {
+    let d = anchor_lang::solana_program::hash::hash(b"account:Multisig").to_bytes();
+    assert_eq!(&d[..8], &controls::SQUADS_MULTISIG_DISCRIMINATOR);
+}
+```
+
+Run → FAIL (`…0xc8` vs `…0xec`). Fix the constant. PASS.
+
+- [ ] **Step 2: Failing unit test — autonomous layout**: encode a `Multisig` with `config_authority = Pubkey::default()`, `threshold = 2`, `time_lock = 172_800`, three `Member{key, permissions: 7}` entries using the field order from `programs/squads_multisig_program/src/state/multisig.rs` at the pinned commit (document commit hash in `fixtures/squads/README.md`); assert `validate_profile` returns the vault PDA `find_program_address(&[b"multisig", multisig.key, b"vault", &[0]], SQUADS_ID)`. Run → FAIL (Option tag desynchronizes). Rewrite the parser. PASS.
+- [ ] **Step 3: Failing LiteSVM tests** (`controls.rs` suite), each asserting exact error and fee-only rollback:
+  - `initialize_succeeds_with_g_vault_signer_and_matching_programdata`
+  - `initialize_rejects_first_caller_without_g_vault` → `Unauthorized`
+  - `initialize_rejects_programdata_authority_mismatch`
+  - `initialize_rejects_one_of_three_profile` (threshold 1) → `WrongGovernanceProfile`
+  - `initialize_sets_pot_seed_zero_round_one_next_close_one`
+  - `set_admission_pause_touches_only_admission_account` (assert account list)
+  - `set_admission_pause_rejects_non_guardian`
+  - `withdraw_management_pays_recipient_only_and_caps_at_accrued` (seed `management = 1_000` via a test-only fixture write, then withdraw 1_001 → `InsufficientManagement`; withdraw 1_000 → vault −1_000, recipient +1_000)
+  - `fund_operations_any_signer_increases_free_balance_only`
+  - `withdraw_unreserved_operations_respects_locked_and_rent`
+  - `stage_config_requires_g_and_future_round` (effective = current → `ConfigNotActivatable`)
+  - `activate_config_only_when_active_no_ticket_and_round_reached`
+  - `rotate_recipient_requires_g`
+  Run → FAIL (handlers missing / fixtures missing).
+- [ ] **Step 4: Implement** the new handlers and fixture builders. Run → PASS. Conservation check after every test: `ops_cash.lamports - rent == free + locked`.
+- [ ] **Step 5: Commit** `feat(program): authenticated controls with byte-exact Squads profile fixtures`.
+
+**Runtime proof:** LiteSVM transactions for every row above with CU and packet bytes captured into the receipt. **Graph:** AST + fragment marking `validate_profile` `local_runtime_executed`. **Handoff:** note that real Squads execution and deployed readback remain M14.
+
+---
+
+## Milestone 4 — Provisioning, rent components, cleanup
+
+**Files:** Modify `src/controls.rs` (generalize `provision_snapshot/registry` into `provision_page(kind, index)` + `provision_close_record`; add `close_shared_account(kind)`), `src/lib.rs::create_shared` (record `RentComponents`), harness `src/provisioning.rs`.
+
+**Interfaces:** `PageKind { Registry, Snapshot, Participant{round}, Candidate{close_id, set_tag} }`; `provision_page(kind, index, funding: Funding::{Ops, Caller})`; safe-closure predicates `can_close(kind, pool, ticket, close_record) -> bool`.
+
+- [ ] **Step 1: Failing LiteSVM tests**: `provision_snapshot_sequential_only` (index 2 before 1 → `WrongIndex`); `provision_from_ops_debits_free_balance_by_exact_rent`; `provision_by_caller_records_owner_component_and_refund_destination`; `close_snapshot_page_refused_while_ticket_active`; `close_snapshot_page_refunds_components_once` (second call → `AlreadyClosed`); `close_close_record_always_refused`; `provision_close_record_requires_next_close_id`.
+- [ ] **Step 2: Implement.** Rent read from `Rent::get()`, never a constant (DR-27).
+- [ ] **Step 3: PASS; commit** `feat(program): generic page provisioning, rent components, safe cleanup`.
+
+**Graph/Handoff:** measured rent per account kind at local default rent, labeled as local default (6,960 coefficient) distinct from mainnet schedule.
+
+---
+
+## Milestone 5 — Admission and payouts (RED→GREEN on real lamports)
+
+**Files:** Modify `src/positions.rs` (replace stubs `:319, :323, :331` with handlers; split `claim_position` into `withdraw_simple`, `settle_compounding`, `close_simple_position`; add `close_position_account`; add `ParticipantPage` and `CloseRecord(next)` accounts to `OpenPosition`/payout structs; add `max_work_contribution_lamports` and `expected_round_id`/`expected_config` args), reuse `/private/tmp/mc-positions-handlers-20261013.rs` logic after fixes (call `allocation::fold_slices`, drop dead assignments, write `User.b_entitlement` prospective check only, use `rounds::PROMOTION_DEADLINE_SECS`), harness `src/financial.rs` (fix `:44` sequence assertion; fixtures use Backer PDAs and genesis-shaped `Pool`/`Ticket`).
+
+**Interfaces:** `OpenPositionArgs { plan: u8, gross: u64, client_nonce: u64, expected_round_id: u64, expected_config: u32 }`; `PayoutArgs { minimum_receive: u64, max_work_contribution_lamports: u64 }` with `destination` as an account; events `PositionOpened`, `SeriesAFunded`, `PayoutPaid`, `RoundClosed`.
+
+- [ ] **Step 1: Flip the RED baseline — failing LiteSVM tests with exact lamports**
+
+```rust
+// solana/tests/financial-runtime/src/financial.rs
+#[test]
+fn open_one_sol_simple_splits_40m_management_960m_pot_and_moves_real_sol() {
+    let mut w = World::genesis();                       // initialized program, funded owner
+    let before = w.lamports(w.game_vault);
+    w.open_position(owner, Plan::Simple, 1_000_000_000, nonce = 1).expect("open");
+    assert_eq!(w.lamports(w.game_vault) - before, 1_000_000_000);
+    let pool = w.pool();
+    assert_eq!(pool.management, 40_000_000);
+    assert_eq!(pool.pot, 960_000_000);
+    assert_eq!(w.position(owner, 1).gross, 1_000_000_000);   // accrual base is GROSS
+    assert_eq!(w.user_round(owner, 1).gross_deposits, 1_000_000_000);
+    assert_eq!(w.participants(1).rows[0], owner);
+    assert_eq!(pool.next_first_funding_seq, 1);                 // unchanged by game open
+}
+
+#[test]
+fn withdraw_simple_after_one_day_pays_96_800_000_and_escrows_13_200_000() {
+    let mut w = World::genesis_with_simple_position_and_one_open_backer(1_000_000_000);
+    w.warp_seconds(86_400);
+    let before = w.lamports(dest);
+    w.withdraw_simple(owner, nonce = 1, minimum_receive = 96_800_000, dest, max_contrib = 0).expect("pay");
+    assert_eq!(w.lamports(dest) - before, 96_800_000);           // no 5,000 deduction
+    let pool = w.pool();
+    assert_eq!(pool.pot, 960_000_000 - 110_000_000);
+    assert_eq!(pool.pending_toll, 13_200_000);
+    assert!(pool.ticket_active);                                 // one open Backer: toll escrowed and ticket created
+}
+
+#[test]
+fn toll_with_no_backers_goes_straight_to_seed_without_ticket() {
+    // registry_len == 0: whole toll -> seed, no ticket (reference-model shortcut, spec §3.5)
+    let mut w = World::genesis_with_simple_position(1_000_000_000);
+    w.warp_seconds(86_400);
+    w.withdraw_simple(owner, 1, 0, dest, 0).unwrap();
+    let pool = w.pool();
+    assert_eq!(pool.seed, 13_200_000);
+    assert_eq!(pool.pending_toll, 0);
+    assert!(!pool.ticket_active);
+}
+
+#[test]
+fn minimum_receive_failure_is_atomic_and_fee_only() {
+    let mut w = World::genesis_with_simple_position(1_000_000_000);
+    w.warp_seconds(86_400);
+    let snap = w.snapshot_all();
+    let err = w.withdraw_simple(owner, 1, 96_800_001, dest, 0).unwrap_err();
+    assert_eq!(err, ProgramError::MinimumReceiveNotMet);
+    assert_eq!(w.snapshot_all().except_payer_fee(5_000), snap);
+}
+
+#[test]
+fn strict_insolvency_closes_and_equality_does_not() {
+    // pot exactly equals owed -> solvent, pot ends 0, round stays Active
+    let mut w = World::genesis();
+    w.set_pot_fixture(110_000_000);                 // test-only helper writes Pool.pot and vault lamports together
+    w.open_fixture_simple(owner, 1_000_000_000);    // fixture position without touching pot
+    w.warp_seconds(86_400);
+    w.withdraw_simple(owner, 1, 0, dest, 0).unwrap();
+    assert_eq!(w.pool().pot, 0);
+    assert!(matches!(w.pool().phase, Phase::Active));
+    // one lamport less -> closing
+    let mut w2 = World::genesis(); w2.set_pot_fixture(109_999_999); w2.open_fixture_simple(owner, 1_000_000_000);
+    w2.provision_close_record(1);
+    w2.warp_seconds(86_400);
+    w2.withdraw_simple(owner, 1, 0, dest, 0).unwrap();
+    assert!(matches!(w2.pool().phase, Phase::Closing));
+    let cr = w2.close_record(1);
+    assert_eq!(cr.promotion_deadline, cr.close_started_at + 600);
+    assert_eq!(cr.participant_count, 1);
+}
+
+#[test]
+fn compound_15_maturity_vector() {
+    let mut w = World::genesis_with_position(Plan::Compound15, 1_000_000_000);
+    w.set_pot_fixture(10_000_000_000);
+    w.warp_seconds(15 * 86_400 - 1);
+    assert_eq!(w.settle_compounding(owner, 1, 0, dest, 0).unwrap_err(), ProgramError::NotMature);
+    w.warp_seconds(1);
+    w.settle_compounding(owner, 1, 0, dest, 0).unwrap();
+    assert_eq!(w.last_event::<PayoutPaid>().gross_paid, 4_473_565_759);
+    assert_eq!(w.last_event::<PayoutPaid>().toll, 402_620_918);
+    assert_eq!(w.last_event::<PayoutPaid>().net, 4_070_944_841);
+}
+
+#[test]
+fn quota_third_success_blocks_fourth_until_exact_hour() {
+    let mut w = World::genesis();
+    for n in 1..=3 { w.open_position(owner, Plan::Simple, 10_000_000, n).unwrap(); }
+    assert_eq!(w.open_position(owner, Plan::Simple, 10_000_000, 4).unwrap_err(), ProgramError::QuotaExceeded);
+    w.warp_seconds(3_599);
+    assert_eq!(w.open_position(owner, Plan::Simple, 10_000_000, 4).unwrap_err(), ProgramError::QuotaExceeded);
+    w.warp_seconds(1);
+    w.open_position(owner, Plan::Simple, 10_000_000, 4).unwrap();      // exactly one hour old has expired
+}
+
+#[test]
+fn failed_open_does_not_consume_quota_and_nonce_replay_fails() {
+    let mut w = World::genesis();
+    assert_eq!(w.open_position(owner, Plan::Simple, 9_999_999, 1).unwrap_err(), ProgramError::BelowMinimum);
+    w.open_position(owner, Plan::Simple, 10_000_000, 1).unwrap();
+    assert_eq!(w.open_position(owner, Plan::Simple, 10_000_000, 1).unwrap_err(), ProgramError::AccountAlreadyInitialized);
+    assert_eq!(w.user(owner).successful_calls(), 1);
+}
+
+#[test]
+fn fund_series_a_full_gross_to_pot_entitlement_124() {
+    let mut w = World::genesis();
+    w.fund_series_a(owner, 50_000_000, 1).unwrap();
+    assert_eq!(w.pool().pot, 50_000_000);
+    assert_eq!(w.pool().management, 0);
+    assert_eq!(w.backer(owner, Series::A).entitlement, 62_000_000);
+    assert_eq!(w.backer(owner, Series::A).first_funding_seq, 1);
+    assert_eq!(w.registry(0).rows[0], (owner, Series::A));
+    assert!(w.user(owner).has_ever_a);
+}
+
+#[test]
+fn fund_series_a_rejected_while_ticket_active_and_when_flag_off() { /* ticket_active fixture -> TicketActive; config flag false -> PublicSeriesADisabled */ }
+
+#[test]
+fn stale_round_position_cannot_pay_but_can_be_closed_for_rent() { /* round advanced fixture -> PositionRoundClosed; close_position_account refunds owner rent */ }
+
+#[test]
+fn third_party_fee_payer_gains_no_authority() { /* fee payer != owner: owner still lamport source; destination fixed by owner; payer cannot open for owner without owner signature -> MissingRequiredSignature */ }
+
+#[test]
+fn destination_cannot_be_game_vault_ops_cash_or_program_pda() { /* each -> ProtectedDestination */ }
+```
+
+Run: `cargo +1.92.0 run --locked --bin musical-chairs-financial-runtime -- positions`
+Expected: all FAIL with `NotImplemented` (the M0 RED baseline).
+
+- [ ] **Step 2: Implement** the handlers from the fixed draft logic. Keep the lazy-error rule (`ok_or_else`) in every loop. Write `User.b_entitlement` only via the prospective check (promotion writes it in M7).
+- [ ] **Step 3: Run → PASS.** Record CU/packet per instruction into the receipt.
+- [ ] **Step 4: Property test on the host crate** `tests/payout_props.rs`: for random `(P ∈ [10^7, 10^15], elapsed ∈ [0, 21 d], pot ∈ [0, 2^63])` check `gross_paid + (pot - gross_paid) == pot`, `toll + net == gross_paid`, and that the SBF handler and `economics::Payout::from_gross` agree on 200 sampled cases executed through LiteSVM (differential test).
+- [ ] **Step 5: Commit** `feat(program): admission, Series A funding and owner payouts with closing pin`.
+
+**Runtime proof:** RED baseline JSON (M0) and GREEN JSON (this task) with identical test labels. **Graph:** AST + fragment flipping the three handler nodes from `draft_unimplemented` to `local_runtime_executed`. **Handoff:** vector table actual vs expected, CU table.
+
+---
+
+## Milestone 6 — Allocation ticket and combined claims
+
+**Files:** Modify `src/allocation.rs` (replace stubs `:357–381`; port `/private/tmp/mc-allocation-handlers-20261013.rs` after fixing: same-page swap-delete (`:464–515`), inverted alias write (`:517–530`), missing `Pool` import, `use super` path; add the duplicate-writable-key guard; single `advance_ticket(rows)` entrypoint dispatching by phase with the per-phase account validation from the draft structs), `src/claims.rs` (new: `claim_backer` with lazy materialization over A and B), harness `src/allocation.rs`.
+
+**Interfaces:** `advance_ticket(rows: u8)` with `remaining_accounts` in exact cursor order: Discover `[RegistryPage, SnapshotPage, Backer×rows]`; Allocate `[SnapshotPage, Backer×rows]`; Prune `[SnapshotPage, Backer(pruned), RegistryPage(pruned), RegistryPage(last), Backer(moved)]` per row; Senior/Seal/Commit `[Backer(oldest)]` / `[]` / `[]`.
+
+- [ ] **Step 1: Failing LiteSVM goldens** (the M0 RED `allocation_golden_t10000` plus):
+
+```rust
+#[test]
+fn golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500() {
+    let mut w = World::with_backers(&[(a1, A, 4_000), (a2, A, 6_000), (b1, B, 1_000_000), (b2, B, 1_000_000)]);
+    w.start_ticket_fixture(10_000);
+    w.advance_until_idle(rows = 8);
+    assert_eq!(w.pool().seed, 5_001);
+    assert_eq!(w.backer(a1, A).pending_credit, 2_363);
+    assert_eq!(w.backer(a2, A).pending_credit, 1_636);
+    assert_eq!(w.backer(b1, B).pending_credit, 500);
+    assert_eq!(w.backer(b2, B).pending_credit, 500);
+    assert_eq!(w.pool().global_funded_claims, 2_363 + 1_636 + 500 + 500);
+    assert_eq!(w.pool().pending_toll, 0);
+}
+
+#[test]
+fn golden_no_b_a1000_a10000_seed_5750_a1000_a3250() { /* ... */ }
+
+#[test]
+fn golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed() { /* ... */ }
+
+#[test]
+fn chunk_sizes_1_4_8_produce_identical_state() {
+    for rows in [1u8, 4, 8] {
+        let mut w = World::with_random_backers(seed = 7, n = 37);
+        w.start_ticket_fixture(123_457);
+        w.advance_until_idle(rows);
+        assert_eq!(w.digest_financial_state(), EXPECTED_DIGEST_37_123457); // computed once from the host oracle
+    }
+}
+
+#[test]
+fn replaying_a_completed_discover_chunk_fails_without_credit() { /* cursor mismatch -> StaleCursor; snapshot unchanged */ }
+
+#[test]
+fn prune_same_page_swap_delete_clears_last_slot_on_first_page() {
+    // regression for draft bug: pruned slot 1 and last slot 3 both on page 0
+    let mut w = World::with_backers(&[(a1, A, 100_000), (a2, A, 5), (a3, A, 100_000), (a4, A, 100_000)]);
+    w.start_ticket_fixture(10_000);
+    w.advance_until_phase(Phase::Prune, 8);
+    w.advance_ticket(1).unwrap();                       // prunes a2 (remaining 5 <= 10)
+    assert_eq!(w.registry(0).rows[1], (a4, A));         // a4 moved into slot 1
+    assert_eq!(w.registry(0).rows[3], EMPTY);
+    assert_eq!(w.backer(a4, A).registry_slot, Some(1));
+    assert_eq!(w.backer(a2, A).registry_slot, None);     // regression for inverted alias write
+    assert_eq!(w.pool().registry_len, 3);
+}
+
+#[test]
+fn prune_alias_when_pruned_row_is_last_row_marks_it_inactive() { /* moved == pruned */ }
+
+#[test]
+fn duplicate_writable_account_in_rows_is_rejected() { /* same Backer passed twice -> DuplicateWritableAccount */ }
+
+#[test]
+fn claim_during_ticket_pays_only_finalized_and_commit_adds_once() {
+    // backer with 100 funded and 20 pending from the active ticket
+    assert_eq!(w.claim_backer(owner, dest).unwrap(), 100);
+    w.advance_until_idle(8);                             // commit adds 20 to global once
+    assert_eq!(w.pool().global_funded_claims, 20);
+    assert_eq!(w.claim_backer(owner, dest).unwrap(), 20); // lazy materialization, no second lifetime credit
+    assert_eq!(w.backer(owner, A).lifetime_credited, 120);
+}
+
+#[test]
+fn claim_never_restores_cap_headroom_and_capped_backer_leaves_registry_with_history() { /* has_ever_a stays true; registry_slot None; lifetime unchanged after claim */ }
+
+#[test]
+fn reopen_capped_a_keeps_first_funding_seq() { /* fund again -> appended with original seq; seniority preserved */ }
+
+#[test]
+fn normal_deposit_allowed_during_nonclosing_ticket_but_a_funding_and_payout_wait() { /* open OK; fund_series_a -> TicketActive; withdraw_simple -> TicketActive */ }
+
+#[test]
+fn conservation_identity_holds_after_every_phase() { /* assert game_vault - rent == pot+seed+management+pending_toll+global_funded_claims+excess after each advance */ }
+```
+
+Run → FAIL (`NotImplemented`).
+- [ ] **Step 2: Implement** `advance_ticket` phases and `claim_backer`. Snapshot pages must carry `ticket_id` and be rejected if stale.
+- [ ] **Step 3: Run → PASS.** Capture CU and packet bytes for rows 1/4/8 at N = 16, 64, 100, 256 (production rows, not the kernel).
+- [ ] **Step 4: Differential test** against the host `Book`: replay 50 random tickets through both and compare per-Backer `pending/lifetime` and `seed`.
+- [ ] **Step 5: Commit** `feat(program): bounded allocation ticket, prune fixes, lazy claims`.
+
+**Runtime proof:** GREEN for `allocation_golden_t10000`. **Graph:** flip seven handler nodes; link `advance_ticket → economics::pro_rata`. **Handoff:** CU/packet table; first evidence on whether 8 rows fit with production accounts.
+
+---
+
+## Milestone 7 — Close, candidates, draw, promotion, expiry, finalization
+
+**Files:** Create `src/close.rs` (`build_candidates`, `request_round_draw`, `capture_round_draw`, `apply_promotion`, `expire_promotion`, `finalize_round`), `src/provider.rs` (ORAO CPI wrapper reusing `solana/probes/runtime/program/src/lib.rs` request/capture logic; add `orao-solana-vrf-cb = "=0.4.0", default-features=false, features=["cpi"]` to the program `Cargo.toml` and re-lock), `src/sampling.rs` (ordinal mapping, ported from `economics::rounds::map_output` with a shared test vector file `solana/fixtures/sampling.json`), harness `src/close.rs` with the captured ORAO executable from `solana/probes/runtime/fixtures/` loaded under synthetic fulfill authority as in the probes.
+
+**Interfaces:** instructions as spec §7.4; `CloseRecord` transitions; events `CandidatesSealed`, `DrawRequested`, `DrawCaptured`, `PromotionApplied`, `PromotionSkipped`, `RoundFinalized`.
+
+- [ ] **Step 1: Failing LiteSVM tests**
+  - `build_candidates_visits_every_participant_once_and_seals_digests` (M = 20 participants; 7 losers, 3 of them with A history → preferred 4, fallback 7; digest equals SHA-256 over the ordered pubkeys)
+  - `build_candidates_rejects_skipped_or_reordered_rows`
+  - `sealed_with_zero_losers_skips_no_candidates_without_request`
+  - `request_round_draw_creates_request_with_protocol_seed_and_marker_atomically` (assert seed bytes equal the §4 formula computed host-side; failed CPI leaves `draw_state == NotRequested`)
+  - `request_after_deadline_is_rejected_before_fees`
+  - `collision_with_preexisting_request_fails_closed_no_alternate_seed`
+  - `capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop`
+  - `apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116` (fixture output chosen so counter 0 is rejected and counter 1 accepted; winner loss 300,000,000 → B entitlement 348,000,000; `has_ever_b` set; registry append; no cash change)
+  - `all_64_counters_rejected_terminalizes_entropy_exhausted` (fixture output and N chosen so every `r_c >= limit`; use the host sampler to find such a vector or synthesize N near 2^63)
+  - `expire_promotion_requires_clock_past_deadline_and_no_capture`
+  - `timely_capture_cannot_be_expired_and_applies_after_deadline`
+  - `expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash`
+  - `finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once` (seed 13,200,000 → pot; `round_id` 1→2; second call Ok no-op)
+  - `direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round`
+  - `late_authentic_fulfillment_after_skip_cannot_mint_or_revive`
+  - `second_close_cannot_reuse_first_close_request_binding`
+  Run → FAIL (module missing).
+- [ ] **Step 2: Implement.** Reserve consumption for request fee/rent from `CloseRecord.locked_sponsor` (M8 completes the refund side; here assert consumption only).
+- [ ] **Step 3: Run → PASS** with the captured ORAO executable; record CU/packet for each instruction.
+- [ ] **Step 4: Commit** `feat(program): claim-triggered close, sealed candidates, bound ORAO draw, deadline expiry, finalization`.
+
+**Runtime proof:** full lifecycle receipt from closing payout to reopened round in LiteSVM. **Graph:** fragment linking `CloseRecord` states to availability contract nodes. **Handoff:** explicit limits — one synthetic fulfill authority, no cluster latency.
+
+---
+
+## Milestone 8 — Reserve, refund and cleanup end-to-end; randomized conservation
+
+**Files:** Modify `src/positions.rs` (reserve check order, locked partitions), `src/close.rs` (settle reserve at terminal promotion), `src/controls.rs::close_shared_account` predicates; harness `src/reserve.rs`, `src/fuzz.rs` (deterministic random operation sequences).
+
+- [ ] **Step 1: Failing tests**: `reserve_short_by_one_lamport_rejects_closing_payout_before_mutation`; `owner_contribution_covers_shortfall_up_to_max_only`; `sponsor_partition_consumed_first_then_owner`; `unused_locked_refunded_once_at_terminal_promotion_to_ops_and_owner_destination`; `sponsor_withdrawal_cannot_touch_locked`; `snapshot_page_closable_only_after_ticket_terminal_and_refunds_components`; `candidate_pages_closable_after_terminal_promotion`; `participant_pages_closable_after_finalize`; `cleanup_is_never_required_for_commit_finalize_or_open`; `randomized_300_step_sequence_keeps_both_conservation_identities` (operations drawn from open/fund/withdraw/settle/advance/claim/build/request/capture/apply/expire/finalize/provision/close with a fixed RNG seed; every step re-checks both identities; failures dump the sequence).
+- [ ] **Step 2: Implement; PASS; commit** `feat(program): reserve partitions, once-only refunds, safe cleanup, randomized conservation`.
+
+---
+
+## Milestone 9 — Measurement and inline feasibility
+
+**Files:** Create `solana/tests/financial-runtime/src/measure.rs`, `docs/solana/measurements-2026-10.md`, receipt `docs/solana/evidence/2026-10-NN-m9-measurements.json`; update `docs/coordination/native-solana-icp-budget.md` with a "measured" section (do not delete the scenario).
+
+- [ ] **Step 1: Matrix** (each row records CU, packet bytes, message keys, writable count, declared account bytes, rent at local default, success): inline candidates N = 0/1/16/17 for a payout that would allocate inline in one transaction (to decide whether an inline path is feasible at all with production accounts); chunk populations N = 64/100/256/1,024 with rows 1/4/8; churn (reopen/prune cycles); dust claims (owed 1–10 lamports); full close path M = 100 participants; keeper transaction count K for the pilot (P = 1,000, C = 10, N = M = 100) computed from measured per-phase counts rather than the `ceil(N/8)` scenario.
+- [ ] **Step 2: Decision output**: either confirm eight-row chunks fit the 1,232-byte envelope with production accounts, or set the default rows to the largest measured fit, with one-row fallback always proved. If no inline path fits at N = 16, record that inline allocation is not a first-release path (no economics change).
+- [ ] **Step 3: Budget rebuild** from measured sizes using the SIMD-0437 step active at measurement time and the 696-lamport terminal step as a second column (DR-27); separate retained vs reclaimable rent, consumed oracle/transaction fees, deployment buffer, RPC/host subscriptions, ICP cycles at 26,153,846,153 per signature for the watchdog's expected signature count. Keep the 12-SOL / 0.5–1.5-SOL figures labeled as superseded scenarios.
+- [ ] **Step 4: Commit** `docs(solana): measured compute, packet, rent and pilot budget`.
+
+**Handoff:** this milestone may return a concrete redesign choice to Rob (e.g., page capacity, keeper format per DR-28); it never changes game rules silently.
+
+---
+
+## Milestone 10 — Targeted security review and fixes
+
+**Files:** `docs/solana/threat-model.md` (new), review receipts under `docs/solana/evidence/`.
+
+- [ ] **Step 1:** Run the repo personas `musicalchairs-protocol-security-reviewer` and `musicalchairs-ponzi-economy-auditor` plus the `solana-vulnerability-scanner` skill against the program, each producing file:line findings with severity; coordinator triages.
+- [ ] **Step 2: Checklist (each must have a test or a documented reason)**: signer/owner/PDA/discriminator substitution on every instruction; duplicate mutable aliases; reinitialization; arithmetic overflow paths; replay of every permissionless instruction; double claims; closing/A-funding/payout barrier bypass; destination substitution to protected accounts; third-party fee payer authority; config activation races; late/duplicate ORAO fulfillment; expiry vs capture race at the deadline; sponsor withdrawal vs locked reserve; cleanup predicates; CU exhaustion on worst-case rows; heap use in loops.
+- [ ] **Step 3:** Fix confirmed findings with failing-test-first; re-run the whole suite; commit `fix(program): security review findings`.
+
+---
+
+## Milestone 11 — Frontend native adapter (GUI preserved)
+
+**Files:** Create `frontend/src/solana/native/{client.ts,accounts.ts,transactions.ts,status.ts,types.ts,idl/musical_chairs.json}`, `frontend/src/hooks/useNativeSolana.ts`, tests `frontend/src/solana/native/*.test.ts`; modify `frontend/src/components/SolInvestPanel.tsx` (native open; gross projection), `GameTracking.tsx` (native payouts; minimum receive; advanced contribution field default 0), `SolBackerPanel.tsx`/`AddBackerMoney.tsx`/`HouseDashboard.tsx` (native A funding, combined claim, 35/45/20 text, legacy section per DR-22), `GameStatusBar.tsx`, `WalletDropdown.tsx` (cluster indicator), `frontend/src/lib/gameConstants.ts:42–44` (replace stale constants with `BACKER_SENIOR_SHARE = 0.35`, `BACKER_PROPORTIONAL_A_SHARE = 0.45`, `BACKER_EQUAL_B_SHARE = 0.20`), `DocsPage.tsx:230–232`, `frontend/public/.ic-assets.json` only if a new HTTPS origin is needed. Do **not** change `package.json` dependencies except adding `@coral-xyz/anchor` **only if** the generated-client approach needs it; prefer hand-written Borsh codecs from the IDL to avoid a new dependency (decision recorded in the handoff).
+
+**Interfaces consumed:** IDL v1 from M2; events from M5–M7. **Produced:** `NativeClient { openPosition, fundSeriesA, withdrawSimple, settleCompounding, closeSimplePosition, claimBacker, advanceTicket, buildCandidates, requestDraw, captureDraw, applyPromotion, expirePromotion, finalizeRound, composeExpireFinalizeOpen }` returning `{ signature, nonce, status$ }`; `readPool()`, `readPosition(owner, nonce)`, `readBacker(owner, series)`, `readCloseRecord(id)`, `readTicket()`.
+
+- [ ] **Step 1: Failing vitest tests** (pure functions first): `encodesOpenPositionArgsExactlyAsIdl` (byte vector from the Rust side committed in `solana/fixtures/ix-encodings.json`); `simpleProjectionUsesGrossNotNet` (1 SOL → 110,000,000 lamports/day; today's code yields 105,600,000); `splitTextShows35_45_20`; `rejectsSendWhenSelectedWalletPubkeyDiffers`; `unknownOutcomeKeepsSignatureAndNonceAndDoesNotRebuild`; `statusLadderSubmittedConfirmedFinalized`; `legacyAndNativePositionsNeverMergeForSameWallet`.
+- [ ] **Step 2: Implement adapter and hooks; wire panels; keep layout/styling.**
+- [ ] **Step 3: Local cluster for browser verification.** Install Agave 2.3.13 `solana-test-validator` into an owned temp dir (dev tooling, no global install), deploy the locally built `.so`, run the ORAO fixture program as in the probes, and drive the flows in the built-in browser: deposit → payout → A funding → claim → closing → resume processing → finalize/open. Capture screenshots per major screen against the current baseline. `npm test` and `npm run build` must pass.
+- [ ] **Step 4: Commit** `feat(frontend): native Solana adapter behind existing SOL panels; gross projections; correct split text`.
+
+**Handoff:** screenshot pairs; confirmation that no `@rollup/rollup-darwin-*` was added; whether a new dependency was introduced and why.
+
+---
+
+## Milestone 12 — ICP bridge canister and PP exactly-once
+
+**Files:** Create `native_sol_bridge/{main.mo,Events.mo,Outbox.mo,Rpc.mo,Decode.mo}`, `native_sol_bridge/test/*.test.mo`, `dfx.json` entry; modify `shenanigans/main.mo` only to add an authorized-source allowlist and a `mintFromBridge(leg)` entry that reuses `mintWithEffects` policy but accepts a caller-supplied `created_at_time` and memo (no fresh timestamp), guarded by the allowlist; `frontend/src/hooks/useNativeHistory.ts`.
+
+**Interfaces:** `submitEventDescriptor(desc)` (relayer-authenticated); `getPending(cursor)`, `getEvent(id)`; outbox leg record `{ id, recipient, amount, fee, memo_hash: Blob(32), created_at_time: Nat64, status }`.
+
+- [ ] **Step 1: Failing Motoko tests** (mo-test / local replica): `descriptorRequiresTwoAgreeingFinalizedObservations` (one provider disagrees → pending); `unsupportedTransactionVersionLeavesGapNeverAdvancesCursor`; `eventIdTupleIsImmutableAndDedups`; `missingSiwsBindingKeepsPubkeyPendingAndReleasesOnBind`; `legsFrozenBeforeFirstAwait`; `retryRepeatsIdenticalFieldsAndDuplicateReconciles` (against a local `pp_ledger` from `dfx.json` with `--specified-id 5xv2o-iiaaa-aaaac-qeclq-cai` as in the OTC desk recipe); `unknownOutcomePastWindowQuarantines`; `completedLegsNeverRepeatWhenSiblingFails`; `bridgeMintUsesProvidedTimestampNotNow` (shenanigans).
+- [ ] **Step 2: Implement.** Decode self-CPI events from `getTransaction` with `maxSupportedTransactionVersion = 1` via a raw-RPC adapter; verify the SOL RPC canister Candid (`tghme-zyaaa-aaaar-qarca-cai`, module `1733b1e5…3115` as of 2026-10-13) before binding (memory lesson: fetch live Candid; `Multi*Result` consensus variants).
+- [ ] **Step 3: PASS; `moc` via mops check; commit** `feat(icp): native_sol_bridge with two-RPC finalized ingestion and exactly-once PP legs`.
+
+**Handoff:** explicit trust statement; no deployment.
+
+---
+
+## Milestone 13 — Keepers and monitoring (code only, nothing started)
+
+**Files:** Create `solana/keepers/worker/` (Rust CLI using the same SDK pins: journal, cursor reads, chunk sizing, retry with identical blockhash handling, metrics), `native_sol_keeper/main.mo` (ICP watchdog: timers, fee-only threshold address, journal, re-arm after upgrade), `docs/solana/operations.md` (alerts 60 s / 300 s, escalation steps, no credentials).
+
+- [ ] **Step 1: Failing tests**: worker `prepares_one_row_fallback_when_simulation_exceeds_budget`; `does_not_resubmit_after_unknown_outcome_until_status_read`; `any_wallet_can_run_the_same_plan` (no privileged key path); watchdog `signs_only_after_stale_progress_threshold`; `rearms_timer_after_upgrade`; `fee_address_has_no_program_authority` (static check against the program's instruction account lists).
+- [ ] **Step 2: Implement; PASS; commit** `feat(keepers): fee-only worker and ICP watchdog, no services started`.
+
+---
+
+## Milestone 14 — Devnet acceptance (AUTHORIZATION GATE)
+
+Requires Rob's explicit approval for: devnet deployment, creating two devnet Squads multisigs with test voters, ORAO devnet client registration and funding, test-wallet funding.
+
+- [ ] Deploy the reviewed `.so`; record `Program`/`ProgramData` and upgrade authority = G vault; `initialize`.
+- [ ] Register and fund ORAO client; run: deposit, Simple payout, both compound settlements, A funding, combined claim, cap completion, partial payout, closing with candidates, draw request/capture latency (record slots and seconds), apply promotion, expiry path on a second close, finalize/reopen via composed transaction from a plain wallet.
+- [ ] Readback: G/P profiles, `time_lock`, vault derivation; test G reducing its own time lock on devnet and document it.
+- [ ] Reconcile both conservation identities from RPC after every action; record receipts in `docs/solana/evidence/2026-1N-NN-devnet-*.json`.
+- [ ] Frontend against devnet behind the ICP-hosted build with devnet RPC in `connect-src`.
+
+---
+
+## Milestone 15 — Separately authorized release preparation (not executed in planning)
+
+- [ ] Mainnet manifest: program ID, G/P vaults and voters, recipients, ORAO tuple, config v1 values including `close_reserve_lamports` and pre-provisioned pages, RPC endpoints, CSP origins, `SOLANA_RPC_ENDPOINT`, operations funding amount (from M9 at the then-active rent step).
+- [ ] Runbook: stop conditions, pause via P, monitoring, rollback limits (there is no rollback of cash).
+- [ ] Each deployment/funding/signing action is a separate explicit go.
+
+---
+
+## Test matrix — accepted invariant → test
+
+| Invariant (spec §) | Test IDs |
+| --- | --- |
+| Gross accrual, 4 % load (3.1) | M5 `open_one_sol…`, M11 `simpleProjectionUsesGrossNotNet` |
+| Simple remainder carry, clamp, backwards clock (3.2) | M1/M5 differential `payout_props`, host `vectors.rs` |
+| Carried Interest tiers (3.2) | M5 vectors at day 7−1 s / 7 / 14−1 s / 14 / 21 |
+| Q18 maturity and fees (3.3) | M5 `compound_15_maturity_vector`, Compound30 twin |
+| Strict insolvency, equality, zero-pot close (3.4, 4) | M5 `strict_insolvency_closes_and_equality_does_not`, zero-pot min-0 test |
+| No hidden fee, no silent dust (3.4) | M5 `withdraw…pays_96_800_000`, dust claim tests in M9 |
+| Quota atomic, exact hour (3.1) | M5 `quota_third_success…`, `failed_open_does_not_consume…` |
+| Split goldens, folds, sealed denominator (3.5) | M6 three goldens, M1 `pro_rata_floors…` |
+| Chunk equivalence, replay, alias (7.3, 7.6) | M6 `chunk_sizes_1_4_8…`, `replaying…`, `duplicate_writable…`, prune regressions |
+| Lazy credit, claims never restore headroom (7.3) | M6 `claim_during_ticket…`, `claim_never_restores…` |
+| Barrier matrix (4.1) | M6 `normal_deposit_allowed_during_nonclosing…`, M5 A-funding rejection |
+| Candidate completeness, preference (4) | M7 `build_candidates_visits…`, reorder rejection |
+| One bound draw, deadline boundaries, no reroll (4) | M7 request/capture/collision/expiry tests |
+| 64-counter mapping (4) | M7 `apply_promotion_first_valid…`, `all_64…` |
+| Seed carry once, composed reopen (4) | M7 `finalize_requires…`, composed test |
+| Conservation (3.7) | M6/M8 identity checks, M8 randomized sequence |
+| Reserve, refund once, cleanup never blocks (8) | M8 suite |
+| Governance profile, pause scope, recipients (5) | M3 suite |
+| Rent attribution (DR-13) | M4 suite |
+| Bridge trust and exactly-once (9) | M12 suite |
+| Wallet/nonce/status (11) | M11 vitest |
+
+## Graph and handoff obligations per milestone
+
+1. `graphify update .` from the worktree root (structural; never a subfolder rebuild).
+2. Semantic fragment for changed docs via Sonnet/Haiku workers writing `graphify-out/.graphify_chunk_*.json`; coordinator merges, preserving all prior nodes, raw directed edges and hyperedges; validates no dangling IDs and no shrinkage; records per-file SHA-256 and scoped freshness in `docs/solana/evidence/<date>-<milestone>-graph-refresh.json`.
+3. Query checks: allocation phases, claim-triggered close/expiry, authority/ICP boundary, costs, workstream dependencies.
+4. Kanban row per task with state, owner, evidence path and limits.
+
+## Self-review against the spec
+
+- Every spec §7 instruction has an implementing milestone (controls M3/M4, game M5, allocation M6, close M7, reserve M8). Events (§7.5) in M2 and emitted by M5–M7. Bridge (§9) M12. Keepers (§10) M13. Frontend (§11) M11. Governance (§5) M3 + M14 readback.
+- Names used consistently: `advance_ticket`, `claim_backer`, `build_candidates`, `request_round_draw`, `capture_round_draw`, `apply_promotion`, `expire_promotion`, `finalize_round`, `provision_page`, `provision_close_record`, `close_shared_account`, `stage_config_version`, `activate_config_version`.
+- No task depends on an unresolved Rob decision except M11's legacy-section arrangement (DR-22), which can be implemented either way late in M11.
