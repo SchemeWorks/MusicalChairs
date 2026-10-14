@@ -101,5 +101,6 @@
    "log_sha256": "3d71cfaf6aac244ed714b851cba0f3a2c6f8c15eb7e75c0773da847cd0a1cecc"
   },
   "reproducibility": "the clean build from an empty target directory produced byte-identical bytes to the 5d9afa5 build (sha256 d7538b07\u2026); the wrapper observed the same complete digest before and after each build; no mid-build source change occurred (source writers were idle; both workers had returned)"
- }
+ },
+ "mid_build_rejection_exercised": "yes \u2014 see 2026-10-14-m0-provenance-guard.json (fake builder, exit 3, artifact moved aside, no receipt)"
 }
