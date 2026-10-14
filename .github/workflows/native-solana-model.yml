@@ -95,6 +95,12 @@ jobs:
           test -x "$TOOLS/platform-tools/rust/bin/rustc"
           test -x "$TOOLS/agave/bin/cargo-build-sbf"
           test -x "$TOOLS/agave/bin/platform-tools-sdk/sbf/scripts/strip.sh"
+          # cargo-build-sbf --skip-tools-install expects the platform tools under
+          # <sbf-sdk>/dependencies/platform-tools (the local executor symlinks them the same way).
+          mkdir -p "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies"
+          ln -sfn "$TOOLS/platform-tools" "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools"
+          test -x "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools/rust/bin/rustc"
+          test -f "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools/version.md"
           "$TOOLS/agave/bin/cargo-build-sbf" --version
           "$TOOLS/platform-tools/rust/bin/rustc" --version
       - name: Build the program and the vault stand-in with the pinned tools (provenance guard on)
