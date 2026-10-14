@@ -11,6 +11,7 @@
 //! upgradeable-loader fixtures (`fixtures`).  The stand-in is never deployed and
 //! proves no real Squads execution.
 
+pub mod allocation;
 pub mod controls;
 pub mod financial;
 pub mod positions_suite;
@@ -18,6 +19,7 @@ pub mod provisioning;
 pub mod runtime;
 pub mod world;
 
+pub use allocation::run_allocation_suite;
 pub use controls::run_controls_m3_suite;
 pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
@@ -34,6 +36,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_controls_m3_suite());
     observations.extend(run_provisioning_suite());
     observations.extend(run_positions_suite());
+    observations.extend(run_allocation_suite());
     observations
 }
 
@@ -65,19 +68,29 @@ mod tests {
         );
     }
 
+    /// The M0 RED, now GREEN under the same label: one `discover_rows` call on
+    /// the seeded golden (toll 10,000; A 4,000 / 6,000; two B).
     #[test]
     fn allocation_golden_t10000() {
         let observation = run_red_allocation();
+        assert_eq!(
+            observation.label,
+            "financial.allocation.golden-t10000.discover-row"
+        );
         assert!(
             observation.success,
             "allocation_golden_t10000 expected a successful compiled-SBF discovery: {observation:?}"
         );
     }
 
+    /// The six typed instructions plus `claim_backer`, one row per
+    /// instruction, driven to `IDLE` on the golden vector: 4 Discover, Senior,
+    /// Seal, 4 Allocate, 4 Prune, Commit and the claim.
     #[test]
     fn allocation_six_phase_flow_has_unique_row_observations() {
         let observations = run_allocation_golden_flow();
         assert_eq!(observations.len(), 4 + 1 + 1 + 4 + 4 + 1 + 1);
+        assert!(observations.iter().all(|observation| observation.success));
         let labels: std::collections::BTreeSet<_> =
             observations.iter().map(|observation| observation.label.as_str()).collect();
         assert_eq!(labels.len(), observations.len());
@@ -621,6 +634,189 @@ mod positions_tests {
     }
 }
 
+/// M6 allocation rows.  Each test runs one row of `allocation.rs` against the
+/// actual compiled SBF (`MC_FINANCIAL_SBF`; the governed genesis fixture also
+/// loads the Squads stand-in, `MC_STANDIN_SBF`).  The row asserts the exact
+/// program error code of every rejection (parsed from `Observation.error`),
+/// fee-only rollback of every account the `World` can touch on every
+/// rejection, both cash-register identities after every transaction, and the
+/// exact credits, books and events of every success.  The first three rows are
+/// the plan's goldens; the last three rows go beyond the plan list (CU and
+/// packet capture at four registry sizes, malformed batch shapes, and the
+/// writable stand-in `apply_senior` needs when the ticket has no open A).
+#[cfg(test)]
+mod allocation_tests {
+    use crate::allocation::{self as m6, assert_headline};
+    use crate::controls::{assert_outcomes_consistent, assert_unique_labels};
+    use crate::runtime::Observation;
+
+    fn run_row(name: &str, row: fn() -> Vec<Observation>) {
+        let observations = row();
+        assert_headline(&observations, name);
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+    }
+
+    #[test]
+    fn golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500() {
+        run_row(
+            m6::ROW_GOLDEN_T10000,
+            m6::golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500,
+        );
+    }
+
+    #[test]
+    fn golden_no_b_a1000_a10000_seed_5750_a1000_a3250() {
+        run_row(
+            m6::ROW_GOLDEN_NO_B,
+            m6::golden_no_b_a1000_a10000_seed_5750_a1000_a3250,
+        );
+    }
+
+    #[test]
+    fn golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed() {
+        run_row(
+            m6::ROW_GOLDEN_ONLY_A_AND_B1,
+            m6::golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed,
+        );
+    }
+
+    #[test]
+    fn chunk_sizes_1_4_8_produce_identical_state() {
+        run_row(
+            m6::ROW_CHUNK_SIZES,
+            m6::chunk_sizes_1_4_8_produce_identical_state,
+        );
+    }
+
+    #[test]
+    fn replaying_a_completed_discover_chunk_fails_without_credit() {
+        run_row(
+            m6::ROW_REPLAY,
+            m6::replaying_a_completed_discover_chunk_fails_without_credit,
+        );
+    }
+
+    #[test]
+    fn stale_ticket_id_is_rejected_on_every_phase_instruction() {
+        run_row(
+            m6::ROW_STALE_TICKET,
+            m6::stale_ticket_id_is_rejected_on_every_phase_instruction,
+        );
+    }
+
+    #[test]
+    fn discovery_accumulates_a_remainders_above_u128_in_u256() {
+        run_row(
+            m6::ROW_U256,
+            m6::discovery_accumulates_a_remainders_above_u128_in_u256,
+        );
+    }
+
+    #[test]
+    fn prune_same_page_swap_delete_clears_last_slot_on_first_page() {
+        run_row(
+            m6::ROW_SAME_PAGE_SWAP,
+            m6::prune_same_page_swap_delete_clears_last_slot_on_first_page,
+        );
+    }
+
+    #[test]
+    fn prune_alias_when_pruned_row_is_last_row_marks_it_inactive() {
+        run_row(
+            m6::ROW_PRUNE_ALIAS,
+            m6::prune_alias_when_pruned_row_is_last_row_marks_it_inactive,
+        );
+    }
+
+    #[test]
+    fn duplicate_independent_backer_rows_are_rejected_but_legitimate_prune_aliases_are_decoded_once(
+    ) {
+        run_row(
+            m6::ROW_DUPLICATES,
+            m6::duplicate_independent_backer_rows_are_rejected_but_legitimate_prune_aliases_are_decoded_once,
+        );
+    }
+
+    #[test]
+    fn claim_during_ticket_pays_only_finalized_and_commit_adds_once() {
+        run_row(
+            m6::ROW_CLAIM_DURING_TICKET,
+            m6::claim_during_ticket_pays_only_finalized_and_commit_adds_once,
+        );
+    }
+
+    #[test]
+    fn claim_never_restores_cap_headroom_and_capped_backer_leaves_registry_with_history() {
+        run_row(
+            m6::ROW_CLAIM_CAP,
+            m6::claim_never_restores_cap_headroom_and_capped_backer_leaves_registry_with_history,
+        );
+    }
+
+    #[test]
+    fn reopen_capped_a_keeps_first_funding_seq() {
+        run_row(m6::ROW_REOPEN, m6::reopen_capped_a_keeps_first_funding_seq);
+    }
+
+    #[test]
+    fn normal_deposit_allowed_during_nonclosing_ticket_but_a_funding_and_payout_wait() {
+        run_row(
+            m6::ROW_NORMAL_DEPOSIT,
+            m6::normal_deposit_allowed_during_nonclosing_ticket_but_a_funding_and_payout_wait,
+        );
+    }
+
+    #[test]
+    fn conservation_identity_holds_after_every_phase() {
+        run_row(
+            m6::ROW_CONSERVATION,
+            m6::conservation_identity_holds_after_every_phase,
+        );
+    }
+
+    #[test]
+    fn registry_sizes_16_64_100_256_fit_the_legacy_packet_at_8_rows() {
+        run_row(
+            m6::ROW_SIZES,
+            m6::registry_sizes_16_64_100_256_fit_the_legacy_packet_at_8_rows,
+        );
+    }
+
+    #[test]
+    fn malformed_batches_are_invalid_state_and_fee_only() {
+        run_row(
+            m6::ROW_MALFORMED,
+            m6::malformed_batches_are_invalid_state_and_fee_only,
+        );
+    }
+
+    #[test]
+    fn senior_without_an_open_a_needs_a_writable_stand_in() {
+        run_row(
+            m6::ROW_SENIOR_NO_A,
+            m6::senior_without_an_open_a_needs_a_writable_stand_in,
+        );
+    }
+
+    #[test]
+    fn allocation_suite_aggregates_every_row_with_unique_labels() {
+        let observations = m6::run_allocation_suite();
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+        for row in m6::ROW_NAMES {
+            assert_headline(&observations, row);
+        }
+        assert_eq!(m6::ROW_NAMES.len(), 18);
+        assert!(
+            observations
+                .iter()
+                .all(|observation| observation.label.starts_with("financial.allocation.m6.")),
+            "every label lives under the m6 root"
+        );
+    }
+}
+
 /// Byte-exact fixture tests.  These need no ELF: they prove the committed
 /// `.bin` files are exactly the generator output, decode them with an
 /// independent reader, and keep the fixture READMEs honest.
@@ -836,6 +1032,18 @@ mod fixture_tests {
         assert_eq!(ErrorCode::AlreadyClosed as u32 + 6000, 6034);
         assert_eq!(ErrorCode::PageNotProvisioned as u32 + 6000, 6035);
         assert_eq!(ErrorCode::LockNotPermitted as u32 + 6000, 6036);
+    }
+
+    #[test]
+    fn error_codes_asserted_by_the_allocation_suite_are_frozen() {
+        assert_eq!(ErrorCode::InvalidState as u32 + 6000, 6001);
+        assert_eq!(ErrorCode::WrongAccount as u32 + 6000, 6005);
+        assert_eq!(ErrorCode::AllocationPending as u32 + 6000, 6010);
+        assert_eq!(ErrorCode::InvalidPhase as u32 + 6000, 6018);
+        assert_eq!(ErrorCode::NothingToClaim as u32 + 6000, 6022);
+        assert_eq!(ErrorCode::DuplicateWritableAccount as u32 + 6000, 6026);
+        assert_eq!(ErrorCode::StaleTicket as u32 + 6000, 6039);
+        assert_eq!(ErrorCode::StaleCursor as u32 + 6000, 6040);
     }
 
     /// The Borsh client ABI of `PageKind` and `Funding`, and the placement of

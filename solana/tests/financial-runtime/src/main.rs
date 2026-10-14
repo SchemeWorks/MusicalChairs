@@ -1,6 +1,6 @@
 use musical_chairs_financial_runtime::{
-    run_allocation_golden_flow, run_controls_m3_suite, run_controls_suite, run_positions_suite,
-    run_provisioning_suite, run_red_allocation, run_red_claim, run_red_open,
+    run_allocation_golden_flow, run_allocation_suite, run_controls_m3_suite, run_controls_suite,
+    run_positions_suite, run_provisioning_suite, run_red_allocation, run_red_claim, run_red_open,
 };
 
 fn main() {
@@ -8,7 +8,12 @@ fn main() {
     let observations = match suite.as_str() {
         "open" => vec![run_red_open()],
         "claim" => vec![run_red_claim()],
-        "allocation" => vec![run_red_allocation()],
+        // The M0 RED row (same label, now GREEN) followed by the M6 suite.
+        "allocation" => {
+            let mut observations = vec![run_red_allocation()];
+            observations.extend(run_allocation_suite());
+            observations
+        }
         "flow" => run_allocation_golden_flow(),
         "controls" => run_controls_suite(),
         "controls-m3" => run_controls_m3_suite(),
@@ -21,6 +26,7 @@ fn main() {
             observations.extend(run_controls_m3_suite());
             observations.extend(run_provisioning_suite());
             observations.extend(run_positions_suite());
+            observations.extend(run_allocation_suite());
             observations
         }
         _ => panic!(

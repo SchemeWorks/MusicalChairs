@@ -25,7 +25,11 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use musical_chairs_program::{
-    accounts, instruction, positions::PlanKindArg, required_close_reserve, state, ErrorCode, ID,
+    accounts,
+    allocation::{SERIES_A, SERIES_B},
+    instruction,
+    positions::PlanKindArg,
+    required_close_reserve, state, BackerClaimed, ErrorCode, ID,
 };
 use sha2::{Digest, Sha256};
 use solana_sdk::{
@@ -140,6 +144,10 @@ pub struct World {
     now: i64,
     slot: u64,
     watch: BTreeSet<Pubkey>,
+    /// Per-phase transaction counters for the allocation driver's labels.
+    drive_counts: BTreeMap<&'static str, u32>,
+    /// Every fixture Backer PDA installed by [`World::install_backer_specs`].
+    fixture_backers: BTreeSet<Pubkey>,
 }
 
 impl World {
@@ -169,6 +177,8 @@ impl World {
             now: START_TIME,
             slot: 2,
             watch: BTreeSet::new(),
+            drive_counts: BTreeMap::new(),
+            fixture_backers: BTreeSet::new(),
         }
     }
 
@@ -238,6 +248,14 @@ impl World {
         } else {
             format!("financial.positions.{row}.{tag}")
         };
+        self
+    }
+
+    /// Name the labels' root outright (the allocation suite uses
+    /// `financial.allocation.m6.<row>`); every recorded transaction is then
+    /// `<scope>` (variant `""`) or `<scope>.<variant>`.
+    pub fn scoped_label(mut self, scope: impl Into<String>) -> Self {
+        self.scope = scope.into();
         self
     }
 
@@ -1155,5 +1173,497 @@ impl World {
              disagrees with the independent restatement"
         );
         from_program
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Allocation fixtures, typed phase instructions and the ticket driver (M6)
+// ---------------------------------------------------------------------------
+
+/// One fixture Backer: `entitlement - lifetime` is its remaining entitlement.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BackerSpec {
+    pub owner: Pubkey,
+    pub series: u8,
+    pub entitlement: u128,
+    pub lifetime: u128,
+}
+
+impl BackerSpec {
+    /// A fresh Backer (`lifetime` 0) holding `remaining` entitlement.
+    pub fn new(owner: Pubkey, series: u8, remaining: u128) -> Self {
+        Self {
+            owner,
+            series,
+            entitlement: remaining,
+            lifetime: 0,
+        }
+    }
+
+    pub fn remaining(&self) -> u128 {
+        self.entitlement - self.lifetime
+    }
+}
+
+/// Deterministic xorshift64* generator for the randomized fixtures.
+#[derive(Clone, Debug)]
+pub struct Xorshift64(u64);
+
+impl Xorshift64 {
+    pub fn new(seed: u64) -> Self {
+        // A zero state would be a fixed point; mix the seed first.
+        Self(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
+    }
+
+    pub fn next(&mut self) -> u64 {
+        let mut x = self.0;
+        x ^= x >> 12;
+        x ^= x << 25;
+        x ^= x >> 27;
+        self.0 = x;
+        x.wrapping_mul(0x2545_F491_4F6C_DD1D)
+    }
+}
+
+/// The `index`-th synthetic Backer owner of the allocation fixtures.  Distinct
+/// for every index (the index is stored in the first eight bytes).
+pub fn allocation_owner(index: u64) -> Pubkey {
+    let mut bytes = [0xA7u8; 32];
+    bytes[..8].copy_from_slice(&(index + 1).to_le_bytes());
+    Pubkey::new_from_array(bytes)
+}
+
+/// `n` deterministic fixture Backers: a mix of Series A (about two thirds) and
+/// B, with open rows of every size class (near the 10-lamport cutoff, ordinary,
+/// enormous, partly repaid) and rows at or below the cutoff.  The first four
+/// rows are fixed so every seed has an oldest open A, a B that any toll caps
+/// (newly capped, pruned with real accounts), a closed A (5) and a closed B
+/// at exactly the cutoff (10).
+pub fn random_backer_specs(seed: u64, n: usize) -> Vec<BackerSpec> {
+    let mut rng = Xorshift64::new(seed);
+    (0..n)
+        .map(|index| {
+            let owner = allocation_owner(index as u64);
+            let (series, entitlement, lifetime) = match index {
+                0 => (SERIES_A, 100_000u128, 0u128),
+                1 => (SERIES_B, 30, 0),
+                2 => (SERIES_A, 5, 0),
+                3 => (SERIES_B, 10, 0),
+                _ => {
+                    let series = if rng.next().is_multiple_of(3) { SERIES_B } else { SERIES_A };
+                    let (entitlement, lifetime) = match rng.next() % 6 {
+                        // Closed: at most 10 lamports remain.
+                        0 => (1 + u128::from(rng.next() % 10), 0),
+                        // Open, just above the cutoff.
+                        1 => (11 + u128::from(rng.next() % 40), 0),
+                        // Ordinary.
+                        2 => (1_000 + u128::from(rng.next() % 100_000), 0),
+                        // Enormous.
+                        3 => (u128::from(rng.next()) * 1_000, 0),
+                        // Partly repaid, still open (remaining >= 11).
+                        4 => {
+                            let entitlement = 50 + u128::from(rng.next() % 5_000);
+                            let lifetime = u128::from(rng.next()) % (entitlement - 10);
+                            (entitlement, lifetime)
+                        }
+                        // Repaid down to 0..=10 remaining: closed.
+                        _ => {
+                            let entitlement = 100 + u128::from(rng.next() % 5_000);
+                            (entitlement, entitlement - u128::from(rng.next() % 11))
+                        }
+                    };
+                    (series, entitlement, lifetime)
+                }
+            };
+            BackerSpec {
+                owner,
+                series,
+                entitlement,
+                lifetime,
+            }
+        })
+        .collect()
+}
+
+impl World {
+    // -----------------------------------------------------------------
+    // Allocation fixtures
+    // -----------------------------------------------------------------
+
+    /// Genesis plus fixture Backers `(owner, series, remaining)`: entitlement
+    /// = `remaining`, `lifetime` 0, `active` rows at sequential registry slots
+    /// with sequential `first_sequence` (the first row is the oldest), the
+    /// registry rows are the Backer PDAs, and the registry / snapshot pages
+    /// the slots imply are provisioned (`snapshot_pages * 8 >= registry_len`).
+    /// No cash backs the entitlements: only a ticket's toll does.
+    pub fn with_backers(specs: &[(Pubkey, u8, u128)]) -> Self {
+        let specs: Vec<BackerSpec> = specs
+            .iter()
+            .map(|&(owner, series, remaining)| BackerSpec::new(owner, series, remaining))
+            .collect();
+        Self::with_backer_specs(&specs)
+    }
+
+    pub fn with_backer_specs(specs: &[BackerSpec]) -> Self {
+        let mut world = Self::genesis();
+        world.install_backer_specs(specs);
+        world
+    }
+
+    /// `n` deterministic Backers from [`random_backer_specs`].
+    pub fn with_random_backers(seed: u64, n: usize) -> Self {
+        Self::with_backer_specs(&random_backer_specs(seed, n))
+    }
+
+    /// Append fixture Backers to the dense registry, creating the registry and
+    /// snapshot pages their slots need.
+    pub fn install_backer_specs(&mut self, specs: &[BackerSpec]) {
+        for spec in specs {
+            let pool = self.pool();
+            let slot = pool.registry_len;
+            let page_index = slot / PAGE;
+            let backer_key = self.rt.backer_address(spec.series, spec.owner);
+            assert!(
+                self.fixture_backers.insert(backer_key),
+                "fixture Backer {backer_key} is installed twice"
+            );
+
+            let mut page = self
+                .rt
+                .try_deserialize::<state::RegistryPage>(self.rt.registry_address(page_index))
+                .unwrap_or_else(|| state::RegistryPage {
+                    bump: pda(&[state::REGISTRY_SEED, &page_index.to_le_bytes()]).1,
+                    index: page_index,
+                    ..state::RegistryPage::default()
+                });
+            page.keys[(slot % PAGE) as usize] = backer_key;
+            self.rt.replace_registry(page);
+            self.rt.replace_backer(state::Backer {
+                bump: pda(&[state::BACKER_SEED, &[spec.series], spec.owner.as_ref()]).1,
+                owner: spec.owner,
+                series: spec.series,
+                // Mirrors the 124 % mint; the allocation never reads it.
+                amount: spec.entitlement / 124 * 100,
+                entitlement: spec.entitlement,
+                lifetime: spec.lifetime,
+                first_sequence: pool.next_sequence,
+                active: true,
+                slot,
+                ..state::Backer::default()
+            });
+
+            let snapshot_pages = (slot + 1).div_ceil(PAGE).max(1);
+            for index in pool.snapshot_pages..snapshot_pages {
+                self.rt.replace_snapshot(state::SnapshotPage {
+                    bump: pda(&[state::SNAPSHOT_SEED, &index.to_le_bytes()]).1,
+                    index,
+                    ..state::SnapshotPage::default()
+                });
+            }
+            self.set_pool(|pool| {
+                pool.registry_len = slot + 1;
+                pool.next_sequence += 1;
+                pool.registry_pages = pool.registry_pages.max(page_index + 1);
+                pool.snapshot_pages = pool.snapshot_pages.max(snapshot_pages);
+            });
+            self.watch.insert(backer_key);
+            self.watch.insert(self.rt.registry_address(page_index));
+            self.watch.insert(self.rt.snapshot_address(page_index));
+        }
+    }
+
+    /// What `withdraw_simple` does for a toll, as a fixture: escrow it
+    /// (`pending_toll`, plus the same lamports in the game vault so the vault
+    /// identity holds) and start the next ticket in `DISCOVER` over the whole
+    /// registry.  Mirrors `positions.rs::ticket_start` field for field: the
+    /// workspace must be `IDLE`, the snapshot pages must cover the registry,
+    /// the captured length and version are the pool's, the split is pinned from
+    /// the active `ConfigVersion` (3_500 / 4_500 / 2_000), `close_id` is `None`
+    /// and every cursor, count, slice, accumulator and credit is zero.
+    pub fn start_ticket_fixture(&mut self, toll: u64) {
+        let pool = self.pool();
+        let current = self.ticket();
+        assert_eq!(pool.active_ticket, 0, "a ticket is already active");
+        assert_eq!(current.phase, state::IDLE, "the ticket workspace is not IDLE");
+        assert!(
+            toll > 0 && pool.registry_len > 0,
+            "a toll starts a ticket only when there is a toll and at least one Backer"
+        );
+        assert!(
+            pool.snapshot_pages * PAGE >= pool.registry_len,
+            "snapshot pages must cover the registry before a toll is taken"
+        );
+        let config = self.config(pool.active_config_version);
+        let id = pool.next_ticket;
+        self.rt.replace_ticket(state::Ticket {
+            bump: current.bump,
+            id,
+            phase: state::DISCOVER,
+            close_id: None,
+            captured_len: pool.registry_len,
+            expected_version: pool.registry_version,
+            toll,
+            senior_bps: config.senior_bps,
+            a_bps: config.a_bps,
+            b_bps: config.b_bps,
+            ..state::Ticket::default()
+        });
+        self.set_pool(|pool| {
+            pool.pending_toll += toll;
+            pool.next_ticket = id + 1;
+            pool.active_ticket = id;
+        });
+        let vault = self.rt.game_vault_address();
+        self.rt.add_lamports(vault, toll);
+    }
+
+    /// Give a Backer `funded` lamports of already-finalized claims: `funded`
+    /// and `lifetime` rise by it, `Pool.funded_claims` counts it and the game
+    /// vault holds the cash.
+    pub fn fund_backer_fixture(&mut self, owner: Pubkey, series: u8, funded: u64) {
+        let mut backer = self.backer(owner, series);
+        backer.funded = backer.funded.checked_add(funded).expect("funded fits u64");
+        backer.lifetime += u128::from(funded);
+        assert!(
+            backer.lifetime <= backer.entitlement,
+            "fixture credit exceeds the entitlement"
+        );
+        self.rt.replace_backer(backer);
+        self.set_pool(|pool| pool.funded_claims += u128::from(funded));
+        let vault = self.rt.game_vault_address();
+        self.rt.add_lamports(vault, funded);
+    }
+
+    // -----------------------------------------------------------------
+    // Reads
+    // -----------------------------------------------------------------
+
+    pub fn snapshot_page(&self, index: u64) -> state::SnapshotPage {
+        self.rt.deserialize(self.rt.snapshot_address(index))
+    }
+
+    /// A Backer by its PDA.
+    pub fn backer_at(&self, key: Pubkey) -> state::Backer {
+        self.rt.deserialize(key)
+    }
+
+    /// `Some(key)` when `key` is an existing, non-empty program-owned account
+    /// (an optional claim account is otherwise the placeholder).
+    pub fn program_account(&self, key: Pubkey) -> Option<Pubkey> {
+        self.account(key)
+            .filter(|account| account.owner == ID && !account.data.is_empty())
+            .map(|_| key)
+    }
+
+    /// The game-vault identity, spelled out: `vault - rent == pot + seed +
+    /// management + pending_toll + funded_claims + excess`.  (`World` also
+    /// checks it after every recorded transaction; a row calls this to assert
+    /// it explicitly at the point it names.)
+    pub fn assert_vault_identity(&self) {
+        let pool = self.pool();
+        let vault = self.lamports(self.rt.game_vault_address());
+        let rent = self.rt.rent(state::GameVault::SPACE);
+        let spendable = u128::from(vault.checked_sub(rent).expect("vault above its rent floor"));
+        let accounted = u128::from(pool.pot)
+            + u128::from(pool.seed)
+            + u128::from(pool.management)
+            + u128::from(pool.pending_toll)
+            + pool.funded_claims
+            + u128::from(pool.excess);
+        assert_eq!(
+            spendable, accounted,
+            "game vault identity: vault {vault} - rent {rent} != pot {} + seed {} + management {} + pending_toll {} + funded_claims {} + excess {}",
+            pool.pot, pool.seed, pool.management, pool.pending_toll, pool.funded_claims, pool.excess
+        );
+        assert_eq!(
+            accounted,
+            musical_chairs_program::game_accounted(&pool).expect("game_accounted")
+        );
+    }
+
+    /// SHA-256 over the Pool, the Ticket, every fixture Backer (in address
+    /// order) and every registry and snapshot page (in index order), each
+    /// length-prefixed, so two worlds that took different batch routes to the
+    /// same books digest identically.
+    pub fn digest_financial_state(&self) -> [u8; 32] {
+        let mut hasher = Sha256::new();
+        let mut feed = |tag: &str, key: Pubkey| {
+            let data = self.data(key);
+            hasher.update(tag.as_bytes());
+            hasher.update((data.len() as u64).to_le_bytes());
+            hasher.update(&data);
+        };
+        feed("pool", self.rt.pool_address());
+        feed("ticket", self.rt.ticket_address());
+        for key in &self.fixture_backers {
+            feed("backer", *key);
+        }
+        let pool = self.pool();
+        for index in 0..pool.registry_pages {
+            feed("registry", self.rt.registry_address(index));
+        }
+        for index in 0..pool.snapshot_pages {
+            feed("snapshot", self.rt.snapshot_address(index));
+        }
+        hasher.finalize().into()
+    }
+
+    // -----------------------------------------------------------------
+    // Typed phase instructions (default accounts built from the chain state)
+    // -----------------------------------------------------------------
+
+    pub fn discover_rows(
+        &mut self,
+        variant: &str,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+    ) -> Outcome {
+        let remaining = self.rt.discover_remaining(expected_cursor, rows);
+        let instruction =
+            self.rt
+                .discover_ix(expected_ticket_id, expected_cursor, rows, remaining);
+        self.send(variant, vec![instruction], &[])
+    }
+
+    pub fn apply_senior(&mut self, variant: &str, expected_ticket_id: u64) -> Outcome {
+        let instruction = self
+            .rt
+            .senior_ix(expected_ticket_id, self.rt.senior_backer());
+        self.send(variant, vec![instruction], &[])
+    }
+
+    pub fn seal_weights(&mut self, variant: &str, expected_ticket_id: u64) -> Outcome {
+        let instruction = self.rt.seal_ix(expected_ticket_id);
+        self.send(variant, vec![instruction], &[])
+    }
+
+    pub fn allocate_rows(
+        &mut self,
+        variant: &str,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+    ) -> Outcome {
+        let remaining = self.rt.allocate_remaining(expected_cursor, rows);
+        let instruction =
+            self.rt
+                .allocate_ix(expected_ticket_id, expected_cursor, rows, remaining);
+        self.send(variant, vec![instruction], &[])
+    }
+
+    /// `prune_rows` over the keeper's plan for the ticket's current cursor
+    /// (see [`FinancialRuntime::prune_plan`], chains NOT cut, so an illegal
+    /// batch is sent as built).
+    pub fn prune_rows(
+        &mut self,
+        variant: &str,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+    ) -> Outcome {
+        let plan = self.rt.prune_plan(rows, false, false);
+        let instruction =
+            self.rt
+                .prune_ix(expected_ticket_id, expected_cursor, rows, plan.remaining);
+        self.send(variant, vec![instruction], &[])
+    }
+
+    pub fn commit_ticket(&mut self, variant: &str, expected_ticket_id: u64) -> Outcome {
+        let close_record = self
+            .ticket()
+            .close_id
+            .map(|close_id| self.rt.close_record_address(close_id));
+        let instruction = self.rt.commit_ix(expected_ticket_id, close_record);
+        self.send(variant, vec![instruction], &[])
+    }
+
+    /// The owner's combined claim over whichever of its Series A and B Backer
+    /// accounts exist.  `Ok` is the lamports paid (the `BackerClaimed` amount,
+    /// cross-checked against the destination's balance change).
+    pub fn claim_backer(
+        &mut self,
+        variant: &str,
+        owner: &Keypair,
+        destination: Pubkey,
+    ) -> Result<u64, Observation> {
+        let owner_key = owner.pubkey();
+        let backer_a = self.program_account(self.rt.backer_address(SERIES_A, owner_key));
+        let backer_b = self.program_account(self.rt.backer_address(SERIES_B, owner_key));
+        self.claim_backer_with(variant, owner, backer_a, backer_b, destination)
+    }
+
+    /// [`World::claim_backer`] with explicit optional Backer accounts.
+    pub fn claim_backer_with(
+        &mut self,
+        variant: &str,
+        owner: &Keypair,
+        backer_a: Option<Pubkey>,
+        backer_b: Option<Pubkey>,
+        destination: Pubkey,
+    ) -> Result<u64, Observation> {
+        let before = self.lamports(destination);
+        let instruction =
+            self.rt
+                .claim_backer_ix(owner.pubkey(), backer_a, backer_b, destination);
+        let observation = self.send(variant, vec![instruction], &[owner])?;
+        let claimed = observation.last_event::<BackerClaimed>();
+        assert_eq!(claimed.owner, owner.pubkey());
+        assert_eq!(
+            self.lamports(destination) - before,
+            claimed.amount,
+            "{}: the destination receives exactly the claimed amount",
+            observation.label
+        );
+        assert_eq!(claimed.a_part + claimed.b_part, claimed.amount);
+        Ok(claimed.amount)
+    }
+
+    // -----------------------------------------------------------------
+    // The ticket driver
+    // -----------------------------------------------------------------
+
+    /// Send the next phase instruction of the active ticket, in batches of at
+    /// most `rows` rows, and return its observation.  Labelled
+    /// `<phase>.<ordinal>` (the ordinal counts per phase over the whole
+    /// world).  A Prune batch stops before a chained move (the keeper's
+    /// one-row fallback), so the step never trips `DuplicateWritableAccount`.
+    /// Panics if the transaction fails: the happy path must succeed.
+    pub fn advance_step(&mut self, rows: u8) -> Observation {
+        let step = self.rt.next_phase_step(rows, false);
+        let ordinal = {
+            let count = self.drive_counts.entry(step.name).or_insert(0);
+            let ordinal = *count;
+            *count += 1;
+            ordinal
+        };
+        let variant = format!("{}.{ordinal}", step.name);
+        match self.send(&variant, vec![step.instruction], &[]) {
+            Ok(observation) => observation,
+            Err(observation) => panic!(
+                "allocation step `{}` failed: {observation:?}",
+                observation.label
+            ),
+        }
+    }
+
+    /// Advance until the ticket's phase is `phase` (the instruction OF that
+    /// phase has not run).  `state::IDLE` runs the ticket through Commit.
+    pub fn advance_until_phase(&mut self, phase: u8, rows: u8) {
+        let mut guard = 0u32;
+        while self.ticket().phase != phase {
+            assert!(
+                self.ticket().phase != state::IDLE,
+                "the ticket is IDLE, phase {phase} is unreachable"
+            );
+            self.advance_step(rows);
+            guard += 1;
+            assert!(guard < 100_000, "allocation driver did not converge");
+        }
+    }
+
+    /// Discover, Senior, Seal, Allocate, Prune and Commit in batches of `rows`.
+    pub fn advance_until_idle(&mut self, rows: u8) {
+        self.advance_until_phase(state::IDLE, rows);
     }
 }

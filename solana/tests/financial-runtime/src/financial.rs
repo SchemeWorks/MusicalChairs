@@ -1,7 +1,9 @@
 //! Financial instruction cases.  These use the actual Anchor instruction
 //! ABI and deliberately assert success before the handlers are implemented.
 
-use musical_chairs_program::{accounts, instruction, positions::PlanKindArg};
+use musical_chairs_program::{
+    accounts, instruction, positions::PlanKindArg, state, BackerClaimed, TicketCommitted,
+};
 use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
@@ -84,9 +86,11 @@ pub fn run_red_claim() -> Observation {
     observation
 }
 
-/// The first allocation runtime RED captures the one-row ABI at the exact
-/// golden toll.  The host helper is asserted independently so a runtime
-/// failure cannot hide a drift in the accepted 35/45/20 split.
+/// The first allocation runtime row: the M0 RED turned GREEN with the SAME
+/// label.  One `discover_rows` call walks the whole seeded golden registry
+/// (toll 10_000; Series A 4_000 / 6_000; two Series B) in one batch of four
+/// rows.  The host `fold_slices` assertions are unchanged and are compared with
+/// the slices the program itself computed when Discover closed.
 pub fn run_red_allocation() -> Observation {
     let slices = musical_chairs_program::allocation::fold_slices(10_000, true, true)
         .expect("golden allocation slices");
@@ -97,33 +101,54 @@ pub fn run_red_allocation() -> Observation {
 
     // Golden inputs (toll 10_000, A 4_000/6_000 remaining, two B) are seeded
     // as Backer state; the fresh Discover ticket carries no preloaded
-    // counts or slices because `discover_row` computes them.
+    // counts or slices because `discover_rows` computes them.
     let mut runtime = FinancialRuntime::new();
     runtime.seed_allocation();
     let owner = runtime.owner.pubkey();
-    let instruction = anchor_ix(
-        accounts::DiscoverRow {
-            pool: runtime.pool_address(),
-            ticket: runtime.ticket_address(),
-            registry_page: runtime.registry_address(0),
-            backer: runtime.backer_address(musical_chairs_program::allocation::SERIES_A, owner),
-            snapshot_page: runtime.snapshot_address(0),
-        },
-        instruction::DiscoverRow { expected_cursor: 0 },
+    let ticket = runtime.ticket_state();
+    let instruction = runtime.discover_ix(
+        ticket.id,
+        0,
+        4,
+        runtime.discover_remaining(0, 4),
     );
-    runtime.execute(
+    let observation = runtime.execute(
         "financial.allocation.golden-t10000.discover-row",
         vec![instruction],
         &[],
         1_400_000,
-    )
+    );
+
+    if observation.success {
+        let ticket = runtime.ticket_state();
+        assert_eq!((ticket.phase, ticket.cursor), (state::SENIOR, 4));
+        assert_eq!((ticket.a_count, ticket.b_count), (2, 2));
+        let mut total = [0u8; 32];
+        total[..16].copy_from_slice(&10_000u128.to_le_bytes());
+        assert_eq!(ticket.a_remainder_total, total, "4_000 + 6_000 open Series A remainders");
+        // The slices the program computed are the host golden slices.
+        assert_eq!(ticket.seed_credit, slices.seed);
+        assert_eq!(ticket.senior_slice, slices.senior);
+        assert_eq!(ticket.a_slice, slices.a);
+        assert_eq!(ticket.b_slice, slices.b);
+        // The oldest open A is the first-funded A (sequence 1, slot 0).
+        assert_eq!(ticket.oldest, runtime.backer_address(musical_chairs_program::allocation::SERIES_A, owner));
+        assert_eq!((ticket.oldest_sequence, ticket.oldest_slot), (1, 0));
+        assert_eq!(ticket.credited, 0, "Discover credits nothing");
+        runtime.conservation_check();
+    }
+    observation
 }
 
 /// Execute the complete six-phase allocation ABI against one actual compiled
-/// SBF program.  The current production handlers are RED stubs, so this
-/// returns observations for the root worker to use while each phase is
-/// enabled.  Labels carry an ordinal for every repeated row; no observations
-/// are collapsed by phase name.
+/// SBF program, driven by the golden vector with ONE row per instruction: four
+/// Discover calls, Senior, Seal, four Allocate calls, four Prune calls (every
+/// row is open after the credits, so each passes the placeholder), Commit, and
+/// the first Series A Backer's combined claim.  Every instruction must succeed;
+/// the ticket must end in `IDLE` with the golden credits (seed 5_001; A 2_363
+/// / 1_636; B 500 / 500; `funded_claims` 4_999; `pending_toll` 0) and the
+/// game-vault identity must hold after every step.  Labels carry an ordinal
+/// for every repeated row; no observations are collapsed by phase name.
 pub fn run_allocation_golden_flow() -> Vec<Observation> {
     let mut runtime = FinancialRuntime::new();
     runtime.seed_allocation();
@@ -133,145 +158,93 @@ pub fn run_allocation_golden_flow() -> Vec<Observation> {
         runtime.sponsor.pubkey(),
         runtime.management.pubkey(),
     ];
+    let series = [0u8, 0, 1, 1];
     let mut observations = Vec::new();
+    let mut prune_steps = 0;
 
-    for (row, owner) in owners.into_iter().enumerate() {
-        let instruction = anchor_ix(
-            accounts::DiscoverRow {
-                pool: runtime.pool_address(),
-                ticket: runtime.ticket_address(),
-                registry_page: runtime.registry_address(0),
-                backer: runtime.backer_address(if row < 2 { 0 } else { 1 }, owner),
-                snapshot_page: runtime.snapshot_address(0),
-            },
-            instruction::DiscoverRow {
-                expected_cursor: row as u64,
-            },
+    while runtime.ticket_state().phase != state::IDLE {
+        let step = runtime.next_phase_step(1, false);
+        let ticket_id = runtime.ticket_state().id;
+        let label = match step.name {
+            "discover" => format!("financial.allocation.discover.row-{}", step.cursor),
+            "senior" => format!("financial.allocation.senior.ticket-{ticket_id}"),
+            "seal" => format!("financial.allocation.seal-weights.ticket-{ticket_id}"),
+            "allocate" => format!("financial.allocation.allocate.row-{}", step.cursor),
+            "prune" => {
+                let label = format!(
+                    "financial.allocation.prune.row-{}.step-{prune_steps}",
+                    step.cursor - 1
+                );
+                prune_steps += 1;
+                label
+            }
+            _ => format!("financial.allocation.commit.ticket-{ticket_id}"),
+        };
+        let observation = runtime.execute(label, vec![step.instruction], &[], 1_400_000);
+        assert!(
+            observation.success,
+            "{} must succeed: {observation:?}",
+            observation.label
         );
-        observations.push(runtime.execute(
-            format!("financial.allocation.discover.row-{row}"),
-            vec![instruction],
-            &[],
-            1_400_000,
-        ));
+        runtime.conservation_check();
+        observations.push(observation);
     }
 
-    let senior_instruction = anchor_ix(
-        accounts::Senior {
-            pool: runtime.pool_address(),
-            ticket: runtime.ticket_address(),
-            oldest_backer: runtime.backer_address(0, owners[0]),
-        },
-        instruction::Senior {
-            expected_ticket_id: 1,
-        },
+    // The committed ticket, read from the commit transaction's own event.
+    let committed = observations
+        .last()
+        .expect("the flow ends with Commit")
+        .last_event::<TicketCommitted>();
+    assert_eq!(
+        committed,
+        TicketCommitted {
+            schema_version: 1,
+            ticket_id: 1,
+            round_id: 1,
+            toll: 10_000,
+            credited: 4_999,
+            seed: 5_001,
+        }
     );
-    observations.push(runtime.execute(
-        "financial.allocation.senior.row-0",
-        vec![senior_instruction],
-        &[],
-        1_400_000,
-    ));
-    let seal_instruction = anchor_ix(
-        accounts::Seal {
-            pool: runtime.pool_address(),
-            ticket: runtime.ticket_address(),
-        },
-        instruction::SealWeights {
-            expected_ticket_id: 1,
-        },
-    );
-    observations.push(runtime.execute(
-        "financial.allocation.seal-weights.ticket-1",
-        vec![seal_instruction],
-        &[],
-        1_400_000,
-    ));
 
-    for (row, owner) in owners.into_iter().enumerate() {
-        let instruction = anchor_ix(
-            accounts::AllocateRow {
-                pool: runtime.pool_address(),
-                ticket: runtime.ticket_address(),
-                snapshot_page: runtime.snapshot_address(0),
-                backer: runtime.backer_address(if row < 2 { 0 } else { 1 }, owner),
-            },
-            instruction::AllocateRow {
-                expected_cursor: row as u64,
-            },
-        );
-        observations.push(runtime.execute(
-            format!("financial.allocation.allocate.row-{row}"),
-            vec![instruction],
-            &[],
-            1_400_000,
-        ));
+    let pool = runtime.pool_state();
+    let ticket = runtime.ticket_state();
+    assert_eq!(pool.seed, 5_001);
+    assert_eq!(pool.funded_claims, 4_999);
+    assert_eq!(pool.pending_toll, 0);
+    assert_eq!((pool.active_ticket, pool.finalized_ticket), (0, 1));
+    assert_eq!((ticket.phase, ticket.credited, ticket.seed_credit), (state::IDLE, 4_999, 5_001));
+    let credits = [2_363u64, 1_636, 500, 500];
+    for index in 0..4 {
+        let backer = runtime.backer_state(runtime.backer_address(series[index], owners[index]));
+        assert_eq!(backer.pending, credits[index], "owner {index} credit");
+        assert_eq!(backer.lifetime, u128::from(credits[index]), "owner {index} lifetime");
+        assert!(backer.active, "nobody reached the cap");
     }
 
-    for (step, row) in (0..4).rev().enumerate() {
-        let owner = owners[row];
-        let moved_owner = if row == 0 { owner } else { owners[0] };
-        let instruction = anchor_ix(
-            accounts::PruneRow {
-                pool: runtime.pool_address(),
-                ticket: runtime.ticket_address(),
-                snapshot_page: runtime.snapshot_address(0),
-                backer: runtime.backer_address(if row < 2 { 0 } else { 1 }, owner),
-                registry_page: runtime.registry_address(0),
-                last_registry_page: runtime.registry_address(0),
-                moved_backer: runtime.backer_address(0, moved_owner),
-            },
-            instruction::PruneRow {
-                expected_cursor: row as u64,
-            },
-        );
-        observations.push(runtime.execute(
-            format!("financial.allocation.prune.row-{row}.step-{step}"),
-            vec![instruction],
-            &[],
-            1_400_000,
-        ));
-    }
-
-    let commit_instruction = anchor_ix(
-        accounts::Commit {
-            pool: runtime.pool_address(),
-            ticket: runtime.ticket_address(),
-            event_authority: runtime.event_authority_address(),
-            program: musical_chairs_program::ID,
-        },
-        instruction::Commit {
-            expected_ticket_id: 1,
-        },
-    );
-    observations.push(runtime.execute(
-        "financial.allocation.commit.ticket-1",
-        vec![commit_instruction],
-        &[],
-        1_400_000,
-    ));
-
+    // The first Series A Backer claims its finalized credit.
     let owner_signer = Keypair::new_from_array(OWNER_SEED);
-    let claim_backer_instruction = anchor_ix(
-        accounts::ClaimBacker {
-            pool: runtime.pool_address(),
-            game_vault: runtime.game_vault_address(),
-            owner_signer: owners[0],
-            backer: runtime.backer_address(0, owners[0]),
-            destination: runtime.management.pubkey(),
-            event_authority: runtime.event_authority_address(),
-            program: musical_chairs_program::ID,
-        },
-        instruction::ClaimBacker {
-            minimum_receive: 0,
-        },
+    let destination = runtime.management.pubkey();
+    let destination_before = runtime.account(destination).lamports;
+    let claim_backer_instruction = runtime.claim_backer_ix(
+        owners[0],
+        Some(runtime.backer_address(0, owners[0])),
+        None,
+        destination,
     );
-    observations.push(runtime.execute(
+    let claim = runtime.execute(
         "financial.allocation.claim-backer.owner-0",
         vec![claim_backer_instruction],
         &[&owner_signer],
         1_400_000,
-    ));
+    );
+    assert!(claim.success, "claim_backer must succeed: {claim:?}");
+    runtime.conservation_check();
+    assert_eq!(runtime.account(destination).lamports - destination_before, 2_363);
+    assert_eq!(runtime.pool_state().funded_claims, 4_999 - 2_363);
+    let claimed = claim.last_event::<BackerClaimed>();
+    assert_eq!((claimed.amount, claimed.a_part, claimed.b_part), (2_363, 2_363, 0));
+    observations.push(claim);
 
     for observation in &observations {
         assert!(

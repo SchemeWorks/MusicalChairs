@@ -8,7 +8,7 @@ use std::{
 
 use anchor_lang::{event::EVENT_IX_TAG_LE, AccountDeserialize, AccountSerialize, Event};
 use litesvm::LiteSVM;
-use musical_chairs_program::{controls::SQUADS_PROGRAM_ID, state, ID};
+use musical_chairs_program::{accounts, controls::SQUADS_PROGRAM_ID, instruction, state, ID};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use solana_sdk::{
@@ -38,6 +38,8 @@ pub const G_CREATE_KEY: [u8; 32] = [0x47; 32];
 pub const P_CREATE_KEY: [u8; 32] = [0x50; 32];
 
 const AIRDROP_LAMPORTS: u64 = 100_000_000_000;
+/// Slots per registry / snapshot page.
+const PAGE: u64 = state::PAGE_CAPACITY as u64;
 const DAY: u64 = 86_400;
 const OPEN_GROSS: u64 = 100_000_000;
 const ENTRY_POT: u64 = 96_000_000;
@@ -1065,6 +1067,12 @@ impl FinancialRuntime {
 
         let mut pool: state::Pool = self.deserialize(self.pool_address());
         pool.pending_toll = 10_000;
+        // The escrowed toll is real cash in the game vault, so the vault
+        // identity (`vault - rent == pot + seed + management + pending_toll +
+        // funded_claims + excess`) holds from the first allocation step and a
+        // later `claim_backer` can actually pay.
+        let vault = self.game_vault_address();
+        self.add_lamports(vault, 10_000);
         pool.registry_len = owners.len() as u64;
         pool.registry_version = 1;
         pool.next_sequence = highest_first_sequence + 1;
@@ -1196,6 +1204,371 @@ impl FinancialRuntime {
             .copied()
             .map(|key| (key, AccountSnapshot(self.svm.get_account(&key))))
             .collect()
+    }
+}
+
+/// The next allocation-ticket instruction the driver would send.
+#[derive(Clone, Debug)]
+pub struct PhaseStep {
+    /// `discover`, `senior`, `seal`, `allocate`, `prune` or `commit`.
+    pub name: &'static str,
+    /// Rows the instruction carries (0 for senior, seal and commit).
+    pub rows: u8,
+    /// `Ticket.cursor` when the step was planned.
+    pub cursor: u64,
+    pub instruction: Instruction,
+}
+
+/// One Prune batch as a keeper builds it from the chain state.
+#[derive(Clone, Debug)]
+pub struct PrunePlan {
+    /// Rows the batch carries (the `rows` argument).
+    pub rows: u8,
+    /// `[snapshot_page, backer_pruned, registry_page_pruned,
+    /// registry_page_last, backer_moved] x rows`.
+    pub remaining: Vec<AccountMeta>,
+    /// How many of the batch's rows actually prune (the others are skipped
+    /// and carry the placeholder).
+    pub pruned: usize,
+}
+
+/// Allocation-ticket instruction builders (M6).
+///
+/// Every builder reads the CURRENT chain state, so a row can build the exact
+/// batch a keeper would send, or take the default remaining accounts and
+/// tamper with them.  Remaining-account layouts (the `#[derive(Accounts)]`
+/// struct holds only the fixed accounts):
+///
+/// * `discover_rows`: `[registry_page (ro), snapshot_page (m), backer (ro)] x rows`
+///   for slots `cursor .. cursor + rows`.
+/// * `apply_senior`: fixed `[ticket (m), backer (m)]`, no remaining accounts.
+/// * `seal_weights`: fixed `[ticket (m)]`.
+/// * `allocate_rows`: `[snapshot_page (ro), backer (m)] x rows`.
+/// * `prune_rows`: `[snapshot_page (ro), backer_pruned (m), registry_page_pruned (m),
+///   registry_page_last (m), backer_moved (m)] x rows` for slots
+///   `cursor-1-i`; a skipped row passes its real snapshot page and then four
+///   program-id placeholders.
+/// * `commit_ticket`: fixed `[ticket (m), pool (m), close_record? (m)]` plus the
+///   event-CPI pair.
+impl FinancialRuntime {
+    pub fn pool_state(&self) -> state::Pool {
+        self.deserialize(self.pool_address())
+    }
+
+    pub fn ticket_state(&self) -> state::Ticket {
+        self.deserialize(self.ticket_address())
+    }
+
+    pub fn backer_state(&self, key: Pubkey) -> state::Backer {
+        self.deserialize(key)
+    }
+
+    /// The Backer PDA stored in registry slot `slot`.
+    pub fn registry_key(&self, slot: u64) -> Pubkey {
+        let page: state::RegistryPage = self.deserialize(self.registry_address(slot / PAGE));
+        page.keys[(slot % PAGE) as usize]
+    }
+
+    /// The captured row at snapshot slot `slot`.
+    pub fn snapshot_row(&self, slot: u64) -> state::SnapshotRow {
+        let page: state::SnapshotPage = self.deserialize(self.snapshot_address(slot / PAGE));
+        page.rows[(slot % PAGE) as usize]
+    }
+
+    /// Default Discover accounts for slots `cursor .. cursor + take`.
+    pub fn discover_remaining(&self, cursor: u64, take: u8) -> Vec<AccountMeta> {
+        let mut metas = Vec::with_capacity(3 * usize::from(take));
+        for i in 0..u64::from(take) {
+            let slot = cursor + i;
+            metas.push(AccountMeta::new_readonly(self.registry_address(slot / PAGE), false));
+            metas.push(AccountMeta::new(self.snapshot_address(slot / PAGE), false));
+            metas.push(AccountMeta::new_readonly(self.registry_key(slot), false));
+        }
+        metas
+    }
+
+    /// Default Allocate accounts for slots `cursor .. cursor + take`: the
+    /// Backer named by the snapshot row (closed rows carry theirs too; the
+    /// program matches the key and then skips them).
+    pub fn allocate_remaining(&self, cursor: u64, take: u8) -> Vec<AccountMeta> {
+        let mut metas = Vec::with_capacity(2 * usize::from(take));
+        for i in 0..u64::from(take) {
+            let slot = cursor + i;
+            metas.push(AccountMeta::new_readonly(self.snapshot_address(slot / PAGE), false));
+            metas.push(AccountMeta::new(self.snapshot_row(slot).key, false));
+        }
+        metas
+    }
+
+    /// The writable stand-in `apply_senior` takes when the ticket has no open
+    /// Series A.  The ABI note says to pass the program id, but a program id
+    /// is always a READ-ONLY key in a compiled message and the handler's
+    /// `backer` is `#[account(mut)]`, so Anchor's mut check refuses it
+    /// (`ConstraintMut`, 2000).  `senior_step` reads no account in that case,
+    /// so any writable account will do; the Pool PDA is used.
+    pub fn senior_stand_in(&self) -> Pubkey {
+        self.pool_address()
+    }
+
+    /// The Backer `apply_senior` must carry: the tracked oldest open A, or
+    /// the stand-in when the ticket has none.
+    pub fn senior_backer(&self) -> Pubkey {
+        let ticket = self.ticket_state();
+        if ticket.a_count == 0 {
+            self.senior_stand_in()
+        } else {
+            ticket.oldest
+        }
+    }
+
+    /// A Prune batch of at most `max_rows` rows from the ticket's cursor
+    /// downward, built the way a keeper would: real accounts for every row
+    /// that is prunable now (captured closed, or newly capped by this
+    /// ticket's credits unless `skip_newly_capped`), placeholders for the
+    /// rest, with earlier swap-deletes of the same batch simulated.
+    ///
+    /// `cut_chains` stops the batch BEFORE a row whose moved Backer was
+    /// already written earlier in the batch (that batch is a
+    /// `DuplicateWritableAccount`); without it the full, illegal batch is
+    /// returned so a row can prove the rejection.
+    pub fn prune_plan(&self, max_rows: u8, skip_newly_capped: bool, cut_chains: bool) -> PrunePlan {
+        let pool = self.pool_state();
+        let ticket = self.ticket_state();
+        let mut keys: Vec<Pubkey> = (0..pool.registry_len).map(|slot| self.registry_key(slot)).collect();
+        let mut written: Vec<Pubkey> = Vec::new();
+        let mut remaining = Vec::new();
+        let mut rows = 0u8;
+        let mut pruned = 0usize;
+        let limit = u64::from(max_rows).min(ticket.cursor);
+        for i in 0..limit {
+            let slot = ticket.cursor - 1 - i;
+            let row = self.snapshot_row(slot);
+            let live = self
+                .backer_state(row.key)
+                .remaining()
+                .expect("live remaining entitlement");
+            let cutoff = state::BACKER_REMAINING_CUTOFF;
+            let real = row.remaining <= cutoff || (live <= cutoff && !skip_newly_capped);
+            if real {
+                let last = keys.len() as u64 - 1;
+                let moved = keys[last as usize];
+                if cut_chains && slot != last && written.contains(&moved) {
+                    break;
+                }
+                remaining.push(AccountMeta::new_readonly(self.snapshot_address(slot / PAGE), false));
+                remaining.push(AccountMeta::new(row.key, false));
+                remaining.push(AccountMeta::new(self.registry_address(slot / PAGE), false));
+                remaining.push(AccountMeta::new(self.registry_address(last / PAGE), false));
+                remaining.push(AccountMeta::new(moved, false));
+                written.push(row.key);
+                if slot != last {
+                    written.push(moved);
+                    keys[slot as usize] = moved;
+                }
+                keys.pop();
+                pruned += 1;
+            } else {
+                remaining.push(AccountMeta::new_readonly(self.snapshot_address(slot / PAGE), false));
+                for _ in 0..4 {
+                    remaining.push(AccountMeta::new_readonly(ID, false));
+                }
+            }
+            rows += 1;
+        }
+        PrunePlan { rows, remaining, pruned }
+    }
+
+    pub fn discover_ix(
+        &self,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+        remaining: Vec<AccountMeta>,
+    ) -> Instruction {
+        let mut ix = anchor_ix(
+            accounts::DiscoverRows {
+                ticket: self.ticket_address(),
+                pool: self.pool_address(),
+            },
+            instruction::DiscoverRows {
+                expected_ticket_id,
+                expected_cursor,
+                rows,
+            },
+        );
+        ix.accounts.extend(remaining);
+        ix
+    }
+
+    pub fn senior_ix(&self, expected_ticket_id: u64, backer: Pubkey) -> Instruction {
+        anchor_ix(
+            accounts::ApplySenior {
+                ticket: self.ticket_address(),
+                backer,
+            },
+            instruction::ApplySenior { expected_ticket_id },
+        )
+    }
+
+    pub fn seal_ix(&self, expected_ticket_id: u64) -> Instruction {
+        anchor_ix(
+            accounts::SealWeights {
+                ticket: self.ticket_address(),
+            },
+            instruction::SealWeights { expected_ticket_id },
+        )
+    }
+
+    pub fn allocate_ix(
+        &self,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+        remaining: Vec<AccountMeta>,
+    ) -> Instruction {
+        let mut ix = anchor_ix(
+            accounts::AllocateRows {
+                ticket: self.ticket_address(),
+            },
+            instruction::AllocateRows {
+                expected_ticket_id,
+                expected_cursor,
+                rows,
+            },
+        );
+        ix.accounts.extend(remaining);
+        ix
+    }
+
+    pub fn prune_ix(
+        &self,
+        expected_ticket_id: u64,
+        expected_cursor: u64,
+        rows: u8,
+        remaining: Vec<AccountMeta>,
+    ) -> Instruction {
+        let mut ix = anchor_ix(
+            accounts::PruneRows {
+                ticket: self.ticket_address(),
+                pool: self.pool_address(),
+            },
+            instruction::PruneRows {
+                expected_ticket_id,
+                expected_cursor,
+                rows,
+            },
+        );
+        ix.accounts.extend(remaining);
+        ix
+    }
+
+    /// `close_record` is the placeholder (`None`) unless the ticket is closing.
+    pub fn commit_ix(&self, expected_ticket_id: u64, close_record: Option<Pubkey>) -> Instruction {
+        anchor_ix(
+            accounts::CommitTicket {
+                ticket: self.ticket_address(),
+                pool: self.pool_address(),
+                close_record,
+                event_authority: self.event_authority_address(),
+                program: ID,
+            },
+            instruction::CommitTicket { expected_ticket_id },
+        )
+    }
+
+    /// `backer_a` / `backer_b` are the optional Series A / B Backer PDAs
+    /// (`None` encodes as the program-id placeholder).
+    pub fn claim_backer_ix(
+        &self,
+        owner: Pubkey,
+        backer_a: Option<Pubkey>,
+        backer_b: Option<Pubkey>,
+        destination: Pubkey,
+    ) -> Instruction {
+        anchor_ix(
+            accounts::ClaimBacker {
+                owner,
+                pool: self.pool_address(),
+                game_vault: self.game_vault_address(),
+                user: self.user_address(owner),
+                backer_a,
+                backer_b,
+                destination,
+                event_authority: self.event_authority_address(),
+                program: ID,
+            },
+            instruction::ClaimBacker,
+        )
+    }
+
+    /// The instruction that advances the active ticket by one step, in
+    /// batches of at most `rows` rows.  Panics when no ticket is active.
+    pub fn next_phase_step(&self, rows: u8, skip_newly_capped: bool) -> PhaseStep {
+        assert!(rows >= 1, "a batch carries at least one row");
+        let ticket = self.ticket_state();
+        let id = ticket.id;
+        match ticket.phase {
+            state::DISCOVER => {
+                let take = u64::from(rows).min(ticket.captured_len - ticket.cursor) as u8;
+                PhaseStep {
+                    name: "discover",
+                    rows: take,
+                    cursor: ticket.cursor,
+                    instruction: self.discover_ix(
+                        id,
+                        ticket.cursor,
+                        take,
+                        self.discover_remaining(ticket.cursor, take),
+                    ),
+                }
+            }
+            state::SENIOR => PhaseStep {
+                name: "senior",
+                rows: 0,
+                cursor: ticket.cursor,
+                instruction: self.senior_ix(id, self.senior_backer()),
+            },
+            state::SEAL => PhaseStep {
+                name: "seal",
+                rows: 0,
+                cursor: ticket.cursor,
+                instruction: self.seal_ix(id),
+            },
+            state::ALLOCATE => {
+                let take = u64::from(rows).min(ticket.captured_len - ticket.cursor) as u8;
+                PhaseStep {
+                    name: "allocate",
+                    rows: take,
+                    cursor: ticket.cursor,
+                    instruction: self.allocate_ix(
+                        id,
+                        ticket.cursor,
+                        take,
+                        self.allocate_remaining(ticket.cursor, take),
+                    ),
+                }
+            }
+            state::PRUNE => {
+                let plan = self.prune_plan(rows, skip_newly_capped, true);
+                PhaseStep {
+                    name: "prune",
+                    rows: plan.rows,
+                    cursor: ticket.cursor,
+                    instruction: self.prune_ix(id, ticket.cursor, plan.rows, plan.remaining),
+                }
+            }
+            state::COMMIT => PhaseStep {
+                name: "commit",
+                rows: 0,
+                cursor: ticket.cursor,
+                instruction: self.commit_ix(
+                    id,
+                    ticket.close_id.map(|close_id| self.close_record_address(close_id)),
+                ),
+            },
+            state::IDLE => panic!("no allocation ticket is active (phase IDLE)"),
+            other => panic!("unknown allocation phase {other}"),
+        }
     }
 }
 
