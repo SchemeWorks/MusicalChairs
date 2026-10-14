@@ -1919,6 +1919,31 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
     rig.rejected_program(&observation, ErrorCode::InvalidState);
     observations.push(observation);
 
+    // The quota is frozen at three successes per 3,600 s (spec §3.1) because
+    // `User::record_success` enforces exactly that; a staged quota of one, or a
+    // different window, is rejected at staging instead of being silently
+    // ignored at admission (Codex M5 review).
+    let mut quota_count = terms(2);
+    quota_count.quota_count = 1;
+    let instruction = stage_ix(&rig.rt, g_multisig, g_vault, 2, quota_count);
+    let observation = rig.via_g(
+        label(ROW_STAGE_CONFIG, "noncanonical_quota_count"),
+        instruction,
+        &[],
+    );
+    rig.rejected_program(&observation, ErrorCode::InvalidState);
+    observations.push(observation);
+    let mut quota_window = terms(2);
+    quota_window.quota_window_s = 3_599;
+    let instruction = stage_ix(&rig.rt, g_multisig, g_vault, 2, quota_window);
+    let observation = rig.via_g(
+        label(ROW_STAGE_CONFIG, "noncanonical_quota_window"),
+        instruction,
+        &[],
+    );
+    rig.rejected_program(&observation, ErrorCode::InvalidState);
+    observations.push(observation);
+
     // G stages version 2 for round 2.
     let free_before = rig.ops().free_balance;
     let rent_funded_before = rig.ops().total_rent_funded;

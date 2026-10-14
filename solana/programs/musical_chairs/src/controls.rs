@@ -19,6 +19,7 @@ use crate::state::{
     Pool, Promotion, RegistryPage, RentComponents, RngAuthority, SnapshotPage, SnapshotRow, Ticket,
     ADMISSION_SEED, CANDIDATES_SEED, CLOSE_SEED, CONFIG_SEED, DRAW_NOT_REQUESTED, GAME_VAULT_SEED,
     IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, PARTICIPANTS_SEED, POOL_SEED, QUOTA_CALLS,
+    QUOTA_WINDOW_SECS,
     REGISTRY_SEED, RNG_AUTHORITY_SEED, SNAPSHOT_SEED, TICKET_SEED,
 };
 
@@ -133,10 +134,14 @@ impl ConfigTerms {
                 && self.deadline_seconds > 0,
             crate::ErrorCode::InvalidState
         );
-        // `User.successful_at` holds `QUOTA_CALLS` entries, so a larger quota
-        // could never be recorded.
+        // The quota is a frozen contract (spec §3.1: three successful calls per
+        // rolling 3,600 s) and `User::record_success` enforces exactly
+        // `QUOTA_CALLS` / `QUOTA_WINDOW_SECS` from its fixed three-slot array, so
+        // a staged configuration may only restate those values; anything else
+        // would be silently ignored at admission time (Codex M5 review).
         require!(
-            self.quota_count >= 1 && self.quota_count <= QUOTA_CALLS,
+            self.quota_count == QUOTA_CALLS
+                && u64::from(self.quota_window_s) == QUOTA_WINDOW_SECS,
             crate::ErrorCode::InvalidState
         );
         require!(
@@ -2091,7 +2096,6 @@ mod tests {
         later.a_bps = 5_000;
         later.b_bps = 1_500;
         later.provider_fee_headroom_bps = 10_000;
-        later.quota_count = 1;
         later.public_series_a_enabled = true;
         later.validate().unwrap();
 
@@ -2103,7 +2107,7 @@ mod tests {
 
     #[test]
     fn config_terms_reject_each_bound_once() {
-        let cases: [(&str, fn(&mut ConfigTerms)); 27] = [
+        let cases: [(&str, fn(&mut ConfigTerms)); 31] = [
             ("plan rate over 100%", |t| t.plan_rates_bps_per_day[0] = 10_001),
             ("simple toll over 100%", |t| t.simple_toll_bps[2] = 10_001),
             ("jackpot over 100%", |t| t.jackpot_bps[1] = 10_001),
@@ -2131,6 +2135,13 @@ mod tests {
             ("zero first plan duration", |t| t.plan_durations_s[0] = 0),
             ("zero last plan duration", |t| t.plan_durations_s[2] = 0),
             ("b entitlement zero", |t| t.b_entitlement_bps = 0),
+            // Spec §3.1 fixes the quota at three successes per 3,600 s and
+            // `User::record_success` enforces exactly that, so any other
+            // staged value would be silently ignored (Codex M5 review).
+            ("quota count one", |t| t.quota_count = 1),
+            ("quota count two", |t| t.quota_count = 2),
+            ("quota window one second short", |t| t.quota_window_s = 3_599),
+            ("quota window one second long", |t| t.quota_window_s = 3_601),
         ];
         for (name, mutate) in cases {
             let mut candidate = terms();
