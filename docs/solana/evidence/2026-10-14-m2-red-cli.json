@@ -1,0 +1,1007 @@
+{
+  "observations": [
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 29702,
+      "declared_account_data_bytes": 668426,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.open_moves_real_sol",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: OpenPosition",
+        "Program 11111111111111111111111111111111 invoke [2]",
+        "Program 11111111111111111111111111111111 success",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 29552 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 12,
+      "packet_bytes": 596,
+      "payer_lamports_after": 99999990000,
+      "payer_lamports_before": 100000000000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "2FW1PXcjotgBmjAdyxoEmzhmLuZed4CT6v34EcUpmXBU7wCZCo4eUPMwQ91MCTWD1xTCYz3sw5Z4YKVQrGHmMKiV",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 7
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 24985,
+      "declared_account_data_bytes": 669019,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.claim_moves_real_sol",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: ClaimPosition",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 24835 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 16,
+      "packet_bytes": 720,
+      "payer_lamports_after": 99999990000,
+      "payer_lamports_before": 100000000000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "2NDQ7Q6xNRGVqCCy7fULbisr735bia8bNxn9qEdp8bN3pqmQHu6ELo5tjVw5ms2NQJ4wXrjco7AaMFm6spNvUwmC",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 9
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14512,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.golden-t10000.discover-row",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: DiscoverRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14362 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 390,
+      "payer_lamports_after": 99999995000,
+      "payer_lamports_before": 100000000000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "5hT1TPrerTKAmxidGuDnVtoEaMKzzqVj3HeMWVusa8EjYttjL47oCo6a573uXW6Cq1Ju51ZZS7HYaNkDf9Uvt6d2",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14512,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.discover.row-0",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: DiscoverRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14362 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 390,
+      "payer_lamports_after": 99999995000,
+      "payer_lamports_before": 100000000000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "5hT1TPrerTKAmxidGuDnVtoEaMKzzqVj3HeMWVusa8EjYttjL47oCo6a573uXW6Cq1Ju51ZZS7HYaNkDf9Uvt6d2",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14512,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.discover.row-1",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: DiscoverRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14362 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 390,
+      "payer_lamports_after": 99999990000,
+      "payer_lamports_before": 99999995000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "4Xy8SKUH83nkevQhqEHxhHfGFv1Vty3pstrBwXvKTCVA4qt1GSkrFZwpyvRNnUeZeGJF7HuLrTwa3X5SZt2EvdVm",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14512,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.discover.row-2",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: DiscoverRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14362 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 390,
+      "payer_lamports_after": 99999985000,
+      "payer_lamports_before": 99999990000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "ppPg3DkeE6HjYK5ZdkXhmSySf8NhTgXRDDip58qoCbKGkSckUC8g4uTKFeDRevnYfxjNhC4oVfxgfuP4DNhEaUY",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14512,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.discover.row-3",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: DiscoverRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14362 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 390,
+      "payer_lamports_after": 99999980000,
+      "payer_lamports_before": 99999985000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "55R81bKsD6mZ4WZRrF4WWYg68RQJd7eHVAWbUgu4UcBzqtxDfQbCUsqkg7Tb2Y8URDHyaqSrNz9LHYet824htqd5",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 6954,
+      "declared_account_data_bytes": 668568,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.senior.row-0",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: Senior",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 6804 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 6,
+      "packet_bytes": 324,
+      "payer_lamports_after": 99999975000,
+      "payer_lamports_before": 99999980000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "33EcHPYj25aHDE8K6pFsvuYGYZ262VYTb8RJaWVpzure7v3efUtkxNLGeRtUAL5ddGprRKm3bVx1HbsBQHNGrbcL",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 6677,
+      "declared_account_data_bytes": 668421,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.seal-weights.ticket-1",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: SealWeights",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 6527 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 5,
+      "packet_bytes": 291,
+      "payer_lamports_after": 99999970000,
+      "payer_lamports_before": 99999975000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "3kwi6G7mtN9fpedqp6EKjjsdAig3quxZoxzQLgnmVj3i8vp44ypQykJ54e19HSh5tGXZtj3KkgX8xSGjqddkHUVy",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 3
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 11979,
+      "declared_account_data_bytes": 669097,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.allocate.row-0",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: AllocateRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 11829 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 7,
+      "packet_bytes": 357,
+      "payer_lamports_after": 99999965000,
+      "payer_lamports_before": 99999970000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "QpbRcL6U6ZxsrgrU3UaLqcofsv2wqevWnJZQ7tRdbs7JmSkRfx7jhdYjYLg42NPiwSd2r7gi76rupteVneHdXg2",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 11979,
+      "declared_account_data_bytes": 669097,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.allocate.row-1",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: AllocateRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 11829 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 7,
+      "packet_bytes": 357,
+      "payer_lamports_after": 99999960000,
+      "payer_lamports_before": 99999965000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "4scJctzWj5BJbd79ed2mtSJ5C1Mrc9tEBTTD4LH2f4m1roMPD3RN5UNKKPBPGLt9jUrPHAvTX1dVzy4fm7YuiCc4",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 11979,
+      "declared_account_data_bytes": 669097,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.allocate.row-2",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: AllocateRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 11829 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 7,
+      "packet_bytes": 357,
+      "payer_lamports_after": 99999955000,
+      "payer_lamports_before": 99999960000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "444ka8sX8Mjr2pG3ojtQj72nCj9ekjgqRy9KxEbAdX4MZdreaDyAj1B1UPnLkgJFGPqHqVAvcBZ7dZqM6tGupwvy",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 11979,
+      "declared_account_data_bytes": 669097,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.allocate.row-3",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: AllocateRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 11829 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 7,
+      "packet_bytes": 357,
+      "payer_lamports_after": 99999950000,
+      "payer_lamports_before": 99999955000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "36aWFpBRwEaBJehjmNc5guErgZa3rKLUpnmu2mztKwnUR2JG9NpwVcBorDkBTohjvfoFoAtasAXu69fWNBgFybrZ",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 7896,
+      "declared_account_data_bytes": 669565,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.prune.row-3.step-0",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: PruneRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 7746 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 9,
+      "packet_bytes": 424,
+      "payer_lamports_after": 99999945000,
+      "payer_lamports_before": 99999950000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "2KGfXVwp5QP2826bh3mdbmJQSvvB7C2xbopds3CBcrMsAz3Zedu1HFajU2Mvkj4KuZH2RRVkofjLRXrUtACzAN39",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 7
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 7896,
+      "declared_account_data_bytes": 669565,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.prune.row-2.step-1",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: PruneRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 7746 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 9,
+      "packet_bytes": 424,
+      "payer_lamports_after": 99999940000,
+      "payer_lamports_before": 99999945000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "5iAnqiZjgzDNbxVunv811bvwcDd8KN68tAwCaSRyjjjku5TeeNRLUcWPy2zehE5oqHcPFj7aP2BaaofYtg6BT9bd",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 7
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 7896,
+      "declared_account_data_bytes": 669565,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.prune.row-1.step-2",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: PruneRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 7746 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 9,
+      "packet_bytes": 424,
+      "payer_lamports_after": 99999935000,
+      "payer_lamports_before": 99999940000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "3vmkjdk3NmxikMj7DGCPTS8hfFh2S4C4jh3qbJX7qadwqT658pfDKDEeZhzQMUByjsnNHPHYZ3A6RABGj5T3Te2k",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 7
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 7715,
+      "declared_account_data_bytes": 669418,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.prune.row-0.step-3",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: PruneRow",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 7565 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 392,
+      "payer_lamports_after": 99999930000,
+      "payer_lamports_before": 99999935000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "21VTEBodtYa5oAaA4GQFSFgDp8Xctx9Lmh8BgvfHPRaA539vVEjuz33o5gdX3yjUodPVr3ienT4KnRUcnyZtSgTD",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 6
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 8949,
+      "declared_account_data_bytes": 668421,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 5000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.commit.ticket-1",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: Commit",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 8799 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 6,
+      "packet_bytes": 325,
+      "payer_lamports_after": 99999925000,
+      "payer_lamports_before": 99999930000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "4WSy3ZKbSuVdbyfN2MZ9ugUve5PfUmJQ42tcmyFgPq3c5yKNNYfAv7WUdcDGyjrWrNLHPmzCu6Ek6uZALKvYnCFt",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 3
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 11565,
+      "declared_account_data_bytes": 668336,
+      "error": "InstructionError(1, Custom(6021))",
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.allocation.claim-backer.owner-0",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: ClaimBacker",
+        "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 11415 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1785"
+      ],
+      "message_account_count": 9,
+      "packet_bytes": 488,
+      "payer_lamports_after": 99999915000,
+      "payer_lamports_before": 99999925000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "5J2sUKNniAoysMkqvJoTavnBkjFhfuQvkYdKxp3Q3r2zMhktt81QKpbXrB37Cqyr1jG97Ai7E5XS7frcHUknPWqm",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 5
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "c04387b205c377800dfeaf63f7962561942cbd1cfa9c17c8ad17475c4de55116",
+          "lamport_delta": 0,
+          "owner": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+          "pubkey": "EMmmtPRp62FrxeGNwm2NWqvQvZ1xdJmqHSczL3RRh43A"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 1,
+      "compute_limit": 1400000,
+      "compute_units": 9780,
+      "declared_account_data_bytes": 667856,
+      "error": null,
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.controls.pause.guardian",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: SetPause",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 2135 of 1392892 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 9630 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success"
+      ],
+      "message_account_count": 6,
+      "packet_bytes": 382,
+      "payer_lamports_after": 99999990000,
+      "payer_lamports_before": 100000000000,
+      "return_data": [],
+      "rollback_except_fee": false,
+      "runtime_loaded_account_count": null,
+      "signature": "5MU6vcVkcx92HiFjWDYf9Ms9fuB4vVaAc5c7BYFwWgLvR8MyiHEyNoBVecyyGRWxC9UUUW7BKF8V57hoMo9AwHZB",
+      "success": true,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 2
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 7236,
+      "declared_account_data_bytes": 667856,
+      "error": "InstructionError(1, Custom(6004))",
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.controls.pause.wrong-guardian",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: SetPause",
+        "Program log: AnchorError thrown in src/controls.rs:163. Error Code: NotAuthorized. Error Number: 6004. Error Message: NotAuthorized.",
+        "Program log: Left:",
+        "Program log: 2btLJAAb1S3x6hZYdVyAePjqtQYi2ZBSRGy4569RZu8h",
+        "Program log: Right:",
+        "Program log: Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 7086 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1774"
+      ],
+      "message_account_count": 6,
+      "packet_bytes": 382,
+      "payer_lamports_after": 99999980000,
+      "payer_lamports_before": 99999990000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "7o4JF9FkvSsxq1H6rJ63NhAwuuzb2FGmemYusXfx1x4o7LUBbXvBYud9gRhbW5ehHqGVckqZqSg1AngbR6H5cQi",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 2
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "fb6e2ffd02ce58a996d50dced6733c4d6ee21c16e5f9651939e281cce904df70",
+          "lamport_delta": 0,
+          "owner": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+          "pubkey": "3aNRyVcEMQxXWqAxciDv77gKWMv8d7PRmfePJdjcriiv"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": 20000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "4FSt2vmzZmniwMmT9LWBU9UvttLLkE1DPXNPsfKadqEc"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -20000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "FVdnakemjhcemfWUgNR2AERbk5Pog7zJ1UF2LjbocBUj"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 2,
+      "compute_limit": 1400000,
+      "compute_units": 16531,
+      "declared_account_data_bytes": 668013,
+      "error": null,
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.controls.operations.fund-20000",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: FundOperations",
+        "Program 11111111111111111111111111111111 invoke [2]",
+        "Program 11111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 2135 of 1386825 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 16381 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 455,
+      "payer_lamports_after": 99999970000,
+      "payer_lamports_before": 99999980000,
+      "return_data": [],
+      "rollback_except_fee": false,
+      "runtime_loaded_account_count": null,
+      "signature": "63zzZG4kaPqPmexCny9v9ok6EchX92Nkrwhp8Tj8vtp19ppFVkxZUzpgqbw8xg4fzCLC3CvjV5c8bevxzf5Y1eZb",
+      "success": true,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "de104351885f7d6b46a96ce7a97a8c10b3cc2e07ed3ea399a47f72c0b57e9544",
+          "lamport_delta": 0,
+          "owner": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+          "pubkey": "3aNRyVcEMQxXWqAxciDv77gKWMv8d7PRmfePJdjcriiv"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "4FSt2vmzZmniwMmT9LWBU9UvttLLkE1DPXNPsfKadqEc"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        },
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": 5000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "FVdnakemjhcemfWUgNR2AERbk5Pog7zJ1UF2LjbocBUj"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 2,
+      "compute_limit": 1400000,
+      "compute_units": 18926,
+      "declared_account_data_bytes": 668013,
+      "error": null,
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.controls.operations.withdraw-5000",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: WithdrawOperations",
+        "Program 11111111111111111111111111111111 invoke [2]",
+        "Program 11111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 2135 of 1384436 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 18776 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success"
+      ],
+      "message_account_count": 8,
+      "packet_bytes": 455,
+      "payer_lamports_after": 99999960000,
+      "payer_lamports_before": 99999970000,
+      "return_data": [],
+      "rollback_except_fee": false,
+      "runtime_loaded_account_count": null,
+      "signature": "5n1shTBN1WwW9kd9Ueh8rGDKTSBrqB6b5uoaLnmVcRyg2UPVcjfdcEN6icVwp5W9KJkjqAviYvJ8wkuSKhpV5YgK",
+      "success": true,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    },
+    {
+      "account_changes": [
+        {
+          "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "lamport_delta": -10000,
+          "owner": "11111111111111111111111111111111",
+          "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4"
+        }
+      ],
+      "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+      "changed_data_bytes": 0,
+      "compute_limit": 1400000,
+      "compute_units": 14241,
+      "declared_account_data_bytes": 668382,
+      "error": "InstructionError(1, Custom(6007))",
+      "expected_fee_lamports": 10000,
+      "fits_legacy_packet": true,
+      "label": "financial.controls.management.empty-balance",
+      "logs": [
+        "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+        "Program ComputeBudget111111111111111111111111111111 success",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [1]",
+        "Program log: Instruction: WithdrawManagement",
+        "Program log: AnchorError thrown in src/controls.rs:278. Error Code: InsufficientOperations. Error Number: 6007. Error Message: InsufficientOperations.",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 14091 of 1399850 compute units",
+        "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 failed: custom program error: 0x1777"
+      ],
+      "message_account_count": 9,
+      "packet_bytes": 488,
+      "payer_lamports_after": 99999950000,
+      "payer_lamports_before": 99999960000,
+      "return_data": [],
+      "rollback_except_fee": true,
+      "runtime_loaded_account_count": null,
+      "signature": "TmABkwvHggUCngPZgibgp1nAiCKoV1VYFBiyMoH5JCTwoKjp9aatiErmK1FuSep6sqi6R85vDXAoSqHkFw3FqPz",
+      "success": false,
+      "unsupported": "LiteSVM exposes no production loaded-account count",
+      "writable_account_count": 4
+    }
+  ],
+  "program": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+  "runtime": {
+    "anchor": "0.32.1",
+    "fee_model": "observed LiteSVM base fee; not a mainnet quote",
+    "legacy_packet_limit": 1232,
+    "litesvm": "0.7.1",
+    "solana_sdk": "2.3.1"
+  },
+  "scope": "Compiled Musical Chairs financial SBF executed locally in LiteSVM with synthetic actors and injected production accounts; no deployment, provider, wallet, Squads, signing, broadcast, or live settlement proof"
+}

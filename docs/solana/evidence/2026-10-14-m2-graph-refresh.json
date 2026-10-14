@@ -1,0 +1,186 @@
+{
+ "recorded_at_utc": "2026-10-14T08:33:51.769236+00:00",
+ "card": "IMPL-15",
+ "milestone": "M2 schema freeze and IDL — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "da6282ed61d74259f73cb5c4e24708d5477f86ab",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision5-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-runtime-graph-refresh.json"
+ ],
+ "branch": "codex/native-solana-production-core",
+ "head_at_graph_update": "da6282e",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "cbaa1f35bec7d36ce18969959100ecbfdbe58ebb7cdf71e5a54a4d6bba0a54a5",
+   "result": "11,231 nodes / 15,300 edges / 1,117 communities; graphify backup → graphify-out/2026-10-14_2/"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m2-fragment-spec.json 1117 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "4bb484cd1fe088202ec685ac12fea740ded6df1302e0c1b2b2fa9aac9ae3e6c8"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 10860,
+  "edges": 14919,
+  "hyperedges": 37
+ },
+ "after_graphify_update": {
+  "nodes": 11231,
+  "edges": 15300,
+  "hyperedges": 37
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 1,
+  "note": "graphify update collapses the same 16 same-endpoint multi-edges and strips the same 321 status attributes on every run; the repair is idempotent against the per-run backup. One explicit same_symbol_as links src_error_errorcode to the 2026-10-13 lib.rs ErrorCode node (the enum moved files)."
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m2-graph-fragment.json",
+  "sha256": "b564b079b7ec5b243fc54c6093f4e93e9b322cf34c8033eb3dc34f7d09b0fd2a",
+  "nodes": 9,
+  "edges": 77,
+  "hyperedges": 1,
+  "attribute_updates": 10,
+  "community": 1117
+ },
+ "after": {
+  "nodes": 11240,
+  "edges": 15393,
+  "hyperedges": 38
+ },
+ "graphify_update_growth_by_source_group": {
+  "docs/solana": 248,
+  "solana/programs/musical_chairs/src": 94,
+  "solana/programs/musical_chairs/idl": 12,
+  "docs/coordination": 11,
+  "solana/tools/idl-build/src": 5,
+  "solana/tests/financial-runtime/src": 4,
+  "solana/scripts/gen-idl.sh": 3,
+  "solana/scripts/check-idl.sh": 2,
+  "solana/fixtures/event-encodings.json": 1
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/state.rs": "5219c54ff28f490a2f6c77e79c091bdf32dc0ae42d04fb81e9a61029f0fd0598",
+   "solana/programs/musical_chairs/src/events.rs": "573977e0d90adc1c8008e5cf9d9755a2c29a7b04e795d645c20ad7b238861959",
+   "solana/programs/musical_chairs/src/error.rs": "9e338bc8afeba56bef075aa3defd64ca5059f95d97854fc1e495b8f3459cf34e",
+   "solana/programs/musical_chairs/src/lib.rs": "faeac92089e2c54c7faa2809409ad3293bb9c9e705a3d29400f2fdbe99552195",
+   "solana/programs/musical_chairs/src/controls.rs": "439f6c7fc5ac8c463438bb357a1bffdf8dcc6bf84255c8f17c182ae232bbf45a",
+   "solana/programs/musical_chairs/src/positions.rs": "1c624cafc6b18b54d959d2f025c7eb55e71ed3f8c50128b5e23d50a51d57ed94",
+   "solana/programs/musical_chairs/src/allocation.rs": "b8f2126f494647a64ab3c1f2e9751a8600adea643d0083d88aa6d1fcb49b4d83",
+   "solana/programs/musical_chairs/Cargo.toml": "14e9ec2c797db86cc5d81249e9d9509f98fb58bff2559f4f2c24826edd6f97f7",
+   "solana/programs/musical_chairs/Cargo.lock": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+   "solana/programs/musical_chairs/idl/musical_chairs.json": "6ddce330dc9bfcac936e008a656e6bfa28299a19eaf56d14553fc2a9c9c23cb2",
+   "solana/fixtures/event-encodings.json": "de6575130d2d8650e463b8c7ccc0ee34aca903707ac7fc90a26893611ae5b55d",
+   "solana/tools/idl-build/Cargo.toml": "ced9f8923c32c813006dca9c98c33252625e30a8d04c02474555645cc3936c9d",
+   "solana/tools/idl-build/Cargo.lock": "2ff9c369fa46633695d9f4d0dcf6fb5a3c1771942c45d448c4926eaa5150e7ef",
+   "solana/tools/idl-build/src/main.rs": "4da38699efcb76b3c6dec6d1a5866af850442beab331b43d5e6d427e8f0a55dc",
+   "solana/scripts/gen-idl.sh": "b2695761a8f680c9ee4968259be1eca47dbcdb0cd1142e2aa9d0cde3e9c3ed52",
+   "solana/scripts/check-idl.sh": "f29fd6ce8102eba8e69224be8874a5a0fd82396c759d480f80320ca98d99be55",
+   "solana/Cargo.toml": "4e3193d11bfab790160d77c3ddb4f889103b7f4b75fe38e3cc79d3546f230e2f",
+   "solana/tests/financial-runtime/src/runtime.rs": "5de7d33b53f7b1d2e4f05a6fb240007437269fe4b529cddfe091bac07d37f84c",
+   "solana/tests/financial-runtime/src/financial.rs": "be1f2895be46e2f39770e23e980bc0e0e4deebe294bdd5edac817c809374b1cd",
+   "docs/coordination/kanban.md": "8e6864a20e1d5b3b490b1343aea75363ee28621e1bec8c718af2018fe668420f",
+   "docs/solana/evidence/2026-10-14-m2-schema-freeze.json": "962134ab957e894c0f352d2484179f7fdf0ba93ba50b3093018f6d916d80c288",
+   "docs/solana/evidence/2026-10-14-m2-red-cli.json": "38cfb0c34a21752e680e8878149a36601f774d9cd4b190ecc005b05706073544",
+   "docs/solana/evidence/2026-10-14-m2-graph-fragment.json": "b564b079b7ec5b243fc54c6093f4e93e9b322cf34c8033eb3dc34f7d09b0fd2a"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file; semantic coverage in this receipt is limited to the files listed and the fragment nodes"
+ },
+ "stale_or_uncovered": [
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) was AST-extracted by graphify as a document (its heading nodes appear) but not semantically covered by this fragment",
+  "the five unreferenced account types are code nodes in state.rs but absent from the IDL node's type list (see impl2026_10_14_m2_idl_v1)",
+  "program handler bodies remain NotImplemented; no GREEN relationship exists",
+  "impl-block methods (e.g. ConfigVersion::default_v1, ReserveSchedule::capture) are not emitted as symbol nodes by the Rust AST extractor; the concept nodes name them"
+ ],
+ "checks": {
+  "all_prior_10860_node_ids_retained": true,
+  "all_prior_14919_raw_edge_identities_retained": true,
+  "all_prior_37_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "m2_plan_node_implemented_edges": 9,
+  "errorcode_same_symbol_edge": true,
+  "labels_file_has_community_1117": true
+ },
+ "query_checks": {
+  "outputs_dir": "/private/tmp/claude-501/-Users-robertripley-coding-musicalchairs/d73d4c44-c753-4322-aea2-96af6a5f7635/scratchpad/impl15-queries",
+  "results": {
+   "explain_cpi": {
+    "bytes": 1378,
+    "sha256": "2654938832521de1d88701815467d2b14ac86a244e90c22a21666f0153583803"
+   },
+   "explain_events": {
+    "bytes": 1502,
+    "sha256": "794876432ac3c25a76d844e161abc43ae9d227f33d1f582c6d430cc82ec354e9"
+   },
+   "explain_idl": {
+    "bytes": 1370,
+    "sha256": "d0d812ef3dc08e0e8daebe1a8fb6c62de925171fd1bd482d23253f3f74b70221"
+   },
+   "explain_reserve": {
+    "bytes": 487,
+    "sha256": "3701db982157258b7c508012bb6ab1ccbed725f420f7db722cf85d0f5c6f6a40"
+   },
+   "explain_schema": {
+    "bytes": 1884,
+    "sha256": "ee3ce244fe6e036b790165585c17fe1eadb2416cf13438c0851657b88374d543"
+   },
+   "path_m2": {
+    "bytes": 151,
+    "sha256": "5e7f12886a40ea7f9818ed5c42ceb50861126a843ee628b54baea601822a694d"
+   },
+   "q_events": {
+    "bytes": 1686,
+    "sha256": "2f4593e69ae3d9157f02fb8385fbd86f64027ad2df0fb2e29640abe978a2e875"
+   },
+   "q_idl": {
+    "bytes": 4623,
+    "sha256": "91d5a75f77df6a6c7206d712cad51a6497108b914e80d9edac0b4402ab0c838d"
+   },
+   "q_reserve": {
+    "bytes": 4778,
+    "sha256": "e163c3be57da73a13b271450f6674dd5eea6a24d7c1136ae9e77d935b5e33408"
+   }
+  },
+  "notes": [
+   "explain by id confirms the new nodes and their edges (explain_schema, explain_idl, explain_events, explain_cpi, explain_reserve shows the concept→required_close_reserve reference beside the AST calls edge)",
+   "q_idl/q_events/q_reserve return the M2 concept nodes with their receipts",
+   "path_m2 by label reports no path because \"M2 Schema freeze and IDL\" matches both the plan concept node and a plan-document heading node; the implements edges are confirmed by m2_plan_node_implemented_edges"
+  ]
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "Proof carriers: 2026-10-14-m2-schema-freeze.json and 2026-10-14-m2-red-cli.json.",
+  "Community 1117 is a fresh bucket; report/clustering not regenerated after the merge."
+ ]
+}
