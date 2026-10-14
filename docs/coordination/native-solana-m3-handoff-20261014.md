@@ -69,6 +69,12 @@ Coordinator (Claude Fable 5.1): single build executor (both ELFs), sole graph wr
 - `ProgramData.upgrade_authority` is the loader's record of who may upgrade the code, read by `initialize` like a controller list, but it lives in the loader's account, not ours. LiteSVM's `add_program` installs a non-upgradeable loader shape, so the fixture rewrites both loader accounts.
 - Compute: `initialize` costs about 107k CU of the 1.4M budget, mostly seven `create_account` CPIs and two profile parses; the four new control instructions sit between 20k and 47k CU.
 
+## Codex bounded source review (2026-10-14)
+
+- **Pass:** signer/profile/PDA/loader binding, guardian rotation, config stage/activate and the locked-cash guards.
+- **Gap (pending, not a design gate):** `fund_operations` accepts `amount == 0` and omits the checked `Ops.total_contributed += amount`; `withdraw_operations` omits `Ops.total_withdrawn`; the harness row `fund_operations_any_signer_increases_free_balance_only` asserts only `free_balance` changes. Spec §7.1 requires positive funding and both transitions. This was deferred in the M2 handoff and is now assigned to **IMPL-20** (reject zero before the CPI, atomic u128 counters, corrected fixture delta, zero-funding/counter/rollback regressions).
+- **Labels until IMPL-20 lands:** M3 **authentication proof: PASS**. **Ops metadata/counters: PENDING** — the fund/withdraw postconditions are not claimed complete. The test-only Squads stand-in is **accepted for application guards only**, not as real quorum/timelock proof (M14).
+
 ## Next
 
-M4 (provisioning, rent components, cleanup): `provision_page(kind, index, funding)` for all four page kinds with `Funding::{Free, Caller, LockedClose}`, `provision_close_record`, `RentComponents` recording, `close_shared_account` predicates, `reconcile_ops_cash`, `protected_rent` consultation.
+IMPL-20 first (Ops counters correction), then M4 (provisioning, rent components, cleanup): `provision_page(kind, index, funding)` for all four page kinds with `Funding::{Free, Caller, LockedClose}`, `provision_close_record`, `RentComponents` recording, `close_shared_account` predicates, `reconcile_ops_cash`, `protected_rent` consultation.

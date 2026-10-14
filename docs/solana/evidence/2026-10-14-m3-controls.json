@@ -1439,10 +1439,24 @@
   "real Squads accounts are allocated at Multisig::size (231 B for 3 members, 32 trailing zero bytes when rent_collector is None); the padded-row test covers that shape, the committed fixtures are the exact unpadded encoding",
   "existing instruction names set_pause / withdraw_operations / withdraw_management are kept (spec uses longer names)"
  ],
- "proof_level": "host unit tests + compiled SBF with complete provenance + LiteSVM execution of every control row with vault-PDA signatures from a test-only stand-in; no production game instruction is GREEN; no deployment, live Squads, live keys or funds",
+ "proof_level": "host unit tests + compiled SBF with complete provenance + LiteSVM execution of every control row with vault-PDA signatures from a test-only stand-in; no production game instruction is GREEN; no deployment, live Squads, live keys or funds. Codex M3 review: authentication proof PASS; Ops counters (total_contributed/total_withdrawn, positive-amount guard) PENDING (IMPL-20); stand-in accepted for application guards only.",
  "solana_notes": [
   "A PDA has no private key; it signs only when its owning program calls invoke_signed. Squads vaults are PDAs of the Squads program, so locally a stand-in at that program id is the only way to produce the signature; the main program cannot tell the difference, which is exactly the boundary M14 verifies on devnet with the real Squads program.",
   "ProgramData is the upgradeable loader's record of upgrade_authority: initialize reads it like a canister controller list, except the data lives in the loader's account, not ours; LiteSVM add_program installs a non-upgradeable loader shape, so the fixture rewrites both loader accounts.",
   "Wrapping through the stand-in adds three accounts and about 60 bytes to the packet; the inner instruction's real footprint is what M9 measures."
- ]
+ ],
+ "codex_review_2026_10_14": {
+  "verdict_source_check": "signer/profile/PDA/loader binding, guardian rotation, config stage/activate and locked-cash guards PASS (bounded source review, no duplicate execution)",
+  "findings": [
+   "fund_operations (controls.rs) accepts amount == 0 and omits checked Ops.total_contributed += amount",
+   "withdraw_operations omits Ops.total_withdrawn",
+   "harness fund_operations_any_signer_increases_free_balance_only asserts only free_balance changes (fixture delta must include the counters)"
+  ],
+  "disposition": "known pending wiring item (deferred in the M2 handoff), not a new design gate; assigned to IMPL-20 (reject zero before the CPI, atomic u128 counters, corrected fixture delta, zero-funding/counter/rollback regressions)",
+  "labels": {
+   "m3_authentication_proof": "PASS (source-checked by Codex; executed locally)",
+   "ops_metadata_counters": "PENDING until IMPL-20 lands; the fund/withdraw postconditions of spec §7.1 are NOT claimed complete here",
+   "squads_standin": "accepted for application guards only; NOT real quorum/timelock proof (M14)"
+  }
+ }
 }
