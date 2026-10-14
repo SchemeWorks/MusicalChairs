@@ -1,0 +1,1905 @@
+{
+ "card": "IMPL-31 (M6 close-out)",
+ "recorded_at_utc": "2026-10-14T11:40:56.148872+00:00",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "IMPL-28 program": "e78d652",
+  "IDL regen": "cf8926b",
+  "IMPL-29 harness suite": "8f4454f",
+  "apply_senior optional backer + IDL": "cabfd01",
+  "config pins carried (IMPL-35/41)": "e130d17, 3959a16"
+ },
+ "program_unit_tests": "174 passed (three spec goldens, chunk sizes 1..8 identical, U256 denominator, toll near u64::MAX, 120-sequence differential vs the economics Book, prune alias/duplicate rules)",
+ "sbf_build": {
+  "head": "cabfd01",
+  "artifact_sha256": "24716634e2b0aa59a4c6b19d34cdc9ddfe1607e01230458179dcc69534c69754",
+  "artifact_bytes": 1028856,
+  "source_set_sha256": "bdd7e69f44fa171b11d99cb9e0c51c5c4b838fafdc83f8fb19a5b7211cb55214",
+  "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+  "before_after_equal": true,
+  "log_sha256": "8dda0cb31e494013947539a1630c19182e05788bd6b0967c7b1ad9530560ef22",
+  "carries": [
+   "M6 allocation handlers",
+   "IMPL-35 quota pin",
+   "IMPL-41 five config pins",
+   "optional ApplySenior.backer"
+  ]
+ },
+ "idl": {
+  "sha256": "132152760665e7676285965cc4f850591b48907a2bbd5b9ae609de34717b6d38",
+  "note": "RegistryPage/SnapshotPage left the IDL account list because the phase instructions take them as unchecked remaining accounts; ApplySenior.backer is optional"
+ },
+ "harness_run": {
+  "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 with MC_FINANCIAL_SBF + MC_STANDIN_SBF",
+  "result_lines": [
+   "ok. 94 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 43.70s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 37.47s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "all_green": true,
+  "log_sha256": "93cf29a28cf985dfb465aee69eb758c3a49b13389bc04f8055436804de7d35f0",
+  "cli": {
+   "exit": 0,
+   "observations": 1044,
+   "copy": "docs/solana/evidence/2026-10-14-m6-cli.json",
+   "copy_sha256": "03c1325c461b634f78efe3ddf23657175d366f38b36c3d08ee80d2109cbd0a3b"
+  }
+ },
+ "m0_red_baseline_fully_green": {
+  "financial.open_moves_real_sol": {
+   "m0": "InstructionError(1, Custom(6021))",
+   "now": "success"
+  },
+  "financial.claim_moves_real_sol": {
+   "m0": "InstructionError(1, Custom(6021))",
+   "now": "success"
+  },
+  "financial.allocation.golden-t10000.discover-row": {
+   "m0": "InstructionError(1, Custom(6021))",
+   "now": "success"
+  }
+ },
+ "m6_rows": {
+  "count": 657,
+  "successes": 626,
+  "rejections": 31,
+  "error_tally": {
+   "InstructionError(1, Custom(6040))": 2,
+   "InstructionError(1, Custom(6039))": 11,
+   "InstructionError(1, Custom(6018))": 3,
+   "InstructionError(1, Custom(6005))": 2,
+   "InstructionError(1, Custom(6026))": 2,
+   "InstructionError(1, Custom(6022))": 3,
+   "InstructionError(1, Custom(6010))": 2,
+   "InstructionError(1, Custom(6001))": 6
+  },
+  "goldens_headline_success": {
+   "golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500": true,
+   "golden_no_b_a1000_a10000_seed_5750_a1000_a3250": true,
+   "golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed": true
+  }
+ },
+ "measured_cu_packet_by_rows_and_phase": {
+  "rows=1:discover": {
+   "cu_max": 18836,
+   "packet_max": 399,
+   "accounts_max": 8,
+   "n": 37
+  },
+  "rows=1:senior": {
+   "cu_max": 7987,
+   "packet_max": 291,
+   "accounts_max": 5,
+   "n": 1
+  },
+  "rows=1:seal": {
+   "cu_max": 4519,
+   "packet_max": 258,
+   "accounts_max": 4,
+   "n": 1
+  },
+  "rows=1:allocate": {
+   "cu_max": 11988,
+   "packet_max": 333,
+   "accounts_max": 6,
+   "n": 37
+  },
+  "rows=1:prune": {
+   "cu_max": 25326,
+   "packet_max": 465,
+   "accounts_max": 10,
+   "n": 37
+  },
+  "rows=1:commit": {
+   "cu_max": 14752,
+   "packet_max": 326,
+   "accounts_max": 6,
+   "n": 1
+  },
+  "rows=4:discover": {
+   "cu_max": 27165,
+   "packet_max": 504,
+   "accounts_max": 11,
+   "n": 10
+  },
+  "rows=4:senior": {
+   "cu_max": 7987,
+   "packet_max": 291,
+   "accounts_max": 5,
+   "n": 1
+  },
+  "rows=4:seal": {
+   "cu_max": 4519,
+   "packet_max": 258,
+   "accounts_max": 4,
+   "n": 1
+  },
+  "rows=4:allocate": {
+   "cu_max": 23525,
+   "packet_max": 435,
+   "accounts_max": 9,
+   "n": 10
+  },
+  "rows=4:prune": {
+   "cu_max": 50492,
+   "packet_max": 704,
+   "accounts_max": 17,
+   "n": 10
+  },
+  "rows=4:commit": {
+   "cu_max": 14752,
+   "packet_max": 326,
+   "accounts_max": 6,
+   "n": 1
+  },
+  "rows=8:discover": {
+   "cu_max": 39309,
+   "packet_max": 644,
+   "accounts_max": 15,
+   "n": 5
+  },
+  "rows=8:senior": {
+   "cu_max": 7987,
+   "packet_max": 291,
+   "accounts_max": 5,
+   "n": 1
+  },
+  "rows=8:seal": {
+   "cu_max": 4519,
+   "packet_max": 258,
+   "accounts_max": 4,
+   "n": 1
+  },
+  "rows=8:allocate": {
+   "cu_max": 36994,
+   "packet_max": 571,
+   "accounts_max": 13,
+   "n": 5
+  },
+  "rows=8:prune": {
+   "cu_max": 66898,
+   "packet_max": 852,
+   "accounts_max": 21,
+   "n": 6
+  }
+ },
+ "registry_size_rows_8_rows": {
+  "n-16.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "n-16.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 40451,
+   "fits": true
+  },
+  "n-16.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "n-16.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "n-16.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "n-16.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40371,
+   "fits": true
+  },
+  "n-16.prune.0": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-16.prune.1": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-16.commit.0": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14746,
+   "fits": true
+  },
+  "n-64.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "n-64.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.2": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.3": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.4": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.5": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.6": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-64.discover.7": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 40451,
+   "fits": true
+  },
+  "n-64.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "n-64.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "n-64.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "n-64.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.2": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.3": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.4": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.5": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.6": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-64.allocate.7": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40371,
+   "fits": true
+  },
+  "n-64.prune.0": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.1": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.2": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.3": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.4": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.5": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.6": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.prune.7": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-64.commit.0": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14746,
+   "fits": true
+  },
+  "n-100.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "n-100.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.2": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.3": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.4": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.5": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.6": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.7": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.8": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.9": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.10": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.11": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-100.discover.12": {
+   "packet": 504,
+   "accounts": 11,
+   "cu": 28189,
+   "fits": true
+  },
+  "n-100.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "n-100.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "n-100.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "n-100.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.2": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.3": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.4": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.5": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.6": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.7": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.8": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.9": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.10": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.11": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-100.allocate.12": {
+   "packet": 435,
+   "accounts": 9,
+   "cu": 23759,
+   "fits": true
+  },
+  "n-100.prune.0": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.1": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.2": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.3": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.4": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.5": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.6": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.7": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.8": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.9": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.10": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.11": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "n-100.prune.12": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "headline": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14746,
+   "fits": true
+  },
+  "n-256.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "n-256.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.2": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.3": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.4": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.5": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.6": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.7": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.8": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.9": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.10": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.11": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.12": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.13": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.14": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.15": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.16": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.17": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.18": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.19": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.20": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.21": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.22": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.23": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.24": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.25": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.26": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.27": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.28": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.29": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.30": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "n-256.discover.31": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 40451,
+   "fits": true
+  },
+  "n-256.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "n-256.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "n-256.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "n-256.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.2": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.3": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.4": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.5": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.6": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.7": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.8": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.9": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.10": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.11": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.12": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.13": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.14": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.15": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.16": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.17": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.18": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.19": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.20": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.21": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.22": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.23": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.24": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.25": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.26": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.27": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.28": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.29": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.30": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "n-256.allocate.31": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40371,
+   "fits": true
+  },
+  "n-256.prune.0": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.1": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.2": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.3": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.4": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.5": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.6": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.7": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.8": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.9": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.10": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.11": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.12": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.13": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.14": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.15": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.16": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.17": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.18": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.19": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.20": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.21": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.22": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.23": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.24": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.25": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.26": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.27": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.28": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.29": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.30": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.prune.31": {
+   "packet": 372,
+   "accounts": 6,
+   "cu": 16585,
+   "fits": true
+  },
+  "n-256.commit.0": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14746,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.2": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.3": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.4": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.5": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.6": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 38968,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.7": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 38968,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.8": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.9": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.10": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.11": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-8.discover.12": {
+   "packet": 504,
+   "accounts": 11,
+   "cu": 28189,
+   "fits": true
+  },
+  "prune-worst.rows-8.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "prune-worst.rows-8.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.2": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.3": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.4": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.5": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.6": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 26451,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.7": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 26451,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.8": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.9": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.10": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.11": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-8.allocate.12": {
+   "packet": 435,
+   "accounts": 9,
+   "cu": 23759,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.0": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.1": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.2": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.3": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.4": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.5": {
+   "packet": 1044,
+   "accounts": 27,
+   "cu": 88887,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.6": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.7": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.8": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.9": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.10": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.11": {
+   "packet": 404,
+   "accounts": 7,
+   "cu": 19568,
+   "fits": true
+  },
+  "prune-worst.rows-8.prune.12": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-8.commit.0": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14752,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.0": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39312,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.1": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.2": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.3": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.4": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.5": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.6": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 38968,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.7": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 38968,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.8": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.9": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.10": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.11": {
+   "packet": 644,
+   "accounts": 15,
+   "cu": 39330,
+   "fits": true
+  },
+  "prune-worst.rows-4.discover.12": {
+   "packet": 504,
+   "accounts": 11,
+   "cu": 28189,
+   "fits": true
+  },
+  "prune-worst.rows-4.senior.0": {
+   "packet": 291,
+   "accounts": 5,
+   "cu": 7987,
+   "fits": true
+  },
+  "prune-worst.rows-4.seal.0": {
+   "packet": 258,
+   "accounts": 4,
+   "cu": 4517,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.0": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40336,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.1": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.2": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.3": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.4": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.5": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.6": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 26451,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.7": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 26451,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.8": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.9": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.10": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.11": {
+   "packet": 571,
+   "accounts": 13,
+   "cu": 40323,
+   "fits": true
+  },
+  "prune-worst.rows-4.allocate.12": {
+   "packet": 435,
+   "accounts": 9,
+   "cu": 23759,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.0": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.1": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.2": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.3": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.4": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.5": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.6": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.7": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.8": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.9": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.10": {
+   "packet": 672,
+   "accounts": 16,
+   "cu": 47784,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.11": {
+   "packet": 672,
+   "accounts": 16,
+   "cu": 47784,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.12": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.13": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.14": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.15": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.16": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.17": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.18": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.19": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.20": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.21": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.22": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.23": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.prune.24": {
+   "packet": 352,
+   "accounts": 6,
+   "cu": 14241,
+   "fits": true
+  },
+  "prune-worst.rows-4.commit.0": {
+   "packet": 326,
+   "accounts": 6,
+   "cu": 14752,
+   "fits": true
+  }
+ },
+ "widest_successful_batch": {
+  "label": "financial.allocation.m6.registry_sizes_16_64_100_256_fit_the_legacy_packet_at_8_rows.prune-worst.rows-8.prune.5",
+  "packet_bytes": 1044,
+  "accounts": 27,
+  "cu": 88887,
+  "fits_legacy_packet": true
+ },
+ "dr31_first_evidence": "eight-row chunks fit the 1,232-byte legacy packet with production accounts: discover 644 B / 15 accounts / ~39k CU; allocate 571 B / 13 / ~40k CU; worst eight-row prune 1,044 B / 27 accounts / 88,887 CU; one-row fallback 333–465 B. Inline (payout-with-allocation) feasibility is M9.",
+ "deviations_and_notes": [
+  "IMPL-28 replaced the coordinator brief's slice-decrement residue scheme (which under-paid later rows) with full-pool shares and an end-of-allocate floor residue bounded by the open A count",
+  "rows captured open but newly capped by this ticket are pruned when their real accounts are supplied, skipped with placeholders otherwise",
+  "a discover that finds no open rows jumps to COMMIT (whole toll to seed); closed rows stay in the registry until a later ticket prunes them",
+  "apply_senior/allocate_rows fold older pending into funded with watermark ticket.id − 1 (tickets are serial)",
+  "the Book comparison checks liveness rather than registry slots because the Book drops capped rows immediately while the dense registry keeps them until prune",
+  "the harness decodes U256 from the ticket bytes as two u128 limbs (no ethnum dependency)",
+  "small claims are paid to a funded destination to avoid the runtime rent-exempt refusal",
+  "ApplySenior.backer became optional after the harness showed the program-id placeholder failing Anchor's mut check"
+ ],
+ "proof_level": "GREEN on real lamports in LiteSVM for the full allocation ticket (discover → senior → seal → allocate → prune → commit) and lazy claims, with host-oracle agreement at the program-unit level (120 sequences) and in the harness (37-backer Book comparison); the M0 RED baseline is now entirely GREEN; the M6 step-4 LiteSVM differential (IMPL-30) is pending; no deployment or live action",
+ "solana_notes": [
+  "Remaining accounts let one instruction carry a variable number of pages and Backers; the program re-derives every PDA from registry rows so a keeper cannot substitute accounts, and duplicates of a writable Backer are rejected because two decoded copies would overwrite each other.",
+  "Packet size, not compute, is the binding limit for chunk width: an eight-row prune carries 27 account keys and still fits 1,232 bytes; compute stays under 90k of the 1.4M budget.",
+  "An Anchor optional account is encoded by passing the program id; it skips constraints such as mut, which is why the senior placeholder failed before the account was made optional."
+ ],
+ "differential_impl30": {
+  "card": "IMPL-30",
+  "test_file": "solana/tests/financial-runtime/tests/allocation_diff.rs",
+  "test_file_sha256": "3ac5c0bf28ff0fe87cd79815ccee5c1105cafdf0852f50296d40686acad6a505",
+  "elf_sha256": "24716634e2b0aa59a4c6b19d34cdc9ddfe1607e01230458179dcc69534c69754",
+  "standin_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
+  "seed": "0x4D43_4449_4646_3330 (MCDIFF30)",
+  "tickets": 50,
+  "rows_per_phase_call": "cycling 1/4/8 (and a fixed-8 rerun compared to it)",
+  "registry_size": "20..=40 Backers drawn from the seed; owner/attacker/sponsor hold A+B rows; two 10^11 rows keep the registry non-empty",
+  "tests": {
+   "fifty_random_tickets_match_the_host_book": "ok",
+   "chunk_size_does_not_change_the_differential": "ok"
+  },
+  "result": "2 passed, 0 failed in 4.86 s (cargo test --locked --test allocation_diff --test-threads=1)",
+  "stats": {
+   "tiny_tickets": 11,
+   "claims_paid": 4,
+   "lamports_claimed": 66986391,
+   "empty_claims_rejected_nothing_to_claim": 3,
+   "series_a_refundings": 4,
+   "refunds_skipped": 0,
+   "fixture_credits": 3
+  },
+  "compared_after_every_step": [
+   "per-Backer pending, funded, pending+funded, lifetime, entitlement, active",
+   "first_sequence − base == Book first_funding_sequence",
+   "Pool.seed delta, Pool.funded_claims delta, Pool.pending_toll, registry_len vs live Book rows",
+   "Σ claimable over program Backers == Pool.funded_claims delta",
+   "Book::conservation() and World::assert_vault_identity()"
+  ],
+  "not_compared": [
+   "registry slot numbers (different swap-delete histories)",
+   "pending ticket tag",
+   "liveness/registry_len before ticket 1 (fixture leaves closed rows until the first prune)"
+  ],
+  "book_driven_stepwise": "reserve_toll → start_ticket → discover_all → apply_senior → seal_weights → allocate_all_current → prune_all → commit (Book::allocate skips tolls ≤ 4; the program always runs a ticket on a non-empty registry)",
+  "mutation_checks_by_coordinator": [
+   {
+    "mutation": "Book seed delta compared against expected+1 (temporary copy tests/allocation_diff_mutcheck.rs, removed)",
+    "outcome": "FAILED at the fixture check before ticket 1 — comparison path live",
+    "log_sha256": "9fcb5a67ec3d478b1eb967d44d231c81b086214c2eb28ca20420dd2b75fcd87e"
+   },
+   {
+    "mutation": "Book.reserve_toll(toll + 1) — an off-by-one between model and program",
+    "outcome": "FAILED after ticket 1 (toll 7,654,321, rows 1): Pool.pending_toll expected 1, actual 0 — a one-lamport model/program divergence is caught at the first ticket",
+    "log_sha256": "d4dc39855f55c4a3c6b40c96ddf86056c552e715d3659f4a8c5ff3a9987c34c5"
+   }
+  ],
+  "logs": {
+   "cargo_test_log_sha256": "c222e7718a1c4b2e172c91267706aa06a1fe435893e8f201ffa075301595f4e6"
+  },
+  "proof_level": "differential equality between the compiled ELF and the host Book over 50 random tickets plus interleaved claims, Series A re-fundings and fixture credits; the worker only compile-checked, the coordinator executed on the main ELF and ran the two mutation checks; no RED exists for this test beyond the mutations"
+ }
+}
