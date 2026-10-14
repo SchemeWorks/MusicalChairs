@@ -45,6 +45,18 @@
 //! Every handler is a thin account shell around a pure `*_batch` / `*_step`
 //! function that works on decoded structs and `AccountInfo` slices, so the
 //! host unit tests drive the same code the program runs.
+//!
+//! # The inline path (registry of at most `INLINE_THRESHOLD` rows)
+//!
+//! For a small registry a payout may run the whole ticket in its own
+//! instruction ([`run_inline_ticket`], opt-in by remaining accounts, non-closing
+//! payouts only).  It is not a second implementation: it drives
+//! [`discover_batch`], [`senior_step`], [`seal_step`], [`allocate_batch`] and
+//! [`commit_step`] unchanged, and its Prune pass shares [`prune_decision`] and
+//! [`retire_row`] with [`prune_batch`].  The result is the state the six chunk
+//! instructions leave (the unit tests compare account bytes, ticket and pool),
+//! with the keeper's one free choice (prune a row this ticket's own credits just
+//! capped) fixed to "prune it".
 
 use anchor_lang::__private::BpfWriter;
 use anchor_lang::prelude::*;
@@ -54,8 +66,8 @@ use musical_chairs_economics::backers as econ;
 use crate::events::{TicketCommitted, SCHEMA_VERSION};
 use crate::state::{
     Backer, CloseRecord, Pool, RegistryPage, SnapshotPage, SnapshotRow, Ticket, ALLOCATE,
-    BACKER_SEED, CLOSE_SEED, COMMIT, DISCOVER, IDLE, PAGE_CAPACITY, POOL_SEED, PRUNE,
-    REGISTRY_SEED, SEAL, SENIOR, SNAPSHOT_SEED, TICKET_SEED,
+    BACKER_SEED, CLOSE_SEED, COMMIT, DISCOVER, IDLE, INLINE_THRESHOLD, PAGE_CAPACITY, POOL_SEED,
+    PRUNE, REGISTRY_SEED, SEAL, SENIOR, SNAPSHOT_SEED, TICKET_SEED,
 };
 use crate::ErrorCode as Code;
 
@@ -714,6 +726,27 @@ fn swap_delete(
     pages[pruned_at].dirty = true;
 }
 
+/// The state edits of pruning one row, shared by [`prune_batch`] and the inline
+/// path: swap-delete `slot` out of the dense registry, retire the pruned Backer
+/// (inactive, slot cleared; its history stays) and re-home the Backer that
+/// moved down into the vacated slot.  `moved` is the registry's last key and
+/// its Backer, `None` when `slot` is itself the last live slot.
+fn retire_row(
+    pages: &mut [Cached<'_, RegistryPage>],
+    pruned_at: usize,
+    last_at: usize,
+    (slot, last): (u64, u64),
+    pruned: &mut Backer,
+    moved: Option<(Pubkey, &mut Backer)>,
+) {
+    swap_delete(pages, pruned_at, last_at, slot, last, moved.as_ref().map(|(key, _)| *key));
+    pruned.active = false;
+    pruned.slot = 0;
+    if let Some((_, moved)) = moved {
+        moved.slot = slot;
+    }
+}
+
 /// `commit_ticket`: conservation, then books.  `credited + seed_credit` must
 /// equal the toll; the toll leaves `pending_toll` and re-enters as seed and as
 /// funded claims (the sum of the `game_accounted` partitions is unchanged).
@@ -1014,7 +1047,7 @@ pub fn prune_batch<'i>(
 
         let moved_key =
             if slot == last { None } else { Some(registry[last_at].value.keys[page_offset(last)]) };
-        let moved = match moved_key {
+        let mut moved = match moved_key {
             // The pruned row IS the last live row: the moved account aliases it.
             None => {
                 require!(*moved_info.key == *pruned_info.key, Code::WrongAccount);
@@ -1024,7 +1057,7 @@ pub fn prune_batch<'i>(
                 require!(key != Pubkey::default(), Code::WrongAccount);
                 require!(!written.contains(moved_info.key), Code::DuplicateWritableAccount);
                 require!(*moved_info.key == key, Code::WrongAccount);
-                let mut moved = read_program_account::<Backer>(moved_info)?;
+                let moved = read_program_account::<Backer>(moved_info)?;
                 require!(
                     backer_key_matches(moved_info.key, &moved)
                         && moved.active
@@ -1032,14 +1065,18 @@ pub fn prune_batch<'i>(
                     Code::WrongAccount
                 );
                 written.push(key);
-                moved.slot = slot;
                 Some(moved)
             }
         };
 
-        swap_delete(&mut registry, pruned_at, last_at, slot, last, moved_key);
-        pruned.active = false;
-        pruned.slot = 0;
+        retire_row(
+            &mut registry,
+            pruned_at,
+            last_at,
+            (slot, last),
+            &mut pruned,
+            moved_key.zip(moved.as_mut()),
+        );
         write_program_account(pruned_info, &pruned)?;
         if let Some(moved) = &moved {
             write_program_account(moved_info, moved)?;
@@ -1052,6 +1089,219 @@ pub fn prune_batch<'i>(
     if ticket.cursor == 0 {
         ticket.phase = COMMIT;
     }
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Inline path: the whole ticket inside one payout instruction
+// ---------------------------------------------------------------------------
+
+/// Remaining accounts the inline path appends after the registry's Backers:
+/// `[registry_page_0, snapshot_page_0]`.
+pub const INLINE_PAGE_ACCOUNTS: usize = 2;
+
+/// Shape-check the remaining accounts of an inline payout and return the number
+/// of Backer accounts (`registry_len`) they must start with.
+///
+/// The layout is `[Backer of registry slot 0 .. slot registry_len - 1 (in
+/// registry order)] ++ [RegistryPage 0, SnapshotPage 0]`, every account
+/// writable.  Nothing is decoded here; identity is proven by the phase
+/// functions the run drives.
+///
+/// - A registry outside `1..=INLINE_THRESHOLD` is not offered inline
+///   (`InvalidState`): above one page the keeper must use chunks.
+/// - Any other count is a partial or padded layout (`WrongAccount`).
+/// - A repeated account is `DuplicateWritableAccount`, checked before identity
+///   like Allocate does; a read-only account is `WrongAccount`.
+pub fn inline_layout(registry_len: u64, accounts: &[AccountInfo]) -> Result<usize> {
+    require!(registry_len != 0 && registry_len <= INLINE_THRESHOLD, Code::InvalidState);
+    // `INLINE_THRESHOLD <= PAGE_CAPACITY`, so this cannot truncate.
+    let backers = registry_len as usize;
+    require!(accounts.len() == backers + INLINE_PAGE_ACCOUNTS, Code::WrongAccount);
+    for (i, info) in accounts.iter().enumerate() {
+        require!(
+            !accounts[..i].iter().any(|earlier| earlier.key == info.key),
+            Code::DuplicateWritableAccount
+        );
+    }
+    require!(accounts.iter().all(|info| info.is_writable), Code::WrongAccount);
+    Ok(backers)
+}
+
+/// Run a freshly started ticket (`DISCOVER`, cursor `0`, `pool.active_ticket ==
+/// ticket.id`) through all six phases in this instruction and retire it.
+///
+/// `accounts` is the layout described at [`inline_layout`].  The run calls the
+/// same phase functions the keeper's six instructions call, in order, over the
+/// registry's single page:
+///
+/// 1. [`discover_batch`] with `rows = registry_len` (`[registry_page_0,
+///    snapshot_page_0, backer_i]` per row);
+/// 2. [`senior_step`] with the tracked oldest open A, taken from the Backers;
+/// 3. [`seal_step`];
+/// 4. [`allocate_batch`] with `rows = registry_len`;
+/// 5. the Prune pass, descending from `captured_len` ([`prune_inline`]), which
+///    removes every row whose live remaining is now `<= 10` (the canonical
+///    keeper choice) through the same [`prune_decision`] and [`retire_row`] as
+///    [`prune_batch`];
+/// 6. [`commit_step`], whose `TicketCommitted` is returned for the caller to
+///    emit.
+///
+/// A ticket with no open row goes straight from Discover to Commit, exactly as
+/// the chunked ticket does.  Chunk size never changes a ticket's result (the
+/// stepwise suites pin that), so the one-batch run equals any chunked run.  A
+/// failure anywhere reverts the whole payout.
+///
+/// Compute and memory: this is the sum of the phases' work, so expect it to pass
+/// the 200,000 default for four or more Backers (the caller adds a compute-budget
+/// instruction).  Each phase keeps its own page caches; the run adds one account
+/// list (`3 * registry_len` entries at most) and, in Prune, one decoded copy of
+/// each Backer.  The program heap is a bump allocator that never frees, so these
+/// allocations add up for the whole instruction: about 7.5 KB at eight Backers.
+#[inline(never)]
+pub fn run_inline_ticket<'i>(
+    ticket: &mut Ticket,
+    pool: &mut Pool,
+    accounts: &[AccountInfo<'i>],
+) -> Result<TicketCommitted> {
+    let id = ticket.id;
+    let n = inline_layout(ticket.captured_len, accounts)?;
+    let (backers, pages) = accounts.split_at(n);
+    let (registry_page, snapshot_page) = (&pages[0], &pages[1]);
+
+    // One account list, refilled per phase (the allocator never frees).
+    let mut rows: Vec<AccountInfo<'i>> = Vec::with_capacity(DISCOVER_ACCOUNTS_PER_ROW * n);
+    for backer in backers {
+        rows.push(registry_page.clone());
+        rows.push(snapshot_page.clone());
+        rows.push(backer.clone());
+    }
+    discover_batch(ticket, pool, &rows, id, 0, n as u8)?;
+
+    if ticket.phase == SENIOR {
+        let oldest = if ticket.a_count == 0 {
+            None
+        } else {
+            backers.iter().find(|backer| *backer.key == ticket.oldest)
+        };
+        senior_step(ticket, oldest, id)?;
+        seal_step(ticket, id)?;
+
+        rows.clear();
+        for backer in backers {
+            rows.push(snapshot_page.clone());
+            rows.push(backer.clone());
+        }
+        // Seal reset the cursor to 0.
+        allocate_batch(ticket, &rows, id, 0, n as u8)?;
+        prune_inline(ticket, pool, backers, registry_page, snapshot_page)?;
+    }
+    // Discover found no open row, or Prune just ran: Commit is next either way.
+    commit_step(ticket, pool, None, id)
+}
+
+/// The Prune pass of [`run_inline_ticket`]: walk the captured rows DOWN from
+/// `captured_len`, prune every row whose live remaining is `<= 10`, then leave
+/// the ticket in `COMMIT` with its cursor at `0`.
+///
+/// This is [`prune_batch`] with the keeper's choices made canonically: a row is
+/// pruned exactly when [`prune_decision`] says so for its live Backer, the
+/// registry edit is [`retire_row`] on the single page, and a Backer moved down
+/// by an earlier prune is the one a later prune moves again (chained moves are
+/// fine here: every Backer is decoded once and written once at the end).
+#[inline(never)]
+fn prune_inline<'i>(
+    ticket: &mut Ticket,
+    pool: &mut Pool,
+    backers: &[AccountInfo<'i>],
+    registry_page: &AccountInfo<'i>,
+    snapshot_page: &AccountInfo<'i>,
+) -> Result<()> {
+    let ticket_id = ticket.id;
+    require_ticket(ticket, Some(pool), ticket_id, PRUNE)?;
+    require_cursor(ticket, ticket.captured_len)?;
+
+    let mut registry: Vec<Cached<RegistryPage>> = Vec::with_capacity(1);
+    let mut snapshots: Vec<Cached<SnapshotPage>> = Vec::with_capacity(1);
+    let page_at = cache_slot(&mut registry, registry_page, |page: &RegistryPage| {
+        page_key_matches(registry_page.key, REGISTRY_SEED, page.index, page.bump)
+    })?;
+    let snapshot_at = cache_slot(&mut snapshots, snapshot_page, |page: &SnapshotPage| {
+        page.ticket_id == ticket_id
+            && page_key_matches(snapshot_page.key, SNAPSHOT_SEED, page.index, page.bump)
+    })?;
+    require!(
+        registry[page_at].value.index == 0 && snapshots[snapshot_at].value.index == 0,
+        Code::WrongAccount
+    );
+    // Discover and Allocate just proved each of these as the canonical Backer
+    // of its slot, so they are decoded without re-deriving their addresses.
+    let mut live: Vec<Cached<Backer>> = Vec::with_capacity(backers.len());
+    for info in backers {
+        cache_slot(&mut live, info, |backer: &Backer| backer.active)?;
+    }
+
+    let mut registry_len = pool.registry_len;
+    for slot in (0..ticket.captured_len).rev() {
+        let row = snapshots[snapshot_at].value.rows[page_offset(slot)];
+        require!(row.slot == slot, Code::WrongAccount);
+        let pruned_at = live
+            .iter()
+            .position(|cached| *cached.info.key == row.key)
+            .ok_or_else(|| error!(Code::WrongAccount))?;
+        if !prune_decision(row.remaining, Some(live[pruned_at].value.remaining()?))? {
+            continue;
+        }
+
+        let mut pruned = live[pruned_at].value.clone();
+        require!(
+            pruned.active && pruned.slot == slot && pruned.series == row.series,
+            Code::WrongAccount
+        );
+        let last = registry_len.checked_sub(1).ok_or_else(invalid_state)?;
+        require!(slot <= last, Code::InvalidState);
+        require!(registry[page_at].value.keys[page_offset(slot)] == row.key, Code::WrongAccount);
+
+        let moved_key =
+            if slot == last { None } else { Some(registry[page_at].value.keys[page_offset(last)]) };
+        let moved_at = match moved_key {
+            None => None,
+            Some(key) => {
+                require!(key != Pubkey::default(), Code::WrongAccount);
+                let at = live
+                    .iter()
+                    .position(|cached| *cached.info.key == key)
+                    .ok_or_else(|| error!(Code::WrongAccount))?;
+                require!(
+                    live[at].value.active && live[at].value.slot == last,
+                    Code::WrongAccount
+                );
+                Some(at)
+            }
+        };
+        let mut moved = moved_at.map(|at| live[at].value.clone());
+
+        retire_row(
+            &mut registry,
+            page_at,
+            page_at,
+            (slot, last),
+            &mut pruned,
+            moved_key.zip(moved.as_mut()),
+        );
+        live[pruned_at].value = pruned;
+        live[pruned_at].dirty = true;
+        if let (Some(at), Some(moved)) = (moved_at, moved) {
+            live[at].value = moved;
+            live[at].dirty = true;
+        }
+        registry_len = last;
+    }
+    flush(&registry)?;
+    flush(&live)?;
+    pool.registry_len = registry_len;
+    ticket.cursor = 0;
+    ticket.phase = COMMIT;
     Ok(())
 }
 
@@ -1295,7 +1545,7 @@ mod ticket_tests {
     //! differential against the host `Book` exercise production code paths.
 
     use super::*;
-    use crate::state::ConfigVersion;
+    use crate::state::{ConfigVersion, INLINE_THRESHOLD};
     use anchor_lang::solana_program::system_program;
     use musical_chairs_economics::backers::{BackerKey, Book, Series};
 
@@ -1631,6 +1881,39 @@ mod ticket_tests {
         fn commit(&mut self) -> Result<TicketCommitted> {
             let id = self.ticket.id;
             commit_step(&mut self.ticket, &mut self.pool, None, id)
+        }
+
+        /// The remaining accounts of an inline payout over the current
+        /// registry: one Backer per slot in registry order, then registry
+        /// page 0 and snapshot page 0.
+        fn inline_accounts(&self) -> Vec<AccountInfo<'static>> {
+            let mut accounts: Vec<AccountInfo<'static>> = (0..self.pool.registry_len)
+                .map(|slot| self.backer_account(&self.registry_key(slot)).clone())
+                .collect();
+            accounts.push(self.registry[0].clone());
+            accounts.push(self.snapshots[0].clone());
+            accounts
+        }
+
+        /// What a non-closing payout with inline accounts does for a toll: the
+        /// production ticket start followed by the whole in-instruction run.
+        fn begin_inline(&mut self, toll: u64) -> Result<(u64, Option<TicketCommitted>)> {
+            let accounts = self.inline_accounts();
+            crate::positions::begin_ticket(
+                &mut self.ticket,
+                &mut self.pool,
+                None,
+                toll,
+                &ConfigVersion::default_v1(),
+                Some(&accounts),
+            )
+        }
+
+        fn run_inline(&mut self, toll: u64) -> TicketCommitted {
+            let (id, event) = self.begin_inline(toll).unwrap();
+            let event = event.expect("an inline run commits");
+            assert_eq!(event.ticket_id, id);
+            event
         }
 
         /// Advance until the ticket reaches `phase`.
@@ -2633,6 +2916,387 @@ mod ticket_tests {
         let event = w.commit().unwrap();
         assert_eq!(u128::from(event.credited) + u128::from(event.seed), u128::from(toll));
         assert_eq!(w.pool.pending_toll, 0);
+    }
+
+    // --- Inline path (the whole ticket inside one payout instruction) ---
+
+    /// Account bytes, ticket, pool and digest all equal: the inline run left
+    /// exactly the state the stepwise ticket leaves.
+    fn assert_same_state(inline: &World, stepwise: &World, at: &str) {
+        let (a, b) = (inline.checkpoint(), stepwise.checkpoint());
+        assert_eq!(a.data, b.data, "{at}: registry / snapshot / backer account bytes");
+        assert_eq!(a.ticket.try_to_vec().unwrap(), b.ticket.try_to_vec().unwrap(), "{at}: ticket");
+        assert_eq!(a.pool.try_to_vec().unwrap(), b.pool.try_to_vec().unwrap(), "{at}: pool");
+        assert_eq!(inline.digest(), stepwise.digest(), "{at}: digest");
+    }
+
+    /// Run the same tolls through an inline world and a chunked world (the
+    /// real six-phase functions at `rows` per call) and compare after each.
+    fn assert_inline_equals_stepwise(specs: &[Spec], tolls: &[u64], rows: u8, at: &str) {
+        let mut inline = World::new(specs);
+        let mut stepwise = World::new(specs);
+        for (turn, &toll) in tolls.iter().enumerate() {
+            let at = format!("{at} turn {turn} toll {toll}");
+            if stepwise.pool.registry_len == 0 {
+                // No Backer left: the toll goes straight to seed, no ticket.
+                inline.pool.seed += toll;
+                stepwise.pool.seed += toll;
+                continue;
+            }
+            let expected = stepwise.run(toll, rows);
+            let (id, event) = inline.begin_inline(toll).unwrap_or_else(|e| panic!("{at}: {e:?}"));
+            assert_eq!(id, expected.ticket_id, "{at}: ticket id");
+            assert_eq!(event, Some(expected), "{at}: TicketCommitted");
+            assert_same_state(&inline, &stepwise, &at);
+            assert_eq!((inline.ticket.phase, inline.pool.active_ticket), (IDLE, 0), "{at}");
+            assert_eq!(inline.pool.pending_toll, 0, "{at}: escrow released");
+            assert_eq!(inline.pool.finalized_ticket, id, "{at}");
+        }
+    }
+
+    /// Open, closed-at-capture, just-open (capped by the first credit) and
+    /// enormous rows, some with prior lifetime credit.
+    fn mixed_specs(rng: &mut Lcg, n: usize) -> Vec<Spec> {
+        (0..n)
+            .map(|_| {
+                let series = if rng.next().is_multiple_of(3) { SERIES_B } else { SERIES_A };
+                let (entitlement, lifetime) = match rng.next() % 5 {
+                    0 => (1 + u128::from(rng.next() % 10), 0),
+                    1 => (11 + u128::from(rng.next() % 50), 0),
+                    2 => (1_000 + u128::from(rng.next() % 100_000), 0),
+                    3 => (u128::from(rng.next()) * 1_000, 0),
+                    _ => {
+                        let entitlement = 50 + u128::from(rng.next() % 5_000);
+                        (entitlement, u128::from(rng.next()) % (entitlement - 10))
+                    }
+                };
+                Spec { series, entitlement, lifetime }
+            })
+            .collect()
+    }
+
+    #[test]
+    fn inline_golden_two_a_two_b_seed_5001_a2363_a1636_b500_b500() {
+        let specs = [a(4_000), a(6_000), b(1_000_000), b(1_000_000)];
+        let mut w = World::new(&specs);
+        let event = w.run_inline(10_000);
+        assert_eq!(
+            event,
+            TicketCommitted {
+                schema_version: SCHEMA_VERSION,
+                ticket_id: 1,
+                round_id: 1,
+                toll: 10_000,
+                credited: 4_999,
+                seed: 5_001,
+            }
+        );
+        assert_eq!(w.pool.seed, 5_001);
+        assert_eq!([0, 1, 2, 3].map(|i| w.backer(i).pending), [2_363, 1_636, 500, 500]);
+        assert_eq!([0, 1, 2, 3].map(|i| w.backer(i).lifetime), [2_363, 1_636, 500, 500]);
+        assert_eq!((w.pool.funded_claims, w.pool.pending_toll), (4_999, 0));
+        assert_eq!((w.pool.registry_len, w.pool.registry_version), (4, 3));
+        assert_eq!((w.ticket.phase, w.pool.active_ticket, w.pool.finalized_ticket), (IDLE, 0, 1));
+        assert_eq!(w.pool.next_ticket, 2);
+        for rows in [1u8, 4, 8] {
+            assert_inline_equals_stepwise(&specs, &[10_000], rows, "m6 golden");
+        }
+    }
+
+    #[test]
+    fn inline_golden_no_b_repays_and_prunes_the_senior_row() {
+        let specs = [a(1_000), a(10_000)];
+        let mut w = World::new(&specs);
+        w.run_inline(10_000);
+        assert_eq!(w.pool.seed, 5_750);
+        assert_eq!([0, 1].map(|i| w.backer(i).pending), [1_000, 3_250]);
+        assert_eq!(w.pool.funded_claims, 4_250);
+        // A1 is fully repaid: it leaves the registry and A2 swaps into slot 0.
+        assert_eq!((w.backer(0).active, w.backer(0).slot), (false, 0));
+        assert_eq!((w.backer(1).active, w.backer(1).slot), (true, 0));
+        assert_eq!((w.pool.registry_len, w.pool.registry_version), (1, 4));
+        assert_eq!(w.registry_key(0), *w.backers[1].key);
+        assert_eq!(w.registry_page(0).keys[1], Pubkey::default());
+        assert_inline_equals_stepwise(&specs, &[10_000], 8, "no-b golden");
+    }
+
+    #[test]
+    fn inline_golden_dead_a_pool_goes_to_seed() {
+        let specs = [a(1_000), b(1_000_000)];
+        let mut w = World::new(&specs);
+        w.run_inline(10_000);
+        assert_eq!(decode_a_denominator(w.ticket.sealed_a_denominator), U256::ZERO);
+        assert_eq!(w.pool.seed, 8_000);
+        assert_eq!([0, 1].map(|i| w.backer(i).pending), [1_000, 1_000]);
+        assert_eq!(w.pool.funded_claims, 2_000);
+        assert!(!w.backer(0).active);
+        assert_eq!(w.pool.registry_len, 1);
+        assert_inline_equals_stepwise(&specs, &[10_000], 8, "dead-a golden");
+    }
+
+    #[test]
+    fn inline_a_registry_of_only_closed_rows_sends_the_whole_toll_to_seed() {
+        let specs = [a(5), b(10)];
+        let mut w = World::new(&specs);
+        let event = w.run_inline(10_000);
+        assert_eq!((event.credited, event.seed), (0, 10_000));
+        assert_eq!(w.pool.seed, 10_000);
+        // Straight Discover -> Commit: the closed rows wait for a later ticket.
+        assert_eq!((w.pool.registry_len, w.pool.registry_version), (2, 3));
+        assert!(w.backer(0).active && w.backer(1).active);
+        assert_inline_equals_stepwise(&specs, &[10_000, 777], 8, "all closed");
+    }
+
+    #[test]
+    fn inline_matches_the_stepwise_ticket_for_every_population_from_one_to_eight() {
+        let tolls = [2u64, 3, 99, 10_000, 123_457, 3_000_000];
+        for n in 1..=8usize {
+            for seed in 0..24u64 {
+                let mut rng = Lcg(seed * 8 + n as u64);
+                let specs = mixed_specs(&mut rng, n);
+                for &toll in &tolls {
+                    for rows in [1u8, 8] {
+                        assert_inline_equals_stepwise(
+                            &specs,
+                            &[toll],
+                            rows,
+                            &format!("n {n} seed {seed} rows {rows}"),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn inline_matches_the_stepwise_ticket_for_a_full_registry_of_capped_rows() {
+        // Eight rows: closed at capture, capped by their own first credit, and
+        // ordinary, so Prune removes several in swap-delete order.
+        let specs = [a(5), a(100_000), a(30), b(40), b(5), a(100_000), b(1_000_000), a(11)];
+        for rows in [1u8, 3, 8] {
+            assert_inline_equals_stepwise(&specs, &[10_000, 50_000, 123_457], rows, "capped eight");
+        }
+        let mut w = World::new(&specs);
+        w.run_inline(10_000);
+        assert_ticket_closed(&w, 10_000);
+        assert!(w.pool.registry_len < 8, "something was pruned");
+        assert!(w.pool.registry_version > 3);
+    }
+
+    #[test]
+    fn inline_sequences_repeat_and_mix_with_chunked_tickets() {
+        let mut rng = Lcg(0x1217);
+        for case in 0..40 {
+            let n = 1 + (rng.next() % 8) as usize;
+            let specs = mixed_specs(&mut rng, n);
+            let tolls: Vec<u64> = (0..4).map(|_| 2 + rng.next() % 2_000_000).collect();
+            // Reference: every ticket chunked.
+            let mut stepwise = World::new(&specs);
+            // Mixed: inline when the choice bit is set, chunked otherwise.
+            let mut mixed = World::new(&specs);
+            for (turn, &toll) in tolls.iter().enumerate() {
+                let at = format!("case {case} turn {turn}");
+                if stepwise.pool.registry_len == 0 {
+                    stepwise.pool.seed += toll;
+                    mixed.pool.seed += toll;
+                    continue;
+                }
+                stepwise.run(toll, 5);
+                if rng.next().is_multiple_of(2) {
+                    mixed.run_inline(toll);
+                } else {
+                    mixed.run(toll, 3);
+                }
+                assert_same_state(&mixed, &stepwise, &at);
+            }
+        }
+    }
+
+    #[test]
+    fn inline_without_accounts_is_exactly_the_chunked_start() {
+        let specs = [a(100_000), a(5), b(1_000_000)];
+        let mut by_world = World::new(&specs);
+        by_world.start_ticket(10_000);
+        let mut by_begin = World::new(&specs);
+        let (id, event) = crate::positions::begin_ticket(
+            &mut by_begin.ticket,
+            &mut by_begin.pool,
+            None,
+            10_000,
+            &ConfigVersion::default_v1(),
+            None,
+        )
+        .unwrap();
+        assert_eq!((id, event), (1, None));
+        assert_same_state(&by_begin, &by_world, "start only");
+        assert_eq!((by_begin.ticket.phase, by_begin.pool.active_ticket), (DISCOVER, 1));
+        assert_eq!(by_begin.pool.pending_toll, 10_000);
+        // A closing payout's ticket keeps its close id and is never inline.
+        let mut closing = World::new(&specs);
+        crate::positions::begin_ticket(
+            &mut closing.ticket,
+            &mut closing.pool,
+            Some(9),
+            10_000,
+            &ConfigVersion::default_v1(),
+            None,
+        )
+        .unwrap();
+        assert_eq!((closing.ticket.close_id, closing.ticket.phase), (Some(9), DISCOVER));
+    }
+
+    #[test]
+    fn inline_layout_is_one_backer_per_slot_then_the_two_pages() {
+        let w = World::new(&[a(100_000), b(1_000_000), a(100_000)]);
+        let ok = w.inline_accounts();
+        assert_eq!(ok.len(), 3 + INLINE_PAGE_ACCOUNTS);
+        assert_eq!(inline_layout(3, &ok).unwrap(), 3);
+        // A partial layout: a Backer, a page, or everything missing / extra.
+        assert_code(inline_layout(3, &ok[1..]), Code::WrongAccount);
+        assert_code(inline_layout(3, &ok[..4]), Code::WrongAccount);
+        assert_code(inline_layout(3, &[]), Code::WrongAccount);
+        let mut extra = ok.clone();
+        extra.push(w.backers[0].clone());
+        assert_code(inline_layout(3, &extra), Code::WrongAccount);
+        // A repeated account is a duplicate writable, named as such.
+        let mut twice = ok.clone();
+        twice[1] = twice[0].clone();
+        assert_code(inline_layout(3, &twice), Code::DuplicateWritableAccount);
+        let mut page_twice = ok.clone();
+        page_twice[4] = page_twice[3].clone();
+        assert_code(inline_layout(3, &page_twice), Code::DuplicateWritableAccount);
+        // Every inline account is written, so a read-only one is refused.
+        let mut read_only = ok.clone();
+        let data = read_only[2].data.borrow().to_vec();
+        read_only[2] = AccountInfo::new(
+            Box::leak(Box::new(*ok[2].key)),
+            false,
+            false,
+            Box::leak(Box::new(1u64)),
+            Box::leak(data.into_boxed_slice()),
+            Box::leak(Box::new(crate::ID)),
+            false,
+            0,
+        );
+        assert_code(inline_layout(3, &read_only), Code::WrongAccount);
+    }
+
+    #[test]
+    fn inline_is_offered_for_one_to_eight_rows_and_never_past_one_page() {
+        let w = World::new(&[a(100_000); 8]);
+        let ok = w.inline_accounts();
+        assert_eq!(INLINE_THRESHOLD, PAGE_CAPACITY as u64);
+        assert_eq!(inline_layout(INLINE_THRESHOLD, &ok).unwrap(), 8);
+        assert_eq!(inline_layout(1, &ok[7..]).unwrap(), 1);
+        // Nine rows are a second page: the keeper must use chunks, whatever
+        // accounts were supplied.
+        let nine = World::new(&[a(100_000); 9]);
+        let mut accounts: Vec<_> = nine.backers.clone();
+        accounts.push(nine.registry[0].clone());
+        accounts.push(nine.snapshots[0].clone());
+        assert_code(inline_layout(9, &accounts), Code::InvalidState);
+        assert_code(inline_layout(0, &ok[8..]), Code::InvalidState);
+        assert_code(inline_layout(u64::MAX, &ok), Code::InvalidState);
+    }
+
+    #[test]
+    fn inline_rejects_a_wrong_layout_before_it_can_commit() {
+        let specs = [a(100_000), a(100_000), b(1_000_000), a(100_000)];
+        let mut w = World::new(&specs);
+        let attempt = |w: &mut World, accounts: Vec<AccountInfo<'static>>, expected: Code| {
+            let checkpoint = w.checkpoint();
+            let result = crate::positions::begin_ticket(
+                &mut w.ticket,
+                &mut w.pool,
+                None,
+                10_000,
+                &ConfigVersion::default_v1(),
+                Some(&accounts),
+            );
+            assert_code(result, expected);
+            // On chain the whole payout reverts; undo what the host run wrote.
+            w.restore(checkpoint);
+        };
+        let ok = w.inline_accounts();
+
+        // Backers out of registry order.
+        let mut swapped = ok.clone();
+        swapped.swap(0, 1);
+        attempt(&mut w, swapped, Code::WrongAccount);
+        // Registry page where the snapshot page belongs, and the reverse.
+        let mut pages_swapped = ok.clone();
+        pages_swapped.swap(4, 5);
+        attempt(&mut w, pages_swapped, Code::WrongAccount);
+        // A Backer account standing in for the snapshot page.
+        let stranger = World::new(&[a(100_000), a(100_000), b(1_000_000), a(100_000), a(7)]);
+        let mut backer_as_page = ok.clone();
+        backer_as_page[5] = stranger.backers[4].clone();
+        attempt(&mut w, backer_as_page, Code::WrongAccount);
+        // An account of another program under a real Backer's key.
+        let mut foreign = ok.clone();
+        let bytes = w.backers[2].data.borrow().to_vec();
+        foreign[2] = info(*w.backers[2].key, key(9), bytes);
+        attempt(&mut w, foreign, Code::WrongOwner);
+        // A Backer from outside this registry.
+        let mut outsider = ok.clone();
+        outsider[3] = stranger.backers[4].clone();
+        attempt(&mut w, outsider, Code::WrongAccount);
+
+        // The same call with the right layout succeeds.
+        let (id, event) = w.begin_inline(10_000).unwrap();
+        assert_eq!(event.map(|event| event.ticket_id), Some(id));
+    }
+
+    #[test]
+    fn a_retired_inline_ticket_cannot_be_run_again() {
+        let mut w = World::new(&[a(100_000), b(1_000_000)]);
+        w.run_inline(10_000);
+        let accounts = w.inline_accounts();
+        assert_code(run_inline_ticket(&mut w.ticket, &mut w.pool, &accounts), Code::StaleTicket);
+    }
+
+    #[test]
+    fn random_inline_sequences_match_the_host_book() {
+        let mut rng = Lcg(0x001A_11CE);
+        for case in 0..120 {
+            let n = 1 + (rng.next() % 8) as usize;
+            let specs = random_specs(&mut rng, n);
+            let tolls: Vec<u64> = (0..1 + rng.next() % 3).map(|_| 2 + rng.next() % 3_000_000).collect();
+
+            let mut book = Book::with_pot(u64::MAX / 2);
+            for (index, spec) in specs.iter().enumerate() {
+                book.add_backer_with_lifetime(
+                    index as u64,
+                    series_of(spec.series),
+                    spec.entitlement,
+                    spec.lifetime,
+                )
+                .unwrap();
+            }
+            let mut w = World::new(&specs);
+            for (turn, &toll) in tolls.iter().enumerate() {
+                book.allocate(toll, 8).unwrap();
+                if w.pool.registry_len == 0 {
+                    w.pool.seed += toll;
+                } else {
+                    w.run_inline(toll);
+                }
+                for (index, spec) in specs.iter().enumerate() {
+                    let at = format!("case {case} turn {turn} backer {index}");
+                    let expected =
+                        book.backer(BackerKey::new(index as u64, series_of(spec.series))).unwrap();
+                    let mine = w.backer(index);
+                    assert_eq!(mine.pending, expected.pending, "{at} pending");
+                    assert_eq!(mine.funded, expected.funded, "{at} funded");
+                    assert_eq!(mine.lifetime, expected.lifetime_credited, "{at} lifetime");
+                    let slot = if mine.active { Some(mine.slot as usize) } else { None };
+                    assert_eq!(slot, expected.active_slot, "{at} slot");
+                }
+                assert_eq!(w.pool.seed, book.seed(), "case {case} turn {turn} seed");
+                assert_eq!(w.pool.funded_claims, book.global_funded_claims(), "case {case} turn {turn}");
+                assert_eq!(w.pool.pending_toll, 0, "case {case} turn {turn} escrow");
+            }
+        }
     }
 
     // --- Differential against the host Book ---

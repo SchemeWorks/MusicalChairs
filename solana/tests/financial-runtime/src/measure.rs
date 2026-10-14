@@ -1775,6 +1775,7 @@ impl PerRowCosts {
 pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
     let mut log: Vec<Observation> = Vec::new();
     let mut rows: Vec<(u64, Value)> = Vec::new();
+    let mut base_payout_cu: u64 = 0;
     for &n in &ENVELOPE_NS {
         let scope = label(FAMILY_ENVELOPE, &envelope_row(n));
         let started = Instant::now();
@@ -1799,40 +1800,74 @@ pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
             destination,
             CloseRecordArg::Auto,
         );
+        // IMPL-39b: the program's inline layout is Backers in registry order,
+        // then RegistryPage 0 and SnapshotPage 0 (one page each: inline is only
+        // offered while the registry fits one page).  With N <= INLINE_THRESHOLD
+        // the payout now RUNS the whole ticket inline; above it the program
+        // refuses (InvalidState) and the row records the rejected transaction's
+        // packet envelope.
         let pages = n.div_ceil(PAGE);
-        for page in 0..pages {
-            instruction
-                .accounts
-                .push(AccountMeta::new(w.rt.snapshot_address(page), false));
-            instruction
-                .accounts
-                .push(AccountMeta::new(w.rt.registry_address(page), false));
-        }
         for spec in &specs {
             instruction.accounts.push(AccountMeta::new(
                 w.rt.backer_address(spec.series, spec.owner),
                 false,
             ));
         }
+        for page in 0..pages {
+            instruction
+                .accounts
+                .push(AccountMeta::new(w.rt.registry_address(page), false));
+            instruction
+                .accounts
+                .push(AccountMeta::new(w.rt.snapshot_address(page), false));
+        }
         let base_accounts = instruction.accounts.len() - (2 * pages + n) as usize;
-        let observation = w
-            .send("", vec![instruction], &[&owner])
-            .unwrap_or_else(|failed| panic!("{scope}: the envelope payout failed: {failed:?}"));
-        let payout = observation.last_event::<musical_chairs_program::PayoutPaid>();
-        assert!(!payout.closing, "{scope}: a solvent, non-closing payout");
-        assert_eq!(payout.toll, 13_200_000, "{scope}: the one-day Simple toll");
-        let payout_cu = observation.compute_units.unwrap_or(0);
+        let inline_offered = n > 0 && n <= state::INLINE_THRESHOLD;
+        let outcome = w.send("", vec![instruction], &[&owner]);
+        let (observation, executed_inline, rejection) = match outcome {
+            Ok(observation) => {
+                let payout = observation.last_event::<musical_chairs_program::PayoutPaid>();
+                assert!(!payout.closing, "{scope}: a solvent, non-closing payout");
+                assert_eq!(payout.toll, 13_200_000, "{scope}: the one-day Simple toll");
+                if inline_offered {
+                    assert_ne!(payout.ticket_id, 0, "{scope}: PayoutPaid carries the committed ticket id");
+                    let committed = observation.last_event::<musical_chairs_program::TicketCommitted>();
+                    assert_eq!(committed.ticket_id, payout.ticket_id, "{scope}: TicketCommitted for the same ticket");
+                    assert_eq!(w.ticket().phase, state::IDLE, "{scope}: the ticket is IDLE after the inline payout");
+                } else {
+                    assert_eq!(n, 0, "{scope}: only the empty registry succeeds without an inline run");
+                }
+                (observation, inline_offered, Value::Null)
+            }
+            Err(observation) => {
+                assert!(n > state::INLINE_THRESHOLD, "{scope}: only a registry past one page is refused: {observation:?}");
+                let code = observation.error.clone().unwrap_or_default();
+                assert!(code.contains("Custom(6001)"), "{scope}: InvalidState for registry_len > INLINE_THRESHOLD, got {code}");
+                observation.assert_rollback_except_fee();
+                (observation, false, json!("InvalidState 6001: registry_len > INLINE_THRESHOLD (inline is not offered past one page); fee-only"))
+            }
+        };
+        let cu = observation.compute_units.unwrap_or(0);
+        if n == 0 {
+            base_payout_cu = cu;
+        }
+        let payout_cu = base_payout_cu;
         let conservative = costs.estimate_conservative(payout_cu, n);
         let mean = costs.estimate_mean(payout_cu, n);
         let marginal = costs.estimate_marginal(payout_cu, n);
         let fits_packet = observation.fits_legacy_packet;
         let under_64_locks = observation.message_account_count <= MAX_ACCOUNT_LOCKS;
-        let under_200k = conservative <= 200_000;
-        let under_1_4m = conservative <= 1_400_000;
-        let margin_pct = 100i64 - (conservative * 100 / 1_400_000) as i64;
+        let effective_cu = if executed_inline || n == 0 { cu } else { conservative };
+        let under_200k = effective_cu <= 200_000;
+        let under_1_4m = effective_cu <= 1_400_000;
+        let margin_pct = 100i64 - (effective_cu * 100 / 1_400_000) as i64;
         let row = json!({
             "n": n,
-            "payout_cu": payout_cu,
+            "executed_inline": executed_inline,
+            "rejection": rejection,
+            "payout_cu_base_n0": payout_cu,
+            "measured_cu": cu,
+            "measured_inline_cu": if executed_inline { json!(cu) } else { Value::Null },
             "packet_bytes": observation.packet_bytes,
             "message_keys": observation.message_account_count,
             "writable_accounts": observation.writable_account_count,
@@ -1840,6 +1875,7 @@ pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
             "fits_packet": fits_packet,
             "under_64_locks": under_64_locks,
             "estimated_inline_cu": conservative,
+            "effective_cu_for_fits_all": effective_cu,
             "under_200k_cu": under_200k,
             "under_1_4m_cu": under_1_4m,
             "cu_headroom_pct_of_1_4m": margin_pct,
@@ -1848,12 +1884,12 @@ pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
         let summary = json!({
             "family": FAMILY_ENVELOPE,
             "row": envelope_row(n),
-            "kind": "ENVELOPE, NOT AN INLINE IMPLEMENTATION: a real withdraw_simple carrying the accounts an inline allocation would need as ignored extra remaining accounts; the allocation compute is an estimate from measured per-row phase costs",
+            "kind": if executed_inline { "REAL INLINE ALLOCATION (IMPL-39b): a withdraw_simple that supplies the registry's Backers and pages runs Discover..Commit in-instruction; measured_inline_cu is the whole transaction" } else if n == 0 { "plain payout on an empty registry (no ticket)" } else { "ENVELOPE ONLY: registry_len > INLINE_THRESHOLD, the program refuses inline (InvalidState); packet/keys are those of the rejected transaction, the compute figure is an estimate from per-row phase costs" },
             "fixture": {
                 "registry_backers": n,
                 "backer_series": "alternating A, B (A first), 1,000,000,000 remaining each",
                 "payout": "1 SOL Simple position, one day, withdraw_simple, non-closing and solvent, toll 13,200,000",
-                "extra_remaining_accounts": { "backer_pdas_writable": n, "snapshot_pages_writable": pages, "registry_pages_writable": pages, "total": 2 * pages + n },
+                "extra_remaining_accounts": { "layout": "Backers in registry order, then RegistryPage k, SnapshotPage k", "backer_pdas_writable": n, "snapshot_pages_writable": pages, "registry_pages_writable": pages, "total": 2 * pages + n },
                 "base_accounts_in_the_instruction": base_accounts,
                 "close_record_account": "placeholder (a non-closing payout does not need it)",
             },
@@ -1863,7 +1899,7 @@ pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
                 "estimated_inline_cu": conservative,
                 "per_row_cu_rows1_max": { "discover": costs.discover_max, "allocate": costs.allocate_max, "prune": costs.prune_max },
                 "fixed_cu": { "senior": costs.senior, "seal": costs.seal, "commit": costs.commit },
-                "payout_includes": "the ticket_start an inline path would not run (for N > 0)",
+                "payout_cu_base": "the N = 0 payout (no ticket) measured in this family; the estimate adds per-row phase costs to it",
                 "mean_basis": {
                     "estimated_inline_cu": mean,
                     "per_row_cu_rows1_mean": { "discover": costs.discover_mean, "allocate": costs.allocate_mean, "prune": costs.prune_mean },
@@ -1880,7 +1916,7 @@ pub fn inline_envelope(costs: &PerRowCosts) -> Vec<Observation> {
                 "fits_all_rule": "fits_packet && under_64_locks && estimated_inline_cu <= 1,400,000 with at least 25% headroom",
             },
             "limits": limits_json(),
-            "limits_note": "LiteSVM executed this transaction although a packet over 1,232 bytes or more than 64 locks could not be sent to a cluster; fits_* are the harness's verdicts",
+            "limits_note": "LiteSVM executed (or rejected) this transaction although a packet over 1,232 bytes or more than 64 locks could not be sent to a cluster; fits_* are the harness's verdicts; fits_all uses the MEASURED compute where the inline ran and the conservative estimate otherwise",
             "rent_local_default": rent_schedule(&w.rt),
             "wall_clock_s_not_evidence": seconds(started),
         });

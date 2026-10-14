@@ -94,16 +94,18 @@ jobs:
           tar -xjf "$TOOLS/downloads/agave.tar.bz2" -C "$TOOLS/agave" --strip-components=1
           test -x "$TOOLS/platform-tools/rust/bin/rustc"
           test -x "$TOOLS/agave/bin/cargo-build-sbf"
-          test -d "$TOOLS/agave/bin/sdk/sbf"
+          test -x "$TOOLS/agave/bin/platform-tools-sdk/sbf/scripts/strip.sh"
           "$TOOLS/agave/bin/cargo-build-sbf" --version
           "$TOOLS/platform-tools/rust/bin/rustc" --version
       - name: Build the program and the vault stand-in with the pinned tools (provenance guard on)
         env:
           MC_SBF_BUILDER: ${{ env.TOOLS }}/agave/bin/cargo-build-sbf
-          MC_SBF_SDK: ${{ env.TOOLS }}/agave/bin/sdk/sbf
+          MC_SBF_SDK: ${{ env.TOOLS }}/agave/bin/platform-tools-sdk/sbf
           MC_PLATFORM_TOOLS: ${{ env.TOOLS }}/platform-tools
           MC_SBF_TARGET_DIR: ${{ env.TOOLS }}/program-target
           MC_SBF_OUTPUT_DIR: ${{ env.TOOLS }}/sbf-output
+          # build-standin-sbf.sh defaults its target dir to the macOS executor's /private/tmp path; keep it job-local here.
+          MC_STANDIN_TARGET_DIR: ${{ env.TOOLS }}/standin-target
         run: |
           set -euo pipefail
           bash solana/tests/financial-runtime/scripts/build-sbf.sh | tee "$TOOLS/build-sbf.log"

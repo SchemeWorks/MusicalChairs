@@ -1922,7 +1922,17 @@ mod measure_tests {
             .map(|&n| m9::envelope_row(n))
             .collect();
         check_family(&observations, m9::FAMILY_ENVELOPE, &rows);
-        assert!(observations.iter().all(|observation| observation.success));
+        // IMPL-39b: N <= INLINE_THRESHOLD runs the ticket inline and succeeds;
+        // a registry past one page is refused (InvalidState) and the row keeps
+        // the rejected transaction's packet envelope.
+        for (&n, observation) in m9::ENVELOPE_NS.iter().zip(&observations) {
+            if n <= musical_chairs_program::state::INLINE_THRESHOLD {
+                assert!(observation.success, "n{n}: the payout (inline for n > 0) succeeds: {:?}", observation.error);
+            } else {
+                assert!(!observation.success, "n{n}: a registry past one page is refused");
+                assert!(observation.error.as_deref().unwrap_or("").contains("Custom(6001)"), "n{n}: InvalidState");
+            }
+        }
         assert_eq!(observations.len(), m9::ENVELOPE_NS.len());
         let packets: Vec<usize> = m9::ENVELOPE_NS
             .iter()

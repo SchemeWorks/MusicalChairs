@@ -107,6 +107,21 @@ Claims of 1..=10 lamports to a rent-exempt destination: 28,099 CU / 514 B each. 
 
 100 participants (16 build batches of ≤ 8 rows aligned to page edges; preferred 21, fallback 41), closing payout, LockedClose provisioning of 9 pages, request, fulfil, observe, capture, apply, finalize, then `close_shared_account` for all 22 pages. Required close reserve at N = 0: **94,633,200 lamports** = 83,060,640 (26 candidate pages × 3,194,640) + 3,125,040 (registry extension page) + 1,914,000 (winner B account) + 6,173,520 (pending request rent) + 360,000 (provider fee cap with headroom). Rent held by close accounts before cleanup 72,105,600; returned by cleanup 70,191,600 to OpsCash. Per-kind maxima: build 65,799 CU / 1,116 B / 30 keys; apply 72,245 CU / 681 B; capture 26,684 CU. Keeper-signed core transactions per close: 20 (scenario assumed 17).
 
+### 4a. Retained growth per accepted close (incl. the permanent CloseRecord)
+
+The permanent `CloseRecord` (657 B, DR-02 / R11: one per accepted close, never closed) retains **5,463,600 lamports** at the local rent fixture (546,360 at the conditional 696-lamport terminal step). It is funded by `provision_close_record` before the closing payout, is **not** part of `required_close_reserve` and was **not** in the held-before-cleanup total above (candidate pages, participant pages and the request account only), so it is added here once, without double counting.
+
+| Retained per close (local rent) | lamports | at the 696 terminal step (scenario, not a quote) |
+| --- | ---: | ---: |
+| Permanent `CloseRecord` (657 B) | 5,463,600 | 546,360 |
+| Fulfilled ORAO request record (147 B) | 1,914,000 | 191,400 |
+| Winner's Series B account (147 B), when a winner exists | 1,914,000 | 191,400 |
+| Consumed provider fee (to the ORAO treasury) | 300,000 | 300,000 |
+| **Total with a winner** | **9,591,600** | **1,229,160** |
+| Total without a winner | 7,677,600 | 1,037,760 |
+
+Ten sponsor-funded closes therefore retain **0.054636 SOL** in CloseRecords alone locally (0.0054636 SOL in the terminal scenario); held before cleanup including the record: 77,569,200 lamports for the M = 100 close.
+
 ## 5. Inline envelope (a real payout with N Backer and page accounts appended)
 
 | N | packet B | keys | writable | payout CU | estimated inline CU (conservative) | fits packet | fits all |
@@ -121,6 +136,23 @@ Claims of 1..=10 lamports to a rent-exempt destination: 28,099 CU / 514 B each. 
 
 Estimate formula: payout CU + N × (discover + allocate + prune CU of one row, maxima over the rows-1 run at N = 64) + senior + seal + commit; the marginal-basis estimate at N = 8 is 213,583 CU. **Feasible N under the fits-all rule: [0, 1, 2, 4, 8]; largest 8.** Above N = 8 the packet is the binding limit (1,388 B at N = 16). Any inline path above the 200k default compute needs a compute-budget instruction (N ≥ 4 on the conservative estimate).
 
+### 5a. Real inline allocation (IMPL-39b, ELF `d77b23bf…`)
+
+The inline step is implemented as an opt-in: a non-closing `withdraw_simple`/`settle_compounding` that appends the registry's Backer PDAs (slot order), RegistryPage 0 and SnapshotPage 0 as writable remaining accounts allocates the whole ticket in-instruction when `registry_len <= INLINE_THRESHOLD` (8). Measured on real transactions (`tests/inline_alloc.rs`); the end state is byte-identical to the chunked ticket for every N:
+
+| N | packet B | keys | writable | CU | credited | seed |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 827 | 19 | 13 | 82,483 | 6,600,000 | 6,600,000 |
+| 2 | 860 | 20 | 14 | 91,915 | 5,280,020 | 7,919,980 |
+| 3 | 893 | 21 | 15 | 101,551 | 5,280,019 | 7,919,981 |
+| 4 | 926 | 22 | 16 | 109,636 | 5,940,019 | 7,259,981 |
+| 5 | 959 | 23 | 17 | 118,510 | 5,940,019 | 7,259,981 |
+| 6 | 992 | 24 | 18 | 127,835 | 5,720,039 | 7,479,961 |
+| 7 | 1,025 | 25 | 19 | 137,517 | 5,720,038 | 7,479,962 |
+| 8 | 1,058 | 26 | 20 | 147,005 | 5,940,038 | 7,259,962 |
+
+At N = 8 the inline payout costs 147,005 CU: under the 200k default compute budget, so no compute-budget instruction is needed (the §5 envelope estimate of 528k was conservative by design). N = 9 with accounts is refused `InvalidState`; a wrong layout is refused before any cash moves; without remaining accounts the chunked ticket starts as before.
+
 ## 6. Keeper transaction count K (pilot: P = 1,000 payouts, C = 10 closes, N = M = 100)
 
 | rows b | ticket tx (N = 100) | close build batches (M = 100) | K measured core | K scenario | every tx fits |
@@ -134,7 +166,7 @@ Chosen b = 8 (the largest of 8 / 4 / 1 for which every transaction of the N = 10
 ## 7. Decision output (DR-31)
 
 - **Chunk size**: default **8 rows**; the one-row fallback is proven at every N. every phase transaction of every N × rows run is within the legacy packet, 64 locks and compute; worst packet 756 B (N=256 rows=8 prune), worst CU 57,410 (N=256 rows=8 prune); one-row fallback executed at every N.
-- **Inline threshold**: FEASIBLE for registry_len ≤ 8 on the measured envelope → IMPL-39b implements the in-instruction Discover→Commit for registry_len <= INLINE_THRESHOLD (8) in withdraw_simple/settle_compounding, with golden + conservation tests and a REAL inline measurement row that must confirm packet/CU at N = 1..8 before the threshold is final; zero-toll and zero-slice shortcuts stay inline regardless; chunks remain for N > 8
+- **Inline threshold**: IMPLEMENTED (IMPL-39b) and measured: opt-in, non-closing, registry_len <= INLINE_THRESHOLD = 8; real inline payout at N = 8 = 1,058 B / 26 keys / 147,005 CU (fits packet, under the 200k default compute); inline state == chunked state bit for bit for N = 1..8; N = 9 refused; chunks remain the keeper path for larger registries; zero-toll and empty-registry payouts never start a ticket at all (unchanged)
 - **Returned to Rob**: none: the inline step is the plan's own step 2(b), bounded by the measured N = 8; no page-capacity or keeper-format change is proposed (DR-28 legacy/v0 format fits everywhere)
 
 ## 8. What these numbers are not

@@ -19,8 +19,10 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{program::invoke, system_instruction};
 use musical_chairs_economics::{earnings, fees};
 
+use crate::allocation;
 use crate::events::{
-    PayoutPaid, PositionClosed, PositionOpened, RoundClosed, SeriesAFunded, SCHEMA_VERSION,
+    PayoutPaid, PositionClosed, PositionOpened, RoundClosed, SeriesAFunded, TicketCommitted,
+    SCHEMA_VERSION,
 };
 use crate::state::{
     pages_for, required_close_reserve, Admission, Backer, CloseRecord, ConfigVersion, GameVault,
@@ -989,6 +991,55 @@ fn toll_route(toll: u64, registry_len: u64) -> TollRoute {
     }
 }
 
+/// Whether a payout runs its allocation ticket inside the payout instruction.
+///
+/// Opt-in by remaining accounts, and only for a NON-closing payout whose toll
+/// routes to a ticket: with no remaining accounts every payout behaves exactly
+/// as before (a chunked ticket start), and extra accounts on a payout that has
+/// no non-closing ticket to run (zero toll, empty registry, or a closing
+/// payout, whose ticket binds the `CloseRecord`) are ignored, never rejected, so
+/// a keeper that raced a pot change still gets today's behaviour.
+const fn inline_offered(route: TollRoute, closing: bool, remaining_len: usize) -> bool {
+    matches!(route, TollRoute::Ticket) && !closing && remaining_len != 0
+}
+
+/// Escrow a routed toll behind a fresh allocation ticket and, when `inline`
+/// carries the (already shape-checked) inline remaining accounts, run the whole
+/// ticket to `COMMIT` in this instruction.  Returns the ticket id and, for the
+/// inline case, the `TicketCommitted` event the caller must emit.
+///
+/// The start is identical for both paths: the toll joins `pending_toll` and the
+/// ticket pins the position's config split.  The inline
+/// run then drives the very phase functions the keeper's six instructions call
+/// ([`allocation::run_inline_ticket`]), so the result is the chunked ticket's.
+pub(crate) fn begin_ticket<'info>(
+    ticket: &mut Ticket,
+    pool: &mut Pool,
+    close_id: Option<u64>,
+    toll: u64,
+    config: &ConfigVersion,
+    inline: Option<&[AccountInfo<'info>]>,
+) -> Result<(u64, Option<TicketCommitted>)> {
+    let ticket_id = pool.next_ticket;
+    pool.next_ticket = crate::checked_add(ticket_id, 1)?;
+    pool.active_ticket = ticket_id;
+    pool.pending_toll = crate::checked_add(pool.pending_toll, toll)?;
+    *ticket = ticket_start(
+        ticket.bump,
+        ticket_id,
+        close_id,
+        pool.registry_len,
+        pool.registry_version,
+        toll,
+        config,
+    );
+    let committed = match inline {
+        Some(accounts) => Some(allocation::run_inline_ticket(ticket, pool, accounts)?),
+        None => None,
+    };
+    Ok((ticket_id, committed))
+}
+
 /// A ticket walks the registry through snapshot pages, so every captured
 /// row needs a provisioned snapshot slot before the toll is accepted.
 fn snapshots_cover(snapshot_pages: u64, registry_len: u64) -> Result<()> {
@@ -1142,6 +1193,8 @@ struct PayoutPlan {
     route: TollRoute,
     user_round: UserRound,
     close: Option<ClosePlan>,
+    /// The caller opted in and the toll's ticket runs inside this instruction.
+    inline: bool,
 }
 
 struct ClosePlan {
@@ -1156,12 +1209,15 @@ struct PayoutDone {
     close_id: Option<u64>,
     ticket_id: u64,
     deadline: u64,
+    /// Set when the ticket ran inline: the event its commit produced.
+    committed: Option<TicketCommitted>,
 }
 
 /// All payout checks, read-only: fee and floor, destination, snapshot
 /// coverage, UserRound, and (for a closing payout) the full reserve lock.
 fn payout_preflight(
     a: &Payout<'_>,
+    remaining: &[AccountInfo<'_>],
     settlement: &Settlement,
     minimum_receive: u64,
     max_work_contribution: u64,
@@ -1187,11 +1243,17 @@ fn payout_preflight(
     }
 
     let route = toll_route(fee.toll, a.pool.registry_len);
+    let inline = inline_offered(route, fee.insolvent, remaining.len());
     if route == TollRoute::Ticket {
         snapshots_cover(a.pool.snapshot_pages, a.pool.registry_len)?;
         require!(a.ticket.phase == IDLE, Code::InvalidState);
         crate::checked_add(a.pool.next_ticket, 1)?;
         crate::checked_add(a.pool.pending_toll, fee.toll)?;
+        if inline {
+            // Registry too large for one page, or a partial / duplicated /
+            // read-only layout: refused before any cash moves.
+            allocation::inline_layout(a.pool.registry_len, remaining)?;
+        }
     }
 
     let user_round: UserRound = read_account(&a.user_round.to_account_info(), Code::WrongAccount)?;
@@ -1221,7 +1283,7 @@ fn payout_preflight(
     } else {
         None
     };
-    Ok(PayoutPlan { fee, route, user_round, close })
+    Ok(PayoutPlan { fee, route, user_round, close, inline })
 }
 
 /// Apply a preflighted payout.  Order matters: books are synced first so the
@@ -1229,11 +1291,12 @@ fn payout_preflight(
 /// and the vault payout move next, and the bookkeeping follows.
 fn payout_apply(
     a: &mut Payout<'_>,
+    remaining: &[AccountInfo<'_>],
     settlement: &Settlement,
     plan: PayoutPlan,
     now: u64,
 ) -> Result<PayoutDone> {
-    let PayoutPlan { fee, route, mut user_round, close } = plan;
+    let PayoutPlan { fee, route, mut user_round, close, inline } = plan;
     let ops_cash = a.ops_cash.to_account_info();
     let destination = a.destination.to_account_info();
 
@@ -1249,24 +1312,19 @@ fn payout_apply(
     a.pool.pot = crate::checked_sub(a.pool.pot, fee.paid_gross)?;
     let close_id = close.as_ref().map(|c| c.close_id);
     let mut ticket_id = 0;
+    let mut committed = None;
     match route {
         TollRoute::None => {}
         TollRoute::Seed => a.pool.seed = crate::checked_add(a.pool.seed, fee.toll)?,
         TollRoute::Ticket => {
-            ticket_id = a.pool.next_ticket;
-            a.pool.next_ticket = crate::checked_add(ticket_id, 1)?;
-            a.pool.active_ticket = ticket_id;
-            a.pool.pending_toll = crate::checked_add(a.pool.pending_toll, fee.toll)?;
-            let ticket: &mut Ticket = &mut a.ticket;
-            *ticket = ticket_start(
-                ticket.bump,
-                ticket_id,
+            (ticket_id, committed) = begin_ticket(
+                &mut a.ticket,
+                &mut a.pool,
                 close_id,
-                a.pool.registry_len,
-                a.pool.registry_version,
                 fee.toll,
                 &a.config,
-            );
+                if inline { Some(remaining) } else { None },
+            )?;
         }
     }
 
@@ -1300,7 +1358,7 @@ fn payout_apply(
         a.ops.locked_remaining_total =
             crate::checked_add(a.ops.locked_remaining_total, close.lock.required)?;
     }
-    Ok(PayoutDone { fee, close_id, ticket_id, deadline })
+    Ok(PayoutDone { fee, close_id, ticket_id, deadline, committed })
 }
 
 /// Run a settled payout and emit its events.
@@ -1311,8 +1369,10 @@ fn finish_payout(
     minimum_receive: u64,
     max_work_contribution: u64,
 ) -> Result<()> {
-    let plan = payout_preflight(ctx.accounts, &settlement, minimum_receive, max_work_contribution)?;
-    let done = payout_apply(ctx.accounts, &settlement, plan, now)?;
+    let remaining = ctx.remaining_accounts;
+    let plan =
+        payout_preflight(ctx.accounts, remaining, &settlement, minimum_receive, max_work_contribution)?;
+    let done = payout_apply(ctx.accounts, remaining, &settlement, plan, now)?;
     let owner = ctx.accounts.owner.key();
     let nonce = ctx.accounts.position.nonce;
     let round_id = ctx.accounts.pool.round_id;
@@ -1338,11 +1398,50 @@ fn finish_payout(
             deadline: done.deadline,
         });
     }
+    if let Some(committed) = done.committed {
+        emit_cpi!(committed);
+    }
     Ok(())
 }
 
 /// Withdraw what a Simple position has accrued and not yet been paid.
 /// May repeat; terminates at maturity.
+///
+/// # Inline allocation (opt-in remaining accounts)
+///
+/// A toll that routes to an allocation ticket normally starts a chunked ticket
+/// that keepers finish with the six phase instructions.  A caller may instead
+/// append the registry's accounts as **remaining accounts** and have this
+/// instruction run the whole ticket (Discover, Senior, Seal, Allocate, Prune,
+/// Commit) itself, ending with the ticket `IDLE`, `pending_toll` released, the
+/// seed, funded claims, pruning and `finalized_ticket` exactly as the chunked
+/// ticket leaves them, and a `TicketCommitted` event after `PayoutPaid`.
+///
+/// Layout, all accounts writable and none repeated:
+///
+/// ```text
+/// [ Backer PDA of registry slot 0,
+///   ...,
+///   Backer PDA of registry slot registry_len - 1,   (registry order)
+///   RegistryPage 0,
+///   SnapshotPage 0 ]
+/// ```
+///
+/// The optional Series A senior Backer is already among the Backers (it is the
+/// oldest open A of the registry); no placeholder is used, and Prune
+/// swap-deletes within the single page.  The caller must also add a
+/// compute-budget instruction: the run costs the sum of the phases and passes the
+/// 200,000 default from about four Backers (measured: 1,058 bytes and 26 keys
+/// at eight).
+///
+/// Offered only when `0 < registry_len <= INLINE_THRESHOLD` (8, one page); with
+/// accounts supplied and a larger registry the call fails `InvalidState` and the
+/// keeper must use chunks.  A partial or padded layout fails `WrongAccount`, a
+/// repeated account `DuplicateWritableAccount`; any failure reverts the whole
+/// payout.  With no remaining accounts nothing changes: the ticket starts
+/// chunked.  Remaining accounts are ignored (never rejected) when there is no
+/// non-closing ticket to run: a zero toll, an empty registry, or a closing
+/// payout, whose ticket binds the `CloseRecord` and is always chunked.
 pub fn withdraw_simple(
     ctx: Context<Payout>,
     minimum_receive: u64,
@@ -1359,6 +1458,9 @@ pub fn withdraw_simple(
 }
 
 /// Settle a matured Compound15/Compound30 position in one payment.
+///
+/// Accepts the same opt-in inline remaining accounts as [`withdraw_simple`],
+/// with the same layout and rules, for its Jackpot Fee toll.
 pub fn settle_compounding(
     ctx: Context<Payout>,
     minimum_receive: u64,
@@ -1951,6 +2053,21 @@ mod tests {
     }
 
     // --- Toll routing and tickets ---
+
+    #[test]
+    fn inline_is_offered_only_for_a_non_closing_ticket_with_accounts() {
+        // No remaining accounts: today's chunked ticket start.
+        assert!(!inline_offered(TollRoute::Ticket, false, 0));
+        // A non-closing ticket with accounts runs inline.
+        assert!(inline_offered(TollRoute::Ticket, false, 1));
+        assert!(inline_offered(TollRoute::Ticket, false, 10));
+        // A closing payout's ticket binds the CloseRecord: never inline.
+        assert!(!inline_offered(TollRoute::Ticket, true, 10));
+        assert!(!inline_offered(TollRoute::Ticket, true, 0));
+        // Nothing to allocate: the accounts are ignored, not rejected.
+        assert!(!inline_offered(TollRoute::None, false, 10));
+        assert!(!inline_offered(TollRoute::Seed, false, 10));
+    }
 
     #[test]
     fn toll_routes_to_nothing_the_seed_or_a_ticket() {

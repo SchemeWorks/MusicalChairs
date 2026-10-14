@@ -5,10 +5,14 @@
  "branch": "codex/native-solana-production-core",
  "commit_at_run": "931b6d5f96730c5eaf916f3377678b1aee8deb95",
  "elf": {
-  "sha256": "4b134d05c7385911ccac934ec29b605597215a33ae937f5e18ae86612d83f83c",
-  "source_set_sha256": "1d7359b71cf0f67e200a143fb2e71df4b89a6b068b1661338735954da99ac9bf",
+  "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+  "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
-  "pins": "docs/solana/evidence/latest-build.json"
+  "pins": "docs/solana/evidence/latest-build.json",
+  "lineage": [
+   "4b134d05… clippy-cleanup ELF: IMPL-39a measurements (chunk/churn/dust/full-close/envelope/keeper)",
+   "d77b23bf… IMPL-39b inline step: inline_alloc rows and the final full run"
+  ]
  },
  "measure_suite": {
   "file": "solana/tests/financial-runtime/src/measure.rs",
@@ -1238,6 +1242,29 @@
     "provider_fee_sponsor": 300000,
     "registry_rent_sponsor": 3125040,
     "request_rent_sponsor": 6173520
+   },
+   "close_record_permanent_retained": {
+    "bytes": 657,
+    "rent_lamports_local": 5463600,
+    "rent_lamports_at_696_terminal_step_scenario": 546360,
+    "funded_by": "provision_close_record (Free sponsor cash or Caller) BEFORE the closing payout; it is NOT part of required_close_reserve and NOT in held_by_close_accounts_before_cleanup above (which counted candidate pages, participant pages and the request account only), so adding it here does not double count",
+    "retained": "permanently (DR-02 / R11: one CloseRecord per accepted close is never closed)"
+   },
+   "totals_including_close_record": {
+    "held_before_cleanup_plus_close_record": 77569200,
+    "retained_after_full_cleanup_local": {
+     "close_record": 5463600,
+     "fulfilled_request_account": 1914000,
+     "winner_b_account_when_a_winner_exists": 1914000,
+     "consumed_provider_fee_to_treasury": 300000,
+     "total_with_winner": 9591600,
+     "total_without_winner": 7677600
+    },
+    "ten_sponsor_funded_closes_close_record_only": {
+     "local_sol": 0.054636,
+     "at_696_terminal_scenario_sol": 0.0054636,
+     "note": "the 696-lamport figure is the conditional terminal SIMD-0437 step, not a current cluster quote"
+    }
    }
   },
   "result": {
@@ -1606,27 +1633,30 @@
   "chunk_default_rows": 8,
   "chunk_evidence": "every phase transaction of every N × rows run is within the legacy packet, 64 locks and compute; worst packet 756 B (N=256 rows=8 prune), worst CU 57,410 (N=256 rows=8 prune); one-row fallback executed at every N",
   "inline_threshold_envelope": 8,
-  "inline_evidence": "measured envelope of a REAL payout with N Backer + page accounts appended: packet fits up to N = 8 (1,058 B, 26 keys); N = 16 is 1,388 B and N = 17 is 1,487 B (> 1,232); estimated inline CU at N = 8: 528,233 conservative / 213,583 marginal (needs a compute-budget instruction above the 200k default; under 1.4M with 62% headroom)",
-  "inline_step": "FEASIBLE for registry_len ≤ 8 on the measured envelope → IMPL-39b implements the in-instruction Discover→Commit for registry_len <= INLINE_THRESHOLD (8) in withdraw_simple/settle_compounding, with golden + conservation tests and a REAL inline measurement row that must confirm packet/CU at N = 1..8 before the threshold is final; zero-toll and zero-slice shortcuts stay inline regardless; chunks remain for N > 8",
+  "inline_evidence": "measured envelope of a REAL payout with N Backer + page accounts appended: packet fits up to N = 8 (1,058 B, 26 keys); N = 16 is 1,388 B and N = 17 is 1,487 B (> 1,232); estimated inline CU at N = 8: 528,233 conservative / 213,583 marginal (needs a compute-budget instruction above the 200k default; under 1.4M with 62% headroom); REAL inline measurements (IMPL-39b) replaced the estimate: N = 8 costs 147,005 CU, not 528k",
+  "inline_step": "IMPLEMENTED (IMPL-39b) and measured: opt-in, non-closing, registry_len <= INLINE_THRESHOLD = 8; real inline payout at N = 8 = 1,058 B / 26 keys / 147,005 CU (fits packet, under the 200k default compute); inline state == chunked state bit for bit for N = 1..8; N = 9 refused; chunks remain the keeper path for larger registries; zero-toll and empty-registry payouts never start a ticket at all (unchanged)",
   "returned_to_rob": "none: the inline step is the plan's own step 2(b), bounded by the measured N = 8; no page-capacity or keeper-format change is proposed (DR-28 legacy/v0 format fits everywhere)"
  },
  "full_harness": {
+  "elf_sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
   "results": [
-   "ok. 175 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 219.45s",
+   "ok. 175 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 221.45s",
    "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
-   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.83s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.86s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.09s",
    "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s",
-   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.32s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.06s",
    "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
    "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
   ],
-  "log_sha256": "1e9397a077ef8b45ee6c9a5e5dba29a963093be6283f358979c706f1e7c01adf",
+  "log_sha256": "0d89f5cadbc9004270def1ef74978a95f07d0e165cdbb2b4703ddb564a11d410",
   "cli_all_exit": 0,
   "cli_observations_total": 9265,
   "cli_json": {
    "path": "docs/solana/evidence/2026-10-14-m9-cli.json",
-   "sha256": "9959f765984559268ddce2bef508993aba19f81389193e84ac2ea291ba855c03"
-  }
+   "sha256": "c5b8bf943d607db7849a66db8723101c5589600ef14ac190745f9fbbb53aec3e"
+  },
+  "note": "final M9 run on the IMPL-39b ELF; the earlier run on 4b134d05 (175 lib tests, 9,265 observations) is superseded; the inline_envelope family now exercises the real inline path (N <= 8 executed inline, N > 8 refused InvalidState)"
  },
  "limits": [
   "every number is LiteSVM at the local default rent (3,480 lamports per byte-year × 2-year exemption) and the legacy transaction format; not a cluster measurement",
@@ -1643,5 +1673,184 @@
    "status": "open for Codex; no code change"
   }
  ],
- "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged."
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged.",
+ "inline_real_impl39b": {
+  "card": "IMPL-39b",
+  "program": {
+   "patch_sha256": "ad3dd8b032f1b4d2edbd9a5e00fcffb7d9cbe4b6196e4e36279271d20c0a6994",
+   "contract": "OPT-IN, non-closing only: a withdraw_simple/settle_compounding that supplies [Backer slot 0..registry_len-1 (registry order), RegistryPage 0, SnapshotPage 0] (all writable) and has 0 < registry_len <= INLINE_THRESHOLD (8) runs Discover→Senior→Seal→Allocate→Prune→Commit in-instruction (allocation::run_inline_ticket over the shared phase functions; prune_inline reuses prune_decision/retire_row); no remaining accounts → today's chunked ticket start; closing payouts never inline; registry_len > 8 with accounts → InvalidState; wrong count → WrongAccount; repeated account → DuplicateWritableAccount",
+   "unit_tests": "262 (248 + 14: M6 goldens inline, stepwise equality for every N 1..8 over 24 seeds × 6 tolls × chunk 1/8, capped registry, mixed inline/chunked sequences, host Book oracle, layout/offer/rejection rules; RED shown with run_inline_ticket stubbed: 12/13 failed; three deliberate breakages (ascending prune, closed-only prune, skipped senior) each caught)",
+   "clippy": "clean (-D warnings)",
+   "idl": "unchanged 11840ae0… (check-idl clean)"
+  },
+  "elf": {
+   "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+   "bytes": 1395536,
+   "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "96bebb16a4fc9d47e97b5650aae6177f7b6f75eeb190f68758bae6c2eccdae61",
+   "stack_offset_warnings": 0
+  },
+  "litesvm_rows": {
+   "file": "solana/tests/financial-runtime/tests/inline_alloc.rs",
+   "log_sha256": "ae62611adc7b6474ac8e816ad7f69c26f909cab8a8f0d09e7650466aac83bd47",
+   "equality": "for N = 1..8 two Worlds from identical fixtures: chunked (payout, then the keeper drives the ticket to IDLE at 8 rows) vs inline (the same payout with the registry accounts appended); pool seed/funded_claims/pending_toll/next_ticket/registry_len, every Backer account, the registry and snapshot pages, the ticket workspace and digest_financial_state are byte-identical; PayoutPaid.ticket_id is the committed id and TicketCommitted follows for the same id; the ticket is IDLE after the payout",
+   "rejections": {
+    "n9_with_accounts": "InvalidState 6001 fee-only",
+    "pages_before_backers": "WrongAccount/WrongOwner fee-only (refused before any cash moves)",
+    "backers_without_pages": "WrongAccount 6005 fee-only",
+    "duplicate_backer": "DuplicateWritableAccount 6026 fee-only"
+   },
+   "measured": [
+    {
+     "n": 1,
+     "packet_bytes": 827,
+     "message_keys": 19,
+     "writable": 13,
+     "cu": 82483,
+     "toll": 13200000,
+     "credited": 6600000,
+     "seed": 6600000,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 2,
+     "packet_bytes": 860,
+     "message_keys": 20,
+     "writable": 14,
+     "cu": 91915,
+     "toll": 13200000,
+     "credited": 5280020,
+     "seed": 7919980,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 3,
+     "packet_bytes": 893,
+     "message_keys": 21,
+     "writable": 15,
+     "cu": 101551,
+     "toll": 13200000,
+     "credited": 5280019,
+     "seed": 7919981,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 4,
+     "packet_bytes": 926,
+     "message_keys": 22,
+     "writable": 16,
+     "cu": 109636,
+     "toll": 13200000,
+     "credited": 5940019,
+     "seed": 7259981,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 5,
+     "packet_bytes": 959,
+     "message_keys": 23,
+     "writable": 17,
+     "cu": 118510,
+     "toll": 13200000,
+     "credited": 5940019,
+     "seed": 7259981,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 6,
+     "packet_bytes": 992,
+     "message_keys": 24,
+     "writable": 18,
+     "cu": 127835,
+     "toll": 13200000,
+     "credited": 5720039,
+     "seed": 7479961,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 7,
+     "packet_bytes": 1025,
+     "message_keys": 25,
+     "writable": 19,
+     "cu": 137517,
+     "toll": 13200000,
+     "credited": 5720038,
+     "seed": 7479962,
+     "fits_packet": true,
+     "under_200k_cu": true
+    },
+    {
+     "n": 8,
+     "packet_bytes": 1058,
+     "message_keys": 26,
+     "writable": 20,
+     "cu": 147005,
+     "toll": 13200000,
+     "credited": 5940038,
+     "seed": 7259962,
+     "fits_packet": true,
+     "under_200k_cu": true
+    }
+   ]
+  },
+  "decision": "INLINE_THRESHOLD = 8 CONFIRMED by real execution: the inline payout at N = 8 is 1,058 B / 26 keys / 147,005 CU — under the legacy packet with 174 B to spare and under the 200k DEFAULT compute budget (no compute-budget instruction needed, unlike the conservative 528k envelope estimate); N = 9 is a second page and is refused; the chunked path is untouched. No economics change: inline == chunked bit for bit.",
+  "envelope_family_on_the_real_path": [
+   {
+    "row": "n0",
+    "success": true,
+    "packet_bytes": 728,
+    "message_keys": 16,
+    "compute_units": 48576
+   },
+   {
+    "row": "n1",
+    "success": true,
+    "packet_bytes": 827,
+    "message_keys": 19,
+    "compute_units": 82483
+   },
+   {
+    "row": "n2",
+    "success": true,
+    "packet_bytes": 860,
+    "message_keys": 20,
+    "compute_units": 90216
+   },
+   {
+    "row": "n4",
+    "success": true,
+    "packet_bytes": 926,
+    "message_keys": 22,
+    "compute_units": 106794
+   },
+   {
+    "row": "n8",
+    "success": true,
+    "packet_bytes": 1058,
+    "message_keys": 26,
+    "compute_units": 141800
+   },
+   {
+    "row": "n16",
+    "success": false,
+    "packet_bytes": 1388,
+    "message_keys": 36,
+    "compute_units": 36149
+   },
+   {
+    "row": "n17",
+    "success": false,
+    "packet_bytes": 1487,
+    "message_keys": 39,
+    "compute_units": 36944
+   }
+  ]
+ }
 }

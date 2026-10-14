@@ -48,6 +48,24 @@ pub const DRAW_IGNORED_LATE: u8 = 3;
 
 pub const BACKER_REMAINING_CUTOFF: u128 = 10;
 
+/// The largest registry (`pool.registry_len`) for which `withdraw_simple` /
+/// `settle_compounding` may run the whole allocation ticket in the payout
+/// instruction (Discover -> Senior -> Seal -> Allocate -> Prune -> Commit) when
+/// the caller opts in by appending the inline remaining accounts.
+///
+/// Measured envelope (`docs/solana/measurements-2026-10.md` section 5 and 7,
+/// receipt `docs/solana/evidence/2026-10-14-m9-measurements.json`, rows
+/// `inline_envelope` / `decision_output_dr31`): a real non-closing payout with N
+/// Backer PDAs plus one registry page and one snapshot page appended fits the
+/// legacy 1,232-byte packet up to N = 8 (1,058 B, 26 keys, 20 writable) and does
+/// not at N = 16 (1,388 B).  Eight is also one registry page, so the inline path
+/// is a single-page walk.  A larger registry never disables a smaller one: above
+/// the threshold the chunked ticket is the only path.  No economics depend on it.
+pub const INLINE_THRESHOLD: u64 = 8;
+
+// The inline path walks exactly one registry page and one snapshot page.
+const _: () = assert!(INLINE_THRESHOLD <= PAGE_CAPACITY as u64);
+
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace, PartialEq, Eq)]
 pub struct SnapshotRow {
     pub key: Pubkey,
