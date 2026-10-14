@@ -7,7 +7,8 @@
 //! claim, draw and configuration paths; `WrongGovernanceProfile` (6031) was
 //! appended in M3 for Squads profile-shape failures; the five after it
 //! (6032..=6036) were appended in M4 for provisioning and cleanup; the two
-//! after those (6037, 6038) were appended in M5 for admission.
+//! after those (6037, 6038) were appended in M5 for admission; the two after
+//! those (6039, 6040) were appended in M6 for the allocation ticket.
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -27,6 +28,8 @@ pub enum ErrorCode {
     WrongIndex, NotClosable, AlreadyClosed, PageNotProvisioned, LockNotPermitted,
     // Appended in M5 (6037..=6038); keep this order.
     StaleConfig, PublicSeriesADisabled,
+    // Appended in M6 (6039..=6040); keep this order.
+    StaleTicket, StaleCursor,
 }
 
 #[cfg(test)]
@@ -55,6 +58,24 @@ mod tests {
         assert_eq!(ErrorCode::LockNotPermitted as u32 + 6000, 6036);
         assert_eq!(ErrorCode::StaleConfig as u32 + 6000, 6037);
         assert_eq!(ErrorCode::PublicSeriesADisabled as u32 + 6000, 6038);
+        assert_eq!(ErrorCode::StaleTicket as u32 + 6000, 6039);
+        assert_eq!(ErrorCode::StaleCursor as u32 + 6000, 6040);
+    }
+
+    /// The codes the M6 allocation handlers reuse from earlier tranches must
+    /// not drift either.
+    #[test]
+    fn allocation_codes_are_frozen() {
+        assert_eq!(ErrorCode::Overflow as u32 + 6000, 6000);
+        assert_eq!(ErrorCode::InvalidState as u32 + 6000, 6001);
+        assert_eq!(ErrorCode::WrongAccount as u32 + 6000, 6005);
+        assert_eq!(ErrorCode::WrongOwner as u32 + 6000, 6006);
+        assert_eq!(ErrorCode::ProtectedDestination as u32 + 6000, 6008);
+        assert_eq!(ErrorCode::InvalidPhase as u32 + 6000, 6018);
+        assert_eq!(ErrorCode::CursorMismatch as u32 + 6000, 6019);
+        assert_eq!(ErrorCode::CapExceeded as u32 + 6000, 6020);
+        assert_eq!(ErrorCode::NothingToClaim as u32 + 6000, 6022);
+        assert_eq!(ErrorCode::DuplicateWritableAccount as u32 + 6000, 6026);
     }
 
     /// The codes the M5 handlers reuse from earlier tranches must not drift.

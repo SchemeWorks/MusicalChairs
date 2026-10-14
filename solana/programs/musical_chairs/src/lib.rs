@@ -9,6 +9,7 @@ pub mod state;
 pub mod controls;
 pub mod positions;
 pub mod allocation;
+pub mod claims;
 pub mod error;
 pub mod events;
 pub use error::ErrorCode;
@@ -17,6 +18,7 @@ use controls::*;
 pub use controls::{ConfigTerms, Funding, PageKind};
 use positions::*;
 use allocation::*;
+use claims::*;
 pub use state::*;
 declare_id!("7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7");
 
@@ -230,13 +232,13 @@ pub mod musical_chairs_program {
     pub fn withdraw_simple(ctx: Context<Payout>, minimum_receive: u64, max_work_contribution: u64) -> Result<()> { positions::withdraw_simple(ctx,minimum_receive,max_work_contribution) }
     pub fn settle_compounding(ctx: Context<Payout>, minimum_receive: u64, max_work_contribution: u64) -> Result<()> { positions::settle_compounding(ctx,minimum_receive,max_work_contribution) }
     pub fn close_simple_position(ctx: Context<CloseSimplePosition>) -> Result<()> { positions::close_simple_position(ctx) }
-    pub fn discover_row(ctx:Context<DiscoverRow>,expected_cursor:u64)->Result<()> { allocation::discover_row(ctx,expected_cursor) }
-    pub fn senior(ctx:Context<Senior>,expected_ticket_id:u64)->Result<()> { allocation::senior(ctx,expected_ticket_id) }
-    pub fn seal_weights(ctx:Context<Seal>,expected_ticket_id:u64)->Result<()> { allocation::seal_weights(ctx,expected_ticket_id) }
-    pub fn allocate_row(ctx:Context<AllocateRow>,expected_cursor:u64)->Result<()> { allocation::allocate_row(ctx,expected_cursor) }
-    pub fn prune_row(ctx:Context<PruneRow>,expected_cursor:u64)->Result<()> { allocation::prune_row(ctx,expected_cursor) }
-    pub fn commit(ctx:Context<Commit>,expected_ticket_id:u64)->Result<()> { allocation::commit(ctx,expected_ticket_id) }
-    pub fn claim_backer(ctx:Context<ClaimBacker>,minimum_receive:u64)->Result<()> { allocation::claim_backer(ctx,minimum_receive) }
+    pub fn discover_rows(ctx: Context<DiscoverRows>, expected_ticket_id: u64, expected_cursor: u64, rows: u8) -> Result<()> { allocation::discover_rows(ctx,expected_ticket_id,expected_cursor,rows) }
+    pub fn apply_senior(ctx: Context<ApplySenior>, expected_ticket_id: u64) -> Result<()> { allocation::apply_senior(ctx,expected_ticket_id) }
+    pub fn seal_weights(ctx: Context<SealWeights>, expected_ticket_id: u64) -> Result<()> { allocation::seal_weights(ctx,expected_ticket_id) }
+    pub fn allocate_rows(ctx: Context<AllocateRows>, expected_ticket_id: u64, expected_cursor: u64, rows: u8) -> Result<()> { allocation::allocate_rows(ctx,expected_ticket_id,expected_cursor,rows) }
+    pub fn prune_rows(ctx: Context<PruneRows>, expected_ticket_id: u64, expected_cursor: u64, rows: u8) -> Result<()> { allocation::prune_rows(ctx,expected_ticket_id,expected_cursor,rows) }
+    pub fn commit_ticket(ctx: Context<CommitTicket>, expected_ticket_id: u64) -> Result<()> { allocation::commit_ticket(ctx,expected_ticket_id) }
+    pub fn claim_backer(ctx: Context<ClaimBacker>) -> Result<()> { claims::claim_backer(ctx) }
 }
 
 #[cfg(test)]
