@@ -10,8 +10,8 @@
   "built_at_head": "5d9afa5",
   "receipt": "2026-10-14-m0-stub-build.json"
  },
- "source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
- "source_set_coverage": "INCOMPLETE \u2014 this digest predates the DR-35/C5 correction: it omits crates/economics/Cargo.toml, crates/economics/src/**/*.rs (a path dependency compiled into the ELF), the solana/Cargo.toml workspace root the economics manifest inherits edition/rust-version/dependency versions from, and source-set-digest.sh itself. IMPL-09 corrects the set, rebuilds once and refreshes this receipt; until then provenance is NOT complete.",
+ "source_set_sha256": "613eb0c5d7bbda62eaf22ad4d0ff5ff299f15f86e2794f9551a6903a3c8e786f",
+ "source_set_coverage": "COMPLETE per DR-35/C5 correction (IMPL-09, commit 37f506a): 19 files = workspace root Cargo.toml, crates/economics/Cargo.toml, crates/economics/src/**/*.rs (6), programs/musical_chairs/{Cargo.toml,Cargo.lock,.cargo/config.toml}, programs/musical_chairs/src/**/*.rs (5), build-sbf.sh, source-set-digest.sh, rust-toolchain.toml. Not covered by design: crates/economics/tests, harness manifests/lock, target dirs, generated artifacts.",
  "runner": "LiteSVM 0.7.1 in-process; ELF loaded from MC_FINANCIAL_SBF; host cargo 1.92.0; CARGO_HOME/CARGO_TARGET_DIR pinned to /private/tmp/mc-solana-runtime-tools-20261013/{cargo-home,harness-target}",
  "cargo_test": {
   "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 --nocapture",
@@ -124,5 +124,33 @@
    "6007": "InsufficientOperations (index 7)"
   }
  },
- "proof_level": "genuine RED baseline on the exact local stub ELF; nothing is GREEN; no financial-correctness or deployment proof; source-set provenance incomplete (see source_set_coverage)"
+ "proof_level": "genuine RED baseline on the exact local stub ELF with COMPLETE source-set provenance (DR-35/C5), reproduced identically on the clean-built byte-identical ELF; nothing is GREEN; no financial-correctness or deployment proof",
+ "provenance_history": [
+  {
+   "recorded_at_utc": "2026-10-14T07:35:34.347807+00:00",
+   "source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
+   "source_set_coverage": "INCOMPLETE \u2014 this digest predates the DR-35/C5 correction: it omits crates/economics/Cargo.toml, crates/economics/src/**/*.rs (a path dependency compiled into the ELF), the solana/Cargo.toml workspace root the economics manifest inherits edition/rust-version/dependency versions from, and source-set-digest.sh itself. IMPL-09 corrects the set, rebuilds once and refreshes this receipt; until then provenance is NOT complete.",
+   "note": "original IMPL-06 receipt against the same artifact bytes; preserved verbatim here"
+  }
+ ],
+ "superseded_incomplete_source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
+ "provenance_refreshed_at_utc": "2026-10-14T07:43:37.672597+00:00",
+ "harness_head_at_rerun": "37f506a15b500773d9c71b4d7b14e95c3dc41e01",
+ "rerun_on_reproduced_elf": {
+  "artifact_sha256": "d7538b07aa834a28efbf583bf6420244a131a67f02122b469519dad92e91f6ce",
+  "cargo_test_result_line": "FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s",
+  "failed": [
+   "tests::allocation_golden_t10000",
+   "tests::claim_moves_real_sol",
+   "tests::open_moves_real_sol"
+  ],
+  "passed": [
+   "tests::allocation_six_phase_flow_has_unique_row_observations",
+   "tests::fee_only_rollback_is_observed_for_the_current_open_gate"
+  ],
+  "cli_observations": 24,
+  "red_assertions_identical": true,
+  "log_sha256": "c2c7b1c7d682916f0d35a95ca0c89d71290416c9afaeb72155f56e7f55f7c75d",
+  "cli_sha256": "c6cec79012bb1cbf6560b356367d27fce67f5d3e4d2888d4e86647424c43509a"
+ }
 }
