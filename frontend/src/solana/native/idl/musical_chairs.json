@@ -1,0 +1,6826 @@
+{
+  "address": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+  "metadata": {
+    "name": "musical_chairs_program",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "activate_config_version",
+      "discriminator": [
+        181,
+        229,
+        114,
+        59,
+        173,
+        84,
+        14,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "expected_current",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "allocate_rows",
+      "discriminator": [
+        227,
+        117,
+        89,
+        183,
+        36,
+        142,
+        120,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "apply_promotion",
+      "discriminator": [
+        54,
+        254,
+        56,
+        13,
+        57,
+        237,
+        66,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Pays only the transaction fee; any signer may progress the close."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "candidate_page",
+          "optional": true
+        },
+        {
+          "name": "winner",
+          "optional": true
+        },
+        {
+          "name": "winner_user",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "winner_user_round",
+          "optional": true
+        },
+        {
+          "name": "winner_backer_b",
+          "docs": [
+            "absent, merged when present."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "registry_tail",
+          "docs": [
+            "reserve when that page does not exist yet."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "apply_senior",
+      "discriminator": [
+        125,
+        158,
+        48,
+        84,
+        220,
+        110,
+        63,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer",
+          "docs": [
+            "ticket's tracked oldest open A, a canonical Backer PDA. Optional so a",
+            "ticket with no open A (senior already folded to seed) can pass the",
+            "program id as the Anchor `None` placeholder instead of a writable",
+            "stand-in (a read-only program account would fail the `mut` check)."
+          ],
+          "writable": true,
+          "optional": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "build_candidates",
+      "discriminator": [
+        92,
+        137,
+        94,
+        81,
+        153,
+        110,
+        72,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "preferred_page",
+          "docs": [
+            "re-derived by the handler only when a row appends to the preferred set."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "fallback_page",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "capture_round_draw",
+      "discriminator": [
+        103,
+        183,
+        170,
+        46,
+        37,
+        167,
+        217,
+        109
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "request"
+        },
+        {
+          "name": "client"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_backer",
+      "discriminator": [
+        172,
+        148,
+        83,
+        118,
+        116,
+        185,
+        190,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer_a",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "backer_b",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "account and the handler rejects every protected alias."
+          ],
+          "writable": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_shared_account",
+      "discriminator": [
+        28,
+        93,
+        106,
+        212,
+        251,
+        156,
+        139,
+        156
+      ],
+      "accounts": [
+        {
+          "name": "page",
+          "writable": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "docs": [
+            "owner component exists; validated as a payout destination by the handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": {
+            "defined": {
+              "name": "PageKind"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "close_simple_position",
+      "discriminator": [
+        199,
+        194,
+        80,
+        245,
+        222,
+        216,
+        66,
+        118
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "commit_ticket",
+      "discriminator": [
+        15,
+        97,
+        55,
+        56,
+        38,
+        249,
+        88,
+        220
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "deliver_owner_refund",
+      "discriminator": [
+        123,
+        215,
+        234,
+        246,
+        81,
+        123,
+        114,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "discover_rows",
+      "discriminator": [
+        99,
+        154,
+        63,
+        241,
+        26,
+        162,
+        242,
+        42
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "expire_promotion",
+      "discriminator": [
+        68,
+        234,
+        84,
+        81,
+        126,
+        32,
+        246,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_round",
+      "discriminator": [
+        239,
+        160,
+        254,
+        11,
+        254,
+        144,
+        53,
+        148
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "fund_operations",
+      "discriminator": [
+        165,
+        82,
+        28,
+        5,
+        251,
+        236,
+        9,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "sender",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fund_series_a",
+      "discriminator": [
+        98,
+        127,
+        201,
+        110,
+        164,
+        159,
+        145,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer",
+          "writable": true
+        },
+        {
+          "name": "registry",
+          "docs": [
+            "only when a new/reopened row appends; active same-owner top-ups need",
+            "no page and ignore this account."
+          ],
+          "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "The pool's active version; `public_series_a_enabled` and `min_a` are",
+            "read from it."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.active_config_version",
+                "account": "Pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "gross",
+          "type": "u64"
+        },
+        {
+          "name": "expected_round_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "increase_provider_budget",
+      "discriminator": [
+        163,
+        14,
+        20,
+        128,
+        90,
+        210,
+        164,
+        249
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        }
+      ],
+      "args": [
+        {
+          "name": "extra",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "sponsor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "rng_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  110,
+                  103,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  1,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "squads_program"
+        },
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "signer": true
+        },
+        {
+          "name": "guardian_multisig"
+        },
+        {
+          "name": "guardian"
+        },
+        {
+          "name": "self_program"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "InitializeArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "observe_request_fulfilled",
+      "discriminator": [
+        173,
+        194,
+        9,
+        12,
+        51,
+        169,
+        172,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "request"
+        },
+        {
+          "name": "client"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "open_position",
+      "discriminator": [
+        135,
+        128,
+        47,
+        77,
+        15,
+        152,
+        240,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_round",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "client_nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.active_config_version",
+                "account": "Pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "participant_page",
+          "docs": [
+            "`pool.participant_count / 8`.  Read and written only when this is the",
+            "owner's first position of the round; otherwise any account is accepted.",
+            "The handler derives the PDA, the program owner, the discriminator, the",
+            "round, the index and the free capacity before it appends."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "plan",
+          "type": {
+            "defined": {
+              "name": "PlanKindArg"
+            }
+          }
+        },
+        {
+          "name": "gross",
+          "type": "u64"
+        },
+        {
+          "name": "client_nonce",
+          "type": "u64"
+        },
+        {
+          "name": "expected_round_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_config",
+          "type": "u32"
+        }
+      ]
+    },
+    {
+      "name": "provision_close_record",
+      "discriminator": [
+        54,
+        229,
+        117,
+        163,
+        33,
+        7,
+        151,
+        20
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "close_record",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "close_id",
+          "type": "u64"
+        },
+        {
+          "name": "funding",
+          "type": {
+            "defined": {
+              "name": "Funding"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "provision_page",
+      "discriminator": [
+        196,
+        201,
+        105,
+        210,
+        175,
+        189,
+        240,
+        53
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "page",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required for `Candidate`; ignored for every other kind."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": {
+            "defined": {
+              "name": "PageKind"
+            }
+          }
+        },
+        {
+          "name": "index",
+          "type": "u64"
+        },
+        {
+          "name": "funding",
+          "type": {
+            "defined": {
+              "name": "Funding"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "prune_rows",
+      "discriminator": [
+        219,
+        109,
+        198,
+        121,
+        85,
+        148,
+        131,
+        215
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "reconcile_ops_cash",
+      "discriminator": [
+        12,
+        139,
+        25,
+        18,
+        29,
+        21,
+        63,
+        46
+      ],
+      "accounts": [
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reconcile_ops_cash_with_client",
+      "discriminator": [
+        41,
+        24,
+        253,
+        16,
+        155,
+        152,
+        176,
+        222
+      ],
+      "accounts": [
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        },
+        {
+          "name": "client"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "request_round_draw",
+      "discriminator": [
+        60,
+        38,
+        56,
+        179,
+        242,
+        31,
+        80,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Any signer: ORAO documents `payer` as paying transaction fees only (the",
+            "Client pays the request fee and rent)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "rng_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  110,
+                  103,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_program"
+        },
+        {
+          "name": "network_state",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "request",
+          "docs": [
+            "the provider CPI."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_guardian",
+      "discriminator": [
+        71,
+        22,
+        223,
+        22,
+        230,
+        118,
+        101,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "new_guardian_multisig"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_recipient",
+      "discriminator": [
+        109,
+        175,
+        166,
+        31,
+        13,
+        88,
+        76,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": "u8"
+        },
+        {
+          "name": "new_recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
+      "name": "seal_weights",
+      "discriminator": [
+        150,
+        37,
+        135,
+        52,
+        11,
+        255,
+        95,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_pause",
+      "discriminator": [
+        63,
+        32,
+        154,
+        2,
+        56,
+        103,
+        79,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardian",
+          "signer": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "settle_compounding",
+      "discriminator": [
+        2,
+        248,
+        35,
+        254,
+        138,
+        107,
+        184,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "docs": [
+            "`[ops-cash]` PDA before any reserve is locked or cash moves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_round",
+          "docs": [
+            "below); loaded and written by the handler only after the position is",
+            "proven to belong to the current round."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "before `send_game`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required only when this payout closes the round: the pre-provisioned",
+            "`CloseRecord(pool.next_close_id)`."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        },
+        {
+          "name": "max_work_contribution",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "stage_config_version",
+      "discriminator": [
+        88,
+        193,
+        10,
+        101,
+        219,
+        44,
+        28,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig",
+          "docs": [
+            "validated by the handler."
+          ]
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "terms",
+          "type": {
+            "defined": {
+              "name": "ConfigTerms"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "withdraw_management",
+      "discriminator": [
+        103,
+        191,
+        132,
+        81,
+        199,
+        29,
+        91,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        },
+        {
+          "name": "recipient",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_operations",
+      "discriminator": [
+        150,
+        4,
+        1,
+        176,
+        194,
+        59,
+        19,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "sponsor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_provider_return",
+      "discriminator": [
+        15,
+        247,
+        137,
+        143,
+        103,
+        208,
+        102,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G vault: signs through the Squads CPI, owns the ORAO Client and",
+            "receives the ORAO withdrawal."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "provider_program"
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_simple",
+      "discriminator": [
+        176,
+        94,
+        18,
+        93,
+        130,
+        82,
+        92,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "docs": [
+            "`[ops-cash]` PDA before any reserve is locked or cash moves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_round",
+          "docs": [
+            "below); loaded and written by the handler only after the position is",
+            "proven to belong to the current round."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "before `send_game`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required only when this payout closes the round: the pre-provisioned",
+            "`CloseRecord(pool.next_close_id)`."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        },
+        {
+          "name": "max_work_contribution",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Admission",
+      "discriminator": [
+        83,
+        88,
+        234,
+        149,
+        171,
+        195,
+        64,
+        40
+      ]
+    },
+    {
+      "name": "Backer",
+      "discriminator": [
+        199,
+        128,
+        179,
+        190,
+        2,
+        66,
+        118,
+        252
+      ]
+    },
+    {
+      "name": "CloseRecord",
+      "discriminator": [
+        162,
+        63,
+        4,
+        230,
+        187,
+        128,
+        12,
+        166
+      ]
+    },
+    {
+      "name": "ConfigVersion",
+      "discriminator": [
+        183,
+        155,
+        81,
+        94,
+        60,
+        36,
+        199,
+        89
+      ]
+    },
+    {
+      "name": "GameVault",
+      "discriminator": [
+        152,
+        194,
+        238,
+        3,
+        140,
+        24,
+        51,
+        32
+      ]
+    },
+    {
+      "name": "Ops",
+      "discriminator": [
+        138,
+        43,
+        132,
+        42,
+        176,
+        7,
+        46,
+        18
+      ]
+    },
+    {
+      "name": "Pool",
+      "discriminator": [
+        241,
+        154,
+        109,
+        4,
+        17,
+        177,
+        109,
+        188
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "RngAuthority",
+      "discriminator": [
+        10,
+        211,
+        60,
+        36,
+        227,
+        60,
+        149,
+        22
+      ]
+    },
+    {
+      "name": "Ticket",
+      "discriminator": [
+        41,
+        228,
+        24,
+        165,
+        78,
+        90,
+        235,
+        200
+      ]
+    },
+    {
+      "name": "User",
+      "discriminator": [
+        159,
+        117,
+        95,
+        227,
+        239,
+        151,
+        58,
+        236
+      ]
+    },
+    {
+      "name": "UserRound",
+      "discriminator": [
+        60,
+        172,
+        176,
+        210,
+        41,
+        180,
+        197,
+        119
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdmissionPauseSet",
+      "discriminator": [
+        174,
+        220,
+        248,
+        236,
+        200,
+        32,
+        218,
+        196
+      ]
+    },
+    {
+      "name": "BackerClaimed",
+      "discriminator": [
+        240,
+        32,
+        166,
+        120,
+        229,
+        219,
+        215,
+        119
+      ]
+    },
+    {
+      "name": "CandidatesSealed",
+      "discriminator": [
+        176,
+        19,
+        141,
+        167,
+        16,
+        190,
+        250,
+        59
+      ]
+    },
+    {
+      "name": "ConfigActivated",
+      "discriminator": [
+        235,
+        116,
+        42,
+        193,
+        113,
+        251,
+        137,
+        137
+      ]
+    },
+    {
+      "name": "ConfigStaged",
+      "discriminator": [
+        81,
+        169,
+        171,
+        99,
+        27,
+        198,
+        211,
+        18
+      ]
+    },
+    {
+      "name": "DrawCaptured",
+      "discriminator": [
+        41,
+        106,
+        131,
+        224,
+        25,
+        237,
+        84,
+        147
+      ]
+    },
+    {
+      "name": "DrawRequested",
+      "discriminator": [
+        59,
+        172,
+        219,
+        42,
+        28,
+        94,
+        93,
+        75
+      ]
+    },
+    {
+      "name": "ManagementWithdrawn",
+      "discriminator": [
+        31,
+        107,
+        206,
+        27,
+        239,
+        175,
+        86,
+        69
+      ]
+    },
+    {
+      "name": "OperationsFunded",
+      "discriminator": [
+        204,
+        112,
+        57,
+        128,
+        210,
+        31,
+        86,
+        31
+      ]
+    },
+    {
+      "name": "OperationsWithdrawn",
+      "discriminator": [
+        25,
+        157,
+        99,
+        68,
+        124,
+        185,
+        68,
+        44
+      ]
+    },
+    {
+      "name": "OwnerRefundDelivered",
+      "discriminator": [
+        162,
+        39,
+        214,
+        102,
+        30,
+        151,
+        29,
+        191
+      ]
+    },
+    {
+      "name": "PayoutPaid",
+      "discriminator": [
+        64,
+        207,
+        193,
+        176,
+        14,
+        102,
+        54,
+        159
+      ]
+    },
+    {
+      "name": "PositionClosed",
+      "discriminator": [
+        157,
+        163,
+        227,
+        228,
+        13,
+        97,
+        138,
+        121
+      ]
+    },
+    {
+      "name": "PositionOpened",
+      "discriminator": [
+        237,
+        175,
+        243,
+        230,
+        147,
+        117,
+        101,
+        121
+      ]
+    },
+    {
+      "name": "PromotionApplied",
+      "discriminator": [
+        32,
+        10,
+        191,
+        155,
+        240,
+        223,
+        140,
+        187
+      ]
+    },
+    {
+      "name": "PromotionSkipped",
+      "discriminator": [
+        67,
+        165,
+        43,
+        0,
+        17,
+        182,
+        32,
+        115
+      ]
+    },
+    {
+      "name": "RoundClosed",
+      "discriminator": [
+        45,
+        243,
+        28,
+        22,
+        132,
+        70,
+        175,
+        226
+      ]
+    },
+    {
+      "name": "RoundFinalized",
+      "discriminator": [
+        43,
+        187,
+        17,
+        193,
+        36,
+        241,
+        48,
+        82
+      ]
+    },
+    {
+      "name": "SeriesAFunded",
+      "discriminator": [
+        222,
+        209,
+        96,
+        136,
+        35,
+        30,
+        161,
+        254
+      ]
+    },
+    {
+      "name": "TicketCommitted",
+      "discriminator": [
+        33,
+        192,
+        69,
+        179,
+        56,
+        204,
+        203,
+        126
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Overflow"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidState"
+    },
+    {
+      "code": 6002,
+      "name": "BackwardsTime"
+    },
+    {
+      "code": 6003,
+      "name": "QuotaExceeded"
+    },
+    {
+      "code": 6004,
+      "name": "NotAuthorized"
+    },
+    {
+      "code": 6005,
+      "name": "WrongAccount"
+    },
+    {
+      "code": 6006,
+      "name": "WrongOwner"
+    },
+    {
+      "code": 6007,
+      "name": "InsufficientOperations"
+    },
+    {
+      "code": 6008,
+      "name": "ProtectedDestination"
+    },
+    {
+      "code": 6009,
+      "name": "AdmissionPaused"
+    },
+    {
+      "code": 6010,
+      "name": "AllocationPending"
+    },
+    {
+      "code": 6011,
+      "name": "Closing"
+    },
+    {
+      "code": 6012,
+      "name": "MinimumDeposit"
+    },
+    {
+      "code": 6013,
+      "name": "MinimumReceive"
+    },
+    {
+      "code": 6014,
+      "name": "NotMature"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyClaimed"
+    },
+    {
+      "code": 6016,
+      "name": "StaleRound"
+    },
+    {
+      "code": 6017,
+      "name": "Replay"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidPhase"
+    },
+    {
+      "code": 6019,
+      "name": "CursorMismatch"
+    },
+    {
+      "code": 6020,
+      "name": "CapExceeded"
+    },
+    {
+      "code": 6021,
+      "name": "NotImplemented"
+    },
+    {
+      "code": 6022,
+      "name": "NothingToClaim"
+    },
+    {
+      "code": 6023,
+      "name": "InsufficientManagement"
+    },
+    {
+      "code": 6024,
+      "name": "ReserveUnavailable"
+    },
+    {
+      "code": 6025,
+      "name": "PositionRoundClosed"
+    },
+    {
+      "code": 6026,
+      "name": "DuplicateWritableAccount"
+    },
+    {
+      "code": 6027,
+      "name": "LateCapture"
+    },
+    {
+      "code": 6028,
+      "name": "Collision"
+    },
+    {
+      "code": 6029,
+      "name": "WrongProviderTuple"
+    },
+    {
+      "code": 6030,
+      "name": "ConfigNotActivatable"
+    },
+    {
+      "code": 6031,
+      "name": "WrongGovernanceProfile"
+    },
+    {
+      "code": 6032,
+      "name": "WrongIndex"
+    },
+    {
+      "code": 6033,
+      "name": "NotClosable"
+    },
+    {
+      "code": 6034,
+      "name": "AlreadyClosed"
+    },
+    {
+      "code": 6035,
+      "name": "PageNotProvisioned"
+    },
+    {
+      "code": 6036,
+      "name": "LockNotPermitted"
+    },
+    {
+      "code": 6037,
+      "name": "StaleConfig"
+    },
+    {
+      "code": 6038,
+      "name": "PublicSeriesADisabled"
+    },
+    {
+      "code": 6039,
+      "name": "StaleTicket"
+    },
+    {
+      "code": 6040,
+      "name": "StaleCursor"
+    },
+    {
+      "code": 6041,
+      "name": "ProviderFeeExceeded"
+    },
+    {
+      "code": 6042,
+      "name": "RequestNotFulfilled"
+    },
+    {
+      "code": 6043,
+      "name": "DeadlinePassed"
+    },
+    {
+      "code": 6044,
+      "name": "DeadlineNotReached"
+    },
+    {
+      "code": 6045,
+      "name": "PromotionTerminal"
+    },
+    {
+      "code": 6046,
+      "name": "NotSealed"
+    },
+    {
+      "code": 6047,
+      "name": "CandidatesIncomplete"
+    },
+    {
+      "code": 6048,
+      "name": "NothingEligible"
+    },
+    {
+      "code": 6049,
+      "name": "AlreadyObserved"
+    },
+    {
+      "code": 6050,
+      "name": "NothingDeferred"
+    },
+    {
+      "code": 6051,
+      "name": "RefundNotDeliverable"
+    }
+  ],
+  "types": [
+    {
+      "name": "Admission",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "guardian_vault",
+            "docs": [
+              "Authoritative guardian key; written by `initialize` and `rotate_guardian`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "changed_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdmissionPauseSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "guardian_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "changed_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Backer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "series",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u128"
+          },
+          {
+            "name": "entitlement",
+            "type": "u128"
+          },
+          {
+            "name": "lifetime",
+            "type": "u128"
+          },
+          {
+            "name": "funded",
+            "type": "u64"
+          },
+          {
+            "name": "pending",
+            "type": "u64"
+          },
+          {
+            "name": "pending_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "first_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "rent_funded_by_ops",
+            "type": "u64"
+          },
+          {
+            "name": "rent_funded_by_owner",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BackerClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "a_part",
+            "type": "u64"
+          },
+          {
+            "name": "b_part",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CandidatesSealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "tag",
+            "type": "u8"
+          },
+          {
+            "name": "count",
+            "type": "u64"
+          },
+          {
+            "name": "digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "CloseRecord",
+      "docs": [
+        "Everything one closing payout needs: candidate-set progress, the draw,",
+        "the captured reserve and its by-source spend ledger."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          },
+          {
+            "name": "close_started_at",
+            "type": "u64"
+          },
+          {
+            "name": "promotion_deadline",
+            "type": "u64"
+          },
+          {
+            "name": "closing_ticket_id",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "cash_committed",
+            "type": "bool"
+          },
+          {
+            "name": "participant_count",
+            "type": "u64"
+          },
+          {
+            "name": "candidate_cursor",
+            "type": "u64"
+          },
+          {
+            "name": "preferred_count",
+            "type": "u64"
+          },
+          {
+            "name": "fallback_count",
+            "type": "u64"
+          },
+          {
+            "name": "preferred_digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "fallback_digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "selected_set_tag",
+            "type": "u8"
+          },
+          {
+            "name": "sealed",
+            "type": "bool"
+          },
+          {
+            "name": "draw_state",
+            "type": "u8"
+          },
+          {
+            "name": "protocol_seed",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "request_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "randomness",
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
+          },
+          {
+            "name": "captured_at",
+            "type": "u64"
+          },
+          {
+            "name": "promotion",
+            "type": {
+              "defined": {
+                "name": "Promotion"
+              }
+            }
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "required_reserve",
+            "type": "u64"
+          },
+          {
+            "name": "reserve_schedule",
+            "type": {
+              "defined": {
+                "name": "ReserveSchedule"
+              }
+            }
+          },
+          {
+            "name": "required_pages_per_set",
+            "type": "u64"
+          },
+          {
+            "name": "existing_preferred_pages",
+            "type": "u64"
+          },
+          {
+            "name": "existing_fallback_pages",
+            "type": "u64"
+          },
+          {
+            "name": "provisioned_preferred_pages",
+            "type": "u64"
+          },
+          {
+            "name": "provisioned_fallback_pages",
+            "type": "u64"
+          },
+          {
+            "name": "registry_extension_required",
+            "type": "bool"
+          },
+          {
+            "name": "locked_sponsor_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "locked_owner_remaining",
+            "type": "u64"
+          },
+          {
+            "name": "approved_provider_fee_cap",
+            "type": "u64"
+          },
+          {
+            "name": "owner_refund_destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "spent",
+            "type": {
+              "defined": {
+                "name": "SpentLedger"
+              }
+            }
+          },
+          {
+            "name": "request_rent_funded_s",
+            "docs": [
+              "Sponsor/owner source split of the pending-request rent; equals",
+              "`spent.request_rent_s/o` at request time. There is no singular total."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_funded_o",
+            "type": "u64"
+          },
+          {
+            "name": "reimbursement_observed",
+            "type": "bool"
+          },
+          {
+            "name": "eligible_return_remaining",
+            "docs": [
+              "Zero until `observe_request_fulfilled`; then decremented per return."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "owner_request_rent_refundable_remaining",
+            "docs": [
+              "Zero until observed; then decremented by each owner share paid."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_returned",
+            "type": "u64"
+          },
+          {
+            "name": "reserve_settled",
+            "type": "bool"
+          },
+          {
+            "name": "rent",
+            "type": {
+              "defined": {
+                "name": "RentComponents"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigActivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigStaged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigTerms",
+      "docs": [
+        "The governance-stageable part of a [`ConfigVersion`]: every field except",
+        "the program-assigned `bump`, `version`, `staged_at` and `activated_at`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          },
+          {
+            "name": "plan_rates_bps_per_day",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "plan_durations_s",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "compound_factors_q18",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_day_bounds",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "jackpot_bps",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "front_end_load_bps",
+            "type": "u16"
+          },
+          {
+            "name": "min_game",
+            "type": "u64"
+          },
+          {
+            "name": "min_a",
+            "type": "u64"
+          },
+          {
+            "name": "quota_count",
+            "type": "u8"
+          },
+          {
+            "name": "quota_window_s",
+            "type": "u32"
+          },
+          {
+            "name": "seed_bps",
+            "type": "u16"
+          },
+          {
+            "name": "senior_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "open_cutoff",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "fulfilled_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "page_capacity",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigVersion",
+      "docs": [
+        "One immutable-once-activated rule set. Positions and tickets pin the",
+        "version they were created under, so a later version never rewrites them."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          },
+          {
+            "name": "staged_at",
+            "type": "u64"
+          },
+          {
+            "name": "activated_at",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "plan_rates_bps_per_day",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "plan_durations_s",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "compound_factors_q18",
+            "docs": [
+              "Compound15 / Compound30 total-return factors (Q18), not per-day rates."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_day_bounds",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "jackpot_bps",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "front_end_load_bps",
+            "type": "u16"
+          },
+          {
+            "name": "min_game",
+            "type": "u64"
+          },
+          {
+            "name": "min_a",
+            "type": "u64"
+          },
+          {
+            "name": "quota_count",
+            "type": "u8"
+          },
+          {
+            "name": "quota_window_s",
+            "type": "u32"
+          },
+          {
+            "name": "seed_bps",
+            "type": "u16"
+          },
+          {
+            "name": "senior_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "open_cutoff",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "fulfilled_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "page_capacity",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DrawCaptured",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "captured_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DrawRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "request_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_paid",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Funding",
+      "docs": [
+        "Who pays a page's rent. Frozen Borsh order: `Free` 0, `Caller` 1, `LockedClose` 2."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Free"
+          },
+          {
+            "name": "Caller"
+          },
+          {
+            "name": "LockedClose"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeArgs",
+      "docs": [
+        "Genesis configuration.  `sponsor` is intentionally repeated in the args",
+        "and as a signer account so a fee payer cannot silently become the sponsor."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "management_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_domain",
+            "docs": [
+              "Immutable cluster domain (devnet and mainnet differ); stored once in",
+              "`Pool.cluster_domain` and never writable again."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "docs": [
+              "Provider tuple and launch fields written into `ConfigVersion#1`; they",
+              "are launch values, so `ConfigVersion::default_v1` leaves them zeroed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ManagementWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "management_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OperationsFunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "funder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "free_balance_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OperationsWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "free_balance_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ops",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "free_balance",
+            "type": "u64"
+          },
+          {
+            "name": "locked_remaining_total",
+            "docs": [
+              "O(1) aggregate of close-reserve lamports still locked; never rescanned."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "unallocated_excess",
+            "docs": [
+              "Anonymous OpsCash credits not yet assigned to a partition."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_consumed_total",
+            "type": "u128"
+          },
+          {
+            "name": "request_rent_outstanding",
+            "type": "u64"
+          },
+          {
+            "name": "eligible_return_budget",
+            "type": "u64"
+          },
+          {
+            "name": "provider_returned_total",
+            "type": "u128"
+          },
+          {
+            "name": "provider_deficit",
+            "type": "u64"
+          },
+          {
+            "name": "client_balance_observed",
+            "type": "u64"
+          },
+          {
+            "name": "client_protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u128"
+          },
+          {
+            "name": "total_withdrawn",
+            "type": "u128"
+          },
+          {
+            "name": "total_rent_funded",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OwnerRefundDelivered",
+      "docs": [
+        "A deferred owner refund (unused close reserve, or returned owner-funded",
+        "request rent, that the runtime could not deliver at settlement) reached the",
+        "immutable owner destination through `deliver_owner_refund`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PageKind",
+      "docs": [
+        "Which shared page a provisioning or cleanup call addresses. The Borsh",
+        "encoding is part of the client ABI: variant order (`Registry` 0,",
+        "`Snapshot` 1, `Participant` 2, `Candidate` 3) is frozen."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Registry"
+          },
+          {
+            "name": "Snapshot"
+          },
+          {
+            "name": "Participant",
+            "fields": [
+              {
+                "name": "round",
+                "type": "u64"
+              }
+            ]
+          },
+          {
+            "name": "Candidate",
+            "fields": [
+              {
+                "name": "close_id",
+                "type": "u64"
+              },
+              {
+                "name": "set_tag",
+                "type": "u8"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "gross_paid",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "net",
+            "type": "u64"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "closing",
+            "type": "bool"
+          },
+          {
+            "name": "close_id",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "ticket_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanKindArg",
+      "docs": [
+        "The three plan discriminants are part of the instruction ABI.  They are",
+        "deliberately separate from the host enum so Anchor serializes a stable",
+        "on-chain representation without importing host state."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Simple"
+          },
+          {
+            "name": "Compound15"
+          },
+          {
+            "name": "Compound30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "cluster_domain",
+            "docs": [
+              "Immutable genesis domain: written once by `initialize`, never again."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "active_config_version",
+            "type": "u32"
+          },
+          {
+            "name": "pot",
+            "type": "u64"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "management",
+            "type": "u64"
+          },
+          {
+            "name": "pending_toll",
+            "type": "u64"
+          },
+          {
+            "name": "funded_claims",
+            "type": "u128"
+          },
+          {
+            "name": "excess",
+            "type": "u64"
+          },
+          {
+            "name": "protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "registry_len",
+            "type": "u64"
+          },
+          {
+            "name": "registry_version",
+            "type": "u64"
+          },
+          {
+            "name": "next_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "next_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "active_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_pages",
+            "type": "u64"
+          },
+          {
+            "name": "registry_pages",
+            "type": "u64"
+          },
+          {
+            "name": "participant_count",
+            "type": "u64"
+          },
+          {
+            "name": "participant_pages",
+            "docs": [
+              "Current-round participant page capacity; reset at finalize."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "next_close_id",
+            "type": "u64"
+          },
+          {
+            "name": "current_close_id",
+            "docs": [
+              "`Some` exactly while a close is in progress; see [`Pool::closing`]."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "total_gross_deposits",
+            "type": "u128"
+          },
+          {
+            "name": "total_net_payouts",
+            "type": "u128"
+          },
+          {
+            "name": "governance",
+            "type": "pubkey"
+          },
+          {
+            "name": "guardian_vault",
+            "docs": [
+              "Genesis guardian vault. `Admission.guardian_vault` is authoritative.",
+              "Genesis copy of `Admission.guardian_vault`; `rotate_guardian` (M3) writes both in one instruction."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "management_recipient",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "principal",
+            "type": "u64"
+          },
+          {
+            "name": "opened_at",
+            "type": "u64"
+          },
+          {
+            "name": "maturity_at",
+            "type": "u64"
+          },
+          {
+            "name": "last_accrued_at",
+            "type": "u64"
+          },
+          {
+            "name": "remainder",
+            "type": "u128"
+          },
+          {
+            "name": "accrued_gross",
+            "type": "u128"
+          },
+          {
+            "name": "paid_gross",
+            "type": "u128"
+          },
+          {
+            "name": "net_payout",
+            "type": "u128"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionOpened",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` (and `close_id`) only; `close_id` is always `None` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `None`: an opening is never attributed to a close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "plan",
+            "type": "u8"
+          },
+          {
+            "name": "gross",
+            "type": "u64"
+          },
+          {
+            "name": "load",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Promotion",
+      "docs": [
+        "Outcome of the close's Series-B promotion draw."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Pending"
+          },
+          {
+            "name": "Applied",
+            "fields": [
+              {
+                "name": "winner",
+                "type": "pubkey"
+              },
+              {
+                "name": "entitlement",
+                "type": "u128"
+              }
+            ]
+          },
+          {
+            "name": "Skipped",
+            "fields": [
+              {
+                "name": "reason",
+                "type": "u8"
+              },
+              {
+                "name": "stage",
+                "type": "u8"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "PromotionApplied",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` and `close_id` only; `close_id` is always `Some` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `Some`: a promotion belongs to exactly one close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "loss",
+            "type": "u64"
+          },
+          {
+            "name": "entitlement",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PromotionSkipped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
+          },
+          {
+            "name": "stage",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RentComponents",
+      "docs": [
+        "Who funded a shared account's rent, in at most two components (DR-13).",
+        "The actual payer of the `create_account` CPI is the `OpsCash` PDA; this",
+        "records the beneficial funders and where the owner share is refunded."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ops",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "u64"
+          },
+          {
+            "name": "owner_refund",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ReserveSchedule",
+      "docs": [
+        "Rent and provider prices snapshotted into a `CloseRecord` at close time."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "per_candidate_page_rent",
+            "type": "u64"
+          },
+          {
+            "name": "per_registry_page_rent",
+            "type": "u64"
+          },
+          {
+            "name": "b_account_rent",
+            "type": "u64"
+          },
+          {
+            "name": "pending_request_rent",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee",
+            "type": "u64"
+          },
+          {
+            "name": "headroom_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RngAuthority",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "client",
+            "docs": [
+              "The registered ORAO client this authority signs requests for."
+            ],
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RoundClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RoundFinalized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "new_round",
+            "type": "u64"
+          },
+          {
+            "name": "seed_carried",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeriesAFunded",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` (and `close_id`) only; `close_id` is always `None` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `None`: funding is never attributed to a close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "gross",
+            "type": "u64"
+          },
+          {
+            "name": "entitlement_after",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SpentLedger",
+      "docs": [
+        "Spent ledger by category (candidate page, registry page, B account,",
+        "provider fee, pending-request rent) and source (`_s` sponsor, `_o` owner)."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "candidate_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "candidate_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "registry_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "registry_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "b_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "b_rent_o",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_s",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_o",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_s",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent_o",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticket",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "phase",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "`Some` when this ticket allocates a closing payout's toll."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "captured_len",
+            "type": "u64"
+          },
+          {
+            "name": "expected_version",
+            "type": "u64"
+          },
+          {
+            "name": "cursor",
+            "type": "u64"
+          },
+          {
+            "name": "a_count",
+            "type": "u64"
+          },
+          {
+            "name": "b_count",
+            "type": "u64"
+          },
+          {
+            "name": "a_remainder_total",
+            "docs": [
+              "Discovery accumulator: U256 sum of Series-A remainders, little-endian.",
+              "A sum of u128 remainders can exceed u128, so it never narrows."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "sealed_a_denominator",
+            "docs": [
+              "Fixed U256 denominator frozen at seal, serialized little-endian."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "oldest",
+            "type": "pubkey"
+          },
+          {
+            "name": "oldest_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "oldest_slot",
+            "type": "u64"
+          },
+          {
+            "name": "senior_credit",
+            "type": "u64"
+          },
+          {
+            "name": "senior_slice",
+            "type": "u64"
+          },
+          {
+            "name": "a_slice",
+            "type": "u64"
+          },
+          {
+            "name": "b_slice",
+            "type": "u64"
+          },
+          {
+            "name": "seed_credit",
+            "type": "u64"
+          },
+          {
+            "name": "credited",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "senior_bps",
+            "docs": [
+              "Backer-half split pinned from `ConfigVersion` when the ticket is created."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketCommitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "ticket_id",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "credited",
+            "type": "u64"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "User",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "ever_a",
+            "type": "bool"
+          },
+          {
+            "name": "ever_b",
+            "type": "bool"
+          },
+          {
+            "name": "successful_at",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "call_count",
+            "type": "u8"
+          },
+          {
+            "name": "b_entitlement",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserRound",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "deposits",
+            "type": "u128"
+          },
+          {
+            "name": "net_payout",
+            "type": "u128"
+          },
+          {
+            "name": "participant_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
