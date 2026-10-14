@@ -367,6 +367,10 @@ fn export_closing_fixture(out: &Path, keys_dir: &Path) {
     // Operations free balance funds the close reserve at the closing payout (the harness World's
     // genesis carries none; the real `genesis` subcommand funds 5 SOL the same way).
     world.set_ops_free(5_000_000_000);
+    // The harness World carries the LiteSVM fixture domain; the local cluster identity the frontend
+    // pins for a loopback RPC is the localnet dev domain (the same one `genesis` stamps), and the
+    // adapter refuses to sign against any other Pool.clusterDomain (Codex R1), so stamp it here too.
+    world.set_pool(|pool| pool.cluster_domain = CLUSTER_DOMAIN);
     write_keypair(&keys_dir.join("owner.json"), &owner);
     let fulfill_authority = read_or_create_keypair(&keys_dir.join("fulfill-authority.json"), Some(FULFILL_AUTHORITY_SEED));
     let pk = provider_keys();
