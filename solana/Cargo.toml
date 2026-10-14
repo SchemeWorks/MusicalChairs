@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/economics"]
-exclude = ["probes/provider-resources"]
+exclude = ["probes/provider-resources", "probes/runtime"]
 resolver = "2"
 
 [workspace.package]
