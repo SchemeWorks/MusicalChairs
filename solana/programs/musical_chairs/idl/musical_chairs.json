@@ -334,284 +334,6 @@
       ]
     },
     {
-      "name": "claim_position",
-      "discriminator": [
-        168,
-        90,
-        89,
-        44,
-        203,
-        246,
-        210,
-        46
-      ],
-      "accounts": [
-        {
-          "name": "owner",
-          "signer": true,
-          "relations": [
-            "user",
-            "position"
-          ]
-        },
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "admission",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  97,
-                  100,
-                  109,
-                  105,
-                  115,
-                  115,
-                  105,
-                  111,
-                  110
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "game_vault",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  103,
-                  97,
-                  109,
-                  101,
-                  45,
-                  118,
-                  97,
-                  117,
-                  108,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "ops",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  115
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "ops_cash",
-          "docs": [
-            "system-owned `[ops-cash]` PDA before any close reserve is locked."
-          ],
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  111,
-                  112,
-                  115,
-                  45,
-                  99,
-                  97,
-                  115,
-                  104
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "user",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "user_round",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  117,
-                  115,
-                  101,
-                  114,
-                  45,
-                  114,
-                  111,
-                  117,
-                  110,
-                  100
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "pool.round_id",
-                "account": "Pool"
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              }
-            ]
-          }
-        },
-        {
-          "name": "position",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  115,
-                  105,
-                  116,
-                  105,
-                  111,
-                  110
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "owner"
-              },
-              {
-                "kind": "account",
-                "path": "position.nonce",
-                "account": "Position"
-              }
-            ]
-          }
-        },
-        {
-          "name": "ticket",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  99,
-                  107,
-                  101,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "destination",
-          "docs": [
-            "signature/destination policy before `send_game`."
-          ],
-          "writable": true
-        },
-        {
-          "name": "system_program",
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "event_authority",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  95,
-                  95,
-                  101,
-                  118,
-                  101,
-                  110,
-                  116,
-                  95,
-                  97,
-                  117,
-                  116,
-                  104,
-                  111,
-                  114,
-                  105,
-                  116,
-                  121
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "program"
-        }
-      ],
-      "args": [
-        {
-          "name": "minimum_receive",
-          "type": "u64"
-        },
-        {
-          "name": "close_simple",
-          "type": "bool"
-        }
-      ]
-    },
-    {
       "name": "close_shared_account",
       "discriminator": [
         28,
@@ -673,6 +395,130 @@
           }
         }
       ]
+    },
+    {
+      "name": "close_simple_position",
+      "discriminator": [
+        199,
+        194,
+        80,
+        245,
+        222,
+        216,
+        66,
+        118
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
     },
     {
       "name": "commit",
@@ -1066,9 +912,37 @@
         {
           "name": "registry",
           "docs": [
-            "when a new/reopened row appends; active same-owner top-ups need no page."
+            "only when a new/reopened row appends; active same-owner top-ups need",
+            "no page and ignore this account."
           ],
           "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "The pool's active version; `public_series_a_enabled` and `min_a` are",
+            "read from it."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.active_config_version",
+                "account": "Pool"
+              }
+            ]
+          }
         },
         {
           "name": "system_program",
@@ -1109,7 +983,11 @@
       ],
       "args": [
         {
-          "name": "gross_lamports",
+          "name": "gross",
+          "type": "u64"
+        },
+        {
+          "name": "expected_round_id",
           "type": "u64"
         }
       ]
@@ -1487,6 +1365,39 @@
           }
         },
         {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.active_config_version",
+                "account": "Pool"
+              }
+            ]
+          }
+        },
+        {
+          "name": "participant_page",
+          "docs": [
+            "`pool.participant_count / 8`.  Read and written only when this is the",
+            "owner's first position of the round; otherwise any account is accepted.",
+            "The handler derives the PDA, the program owner, the discriminator, the",
+            "round, the index and the free capacity before it appends."
+          ],
+          "writable": true
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         },
@@ -1533,12 +1444,20 @@
           }
         },
         {
-          "name": "gross_lamports",
+          "name": "gross",
           "type": "u64"
         },
         {
           "name": "client_nonce",
           "type": "u64"
+        },
+        {
+          "name": "expected_round_id",
+          "type": "u64"
+        },
+        {
+          "name": "expected_config",
+          "type": "u32"
         }
       ]
     },
@@ -2170,6 +2089,283 @@
       ]
     },
     {
+      "name": "settle_compounding",
+      "discriminator": [
+        2,
+        248,
+        35,
+        254,
+        138,
+        107,
+        184,
+        174
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "docs": [
+            "`[ops-cash]` PDA before any reserve is locked or cash moves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_round",
+          "docs": [
+            "below); loaded and written by the handler only after the position is",
+            "proven to belong to the current round."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "before `send_game`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required only when this payout closes the round: the pre-provisioned",
+            "`CloseRecord(pool.next_close_id)`."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        },
+        {
+          "name": "max_work_contribution",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "stage_config_version",
       "discriminator": [
         88,
@@ -2484,6 +2680,283 @@
       "args": [
         {
           "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_simple",
+      "discriminator": [
+        176,
+        94,
+        18,
+        93,
+        130,
+        82,
+        92,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "docs": [
+            "`[ops-cash]` PDA before any reserve is locked or cash moves."
+          ],
+          "writable": true
+        },
+        {
+          "name": "user_round",
+          "docs": [
+            "below); loaded and written by the handler only after the position is",
+            "proven to belong to the current round."
+          ],
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "position.config_version",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "before `send_game`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "close_record",
+          "docs": [
+            "Required only when this payout closes the round: the pre-provisioned",
+            "`CloseRecord(pool.next_close_id)`."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        },
+        {
+          "name": "max_work_contribution",
           "type": "u64"
         }
       ]
@@ -3070,6 +3543,14 @@
     {
       "code": 6036,
       "name": "LockNotPermitted"
+    },
+    {
+      "code": 6037,
+      "name": "StaleConfig"
+    },
+    {
+      "code": 6038,
+      "name": "PublicSeriesADisabled"
     }
   ],
   "types": [
