@@ -19,8 +19,8 @@ use crate::state::{
     pages_for, Admission, CandidatePage, CloseRecord, ConfigVersion, GameVault, Ops, ParticipantPage,
     Pool, Promotion, RegistryPage, RentComponents, RngAuthority, SnapshotPage, SnapshotRow, Ticket,
     ADMISSION_SEED, CANDIDATES_SEED, CLOSE_SEED, CONFIG_SEED, DRAW_NOT_REQUESTED, GAME_VAULT_SEED,
-    IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, PARTICIPANTS_SEED, POOL_SEED, QUOTA_CALLS,
-    QUOTA_WINDOW_SECS,
+    IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, PARTICIPANTS_SEED, POOL_SEED, PROMOTION_DEADLINE_SECS,
+    QUOTA_CALLS, QUOTA_WINDOW_SECS,
     REGISTRY_SEED, RNG_AUTHORITY_SEED, SNAPSHOT_SEED, TICKET_SEED,
 };
 
@@ -147,6 +147,15 @@ impl ConfigTerms {
         require!(
             self.quota_count == QUOTA_CALLS
                 && u64::from(self.quota_window_s) == QUOTA_WINDOW_SECS,
+            crate::ErrorCode::InvalidState
+        );
+        // The promotion window is frozen too (spec section 4: `promotion_deadline =
+        // close_started_at + 600`, never reset).  The closing payout copies the
+        // staged value verbatim, so a staged 1 would re-time every close to a
+        // one-second window; only the canonical value may be restated (Codex
+        // M7 review).
+        require!(
+            u64::from(self.deadline_seconds) == PROMOTION_DEADLINE_SECS,
             crate::ErrorCode::InvalidState
         );
         // Five more rule values are consumed by fixed helpers rather than read
@@ -2123,7 +2132,7 @@ mod tests {
 
     #[test]
     fn config_terms_reject_each_bound_once() {
-        let cases: [(&str, fn(&mut ConfigTerms)); 41] = [
+        let cases: [(&str, fn(&mut ConfigTerms)); 43] = [
             ("plan rate over 100%", |t| t.plan_rates_bps_per_day[0] = 10_001),
             ("simple toll over 100%", |t| t.simple_toll_bps[2] = 10_001),
             ("jackpot over 100%", |t| t.jackpot_bps[1] = 10_001),
@@ -2140,6 +2149,9 @@ mod tests {
             ("zero plan duration", |t| t.plan_durations_s[1] = 0),
             ("zero quota window", |t| t.quota_window_s = 0),
             ("zero deadline", |t| t.deadline_seconds = 0),
+            // The promotion window is frozen at 600 s (Codex M7 review).
+            ("deadline one second short", |t| t.deadline_seconds = 599),
+            ("deadline one second long", |t| t.deadline_seconds = 601),
             ("zero quota count", |t| t.quota_count = 0),
             ("quota count beyond the User array", |t| t.quota_count = QUOTA_CALLS + 1),
             ("page capacity too small", |t| t.page_capacity = PAGE_CAPACITY as u8 - 1),

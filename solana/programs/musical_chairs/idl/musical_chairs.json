@@ -1061,6 +1061,105 @@
       ]
     },
     {
+      "name": "deliver_owner_refund",
+      "discriminator": [
+        123,
+        215,
+        234,
+        246,
+        81,
+        123,
+        114,
+        244
+      ],
+      "accounts": [
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "discover_rows",
       "discriminator": [
         99,
@@ -4272,6 +4371,19 @@
       ]
     },
     {
+      "name": "OwnerRefundDelivered",
+      "discriminator": [
+        162,
+        39,
+        214,
+        102,
+        30,
+        151,
+        29,
+        191
+      ]
+    },
+    {
       "name": "PayoutPaid",
       "discriminator": [
         64,
@@ -4589,6 +4701,14 @@
     {
       "code": 6049,
       "name": "AlreadyObserved"
+    },
+    {
+      "code": 6050,
+      "name": "NothingDeferred"
+    },
+    {
+      "code": 6051,
+      "name": "RefundNotDeliverable"
     }
   ],
   "types": [
@@ -5696,6 +5816,39 @@
           {
             "name": "total_rent_funded",
             "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OwnerRefundDelivered",
+      "docs": [
+        "A deferred owner refund (unused close reserve, or returned owner-funded",
+        "request rent, that the runtime could not deliver at settlement) reached the",
+        "immutable owner destination through `deliver_owner_refund`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
           }
         ]
       }

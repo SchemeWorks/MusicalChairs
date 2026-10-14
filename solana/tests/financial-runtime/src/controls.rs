@@ -1948,12 +1948,17 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
     // entitlement multipliers, seed half, open cutoff); a staged value other
     // than the frozen one is rejected at staging with fee-only rollback
     // (Codex M6 follow-up).
-    let pinned: [(&str, fn(&mut ConfigTerms)); 5] = [
+    let pinned: [(&str, fn(&mut ConfigTerms)); 7] = [
         ("noncanonical_simple_rate", |t| t.plan_rates_bps_per_day[0] = 1_000),
         ("noncanonical_a_entitlement", |t| t.a_entitlement_bps = 12_000),
         ("noncanonical_b_entitlement", |t| t.b_entitlement_bps = 12_000),
         ("noncanonical_seed_half", |t| t.seed_bps = 4_000),
         ("noncanonical_open_cutoff", |t| t.open_cutoff = 100),
+        // The promotion window is frozen at 600 s (spec section 4); the closing
+        // payout copies the staged value, so 599/601 are rejected at staging
+        // (Codex M7 review, IMPL-42).
+        ("noncanonical_deadline_short", |t| t.deadline_seconds = 599),
+        ("noncanonical_deadline_long", |t| t.deadline_seconds = 601),
     ];
     for (variant, mutate) in pinned {
         let mut altered = terms(2);

@@ -124,6 +124,19 @@
     "data_hex": "199d63447cb9442c010a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a0a97000000000000009800000000000000"
   },
   {
+    "name": "OwnerRefundDelivered",
+    "discriminator_hex": "a227d6661e971dbf",
+    "sample": {
+      "schema_version": "1",
+      "round_id": "201",
+      "close_id": "202",
+      "amount": "203",
+      "destination": "swqrv48gsrwpBFbftEwnP2vB4jckpvfGJfXkwaniLCC"
+    },
+    "body_hex": "01c900000000000000ca00000000000000cb000000000000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d",
+    "data_hex": "a227d6661e971dbf01c900000000000000ca00000000000000cb000000000000000d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d0d"
+  },
+  {
     "name": "PayoutPaid",
     "discriminator_hex": "40cfc1b00e66369f",
     "sample": {

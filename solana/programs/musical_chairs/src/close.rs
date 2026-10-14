@@ -32,8 +32,8 @@ use ethnum::U256;
 use crate::allocation::{batch_len, read_program_account, write_program_account, SERIES_B};
 use crate::controls::require_vault_signer;
 use crate::events::{
-    CandidatesSealed, DrawCaptured, DrawRequested, PromotionApplied, PromotionSkipped,
-    RoundFinalized, SCHEMA_VERSION,
+    CandidatesSealed, DrawCaptured, DrawRequested, OwnerRefundDelivered, PromotionApplied,
+    PromotionSkipped, RoundFinalized, SCHEMA_VERSION,
 };
 use crate::positions::remains_open;
 use crate::provider::{self, orao};
@@ -258,45 +258,57 @@ pub fn book_locked_rent(ops: &mut Ops, close: &mut CloseRecord, debit: u64, kind
     Ok((sponsor, owner))
 }
 
-/// A system account can receive `amount` unless it is empty (zero lamports)
-/// and the credit would leave it below the rent-exempt minimum.
+/// Whether a credit of `amount` can legally land on a data-less system account
+/// holding `current_lamports`.  Runtime rule (Agave `svm/src/rent_calculator.rs`,
+/// copied verbatim into LiteSVM 0.7.1 `utils/rent.rs::transition_allowed`): a
+/// writable account may not END a transaction rent-paying (0 < lamports <
+/// minimum) if it was uninitialized or rent-exempt before, and a rent-paying
+/// account may not be credited while staying rent-paying.  So the post-balance
+/// must reach the minimum; `current >= minimum` is the trivial case.  LiteSVM
+/// applies that check only to accounts WITH data, so this predicate is
+/// validated against the rule text, not against local execution (IMPL-43).
 pub fn credit_is_deliverable(current_lamports: u64, amount: u64, rent_exempt_minimum: u64) -> bool {
-    current_lamports > 0 || amount >= rent_exempt_minimum
+    current_lamports.saturating_add(amount) >= rent_exempt_minimum
 }
 
 /// Settle the reserve once, when the promotion becomes terminal: the sponsor
-/// remainder returns to `free_balance`, the owner remainder is paid to the
-/// owner destination, both partitions go to zero and the aggregate falls by
-/// their sum.  Returns the owner lamports that must be transferred out of
-/// `OpsCash`.
-///
-/// When the owner destination cannot legally receive the credit (see
-/// [`credit_is_deliverable`]), the owner remainder stays in `OpsCash` as
-/// `unallocated_excess` instead of failing: settlement gates `finalize_round`,
-/// so it must never depend on the state of an external wallet.
+/// remainder returns to `free_balance`; the owner remainder is paid to the
+/// owner destination when the runtime can deliver it (see
+/// [`credit_is_deliverable`]), otherwise it STAYS in `locked_owner_remaining`
+/// (held in `OpsCash`, still counted in `ops.locked_remaining_total`) as a
+/// deferred owner refund that `deliver_owner_refund` pays later, exactly
+/// once.  Returns the owner lamports to transfer now.  Owner lamports are
+/// never converted into `unallocated_excess` (spec section 8.5, DR-14; Codex
+/// M7 review).  Settlement gates `finalize_round`, so it never fails on the
+/// state of an external wallet.
 pub fn settle_books(ops: &mut Ops, close: &mut CloseRecord, owner_deliverable: bool) -> Result<u64> {
     if close.reserve_settled {
         return Ok(0);
     }
     let (sponsor, owner) = (close.locked_sponsor_remaining, close.locked_owner_remaining);
-    let released = checked_add(sponsor, owner)?;
+    let pay = if owner_deliverable { owner } else { 0 };
+    let released = checked_add(sponsor, pay)?;
     let locked_total = checked_sub(ops.locked_remaining_total, released)?;
     let free = checked_add(ops.free_balance, sponsor)?;
-    let (pay, park) = if owner == 0 {
-        (0, 0)
-    } else if owner_deliverable {
-        (owner, 0)
-    } else {
-        (0, owner)
-    };
-    let excess = checked_add(ops.unallocated_excess, park)?;
     ops.locked_remaining_total = locked_total;
     ops.free_balance = free;
-    ops.unallocated_excess = excess;
     close.locked_sponsor_remaining = 0;
-    close.locked_owner_remaining = 0;
+    close.locked_owner_remaining = owner - pay;
     close.reserve_settled = true;
     Ok(pay)
+}
+
+/// Book the delivery of a deferred owner refund: the whole owner partition of
+/// a settled close leaves `OpsCash` for the immutable destination, exactly
+/// once.  Returns the lamports to transfer.
+pub fn book_delivery(ops: &mut Ops, close: &mut CloseRecord) -> Result<u64> {
+    require!(close.reserve_settled, Code::InvalidState);
+    let owed = close.locked_owner_remaining;
+    require!(owed > 0, Code::NothingDeferred);
+    let locked_total = checked_sub(ops.locked_remaining_total, owed)?;
+    ops.locked_remaining_total = locked_total;
+    close.locked_owner_remaining = 0;
+    Ok(owed)
 }
 
 /// Move `extra` from free sponsor funds into the close's sponsor partition and
@@ -350,8 +362,13 @@ pub fn provider_deficit(eligible_budget: u64, client_balance: u64, client_rent: 
 /// Book an executed provider return of `amount` (spec section 8.4): the owner
 /// share `min(amount, owner_request_rent_refundable_remaining)` goes to the
 /// owner destination, the rest to `free_balance`.  Returns the owner lamports
-/// to transfer out of `OpsCash` (zero when the share is parked as
-/// `unallocated_excess` because the destination cannot receive it).
+/// to transfer out of `OpsCash`.  When the destination cannot receive the
+/// share it is re-locked into the close's owner partition
+/// (`locked_owner_remaining`, counted in `ops.locked_remaining_total`): before
+/// settlement it funds owner-attributed work like the rest of the partition,
+/// after settlement it is the deferred refund `deliver_owner_refund` pays.
+/// Owner lamports are never converted into `unallocated_excess` (DR-14; Codex
+/// M7 review).
 pub fn book_return(
     ops: &mut Ops,
     close: &mut CloseRecord,
@@ -365,14 +382,9 @@ pub fn book_return(
     let owner_left = checked_sub(close.owner_request_rent_refundable_remaining, owner_share)?;
     let budget = checked_sub(ops.eligible_return_budget, amount)?;
     let free = checked_add(ops.free_balance, to_free)?;
-    let (pay, park) = if owner_share == 0 {
-        (0, 0)
-    } else if owner_deliverable {
-        (owner_share, 0)
-    } else {
-        (0, owner_share)
-    };
-    let excess = checked_add(ops.unallocated_excess, park)?;
+    let (pay, deferred) = if owner_deliverable { (owner_share, 0) } else { (0, owner_share) };
+    let owner_locked = checked_add(close.locked_owner_remaining, deferred)?;
+    let locked_total = checked_add(ops.locked_remaining_total, deferred)?;
     let returned = checked_add(close.request_rent_returned, amount)?;
     let returned_total = ops
         .provider_returned_total
@@ -380,10 +392,11 @@ pub fn book_return(
         .ok_or_else(|| error!(Code::Overflow))?;
     close.eligible_return_remaining = eligible_left;
     close.owner_request_rent_refundable_remaining = owner_left;
+    close.locked_owner_remaining = owner_locked;
     close.request_rent_returned = returned;
     ops.eligible_return_budget = budget;
     ops.free_balance = free;
-    ops.unallocated_excess = excess;
+    ops.locked_remaining_total = locked_total;
     ops.provider_returned_total = returned_total;
     Ok(pay)
 }
@@ -922,6 +935,25 @@ pub struct ReconcileOpsCashWithClient<'info> {
     pub client: UncheckedAccount<'info>,
 }
 
+/// `deliver_owner_refund()`: permissionless delivery of a settled close's
+/// deferred owner refund to the immutable destination.  No Pool account: the
+/// close may already be finalized.
+#[event_cpi]
+#[derive(Accounts)]
+pub struct DeliverOwnerRefund<'info> {
+    #[account(mut, seeds = [CLOSE_SEED, &close_record.close_id.to_le_bytes()], bump = close_record.bump)]
+    pub close_record: Box<Account<'info, CloseRecord>>,
+    #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
+    pub ops: Box<Account<'info, Ops>>,
+    /// CHECK: canonical OpsCash PDA; validated by `sync_ops`.
+    #[account(mut)]
+    pub ops_cash: UncheckedAccount<'info>,
+    /// CHECK: must equal `owner_refund_destination`.
+    #[account(mut)]
+    pub owner_refund: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
 // ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
@@ -1454,6 +1486,38 @@ pub fn reconcile_ops_cash_with_client(ctx: Context<ReconcileOpsCashWithClient>) 
     Ok(())
 }
 
+/// `deliver_owner_refund()`: pay a settled close's deferred owner refund (its
+/// whole `locked_owner_remaining`) to the immutable `owner_refund_destination`
+/// once the runtime can deliver it.  Anyone may call it; nothing but the
+/// destination can receive the lamports; a second call finds nothing deferred.
+/// `RefundNotDeliverable` (fee-only) while the destination still cannot take
+/// the credit; the lamports stay owed.
+pub fn deliver_owner_refund(ctx: Context<DeliverOwnerRefund>) -> Result<()> {
+    let event = {
+        let a = &mut *ctx.accounts;
+        let close = &mut *a.close_record;
+        require!(close.reserve_settled, Code::InvalidState);
+        let owed = close.locked_owner_remaining;
+        require!(owed > 0, Code::NothingDeferred);
+        let refund = a.owner_refund.to_account_info();
+        require_keys_eq!(refund.key(), close.owner_refund_destination, Code::WrongAccount);
+        let cash = a.ops_cash.to_account_info();
+        crate::sync_ops(&mut a.ops, &cash)?;
+        require!(owner_credit_deliverable(&refund, owed)?, Code::RefundNotDeliverable);
+        let pay = book_delivery(&mut a.ops, close)?;
+        crate::transfer_from_cash(&cash, &refund, &a.system_program.to_account_info(), pay)?;
+        OwnerRefundDelivered {
+            schema_version: SCHEMA_VERSION,
+            round_id: close.round_id,
+            close_id: close.close_id,
+            amount: pay,
+            destination: refund.key(),
+        }
+    };
+    emit_cpi!(event);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1732,27 +1796,58 @@ mod tests {
     }
 
     #[test]
-    fn an_undeliverable_owner_destination_parks_the_remainder_instead_of_blocking_finalization() {
+    fn an_undeliverable_owner_destination_defers_the_remainder_to_the_owner_without_blocking_finalization() {
         let (mut ops, mut close) = locked(10, 300);
         let pay = settle_books(&mut ops, &mut close, false).unwrap();
         assert_eq!(pay, 0);
-        assert_eq!(ops.unallocated_excess, 300);
-        assert_eq!(ops.free_balance, 10);
-        assert_eq!(ops.locked_remaining_total, 0);
+        assert_eq!(ops.unallocated_excess, 0, "owner lamports never become anonymous excess");
+        assert_eq!(ops.free_balance, 10, "the sponsor remainder is released");
+        assert_eq!(ops.locked_remaining_total, 300, "the owner remainder stays locked to the owner");
+        assert_eq!(close.locked_owner_remaining, 300);
+        assert_eq!(close.locked_sponsor_remaining, 0);
         assert!(close.reserve_settled, "settlement still completes");
-        // With nothing owed to the owner nothing is parked.
+        // Settlement is idempotent and does not pay the deferred amount.
+        assert_eq!(settle_books(&mut ops, &mut close, true).unwrap(), 0);
+        assert_eq!(close.locked_owner_remaining, 300);
+        // Delivery pays the whole deferred amount exactly once.
+        assert_eq!(book_delivery(&mut ops, &mut close).unwrap(), 300);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (0, 0));
+        assert_code(book_delivery(&mut ops, &mut close), Code::NothingDeferred);
+        // With nothing owed to the owner nothing is deferred.
         let (mut ops, mut close) = locked(10, 0);
         assert_eq!(settle_books(&mut ops, &mut close, false).unwrap(), 0);
-        assert_eq!(ops.unallocated_excess, 0);
+        assert_eq!((ops.unallocated_excess, ops.locked_remaining_total), (0, 0));
+        assert_code(book_delivery(&mut ops, &mut close), Code::NothingDeferred);
     }
 
     #[test]
-    fn a_credit_to_an_empty_wallet_must_reach_the_rent_exempt_minimum() {
+    fn a_deliverable_owner_destination_is_paid_at_settlement_and_nothing_is_deferred() {
+        let (mut ops, mut close) = locked(10, 300);
+        assert_eq!(settle_books(&mut ops, &mut close, true).unwrap(), 300);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total, ops.free_balance), (0, 0, 10));
+        assert_code(book_delivery(&mut ops, &mut close), Code::NothingDeferred);
+    }
+
+    #[test]
+    fn delivery_requires_a_settled_close() {
+        let (mut ops, mut close) = locked(10, 300);
+        assert_code(book_delivery(&mut ops, &mut close), Code::InvalidState);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (300, 310));
+    }
+
+    /// The runtime rule (Agave rent-state transitions): the post-balance of a
+    /// data-less destination must reach the rent-exempt minimum; a rent-paying
+    /// account may not be credited while staying rent-paying.
+    #[test]
+    fn a_credit_is_deliverable_only_when_the_destination_ends_rent_exempt() {
         assert!(!credit_is_deliverable(0, 1, RENT_FLOOR));
         assert!(!credit_is_deliverable(0, RENT_FLOOR - 1, RENT_FLOOR));
         assert!(credit_is_deliverable(0, RENT_FLOOR, RENT_FLOOR));
-        assert!(credit_is_deliverable(1, 1, RENT_FLOOR), "a funded wallet can receive any credit");
-        assert!(credit_is_deliverable(RENT_FLOOR, 1, RENT_FLOOR));
+        assert!(!credit_is_deliverable(1, 1, RENT_FLOOR), "a legacy rent-paying wallet cannot be topped up below the minimum");
+        assert!(!credit_is_deliverable(1, RENT_FLOOR - 2, RENT_FLOOR));
+        assert!(credit_is_deliverable(1, RENT_FLOOR - 1, RENT_FLOOR), "reaching the minimum exactly is allowed");
+        assert!(credit_is_deliverable(RENT_FLOOR, 1, RENT_FLOOR), "a rent-exempt wallet can receive any credit");
+        assert!(credit_is_deliverable(u64::MAX, 1, RENT_FLOOR), "no overflow at the top of the range");
     }
 
     // ---- provider cash path ---------------------------------------------------
@@ -1854,16 +1949,38 @@ mod tests {
     }
 
     #[test]
-    fn an_undeliverable_owner_share_is_parked_not_lost() {
+    fn an_undeliverable_owner_share_is_relocked_for_the_owner_not_lost() {
         let (mut ops, mut close) = locked(0, 0);
         close.eligible_return_remaining = 1_000;
         close.owner_request_rent_refundable_remaining = 400;
         ops.eligible_return_budget = 1_000;
         let pay = book_return(&mut ops, &mut close, 1_000, false).unwrap();
         assert_eq!(pay, 0);
-        assert_eq!(ops.unallocated_excess, 400);
+        assert_eq!(ops.unallocated_excess, 0, "owner lamports never become anonymous excess");
         assert_eq!(ops.free_balance, 600);
-        assert_eq!(close.owner_request_rent_refundable_remaining, 0);
+        assert_eq!(close.owner_request_rent_refundable_remaining, 0, "the share is accounted exactly once");
+        assert_eq!(close.locked_owner_remaining, 400, "re-locked into the owner partition");
+        assert_eq!(ops.locked_remaining_total, 400);
+        // Not yet settled: the partition settles with the rest at terminal
+        // promotion (paid when deliverable, deferred otherwise).
+        assert_code(book_delivery(&mut ops, &mut close), Code::InvalidState);
+        assert_eq!(settle_books(&mut ops, &mut close, false).unwrap(), 0);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (400, 400));
+        assert_eq!(book_delivery(&mut ops, &mut close).unwrap(), 400);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (0, 0));
+    }
+
+    #[test]
+    fn an_undeliverable_owner_share_after_settlement_is_deferred_until_delivered() {
+        let (mut ops, mut close) = locked(0, 0);
+        assert_eq!(settle_books(&mut ops, &mut close, true).unwrap(), 0);
+        close.eligible_return_remaining = 1_000;
+        close.owner_request_rent_refundable_remaining = 400;
+        ops.eligible_return_budget = 1_000;
+        assert_eq!(book_return(&mut ops, &mut close, 1_000, false).unwrap(), 0);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total, ops.free_balance), (400, 400, 600));
+        assert_eq!(book_delivery(&mut ops, &mut close).unwrap(), 400);
+        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (0, 0));
     }
 
     #[test]

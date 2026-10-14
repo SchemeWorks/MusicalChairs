@@ -35,6 +35,7 @@ pub enum ErrorCode {
     // Appended in M7 (6041..=6049); keep this order.
     ProviderFeeExceeded, RequestNotFulfilled, DeadlinePassed, DeadlineNotReached,
     PromotionTerminal, NotSealed, CandidatesIncomplete, NothingEligible, AlreadyObserved,
+    NothingDeferred, RefundNotDeliverable,
 }
 
 #[cfg(test)]
@@ -74,6 +75,8 @@ mod tests {
         assert_eq!(ErrorCode::CandidatesIncomplete as u32 + 6000, 6047);
         assert_eq!(ErrorCode::NothingEligible as u32 + 6000, 6048);
         assert_eq!(ErrorCode::AlreadyObserved as u32 + 6000, 6049);
+        assert_eq!(ErrorCode::NothingDeferred as u32 + 6000, 6050);
+        assert_eq!(ErrorCode::RefundNotDeliverable as u32 + 6000, 6051);
     }
 
     /// The codes the M7 close handlers reuse from earlier tranches must not

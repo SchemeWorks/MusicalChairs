@@ -165,6 +165,19 @@ pub struct RoundFinalized {
     pub seed_carried: u64,
 }
 
+/// A deferred owner refund (unused close reserve, or returned owner-funded
+/// request rent, that the runtime could not deliver at settlement) reached the
+/// immutable owner destination through `deliver_owner_refund`.
+#[event]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct OwnerRefundDelivered {
+    pub schema_version: u8,
+    pub round_id: u64,
+    pub close_id: u64,
+    pub amount: u64,
+    pub destination: Pubkey,
+}
+
 #[event]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OperationsFunded {
@@ -349,6 +362,9 @@ mod tests {
         case!(cases, false, RoundFinalized {
             schema_version: v, close_id: 131, new_round: 132, seed_carried: 133,
         });
+        case!(cases, false, OwnerRefundDelivered {
+            schema_version: v, round_id: 201, close_id: 202, amount: 203, destination: key(13),
+        });
         case!(cases, false, OperationsFunded {
             schema_version: v, funder: key(9), amount: 141, free_balance_after: 142,
         });
@@ -407,14 +423,14 @@ mod tests {
     #[test]
     fn every_event_leads_with_schema_version_and_all_nineteen_exist() {
         let cases = all_cases();
-        assert_eq!(cases.len(), 19);
+        assert_eq!(cases.len(), 20);
         for c in &cases {
             assert_eq!(c.sample[0], ("schema_version", SCHEMA_VERSION.to_string()), "{}", c.name);
             assert_eq!(c.body[0], SCHEMA_VERSION, "{}: schema_version must be the first body byte", c.name);
         }
         let mut names: Vec<_> = cases.iter().map(|c| c.name).collect();
         names.dedup();
-        assert_eq!(names.len(), 19, "event names must be unique");
+        assert_eq!(names.len(), 20, "event names must be unique");
     }
 
     #[test]

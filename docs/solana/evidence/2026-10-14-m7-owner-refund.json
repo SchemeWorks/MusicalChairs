@@ -1,0 +1,180 @@
+{
+ "recorded_at_utc": "2026-10-14T13:05:53.734576+00:00",
+ "branch": "codex/native-solana-production-core",
+ "base_commit": "8fdade5",
+ "worktree": "scratchpad/wt-impl42 (detached at 8fdade5; same program source as ELF 27de0cfc…)",
+ "patch_sha256": "98f978b52c395278a6f495f8a8fdd14f07ee77fbbd82522eef42b269d01b5251",
+ "elf": {
+  "old": {
+   "sha256": "27de0cfc75ec61372a650f21990462b99863a505fabe89103535e93f7bf91633",
+   "source_set_sha256": "4e50a6a905846e6d8b1d0500eabac0402d24f52fd951169e4a2cba56e260d215"
+  },
+  "new": {
+   "sha256": "4f77706c40398ef2a4dc783c2527e51c6d4cd8d0f4c437d286b877f718128f90",
+   "bytes": 1363760,
+   "source_set_sha256": "e7e2ffcbac842aed4ee47e89baf58e9697d9a3881eceb2569c1b7c8b391166aa",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "9fc9c4a45df306090bf9426197210b61cbf9e50ff4d8e76ef1a6533120ecf005",
+   "guard": "source set identical before and after the build"
+  },
+  "main_tree_rebuild": {
+   "sha256": "fc2c794058867a6c99df919e364dc2328da38669bc9da12194a968366960c6dd",
+   "source_set_sha256": "e7e2ffcbac842aed4ee47e89baf58e9697d9a3881eceb2569c1b7c8b391166aa",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "fd4dbe0b155a70a1b19f8a43b0569beb084eb7ed9fdba860688cd65f0a7bdbf0",
+   "note": "same 19-file source set as the worktree build (identical source_set_sha256) but NOT byte-identical: same size (1,363,760 B), identical string tables (no embedded paths, no differing hash tokens), 29,957 differing bytes scattered through code/data from offset 2,290. Cause not pinned down; HYPOTHESIS: cargo derives -C metadata for a path dependency from its on-disk path, which seeds symbol hashing and codegen-unit ordering, so a build from scratchpad/wt-impl42 and one from the main tree lay out functions differently while compiling the same source. Cross-path reproducibility is therefore neither expected nor relied on; same-path clean-rebuild reproducibility was shown at M0. The main-tree ELF fc2c7940… is the artifact under test from here on; the worktree ELF 4f77706c… proved the patch in isolation (all tests green on both)."
+  }
+ },
+ "idl": {
+  "sha256_worktree": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "instructions": 36,
+  "events": 20,
+  "errors": 52,
+  "check_idl_exit": 0,
+  "sha256_main_tree": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "event_fixture_sha256": "b2041b53ac68ca629cd2742e39078724dfd607a56c36bee5c9c6d3883a5c369f"
+ },
+ "program_unit_tests": {
+  "count": 244,
+  "result": [
+   "ok. 244 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+  ],
+  "log_sha256": "7301917c4404f9486a24aefc1d9f6ed4a15c3e38fe63821b64008ad418eff715",
+  "main_tree": {
+   "result": [
+    "ok. 244 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+   ],
+   "log_sha256": "6db18549a286afcb7f6d5e3598fca1318999698f98bf3f503de4e34d951e6afb"
+  }
+ },
+ "full_harness_on_new_elf": {
+  "results": [
+   "ok. 94 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 51.25s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.98s",
+   "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 44.70s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "ff9f1640a3e1a174d72b249121c179bf5c02284482329968a93a66d9ec5dc42b",
+  "cli_all_exit": 0,
+  "cli_json_sha256": "3290d8dceb07072362fd29a52d113111667e17936ccb122fda559f7b05db9ed4",
+  "cli_outcome_comparison_vs_old_elf": {
+   "old_elf": "27de0cfc75ec61372a650f21990462b99863a505fabe89103535e93f7bf91633",
+   "new_elf": "4f77706c40398ef2a4dc783c2527e51c6d4cd8d0f4c437d286b877f718128f90",
+   "old_observations": 1044,
+   "new_observations": 1046,
+   "labels_only_in_new": [
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_long",
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_short"
+   ],
+   "labels_only_in_old": [],
+   "outcome_changes_on_shared_labels": [],
+   "new_label_outcomes": {
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_long": {
+     "success": false,
+     "error": "InstructionError(1, Custom(6001))"
+    },
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_short": {
+     "success": false,
+     "error": "InstructionError(1, Custom(6001))"
+    }
+   }
+  }
+ },
+ "scope_note": "Local only; nothing deployed, funded, registered, activated or merged. Main-tree reproduction (unit tests, IDL, byte-identical ELF, harness) recorded in the commit that lands these changes.",
+ "card": "IMPL-43",
+ "title": "Undeliverable owner refunds are deferred to the owner, never forfeited (Codex M7 static review item 2)",
+ "contract": "spec section 8.5 (L407) and 8.6 (L421): locked_owner_remaining is transferred to the recorded owner destination; DR-14 owner-attributed return; Codex constraints: no anonymous/free/paid-by-fiat owner funds, no unconditional failing transfer that can block expiry/finalization, immutable destination, exactly-once liability, no custody/admin override, new fee or population cap",
+ "defect": {
+  "where": [
+   "close.rs settle_books (settlement at terminal promotion) parked an undeliverable owner remainder in ops.unallocated_excess and zeroed the owner liability",
+   "close.rs book_return / withdraw_provider_return did the same with the owner share of a provider return",
+   "credit_is_deliverable = current > 0 || amount >= minimum called a legacy rent-paying destination deliverable, so on the cluster the transfer inside expire_promotion / apply_promotion / build_candidates would fail and block round recovery"
+  ],
+  "trigger": "zero-pot (net-0) closing payout with an owner reserve contribution below the rent-exempt minimum to a fresh destination, or a destination failing validate_destination"
+ },
+ "runtime_rule_and_local_limit": {
+  "rule": "Agave svm/src/rent_calculator.rs (copied verbatim into LiteSVM 0.7.1 src/utils/rent.rs::transition_allowed, commit 6fbbaf67): an account may end a transaction rent-paying only if it was rent-paying before, kept its data size and was not credited; for a data-less destination with c lamports a credit a > 0 succeeds iff c + a >= minimum(0)",
+  "litesvm_gap": "LiteSVM 0.7.1 check_accounts_rent applies the check only to accounts with data (skips account.data().is_empty()), so system wallets are never checked locally",
+  "probe_results_litesvm_accepts_all": [
+   "test local_runtime_does_not_check_rent_state_for_data_less_accounts ... PROBE fresh_sub_minimum before=0 amount=500000 cluster_allows=false litesvm_success=true error=None after=500000",
+   "PROBE legacy_rent_paying_stays_below before=1 amount=500000 cluster_allows=false litesvm_success=true error=None after=500001",
+   "PROBE legacy_rent_paying_one_short before=1 amount=890878 cluster_allows=false litesvm_success=true error=None after=890879",
+   "PROBE fresh_exact_minimum before=0 amount=890880 cluster_allows=true litesvm_success=true error=None after=890880",
+   "PROBE legacy_rent_paying_reaches_minimum before=1 amount=890879 cluster_allows=true litesvm_success=true error=None after=890880",
+   "PROBE rent_exempt_any_credit before=890880 amount=1 cluster_allows=true litesvm_success=true error=None after=890881"
+  ],
+  "consequence": "the predicate is validated against the rule text (tests/transfer_constraints.rs restates it and compares on a dense grid), not against local execution; tests/transfer_constraints.rs::local_runtime_does_not_check_rent_state_for_data_less_accounts pins the gap so a LiteSVM upgrade that closes it is noticed",
+  "honesty": "no local RED exists for the cluster transfer rejection itself; the RED cases prove the program-side forfeiture and the predicate disagreement with the rule"
+ },
+ "red_on_old_elf": {
+  "log_sha256": "fffe14c12639027db641d2a7059ab210357402c18f0bb83a4f038c22c1e8641b",
+  "owner_refund_fresh_destination": "assertion failed: the owner's unused reserve is paid or still owed on the CloseRecord (owed 0, paid 0) — 500,000 lamports forfeited to unallocated_excess after expire_promotion",
+  "predicate_vs_rule": "the old predicate disagreed with the rule for legacy_rent_paying_stays_below (c = 1, a = 500,000): predicate deliverable, rule rejects",
+  "unit_red": {
+   "log_sha256": "641252258819d425c90b1c04fc01421dc7923f03fc23b9157d338a50bea81447",
+   "excerpt": [
+    "a legacy rent-paying wallet cannot be topped up below the minimum"
+   ],
+   "note": "the two inverted unit tests (settlement parks → defers; return parks → re-locks) assert the opposite of the IMPL-32 assertions by construction (see the patch)"
+  }
+ },
+ "fix": {
+  "predicate": "credit_is_deliverable(c, a, min) := c.saturating_add(a) >= min",
+  "settle_books": "sponsor remainder → free_balance; owner remainder paid when deliverable, otherwise kept in CloseRecord.locked_owner_remaining (held in OpsCash, counted in ops.locked_remaining_total); reserve_settled set either way; unallocated_excess never receives owner lamports",
+  "book_return_withdraw_provider_return": "undeliverable owner share re-locked into locked_owner_remaining (+ locked_remaining_total); owner_request_rent_refundable_remaining still decremented (exactly once)",
+  "new_instruction": "deliver_owner_refund() — permissionless; requires reserve_settled; pays the whole locked_owner_remaining to the immutable owner_refund_destination once deliverable; RefundNotDeliverable 6051 fee-only otherwise; NothingDeferred 6050 on replay/nothing owed; WrongAccount for any other destination; emits OwnerRefundDelivered (event 20; fixture solana/fixtures/event-encodings.json regenerated)",
+  "invariants": [
+   "OpsCash identity lamports − protected_rent == free + locked_remaining_total + unallocated_excess unchanged (deferred lamports are inside locked_remaining_total)",
+   "reserve_settled ∧ locked_owner_remaining > 0 ⇔ a deferred owner refund is owed; delivery zeroes it exactly once",
+   "finalize_round, commit, expire and claims never depend on the destination"
+  ],
+  "schema": "no account layout change (CloseRecord 657 / Ops 193 unchanged); error codes appended; one event appended",
+  "not_done": "no dedicated CloseRecord field (would change the frozen layout); offered to Codex as the alternative in the supplement"
+ },
+ "green_on_new_elf": {
+  "unit": "244 program tests incl. an_undeliverable_owner_destination_defers_the_remainder_to_the_owner_without_blocking_finalization, a_deliverable_owner_destination_is_paid_at_settlement_and_nothing_is_deferred, delivery_requires_a_settled_close, a_credit_is_deliverable_only_when_the_destination_ends_rent_exempt, an_undeliverable_owner_share_is_relocked_for_the_owner_not_lost, an_undeliverable_owner_share_after_settlement_is_deferred_until_delivered",
+  "litesvm_rows": {
+   "file": "solana/tests/financial-runtime/tests/owner_refund.rs",
+   "log_sha256": "763d58e8c35af64882ce1ef4526c22959d8eb29a320ce1d74f36a168b5e2a7ae",
+   "rows": {
+    "fresh_destination_remainder_is_deferred_then_delivered_once": "zero-pot close, owner 500,000 of the reserve, empty destination: expire → deferred (owed 500,000, paid 0, excess unchanged, free = sponsor remainder, L = 500,000); deliver before funding → 6051 fee-only; wrong destination → WrongAccount fee-only; destination funded to the minimum → deliver pays 500,000 from OpsCash, L = 0, OwnerRefundDelivered{1,1,500000,dest}; replay → 6050 fee-only",
+    "legacy_rent_paying_destination_does_not_block_expiry": "1-lamport destination: expire succeeds, deferred (not attempted), same delivery flow",
+    "deliverable_destination_is_paid_at_settlement_and_nothing_is_deferred": "funded destination: expire pays 500,000 directly, L = 0; deliver → 6050",
+    "delivery_before_settlement_is_refused": "pending close: deliver → InvalidState fee-only, liability intact"
+   },
+   "result": "4 passed; OpsCash identity asserted after every step"
+  },
+  "transfer_constraints": {
+   "file": "solana/tests/financial-runtime/tests/transfer_constraints.rs",
+   "result": "2 passed (gap pinned; predicate == rule on 6 probes + 56-point grid)"
+  }
+ },
+ "open_for_codex": [
+  "accept \"settled close with locked_owner_remaining > 0 = deferred owner refund\" as the contract reading of section 8.5, or require a dedicated field (frozen-layout change)",
+  "deliver_owner_refund permissionless (recommended; destination fixed) or owner/G-gated",
+  "conservation table (section 8.6) gains the rows listed in the supplement"
+ ],
+ "supplement": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+ "worker_observations_pending_impl34": [
+  "IMPL-33: LateCapture 6027 and CandidatesIncomplete 6047 are declared but never raised",
+  "IMPL-33: capture_round_draw flips draw_state to IGNORED_LATE before require_pending on a terminal close (ordering only)",
+  "IMPL-33: provider.rs request_exists treats a prefunded empty system-owned request PDA as absent; the prefunded_system_account row will show whether ORAO creates over it"
+ ],
+ "full_harness_on_main_elf": {
+  "elf_sha256": "fc2c794058867a6c99df919e364dc2328da38669bc9da12194a968366960c6dd",
+  "command": "cargo test --locked --no-fail-fast -- --test-threads=1 --skip close_tests (the IMPL-33 close suite was unexecuted at this point and is run separately)",
+  "results": [
+   "ok. 94 passed; 0 failed; 0 ignored; 0 measured; 47 filtered out; finished in 50.96s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.91s",
+   "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.98s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "6f74007bfa2a1b544df1e0f2dec29bca520ff55d4b77c42dc6497740fb6276dd"
+ }
+}

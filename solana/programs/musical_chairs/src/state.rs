@@ -29,6 +29,9 @@ pub const CANDIDATES_SEED: &[u8] = b"candidates";
 
 pub const QUOTA_CALLS: u8 = 3;
 pub const QUOTA_WINDOW_SECS: u64 = 3_600;
+/// Frozen promotion window (spec section 4): `promotion_deadline = close_started_at + 600`,
+/// pinned once at the closing payout and never reset.
+pub const PROMOTION_DEADLINE_SECS: u64 = 600;
 pub const DISCOVER: u8 = 0;
 pub const SENIOR: u8 = 1;
 pub const SEAL: u8 = 2;
@@ -379,7 +382,7 @@ impl ConfigVersion {
             a_entitlement_bps: 12_400,
             b_entitlement_bps: 11_600,
             open_cutoff: 10,
-            deadline_seconds: 600,
+            deadline_seconds: PROMOTION_DEADLINE_SECS as u32,
             provider_request_fee_lamports: 0,
             provider_fee_headroom_bps: 2_000,
             pending_request_bytes: 759,

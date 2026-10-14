@@ -253,6 +253,7 @@ pub mod musical_chairs_program {
     pub fn observe_request_fulfilled(ctx: Context<ObserveRequestFulfilled>) -> Result<()> { close::observe_request_fulfilled(ctx) }
     pub fn withdraw_provider_return(ctx: Context<WithdrawProviderReturn>, amount: u64) -> Result<()> { close::withdraw_provider_return(ctx,amount) }
     pub fn reconcile_ops_cash_with_client(ctx: Context<ReconcileOpsCashWithClient>) -> Result<()> { close::reconcile_ops_cash_with_client(ctx) }
+    pub fn deliver_owner_refund(ctx: Context<DeliverOwnerRefund>) -> Result<()> { close::deliver_owner_refund(ctx) }
 }
 
 #[cfg(test)]
