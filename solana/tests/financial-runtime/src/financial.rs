@@ -229,6 +229,8 @@ pub fn run_allocation_golden_flow() -> Vec<Observation> {
         accounts::Commit {
             pool: runtime.pool_address(),
             ticket: runtime.ticket_address(),
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::Commit {
             expected_ticket_id: 1,
@@ -249,6 +251,8 @@ pub fn run_allocation_golden_flow() -> Vec<Observation> {
             owner_signer: owners[0],
             backer: runtime.backer_address(0, owners[0]),
             destination: runtime.management.pubkey(),
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::ClaimBacker {
             minimum_receive: 0,
@@ -281,6 +285,8 @@ pub fn run_controls_suite() -> Vec<Observation> {
         accounts::Pause {
             admission: runtime.admission_address(),
             guardian: guardian.pubkey(),
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::SetPause { paused: true },
     );
@@ -295,6 +301,8 @@ pub fn run_controls_suite() -> Vec<Observation> {
         accounts::Pause {
             admission: runtime.admission_address(),
             guardian: owner.pubkey(),
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::SetPause { paused: false },
     );
@@ -312,6 +320,8 @@ pub fn run_controls_suite() -> Vec<Observation> {
             ops: runtime.ops_address(),
             ops_cash: runtime.ops_cash_address(),
             system_program: system_program::ID,
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::FundOperations { amount: 20_000 },
     );
@@ -328,6 +338,8 @@ pub fn run_controls_suite() -> Vec<Observation> {
             ops: runtime.ops_address(),
             ops_cash: runtime.ops_cash_address(),
             system_program: system_program::ID,
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::WithdrawOperations { amount: 5_000 },
     );
@@ -345,6 +357,8 @@ pub fn run_controls_suite() -> Vec<Observation> {
             ops: runtime.ops_address(),
             ops_cash: runtime.ops_cash_address(),
             recipient: runtime.management.pubkey(),
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::WithdrawManagement { amount: 1 },
     );
@@ -426,6 +440,8 @@ fn open_instruction(
             user_round: runtime.user_round_address(1, owner),
             position,
             system_program: system_program::ID,
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::OpenPosition {
             plan: PlanKindArg::Simple,
@@ -455,6 +471,8 @@ fn claim_instruction(
             ticket: runtime.ticket_address(),
             destination,
             system_program: system_program::ID,
+            event_authority: runtime.event_authority_address(),
+            program: musical_chairs_program::ID,
         },
         instruction::ClaimPosition {
             minimum_receive: CLAIM_MINIMUM,

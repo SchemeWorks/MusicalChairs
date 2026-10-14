@@ -39,10 +39,9 @@ const ENTRY_MANAGEMENT: u64 = 4_000_000;
 const CLAIM_GROSS: u64 = 11_000_000;
 const CLAIM_TOLL: u64 = 1_320_000;
 const CLAIM_NET: u64 = 9_680_000;
-/// Synthetic genesis close reserve.  `controls::initialize` rejects zero, so a
-/// genesis-shaped Pool needs a nonzero value; this is NOT a launch reserve
-/// (reserve values stay an open decision-register item).
-const SYNTHETIC_CLOSE_RESERVE: u64 = 1_000_000;
+/// Synthetic 32-byte `Pool.cluster_domain` test vector.  It is a fixture
+/// label, not a real devnet/mainnet cluster domain.
+const FIXTURE_CLUSTER_DOMAIN: [u8; 32] = *b"musical-chairs-litesvm-fixture!!";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AccountChange {
@@ -167,6 +166,16 @@ impl FinancialRuntime {
     }
     pub fn ticket_address(&self) -> Pubkey {
         pda(&[state::TICKET_SEED]).0
+    }
+    pub fn config_address(&self, version: u32) -> Pubkey {
+        pda(&[state::CONFIG_SEED, &version.to_le_bytes()]).0
+    }
+    pub fn rng_authority_address(&self) -> Pubkey {
+        pda(&[state::RNG_AUTHORITY_SEED]).0
+    }
+    /// Anchor `#[event_cpi]` self-CPI authority PDA (`__event_authority`).
+    pub fn event_authority_address(&self) -> Pubkey {
+        pda(&[b"__event_authority"]).0
     }
     pub fn user_address(&self, owner: Pubkey) -> Pubkey {
         pda(&[state::USER_SEED, owner.as_ref()]).0
@@ -335,7 +344,16 @@ impl FinancialRuntime {
             registry_len: 0,
             // SnapshotPage 0 is injected below, so exactly one page exists.
             snapshot_pages: 1,
-            close_reserve: SYNTHETIC_CLOSE_RESERVE,
+            // Likewise RegistryPage 0 is injected below.
+            registry_pages: 1,
+            // Genesis shape, mirroring `controls::initialize`: config v1 is
+            // active, the first close id is 1 and no close is in progress.
+            cluster_domain: FIXTURE_CLUSTER_DOMAIN,
+            active_config_version: 1,
+            next_close_id: 1,
+            current_close_id: None,
+            // Genesis copy of `Admission.guardian_vault` (set below).
+            guardian_vault: self.attacker.pubkey(),
             sponsor: self.sponsor.pubkey(),
             management_recipient: self.management.pubkey(),
             ..state::Pool::default()
@@ -344,7 +362,7 @@ impl FinancialRuntime {
         self.put_program_account(pool_address, &pool, state::Pool::SPACE);
         let admission = state::Admission {
             bump: pda(&[state::ADMISSION_SEED]).1,
-            guardian: self.attacker.pubkey(),
+            guardian_vault: self.attacker.pubkey(),
             ..state::Admission::default()
         };
         let admission_address = self.admission_address();
@@ -374,6 +392,26 @@ impl FinancialRuntime {
         };
         let ticket_address = self.ticket_address();
         self.put_program_account(ticket_address, &ticket, state::Ticket::SPACE);
+        // `controls::initialize` does not create these two accounts; the
+        // fixture installs them at their canonical PDAs.  Config v1 is the
+        // accepted launch rule set; the RNG authority is unbound until a
+        // provider client is registered (`client == Pubkey::default()`).
+        let config = state::ConfigVersion {
+            bump: pda(&[state::CONFIG_SEED, &1u32.to_le_bytes()]).1,
+            ..state::ConfigVersion::default_v1()
+        };
+        let config_address = self.config_address(1);
+        self.put_program_account(config_address, &config, state::ConfigVersion::SPACE);
+        let rng_authority = state::RngAuthority {
+            bump: pda(&[state::RNG_AUTHORITY_SEED]).1,
+            client: Pubkey::default(),
+        };
+        let rng_authority_address = self.rng_authority_address();
+        self.put_program_account(
+            rng_authority_address,
+            &rng_authority,
+            state::RngAuthority::SPACE,
+        );
         let user = state::User {
             bump: pda(&[state::USER_SEED, owner.as_ref()]).1,
             owner,
@@ -402,6 +440,7 @@ impl FinancialRuntime {
         let registry = state::RegistryPage {
             bump: pda(&[state::REGISTRY_SEED, &0u64.to_le_bytes()]).1,
             index: 0,
+            rent: state::RentComponents::default(),
             ..state::RegistryPage::default()
         };
         let registry_address = self.registry_address(0);
@@ -410,6 +449,7 @@ impl FinancialRuntime {
             bump: pda(&[state::SNAPSHOT_SEED, &0u64.to_le_bytes()]).1,
             index: 0,
             ticket_id: 0,
+            rent: state::RentComponents::default(),
             ..state::SnapshotPage::default()
         };
         let snapshot_address = self.snapshot_address(0);
@@ -478,8 +518,9 @@ impl FinancialRuntime {
     /// Inputs are the accepted `allocation_golden_t10000` vector: toll 10_000,
     /// Series-A remaining 4_000 / 6_000, two Series-B rows.  They are seeded
     /// as Backer state; the Discover-phase ticket carries only
-    /// `id`/`phase`/`captured_len`/`expected_version`/`toll`.  Counts, slices,
-    /// `a_remaining`, `oldest*` and `credited` start at zero because the
+    /// `id`/`phase`/`captured_len`/`expected_version`/`toll`, the pinned
+    /// 3_500/4_500/2_000 backer-half split and `close_id: None`.  Counts, slices,
+    /// `a_remainder_total`, `oldest*` and `credited` start at zero because the
     /// handlers compute them (so no `ticket.oldest` is seeded; the handler
     /// derives it as a Backer PDA).  Registry and snapshot row keys are Backer
     /// PDA addresses, not owner wallet keys.
@@ -516,6 +557,12 @@ impl FinancialRuntime {
             captured_len: owners.len() as u64,
             expected_version: 1,
             toll: 10_000,
+            // Pinned from config v1 at ticket creation; plain allocation
+            // (not a closing payout), so no close id.
+            senior_bps: 3_500,
+            a_bps: 4_500,
+            b_bps: 2_000,
+            close_id: None,
             ..state::Ticket::default()
         };
         self.replace_ticket(ticket);
