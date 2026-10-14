@@ -191,6 +191,186 @@
       ]
     },
     {
+      "name": "apply_promotion",
+      "discriminator": [
+        54,
+        254,
+        56,
+        13,
+        57,
+        237,
+        66,
+        38
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Pays only the transaction fee; any signer may progress the close."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "candidate_page",
+          "optional": true
+        },
+        {
+          "name": "winner",
+          "optional": true
+        },
+        {
+          "name": "winner_user",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "winner_user_round",
+          "optional": true
+        },
+        {
+          "name": "winner_backer_b",
+          "docs": [
+            "absent, merged when present."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "registry_tail",
+          "docs": [
+            "reserve when that page does not exist yet."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "apply_senior",
       "discriminator": [
         125,
@@ -240,6 +420,235 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "build_candidates",
+      "discriminator": [
+        92,
+        137,
+        94,
+        81,
+        153,
+        110,
+        72,
+        224
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "preferred_page",
+          "docs": [
+            "re-derived by the handler only when a row appends to the preferred set."
+          ],
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "fallback_page",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "optional": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "capture_round_draw",
+      "discriminator": [
+        103,
+        183,
+        170,
+        46,
+        37,
+        167,
+        217,
+        109
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "request"
+        },
+        {
+          "name": "client"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
     },
     {
       "name": "claim_backer",
@@ -716,6 +1125,209 @@
       ]
     },
     {
+      "name": "expire_promotion",
+      "discriminator": [
+        68,
+        234,
+        84,
+        81,
+        126,
+        32,
+        246,
+        152
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_round",
+      "discriminator": [
+        239,
+        160,
+        254,
+        11,
+        254,
+        144,
+        53,
+        148
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "fund_operations",
       "discriminator": [
         165,
@@ -986,6 +1598,85 @@
       ]
     },
     {
+      "name": "increase_provider_budget",
+      "discriminator": [
+        163,
+        14,
+        20,
+        128,
+        90,
+        210,
+        164,
+        249
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        }
+      ],
+      "args": [
+        {
+          "name": "extra",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "initialize",
       "discriminator": [
         175,
@@ -1195,6 +1886,83 @@
           }
         }
       ]
+    },
+    {
+      "name": "observe_request_fulfilled",
+      "discriminator": [
+        173,
+        194,
+        9,
+        12,
+        51,
+        169,
+        172,
+        69
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "request"
+        },
+        {
+          "name": "client"
+        }
+      ],
+      "args": []
     },
     {
       "name": "open_position",
@@ -1723,6 +2491,234 @@
         },
         {
           "name": "ops_cash"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "reconcile_ops_cash_with_client",
+      "discriminator": [
+        41,
+        24,
+        253,
+        16,
+        155,
+        152,
+        176,
+        222
+      ],
+      "accounts": [
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        },
+        {
+          "name": "client"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "request_round_draw",
+      "discriminator": [
+        60,
+        38,
+        56,
+        179,
+        242,
+        31,
+        80,
+        18
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "Any signer: ORAO documents `payer` as paying transaction fees only (the",
+            "Client pays the request fee and rent)."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "rng_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  110,
+                  103,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "provider_program"
+        },
+        {
+          "name": "network_state",
+          "writable": true
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "request",
+          "docs": [
+            "the provider CPI."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
         }
       ],
       "args": []
@@ -2569,6 +3565,136 @@
         },
         {
           "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_provider_return",
+      "discriminator": [
+        15,
+        247,
+        137,
+        143,
+        103,
+        208,
+        102,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G vault: signs through the Squads CPI, owns the ORAO Client and",
+            "receives the ORAO withdrawal."
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  111,
+                  115,
+                  101
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.close_id",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "close_record.config_version",
+                "account": "CloseRecord"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "provider_program"
+        },
+        {
+          "name": "client",
+          "writable": true
+        },
+        {
+          "name": "owner_refund",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
@@ -3427,6 +4553,42 @@
     {
       "code": 6040,
       "name": "StaleCursor"
+    },
+    {
+      "code": 6041,
+      "name": "ProviderFeeExceeded"
+    },
+    {
+      "code": 6042,
+      "name": "RequestNotFulfilled"
+    },
+    {
+      "code": 6043,
+      "name": "DeadlinePassed"
+    },
+    {
+      "code": 6044,
+      "name": "DeadlineNotReached"
+    },
+    {
+      "code": 6045,
+      "name": "PromotionTerminal"
+    },
+    {
+      "code": 6046,
+      "name": "NotSealed"
+    },
+    {
+      "code": 6047,
+      "name": "CandidatesIncomplete"
+    },
+    {
+      "code": 6048,
+      "name": "NothingEligible"
+    },
+    {
+      "code": 6049,
+      "name": "AlreadyObserved"
     }
   ],
   "types": [

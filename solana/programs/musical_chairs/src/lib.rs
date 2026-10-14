@@ -10,6 +10,9 @@ pub mod controls;
 pub mod positions;
 pub mod allocation;
 pub mod claims;
+pub mod sampling;
+pub mod provider;
+pub mod close;
 pub mod error;
 pub mod events;
 pub use error::ErrorCode;
@@ -19,6 +22,7 @@ pub use controls::{ConfigTerms, Funding, PageKind};
 use positions::*;
 use allocation::*;
 use claims::*;
+use close::*;
 pub use state::*;
 declare_id!("7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7");
 
@@ -239,6 +243,16 @@ pub mod musical_chairs_program {
     pub fn prune_rows(ctx: Context<PruneRows>, expected_ticket_id: u64, expected_cursor: u64, rows: u8) -> Result<()> { allocation::prune_rows(ctx,expected_ticket_id,expected_cursor,rows) }
     pub fn commit_ticket(ctx: Context<CommitTicket>, expected_ticket_id: u64) -> Result<()> { allocation::commit_ticket(ctx,expected_ticket_id) }
     pub fn claim_backer(ctx: Context<ClaimBacker>) -> Result<()> { claims::claim_backer(ctx) }
+    pub fn build_candidates<'info>(ctx: Context<'_, '_, '_, 'info, BuildCandidates<'info>>, rows: u8) -> Result<()> { close::build_candidates(ctx,rows) }
+    pub fn request_round_draw(ctx: Context<RequestRoundDraw>) -> Result<()> { close::request_round_draw(ctx) }
+    pub fn capture_round_draw(ctx: Context<CaptureRoundDraw>) -> Result<()> { close::capture_round_draw(ctx) }
+    pub fn apply_promotion(ctx: Context<ApplyPromotion>) -> Result<()> { close::apply_promotion(ctx) }
+    pub fn expire_promotion(ctx: Context<ExpirePromotion>) -> Result<()> { close::expire_promotion(ctx) }
+    pub fn finalize_round(ctx: Context<FinalizeRound>) -> Result<()> { close::finalize_round(ctx) }
+    pub fn increase_provider_budget(ctx: Context<IncreaseProviderBudget>, extra: u64) -> Result<()> { close::increase_provider_budget(ctx,extra) }
+    pub fn observe_request_fulfilled(ctx: Context<ObserveRequestFulfilled>) -> Result<()> { close::observe_request_fulfilled(ctx) }
+    pub fn withdraw_provider_return(ctx: Context<WithdrawProviderReturn>, amount: u64) -> Result<()> { close::withdraw_provider_return(ctx,amount) }
+    pub fn reconcile_ops_cash_with_client(ctx: Context<ReconcileOpsCashWithClient>) -> Result<()> { close::reconcile_ops_cash_with_client(ctx) }
 }
 
 #[cfg(test)]
