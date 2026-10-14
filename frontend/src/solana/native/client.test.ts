@@ -17,8 +17,12 @@ import {
   PUBLIC_GENESIS_HASHES,
   NativeClusterMismatchError,
   NativeClusterNotConfiguredError,
+  NativeClusterSwitchedError,
+  clusterCacheKey,
   type NativeClusterConfig,
+  type NativeClusterIdentity,
 } from './cluster';
+import { getNativeClusterGeneration, setNativeClusterIdentity } from './queries';
 import { poolAddress } from './accounts';
 import { SIM_OK, buildAccount, fakeConnection, fakeWallet, simCustom, simFailure, type FakeAccount } from './testFixtures';
 import { bytesToHex, encodeInstructionData, idl } from './codecs';
@@ -541,5 +545,187 @@ describe('signed transaction binding', () => {
     const signed = await wallet.signTransaction.mock.results[0].value;
     expect(Buffer.from(connection.sendRawTransaction.mock.calls[0][0] as Uint8Array).equals(signed.serialize())).toBe(true);
     expect(result.signature).toBe(bs58.encode(signed.signature!));
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// A result and a client are bound to the cluster they were created on
+// ---------------------------------------------------------------------------
+
+describe('cluster switch and retry', () => {
+  const ID_A: NativeClusterIdentity = { cluster: LOCALNET_CLUSTER, rpcEndpoint: 'http://127.0.0.1:8899' };
+  const ID_B: NativeClusterIdentity = { cluster: DEVNET_CLUSTER, rpcEndpoint: 'https://api.devnet.solana.com' };
+
+  /** Cluster A (a local validator) and cluster B (devnet), each a distinct fake connection. */
+  function twoClusters(extraA: Parameters<typeof fakeConnection>[1] = {}) {
+    const a = fakeConnection(poolWorld(CLUSTER_DOMAINS.localnet), { rpcEndpoint: ID_A.rpcEndpoint, ...extraA });
+    const b = fakeConnection(poolWorld(CLUSTER_DOMAINS.devnet), { rpcEndpoint: ID_B.rpcEndpoint, getGenesisHash: vi.fn(async () => PUBLIC_GENESIS_HASHES.devnet) });
+    return { a, b };
+  }
+  const clientOn = (connection: ReturnType<typeof fakeConnection>, identity: NativeClusterIdentity, wallet = fakeWallet()) =>
+    ({ wallet, client: createNativeClient({ connection, wallet, sessionPubkey: wallet.publicKey!, sleep: noSleep, maxPolls: 4, cluster: identity.cluster }) });
+  const allUntouched = (connection: ReturnType<typeof fakeConnection>) => {
+    for (const name of ['sendRawTransaction', 'simulateTransaction', 'getLatestBlockhash', 'getSignatureStatuses', 'getAccountInfo', 'getGenesisHash'] as const) {
+      expect(connection[name], name).not.toHaveBeenCalled();
+    }
+  };
+  /** The send dies after signing on A: the outcome is unknown. */
+  const unknownOnA = () =>
+    twoClusters({
+      sendRawTransaction: vi.fn().mockRejectedValueOnce(new Error('Request timed out')).mockResolvedValue('ignored'),
+      getSignatureStatuses: vi.fn().mockResolvedValue({ value: [null] }),
+    });
+
+  it('retryAfterClusterSwitchFailsClosedBeforeAnyBroadcast', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a, b } = unknownOnA();
+    const { client, wallet } = clientOn(a, ID_A);
+    const result = await client.openPosition({ ...OPEN, nonce: 42n });
+    expect(result.status).toBe('unknown');
+    const originalSignature = result.signature;
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(1);
+
+    setNativeClusterIdentity(ID_B); // the app now points at cluster B
+
+    const error = await result.retry().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NativeClusterSwitchedError);
+    expect((error as NativeClusterSwitchedError).signature).toBe(originalSignature);
+    expect((error as NativeClusterSwitchedError).nonce).toBe(42n);
+    expect((error as NativeClusterSwitchedError).origin.clusterKey).toBe(clusterCacheKey(ID_A));
+
+    // no packet went anywhere: A still saw exactly its one original broadcast, B saw nothing at all
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(1);
+    expect(a.getSignatureStatuses).not.toHaveBeenCalled(); // the refused retry made no network call at all
+    expect(b.sendRawTransaction).not.toHaveBeenCalled();
+    allUntouched(b);
+    // and nothing was rebuilt or re-signed
+    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
+    expect(a.getLatestBlockhash).toHaveBeenCalledTimes(1);
+    expect(a.simulateTransaction).toHaveBeenCalledTimes(1);
+
+    // the result still carries the original signature, nonce and origin metadata
+    expect(result.signature).toBe(originalSignature);
+    expect(result.nonce).toBe(42n);
+    expect(result.origin).toMatchObject({ clusterKey: clusterCacheKey(ID_A), rpcEndpoint: ID_A.rpcEndpoint, cluster: ID_A.cluster });
+    expect(result.origin.generation).toBeLessThan(getNativeClusterGeneration());
+    expect(result.status).toBe('unknown');
+    setNativeClusterIdentity(null);
+  });
+
+  it('originStatusCanStillBeReadWithoutAnyRetransmission', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a, b } = twoClusters({
+      sendRawTransaction: vi.fn().mockRejectedValueOnce(new Error('Request timed out')).mockResolvedValue('ignored'),
+      getSignatureStatuses: vi.fn().mockResolvedValueOnce({ value: [null] }).mockResolvedValue({ value: [confirmedStatus] }),
+    });
+    const { client } = clientOn(a, ID_A);
+    const result = await client.openPosition({ ...OPEN, nonce: 7n });
+    setNativeClusterIdentity(ID_B);
+
+    const reconciled = await result.reconcile();
+
+    expect(reconciled).toMatchObject({ signature: result.signature, status: 'confirmed' });
+    expect(a.getSignatureStatuses).toHaveBeenCalled();
+    expect(a.getSignatureStatuses.mock.calls.every((call: unknown[]) => (call[0] as string[]).length === 1 && (call[0] as string[])[0] === result.signature)).toBe(true);
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(1); // read-only: nothing retransmitted
+    allUntouched(b);
+
+    // the status stream keeps following the origin too
+    const seen: string[] = [];
+    for await (const update of result.status$) seen.push(update.status);
+    expect(seen[seen.length - 1]).toBe('confirmed');
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(1);
+    allUntouched(b);
+    setNativeClusterIdentity(null);
+  });
+
+  it('sameClusterRetryStillRebroadcastsTheIdenticalBytes', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a } = twoClusters({
+      sendRawTransaction: vi.fn().mockRejectedValueOnce(new Error('Request timed out')).mockResolvedValue('ignored'),
+      getSignatureStatuses: vi.fn().mockResolvedValueOnce({ value: [null] }).mockResolvedValue({ value: [confirmedStatus] }),
+    });
+    const { client, wallet } = clientOn(a, ID_A);
+    const result = await client.openPosition({ ...OPEN, nonce: 8n });
+
+    const after = await result.retry();
+
+    expect(after).toMatchObject({ signature: result.signature, status: 'confirmed' });
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(2);
+    const [first, second] = a.sendRawTransaction.mock.calls.map((call: unknown[]) => Buffer.from(call[0] as Uint8Array));
+    expect(second.equals(first)).toBe(true);
+    expect(a.getSignatureStatuses.mock.calls.every((call: unknown[]) => (call[0] as string[])[0] === result.signature)).toBe(true);
+    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
+    expect(result.nonce).toBe(8n);
+    setNativeClusterIdentity(null);
+  });
+
+  it('a switch between the retry’s poll and its rebroadcast still stops the packet', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a, b } = twoClusters({
+      sendRawTransaction: vi.fn().mockRejectedValueOnce(new Error('Request timed out')).mockResolvedValue('ignored'),
+      getSignatureStatuses: vi.fn(async () => {
+        setNativeClusterIdentity(ID_B); // the user switches while the poll is in flight
+        return { value: [null] };
+      }),
+    });
+    const { client } = clientOn(a, ID_A);
+    const result = await client.openPosition({ ...OPEN, nonce: 9n });
+    await expect(result.retry()).rejects.toBeInstanceOf(NativeClusterSwitchedError);
+    expect(a.sendRawTransaction).toHaveBeenCalledTimes(1);
+    allUntouched(b);
+    setNativeClusterIdentity(null);
+  });
+
+  it('a client created before a switch cannot start a new action afterwards (nothing read, simulated or signed)', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a } = twoClusters();
+    const { client, wallet } = clientOn(a, ID_A);
+    expect(client.origin).toMatchObject({ clusterKey: clusterCacheKey(ID_A), rpcEndpoint: ID_A.rpcEndpoint });
+    setNativeClusterIdentity(ID_B);
+    await expect(client.openPosition(OPEN)).rejects.toBeInstanceOf(NativeClusterSwitchedError);
+    await expect(client.finalizeRound({ closeId: 1n })).rejects.toBeInstanceOf(NativeClusterSwitchedError);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+    allUntouched(a);
+
+    // a client created after the switch is bound to the new generation and works
+    const { b } = twoClusters();
+    const fresh = clientOn(b, ID_B);
+    await fresh.client.openPosition({ ...OPEN, nonce: 1n });
+    expect(fresh.wallet.signTransaction).toHaveBeenCalledTimes(1);
+    setNativeClusterIdentity(null);
+  });
+
+  it('a switch during the wallet prompt stops the signed transaction from being broadcast', async () => {
+    setNativeClusterIdentity(ID_A);
+    const { a, b } = twoClusters();
+    const wallet = fakeWallet();
+    wallet.signTransaction.mockImplementation(async (tx: Transaction) => {
+      tx.partialSign(wallet.keypair);
+      setNativeClusterIdentity(ID_B); // the user switched cluster while the wallet popup was open
+      return tx;
+    });
+    const { client } = clientOn(a, ID_A, wallet);
+    const error = await client.openPosition(OPEN).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NativeClusterSwitchedError);
+    expect((error as NativeClusterSwitchedError).signature).toBeNull(); // signed but never broadcast: nothing to track
+    expect(a.sendRawTransaction).not.toHaveBeenCalled();
+    allUntouched(b);
+    setNativeClusterIdentity(null);
+  });
+
+  it('origin metadata: pinned clients carry their cluster key and endpoint; a bare test double carries none', async () => {
+    const pinned = twoClusters().a;
+    const withCluster = clientOn(pinned, ID_A);
+    const result = await withCluster.client.openPosition({ ...OPEN, nonce: 3n });
+    expect(result.origin.clusterKey).toBe(clusterCacheKey(ID_A));
+    expect(result.origin.generation).toBe(withCluster.client.origin.generation);
+
+    const bare = fakeConnection(world());
+    const wallet = fakeWallet();
+    const unpinned = createNativeClient({ connection: bare, wallet, sessionPubkey: wallet.publicKey!, sleep: noSleep });
+    expect(unpinned.origin).toMatchObject({ clusterKey: null, cluster: null, rpcEndpoint: null });
+    setNativeClusterIdentity(null);
   });
 });

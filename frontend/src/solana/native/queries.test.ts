@@ -19,6 +19,7 @@ import { idl } from './codecs';
 import {
   NATIVE_QUERY_ROOT,
   evictOtherClusters,
+  getNativeClusterGeneration,
   getNativeClusterState,
   nativeQueries,
   nativeQueryKey,
@@ -163,6 +164,31 @@ describe('cluster change', () => {
     unsubscribe();
     expect(seen).toHaveLength(3);
     expect(seen.slice(0, 2)).toEqual([clusterCacheKey(first), clusterCacheKey(second)]);
+  });
+
+  it('the generation counter advances once per real change and never for a repeat', () => {
+    const one: NativeClusterIdentity = { ...DEVNET, rpcEndpoint: 'https://api.devnet.solana.com/gen1' };
+    const two: NativeClusterIdentity = { ...LOCAL, rpcEndpoint: 'http://127.0.0.1:18897' };
+    const g0 = getNativeClusterGeneration();
+    setNativeClusterIdentity(one);
+    const g1 = getNativeClusterGeneration();
+    setNativeClusterIdentity(one);
+    expect(getNativeClusterGeneration()).toBe(g1);
+    setNativeClusterIdentity(two);
+    expect(g1).toBe(g0 + 1);
+    expect(getNativeClusterGeneration()).toBe(g1 + 1);
+    setNativeClusterIdentity(null);
+  });
+
+  it('a cluster context is stamped with the generation it was created in', () => {
+    const odd: NativeClusterIdentity = { ...LOCAL, rpcEndpoint: 'http://127.0.0.1:18896' };
+    const context = getClusterContext(odd);
+    expect(context.generation).toBe(getNativeClusterGeneration());
+    setNativeClusterIdentity({ ...DEVNET, rpcEndpoint: 'https://api.devnet.solana.com/gen2' });
+    expect(getClusterContext(odd).generation).toBe(getNativeClusterGeneration()); // recreated in the new generation
+    expect(getClusterContext(odd)).not.toBe(context);
+    setNativeClusterIdentity(null);
+    dropClusterContextsExcept('none');
   });
 
   it('the context registry hands out one context per identity and drops the others on a switch', () => {

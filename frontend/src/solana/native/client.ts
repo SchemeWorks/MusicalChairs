@@ -57,6 +57,7 @@ import {
 } from './status';
 import {
   NativeClusterError,
+  NativeClusterSwitchedError,
   clusterCacheKey,
   defaultClusterIdentity,
   ensureClusterVerified,
@@ -109,6 +110,7 @@ import {
   type FundingKind,
   type NativeBacker,
   type NativeCloseRecord,
+  type NativeTxOrigin,
   type NativeConfigVersion,
   type NativePool,
   type NativePosition,
@@ -119,7 +121,7 @@ import {
   type StatusUpdate,
   type TicketPhaseName,
 } from './types';
-import { onNativeClusterSwitch } from './queries';
+import { getNativeClusterGeneration, onNativeClusterSwitch } from './queries';
 import { assertSignedTransactionIntact, assertWalletMatchesSession, WalletMismatchError, type NativeWallet } from './wallet';
 
 export { WalletMismatchError };
@@ -252,6 +254,8 @@ export interface PayoutRequest {
 
 export interface NativeClient {
   readonly sessionPubkey: string | null;
+  /** The cluster and generation this client was created for; every result it returns carries it. */
+  readonly origin: NativeTxOrigin;
   // --- player ---
   openPosition(p: { plan: PlanKind; gross: bigint; nonce?: bigint }): Promise<NativeTxResult>;
   fundSeriesA(p: { gross: bigint }): Promise<NativeTxResult>;
@@ -343,6 +347,10 @@ function classifySendError(error: unknown): 'rejected' | 'unknown' {
   if (/simulation failed/i.test(message)) return 'rejected';
   return 'unknown';
 }
+
+/** A status the cluster has already decided (landed, failed or expired): nothing left to re-send. */
+const isLanded = (status: StatusUpdate['status']): boolean =>
+  status === 'confirmed' || status === 'finalized' || status === 'failed' || status === 'expired';
 
 const requirePositive = (value: bigint, label: string): bigint => {
   if (typeof value !== 'bigint' || value <= 0n) throw new RangeError(`${label} must be a positive bigint`);
@@ -455,6 +463,8 @@ function guardReaders(raw: NativeReader, verify: () => Promise<unknown>): Native
 export interface ClusterContext {
   identity: NativeClusterIdentity;
   key: string;
+  /** The active-cluster generation (queries.ts) this context was created in. */
+  generation: number;
   connection: NativeConnection;
   readers: NativeReader;
 }
@@ -462,7 +472,7 @@ export interface ClusterContext {
 export function createClusterContext(identity: NativeClusterIdentity, connection: NativeConnection, commitment: Commitment = 'confirmed'): ClusterContext {
   const raw = createReaders(connection, commitment);
   const verify = makeClusterVerifier(connection, raw, { kind: 'pinned', cluster: identity.cluster });
-  return { identity, key: clusterCacheKey(identity), connection, readers: guardReaders(raw, verify) };
+  return { identity, key: clusterCacheKey(identity), generation: getNativeClusterGeneration(), connection, readers: guardReaders(raw, verify) };
 }
 
 const clusterContexts = new Map<string, ClusterContext>();
@@ -502,7 +512,23 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
   const { connection, wallet, sessionPubkey } = config;
   const commitment: Commitment = config.commitment ?? 'confirmed';
   const rawReaders: NativeReader = createReaders(connection, commitment);
-  const verifyCluster = makeClusterVerifier(connection, rawReaders, resolveClusterMode(connection, config.cluster));
+  const clusterMode = resolveClusterMode(connection, config.cluster);
+  const verifyCluster = makeClusterVerifier(connection, rawReaders, clusterMode);
+  // Where this client lives. Every result it returns carries it, and a mutating step in a later
+  // generation (the app switched its active cluster) fails closed.
+  const endpoint = (connection as { rpcEndpoint?: unknown }).rpcEndpoint;
+  const rpcEndpoint = typeof endpoint === 'string' ? endpoint : null;
+  const origin: NativeTxOrigin = {
+    clusterKey: clusterMode.kind === 'pinned' ? clusterCacheKey({ cluster: clusterMode.cluster, rpcEndpoint: rpcEndpoint ?? '' }) : null,
+    cluster: clusterMode.kind === 'pinned' ? clusterMode.cluster : null,
+    rpcEndpoint,
+    generation: getNativeClusterGeneration(),
+  };
+  /** Throws NativeClusterSwitchedError unless the app's active cluster is still the one this client was created for. */
+  const assertOriginActive = (step: 'action' | 'retry', signature: string | null = null, nonce: bigint | null = null): void => {
+    const current = getNativeClusterGeneration();
+    if (current !== origin.generation) throw new NativeClusterSwitchedError(step, origin, current, signature, nonce);
+  };
   const readers: NativeReader = guardReaders(rawReaders, verifyCluster);
   const nextNonce = config.randomNonce ?? randomU64;
 
@@ -525,6 +551,8 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
     const signed = await wallet.signTransaction(tx);
     // The session wallet must still be the one that signed (the user can switch accounts inside the extension mid-prompt).
     owner();
+    // ... and so must the cluster (the user can switch it while the popup is open). Signed, never broadcast.
+    assertOriginActive('action');
     const signatureBytes = assertSignedTransactionIntact({ intendedFeePayer: feePayer, intendedMessage, signed });
     const raw = signed.serialize();
     const signature = bs58.encode(signatureBytes);
@@ -560,17 +588,26 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
         return tracker.latest.status;
       },
       status$: { [Symbol.asyncIterator]: () => tracker.stream() },
+      origin,
       async retry(): Promise<StatusUpdate> {
+        // MUTATING: refuse before any network call once the active cluster has moved on.
+        assertOriginActive('retry', signature, nonce);
         const first = await tracker.poll();
-        if (first.status === 'confirmed' || first.status === 'finalized' || first.status === 'failed' || first.status === 'expired') {
-          return first;
-        }
+        if (isLanded(first.status)) return first;
+        // The poll took time: check again right before the only thing that can put a packet on the wire.
+        assertOriginActive('retry', signature, nonce);
         // Not visible yet: re-broadcast the IDENTICAL signed bytes (same signature, so the cluster dedups) and keep polling.
         try {
           await connection.sendRawTransaction(raw, { skipPreflight: true, preflightCommitment: commitment });
         } catch {
           // Still ambiguous; the poll below decides.
         }
+        return tracker.settle('confirmed');
+      },
+      async reconcile(): Promise<StatusUpdate> {
+        // READ-ONLY on the origin connection (the tracker's): status polling only, no send, valid after a switch.
+        const first = await tracker.poll();
+        if (isLanded(first.status)) return first;
         return tracker.settle('confirmed');
       },
       get safeToRebuild() {
@@ -593,6 +630,7 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
     let rows = maxRows;
     for (;;) {
       const feePayerKey = owner();
+      assertOriginActive('action');
       await ensureActionable();
       const planned = await build(rows);
 
@@ -612,6 +650,7 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
 
       const outcome = await simulateUnsigned(connection, tx, { commitment, timeoutMs: config.simulationTimeoutMs ?? SIMULATION_TIMEOUT_MS });
       if (outcome.ok) {
+        assertOriginActive('action'); // before the wallet prompt
         return { result: await signAndSend(tx, feePayerKey, lastValidBlockHeight, planned.nonce ?? null), planned };
       }
       if (rows > 1 && (planned.rows ?? 0) > 1 && SHRINKABLE_FAILURES.includes(outcome.kind)) {
@@ -782,6 +821,7 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
 
   return {
     sessionPubkey,
+    origin,
 
     // --- player ---
     openPosition: (p) =>

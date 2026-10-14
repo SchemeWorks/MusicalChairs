@@ -20,6 +20,7 @@
 // Web3-free (no @solana/web3.js import): safe for the main bundle.
 
 import { bytesToHex, idl } from './codecs';
+import type { NativeTxOrigin } from './types';
 
 export type NativeClusterName = 'localnet' | 'devnet' | 'mainnet-beta';
 
@@ -87,6 +88,31 @@ export class NativeClusterMismatchError extends NativeClusterError {
   ) {
     super(message);
     this.name = 'NativeClusterMismatchError';
+  }
+}
+
+/**
+ * The app switched its active cluster after this client or result was created,
+ * so a MUTATING step (a new action, a retry that could retransmit) is refused
+ * before anything is signed or sent. Carries what the result still holds, so
+ * the caller can reconcile the original transaction on its ORIGIN cluster with
+ * the read-only `reconcile()`.
+ */
+export class NativeClusterSwitchedError extends NativeClusterError {
+  constructor(
+    readonly step: 'action' | 'retry',
+    readonly origin: NativeTxOrigin,
+    readonly currentGeneration: number,
+    /** The original transaction's signature; null when nothing was ever broadcast (a new action). */
+    readonly signature: string | null,
+    readonly nonce: bigint | null,
+  ) {
+    super(
+      step === 'retry'
+        ? 'The active Solana cluster changed since this transaction was sent, so it will not be re-sent. Its status can still be checked on the original cluster.'
+        : 'The active Solana cluster changed since this wallet connection was prepared. Nothing was signed or sent; reload the action on the current cluster.',
+    );
+    this.name = 'NativeClusterSwitchedError';
   }
 }
 

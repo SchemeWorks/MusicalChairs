@@ -1,10 +1,13 @@
 // Decoded account shapes, status types and result handles for the native Solana
 // (Musical Chairs Anchor program) adapter.
 //
-// Pure types: no runtime imports, so any module (including the main bundle) can
-// import them without pulling @solana/web3.js. Field names are the IDL's
-// snake_case names converted to camelCase by codecs.ts. Addresses are base58
-// strings; u8/u16/u32 are `number`; u64/u128/i64 are `bigint`.
+// Pure types: no runtime imports (type-only imports are erased), so any module
+// (including the main bundle) can import them without pulling @solana/web3.js.
+// Field names are the IDL's snake_case names converted to camelCase by
+// codecs.ts. Addresses are base58 strings; u8/u16/u32 are `number`; u64/u128/i64
+// are `bigint`.
+
+import type { NativeClusterConfig } from './cluster';
 
 export type Address = string;
 
@@ -379,6 +382,22 @@ export interface StatusUpdate {
   error?: unknown;
 }
 
+/**
+ * The cluster a client (and every result it returns) was created on. A result
+ * keeps this for good: after the app switches the active cluster, a mutating
+ * `retry()` is refused and only read-only `reconcile()` still works, on the
+ * ORIGIN connection.
+ */
+export interface NativeTxOrigin {
+  /** clusterCacheKey of the pinned identity; null for an unpinned client (a bare test double). */
+  clusterKey: string | null;
+  cluster: NativeClusterConfig | null;
+  /** The origin connection's RPC endpoint, when it reports one. */
+  rpcEndpoint: string | null;
+  /** The active-cluster generation (queries.ts) the client was created in. */
+  generation: number;
+}
+
 /** What every NativeClient transaction method returns. */
 export interface NativeTxResult {
   signature: string;
@@ -388,11 +407,22 @@ export interface NativeTxResult {
   status: NativeTxStatus;
   /** submitted -> confirmed -> finalized, from getSignatureStatuses polling (no wss). */
   status$: AsyncIterable<StatusUpdate>;
+  /** Where this transaction was sent; stays fixed for the life of the result. */
+  readonly origin: NativeTxOrigin;
   /**
    * Re-poll the SAME signature (and re-send the SAME signed bytes if the first
    * send never reported success). Never rebuilds, re-signs or changes the nonce.
+   * MUTATING (it can retransmit): once the active cluster has switched since
+   * this result was created it rejects with NativeClusterSwitchedError before
+   * any network call. Use `reconcile()` then.
    */
   retry(): Promise<StatusUpdate>;
+  /**
+   * READ-ONLY reconciliation on the origin connection: poll the original
+   * signature's status (until confirmed, terminal or the poll window ends).
+   * Never retransmits, never rebuilds, works before and after a cluster switch.
+   */
+  reconcile(): Promise<StatusUpdate>;
   /**
    * True once the transaction can no longer land (`failed` or `expired`), i.e.
    * it is safe to build a NEW transaction. Reusing an open_position nonce while

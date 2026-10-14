@@ -107,6 +107,7 @@ function deriveDefault(): NativeClusterState {
 
 let override: NativeClusterIdentity | null = null;
 let state: NativeClusterState | undefined;
+let generation = 0;
 const listeners = new Set<() => void>();
 const switchHandlers = new Set<(keepKey: string | null) => void>();
 
@@ -121,6 +122,15 @@ export function onNativeClusterSwitch(handler: (keepKey: string | null) => void)
   return () => {
     switchHandlers.delete(handler);
   };
+}
+
+/**
+ * Advances once per real change of the active cluster identity (never for a
+ * repeat). Clients and transaction results record the generation they were
+ * created in; a mutating step in a later generation fails closed.
+ */
+export function getNativeClusterGeneration(): number {
+  return generation;
 }
 
 /** The current identity (an explicit override, else the one derived from the build's RPC endpoint). */
@@ -143,6 +153,7 @@ export function setNativeClusterIdentity(identity: NativeClusterIdentity | null)
     state = previous; // unchanged: keep the snapshot stable for useSyncExternalStore, no notification
     return;
   }
+  generation += 1;
   const keepKey = next.identity ? clusterCacheKey(next.identity) : null;
   switchHandlers.forEach((handler) => handler(keepKey));
   listeners.forEach((listener) => listener());
