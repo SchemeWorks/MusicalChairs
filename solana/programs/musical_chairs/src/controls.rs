@@ -15,10 +15,11 @@ use anchor_lang::solana_program::{
 
 use crate::events::{ConfigActivated, ConfigStaged, SCHEMA_VERSION};
 use crate::state::{
-    Admission, ConfigVersion, GameVault, Ops, Pool, RegistryPage, RentComponents, RngAuthority,
-    SnapshotPage, SnapshotRow, Ticket, ADMISSION_SEED, CONFIG_SEED, GAME_VAULT_SEED, IDLE,
-    OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, POOL_SEED, QUOTA_CALLS, REGISTRY_SEED,
-    RNG_AUTHORITY_SEED, SNAPSHOT_SEED, TICKET_SEED,
+    pages_for, Admission, CandidatePage, CloseRecord, ConfigVersion, GameVault, Ops, ParticipantPage,
+    Pool, Promotion, RegistryPage, RentComponents, RngAuthority, SnapshotPage, SnapshotRow, Ticket,
+    ADMISSION_SEED, CANDIDATES_SEED, CLOSE_SEED, CONFIG_SEED, DRAW_NOT_REQUESTED, GAME_VAULT_SEED,
+    IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, PARTICIPANTS_SEED, POOL_SEED, QUOTA_CALLS,
+    REGISTRY_SEED, RNG_AUTHORITY_SEED, SNAPSHOT_SEED, TICKET_SEED,
 };
 
 /// Squads v4 program used by the production authority profile.
@@ -332,7 +333,8 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     pool.pending_toll = 0;
     pool.funded_claims = 0;
     pool.excess = 0;
-    pool.protected_rent = 0;
+    // Genesis already matches what `sync_game` writes on later calls.
+    pool.protected_rent = Rent::get()?.minimum_balance(GameVault::SPACE);
     pool.registry_len = 0;
     pool.registry_version = 0;
     pool.next_sequence = 1;
@@ -364,6 +366,8 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     ctx.accounts.ops.free_balance = 0;
     ctx.accounts.ops.locked_remaining_total = 0;
     ctx.accounts.ops.unallocated_excess = ops_cash_info.lamports().saturating_sub(rent);
+    // Genesis already matches what `sync_ops` writes on later calls.
+    ctx.accounts.ops.protected_rent = rent;
 
     ctx.accounts.ticket.bump = ctx.bumps.ticket;
     ctx.accounts.ticket.id = 0;
@@ -709,103 +713,523 @@ pub fn rotate_guardian(ctx: Context<RotateGuardian>) -> Result<()> {
     Ok(())
 }
 
-pub fn provision_snapshot(
-    ctx: Context<ProvisionSnapshot>,
+// ---------------------------------------------------------------------------
+// Milestone 4: generic page provisioning, rent components, safe cleanup.
+// ---------------------------------------------------------------------------
+
+/// Which shared page a provisioning or cleanup call addresses. The Borsh
+/// encoding is part of the client ABI: variant order (`Registry` 0,
+/// `Snapshot` 1, `Participant` 2, `Candidate` 3) is frozen.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PageKind {
+    /// Permanent registry page (`["registry", index]`); never closable.
+    Registry,
+    /// Permanent snapshot page (`["snapshot", index]`); never closable.
+    Snapshot,
+    /// One page of a round's participant list (`["participants", round, index]`).
+    Participant { round: u64 },
+    /// One page of a close's candidate set (`["candidates", close_id, set_tag, index]`);
+    /// `set_tag` 0 is the preferred set, 1 the fallback set.
+    Candidate { close_id: u64, set_tag: u8 },
+}
+
+/// Who pays a page's rent. Frozen Borsh order: `Free` 0, `Caller` 1, `LockedClose` 2.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Funding {
+    /// Operations `free_balance`, via OpsCash.
+    Free,
+    /// The transaction's `payer`; refunded to it when the page is closed.
+    Caller,
+    /// The close's locked reserve (sponsor partition first, then owner).
+    LockedClose,
+}
+
+/// `Candidate.set_tag` values.
+const SET_PREFERRED: u8 = 0;
+const SET_FALLBACK: u8 = 1;
+
+/// A page's identity resolved against current state: the seed parts (without
+/// the bump), the account size, and the one index that may be provisioned next.
+#[derive(Debug, PartialEq, Eq)]
+struct PageTarget {
+    seeds: Vec<Vec<u8>>,
+    space: usize,
+    expected_index: u64,
+}
+
+/// Resolve `kind`/`index` to seeds, size and the next sequential index, and
+/// reject kinds that are not provisionable right now (`InvalidState`).
+fn page_target(
+    kind: &PageKind,
     index: u64,
+    pool: &Pool,
+    close: Option<&CloseRecord>,
+) -> Result<PageTarget> {
+    let index_seed = index.to_le_bytes().to_vec();
+    Ok(match *kind {
+        PageKind::Registry => PageTarget {
+            seeds: vec![REGISTRY_SEED.to_vec(), index_seed],
+            space: RegistryPage::SPACE,
+            expected_index: pool.registry_pages,
+        },
+        PageKind::Snapshot => PageTarget {
+            seeds: vec![SNAPSHOT_SEED.to_vec(), index_seed],
+            space: SnapshotPage::SPACE,
+            expected_index: pool.snapshot_pages,
+        },
+        PageKind::Participant { round } => {
+            require!(round == pool.round_id, crate::ErrorCode::InvalidState);
+            PageTarget {
+                seeds: vec![PARTICIPANTS_SEED.to_vec(), round.to_le_bytes().to_vec(), index_seed],
+                space: ParticipantPage::SPACE,
+                expected_index: pool.participant_pages,
+            }
+        }
+        PageKind::Candidate { close_id, set_tag } => {
+            require!(set_tag <= SET_FALLBACK, crate::ErrorCode::InvalidState);
+            let close = close.ok_or_else(|| error!(crate::ErrorCode::InvalidState))?;
+            require!(close.close_id == close_id, crate::ErrorCode::InvalidState);
+            require!(
+                close_id == pool.next_close_id || Some(close_id) == pool.current_close_id,
+                crate::ErrorCode::InvalidState
+            );
+            PageTarget {
+                seeds: vec![
+                    CANDIDATES_SEED.to_vec(),
+                    close_id.to_le_bytes().to_vec(),
+                    vec![set_tag],
+                    index_seed,
+                ],
+                space: CandidatePage::SPACE,
+                expected_index: if set_tag == SET_PREFERRED {
+                    close.provisioned_preferred_pages
+                } else {
+                    close.provisioned_fallback_pages
+                },
+            }
+        }
+    })
+}
+
+/// `LockedClose` is allowed only for a candidate page of the close currently
+/// in progress, and only inside the pages that close reserved for (spec §7.1).
+/// `Free` and `Caller` are always allowed here.
+fn locked_permission(
+    kind: &PageKind,
+    funding: Funding,
+    index: u64,
+    pool: &Pool,
+    close: Option<&CloseRecord>,
 ) -> Result<()> {
-    let expected = ctx.accounts.pool.snapshot_pages;
-    require!(index <= expected, crate::ErrorCode::InvalidState);
-    let page_key = canonical_page(SNAPSHOT_SEED, index)?;
-    require_keys_eq!(
-        ctx.accounts.snapshot_page.key(),
-        page_key,
-        crate::ErrorCode::WrongAccount
-    );
+    if funding != Funding::LockedClose {
+        return Ok(());
+    }
+    match (kind, close) {
+        (PageKind::Candidate { close_id, .. }, Some(close))
+            if Some(*close_id) == pool.current_close_id
+                && index < close.required_pages_per_set =>
+        {
+            Ok(())
+        }
+        _ => err!(crate::ErrorCode::LockNotPermitted),
+    }
+}
 
-    let (ops_cash_key, _) = Pubkey::find_program_address(&[OPS_CASH_SEED], &crate::ID);
-    require_keys_eq!(ctx.accounts.ops_cash.key(), ops_cash_key, crate::ErrorCode::WrongAccount);
-    require_keys_eq!(
-        *ctx.accounts.ops_cash.owner,
-        anchor_lang::solana_program::system_program::ID,
-        crate::ErrorCode::WrongOwner
-    );
-    let ops = &mut ctx.accounts.ops;
-    crate::sync_ops(ops, &ctx.accounts.ops_cash.to_account_info())?;
+/// Need bound for sponsor-funded pages: free sponsor cash cannot be locked
+/// into pages nobody needs. Applies only to `Funding::Free`; `Caller` (the
+/// caller risks only their own refundable rent) and `LockedClose` (bounded by
+/// `required_pages_per_set`) are never restricted here. Violations are
+/// `WrongIndex`.
+///
+/// - Registry and Snapshot (permanent, never closable):
+///   `index <= registry_len / PAGE_CAPACITY` (one page beyond the registry's
+///   current extent, because the tail page may be full).
+/// - Participant: `index <= participant_count / PAGE_CAPACITY`.
+/// - Candidate of the NEXT close (pre-capture): `index <
+///   pages_for(max(participant_count, 1), PAGE_CAPACITY)`; more pages can be
+///   provisioned later as participants grow.
+/// - Candidate of the CURRENT close: no extra bound (a Free page beyond
+///   `required_pages_per_set` is allowed by the spec).
+fn free_need_bound(kind: &PageKind, funding: Funding, index: u64, pool: &Pool) -> Result<()> {
+    if funding != Funding::Free {
+        return Ok(());
+    }
+    let capacity = PAGE_CAPACITY as u64;
+    let within = match *kind {
+        PageKind::Registry | PageKind::Snapshot => index <= pool.registry_len / capacity,
+        PageKind::Participant { .. } => index <= pool.participant_count / capacity,
+        PageKind::Candidate { close_id, .. } if close_id == pool.next_close_id => {
+            index < pages_for(pool.participant_count.max(1), capacity)?
+        }
+        PageKind::Candidate { .. } => true,
+    };
+    require!(within, crate::ErrorCode::WrongIndex);
+    Ok(())
+}
 
-    if index == expected {
-        let bump = pda_bump(&[SNAPSHOT_SEED, &index.to_le_bytes()], &page_key)?;
-        crate::create_shared(
-            &ctx.accounts.snapshot_page.to_account_info(),
-            &ctx.accounts.ops_cash.to_account_info(),
-            &ctx.accounts.system_program.to_account_info(),
-            &[SNAPSHOT_SEED, &index.to_le_bytes(), &[bump]],
-            SnapshotPage::SPACE,
+/// Bump the counters a freshly created page feeds. Registry, Snapshot and
+/// Participant counters live on the pool; candidate counters on their close,
+/// and while that close is still the *next* one (pre-capture) the page also
+/// lowers that set's missing count at capture by raising `existing_<set>_pages`.
+/// Counters never decrement (R3).
+fn record_provisioned(
+    kind: &PageKind,
+    pool: &mut Pool,
+    close: Option<&mut CloseRecord>,
+) -> Result<()> {
+    match *kind {
+        PageKind::Registry => pool.registry_pages = crate::checked_add(pool.registry_pages, 1)?,
+        PageKind::Snapshot => pool.snapshot_pages = crate::checked_add(pool.snapshot_pages, 1)?,
+        PageKind::Participant { .. } => {
+            pool.participant_pages = crate::checked_add(pool.participant_pages, 1)?
+        }
+        PageKind::Candidate { close_id, set_tag } => {
+            let close = close.ok_or_else(|| error!(crate::ErrorCode::InvalidState))?;
+            let pre_capture = close_id == pool.next_close_id;
+            match set_tag {
+                SET_PREFERRED => {
+                    close.provisioned_preferred_pages =
+                        crate::checked_add(close.provisioned_preferred_pages, 1)?;
+                    if pre_capture {
+                        close.existing_preferred_pages = close.provisioned_preferred_pages;
+                    }
+                }
+                SET_FALLBACK => {
+                    close.provisioned_fallback_pages =
+                        crate::checked_add(close.provisioned_fallback_pages, 1)?;
+                    if pre_capture {
+                        close.existing_fallback_pages = close.provisioned_fallback_pages;
+                    }
+                }
+                _ => return err!(crate::ErrorCode::InvalidState),
+            }
+        }
+    }
+    Ok(())
+}
+
+/// A page about to be created must be empty and system-owned. A correct
+/// sequential index never points at an existing account, so anything else is
+/// an index error and a repeated provision cannot debit twice.
+fn is_fresh_account(owner: &Pubkey, data_is_empty: bool) -> bool {
+    *owner == anchor_lang::solana_program::system_program::ID && data_is_empty
+}
+
+fn require_fresh_account(account: &UncheckedAccount<'_>) -> Result<()> {
+    require!(
+        is_fresh_account(account.owner, account.data_is_empty()),
+        crate::ErrorCode::WrongIndex
+    );
+    Ok(())
+}
+
+/// The canonical `CloseRecord` PDA for `close_id`.
+fn close_record_address(close_id: u64) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[CLOSE_SEED, &close_id.to_le_bytes()], &crate::ID)
+}
+
+/// Create one shared page (permissionless). See spec §7.1 `provision_page`.
+///
+/// Order of checks: kind rules (`InvalidState`), the page's PDA
+/// (`WrongAccount`), the next sequential index and a fresh account
+/// (`WrongIndex`), the sponsor-cash need bound, then `LockedClose` permission
+/// (`LockNotPermitted`). Free sponsor cash cannot be locked into pages nobody
+/// needs: with `Funding::Free` the index is also bounded by current need (see
+/// [`free_need_bound`]; `WrongIndex`), while `Caller` and `LockedClose` are not.
+pub fn provision_page(
+    ctx: Context<ProvisionPage>,
+    kind: PageKind,
+    index: u64,
+    funding: Funding,
+) -> Result<()> {
+    let accounts = &mut *ctx.accounts;
+    validate_ops_cash(&accounts.ops_cash)?;
+    let close_key = accounts.close_record.as_ref().map(|record| record.key());
+    let mut close = accounts.close_record.as_mut().map(|record| &mut ***record);
+    if let PageKind::Candidate { close_id, .. } = kind {
+        let close_key = close_key.ok_or_else(|| error!(crate::ErrorCode::InvalidState))?;
+        require_keys_eq!(close_key, close_record_address(close_id).0, crate::ErrorCode::WrongAccount);
+    }
+
+    let target = page_target(&kind, index, &accounts.pool, close.as_deref())?;
+    let seed_refs: Vec<&[u8]> = target.seeds.iter().map(|seed| seed.as_slice()).collect();
+    let (page_key, bump) = Pubkey::find_program_address(&seed_refs, &crate::ID);
+    require_keys_eq!(accounts.page.key(), page_key, crate::ErrorCode::WrongAccount);
+    require!(index == target.expected_index, crate::ErrorCode::WrongIndex);
+    require_fresh_account(&accounts.page)?;
+    free_need_bound(&kind, funding, index, &accounts.pool)?;
+    locked_permission(&kind, funding, index, &accounts.pool, close.as_deref())?;
+
+    let bump_seed = [bump];
+    let mut signer_seeds = seed_refs.clone();
+    signer_seeds.push(&bump_seed);
+    let page_info = accounts.page.to_account_info();
+    let cash_info = accounts.ops_cash.to_account_info();
+    let system_info = accounts.system_program.to_account_info();
+    let ops = &mut accounts.ops;
+    let rent = match funding {
+        Funding::Free => {
+            let debit = crate::create_shared(
+                &page_info,
+                &cash_info,
+                &system_info,
+                &signer_seeds,
+                target.space,
+                ops,
+            )?;
+            RentComponents { ops: debit, owner: 0, owner_refund: Pubkey::default() }
+        }
+        Funding::Caller => {
+            // The refund must always be deliverable: the payer is a signing,
+            // writable, system-owned wallet, never OpsCash or a program account.
+            crate::validate_destination(&accounts.payer.to_account_info())?;
+            crate::sync_ops(ops, &cash_info)?;
+            let paid = crate::create_caller_funded(
+                &page_info,
+                &accounts.payer.to_account_info(),
+                &system_info,
+                &signer_seeds,
+                target.space,
+            )?;
+            RentComponents { ops: 0, owner: paid, owner_refund: accounts.payer.key() }
+        }
+        Funding::LockedClose => {
+            let close = close
+                .as_deref_mut()
+                .ok_or_else(|| error!(crate::ErrorCode::LockNotPermitted))?;
+            let (sponsor_part, owner_part) = crate::create_shared_locked(
+                &page_info,
+                &cash_info,
+                &system_info,
+                &signer_seeds,
+                target.space,
+                ops,
+                close,
+            )?;
+            RentComponents {
+                ops: sponsor_part,
+                owner: owner_part,
+                owner_refund: close.owner_refund_destination,
+            }
+        }
+    };
+
+    match kind {
+        PageKind::Registry => serialize_account(
+            &page_info,
+            &RegistryPage { bump, index, keys: [Pubkey::default(); PAGE_CAPACITY], rent },
+        )?,
+        PageKind::Snapshot => serialize_account(
+            &page_info,
+            &SnapshotPage {
+                bump,
+                index,
+                ticket_id: 0,
+                rows: [SnapshotRow::default(); PAGE_CAPACITY],
+                rent,
+            },
+        )?,
+        PageKind::Participant { round } => serialize_account(
+            &page_info,
+            &ParticipantPage {
+                bump,
+                round_id: round,
+                page: index,
+                len: 0,
+                rows: [Pubkey::default(); PAGE_CAPACITY],
+                rent,
+            },
+        )?,
+        PageKind::Candidate { close_id, set_tag } => serialize_account(
+            &page_info,
+            &CandidatePage {
+                bump,
+                close_id,
+                set_tag,
+                page: index,
+                len: 0,
+                rows: [Pubkey::default(); PAGE_CAPACITY],
+                rent,
+            },
+        )?,
+    }
+    record_provisioned(&kind, &mut accounts.pool, close)
+}
+
+/// Create `CloseRecord(close_id)` for the next close (permissionless; `Free`
+/// or `Caller` only). The closing payout binds everything else later.
+pub fn provision_close_record(
+    ctx: Context<ProvisionCloseRecord>,
+    close_id: u64,
+    funding: Funding,
+) -> Result<()> {
+    let accounts = &mut *ctx.accounts;
+    validate_ops_cash(&accounts.ops_cash)?;
+    require!(close_id == accounts.pool.next_close_id, crate::ErrorCode::InvalidState);
+    let (record_key, bump) = close_record_address(close_id);
+    require_keys_eq!(accounts.close_record.key(), record_key, crate::ErrorCode::WrongAccount);
+    require_fresh_account(&accounts.close_record)?;
+    require!(funding != Funding::LockedClose, crate::ErrorCode::LockNotPermitted);
+
+    let id_seed = close_id.to_le_bytes();
+    let bump_seed = [bump];
+    let signer_seeds: &[&[u8]] = &[CLOSE_SEED, &id_seed, &bump_seed];
+    let record_info = accounts.close_record.to_account_info();
+    let cash_info = accounts.ops_cash.to_account_info();
+    let system_info = accounts.system_program.to_account_info();
+    let ops = &mut accounts.ops;
+    let rent = if funding == Funding::Free {
+        let debit = crate::create_shared(
+            &record_info,
+            &cash_info,
+            &system_info,
+            signer_seeds,
+            CloseRecord::SPACE,
             ops,
         )?;
-        let page = SnapshotPage {
-            bump,
-            index,
-            ticket_id: 0,
-            rows: [SnapshotRow::default(); PAGE_CAPACITY],
-            rent: RentComponents::default(),
-        };
-        serialize_account(&ctx.accounts.snapshot_page.to_account_info(), &page)?;
-        ctx.accounts.pool.snapshot_pages = expected
-            .checked_add(1)
-            .ok_or(crate::ErrorCode::Overflow)?;
+        RentComponents { ops: debit, owner: 0, owner_refund: Pubkey::default() }
     } else {
-        validate_existing_page::<SnapshotPage>(&ctx.accounts.snapshot_page, index)?;
-    }
-    Ok(())
+        crate::validate_destination(&accounts.payer.to_account_info())?;
+        crate::sync_ops(ops, &cash_info)?;
+        let paid = crate::create_caller_funded(
+            &record_info,
+            &accounts.payer.to_account_info(),
+            &system_info,
+            signer_seeds,
+            CloseRecord::SPACE,
+        )?;
+        RentComponents { ops: 0, owner: paid, owner_refund: accounts.payer.key() }
+    };
+    let record = CloseRecord {
+        bump,
+        close_id,
+        promotion: Promotion::Pending,
+        draw_state: DRAW_NOT_REQUESTED,
+        rent,
+        ..CloseRecord::default()
+    };
+    serialize_account(&record_info, &record)
 }
 
-pub fn provision_registry(
-    ctx: Context<ProvisionRegistry>,
-    index: u64,
-) -> Result<()> {
-    require!(ctx.accounts.pool.active_ticket == 0, crate::ErrorCode::AllocationPending);
-    let needed = ctx
-        .accounts
-        .pool
-        .registry_len
-        .checked_div(PAGE_CAPACITY as u64)
-        .ok_or(crate::ErrorCode::Overflow)?;
-    require!(index <= needed, crate::ErrorCode::InvalidState);
-    let page_key = canonical_page(REGISTRY_SEED, index)?;
-    require_keys_eq!(
-        ctx.accounts.registry_page.key(),
-        page_key,
-        crate::ErrorCode::WrongAccount
+/// `close_shared_account` closability (spec §8.7, R3). Registry and Snapshot
+/// pages are permanent: never closable, whatever their state. A participant
+/// page closes once the round's own close record is finalized; a candidate
+/// page once its own close record's promotion is terminal. Both predicates
+/// read the supplied record's identity, never a reusable tag.
+fn closable(kind: &PageKind, close: &CloseRecord, close_is_canonical: bool) -> bool {
+    match *kind {
+        PageKind::Registry | PageKind::Snapshot => false,
+        PageKind::Participant { round } => {
+            close_is_canonical && close.round_id == round && close.finalized
+        }
+        PageKind::Candidate { close_id, .. } => {
+            close_is_canonical
+                && close.close_id == close_id
+                && close.promotion != Promotion::Pending
+        }
+    }
+}
+
+/// How a closing page's lamports divide: `(to ops free_balance, to the owner
+/// refund destination, to unallocated_excess)`. The `ops` and `owner` rent
+/// components return exactly; whatever else the page holds is an unsolicited
+/// credit and goes to excess.
+fn closure_split(rent: &RentComponents, page_lamports: u64) -> Result<(u64, u64, u64)> {
+    let components = crate::checked_add(rent.ops, rent.owner)?;
+    let remainder = crate::checked_sub(page_lamports, components)?;
+    Ok((rent.ops, rent.owner, remainder))
+}
+
+/// Close a participant or candidate page and return its rent exactly once.
+pub fn close_shared_account(ctx: Context<CloseSharedAccount>, kind: PageKind) -> Result<()> {
+    let accounts = &mut *ctx.accounts;
+    let close_is_canonical = matches!(kind, PageKind::Participant { .. } | PageKind::Candidate { .. })
+        && accounts.close_record.key() == close_record_address(accounts.close_record.close_id).0;
+    require!(
+        closable(&kind, &accounts.close_record, close_is_canonical),
+        crate::ErrorCode::NotClosable
     );
 
-    validate_ops_cash(&ctx.accounts.ops_cash)?;
-    let ops = &mut ctx.accounts.ops;
-    crate::sync_ops(ops, &ctx.accounts.ops_cash.to_account_info())?;
-    if !ctx.accounts.registry_page.data_is_empty() {
-        return validate_existing_page::<RegistryPage>(&ctx.accounts.registry_page, index);
-    }
-
-    let bump = pda_bump(&[REGISTRY_SEED, &index.to_le_bytes()], &page_key)?;
-    crate::create_shared(
-        &ctx.accounts.registry_page.to_account_info(),
-        &ctx.accounts.ops_cash.to_account_info(),
-        &ctx.accounts.system_program.to_account_info(),
-        &[REGISTRY_SEED, &index.to_le_bytes(), &[bump]],
-        RegistryPage::SPACE,
-        ops,
-    )?;
-    let page = RegistryPage {
-        bump,
-        index,
-        keys: [Pubkey::default(); PAGE_CAPACITY],
-        rent: RentComponents::default(),
+    let page = accounts.page.to_account_info();
+    require!(
+        !is_fresh_account(page.owner, page.data_is_empty()),
+        crate::ErrorCode::AlreadyClosed
+    );
+    require_keys_eq!(*page.owner, crate::ID, crate::ErrorCode::WrongOwner);
+    let (rent, derived) = {
+        let data = page.try_borrow_data()?;
+        let mut bytes: &[u8] = &data;
+        match kind {
+            PageKind::Participant { round } => {
+                let decoded = ParticipantPage::try_deserialize(&mut bytes)
+                    .map_err(|_| error!(crate::ErrorCode::WrongAccount))?;
+                require!(decoded.round_id == round, crate::ErrorCode::WrongAccount);
+                let derived = Pubkey::find_program_address(
+                    &[PARTICIPANTS_SEED, &round.to_le_bytes(), &decoded.page.to_le_bytes()],
+                    &crate::ID,
+                )
+                .0;
+                (decoded.rent, derived)
+            }
+            PageKind::Candidate { close_id, set_tag } => {
+                let decoded = CandidatePage::try_deserialize(&mut bytes)
+                    .map_err(|_| error!(crate::ErrorCode::WrongAccount))?;
+                require!(
+                    decoded.close_id == close_id && decoded.set_tag == set_tag,
+                    crate::ErrorCode::WrongAccount
+                );
+                let derived = Pubkey::find_program_address(
+                    &[
+                        CANDIDATES_SEED,
+                        &close_id.to_le_bytes(),
+                        &[set_tag],
+                        &decoded.page.to_le_bytes(),
+                    ],
+                    &crate::ID,
+                )
+                .0;
+                (decoded.rent, derived)
+            }
+            PageKind::Registry | PageKind::Snapshot => return err!(crate::ErrorCode::NotClosable),
+        }
     };
-    serialize_account(&ctx.accounts.registry_page.to_account_info(), &page)?;
+    require_keys_eq!(page.key(), derived, crate::ErrorCode::WrongAccount);
+
+    validate_ops_cash(&accounts.ops_cash)?;
+    let cash = accounts.ops_cash.to_account_info();
+    let ops = &mut accounts.ops;
+    crate::sync_ops(ops, &cash)?;
+    let (to_free, to_owner, to_excess) = closure_split(&rent, page.lamports())?;
+    let owner_refund = accounts.owner_refund.to_account_info();
+    if to_owner > 0 {
+        require_keys_eq!(owner_refund.key(), rent.owner_refund, crate::ErrorCode::WrongAccount);
+        crate::validate_destination(&owner_refund)?;
+    }
+    let to_cash = crate::checked_add(to_free, to_excess)?;
+    let cash_after = crate::checked_add(cash.lamports(), to_cash)?;
+    let owner_after = if to_owner > 0 {
+        crate::checked_add(owner_refund.lamports(), to_owner)?
+    } else {
+        0
+    };
+    ops.free_balance = crate::checked_add(ops.free_balance, to_free)?;
+    ops.unallocated_excess = crate::checked_add(ops.unallocated_excess, to_excess)?;
+    **page.try_borrow_mut_lamports()? = 0;
+    **cash.try_borrow_mut_lamports()? = cash_after;
+    if to_owner > 0 {
+        **owner_refund.try_borrow_mut_lamports()? = owner_after;
+    }
+    page.try_borrow_mut_data()?.fill(0);
+    page.resize(0)?;
+    page.assign(&anchor_lang::solana_program::system_program::ID);
     Ok(())
 }
 
-fn canonical_page(seed: &[u8], index: u64) -> Result<Pubkey> {
-    Ok(Pubkey::find_program_address(&[seed, &index.to_le_bytes()], &crate::ID).0)
+/// Fold any physical OpsCash surplus into `unallocated_excess` (idempotent).
+/// The ORAO Client observation arrives with M7.
+pub fn reconcile_ops_cash(ctx: Context<ReconcileOpsCash>) -> Result<()> {
+    validate_ops_cash(&ctx.accounts.ops_cash)?;
+    crate::sync_ops(&mut ctx.accounts.ops, &ctx.accounts.ops_cash.to_account_info())
 }
 
 fn serialize_account<T: AccountSerialize>(account: &AccountInfo<'_>, value: &T) -> Result<()> {
@@ -850,35 +1274,6 @@ fn reject_protected_destination(destination: &Pubkey, protected: &[Pubkey]) -> R
         protected.iter().all(|key| key != destination),
         crate::ErrorCode::ProtectedDestination
     );
-    Ok(())
-}
-
-fn validate_existing_page<T: AccountDeserialize + AnchorSerialize + Discriminator>(
-    account: &UncheckedAccount<'_>,
-    index: u64,
-) -> Result<()> {
-    require_keys_eq!(
-        *account.owner,
-        crate::ID,
-        crate::ErrorCode::WrongOwner
-    );
-    let account_data = account.try_borrow_data()?;
-    let mut data: &[u8] = &account_data;
-    require!(
-        data.len() >= 8 && &data[..8] == T::DISCRIMINATOR,
-        crate::ErrorCode::WrongAccount
-    );
-    let decoded = T::try_deserialize(&mut data)?;
-    // Both shared page types carry `index` as their second field after bump;
-    // serialize-and-compare keeps this helper generic without unsafe casts.
-    let bytes = decoded.try_to_vec()?;
-    require!(bytes.len() >= 9 + 8, crate::ErrorCode::InvalidState);
-    let stored = u64::from_le_bytes(
-        bytes[1..9]
-            .try_into()
-            .map_err(|_| error!(crate::ErrorCode::InvalidState))?,
-    );
-    require_eq!(stored, index, crate::ErrorCode::InvalidState);
     Ok(())
 }
 
@@ -1235,35 +1630,66 @@ pub struct WithdrawManagement<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ProvisionSnapshot<'info> {
+pub struct ProvisionPage<'info> {
     #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
     pub pool: Box<Account<'info, Pool>>,
     #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
     pub ops: Box<Account<'info, Ops>>,
-    /// CHECK: canonical system-owned PDA or an already-created page.
+    /// CHECK: canonical empty system-owned OpsCash PDA; checked by the handler.
     #[account(mut)]
     pub ops_cash: UncheckedAccount<'info>,
-    /// CHECK: canonical page PDA; created and deserialized by the handler.
+    /// CHECK: canonical page PDA for `kind`/`index`; created and written by the handler.
     #[account(mut)]
-    pub snapshot_page: UncheckedAccount<'info>,
+    pub page: UncheckedAccount<'info>,
+    #[account(mut)]
+    pub payer: Signer<'info>,
+    /// Required for `Candidate`; ignored for every other kind.
+    #[account(mut)]
+    pub close_record: Option<Box<Account<'info, CloseRecord>>>,
+    pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ProvisionCloseRecord<'info> {
+    #[account(seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Box<Account<'info, Pool>>,
+    #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
+    pub ops: Box<Account<'info, Ops>>,
+    /// CHECK: canonical empty system-owned OpsCash PDA; checked by the handler.
+    #[account(mut)]
+    pub ops_cash: UncheckedAccount<'info>,
+    /// CHECK: canonical `CloseRecord` PDA; created and written by the handler.
+    #[account(mut)]
+    pub close_record: UncheckedAccount<'info>,
+    #[account(mut)]
     pub payer: Signer<'info>,
     pub system_program: Program<'info, System>,
 }
 
 #[derive(Accounts)]
-pub struct ProvisionRegistry<'info> {
-    #[account(seeds = [POOL_SEED], bump = pool.bump)]
-    pub pool: Box<Account<'info, Pool>>,
+pub struct CloseSharedAccount<'info> {
+    /// CHECK: participant or candidate page; decoded and re-derived by the handler.
+    #[account(mut)]
+    pub page: UncheckedAccount<'info>,
     #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
     pub ops: Box<Account<'info, Ops>>,
-    /// CHECK: canonical system-owned PDA; checked by the handler/helper.
+    /// CHECK: canonical empty system-owned OpsCash PDA; checked by the handler.
     #[account(mut)]
     pub ops_cash: UncheckedAccount<'info>,
-    /// CHECK: canonical page PDA; created and deserialized by the handler.
+    /// CHECK: must equal the page's recorded owner refund destination when an
+    /// owner component exists; validated as a payout destination by the handler.
     #[account(mut)]
-    pub registry_page: UncheckedAccount<'info>,
-    pub payer: Signer<'info>,
+    pub owner_refund: UncheckedAccount<'info>,
+    pub close_record: Box<Account<'info, CloseRecord>>,
     pub system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct ReconcileOpsCash<'info> {
+    #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
+    pub ops: Box<Account<'info, Ops>>,
+    /// CHECK: canonical empty system-owned OpsCash PDA; checked by the handler.
+    pub ops_cash: UncheckedAccount<'info>,
 }
 
 #[cfg(test)]
@@ -1885,5 +2311,645 @@ mod tests {
             "WrongAccount",
         );
     }
-}
 
+    // ----- Milestone 4: provisioning, rent components, cleanup (pure rules) -----
+
+    /// A pool whose every page counter is distinct, so a wrong counter shows.
+    fn counted_pool() -> Pool {
+        Pool {
+            round_id: 4,
+            registry_pages: 3,
+            snapshot_pages: 5,
+            participant_pages: 7,
+            next_close_id: 2,
+            current_close_id: Some(1),
+            ..Pool::default()
+        }
+    }
+
+    fn counted_close(close_id: u64) -> CloseRecord {
+        CloseRecord {
+            close_id,
+            provisioned_preferred_pages: 11,
+            provisioned_fallback_pages: 13,
+            ..CloseRecord::default()
+        }
+    }
+
+    fn le(value: u64) -> Vec<u8> {
+        value.to_le_bytes().to_vec()
+    }
+
+    #[test]
+    fn page_kind_and_funding_borsh_encodings_are_frozen() {
+        assert_eq!(PageKind::Registry.try_to_vec().unwrap(), vec![0]);
+        assert_eq!(PageKind::Snapshot.try_to_vec().unwrap(), vec![1]);
+        assert_eq!(
+            PageKind::Participant { round: 7 }.try_to_vec().unwrap(),
+            [vec![2], le(7)].concat()
+        );
+        assert_eq!(
+            PageKind::Candidate { close_id: 9, set_tag: 1 }.try_to_vec().unwrap(),
+            [vec![3], le(9), vec![1]].concat()
+        );
+        assert_eq!(Funding::Free.try_to_vec().unwrap(), vec![0]);
+        assert_eq!(Funding::Caller.try_to_vec().unwrap(), vec![1]);
+        assert_eq!(Funding::LockedClose.try_to_vec().unwrap(), vec![2]);
+        for kind in [
+            PageKind::Registry,
+            PageKind::Snapshot,
+            PageKind::Participant { round: u64::MAX },
+            PageKind::Candidate { close_id: 3, set_tag: 0 },
+        ] {
+            let bytes = kind.try_to_vec().unwrap();
+            assert_eq!(PageKind::try_from_slice(&bytes).unwrap(), kind);
+        }
+    }
+
+    #[test]
+    fn page_target_resolves_seeds_space_and_next_index_per_kind() {
+        let pool = counted_pool();
+        let close = counted_close(2);
+
+        let registry = page_target(&PageKind::Registry, 3, &pool, None).unwrap();
+        assert_eq!(registry.seeds, vec![REGISTRY_SEED.to_vec(), le(3)]);
+        assert_eq!((registry.space, registry.expected_index), (RegistryPage::SPACE, 3));
+
+        let snapshot = page_target(&PageKind::Snapshot, 5, &pool, None).unwrap();
+        assert_eq!(snapshot.seeds, vec![SNAPSHOT_SEED.to_vec(), le(5)]);
+        assert_eq!((snapshot.space, snapshot.expected_index), (SnapshotPage::SPACE, 5));
+
+        let participant =
+            page_target(&PageKind::Participant { round: 4 }, 7, &pool, None).unwrap();
+        assert_eq!(participant.seeds, vec![PARTICIPANTS_SEED.to_vec(), le(4), le(7)]);
+        assert_eq!((participant.space, participant.expected_index), (ParticipantPage::SPACE, 7));
+
+        let preferred = page_target(
+            &PageKind::Candidate { close_id: 2, set_tag: 0 },
+            11,
+            &pool,
+            Some(&close),
+        )
+        .unwrap();
+        assert_eq!(preferred.seeds, vec![CANDIDATES_SEED.to_vec(), le(2), vec![0], le(11)]);
+        assert_eq!((preferred.space, preferred.expected_index), (CandidatePage::SPACE, 11));
+
+        let fallback = page_target(
+            &PageKind::Candidate { close_id: 2, set_tag: 1 },
+            13,
+            &pool,
+            Some(&close),
+        )
+        .unwrap();
+        assert_eq!(fallback.seeds, vec![CANDIDATES_SEED.to_vec(), le(2), vec![1], le(13)]);
+        assert_eq!(fallback.expected_index, 13);
+
+        // The two sets (and kinds) never share an address.
+        let address = |target: &PageTarget| {
+            let refs: Vec<&[u8]> = target.seeds.iter().map(|seed| seed.as_slice()).collect();
+            Pubkey::find_program_address(&refs, &crate::ID).0
+        };
+        let other_set =
+            page_target(&PageKind::Candidate { close_id: 2, set_tag: 1 }, 11, &pool, Some(&close))
+                .unwrap();
+        assert_ne!(address(&preferred), address(&other_set));
+        assert_ne!(address(&registry), address(&snapshot));
+    }
+
+    #[test]
+    fn sequential_index_counter_is_per_kind_and_per_candidate_set() {
+        let mut pool = counted_pool();
+        let mut close = counted_close(2);
+        let expect = |kind: PageKind, pool: &Pool, close: &CloseRecord| {
+            page_target(&kind, 0, pool, Some(close)).unwrap().expected_index
+        };
+        let preferred = PageKind::Candidate { close_id: 2, set_tag: 0 };
+        let fallback = PageKind::Candidate { close_id: 2, set_tag: 1 };
+        assert_eq!(expect(PageKind::Registry, &pool, &close), 3);
+        assert_eq!(expect(PageKind::Snapshot, &pool, &close), 5);
+        assert_eq!(expect(PageKind::Participant { round: 4 }, &pool, &close), 7);
+        assert_eq!(expect(preferred, &pool, &close), 11);
+        assert_eq!(expect(fallback, &pool, &close), 13);
+
+        // Moving one counter moves only its own kind or set.
+        pool.registry_pages = 20;
+        close.provisioned_fallback_pages = 21;
+        assert_eq!(expect(PageKind::Registry, &pool, &close), 20);
+        assert_eq!(expect(PageKind::Snapshot, &pool, &close), 5);
+        assert_eq!(expect(preferred, &pool, &close), 11);
+        assert_eq!(expect(fallback, &pool, &close), 21);
+    }
+
+    #[test]
+    fn page_target_rejects_kinds_that_cannot_be_provisioned_now() {
+        let pool = counted_pool();
+        let close = counted_close(2);
+        // Participant pages exist only for the pool's current round.
+        assert_error(page_target(&PageKind::Participant { round: 3 }, 0, &pool, None), "InvalidState");
+        assert_error(page_target(&PageKind::Participant { round: 5 }, 0, &pool, None), "InvalidState");
+        // Only set tags 0 and 1 exist.
+        assert_error(
+            page_target(&PageKind::Candidate { close_id: 2, set_tag: 2 }, 0, &pool, Some(&close)),
+            "InvalidState",
+        );
+        assert_error(
+            page_target(&PageKind::Candidate { close_id: 2, set_tag: u8::MAX }, 0, &pool, Some(&close)),
+            "InvalidState",
+        );
+        // A candidate page needs its close record, and the record's own id.
+        let preferred = PageKind::Candidate { close_id: 2, set_tag: 0 };
+        assert_error(page_target(&preferred, 0, &pool, None), "InvalidState");
+        assert_error(page_target(&preferred, 0, &pool, Some(&counted_close(9))), "InvalidState");
+        // Only the next close or the close in progress may receive pages.
+        let stale = PageKind::Candidate { close_id: 5, set_tag: 0 };
+        assert_error(page_target(&stale, 0, &pool, Some(&counted_close(5))), "InvalidState");
+        let older = Pool { current_close_id: Some(1), next_close_id: 3, ..counted_pool() };
+        assert!(page_target(
+            &PageKind::Candidate { close_id: 1, set_tag: 0 },
+            0,
+            &older,
+            Some(&counted_close(1))
+        )
+        .is_ok());
+        assert_error(
+            page_target(
+                &PageKind::Candidate { close_id: 2, set_tag: 0 },
+                0,
+                &older,
+                Some(&counted_close(2)),
+            ),
+            "InvalidState",
+        );
+        // With no close in progress the next close is still provisionable.
+        let idle = Pool { current_close_id: None, ..counted_pool() };
+        assert!(page_target(&preferred, 0, &idle, Some(&close)).is_ok());
+        let idle_old = Pool { current_close_id: None, ..older };
+        assert_error(
+            page_target(
+                &PageKind::Candidate { close_id: 1, set_tag: 0 },
+                0,
+                &idle_old,
+                Some(&counted_close(1)),
+            ),
+            "InvalidState",
+        );
+    }
+
+    #[test]
+    fn locked_close_funding_permission_matrix() {
+        let pool = counted_pool(); // close 1 in progress, close 2 next
+        let mut current = counted_close(1);
+        current.required_pages_per_set = 4;
+        let next = counted_close(2);
+        let candidate = |close_id| PageKind::Candidate { close_id, set_tag: 0 };
+
+        // Free and Caller are never restricted by this rule.
+        for funding in [Funding::Free, Funding::Caller] {
+            for kind in [PageKind::Registry, PageKind::Snapshot, candidate(2)] {
+                assert!(locked_permission(&kind, funding, 99, &pool, Some(&next)).is_ok());
+            }
+        }
+        // LockedClose is for candidate pages only.
+        for kind in [PageKind::Registry, PageKind::Snapshot, PageKind::Participant { round: 4 }] {
+            assert_error(
+                locked_permission(&kind, Funding::LockedClose, 0, &pool, Some(&current)),
+                "LockNotPermitted",
+            );
+        }
+        // ... of the close in progress, not the next close.
+        assert_error(
+            locked_permission(&candidate(2), Funding::LockedClose, 0, &pool, Some(&next)),
+            "LockNotPermitted",
+        );
+        let idle = Pool { current_close_id: None, ..counted_pool() };
+        assert_error(
+            locked_permission(&candidate(2), Funding::LockedClose, 0, &idle, Some(&next)),
+            "LockNotPermitted",
+        );
+        // ... strictly inside required_pages_per_set.
+        for index in [0, 3] {
+            assert!(
+                locked_permission(&candidate(1), Funding::LockedClose, index, &pool, Some(&current))
+                    .is_ok()
+            );
+        }
+        for index in [4, 5, u64::MAX] {
+            assert_error(
+                locked_permission(&candidate(1), Funding::LockedClose, index, &pool, Some(&current)),
+                "LockNotPermitted",
+            );
+        }
+        // A close that reserved nothing locks nothing.
+        let empty = counted_close(1);
+        assert_error(
+            locked_permission(&candidate(1), Funding::LockedClose, 0, &pool, Some(&empty)),
+            "LockNotPermitted",
+        );
+        assert_error(
+            locked_permission(&candidate(1), Funding::LockedClose, 0, &pool, None),
+            "LockNotPermitted",
+        );
+    }
+
+    #[test]
+    fn locked_split_pays_sponsor_partition_first_then_owner() {
+        let cases: [(u64, u64, u64, (u64, u64)); 9] = [
+            (10, 5, 0, (0, 0)),
+            (10, 5, 4, (4, 0)),
+            (10, 5, 10, (10, 0)),
+            (10, 5, 12, (10, 2)),
+            (10, 5, 15, (10, 5)),
+            (0, 5, 5, (0, 5)),
+            (7, 0, 7, (7, 0)),
+            (u64::MAX, u64::MAX, u64::MAX, (u64::MAX, 0)),
+            (1, u64::MAX, u64::MAX, (1, u64::MAX - 1)),
+        ];
+        for (sponsor, owner, rent, expected) in cases {
+            let (sponsor_part, owner_part) = crate::split_locked(sponsor, owner, rent).unwrap();
+            assert_eq!((sponsor_part, owner_part), expected, "split of {rent}");
+            // Exactly the rent leaves the partitions, and neither goes negative.
+            assert_eq!(sponsor_part + owner_part, rent);
+            assert!(sponsor_part <= sponsor && owner_part <= owner);
+        }
+    }
+
+    #[test]
+    fn locked_split_refuses_when_the_two_partitions_together_fall_short() {
+        for (sponsor, owner, rent) in [
+            (10, 5, 16),
+            (0, 0, 1),
+            (0, 4, 5),
+            (9, 0, 10),
+            (u64::MAX - 1, 0, u64::MAX),
+            (1, u64::MAX - 2, u64::MAX),
+        ] {
+            assert_error(crate::split_locked(sponsor, owner, rent), "LockNotPermitted");
+        }
+    }
+
+    #[test]
+    fn provisioning_counters_advance_per_kind_and_never_cross_sets() {
+        let mut pool = counted_pool();
+        for (kind, read) in [
+            (PageKind::Registry, (|p: &Pool| p.registry_pages) as fn(&Pool) -> u64),
+            (PageKind::Snapshot, |p| p.snapshot_pages),
+            (PageKind::Participant { round: 4 }, |p| p.participant_pages),
+        ] {
+            let before = read(&pool);
+            record_provisioned(&kind, &mut pool, None).unwrap();
+            assert_eq!(read(&pool), before + 1);
+        }
+        assert_eq!((pool.registry_pages, pool.snapshot_pages, pool.participant_pages), (4, 6, 8));
+
+        // Pre-capture preferred page: raises its own set and mirrors it into
+        // `existing_preferred_pages`; the fallback set is untouched.
+        let mut close = counted_close(2);
+        close.existing_fallback_pages = 6;
+        record_provisioned(
+            &PageKind::Candidate { close_id: 2, set_tag: 0 },
+            &mut pool,
+            Some(&mut close),
+        )
+        .unwrap();
+        assert_eq!((close.provisioned_preferred_pages, close.existing_preferred_pages), (12, 12));
+        assert_eq!((close.provisioned_fallback_pages, close.existing_fallback_pages), (13, 6));
+
+        // Pre-capture fallback page: the mirror image.
+        record_provisioned(
+            &PageKind::Candidate { close_id: 2, set_tag: 1 },
+            &mut pool,
+            Some(&mut close),
+        )
+        .unwrap();
+        assert_eq!((close.provisioned_fallback_pages, close.existing_fallback_pages), (14, 14));
+        assert_eq!((close.provisioned_preferred_pages, close.existing_preferred_pages), (12, 12));
+
+        // Post-capture (close in progress): provisioned grows, existing is frozen.
+        let mut current = counted_close(1);
+        current.existing_preferred_pages = 2;
+        current.existing_fallback_pages = 3;
+        record_provisioned(
+            &PageKind::Candidate { close_id: 1, set_tag: 0 },
+            &mut pool,
+            Some(&mut current),
+        )
+        .unwrap();
+        record_provisioned(
+            &PageKind::Candidate { close_id: 1, set_tag: 1 },
+            &mut pool,
+            Some(&mut current),
+        )
+        .unwrap();
+        assert_eq!((current.provisioned_preferred_pages, current.existing_preferred_pages), (12, 2));
+        assert_eq!((current.provisioned_fallback_pages, current.existing_fallback_pages), (14, 3));
+
+        // Candidate counters never touch the pool's page counters.
+        assert_eq!((pool.registry_pages, pool.snapshot_pages, pool.participant_pages), (4, 6, 8));
+    }
+
+    #[test]
+    fn provisioning_counters_fail_closed() {
+        let mut pool = counted_pool();
+        let mut close = counted_close(2);
+        assert_error(
+            record_provisioned(&PageKind::Candidate { close_id: 2, set_tag: 2 }, &mut pool, Some(&mut close)),
+            "InvalidState",
+        );
+        assert_error(
+            record_provisioned(&PageKind::Candidate { close_id: 2, set_tag: 0 }, &mut pool, None),
+            "InvalidState",
+        );
+        pool.registry_pages = u64::MAX;
+        assert_error(record_provisioned(&PageKind::Registry, &mut pool, None), "Overflow");
+        close.provisioned_fallback_pages = u64::MAX;
+        assert_error(
+            record_provisioned(&PageKind::Candidate { close_id: 2, set_tag: 1 }, &mut pool, Some(&mut close)),
+            "Overflow",
+        );
+        // A failed bump leaves the counter where it was.
+        assert_eq!(close.provisioned_fallback_pages, u64::MAX);
+        assert_eq!(close.existing_fallback_pages, 0);
+    }
+
+    #[test]
+    fn closability_matrix_per_kind_and_predicate() {
+        let finalized = |round: u64| CloseRecord { round_id: round, finalized: true, ..counted_close(5) };
+        let applied = Promotion::Applied { winner: key(1), entitlement: 1 };
+        let skipped = Promotion::Skipped { reason: 0, stage: 0 };
+        let terminal = |close_id: u64, promotion: Promotion| CloseRecord { promotion, ..counted_close(close_id) };
+
+        // R3: Registry and Snapshot are never closable, whatever the record says.
+        let everything = CloseRecord { finalized: true, promotion: applied, ..counted_close(5) };
+        assert!(!closable(&PageKind::Registry, &everything, true));
+        assert!(!closable(&PageKind::Snapshot, &everything, true));
+
+        // Participant: that round's close record is finalized.
+        let participant = PageKind::Participant { round: 3 };
+        assert!(closable(&participant, &finalized(3), true));
+        assert!(!closable(&participant, &finalized(2), true), "another round's record");
+        assert!(!closable(&participant, &CloseRecord { round_id: 3, ..counted_close(5) }, true));
+        assert!(!closable(&participant, &finalized(3), false), "non-canonical record");
+        assert!(
+            !closable(&participant, &terminal(5, applied), true),
+            "promotion alone does not finalize a round"
+        );
+
+        // Candidate: its own close record's promotion is terminal.
+        let candidate = PageKind::Candidate { close_id: 5, set_tag: 0 };
+        assert!(closable(&candidate, &terminal(5, applied), true));
+        assert!(closable(&candidate, &terminal(5, skipped), true));
+        assert!(!closable(&candidate, &terminal(5, Promotion::Pending), true));
+        assert!(
+            !closable(&candidate, &terminal(6, applied), true),
+            "a newer close's terminal state cannot close an older close's page"
+        );
+        assert!(!closable(&candidate, &terminal(5, applied), false), "non-canonical record");
+        assert!(
+            !closable(&candidate, &finalized(1), true),
+            "finalization alone does not terminate a promotion"
+        );
+        // The fallback set follows the same close record.
+        assert!(closable(
+            &PageKind::Candidate { close_id: 5, set_tag: 1 },
+            &terminal(5, skipped),
+            true
+        ));
+    }
+
+    #[test]
+    fn closure_split_returns_components_exactly_and_routes_the_rest_to_excess() {
+        let rent = RentComponents { ops: 7, owner: 3, owner_refund: key(9) };
+        assert_eq!(closure_split(&rent, 10).unwrap(), (7, 3, 0));
+        assert_eq!(closure_split(&rent, 12).unwrap(), (7, 3, 2), "unsolicited credits");
+        assert_error(closure_split(&rent, 9), "InvalidState");
+        assert_eq!(closure_split(&RentComponents::default(), 5).unwrap(), (0, 0, 5));
+        assert_eq!(
+            closure_split(&RentComponents { ops: 0, owner: 4, owner_refund: key(1) }, 4).unwrap(),
+            (0, 4, 0)
+        );
+        let huge = RentComponents { ops: u64::MAX, owner: 1, owner_refund: key(1) };
+        assert_error(closure_split(&huge, u64::MAX), "Overflow");
+    }
+
+    #[test]
+    fn fresh_account_is_empty_and_system_owned() {
+        assert!(is_fresh_account(&system_program::ID, true));
+        assert!(!is_fresh_account(&system_program::ID, false));
+        assert!(!is_fresh_account(&crate::ID, true), "an emptied but program-owned page");
+        assert!(!is_fresh_account(&crate::ID, false));
+        assert!(!is_fresh_account(&key(7), true));
+    }
+
+    #[test]
+    fn close_record_address_is_canonical_per_id() {
+        let (one, bump) = close_record_address(1);
+        assert_eq!(
+            Pubkey::create_program_address(&[CLOSE_SEED, &le(1), &[bump]], &crate::ID).unwrap(),
+            one
+        );
+        assert_ne!(one, close_record_address(2).0);
+        assert_ne!(close_record_address(0).0, close_record_address(u64::MAX).0);
+    }
+
+    // ----- Follow-up: need bound for sponsor-funded pages -----
+
+    /// A pool with `registry_len` and `participant_count` set; next close is 2,
+    /// close 1 is in progress.
+    fn needy_pool(registry_len: u64, participant_count: u64) -> Pool {
+        Pool { registry_len, participant_count, ..counted_pool() }
+    }
+
+    #[test]
+    fn free_registry_and_snapshot_pages_are_bounded_by_registry_extent() {
+        // 16 registry rows fill pages 0 and 1; page 2 is the (possibly empty) tail.
+        let pool = needy_pool(2 * PAGE_CAPACITY as u64, 0);
+        for kind in [PageKind::Registry, PageKind::Snapshot] {
+            for index in [0, 1, 2] {
+                assert!(free_need_bound(&kind, Funding::Free, index, &pool).is_ok(), "{kind:?} {index}");
+            }
+            assert_error(free_need_bound(&kind, Funding::Free, 3, &pool), "WrongIndex");
+            assert_error(free_need_bound(&kind, Funding::Free, u64::MAX, &pool), "WrongIndex");
+        }
+        // A partly filled tail needs no further page: 17 rows -> pages 0..=2.
+        let partial = needy_pool(2 * PAGE_CAPACITY as u64 + 1, 0);
+        assert!(free_need_bound(&PageKind::Registry, Funding::Free, 2, &partial).is_ok());
+        assert_error(free_need_bound(&PageKind::Registry, Funding::Free, 3, &partial), "WrongIndex");
+        // An empty registry still allows its first page, and only that.
+        let empty = needy_pool(0, 0);
+        assert!(free_need_bound(&PageKind::Snapshot, Funding::Free, 0, &empty).is_ok());
+        assert_error(free_need_bound(&PageKind::Snapshot, Funding::Free, 1, &empty), "WrongIndex");
+        // One row below a boundary: 7 rows still fit page 0, so only page 0 is allowed.
+        let seven = needy_pool(PAGE_CAPACITY as u64 - 1, 0);
+        assert!(free_need_bound(&PageKind::Registry, Funding::Free, 0, &seven).is_ok());
+        assert_error(free_need_bound(&PageKind::Registry, Funding::Free, 1, &seven), "WrongIndex");
+    }
+
+    #[test]
+    fn free_participant_pages_are_bounded_by_participant_count() {
+        let kind = PageKind::Participant { round: 4 };
+        // 9 participants fill page 0 and start page 1.
+        let pool = needy_pool(0, PAGE_CAPACITY as u64 + 1);
+        assert!(free_need_bound(&kind, Funding::Free, 0, &pool).is_ok());
+        assert!(free_need_bound(&kind, Funding::Free, 1, &pool).is_ok());
+        assert_error(free_need_bound(&kind, Funding::Free, 2, &pool), "WrongIndex");
+        // 8 participants exactly fill page 0; page 1 is the allowed tail, page 2 is not.
+        let full = needy_pool(0, PAGE_CAPACITY as u64);
+        assert!(free_need_bound(&kind, Funding::Free, 1, &full).is_ok());
+        assert_error(free_need_bound(&kind, Funding::Free, 2, &full), "WrongIndex");
+        // No participants yet: the first page only.
+        let none = needy_pool(0, 0);
+        assert!(free_need_bound(&kind, Funding::Free, 0, &none).is_ok());
+        assert_error(free_need_bound(&kind, Funding::Free, 1, &none), "WrongIndex");
+        // The registry's size is irrelevant to participant pages.
+        let big_registry = needy_pool(1_000, 0);
+        assert_error(free_need_bound(&kind, Funding::Free, 1, &big_registry), "WrongIndex");
+    }
+
+    #[test]
+    fn free_candidate_pages_for_the_next_close_are_bounded_by_participants() {
+        let next = PageKind::Candidate { close_id: 2, set_tag: 0 };
+        let fallback = PageKind::Candidate { close_id: 2, set_tag: 1 };
+        for kind in [next, fallback] {
+            // 9 participants need 2 pages per set: indices 0 and 1, not 2.
+            let nine = needy_pool(0, PAGE_CAPACITY as u64 + 1);
+            assert!(free_need_bound(&kind, Funding::Free, 0, &nine).is_ok());
+            assert!(free_need_bound(&kind, Funding::Free, 1, &nine).is_ok());
+            assert_error(free_need_bound(&kind, Funding::Free, 2, &nine), "WrongIndex");
+            // 8 participants need exactly 1 page: no tail allowance for candidates.
+            let eight = needy_pool(0, PAGE_CAPACITY as u64);
+            assert!(free_need_bound(&kind, Funding::Free, 0, &eight).is_ok());
+            assert_error(free_need_bound(&kind, Funding::Free, 1, &eight), "WrongIndex");
+            // With nobody yet, one page (max(count, 1)) may be pre-provisioned.
+            let none = needy_pool(0, 0);
+            assert!(free_need_bound(&kind, Funding::Free, 0, &none).is_ok());
+            assert_error(free_need_bound(&kind, Funding::Free, 1, &none), "WrongIndex");
+            // Registry size does not matter.
+            let big_registry = needy_pool(1_000, 0);
+            assert_error(free_need_bound(&kind, Funding::Free, 1, &big_registry), "WrongIndex");
+        }
+    }
+
+    #[test]
+    fn free_candidate_pages_for_the_current_close_have_no_extra_bound() {
+        let current = PageKind::Candidate { close_id: 1, set_tag: 1 };
+        let pool = needy_pool(0, 0);
+        for index in [0, 1, 100, u64::MAX] {
+            assert!(free_need_bound(&current, Funding::Free, index, &pool).is_ok(), "{index}");
+        }
+    }
+
+    #[test]
+    fn need_bound_applies_to_free_funding_only() {
+        let pool = needy_pool(0, 0);
+        for funding in [Funding::Caller, Funding::LockedClose] {
+            for kind in [
+                PageKind::Registry,
+                PageKind::Snapshot,
+                PageKind::Participant { round: 4 },
+                PageKind::Candidate { close_id: 2, set_tag: 0 },
+                PageKind::Candidate { close_id: 1, set_tag: 0 },
+            ] {
+                assert!(free_need_bound(&kind, funding, u64::MAX, &pool).is_ok(), "{funding:?} {kind:?}");
+            }
+        }
+        // ... while Free is refused for the same far-ahead indices (except the current close).
+        for kind in [
+            PageKind::Registry,
+            PageKind::Snapshot,
+            PageKind::Participant { round: 4 },
+            PageKind::Candidate { close_id: 2, set_tag: 0 },
+        ] {
+            assert_error(free_need_bound(&kind, Funding::Free, 1, &pool), "WrongIndex");
+        }
+    }
+
+    // ----- Follow-up: rent accounting reachable without AccountInfo -----
+
+    fn funded_ops(free: u64, locked: u64) -> Ops {
+        Ops { free_balance: free, locked_remaining_total: locked, ..Ops::default() }
+    }
+
+    #[test]
+    fn free_charge_debits_free_balance_and_counts_rent_funded() {
+        let mut ops = funded_ops(1_000, 40);
+        ops.total_rent_funded = 5;
+        crate::charge_free(&mut ops, 300).unwrap();
+        assert_eq!((ops.free_balance, ops.locked_remaining_total, ops.total_rent_funded), (700, 40, 305));
+        // A zero debit (fully prefunded target) is a no-op.
+        crate::charge_free(&mut ops, 0).unwrap();
+        assert_eq!((ops.free_balance, ops.total_rent_funded), (700, 305));
+        // Exactly the free balance is spendable; locked cash is not.
+        crate::charge_free(&mut ops, 700).unwrap();
+        assert_eq!((ops.free_balance, ops.locked_remaining_total, ops.total_rent_funded), (0, 40, 1_005));
+    }
+
+    #[test]
+    fn free_charge_fails_closed() {
+        let mut ops = funded_ops(99, 1_000);
+        let before = ops.try_to_vec().unwrap();
+        assert_error(crate::charge_free(&mut ops, 100), "InsufficientOperations");
+        assert_eq!(ops.try_to_vec().unwrap(), before, "locked cash never funds a Free page");
+        let mut full = funded_ops(10, 0);
+        full.total_rent_funded = u128::MAX;
+        let before = full.try_to_vec().unwrap();
+        assert_error(crate::charge_free(&mut full, 1), "Overflow");
+        assert_eq!(full.try_to_vec().unwrap(), before);
+        // Zero debit at the counter ceiling still succeeds.
+        crate::charge_free(&mut full, 0).unwrap();
+    }
+
+    #[test]
+    fn locked_charge_decrements_partitions_sponsor_first_and_records_everything() {
+        let mut ops = funded_ops(0, 150);
+        ops.total_rent_funded = 7;
+        let mut close = CloseRecord {
+            locked_sponsor_remaining: 100,
+            locked_owner_remaining: 50,
+            ..CloseRecord::default()
+        };
+        // Sponsor-only spend.
+        assert_eq!(crate::charge_locked(&mut ops, &mut close, 60).unwrap(), (60, 0));
+        assert_eq!((close.locked_sponsor_remaining, close.locked_owner_remaining), (40, 50));
+        assert_eq!(ops.locked_remaining_total, 90);
+        assert_eq!((close.spent.candidate_rent_s, close.spent.candidate_rent_o), (60, 0));
+        assert_eq!(ops.total_rent_funded, 67);
+        // Straddling spend: rest of the sponsor partition, then owner.
+        assert_eq!(crate::charge_locked(&mut ops, &mut close, 55).unwrap(), (40, 15));
+        assert_eq!((close.locked_sponsor_remaining, close.locked_owner_remaining), (0, 35));
+        assert_eq!(ops.locked_remaining_total, 35);
+        assert_eq!((close.spent.candidate_rent_s, close.spent.candidate_rent_o), (100, 15));
+        assert_eq!(ops.total_rent_funded, 122);
+        // Partitions always equal what remains locked; free_balance never moved.
+        assert_eq!(close.locked_sponsor_remaining + close.locked_owner_remaining, ops.locked_remaining_total);
+        assert_eq!(ops.free_balance, 0);
+        // Exact exhaustion.
+        assert_eq!(crate::charge_locked(&mut ops, &mut close, 35).unwrap(), (0, 35));
+        assert_eq!((ops.locked_remaining_total, ops.total_rent_funded), (0, 157));
+        assert_eq!((close.spent.candidate_rent_s, close.spent.candidate_rent_o), (100, 50));
+    }
+
+    #[test]
+    fn locked_charge_fails_closed_and_leaves_both_records_untouched() {
+        let base_close = CloseRecord {
+            locked_sponsor_remaining: 10,
+            locked_owner_remaining: 5,
+            ..CloseRecord::default()
+        };
+        let cases: [(Ops, &str); 3] = [
+            (funded_ops(0, 15), "LockNotPermitted"), // 16 > 10 + 5
+            (funded_ops(0, 3), "InvalidState"),      // aggregate smaller than the debit
+            (
+                Ops { total_rent_funded: u128::MAX, ..funded_ops(0, 15) },
+                "Overflow",
+            ),
+        ];
+        for (index, (mut ops, expected)) in cases.into_iter().enumerate() {
+            let debit = if index == 0 { 16 } else { 15 };
+            let mut close = base_close.clone();
+            let (ops_before, close_before) = (ops.try_to_vec().unwrap(), close.try_to_vec().unwrap());
+            assert_error(crate::charge_locked(&mut ops, &mut close, debit), expected);
+            assert_eq!(ops.try_to_vec().unwrap(), ops_before, "{expected}: ops unchanged");
+            assert_eq!(close.try_to_vec().unwrap(), close_before, "{expected}: close unchanged");
+        }
+    }
+}

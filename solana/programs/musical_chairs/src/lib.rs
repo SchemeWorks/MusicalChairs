@@ -1,7 +1,10 @@
 //! Native financial account/instruction tranche. No deployment or complete-game claim.
 #![forbid(unsafe_code)]
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program::{program::invoke_signed, system_instruction, system_program};
+use anchor_lang::solana_program::{
+    program::{invoke, invoke_signed},
+    system_instruction, system_program,
+};
 pub mod state;
 pub mod controls;
 pub mod positions;
@@ -11,7 +14,7 @@ pub mod events;
 pub use error::ErrorCode;
 pub use events::*;
 use controls::*;
-pub use controls::ConfigTerms;
+pub use controls::{ConfigTerms, Funding, PageKind};
 use positions::*;
 use allocation::*;
 pub use state::*;
@@ -36,16 +39,20 @@ pub fn game_accounted(pool: &Pool) -> Result<u128> {
         .try_fold(0u128, |sum, part| sum.checked_add(part).ok_or_else(|| error!(ErrorCode::Overflow)))
 }
 /// Protect current runtime rent and classify unsolicited SOL separately.
+/// Also refreshes `pool.protected_rent` from the live rent schedule (DR-27),
+/// so the recorded floor can never go stale against a rent-schedule change.
 pub fn sync_game(pool: &mut Pool, vault: &AccountInfo) -> Result<()> {
     require_keys_eq!(*vault.owner, ID, ErrorCode::WrongOwner);
     require_keys_eq!(vault.key(), Pubkey::find_program_address(&[GAME_VAULT_SEED], &ID).0, ErrorCode::WrongAccount);
-    let spendable = checked_sub(vault.lamports(), Rent::get()?.minimum_balance(vault.data_len()))?;
+    let rent_floor = Rent::get()?.minimum_balance(vault.data_len());
+    let spendable = checked_sub(vault.lamports(), rent_floor)?;
     let recorded = game_accounted(pool)?;
     let unaccounted = u128::from(spendable)
         .checked_sub(recorded)
         .ok_or_else(|| error!(ErrorCode::InvalidState))?;
     let unaccounted = u64::try_from(unaccounted).map_err(|_| error!(ErrorCode::Overflow))?;
     pool.excess = checked_add(pool.excess, unaccounted)?;
+    pool.protected_rent = rent_floor;
     Ok(())
 }
 pub fn validate_destination(destination: &AccountInfo) -> Result<()> {
@@ -68,36 +75,138 @@ pub fn send_game(vault: &AccountInfo, destination: &AccountInfo, amount: u64) ->
     **destination.try_borrow_mut_lamports()? = received;
     Ok(())
 }
+/// Classify unsolicited OpsCash credits as `unallocated_excess` and refresh
+/// `ops.protected_rent` from the live rent schedule (DR-27).
 pub fn sync_ops(ops: &mut Ops, cash: &AccountInfo) -> Result<()> {
     require_keys_eq!(cash.key(), Pubkey::find_program_address(&[OPS_CASH_SEED], &ID).0, ErrorCode::WrongAccount);
     require_keys_eq!(*cash.owner, system_program::ID, ErrorCode::WrongOwner);
     require!(cash.data_is_empty() && !cash.executable, ErrorCode::WrongAccount);
-    let available = checked_sub(cash.lamports(), Rent::get()?.minimum_balance(0))?;
+    let rent_floor = Rent::get()?.minimum_balance(0);
+    let available = checked_sub(cash.lamports(), rent_floor)?;
     let recorded = checked_add(checked_add(ops.free_balance, ops.locked_remaining_total)?, ops.unallocated_excess)?;
     ops.unallocated_excess = checked_add(ops.unallocated_excess, checked_sub(available, recorded)?)?;
+    ops.protected_rent = rent_floor;
     Ok(())
 }
-/// Shared pages are sponsor-funded. Prefunded empty PDAs cannot block provisioning.
-/// Canonical target seeds include its bump; both cash and target sign the CPI.
-pub fn create_shared<'info>(target: &AccountInfo<'info>, cash: &AccountInfo<'info>, system: &AccountInfo<'info>, seeds: &[&[u8]], space: usize, ops: &mut Ops) -> Result<()> {
-    sync_ops(ops, cash)?;
+
+/// Shared checks before a PDA is created: the system program is real, the
+/// target is the PDA the seeds (which end in the bump) describe, and it is a
+/// writable, empty, system-owned account. A prefunded empty PDA passes.
+fn check_create_target(target: &AccountInfo, system: &AccountInfo, seeds: &[&[u8]]) -> Result<()> {
     require_keys_eq!(system.key(), system_program::ID, ErrorCode::WrongAccount);
     require_keys_eq!(target.key(), Pubkey::create_program_address(seeds, &ID).map_err(|_| error!(ErrorCode::WrongAccount))?, ErrorCode::WrongAccount);
     require_keys_eq!(*target.owner, system_program::ID, ErrorCode::WrongOwner);
     require!(target.data_is_empty() && !target.executable && target.is_writable, ErrorCode::WrongAccount);
-    let rent = Rent::get()?.minimum_balance(space);
-    let debit = rent.saturating_sub(target.lamports());
-    require!(ops.free_balance >= debit, ErrorCode::InsufficientOperations);
-    let (_, cash_bump) = Pubkey::find_program_address(&[OPS_CASH_SEED], &ID);
-    let cash_bump_arr = [cash_bump];
-    let cash_seeds: &[&[u8]] = &[OPS_CASH_SEED, &cash_bump_arr];
-    if debit > 0 {
-        invoke_signed(&system_instruction::transfer(cash.key, target.key, debit), &[cash.clone(), target.clone(), system.clone()], &[cash_seeds])?;
-        ops.free_balance = checked_sub(ops.free_balance, debit)?;
-    }
+    Ok(())
+}
+/// Allocate `space` bytes and assign the target to this program; the target PDA signs.
+fn allocate_and_assign<'info>(target: &AccountInfo<'info>, system: &AccountInfo<'info>, seeds: &[&[u8]], space: usize) -> Result<()> {
     invoke_signed(&system_instruction::allocate(target.key, space as u64), &[target.clone(), system.clone()], &[seeds])?;
     invoke_signed(&system_instruction::assign(target.key, &ID), &[target.clone(), system.clone()], &[seeds])?;
     Ok(())
+}
+/// System transfer `amount` out of OpsCash (the OpsCash PDA signs).
+fn transfer_from_cash<'info>(cash: &AccountInfo<'info>, target: &AccountInfo<'info>, system: &AccountInfo<'info>, amount: u64) -> Result<()> {
+    let (_, cash_bump) = Pubkey::find_program_address(&[OPS_CASH_SEED], &ID);
+    let cash_bump_arr = [cash_bump];
+    let cash_seeds: &[&[u8]] = &[OPS_CASH_SEED, &cash_bump_arr];
+    invoke_signed(&system_instruction::transfer(cash.key, target.key, amount), &[cash.clone(), target.clone(), system.clone()], &[cash_seeds])?;
+    Ok(())
+}
+/// `ops.total_rent_funded + debit` as checked u128 (`Overflow`).
+fn rent_funded_after(total: u128, debit: u64) -> Result<u128> {
+    total.checked_add(u128::from(debit)).ok_or_else(|| error!(ErrorCode::Overflow))
+}
+/// Account a `Free` rent debit: `free_balance -= debit` (`InsufficientOperations`
+/// when short) and `total_rent_funded += debit`. All-or-nothing: on error `ops`
+/// is unchanged. Caller funding never goes through here.
+pub fn charge_free(ops: &mut Ops, debit: u64) -> Result<()> {
+    require!(ops.free_balance >= debit, ErrorCode::InsufficientOperations);
+    let rent_funded = rent_funded_after(ops.total_rent_funded, debit)?;
+    ops.free_balance = checked_sub(ops.free_balance, debit)?;
+    ops.total_rent_funded = rent_funded;
+    Ok(())
+}
+/// Split a rent debit across a close's locked partitions: sponsor partition
+/// first, then owner. `LockNotPermitted` when the two together fall short.
+pub fn split_locked(sponsor_remaining: u64, owner_remaining: u64, rent: u64) -> Result<(u64, u64)> {
+    let sponsor_part = rent.min(sponsor_remaining);
+    let owner_part = rent - sponsor_part;
+    require!(owner_part <= owner_remaining, ErrorCode::LockNotPermitted);
+    Ok((sponsor_part, owner_part))
+}
+/// Account a `LockedClose` rent debit (spec §8.3): both partitions and
+/// `ops.locked_remaining_total` fall by exactly the lamports that leave
+/// OpsCash (sponsor first), `close.spent.candidate_rent_s/o` records the split
+/// and `total_rent_funded += debit`. `free_balance` is never touched.
+/// All-or-nothing: on error neither `ops` nor `close` is changed.
+pub fn charge_locked(ops: &mut Ops, close: &mut CloseRecord, debit: u64) -> Result<(u64, u64)> {
+    let (sponsor_part, owner_part) = split_locked(close.locked_sponsor_remaining, close.locked_owner_remaining, debit)?;
+    let sponsor_left = checked_sub(close.locked_sponsor_remaining, sponsor_part)?;
+    let owner_left = checked_sub(close.locked_owner_remaining, owner_part)?;
+    let locked_total = checked_sub(ops.locked_remaining_total, debit)?;
+    let spent_s = checked_add(close.spent.candidate_rent_s, sponsor_part)?;
+    let spent_o = checked_add(close.spent.candidate_rent_o, owner_part)?;
+    let rent_funded = rent_funded_after(ops.total_rent_funded, debit)?;
+    close.locked_sponsor_remaining = sponsor_left;
+    close.locked_owner_remaining = owner_left;
+    ops.locked_remaining_total = locked_total;
+    close.spent.candidate_rent_s = spent_s;
+    close.spent.candidate_rent_o = spent_o;
+    ops.total_rent_funded = rent_funded;
+    Ok((sponsor_part, owner_part))
+}
+/// Shared pages are sponsor-funded. Prefunded empty PDAs cannot block provisioning.
+/// Canonical target seeds include its bump; both cash and target sign the CPI.
+/// Rent is read from `Rent::get()` (never a constant). Returns the lamports
+/// actually debited from `ops.free_balance`, i.e. the rent minus whatever the
+/// target already held, which is the page's `ops` rent component. The debit is
+/// also added to `ops.total_rent_funded`.
+pub fn create_shared<'info>(target: &AccountInfo<'info>, cash: &AccountInfo<'info>, system: &AccountInfo<'info>, seeds: &[&[u8]], space: usize, ops: &mut Ops) -> Result<u64> {
+    sync_ops(ops, cash)?;
+    check_create_target(target, system, seeds)?;
+    let rent = Rent::get()?.minimum_balance(space);
+    let debit = rent.saturating_sub(target.lamports());
+    charge_free(ops, debit)?;
+    if debit > 0 {
+        transfer_from_cash(cash, target, system, debit)?;
+    }
+    allocate_and_assign(target, system, seeds, space)?;
+    Ok(debit)
+}
+/// Like [`create_shared`], but paid from the close's locked reserve instead of
+/// `free_balance` (spec §8.3): see [`charge_locked`] for the accounting.
+/// Returns `(sponsor part, owner part)`.
+/// For an unfunded target the debit is the whole rent; a prefunded target
+/// lowers the debit (and every figure derived from it) by what it already holds,
+/// so the partitions always equal the unspent cash that remains in OpsCash.
+pub fn create_shared_locked<'info>(target: &AccountInfo<'info>, cash: &AccountInfo<'info>, system: &AccountInfo<'info>, seeds: &[&[u8]], space: usize, ops: &mut Ops, close: &mut CloseRecord) -> Result<(u64, u64)> {
+    sync_ops(ops, cash)?;
+    check_create_target(target, system, seeds)?;
+    let rent = Rent::get()?.minimum_balance(space);
+    let debit = rent.saturating_sub(target.lamports());
+    let parts = charge_locked(ops, close, debit)?;
+    if debit > 0 {
+        transfer_from_cash(cash, target, system, debit)?;
+    }
+    allocate_and_assign(target, system, seeds, space)?;
+    Ok(parts)
+}
+/// Create a shared page paid by the transaction's `payer` (the `Caller`
+/// funding mode): the payer signs the rent transfer, the PDA signs allocate and
+/// assign. Operations cash is not involved. Returns the lamports the payer
+/// actually transferred (the rent minus anything the target already held),
+/// which is the page's `owner` rent component.
+pub fn create_caller_funded<'info>(target: &AccountInfo<'info>, payer: &AccountInfo<'info>, system: &AccountInfo<'info>, seeds: &[&[u8]], space: usize) -> Result<u64> {
+    check_create_target(target, system, seeds)?;
+    require!(payer.is_signer && payer.is_writable, ErrorCode::NotAuthorized);
+    let rent = Rent::get()?.minimum_balance(space);
+    let debit = rent.saturating_sub(target.lamports());
+    if debit > 0 {
+        invoke(&system_instruction::transfer(payer.key, target.key, debit), &[payer.clone(), target.clone(), system.clone()])?;
+    }
+    allocate_and_assign(target, system, seeds, space)?;
+    Ok(debit)
 }
 
 #[program]
@@ -112,8 +221,10 @@ pub mod musical_chairs_program {
     pub fn activate_config_version(ctx: Context<ActivateConfigVersion>, version: u32, expected_current: u32) -> Result<()> { controls::activate_config_version(ctx,version,expected_current) }
     pub fn rotate_recipient(ctx: Context<RotateRecipient>, kind: u8, new_recipient: Pubkey) -> Result<()> { controls::rotate_recipient(ctx,kind,new_recipient) }
     pub fn rotate_guardian(ctx: Context<RotateGuardian>) -> Result<()> { controls::rotate_guardian(ctx) }
-    pub fn provision_snapshot(ctx: Context<ProvisionSnapshot>, index: u64) -> Result<()> { controls::provision_snapshot(ctx,index) }
-    pub fn provision_registry(ctx: Context<ProvisionRegistry>, index: u64) -> Result<()> { controls::provision_registry(ctx,index) }
+    pub fn provision_page(ctx: Context<ProvisionPage>, kind: PageKind, index: u64, funding: Funding) -> Result<()> { controls::provision_page(ctx,kind,index,funding) }
+    pub fn provision_close_record(ctx: Context<ProvisionCloseRecord>, close_id: u64, funding: Funding) -> Result<()> { controls::provision_close_record(ctx,close_id,funding) }
+    pub fn close_shared_account(ctx: Context<CloseSharedAccount>, kind: PageKind) -> Result<()> { controls::close_shared_account(ctx,kind) }
+    pub fn reconcile_ops_cash(ctx: Context<ReconcileOpsCash>) -> Result<()> { controls::reconcile_ops_cash(ctx) }
     pub fn open_position(ctx: Context<OpenPosition>, plan: PlanKindArg, gross_lamports:u64, client_nonce:u64) -> Result<()> { positions::open_position(ctx,plan,gross_lamports,client_nonce) }
     pub fn fund_series_a(ctx: Context<FundSeriesA>, gross_lamports:u64) -> Result<()> { positions::fund_series_a(ctx,gross_lamports) }
     pub fn claim_position(ctx: Context<ClaimPosition>, minimum_receive:u64, close_simple:bool) -> Result<()> { positions::claim_position(ctx,minimum_receive,close_simple) }

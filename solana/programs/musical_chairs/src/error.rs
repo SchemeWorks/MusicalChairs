@@ -5,7 +5,8 @@
 //! append.  The first 22 variants (through `NotImplemented`, 6021) predate the
 //! M2 error split; the nine after it were appended for the allocation,
 //! claim, draw and configuration paths; `WrongGovernanceProfile` (6031) was
-//! appended in M3 for Squads profile-shape failures.
+//! appended in M3 for Squads profile-shape failures; the five after it
+//! (6032..=6036) were appended in M4 for provisioning and cleanup.
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -21,6 +22,8 @@ pub enum ErrorCode {
     ConfigNotActivatable,
     // Appended in M3 (6031); keep this order.
     WrongGovernanceProfile,
+    // Appended in M4 (6032..=6036); keep this order.
+    WrongIndex, NotClosable, AlreadyClosed, PageNotProvisioned, LockNotPermitted,
 }
 
 #[cfg(test)]
@@ -42,5 +45,10 @@ mod tests {
         assert_eq!(ErrorCode::WrongProviderTuple as u32 + 6000, 6029);
         assert_eq!(ErrorCode::ConfigNotActivatable as u32 + 6000, 6030);
         assert_eq!(ErrorCode::WrongGovernanceProfile as u32 + 6000, 6031);
+        assert_eq!(ErrorCode::WrongIndex as u32 + 6000, 6032);
+        assert_eq!(ErrorCode::NotClosable as u32 + 6000, 6033);
+        assert_eq!(ErrorCode::AlreadyClosed as u32 + 6000, 6034);
+        assert_eq!(ErrorCode::PageNotProvisioned as u32 + 6000, 6035);
+        assert_eq!(ErrorCode::LockNotPermitted as u32 + 6000, 6036);
     }
 }
