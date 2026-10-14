@@ -143,35 +143,66 @@
       ]
     },
     {
-      "name": "allocate_row",
+      "name": "allocate_rows",
       "discriminator": [
-        166,
-        9,
-        93,
-        3,
-        6,
-        74,
         227,
-        209
+        117,
+        89,
+        183,
+        36,
+        142,
+        120,
+        133
       ],
       "accounts": [
         {
-          "name": "pool",
+          "name": "ticket",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  112,
-                  111,
-                  111,
-                  108
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
                 ]
               }
             ]
           }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
         },
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
+        }
+      ]
+    },
+    {
+      "name": "apply_senior",
+      "discriminator": [
+        125,
+        158,
+        48,
+        84,
+        220,
+        110,
+        63,
+        38
+      ],
+      "accounts": [
         {
           "name": "ticket",
           "writable": true,
@@ -192,38 +223,16 @@
           }
         },
         {
-          "name": "snapshot_page",
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  110,
-                  97,
-                  112,
-                  115,
-                  104,
-                  111,
-                  116
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "snapshot_page.index",
-                "account": "SnapshotPage"
-              }
-            ]
-          }
-        },
-        {
           "name": "backer",
+          "docs": [
+            "ticket's tracked oldest open A, a canonical Backer PDA."
+          ],
           "writable": true
         }
       ],
       "args": [
         {
-          "name": "expected_cursor",
+          "name": "expected_ticket_id",
           "type": "u64"
         }
       ]
@@ -241,6 +250,10 @@
         133
       ],
       "accounts": [
+        {
+          "name": "owner",
+          "signer": true
+        },
         {
           "name": "pool",
           "writable": true,
@@ -282,15 +295,40 @@
           }
         },
         {
-          "name": "owner_signer",
-          "signer": true
+          "name": "user",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
         },
         {
-          "name": "backer",
-          "writable": true
+          "name": "backer_a",
+          "writable": true,
+          "optional": true
+        },
+        {
+          "name": "backer_b",
+          "writable": true,
+          "optional": true
         },
         {
           "name": "destination",
+          "docs": [
+            "account and the handler rejects every protected alias."
+          ],
           "writable": true
         },
         {
@@ -326,12 +364,7 @@
           "name": "program"
         }
       ],
-      "args": [
-        {
-          "name": "minimum_receive",
-          "type": "u64"
-        }
-      ]
+      "args": []
     },
     {
       "name": "close_shared_account",
@@ -521,35 +554,18 @@
       "args": []
     },
     {
-      "name": "commit",
+      "name": "commit_ticket",
       "discriminator": [
-        223,
-        140,
-        142,
-        165,
-        229,
-        208,
-        156,
-        74
+        15,
+        97,
+        55,
+        56,
+        38,
+        249,
+        88,
+        220
       ],
       "accounts": [
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
         {
           "name": "ticket",
           "writable": true,
@@ -568,6 +584,28 @@
               }
             ]
           }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "close_record",
+          "writable": true,
+          "optional": true
         },
         {
           "name": "event_authority",
@@ -610,35 +648,18 @@
       ]
     },
     {
-      "name": "discover_row",
+      "name": "discover_rows",
       "discriminator": [
-        83,
-        62,
-        4,
-        149,
-        51,
-        82,
-        205,
-        178
+        99,
+        154,
+        63,
+        241,
+        26,
+        162,
+        242,
+        42
       ],
       "accounts": [
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
         {
           "name": "ticket",
           "writable": true,
@@ -659,57 +680,17 @@
           }
         },
         {
-          "name": "registry_page",
-          "writable": true,
+          "name": "pool",
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  114,
-                  101,
-                  103,
-                  105,
-                  115,
-                  116,
-                  114,
-                  121
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "registry_page.index",
-                "account": "RegistryPage"
-              }
-            ]
-          }
-        },
-        {
-          "name": "backer",
-          "writable": true
-        },
-        {
-          "name": "snapshot_page",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  115,
-                  110,
-                  97,
                   112,
-                  115,
-                  104,
                   111,
-                  116
+                  111,
+                  108
                 ]
-              },
-              {
-                "kind": "account",
-                "path": "snapshot_page.index",
-                "account": "SnapshotPage"
               }
             ]
           }
@@ -717,8 +698,16 @@
       ],
       "args": [
         {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        },
+        {
           "name": "expected_cursor",
           "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
         }
       ]
     },
@@ -1635,35 +1624,18 @@
       ]
     },
     {
-      "name": "prune_row",
+      "name": "prune_rows",
       "discriminator": [
+        219,
+        109,
+        198,
+        121,
         85,
-        110,
-        244,
-        187,
-        11,
-        98,
-        160,
-        192
+        148,
+        131,
+        215
       ],
       "accounts": [
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
         {
           "name": "ticket",
           "writable": true,
@@ -1684,36 +1656,35 @@
           }
         },
         {
-          "name": "snapshot_page",
-          "writable": true
-        },
-        {
-          "name": "backer",
-          "docs": [
-            "captured key/series/slot before mutation."
-          ],
-          "writable": true
-        },
-        {
-          "name": "registry_page",
-          "writable": true
-        },
-        {
-          "name": "last_registry_page",
-          "docs": [
-            "original page and is written through one alias-safe codec."
-          ],
-          "writable": true
-        },
-        {
-          "name": "moved_backer",
-          "writable": true
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
         }
       ],
       "args": [
         {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        },
+        {
           "name": "expected_cursor",
           "type": "u64"
+        },
+        {
+          "name": "rows",
+          "type": "u8"
         }
       ]
     },
@@ -1902,23 +1873,6 @@
       ],
       "accounts": [
         {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
           "name": "ticket",
           "writable": true,
           "pda": {
@@ -1936,70 +1890,6 @@
               }
             ]
           }
-        }
-      ],
-      "args": [
-        {
-          "name": "expected_ticket_id",
-          "type": "u64"
-        }
-      ]
-    },
-    {
-      "name": "senior",
-      "discriminator": [
-        33,
-        105,
-        176,
-        117,
-        66,
-        179,
-        10,
-        238
-      ],
-      "accounts": [
-        {
-          "name": "pool",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  112,
-                  111,
-                  111,
-                  108
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "ticket",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  116,
-                  105,
-                  99,
-                  107,
-                  101,
-                  116
-                ]
-              }
-            ]
-          }
-        },
-        {
-          "name": "oldest_backer",
-          "docs": [
-            "active membership, captured slot, owner binding, and ticket oldest key."
-          ],
-          "writable": true
         }
       ],
       "args": [
@@ -3068,19 +2958,6 @@
       ]
     },
     {
-      "name": "RegistryPage",
-      "discriminator": [
-        190,
-        151,
-        207,
-        163,
-        226,
-        253,
-        16,
-        250
-      ]
-    },
-    {
       "name": "RngAuthority",
       "discriminator": [
         10,
@@ -3091,19 +2968,6 @@
         60,
         149,
         22
-      ]
-    },
-    {
-      "name": "SnapshotPage",
-      "discriminator": [
-        249,
-        175,
-        151,
-        41,
-        53,
-        179,
-        39,
-        246
       ]
     },
     {
@@ -3551,6 +3415,14 @@
     {
       "code": 6038,
       "name": "PublicSeriesADisabled"
+    },
+    {
+      "code": 6039,
+      "name": "StaleTicket"
+    },
+    {
+      "code": 6040,
+      "name": "StaleCursor"
     }
   ],
   "types": [
@@ -5178,39 +5050,6 @@
       }
     },
     {
-      "name": "RegistryPage",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "keys",
-            "type": {
-              "array": [
-                "pubkey",
-                8
-              ]
-            }
-          },
-          {
-            "name": "rent",
-            "type": {
-              "defined": {
-                "name": "RentComponents"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
       "name": "RentComponents",
       "docs": [
         "Who funded a shared account's rent, in at most two components (DR-13).",
@@ -5374,71 +5213,6 @@
           {
             "name": "entitlement_after",
             "type": "u128"
-          }
-        ]
-      }
-    },
-    {
-      "name": "SnapshotPage",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "bump",
-            "type": "u8"
-          },
-          {
-            "name": "index",
-            "type": "u64"
-          },
-          {
-            "name": "ticket_id",
-            "type": "u64"
-          },
-          {
-            "name": "rows",
-            "type": {
-              "array": [
-                {
-                  "defined": {
-                    "name": "SnapshotRow"
-                  }
-                },
-                8
-              ]
-            }
-          },
-          {
-            "name": "rent",
-            "type": {
-              "defined": {
-                "name": "RentComponents"
-              }
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "SnapshotRow",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "key",
-            "type": "pubkey"
-          },
-          {
-            "name": "series",
-            "type": "u8"
-          },
-          {
-            "name": "remaining",
-            "type": "u128"
-          },
-          {
-            "name": "slot",
-            "type": "u64"
           }
         ]
       }
