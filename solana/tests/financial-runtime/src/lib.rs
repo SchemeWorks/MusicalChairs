@@ -13,13 +13,16 @@
 
 pub mod controls;
 pub mod financial;
+pub mod positions_suite;
 pub mod provisioning;
 pub mod runtime;
+pub mod world;
 
 pub use controls::run_controls_m3_suite;
 pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
 };
+pub use positions_suite::run_positions_suite;
 pub use provisioning::run_provisioning_suite;
 pub use runtime::{fixtures, FinancialRuntime, Observation};
 
@@ -30,6 +33,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_controls_suite());
     observations.extend(run_controls_m3_suite());
     observations.extend(run_provisioning_suite());
+    observations.extend(run_positions_suite());
     observations
 }
 
@@ -429,6 +433,191 @@ mod provisioning_tests {
             assert_headline(&observations, row);
         }
         assert_eq!(m4::ROW_NAMES.len(), 17);
+    }
+}
+
+/// M5 admission and payout rows.  Each test runs one row of
+/// `positions_suite.rs` against the actual compiled SBF (`MC_FINANCIAL_SBF`;
+/// the governed genesis fixture also loads the Squads stand-in,
+/// `MC_STANDIN_SBF`).  The row asserts the exact program error code of every
+/// rejection (parsed from `Observation.error`), fee-only rollback of every
+/// account the `World` can touch on every rejection, both cash-register
+/// identities after every transaction, and the exact lamport movement and
+/// event of every success.
+#[cfg(test)]
+mod positions_tests {
+    use crate::positions_suite::{self as m5, assert_headline};
+    use crate::controls::{assert_outcomes_consistent, assert_unique_labels};
+    use crate::runtime::Observation;
+
+    fn run_row(name: &str, row: fn() -> Vec<Observation>) {
+        let observations = row();
+        assert_headline(&observations, name);
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+    }
+
+    #[test]
+    fn open_one_sol_simple_splits_40m_management_960m_pot_and_moves_real_sol() {
+        run_row(
+            m5::ROW_OPEN_ONE_SOL,
+            m5::open_one_sol_simple_splits_40m_management_960m_pot_and_moves_real_sol,
+        );
+    }
+
+    #[test]
+    fn withdraw_simple_after_one_day_pays_96_800_000_and_escrows_13_200_000() {
+        run_row(
+            m5::ROW_WITHDRAW_ONE_DAY,
+            m5::withdraw_simple_after_one_day_pays_96_800_000_and_escrows_13_200_000,
+        );
+    }
+
+    #[test]
+    fn toll_with_no_backers_goes_straight_to_seed_without_ticket() {
+        run_row(
+            m5::ROW_TOLL_NO_BACKERS,
+            m5::toll_with_no_backers_goes_straight_to_seed_without_ticket,
+        );
+    }
+
+    #[test]
+    fn minimum_receive_failure_is_atomic_and_fee_only() {
+        run_row(
+            m5::ROW_MINIMUM_RECEIVE,
+            m5::minimum_receive_failure_is_atomic_and_fee_only,
+        );
+    }
+
+    #[test]
+    fn strict_insolvency_closes_and_equality_does_not() {
+        run_row(
+            m5::ROW_STRICT_INSOLVENCY,
+            m5::strict_insolvency_closes_and_equality_does_not,
+        );
+    }
+
+    #[test]
+    fn closing_reserve_scales_with_participants_and_registry_tail() {
+        run_row(
+            m5::ROW_RESERVE_SCALES,
+            m5::closing_reserve_scales_with_participants_and_registry_tail,
+        );
+    }
+
+    #[test]
+    fn closing_payout_short_by_one_lamport_rejects_before_mutation() {
+        run_row(
+            m5::ROW_SHORT_BY_ONE,
+            m5::closing_payout_short_by_one_lamport_rejects_before_mutation,
+        );
+    }
+
+    #[test]
+    fn owner_funded_close_transfers_contribution_to_opscash_and_rolls_back_on_failed_payout() {
+        run_row(
+            m5::ROW_OWNER_FUNDED_CLOSE,
+            m5::owner_funded_close_transfers_contribution_to_opscash_and_rolls_back_on_failed_payout,
+        );
+    }
+
+    #[test]
+    fn compound_15_maturity_vector() {
+        run_row(
+            m5::ROW_COMPOUND_15,
+            m5::compound_15_maturity_vector,
+        );
+    }
+
+    #[test]
+    fn quota_third_success_blocks_fourth_until_exact_hour() {
+        run_row(
+            m5::ROW_QUOTA,
+            m5::quota_third_success_blocks_fourth_until_exact_hour,
+        );
+    }
+
+    #[test]
+    fn failed_open_does_not_consume_quota_and_nonce_replay_fails() {
+        run_row(
+            m5::ROW_FAILED_OPEN,
+            m5::failed_open_does_not_consume_quota_and_nonce_replay_fails,
+        );
+    }
+
+    #[test]
+    fn fund_series_a_full_gross_to_pot_entitlement_124() {
+        run_row(
+            m5::ROW_FUND_SERIES_A,
+            m5::fund_series_a_full_gross_to_pot_entitlement_124,
+        );
+    }
+
+    #[test]
+    fn fund_series_a_rejected_while_ticket_active_and_when_flag_off() {
+        run_row(
+            m5::ROW_SERIES_A_REJECTED,
+            m5::fund_series_a_rejected_while_ticket_active_and_when_flag_off,
+        );
+    }
+
+    #[test]
+    fn stale_round_position_is_terminal_without_write() {
+        run_row(
+            m5::ROW_STALE_ROUND,
+            m5::stale_round_position_is_terminal_without_write,
+        );
+    }
+
+    #[test]
+    fn same_nonce_cannot_open_a_second_position_after_settlement() {
+        run_row(
+            m5::ROW_SAME_NONCE,
+            m5::same_nonce_cannot_open_a_second_position_after_settlement,
+        );
+    }
+
+    #[test]
+    fn unknown_outcome_retry_with_same_nonce_is_idempotent() {
+        run_row(
+            m5::ROW_UNKNOWN_OUTCOME_OPEN,
+            m5::unknown_outcome_retry_with_same_nonce_is_idempotent,
+        );
+    }
+
+    #[test]
+    fn fund_series_a_retry_after_unknown_outcome_keeps_original_signature() {
+        run_row(
+            m5::ROW_SERIES_A_RETRY,
+            m5::fund_series_a_retry_after_unknown_outcome_keeps_original_signature,
+        );
+    }
+
+    #[test]
+    fn third_party_fee_payer_gains_no_authority() {
+        run_row(
+            m5::ROW_THIRD_PARTY_PAYER,
+            m5::third_party_fee_payer_gains_no_authority,
+        );
+    }
+
+    #[test]
+    fn destination_cannot_be_game_vault_ops_cash_or_program_pda() {
+        run_row(
+            m5::ROW_DESTINATION,
+            m5::destination_cannot_be_game_vault_ops_cash_or_program_pda,
+        );
+    }
+
+    #[test]
+    fn positions_suite_aggregates_every_row_with_unique_labels() {
+        let observations = m5::run_positions_suite();
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+        for row in m5::ROW_NAMES {
+            assert_headline(&observations, row);
+        }
+        assert_eq!(m5::ROW_NAMES.len(), 19);
     }
 }
 

@@ -6,7 +6,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use anchor_lang::{AccountDeserialize, AccountSerialize};
+use anchor_lang::{event::EVENT_IX_TAG_LE, AccountDeserialize, AccountSerialize, Event};
 use litesvm::LiteSVM;
 use musical_chairs_program::{controls::SQUADS_PROGRAM_ID, state, ID};
 use serde::Serialize;
@@ -81,9 +81,43 @@ pub struct Observation {
     pub rollback_except_fee: bool,
     pub runtime_loaded_account_count: Option<usize>,
     pub unsupported: Option<String>,
+    /// Data of every event-CPI inner instruction this program emitted in the
+    /// transaction (`EVENT_IX_TAG_LE || discriminator || Borsh body`), in
+    /// emission order.  Decoded by [`Observation::events`]; not part of the
+    /// evidence JSON, so existing labels stay byte-identical.
+    #[serde(skip)]
+    pub event_data: Vec<Vec<u8>>,
 }
 
 impl Observation {
+    /// Every `E` event this transaction emitted through `emit_cpi!`, decoded
+    /// from the inner-instruction data (logs can be truncated, instruction
+    /// data cannot).  Events from other types are skipped by discriminator.
+    pub fn events<E: Event>(&self) -> Vec<E> {
+        self.event_data
+            .iter()
+            .filter_map(|data| {
+                let body = data.strip_prefix(EVENT_IX_TAG_LE)?;
+                let payload = body.strip_prefix(E::DISCRIMINATOR)?;
+                Some(E::try_from_slice(payload).unwrap_or_else(|error| {
+                    panic!("{}: malformed event payload: {error}", self.label)
+                }))
+            })
+            .collect()
+    }
+
+    /// The last `E` event of the transaction; panics when none was emitted.
+    pub fn last_event<E: Event>(&self) -> E {
+        self.events::<E>().pop().unwrap_or_else(|| {
+            panic!(
+                "{}: no {} event in the transaction's inner instructions ({} event payloads)",
+                self.label,
+                std::any::type_name::<E>(),
+                self.event_data.len()
+            )
+        })
+    }
+
     pub fn assert_rollback_except_fee(&self) {
         assert!(
             self.rollback_except_fee,
@@ -94,6 +128,36 @@ impl Observation {
 
 #[derive(Clone)]
 struct AccountSnapshot(Option<Account>);
+
+/// A locally signed (possibly partially signed) transaction that has not been
+/// submitted yet.  See [`FinancialRuntime::sign`].
+#[derive(Clone)]
+pub struct SignedTransaction {
+    pub transaction: Transaction,
+    signing_error: Option<String>,
+}
+
+impl SignedTransaction {
+    /// The fee payer's signature, i.e. the transaction id.
+    pub fn signature(&self) -> String {
+        self.transaction.signatures[0].to_string()
+    }
+}
+
+/// The data of every `emit_cpi!` self-invocation in `meta`, in emission order:
+/// an inner instruction whose data starts with the 8-byte `EVENT_IX_TAG_LE`
+/// magic.  Only this program emits it in these transactions (the Squads
+/// stand-in and the system program never do), and the match deliberately does
+/// not depend on mapping the inner instruction's program index back to a
+/// message key.
+fn event_payloads(meta: &litesvm::types::TransactionMetadata) -> Vec<Vec<u8>> {
+    meta.inner_instructions
+        .iter()
+        .flatten()
+        .filter(|inner| inner.instruction.data.starts_with(EVENT_IX_TAG_LE))
+        .map(|inner| inner.instruction.data.clone())
+        .collect()
+}
 
 /// Deterministic local fixture.  Every actor is a synthetic keypair, and the
 /// compiled ELF is read from disk rather than replaced by a host model.
@@ -485,6 +549,49 @@ impl FinancialRuntime {
         T::try_deserialize(&mut data).expect("fixture Anchor account deserializes")
     }
 
+    /// [`FinancialRuntime::deserialize`], except that an account which is
+    /// absent, not program-owned or not of type `T` is `None`.
+    pub fn try_deserialize<T: AccountDeserialize>(&self, key: Pubkey) -> Option<T> {
+        let account = self.svm.get_account(&key)?;
+        if account.owner != ID || account.data.is_empty() {
+            return None;
+        }
+        let mut data = account.data.as_slice();
+        T::try_deserialize(&mut data).ok()
+    }
+
+    /// Build and sign one transaction (fresh blockhash, harness payer first)
+    /// without submitting it.  [`FinancialRuntime::submit`] can then send the
+    /// very same signed bytes more than once, which is how the duplicate
+    /// signature rows observe the runtime's `AlreadyProcessed` refusal.
+    pub fn sign(
+        &mut self,
+        instructions: Vec<Instruction>,
+        extra_signers: &[&Keypair],
+        compute_limit: u32,
+    ) -> SignedTransaction {
+        let mut all_instructions = Vec::with_capacity(instructions.len() + 1);
+        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
+            compute_limit,
+        ));
+        all_instructions.extend(instructions);
+        let message = Message::new(&all_instructions, Some(&self.payer.pubkey()));
+        let mut transaction = Transaction::new_unsigned(message);
+        self.svm.expire_blockhash();
+        let blockhash = self.svm.latest_blockhash();
+        let mut signers: Vec<&dyn Signer> = Vec::with_capacity(extra_signers.len() + 1);
+        signers.push(&self.payer);
+        signers.extend(extra_signers.iter().map(|signer| *signer as &dyn Signer));
+        let signing_error = transaction
+            .try_partial_sign(&signers, blockhash)
+            .err()
+            .map(|error| format!("transaction signing failed: {error}"));
+        SignedTransaction {
+            transaction,
+            signing_error,
+        }
+    }
+
     /// Submit one locally signed transaction and capture all observable
     /// runtime metadata.  `extra_signers` is explicit so payer and owner are
     /// kept separate in fee and custody assertions.
@@ -495,13 +602,22 @@ impl FinancialRuntime {
         extra_signers: &[&Keypair],
         compute_limit: u32,
     ) -> Observation {
+        let signed = self.sign(instructions, extra_signers, compute_limit);
+        self.submit(label, &signed, compute_limit)
+    }
+
+    /// Submit an already signed transaction and capture all observable
+    /// runtime metadata.  Submitting the same [`SignedTransaction`] twice
+    /// presents the identical signature twice.
+    pub fn submit(
+        &mut self,
+        label: impl Into<String>,
+        signed: &SignedTransaction,
+        compute_limit: u32,
+    ) -> Observation {
         let label = label.into();
-        let mut all_instructions = Vec::with_capacity(instructions.len() + 1);
-        all_instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(
-            compute_limit,
-        ));
-        all_instructions.extend(instructions);
-        let message = Message::new(&all_instructions, Some(&self.payer.pubkey()));
+        let transaction = signed.transaction.clone();
+        let message = transaction.message.clone();
         let message_keys: BTreeSet<Pubkey> = message.account_keys.iter().copied().collect();
         let snapshots = self.snapshot(&message_keys);
         let payer_before = self.account(self.payer.pubkey()).lamports;
@@ -511,18 +627,8 @@ impl FinancialRuntime {
             .filter_map(|snapshot| snapshot.0.as_ref())
             .map(|account| account.data.len())
             .sum();
-        let mut transaction = Transaction::new_unsigned(message.clone());
-        self.svm.expire_blockhash();
-        let blockhash = self.svm.latest_blockhash();
-        let mut signers: Vec<&dyn Signer> = Vec::with_capacity(extra_signers.len() + 1);
-        signers.push(&self.payer);
-        signers.extend(extra_signers.iter().map(|signer| *signer as &dyn Signer));
-        let signing_error = transaction
-            .try_partial_sign(&signers, blockhash)
-            .err()
-            .map(|error| format!("transaction signing failed: {error}"));
         let packet_bytes = bincode::serialize(&transaction).map(|bytes| bytes.len()).unwrap_or(0);
-        if let Some(error) = signing_error {
+        if let Some(error) = signed.signing_error.clone() {
             let after = self.snapshot(&message_keys);
             let payer_after = self.account(self.payer.pubkey()).lamports;
             let account_changes = account_changes(&snapshots, &after);
@@ -555,19 +661,34 @@ impl FinancialRuntime {
                 rollback_except_fee: rollback_except_fee(&snapshots, &after, self.payer.pubkey()),
                 runtime_loaded_account_count: None,
                 unsupported: Some("transaction was not submitted after signer validation".into()),
+                event_data: Vec::new(),
             };
         }
         let signature = transaction.signatures[0];
         let result = self.svm.send_transaction(transaction);
-        let (success, error, compute_units, logs, return_data) = match result {
-            Ok(meta) => (true, None, Some(meta.compute_units_consumed), meta.logs, meta.return_data.data),
-            Err(failed) => (
-                false,
-                Some(format!("{:?}", failed.err)),
-                Some(failed.meta.compute_units_consumed),
-                failed.meta.logs,
-                failed.meta.return_data.data,
-            ),
+        let (success, error, compute_units, logs, return_data, event_data) = match result {
+            Ok(meta) => {
+                let events = event_payloads(&meta);
+                (
+                    true,
+                    None,
+                    Some(meta.compute_units_consumed),
+                    meta.logs,
+                    meta.return_data.data,
+                    events,
+                )
+            }
+            Err(failed) => {
+                let events = event_payloads(&failed.meta);
+                (
+                    false,
+                    Some(format!("{:?}", failed.err)),
+                    Some(failed.meta.compute_units_consumed),
+                    failed.meta.logs,
+                    failed.meta.return_data.data,
+                    events,
+                )
+            }
         };
         let after = self.snapshot(&message_keys);
         let payer_after = self.account(self.payer.pubkey()).lamports;
@@ -603,6 +724,7 @@ impl FinancialRuntime {
             rollback_except_fee: fee_only && rollback_except_fee(&snapshots, &after, self.payer.pubkey()),
             runtime_loaded_account_count: None,
             unsupported: Some("LiteSVM exposes no production loaded-account count".into()),
+            event_data,
         }
     }
 
@@ -746,6 +868,9 @@ impl FinancialRuntime {
             owner,
             nonce: 1,
             round_id: 1,
+            // The payout's `config` account is the version the position
+            // pinned at open; the canonical fixture holds config v1.
+            config_version: 1,
             kind: 0,
             principal: OPEN_GROSS,
             opened_at: 0,
@@ -766,6 +891,60 @@ impl FinancialRuntime {
         let game_vault_address = self.game_vault_address();
         let vault = self.account(game_vault_address);
         self.replace_lamports(game_vault_address, vault.lamports + pot);
+    }
+
+    /// Fixture write: install round `round`'s `ParticipantPage` number `index`
+    /// (empty, identity fields matching its seeds) and raise
+    /// `Pool.participant_pages` to cover it, exactly the shape a `Free`
+    /// `provision_page(Participant { round })` leaves.  The canonical fixture
+    /// deliberately does NOT carry one (the provisioning rows create their
+    /// own), so the first `open_position` of a round needs this.
+    pub fn install_participant_page(&mut self, round: u64, index: u64) {
+        let page = state::ParticipantPage {
+            bump: pda(&[
+                state::PARTICIPANTS_SEED,
+                &round.to_le_bytes(),
+                &index.to_le_bytes(),
+            ])
+            .1,
+            round_id: round,
+            page: index,
+            ..state::ParticipantPage::default()
+        };
+        self.replace_participant_page(page);
+        let mut pool: state::Pool = self.deserialize(self.pool_address());
+        pool.participant_pages = pool.participant_pages.max(index + 1);
+        self.replace_pool(pool);
+    }
+
+    pub fn replace_participant_page(&mut self, page: state::ParticipantPage) {
+        let address = self.participant_address(page.round_id, page.page);
+        self.replace_program_account(address, &page, state::ParticipantPage::SPACE);
+    }
+
+    pub fn replace_user(&mut self, user: state::User) {
+        let address = self.user_address(user.owner);
+        self.replace_program_account(address, &user, state::User::SPACE);
+    }
+
+    pub fn replace_user_round(&mut self, user_round: state::UserRound) {
+        let address = self.user_round_address(user_round.round_id, user_round.owner);
+        self.replace_program_account(address, &user_round, state::UserRound::SPACE);
+    }
+
+    pub fn replace_position(&mut self, position: state::Position) {
+        let address = self.position_address(position.owner, position.nonce);
+        self.replace_program_account(address, &position, state::Position::SPACE);
+    }
+
+    pub fn replace_config(&mut self, config: state::ConfigVersion) {
+        let address = self.config_address(config.version);
+        self.replace_program_account(address, &config, state::ConfigVersion::SPACE);
+    }
+
+    /// Fixture write: overwrite the lamports of an existing account.
+    pub fn set_lamports(&mut self, key: Pubkey, lamports: u64) {
+        self.replace_lamports(key, lamports);
     }
 
     pub fn replace_pool(&mut self, pool: state::Pool) {

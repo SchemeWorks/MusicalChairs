@@ -20,6 +20,11 @@ const CLAIM_MINIMUM: u64 = 9_680_000;
 
 pub fn run_red_open() -> Observation {
     let mut runtime = FinancialRuntime::new();
+    // The first open of a round appends the owner to the round's participant
+    // page, which must already be provisioned (`PageNotProvisioned` 6035
+    // otherwise).  The canonical fixture carries no such page, so this row
+    // installs Participant page 0 of round 1 itself.
+    runtime.install_participant_page(1, 0);
     let owner = runtime.owner.pubkey();
     let position = runtime.position_address(owner, 1);
     let instruction = open_instruction(&runtime, position, 1, owner);
@@ -41,7 +46,10 @@ pub fn run_red_open() -> Observation {
         assert_eq!(user_round.deposits, u128::from(OPEN_GROSS));
         assert_eq!(pool.pot, 96_000_000);
         assert_eq!(pool.management, 4_000_000);
-        assert_eq!(pool.next_sequence, 2);
+        // Opening a game position never allocates a Backer funding sequence:
+        // the genesis `next_sequence` of 1 is unchanged.
+        assert_eq!(pool.next_sequence, 1);
+        assert_eq!(pool.participant_count, 1);
         assert_eq!(lamport_delta(&observation, runtime.game_vault_address()), OPEN_GROSS as i128);
     }
     observation
