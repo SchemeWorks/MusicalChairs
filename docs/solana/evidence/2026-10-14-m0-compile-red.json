@@ -1,0 +1,29 @@
+{
+ "card": "IMPL-02",
+ "milestone": "M0 step 3",
+ "recorded_at_utc": "2026-10-14T07:21:42.550611+00:00",
+ "branch": "codex/native-solana-production-core",
+ "head": "1203c77f7552f270df627120a4b66f8c7f0d148b",
+ "command": "cargo +1.92.0 check --locked (cwd solana/tests/financial-runtime; CARGO_HOME=/private/tmp/mc-solana-runtime-tools-20261013/cargo-home; CARGO_TARGET_DIR=.../harness-target)",
+ "started_utc": "2026-10-14T07:15:09Z",
+ "finished_utc": "2026-10-14T07:20:06Z",
+ "exit_code": 101,
+ "errors": [
+  "error[E0599]: `Signature` is not an iterator",
+  "   --> src/runtime.rs:293:34",
+  "error[E0282]: type annotations needed",
+  "   --> src/runtime.rs:293:39",
+  "error: could not compile `musical-chairs-financial-runtime` (lib) due to 2 previous errors; 2 warnings emitted",
+  "exit=101 finished 2026-10-14T07:20:06Z"
+ ],
+ "warnings": [
+  "unused imports REGISTRY_SEED/RegistryPage at programs/musical_chairs/src/positions.rs:13",
+  "unused import at financial-runtime/src/financial.rs:9",
+  "unused import at financial-runtime/src/runtime.rs:22"
+ ],
+ "interpretation": "Genuine compile failure before any fix: Signature used as an Option with .map at runtime.rs:293 (inventory 5.2 #3). Dependency tree compiled online; the earlier --offline attempt failed only on a missing registry index entry and is not evidence.",
+ "harness_source_sha256_at_check": "1a955cd7920825d2f1e8f222b8e75b3dd5b42ed9df960eab02587908e8eccdec",
+ "log_sha256": "8068eccee6914532994d93277cdc25671650c3d400711fc98d71fce932f1337b",
+ "log_lines": 947,
+ "proof_level": "host compile check only; no SBF, no financial test executed"
+}

@@ -146,17 +146,10 @@ pub fn encode_a_denominator(value: U256) -> [u8; 32] {
 /// Compute floor(`slice * weight / denominator`) in U256, then require that
 /// the result fits the lamport cash partition.  A zero denominator is a
 /// sealed-state error and returns `None` rather than silently paying zero.
+/// Delegates to the host model's `backers::pro_rata` so the program and the
+/// reference oracle share one implementation of the width contract.
 pub fn floor_proportional(slice: u64, weight: u128, denominator: U256) -> Option<u64> {
-    if denominator == U256::from(0u8) {
-        return None;
-    }
-    let whole = U256::from(slice)
-        .checked_mul(U256::from(weight))?
-        / denominator;
-    if whole > U256::from(u64::MAX) {
-        return None;
-    }
-    Some(whole.as_u64())
+    musical_chairs_economics::backers::pro_rata(slice, weight, denominator).ok()
 }
 
 /// Senior is charged against the oldest captured Series-A row only.  The

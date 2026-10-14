@@ -66,6 +66,7 @@ pub enum Error {
     AllocationBarrier,
     ClaimTooLarge,
     ConservationMismatch,
+    ZeroDenominator,
 }
 
 impl fmt::Display for Error {
@@ -75,6 +76,51 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+/// Add one captured Series-A remainder to the discovery accumulator.
+///
+/// Cash is `u64` and entitlements are `u128`, but a sum of `u128` remainders
+/// can exceed `u128`, so the accumulator is a fixed `U256` (spec section 3.6).
+pub fn accumulate_a_remainder(total: U256, remainder: u128) -> Result<U256, Error> {
+    total
+        .checked_add(U256::from(remainder))
+        .ok_or(Error::ArithmeticOverflow)
+}
+
+/// Seal the discovery accumulator into the allocation denominator by removing
+/// the senior credit, which is charged against one captured A remainder.
+pub fn seal_denominator(accumulator: U256, senior_credit: u64) -> Result<U256, Error> {
+    accumulator
+        .checked_sub(U256::from(senior_credit))
+        .ok_or(Error::ConservationMismatch)
+}
+
+/// Sealed Series-A denominator: the `U256` sum of the captured remainders minus
+/// the senior credit. Composes the same two steps the ticket runs per row and at
+/// seal time, so the host oracle and the program cannot diverge on width.
+pub fn sealed_denominator(rows: &[u128], senior_credit: u64) -> Result<U256, Error> {
+    let accumulator = rows
+        .iter()
+        .try_fold(U256::ZERO, |sum, &row| accumulate_a_remainder(sum, row))?;
+    seal_denominator(accumulator, senior_credit)
+}
+
+/// `floor(slice * weight / denominator)` in checked `U256`, narrowed to the
+/// `u64` cash width. A zero denominator is `ZeroDenominator`; the allocator
+/// routes that slice to seed instead of calling this. A result above `u64`
+/// (only reachable when `weight` exceeds `denominator`) is `ArithmeticOverflow`.
+pub fn pro_rata(slice: u64, weight: u128, denominator: U256) -> Result<u64, Error> {
+    if denominator == U256::ZERO {
+        return Err(Error::ZeroDenominator);
+    }
+    let product = U256::from(slice)
+        .checked_mul(U256::from(weight))
+        .ok_or(Error::ArithmeticOverflow)?;
+    let quotient = product
+        .checked_div(denominator)
+        .ok_or(Error::ZeroDenominator)?;
+    u64::try_from(quotient).map_err(|_| Error::ArithmeticOverflow)
+}
 
 /// A persistent Backer row. `pending` is either a current-ticket credit or a
 /// finalized but lazily materialized credit. It is never claimable while its
@@ -138,7 +184,10 @@ pub struct Ticket {
     pub credited_total: u64,
     senior: Option<usize>,
     senior_credit: u64,
-    a_denominator: u128,
+    /// Discovery accumulator: sum of captured A remainders (`U256`, may pass `u128`).
+    a_remainder_total: U256,
+    /// Sealed denominator: `a_remainder_total - senior_credit`, fixed at seal.
+    a_denominator: U256,
     snapshots: Vec<Snapshot>,
     prune_order: Vec<BackerKey>,
     allocated: Vec<bool>,
@@ -542,7 +591,8 @@ impl Book {
             credited_total: 0,
             senior: None,
             senior_credit: 0,
-            a_denominator: 0,
+            a_remainder_total: U256::ZERO,
+            a_denominator: U256::ZERO,
             snapshots: Vec::new(),
             prune_order: Vec::new(),
             allocated: Vec::new(),
@@ -673,7 +723,15 @@ impl Book {
         } else {
             None
         };
+        let a_remainder_total = snapshots.iter().filter(|snapshot| snapshot.is_a).try_fold(
+            self.ticket
+                .as_ref()
+                .ok_or(Error::NoTicket)?
+                .a_remainder_total,
+            |total, snapshot| accumulate_a_remainder(total, snapshot.remainder),
+        )?;
         let ticket = self.ticket.as_mut().ok_or(Error::NoTicket)?;
+        ticket.a_remainder_total = a_remainder_total;
         ticket.snapshots.extend(snapshots);
         ticket
             .allocated
@@ -759,36 +817,20 @@ impl Book {
             if self.ticket.as_ref().ok_or(Error::NoTicket)?.phase != Phase::SealWeights {
                 return Err(Error::InvalidPhase);
             }
-            let (senior, senior_credit) = {
+            let (senior, senior_credit, a_remainder_total) = {
                 let ticket = self.ticket.as_ref().ok_or(Error::NoTicket)?;
-                (ticket.senior, ticket.senior_credit as u128)
+                (
+                    ticket.senior,
+                    ticket.senior_credit,
+                    ticket.a_remainder_total,
+                )
             };
-            let denominator = self
-                .ticket
-                .as_ref()
-                .ok_or(Error::NoTicket)?
-                .snapshots
-                .iter()
-                .filter(|snapshot| snapshot.is_a)
-                .try_fold(0u128, |sum, snapshot| {
-                    let subtraction = if Some(snapshot.original_slot) == senior {
-                        senior_credit
-                    } else {
-                        0
-                    };
-                    sum.checked_add(
-                        snapshot
-                            .remainder
-                            .checked_sub(subtraction)
-                            .ok_or(Error::ConservationMismatch)?,
-                    )
-                    .ok_or(Error::ArithmeticOverflow)
-                })?;
+            let denominator = seal_denominator(a_remainder_total, senior_credit)?;
             let ticket = self.ticket.as_mut().ok_or(Error::NoTicket)?;
             ticket.a_denominator = denominator;
             for snapshot in &mut ticket.snapshots {
                 let subtraction = if Some(snapshot.original_slot) == senior {
-                    senior_credit
+                    u128::from(senior_credit)
                 } else {
                     0
                 };
@@ -837,9 +879,8 @@ impl Book {
             if self.ticket.as_ref().ok_or(Error::NoTicket)?.allocated[slot] {
                 return Err(Error::ReplayedRow);
             }
-            let credit: u128 = if snapshot.is_a && denominator != 0 {
-                (U256::from(a_pool) * U256::from(snapshot.weight) / U256::from(denominator))
-                    .as_u128()
+            let credit: u128 = if snapshot.is_a && denominator != U256::ZERO {
+                u128::from(pro_rata(a_pool, snapshot.weight, denominator)?)
             } else if snapshot.is_b {
                 let count = self
                     .ticket
@@ -906,12 +947,12 @@ impl Book {
                 )
             };
             let ticket = self.ticket.as_mut().ok_or(Error::NoTicket)?;
-            if denominator == 0 && has_a {
+            if denominator == U256::ZERO && has_a {
                 ticket.seed_destination = ticket
                     .seed_destination
                     .checked_add(a_pool)
                     .ok_or(Error::ArithmeticOverflow)?;
-            } else if denominator != 0 {
+            } else if denominator != U256::ZERO {
                 ticket.seed_destination = ticket
                     .seed_destination
                     .checked_add(a_pool.saturating_sub(a_credited))
