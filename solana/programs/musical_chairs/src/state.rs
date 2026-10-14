@@ -116,18 +116,14 @@ pub struct SpentLedger {
 }
 
 /// Outcome of the close's Series-B promotion draw.
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, InitSpace, PartialEq, Eq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, Default, InitSpace, PartialEq, Eq)]
 pub enum Promotion {
+    #[default]
     Pending,
     Applied { winner: Pubkey, entitlement: u128 },
     Skipped { reason: u8, stage: u8 },
 }
 
-impl Default for Promotion {
-    fn default() -> Self {
-        Self::Pending
-    }
-}
 
 /// `ceil(count / page_capacity)` in checked u64.
 pub fn pages_for(count: u64, page_capacity: u64) -> Result<u64> {
@@ -153,6 +149,8 @@ pub fn pages_for(count: u64, page_capacity: u64) -> Result<u64> {
 /// provider fee headroom is floored. All inputs and the result are u64; the
 /// headroom product is formed in u128 only so a large fee cannot overflow
 /// before the floored term is narrowed back.
+// `u64::is_multiple_of` needs Rust 1.87; platform-tools v1.48 compiles with rustc 1.84.
+#[allow(clippy::manual_is_multiple_of)]
 pub fn required_close_reserve(
     participant_count: u64,
     registry_len: u64,
@@ -1209,6 +1207,8 @@ mod tests {
     }
 
     #[test]
+    // The arithmetic spells out (missing preferred + missing fallback) on purpose.
+    #[allow(clippy::identity_op)]
     fn close_reserve_never_lets_one_over_provisioned_set_offset_the_other() {
         // required = 2 pages per set. Preferred holds 5 (over by 3); fallback holds none.
         let reserve = required_close_reserve(9, 1, 5, 0, &schedule()).unwrap();

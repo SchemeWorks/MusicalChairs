@@ -1106,6 +1106,8 @@ struct CloseBinding<'a> {
 /// Bind the close: deadline pinned once, participant count and reserve
 /// captured, cash marked committed when no ticket allocates the toll.
 /// Identity, rent and provisioning counters of the record are left alone.
+// `u64::is_multiple_of` needs Rust 1.87; platform-tools v1.48 compiles with rustc 1.84.
+#[allow(clippy::manual_is_multiple_of)]
 fn bind_close_record(record: &mut CloseRecord, binding: &CloseBinding) -> Result<()> {
     let deadline = binding
         .close_started_at

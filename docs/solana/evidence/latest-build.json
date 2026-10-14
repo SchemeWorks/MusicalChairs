@@ -1,0 +1,43 @@
+{
+ "recorded_at_utc": "2026-10-14T15:26:48.341737+00:00",
+ "commit": "the IMPL-39c clippy-cleanup commit (program source: 3e26f20 + clippy-only edits: derive Default for Promotion, allow(manual_is_multiple_of) \u00d72 because platform-tools rustc 1.84 lacks u64::is_multiple_of, allow(identity_op) on one test, a test type alias)",
+ "artifact": {
+  "path": "solana/programs/musical_chairs/artifacts/musical_chairs_program.so (gitignored; rebuilt by scripts/build-sbf.sh)",
+  "sha256": "4b134d05c7385911ccac934ec29b605597215a33ae937f5e18ae86612d83f83c",
+  "bytes": 1364320,
+  "built_on": "macOS arm64, platform-tools v1.48 osx-aarch64, cargo-build-sbf 3.1.0-beta.0, build path /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+  "reproducibility": "byte-identical only for a clean rebuild from the SAME path on the SAME platform tools (M0 receipt); builds from another path or host differ in code bytes with identical source set (M7 receipts) \u2014 CI records its own artifact hash and asserts the source set and lock"
+ },
+ "source_set_sha256": "1d7359b71cf0f67e200a143fb2e71df4b89a6b068b1661338735954da99ac9bf",
+ "source_set_helper": "solana/tests/financial-runtime/scripts/source-set-digest.sh (19 files)",
+ "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+ "lock_path": "solana/programs/musical_chairs/Cargo.lock",
+ "standin_artifact_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
+ "toolchain": {
+  "cargo_build_sbf": "3.1.0-beta.0 (wrapper asserts the --version string)",
+  "platform_tools": "v1.48 (rustc 1.84.x; wrapper asserts)",
+  "host_rust": "1.92.0 (rust-toolchain.toml)",
+  "archives": {
+   "platform-tools-osx-aarch64-v1.48.tar.bz2": {
+    "sha256": "799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd",
+    "verified": "locally (M0 toolchain receipt)"
+   },
+   "platform-tools-linux-x86_64-v1.48.tar.bz2": {
+    "sha256": null,
+    "source": "https://github.com/anza-xyz/platform-tools/releases/download/v1.48/platform-tools-linux-x86_64.tar.bz2",
+    "verified": "NOT YET: a maintainer must download, verify and pin the hash; the production-sbf job fails visibly until then"
+   },
+   "agave-v3.1.0-beta.0-linux-x86_64 (cargo-build-sbf + sbf-sdk)": {
+    "sha256": null,
+    "source": "https://github.com/anza-xyz/agave/releases/download/v3.1.0-beta.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2",
+    "verified": "NOT YET: same"
+   }
+  }
+ },
+ "note": "This file is what .github/workflows/native-solana-model.yml production-sbf asserts against. Update it at every ELF promotion.",
+ "previous": {
+  "artifact_sha256": "d7f508ba3ae2c6a29af3ec5fa23f0469937c554d2a45be41a815080fe0ae4f07",
+  "source_set_sha256": "9e33c98b110b09e998a7b9ecd02f755255154e641ce4ea755df9644c6e54959f",
+  "note": "M8 ELF; the harness regression on the clippy-cleanup ELF is run at the M9 close-out (behaviour-identical source change; 248 unit tests pass)"
+ }
+}

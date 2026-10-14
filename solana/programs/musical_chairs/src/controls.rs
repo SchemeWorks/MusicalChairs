@@ -2134,9 +2134,12 @@ mod tests {
         later.validate().unwrap();
     }
 
+    /// One staged-config mutation and its name.
+    type BoundCase = (&'static str, fn(&mut ConfigTerms));
+
     #[test]
     fn config_terms_reject_each_bound_once() {
-        let cases: [(&str, fn(&mut ConfigTerms)); 43] = [
+        let cases: [BoundCase; 43] = [
             ("plan rate over 100%", |t| t.plan_rates_bps_per_day[0] = 10_001),
             ("simple toll over 100%", |t| t.simple_toll_bps[2] = 10_001),
             ("jackpot over 100%", |t| t.jackpot_bps[1] = 10_001),
