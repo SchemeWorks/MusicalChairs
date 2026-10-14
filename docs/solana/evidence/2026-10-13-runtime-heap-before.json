@@ -1,0 +1,42 @@
+{
+  "scope": "Historical pre-fix local SBF failure, not current artifact behavior",
+  "artifact_sha256": "3a32514ad8b969b4fb9469cbd2219eab13c2f49e6e4e98a4a68a96ca42cccf42",
+  "source_sha256": "02b28a3e0bfb37f25e25b562a04a49ac8572cbcafba81885415d93094744c7d1",
+  "observation": {
+    "label": "compute.numeric.repetitions-16",
+    "success": false,
+    "error": "InstructionError(1, ProgramFailedToComplete)",
+    "compute_limit": 1400000,
+    "expected_fee_lamports": 5000,
+    "fits_legacy_packet": true,
+    "compute_units": 151522,
+    "packet_bytes": 252,
+    "message_account_count": 4,
+    "writable_account_count": 2,
+    "declared_account_data_bytes": 351294,
+    "changed_data_bytes": 0,
+    "payer_lamports_before": 10000000000,
+    "payer_lamports_after": 9999995000,
+    "account_changes": [
+      {
+        "pubkey": "F25s3DdjXdCxYBhh2z8FBusVEMT4b9bGNFVKJi3wFoF4",
+        "owner": "11111111111111111111111111111111",
+        "lamport_delta": -5000,
+        "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "logs": [
+      "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+      "Program ComputeBudget111111111111111111111111111111 success",
+      "Program 6Ckm2BrnXxsSjyG5b17kQQRjoECVrts92RKXVGT8XeqS invoke [1]",
+      "Program log: Instruction: ProbeNumeric",
+      "Program log: Error: memory allocation failed, out of memory",
+      "Program 6Ckm2BrnXxsSjyG5b17kQQRjoECVrts92RKXVGT8XeqS consumed 151372 of 1399850 compute units",
+      "Program 6Ckm2BrnXxsSjyG5b17kQQRjoECVrts92RKXVGT8XeqS failed: SBF program panicked"
+    ],
+    "return_data": [],
+    "rollback_except_fee": true,
+    "runtime_loaded_account_count": null,
+    "unsupported": "LiteSVM exposes no runtime loaded-account count"
+  }
+}

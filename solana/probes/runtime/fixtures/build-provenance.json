@@ -1,0 +1,80 @@
+{
+  "task": "SOL-33",
+  "scope": "local SBF compilation and ELF postprocessing only",
+  "source": {
+    "path": "program/src/lib.rs",
+    "git_head": "830d57377e71aa4f15ad0c7fa86ff2d6b3ff4e0c",
+    "sha256": "bf174290cf560af1ca22f3a1d8bcec33c715512580baa61c274bd6cf083df96d"
+  },
+  "dependency_sources": [
+    {
+      "path": "../../../../crates/economics/src/earnings.rs",
+      "sha256": "27d238170819774b04ded1997cd70d2d219f6c0ecee15543d5e3922cffc717dc"
+    },
+    {
+      "path": "../../../../crates/economics/src/fees.rs",
+      "sha256": "0c31f7ce819f7b91306c4f37a087a68a7dce8334055ac805f7e611d93ef45722"
+    }
+  ],
+  "lockfile": {
+    "path": "program/Cargo.lock",
+    "sha256": "8f2817a813a3790dd2c590bec14dbd43f36e31274ab82aabd1437d4191e31672"
+  },
+  "toolchain": {
+    "cargo_build_sbf": {
+      "crate": "cargo-build-sbf 3.1.0-beta.0",
+      "provenance": "https://crates.io/crates/cargo-build-sbf/3.1.0-beta.0",
+      "binary_sha256": "2e999118c4e865e02ed07ad9effc36e4f8f1c2630bb61334fbdb914269170fd6"
+    },
+    "platform_tools": {
+      "version": "v1.48",
+      "archive": "platform-tools-osx-aarch64.tar.bz2",
+      "url": "https://github.com/anza-xyz/platform-tools/releases/download/v1.48/platform-tools-osx-aarch64.tar.bz2",
+      "archive_sha256": "799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd",
+      "archive_bytes": 422197780,
+      "extracted_member_bytes": 1385170685,
+      "rustc": "1.84.1-dev",
+      "cargo": "1.84.0"
+    },
+    "sbpf_arch": "v0"
+  },
+  "build": {
+    "script": "scripts/build-sbf.sh",
+    "actual_command": "MC_SBF_BUILDER=/private/tmp/mc-solana-runtime-tools-20261013/cargo-build-sbf-3.1.0-beta.0/bin/cargo-build-sbf MC_SBF_SDK=/private/tmp/mc-solana-runtime-tools-20261013/cargo-build-sbf-3.1.0-beta.0/sbf-sdk MC_PLATFORM_TOOLS=/private/tmp/mc-solana-runtime-tools-20261013/platform-tools MC_SBF_TARGET_DIR=/private/tmp/mc-solana-runtime-tools-20261013/program-target CARGO_HOME=/private/tmp/mc-solana-runtime-tools-20261013/cargo-home CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse scripts/build-sbf.sh",
+    "pinned_arguments": [
+      "--skip-tools-install",
+      "--tools-version v1.48",
+      "--no-rustup-override",
+      "--locked",
+      "-j 2"
+    ]
+  },
+  "artifact": {
+    "path": "artifacts/musical_chairs_runtime_probe_program.so",
+    "bytes": 351600,
+    "sha256": "256dec616a7074f20cae2278bafb5874e1b96b57206adb8196dcc8ebd55409d5",
+    "elf_machine": "Solana Bytecode Format",
+    "elf_flags": "0x0",
+    "elf_magic": "7f454c46"
+  },
+  "pre_fix_negative_baseline": {
+    "receipt_path": "docs/solana/evidence/2026-10-13-runtime-heap-before.json",
+    "source_sha256": "02b28a3e0bfb37f25e25b562a04a49ac8572cbcafba81885415d93094744c7d1",
+    "artifact_sha256": "3a32514ad8b969b4fb9469cbd2219eab13c2f49e6e4e98a4a68a96ca42cccf42",
+    "case": "compute.numeric.repetitions-16",
+    "success": false,
+    "error": "InstructionError(1, ProgramFailedToComplete)",
+    "compute_units": 151522,
+    "log": "memory allocation failed, out of memory",
+    "interpretation": "Negative runtime baseline before the eager-error-allocation fix; preserved as evidence and not a current artifact result."
+  },
+  "cleanup": {
+    "generated_keypair": "musical_chairs_runtime_probe_program-keypair.json",
+    "generated_keypair_read": false,
+    "generated_keypair_deleted": true
+  },
+  "limitations": [
+    "This is compilation and local ELF evidence only.",
+    "It does not establish SVM execution, account behavior, provider liveness, signing, custody, deployment, broadcast, or finality."
+  ]
+}

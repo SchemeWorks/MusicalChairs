@@ -27,3 +27,7 @@ The next roadmap step is to pin and exercise the local SBF/runtime harness, then
 ## Graph maintenance
 
 [Graph workflow](native-solana-knowledge-graph.md) remains part of each coherent implementation handoff. Structural Rust extraction and semantic contract refresh are merged at repository scope, with source hashes and queries; unrelated historical source coverage remains historical. Current model/probe fragments and the refresh receipt live under `docs/solana/evidence/`. Graph relationships guide navigation and do not establish financial correctness or deployed behavior.
+
+## Subsequent runtime evidence — 2026-10-13
+
+The historical tool-absence/runtime-unmeasured paragraph above describes the host-model phase. [Local SBF/runtime probes](../solana/local-runtime-probes.md) now execute account permissions, representative arithmetic/rows and captured ORAO lifecycle/recovery with synthetic actors. They do not implement the whole financial program or supersede its unmeasured production cost/authority limits. No deployment or GUI changes.
