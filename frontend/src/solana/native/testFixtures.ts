@@ -60,10 +60,25 @@ export interface FakeAccount {
   lamports?: number;
 }
 
-/** A fake RPC connection backed by an address -> account map. */
+export const FAKE_GENESIS_HASH = 'FakeLocalGenesisHash1111111111111111111111111';
+
+/** A passing simulation response (the default of the fake `simulateTransaction`). */
+export const SIM_OK = { context: { slot: 1 }, value: { err: null, logs: [] as string[], unitsConsumed: 1_000 } };
+
+/** A failing simulation response with the cluster's `err` value and program logs. */
+export const simFailure = (err: unknown, logs: string[] = []) => ({ context: { slot: 1 }, value: { err, logs, unitsConsumed: 0 } });
+
+/** A program-error simulation failure: `InstructionError(index, Custom(code))`. */
+export const simCustom = (code: number, index = 1) => simFailure({ InstructionError: [index, { Custom: code }] });
+
+/**
+ * A fake RPC connection backed by an address -> account map. `getGenesisHash`
+ * and `simulateTransaction` default to a local fake cluster and a passing
+ * simulation; `extra` overrides any member (and may add `rpcEndpoint`).
+ */
 export function fakeConnection(
   accounts: Map<string, FakeAccount>,
-  extra: Partial<Record<keyof NativeConnection, unknown>> = {},
+  extra: Partial<Record<keyof NativeConnection | 'rpcEndpoint', unknown>> = {},
 ): NativeConnection & Record<keyof NativeConnection, ReturnType<typeof vi.fn>> {
   const info = (key: PublicKey | string) => {
     const account = accounts.get(typeof key === 'string' ? key : key.toBase58());
@@ -79,6 +94,8 @@ export function fakeConnection(
     getSignatureStatuses: vi.fn(async () => ({ context: { slot: 1 }, value: [null] })),
     getBlockHeight: vi.fn(async () => 10),
     getProgramAccounts: vi.fn(async () => []),
+    getGenesisHash: vi.fn(async () => FAKE_GENESIS_HASH),
+    simulateTransaction: vi.fn(async (..._args: unknown[]) => SIM_OK),
     ...extra,
   };
   return conn as unknown as NativeConnection & Record<keyof NativeConnection, ReturnType<typeof vi.fn>>;

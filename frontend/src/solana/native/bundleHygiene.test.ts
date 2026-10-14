@@ -12,7 +12,7 @@ function staticValueImports(source: string): string[] {
   return statements.filter((s) => !/^import\s+type\s/.test(s)).map((s) => /from\s+['"]([^'"]+)['"]/.exec(s)![1]);
 }
 
-const WEB3_FREE = ['codecs.ts', 'types.ts', 'status.ts', 'sampling.ts', 'selectors.ts', 'economics.ts', 'wallet.ts'];
+const WEB3_FREE = ['codecs.ts', 'types.ts', 'status.ts', 'sampling.ts', 'selectors.ts', 'economics.ts', 'wallet.ts', 'cluster.ts', 'queries.ts'];
 const WEB3_USING = ['accounts.ts', 'transactions.ts', 'client.ts'];
 
 describe('bundle hygiene', () => {
@@ -22,6 +22,12 @@ describe('bundle hygiene', () => {
       expect(imports.filter((i) => i.startsWith('@solana/')), file).toEqual([]);
       expect(imports.filter((i) => /\/(accounts|transactions|client)$/.test(i)), file).toEqual([]);
     }
+  });
+
+  it('queries.ts (cluster-scoped query plumbing) reaches the client only through a dynamic import', () => {
+    const source = read('./queries.ts');
+    expect(source).toMatch(/import\('\.\/client'\)/);
+    expect(staticValueImports(source).filter((i) => i.startsWith('@tanstack/'))).toEqual([]); // types only
   });
 
   it('the web3-using modules are exactly the ones the hook loads lazily', () => {
@@ -37,7 +43,8 @@ describe('bundle hygiene', () => {
     expect(imports.filter((i) => /solana\/native\/(accounts|transactions|client|wallet|testFixtures)$/.test(i))).toEqual([]);
     expect(source).toMatch(/import\('\.\.\/solana\/native\/client'\)/);
     expect(source).toMatch(/import\('\.\.\/solana\/native\/wallet'\)/);
-    expect(source).toMatch(/import\('\.\.\/solana\/native\/accounts'\)/);
+    // readers (PDA derivation) are reached through queries.ts -> import('./client'), not statically
+    expect(imports.filter((i) => /solana\/native\/queries$/.test(i))).toHaveLength(1);
   });
 
   it('adds no dependency: package.json carries no rollup platform package and no anchor client', () => {

@@ -325,9 +325,23 @@ export function claimBackerIx(p: {
 // Allocation ticket keeper steps (six phases)
 // ---------------------------------------------------------------------------
 
-/** Rows a batch may carry: bounded by what is left of the captured registry. */
+/**
+ * Most rows any batched instruction accepts. The program's `batch_len` allows
+ * 1..=MAX_BATCH_ROWS (allocation.rs: MAX_BATCH_ROWS == PAGE_CAPACITY == 8) for
+ * discover/allocate/prune/build_candidates alike.
+ */
+export const MAX_BATCH_ROWS = PAGE_CAPACITY;
+
+export function requireBatchSize(rows: number): number {
+  if (!Number.isInteger(rows) || rows < 1 || rows > MAX_BATCH_ROWS) {
+    throw new RangeError(`rows must be an integer in 1..${MAX_BATCH_ROWS} (the program's batch_len)`);
+  }
+  return rows;
+}
+
+/** Rows a ticket batch may carry: at most 8, bounded by what is left of the captured registry. */
 export function batchRows(ticket: NativeTicket, maxRows: number): number {
-  if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > 255) throw new RangeError('rows must be an integer in 1..255');
+  requireBatchSize(maxRows);
   const left = ticket.capturedLen - ticket.cursor;
   if (left <= 0n) return 0;
   return Number(left < BigInt(maxRows) ? left : BigInt(maxRows));
@@ -505,12 +519,37 @@ export function increaseProviderBudgetIx(p: { closeId: bigint; extra: bigint }):
 // Closing round: candidates, draw, promotion, finalize
 // ---------------------------------------------------------------------------
 
-/** Candidate rows a batch may carry: bounded by the participants left to visit. */
+/**
+ * Candidate rows one `build_candidates` batch may carry. At most 8 (the
+ * program's `batch_len`), and aligned so the batch cannot run past a page the
+ * call supplies: a call passes ONE page per candidate set and fails
+ * PageNotProvisioned if its appends cross into the next (close.rs
+ * `AppendTarget::append`). A row can land in the preferred set, the fallback
+ * set or both, and which is only known on chain, so the bound is the worst
+ * case for BOTH sets:
+ *
+ *   rows <= min(maxRows, 8,
+ *               participant rows left on this participant page,
+ *               participants left to visit,
+ *               PAGE_CAPACITY - preferredCount % PAGE_CAPACITY,
+ *               PAGE_CAPACITY - fallbackCount  % PAGE_CAPACITY)
+ *
+ * A count that just filled a page (a multiple of 8) starts a fresh page, so it
+ * leaves a full 8. Returns 0 once every participant has been visited.
+ */
 export function candidateBatchRows(close: NativeCloseRecord, maxRows: number): number {
-  if (!Number.isInteger(maxRows) || maxRows < 1 || maxRows > 255) throw new RangeError('rows must be an integer in 1..255');
+  requireBatchSize(maxRows);
   const left = close.participantCount - close.candidateCursor;
   if (left <= 0n) return 0;
-  return Number(left < BigInt(maxRows) ? left : BigInt(maxRows));
+  const page = BigInt(PAGE_CAPACITY);
+  const bounds = [
+    BigInt(maxRows),
+    left,
+    page - (close.candidateCursor % page),
+    page - (close.preferredCount % page),
+    page - (close.fallbackCount % page),
+  ];
+  return Number(bounds.reduce((min, bound) => (bound < min ? bound : min)));
 }
 
 /**

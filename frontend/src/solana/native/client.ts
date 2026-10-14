@@ -15,13 +15,25 @@
 //    or re-signs. open_position's `client_nonce` is the idempotency key: a
 //    second open with the same nonce would be `Replay` on chain, so a new
 //    transaction is only safe once `safeToRebuild` (failed / blockhash expired).
-//  * A preflight rejection (simulation failed) is NOT unknown: nothing was
+//  * Cluster identity: before the first read or action per connection, the
+//    genesis hash and Pool.clusterDomain are checked against the pinned cluster
+//    (cluster.ts); a mismatch rejects with a typed error before anything is
+//    read for display or signed.
+//  * Simulate first, sign second: the UNSIGNED transaction is simulated
+//    (sigVerify off, blockhash replaced) before the wallet prompt. A
+//    deterministic failure throws NativeSimulationRejectedError with the
+//    decoded error and signTransaction is never called. A page / compute /
+//    size failure of a multi-row batch rebuilds the work plan with one row and
+//    simulates again, at most once, still before signing.
+//  * Signed bytes are checked against the bytes we asked the wallet to sign
+//    (fee payer, slot-0 signature, identical message) before broadcast.
+//  * A preflight rejection after signing is NOT unknown: nothing was
 //    broadcast, it throws NativeSendRejectedError with the decoded program error.
 //  * Status comes from polling getSignatureStatuses over https (no wss).
 //
 // Imports @solana/web3.js statically: load this module with dynamic import().
 
-import { Connection, PublicKey } from '@solana/web3.js';
+import { Connection, PACKET_DATA_SIZE, PublicKey, VersionedTransaction } from '@solana/web3.js';
 import type { Commitment, Transaction, TransactionInstruction } from '@solana/web3.js';
 import bs58 from 'bs58';
 import { SOLANA_RPC_ENDPOINT } from '../rpc';
@@ -34,12 +46,30 @@ import {
 } from './accounts';
 import { PAGE_CAPACITY } from './codecs';
 import { mapOutput, protocolSeed } from './sampling';
-import { StatusTracker, describeTransactionError, type StatusRpc } from './status';
+import {
+  SHRINKABLE_FAILURES,
+  StatusTracker,
+  classifySimulationFailure,
+  describeTransactionError,
+  type SimulationFailure,
+  type SimulationFailureKind,
+  type StatusRpc,
+} from './status';
+import {
+  NativeClusterError,
+  clusterCacheKey,
+  defaultClusterIdentity,
+  ensureClusterVerified,
+  type ClusterVerification,
+  type NativeClusterConfig,
+  type NativeClusterIdentity,
+} from './cluster';
 import {
   INLINE_THRESHOLD,
   NO_APPLY_KEYS,
   PHASE_INSTRUCTION,
   PHASE_NAME,
+  requireBatchSize,
   allocateRowsIx,
   applyKeysFor,
   applyPromotionIx,
@@ -89,7 +119,8 @@ import {
   type StatusUpdate,
   type TicketPhaseName,
 } from './types';
-import { assertWalletMatchesSession, WalletMismatchError, type NativeWallet } from './wallet';
+import { onNativeClusterSwitch } from './queries';
+import { assertSignedTransactionIntact, assertWalletMatchesSession, WalletMismatchError, type NativeWallet } from './wallet';
 
 export { WalletMismatchError };
 
@@ -102,6 +133,8 @@ export type NativeConnection = Pick<
   | 'sendRawTransaction'
   | 'getSignatureStatuses'
   | 'getBlockHeight'
+  | 'getGenesisHash'
+  | 'simulateTransaction'
 >;
 
 export interface NativeClientConfig {
@@ -118,14 +151,74 @@ export interface NativeClientConfig {
   blockhashTimeoutMs?: number;
   /** Source of open_position client nonces (default: random u64). */
   randomNonce?: () => bigint;
+  /**
+   * The cluster this client is pinned to. Before the first read or action the
+   * connection's genesis hash and Pool.clusterDomain are checked against it.
+   * Omitted: the cluster is inferred from `connection.rpcEndpoint` (loopback =
+   * localnet, a host naming devnet/mainnet = that cluster; an endpoint that
+   * names none fails closed on first use). A connection without an endpoint
+   * (a test double) is used unverified.
+   */
+  cluster?: NativeClusterConfig;
+  /** Pre-sign simulation timeout (default 20 s). */
+  simulationTimeoutMs?: number;
 }
 
+/**
+ * The transaction was refused before it could land: by the pre-sign simulation
+ * (`phase: 'simulation'`, nothing signed) or by the node's preflight after
+ * signing (`phase: 'preflight'`, nothing broadcast). `name` stays
+ * 'NativeSendRejectedError' for both so name-based error copy keeps working.
+ */
 export class NativeSendRejectedError extends Error {
   readonly programError: { code: number; name: string } | null;
-  constructor(message: string, readonly cause: unknown) {
+  constructor(
+    message: string,
+    readonly cause: unknown,
+    decoded?: { code: number; name: string } | null,
+    readonly phase: 'simulation' | 'preflight' = 'preflight',
+  ) {
     super(message);
     this.name = 'NativeSendRejectedError';
-    this.programError = describeTransactionError(cause);
+    this.programError = decoded !== undefined ? decoded : describeTransactionError(cause);
+  }
+}
+
+function describeSimulationFailure(failure: SimulationFailure): string {
+  switch (failure.kind) {
+    case 'insufficient-funds':
+      return `insufficient funds for this amount plus network fees and account rent (${failure.reason})`;
+    case 'missing-account':
+      return `a required account is missing or not initialized (${failure.reason})`;
+    case 'page':
+    case 'budget':
+    case 'size':
+    case 'batch':
+      return `the batch exceeds a page or network limit (${failure.reason})`;
+    default:
+      return failure.reason;
+  }
+}
+
+/**
+ * The pre-sign simulation says the transaction would fail. Nothing was signed
+ * or sent; `kind` and `programError` say why.
+ */
+export class NativeSimulationRejectedError extends NativeSendRejectedError {
+  readonly kind: SimulationFailureKind;
+  readonly logs: string[];
+  constructor(failure: SimulationFailure, err: unknown, logs: string[]) {
+    super(`Transaction would fail: ${describeSimulationFailure(failure)}. Nothing was signed.`, { err, logs }, failure.program, 'simulation');
+    this.kind = failure.kind;
+    this.logs = logs;
+  }
+}
+
+/** The simulation RPC call itself failed (not the transaction): retryable, nothing was signed. */
+export class NativeSimulationUnavailableError extends Error {
+  constructor(readonly cause: unknown) {
+    super('Could not simulate the transaction before signing (Solana RPC unavailable or slow). Nothing was signed; try again in a moment.');
+    this.name = 'NativeSimulationUnavailableError';
   }
 }
 
@@ -173,7 +266,11 @@ export interface NativeClient {
   allocateRows(p: { rows?: number }): Promise<NativeTxResult>;
   pruneRows(p: { rows?: number; skipNewlyCapped?: boolean }): Promise<NativeTxResult>;
   commitTicket(): Promise<NativeTxResult>;
-  /** Read Ticket.phase and send exactly one of the six typed instructions. Client-side orchestration, not an on-chain ABI. */
+  /**
+   * Read Ticket.phase and send exactly one of the six typed instructions. Client-side orchestration, not an on-chain ABI.
+   * `rows` is 1..8 (the program's batch_len); a page / compute / size failure in the pre-sign simulation retries the
+   * plan once with one row, before anything is signed.
+   */
   advancePhase(p: { rows?: number; skipNewlyCapped?: boolean }): Promise<NativeTxResult & { phase: TicketPhaseName; rows: number }>;
   /** The same decision without sending (inspection, tests, keepers that batch). */
   buildAdvancePhase(p: { rows?: number; skipNewlyCapped?: boolean }): Promise<AdvancePhasePlan>;
@@ -182,6 +279,11 @@ export interface NativeClient {
   provisionCloseRecord(p: { closeId: bigint; funding: FundingKind }): Promise<NativeTxResult>;
   increaseProviderBudget(p: { closeId: bigint; extra: bigint }): Promise<NativeTxResult>;
   // --- closing round ---
+  /**
+   * One build_candidates batch. `rows` is a ceiling (1..8, default 8): the batch is cut so it cannot cross the
+   * participant page or either candidate set's page (candidateBatchRows), and a page / compute failure in the
+   * pre-sign simulation retries the plan once with one row.
+   */
   buildCandidates(p: { closeId: bigint; rows?: number }): Promise<NativeTxResult>;
   requestDraw(p: { closeId: bigint }): Promise<NativeTxResult>;
   captureDraw(p: { closeId: bigint }): Promise<NativeTxResult>;
@@ -209,6 +311,7 @@ export interface NativeClient {
 
 const BLOCKHASH_TIMEOUT_MS = 20_000;
 const DEFAULT_ROWS = 8;
+const SIMULATION_TIMEOUT_MS = 20_000;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -246,35 +349,185 @@ const requirePositive = (value: bigint, label: string): bigint => {
   return value;
 };
 
+// ---------------------------------------------------------------------------
+// Pre-sign simulation
+// ---------------------------------------------------------------------------
+
+export type SimulationOutcome =
+  | { ok: true; unitsConsumed: number | undefined }
+  | ({ ok: false; err: unknown; logs: string[] } & SimulationFailure);
+
+/**
+ * Simulate the UNSIGNED transaction exactly as it would be signed. sigVerify is
+ * off (nobody has signed) and the recent blockhash is replaced, so only the
+ * program's behavior is judged: a lagging RPC node cannot cause a spurious
+ * BlockhashNotFound. A transaction that cannot fit one packet is a 'size'
+ * failure decided locally. An RPC failure is NOT a verdict on the transaction:
+ * it throws NativeSimulationUnavailableError (nothing signed, retryable).
+ */
+export async function simulateUnsigned(
+  connection: Pick<NativeConnection, 'simulateTransaction'>,
+  tx: Transaction,
+  opts: { commitment: Commitment; timeoutMs: number },
+): Promise<SimulationOutcome> {
+  const tooLarge = (detail: string): SimulationOutcome => ({
+    ok: false,
+    err: 'TransactionTooLarge',
+    logs: [],
+    kind: 'size',
+    program: null,
+    reason: `the transaction does not fit one packet (${detail})`,
+  });
+  let versioned: VersionedTransaction;
+  try {
+    versioned = new VersionedTransaction(tx.compileMessage());
+    // web3.js serializes into a fixed PACKET_DATA_SIZE buffer, so an oversized message throws here.
+    const size = versioned.serialize().length;
+    if (size > PACKET_DATA_SIZE) return tooLarge(`${size} bytes, limit ${PACKET_DATA_SIZE}`);
+  } catch (error) {
+    if (error instanceof RangeError || /too large|overruns/i.test(String((error as Error)?.message))) return tooLarge(`limit ${PACKET_DATA_SIZE} bytes`);
+    throw error;
+  }
+  let response: Awaited<ReturnType<NativeConnection['simulateTransaction']>>;
+  try {
+    response = await withTimeout(
+      connection.simulateTransaction(versioned, { sigVerify: false, replaceRecentBlockhash: true, commitment: opts.commitment }),
+      opts.timeoutMs,
+      'simulation timed out',
+    );
+  } catch (error) {
+    throw new NativeSimulationUnavailableError(error);
+  }
+  const { err, logs, unitsConsumed } = response.value;
+  if (err === null || err === undefined) return { ok: true, unitsConsumed };
+  return { ok: false, err, logs: logs ?? [], ...classifySimulationFailure(err, logs) };
+}
+
+// ---------------------------------------------------------------------------
+// Cluster verification and guarded readers
+// ---------------------------------------------------------------------------
+
+type ClusterMode =
+  | { kind: 'none' }
+  | { kind: 'pinned'; cluster: NativeClusterConfig }
+  | { kind: 'unconfigured'; error: Error };
+
+/** An explicit cluster, else the one the connection's endpoint names, else (test doubles) none. */
+function resolveClusterMode(connection: object, explicit: NativeClusterConfig | undefined): ClusterMode {
+  if (explicit) return { kind: 'pinned', cluster: explicit };
+  const endpoint = (connection as { rpcEndpoint?: unknown }).rpcEndpoint;
+  if (typeof endpoint !== 'string') return { kind: 'none' };
+  try {
+    return { kind: 'pinned', cluster: defaultClusterIdentity(endpoint).cluster };
+  } catch (error) {
+    return { kind: 'unconfigured', error: error as Error };
+  }
+}
+
+/** The memoized check every guarded read and every action awaits first. */
+function makeClusterVerifier(connection: NativeConnection, raw: NativeReader, mode: ClusterMode) {
+  return async (): Promise<ClusterVerification | 'unverified'> => {
+    if (mode.kind === 'none') return 'unverified';
+    if (mode.kind === 'unconfigured') throw mode.error;
+    return ensureClusterVerified(connection, mode.cluster, {
+      genesis: () =>
+        typeof connection.getGenesisHash === 'function'
+          ? connection.getGenesisHash()
+          : Promise.reject(new NativeClusterError('The connection cannot report its genesis hash, so the cluster cannot be verified.')),
+      poolDomain: async () => (await raw.readPool())?.clusterDomain ?? null,
+    });
+  };
+}
+
+/** Every reader awaits `verify` first; an unverifiable cluster yields an error, never data. */
+function guardReaders(raw: NativeReader, verify: () => Promise<unknown>): NativeReader {
+  const guarded: Record<string, unknown> = {};
+  for (const [name, read] of Object.entries(raw)) {
+    guarded[name] = async (...args: unknown[]) => {
+      await verify();
+      return (read as (...a: unknown[]) => unknown)(...args);
+    };
+  }
+  return guarded as unknown as NativeReader;
+}
+
+/** A connection plus verified readers for one cluster identity (what the React hooks share). */
+export interface ClusterContext {
+  identity: NativeClusterIdentity;
+  key: string;
+  connection: NativeConnection;
+  readers: NativeReader;
+}
+
+export function createClusterContext(identity: NativeClusterIdentity, connection: NativeConnection, commitment: Commitment = 'confirmed'): ClusterContext {
+  const raw = createReaders(connection, commitment);
+  const verify = makeClusterVerifier(connection, raw, { kind: 'pinned', cluster: identity.cluster });
+  return { identity, key: clusterCacheKey(identity), connection, readers: guardReaders(raw, verify) };
+}
+
+const clusterContexts = new Map<string, ClusterContext>();
+
+/** One context (connection + verified readers) per identity, created on first use. */
+export function getClusterContext(identity: NativeClusterIdentity): ClusterContext {
+  const key = clusterCacheKey(identity);
+  let context = clusterContexts.get(key);
+  if (!context) {
+    context = createClusterContext(identity, createDefaultConnection(identity.rpcEndpoint));
+    clusterContexts.set(key, context);
+  }
+  return context;
+}
+
+/** On a cluster change: forget every other cluster's connection and verification memo. */
+export function dropClusterContextsExcept(keepKey: string | null): void {
+  for (const key of [...clusterContexts.keys()]) {
+    if (key !== keepKey) clusterContexts.delete(key);
+  }
+}
+
+// A switch of the app's active cluster (queries.ts store) drops the old contexts.
+onNativeClusterSwitch(dropClusterContextsExcept);
+
+/** What one send attempt builds: the instructions and how many batch rows they carry. */
+interface Planned {
+  instructions: TransactionInstruction[];
+  names: string[];
+  nonce?: bigint | null;
+  inline?: boolean;
+  /** Batch rows in this plan; >1 means a one-row retry is possible. Omitted for non-batch actions. */
+  rows?: number;
+}
+
 export function createNativeClient(config: NativeClientConfig): NativeClient {
   const { connection, wallet, sessionPubkey } = config;
   const commitment: Commitment = config.commitment ?? 'confirmed';
-  const readers: NativeReader = createReaders(connection, commitment);
+  const rawReaders: NativeReader = createReaders(connection, commitment);
+  const verifyCluster = makeClusterVerifier(connection, rawReaders, resolveClusterMode(connection, config.cluster));
+  const readers: NativeReader = guardReaders(rawReaders, verifyCluster);
   const nextNonce = config.randomNonce ?? randomU64;
 
   /** First thing every state-changing method does: no wallet match, no I/O. */
   const owner = (): string => assertWalletMatchesSession(wallet, sessionPubkey);
 
-  async function send(instructions: TransactionInstruction[], opts: { nonce?: bigint | null; computeUnits: number }): Promise<NativeTxResult> {
-    const feePayer = new PublicKey(owner());
+  /** Actions need an initialized program on a verified cluster; reads tolerate an empty cluster. */
+  async function ensureActionable(): Promise<void> {
+    if ((await verifyCluster()) === 'uninitialized') {
+      throw new NativeStateError('The native program is not initialized on this cluster (no Pool account).');
+    }
+  }
 
-    // Pre-broadcast: a timeout here is safe (nothing is signed or sent yet).
-    const { blockhash, lastValidBlockHeight } = await withTimeout(
-      connection.getLatestBlockhash(commitment),
-      config.blockhashTimeoutMs ?? BLOCKHASH_TIMEOUT_MS,
-      'Could not reach Solana to prepare the transaction (network slow or RPC unavailable). Try again in a moment.',
-    );
-    const tx: Transaction = assembleTransaction({ feePayer, blockhash, lastValidBlockHeight, instructions, computeUnits: opts.computeUnits });
+  /** Wallet prompt, tamper check, broadcast and tracking, for a transaction that already passed simulation. */
+  async function signAndSend(tx: Transaction, feePayer: string, lastValidBlockHeight: number, nonce: bigint | null): Promise<NativeTxResult> {
+    // Captured BEFORE the wallet sees the transaction: a wallet may mutate the object in place.
+    const intendedMessage = Uint8Array.from(tx.serializeMessage());
 
     // The wallet prompt: never time this out, and never sign twice.
     const signed = await wallet.signTransaction(tx);
     // The session wallet must still be the one that signed (the user can switch accounts inside the extension mid-prompt).
     owner();
-    if (!signed.signature || !signed.verifySignatures()) {
-      throw new WalletMismatchError('The wallet did not return a valid signature from your session account — reconnect your wallet and retry.');
-    }
+    const signatureBytes = assertSignedTransactionIntact({ intendedFeePayer: feePayer, intendedMessage, signed });
     const raw = signed.serialize();
-    const signature = bs58.encode(signed.signature);
+    const signature = bs58.encode(signatureBytes);
 
     let initial: 'submitted' | 'unknown' = 'submitted';
     let initialError: unknown;
@@ -302,7 +555,7 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
 
     const result: NativeTxResult = {
       signature,
-      nonce: opts.nonce ?? null,
+      nonce,
       get status() {
         return tracker.latest.status;
       },
@@ -325,6 +578,48 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
       },
     };
     return result;
+  }
+
+  /**
+   * Plan -> simulate the unsigned transaction -> sign -> broadcast.
+   *
+   * A simulation that fails with a page / compute / size / duplicate-account
+   * error on a batch of more than one row rebuilds the PLAN with one row and
+   * simulates again (once). That happens strictly before signing: a signed
+   * transaction is never rebuilt, and the same failing batch is never resent.
+   * Every other failure is final and signTransaction is never called.
+   */
+  async function execute<P extends Planned>(build: (rows: number) => Promise<P>, maxRows = 1): Promise<{ result: NativeTxResult; planned: P }> {
+    let rows = maxRows;
+    for (;;) {
+      const feePayerKey = owner();
+      await ensureActionable();
+      const planned = await build(rows);
+
+      // Pre-broadcast: a timeout here is safe (nothing is signed or sent yet).
+      const { blockhash, lastValidBlockHeight } = await withTimeout(
+        connection.getLatestBlockhash(commitment),
+        config.blockhashTimeoutMs ?? BLOCKHASH_TIMEOUT_MS,
+        'Could not reach Solana to prepare the transaction (network slow or RPC unavailable). Try again in a moment.',
+      );
+      const tx = assembleTransaction({
+        feePayer: new PublicKey(feePayerKey),
+        blockhash,
+        lastValidBlockHeight,
+        instructions: planned.instructions,
+        computeUnits: computeUnitLimitFor(planned.names, planned.inline),
+      });
+
+      const outcome = await simulateUnsigned(connection, tx, { commitment, timeoutMs: config.simulationTimeoutMs ?? SIMULATION_TIMEOUT_MS });
+      if (outcome.ok) {
+        return { result: await signAndSend(tx, feePayerKey, lastValidBlockHeight, planned.nonce ?? null), planned };
+      }
+      if (rows > 1 && (planned.rows ?? 0) > 1 && SHRINKABLE_FAILURES.includes(outcome.kind)) {
+        rows = 1;
+        continue;
+      }
+      throw new NativeSimulationRejectedError(outcome, outcome.err, outcome.logs);
+    }
   }
 
   const stateError = (what: string) => new NativeStateError(what);
@@ -350,11 +645,7 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
     return found;
   }
 
-  const run = async (build: () => Promise<{ instructions: TransactionInstruction[]; names: string[]; nonce?: bigint | null; inline?: boolean }>) => {
-    owner();
-    const plan = await build();
-    return send(plan.instructions, { nonce: plan.nonce ?? null, computeUnits: computeUnitLimitFor(plan.names, plan.inline) });
-  };
+  const run = async (build: (rows: number) => Promise<Planned>, maxRows = 1): Promise<NativeTxResult> => (await execute(build, maxRows)).result;
 
   async function registryKeyReader(slots: bigint[]): Promise<(slot: bigint) => Address> {
     const pages = await readers.readRegistryPages(slots.map(pageOf));
@@ -405,11 +696,11 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
   }
 
   async function buildAdvance(p: { rows?: number; skipNewlyCapped?: boolean }): Promise<AdvancePhasePlan> {
+    const maxRows = requireBatchSize(p.rows ?? DEFAULT_ROWS); // 1..8, before any read
     const ticket = await requireTicket();
     const phase = PHASE_NAME[ticket.phase];
     if (!phase) throw stateError(`Unknown allocation phase ${ticket.phase}`);
     if (phase === 'Idle') throw stateError('No allocation ticket is active (phase Idle)');
-    const maxRows = p.rows ?? DEFAULT_ROWS;
     const instructionName = PHASE_INSTRUCTION[phase];
     switch (phase) {
       case 'Discover': {
@@ -463,12 +754,19 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
     }
   }
 
-  const advanceByPhase = (expected: TicketPhaseName, p: { rows?: number; skipNewlyCapped?: boolean }) =>
-    run(async () => {
-      const plan = await buildAdvance(p);
+  const planOf = (plan: AdvancePhasePlan): Planned & { phase: TicketPhaseName } => ({
+    instructions: [plan.instruction],
+    names: [plan.instructionName],
+    rows: plan.rows,
+    phase: plan.phase,
+  });
+
+  const advanceByPhase = async (expected: TicketPhaseName, p: { rows?: number; skipNewlyCapped?: boolean }) =>
+    run(async (rows) => {
+      const plan = await buildAdvance({ ...p, rows });
       if (plan.phase !== expected) throw stateError(`The ticket is in phase ${plan.phase}, not ${expected}`);
-      return { instructions: [plan.instruction], names: [plan.instructionName] };
-    });
+      return planOf(plan);
+    }, requireBatchSize(p.rows ?? DEFAULT_ROWS));
 
   const closeStep =
     (names: string[], build: (close: NativeCloseRecord) => Promise<TransactionInstruction[]> | TransactionInstruction[]) =>
@@ -538,9 +836,8 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
 
     async advancePhase(p) {
       owner();
-      const plan = await buildAdvance(p);
-      const result = await send([plan.instruction], { computeUnits: computeUnitLimitFor([plan.instructionName]) });
-      return Object.assign(result, { phase: plan.phase, rows: plan.rows });
+      const { result, planned } = await execute(async (rows) => planOf(await buildAdvance({ ...p, rows })), requireBatchSize(p.rows ?? DEFAULT_ROWS));
+      return Object.assign(result, { phase: planned.phase, rows: planned.rows ?? 0 });
     },
     async buildAdvancePhase(p) {
       return buildAdvance(p);
@@ -564,10 +861,10 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
       }),
 
     // --- closing round ---
-    buildCandidates: (p) =>
-      run(async () => {
+    buildCandidates: async (p) =>
+      run(async (maxRows) => {
         const close = await requireClose(p.closeId);
-        const rows = candidateBatchRows(close, p.rows ?? DEFAULT_ROWS);
+        const rows = candidateBatchRows(close, maxRows);
         if (rows === 0) throw stateError('Every participant has already been visited for this close');
         const pages = await readers.readParticipantPages(close.roundId, range(close.candidateCursor, rows).map(pageOf));
         const participantAt = (slot: bigint): Address => {
@@ -575,8 +872,8 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
           if (!page) throw stateError(`Participant page ${pageOf(slot)} of round ${close.roundId} is not provisioned`);
           return page.rows[Number(slot % BigInt(PAGE_CAPACITY))];
         };
-        return { instructions: [buildCandidatesIx({ close, rows, participantAt })], names: ['build_candidates'] };
-      }),
+        return { instructions: [buildCandidatesIx({ close, rows, participantAt })], names: ['build_candidates'], rows };
+      }, requireBatchSize(p.rows ?? DEFAULT_ROWS)),
 
     requestDraw: closeStep(['request_round_draw'], async (close) => {
       if (!close.sealed) throw stateError('Candidates are not sealed yet');
@@ -647,6 +944,6 @@ export function createNativeClient(config: NativeClientConfig): NativeClient {
 }
 
 /** A connection to the configured Solana RPC (SOLANA_RPC_ENDPOINT; its host must be in the CSP connect-src). */
-export function createDefaultConnection(): NativeConnection {
-  return new Connection(SOLANA_RPC_ENDPOINT, 'confirmed');
+export function createDefaultConnection(endpoint: string = SOLANA_RPC_ENDPOINT): NativeConnection {
+  return new Connection(endpoint, 'confirmed');
 }

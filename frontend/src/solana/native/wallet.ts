@@ -31,6 +31,69 @@ export class WalletMismatchError extends Error {
   }
 }
 
+/** The wallet/provider returned something other than the transaction we asked it to sign. Nothing was broadcast. */
+export class SignedTransactionMismatchError extends WalletMismatchError {
+  constructor(
+    readonly reason: 'fee-payer' | 'message-mutated' | 'signature',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'SignedTransactionMismatchError';
+  }
+}
+
+const sameBytes = (a: Uint8Array, b: Uint8Array): boolean => a.length === b.length && a.every((byte, i) => byte === b[i]);
+
+/**
+ * The signed transaction must be exactly what we built: (1) the fee payer is
+ * the intended one, (2) the message bytes are identical to those captured
+ * BEFORE the wallet saw the transaction (a wallet can mutate the object in
+ * place, so the caller passes bytes, not the object), (3) slot 0 holds a
+ * 64-byte signature attributed to the fee payer, and (4) every signature
+ * verifies against that message. Returns the fee payer's signature.
+ */
+export function assertSignedTransactionIntact(args: {
+  intendedFeePayer: string;
+  intendedMessage: Uint8Array;
+  signed: Transaction;
+}): Uint8Array {
+  const { intendedFeePayer, intendedMessage, signed } = args;
+  if (signed.feePayer?.toBase58() !== intendedFeePayer) {
+    throw new SignedTransactionMismatchError(
+      'fee-payer',
+      'The wallet changed the fee payer of the transaction — nothing was sent. Reconnect your wallet and retry.',
+    );
+  }
+  let message: Uint8Array | null = null;
+  try {
+    message = signed.serializeMessage();
+  } catch {
+    message = null;
+  }
+  if (!message || !sameBytes(message, intendedMessage)) {
+    throw new SignedTransactionMismatchError(
+      'message-mutated',
+      'The wallet returned a different transaction than the one it was asked to sign — nothing was sent.',
+    );
+  }
+  const first = signed.signatures[0];
+  const signature = first?.signature;
+  if (
+    !first ||
+    first.publicKey.toBase58() !== intendedFeePayer ||
+    !signature ||
+    signature.length !== 64 ||
+    signature.every((byte) => byte === 0) ||
+    !signed.verifySignatures()
+  ) {
+    throw new SignedTransactionMismatchError(
+      'signature',
+      'The wallet did not return a valid signature from your session account — reconnect your wallet and retry.',
+    );
+  }
+  return signature;
+}
+
 /** Throws unless the selected wallet is the one the SIWS session belongs to. Returns the pubkey. */
 export function assertWalletMatchesSession(wallet: NativeWallet, sessionPubkey: string | null): string {
   if (!sessionPubkey) {

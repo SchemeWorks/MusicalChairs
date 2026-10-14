@@ -102,6 +102,94 @@ export function describeTransactionError(err: unknown): { code: number; name: st
   return { code, name: programErrorName(code) ?? 'Unknown' };
 }
 
+// ---------------------------------------------------------------------------
+// Pre-sign simulation failures
+// ---------------------------------------------------------------------------
+
+export type SimulationFailureKind =
+  /** PageNotProvisioned: the batch ran into a page the keeper did not supply (shrinkable). */
+  | 'page'
+  /** Compute budget / instruction trace exhausted (shrinkable). */
+  | 'budget'
+  /** The assembled transaction does not fit the packet (shrinkable). */
+  | 'size'
+  /** DuplicateWritableAccount: two rows of the batch share a writable account (shrinkable). */
+  | 'batch'
+  | 'insufficient-funds'
+  | 'missing-account'
+  /** Any other program error: deterministic, not fixed by fewer rows. */
+  | 'program'
+  | 'unknown';
+
+export interface SimulationFailure {
+  kind: SimulationFailureKind;
+  program: { code: number; name: string } | null;
+  /** One readable line: the program error name and code, or the cluster's error value. */
+  reason: string;
+}
+
+/** Failures a smaller batch can cure. Every other kind is deterministic for the same state. */
+export const SHRINKABLE_FAILURES: readonly SimulationFailureKind[] = ['page', 'budget', 'size', 'batch'];
+
+const ANCHOR_MISSING_ACCOUNT_CODES = new Set([3005, 3012]); // AccountNotEnoughKeys, AccountNotInitialized
+const BUDGET_INSTRUCTION_ERRORS = new Set([
+  'ComputationalBudgetExceeded',
+  'MaxInstructionTraceLengthExceeded',
+  'CallDepth',
+  'ProgramFailedToComplete',
+]);
+const MISSING_ACCOUNT_ERRORS = new Set(['AccountNotFound', 'ProgramAccountNotFound', 'MissingAccount', 'UninitializedAccount', 'NotEnoughAccountKeys']);
+const FUNDS_ERRORS = new Set(['InsufficientFundsForFee', 'InsufficientFundsForRent', 'InsufficientFunds']);
+
+/** Classify the `err` + logs of a failed `simulateTransaction`. Never throws. */
+export function classifySimulationFailure(err: unknown, logs?: readonly string[] | null): SimulationFailure {
+  const logText = (logs ?? []).join('\n');
+  const program = describeTransactionError({ err, logs: logs ?? [] });
+  const named = program && program.name !== 'Unknown' ? program : null;
+
+  // The cluster's error value: a bare string, {Variant: ...}, or {InstructionError: [index, detail]}.
+  const top = typeof err === 'string' ? err : err && typeof err === 'object' ? Object.keys(err)[0] : undefined;
+  const detail = Array.isArray((err as { InstructionError?: unknown } | null)?.InstructionError)
+    ? (err as { InstructionError: unknown[] }).InstructionError[1]
+    : undefined;
+  const detailName = typeof detail === 'string' ? detail : undefined;
+
+  let kind: SimulationFailureKind = 'unknown';
+  if (named?.name === 'PageNotProvisioned') kind = 'page';
+  else if (named?.name === 'DuplicateWritableAccount') kind = 'batch';
+  else if (named) kind = 'program';
+
+  if (kind === 'unknown' || kind === 'program') {
+    if ((detailName && BUDGET_INSTRUCTION_ERRORS.has(detailName)) || /exceeded CUs meter|computational budget exceeded|exceeded maximum number of instructions/i.test(logText)) {
+      kind = 'budget';
+    } else if (kind === 'unknown') {
+      if ((top && FUNDS_ERRORS.has(top)) || (detailName && FUNDS_ERRORS.has(detailName)) || /insufficient lamports|insufficient funds/i.test(logText)) {
+        kind = 'insufficient-funds';
+      } else if (
+        (top && MISSING_ACCOUNT_ERRORS.has(top)) ||
+        (detailName && MISSING_ACCOUNT_ERRORS.has(detailName)) ||
+        (program && ANCHOR_MISSING_ACCOUNT_CODES.has(program.code))
+      ) {
+        kind = 'missing-account';
+      }
+    }
+  }
+
+  let reason: string;
+  if (named) reason = `${named.name} (${named.code})`;
+  else if (program && ANCHOR_MISSING_ACCOUNT_CODES.has(program.code)) reason = `account not initialized or missing (${program.code})`;
+  else {
+    let rendered: string;
+    try {
+      rendered = typeof err === 'string' ? err : JSON.stringify(err, (_k, v: unknown) => (typeof v === 'bigint' ? v.toString() : v)) ?? String(err);
+    } catch {
+      rendered = String(err);
+    }
+    reason = rendered;
+  }
+  return { kind, program: named, reason };
+}
+
 export class StatusTracker {
   private current: StatusUpdate;
   private readonly rpc: StatusRpc;

@@ -1,7 +1,7 @@
 // Instruction builders: account lists/flags from the IDL, derived addresses,
 // and the remaining-account layouts of the keeper steps (reference: the LiteSVM
 // harness in solana/tests/financial-runtime).
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { Keypair, PublicKey, SystemProgram, ComputeBudgetProgram, Transaction, type TransactionInstruction } from '@solana/web3.js';
 import {
   PROGRAM_ID,
@@ -26,16 +26,19 @@ import {
   userRoundAddress,
   type KeyLike,
 } from './accounts';
-import { createNativeClient, NativeStateError } from './client';
+import { NativeSimulationRejectedError, createNativeClient, NativeStateError } from './client';
 import { describeTransactionError } from './status';
 import { bytesToHex, encodeInstructionData, getInstruction, hexToBytes, instructionDiscriminator, idl } from './codecs';
-import { ixFixture, argsFromSample, baseName, buildAccount, fakeConnection, fakeWallet, readSamplingFixture, type FakeAccount } from './testFixtures';
+import { SIM_OK, ixFixture, argsFromSample, baseName, buildAccount, fakeConnection, fakeWallet, readSamplingFixture, simCustom, simFailure, type FakeAccount } from './testFixtures';
 import {
   BACKER_REMAINING_CUTOFF,
+  MAX_BATCH_ROWS,
   NONE_PLACEHOLDER,
   PHASE_INSTRUCTION,
   assembleTransaction,
+  batchRows,
   buildIx,
+  candidateBatchRows,
   claimBackerIx,
   closeSimplePositionIx,
   computeUnitLimitFor,
@@ -46,7 +49,7 @@ import {
   planPrune,
   provisionPageIx,
 } from './transactions';
-import type { NativePool, NativeTicket, SnapshotRow } from './types';
+import type { NativeCloseRecord, NativePool, NativeTicket, SnapshotRow } from './types';
 
 const pk = (n: number) => new PublicKey(new Uint8Array(32).fill(n));
 const addr = (n: number) => pk(n).toBase58();
@@ -234,6 +237,57 @@ describe('transaction assembly', () => {
 });
 
 // ---------------------------------------------------------------------------
+// R3: batch cap (on-chain batch_len is 1..=8), page edges, worst-case alignment
+// ---------------------------------------------------------------------------
+
+describe('batch caps and page edges', () => {
+  const closeAt = (over: Partial<NativeCloseRecord> = {}) =>
+    ({ participantCount: 100n, candidateCursor: 0n, preferredCount: 0n, fallbackCount: 0n, ...over }) as NativeCloseRecord;
+
+  it('the cap is the program’s MAX_BATCH_ROWS (= PAGE_CAPACITY = 8)', () => {
+    expect(MAX_BATCH_ROWS).toBe(8);
+  });
+
+  it('refuses rows outside 1..8 for candidates and for the ticket phases (rows > 8 is not a request the program accepts)', () => {
+    for (const rows of [0, 9, 255, 1.5, -1, Number.NaN]) {
+      expect(() => candidateBatchRows(closeAt(), rows), `candidates ${rows}`).toThrow(RangeError);
+      expect(() => batchRows({ capturedLen: 100n, cursor: 0n } as NativeTicket, rows), `ticket ${rows}`).toThrow(RangeError);
+    }
+    expect(candidateBatchRows(closeAt(), 8)).toBe(8);
+    expect(batchRows({ capturedLen: 100n, cursor: 0n } as NativeTicket, 8)).toBe(8);
+  });
+
+  it('never runs a set past the candidate page it supplies: preferred or fallback count 7 leaves room for one row', () => {
+    expect(candidateBatchRows(closeAt({ preferredCount: 7n }), 8)).toBe(1);
+    expect(candidateBatchRows(closeAt({ fallbackCount: 7n }), 8)).toBe(1);
+    expect(candidateBatchRows(closeAt({ preferredCount: 15n }), 8)).toBe(1);
+    expect(candidateBatchRows(closeAt({ preferredCount: 6n }), 8)).toBe(2);
+    expect(candidateBatchRows(closeAt({ preferredCount: 5n, fallbackCount: 6n }), 8)).toBe(2); // the tighter set wins
+    expect(candidateBatchRows(closeAt({ preferredCount: 1n, fallbackCount: 3n }), 8)).toBe(5);
+  });
+
+  it('a set whose page just filled starts a fresh page: count 8 (or 16) allows a full batch', () => {
+    expect(candidateBatchRows(closeAt({ preferredCount: 8n }), 8)).toBe(8);
+    expect(candidateBatchRows(closeAt({ fallbackCount: 16n }), 8)).toBe(8);
+    expect(candidateBatchRows(closeAt({ preferredCount: 8n, fallbackCount: 7n }), 8)).toBe(1);
+  });
+
+  it('aligns to the participant page edge and to what is left to visit', () => {
+    expect(candidateBatchRows(closeAt({ candidateCursor: 6n }), 8)).toBe(2);
+    expect(candidateBatchRows(closeAt({ candidateCursor: 8n }), 8)).toBe(8);
+    expect(candidateBatchRows(closeAt({ candidateCursor: 17n }), 8)).toBe(7);
+    expect(candidateBatchRows(closeAt({ participantCount: 20n, candidateCursor: 18n }), 8)).toBe(2);
+    expect(candidateBatchRows(closeAt({ participantCount: 20n, candidateCursor: 20n }), 8)).toBe(0);
+    expect(candidateBatchRows(closeAt({ candidateCursor: 5n, preferredCount: 3n }), 8)).toBe(3); // participant edge (3) and set edge (5)
+  });
+
+  it('honors a smaller caller cap', () => {
+    expect(candidateBatchRows(closeAt(), 3)).toBe(3);
+    expect(candidateBatchRows(closeAt({ preferredCount: 6n }), 1)).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Prune planning (port of the harness prune_plan with chain cutting)
 // ---------------------------------------------------------------------------
 
@@ -312,9 +366,9 @@ function chain(entries: Array<[PublicKey, Uint8Array]>) {
   return accounts;
 }
 
-function clientFor(accounts: Map<string, FakeAccount>) {
+function clientFor(accounts: Map<string, FakeAccount>, extra: Parameters<typeof fakeConnection>[1] = {}) {
   const wallet = fakeWallet();
-  const connection = fakeConnection(accounts);
+  const connection = fakeConnection(accounts, extra);
   const client = createNativeClient({ connection, wallet, sessionPubkey: wallet.publicKey!, sleep: async () => {} });
   return { client, wallet, connection };
 }
@@ -693,5 +747,135 @@ describe('NativeClient player flows', () => {
       expect(describeTransactionError(new Error(`custom program error: 0x${error.code.toString(16)}`))).toEqual({ code: error.code, name: error.name });
     }
     expect(describeTransactionError({ InstructionError: [0, 'InvalidAccountData'] })).toBeNull();
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// R3: batch alignment and the one-row fallback
+// ---------------------------------------------------------------------------
+
+describe('one-row fallback (the simulation shrinks the work plan; a signed transaction is never rebuilt)', () => {
+  const sentIxs = (wallet: ReturnType<typeof fakeWallet>, call = 0) => (wallet.signTransaction.mock.calls[call][0] as Transaction).instructions.slice(1);
+  const simulated = (connection: ReturnType<typeof fakeConnection>, call: number) =>
+    Buffer.from((connection.simulateTransaction.mock.calls[call][0] as { message: { serialize(): Uint8Array } }).message.serialize());
+
+  const closeWorld = (over: Record<string, unknown> = {}, participants = 8) =>
+    chain([
+      [
+        closeRecordAddress(3n),
+        buildAccount('CloseRecord', {
+          closeId: 3n,
+          roundId: 2n,
+          participantCount: BigInt(participants),
+          candidateCursor: 0n,
+          provisionedPreferredPages: 1n,
+          provisionedFallbackPages: 1n,
+          ownerRefundDestination: addr(90),
+          ...over,
+        }),
+      ],
+      [participantAddress(2n, 0n), buildAccount('ParticipantPage', { roundId: 2n, page: 0n, len: 8, rows: page8(120) })],
+    ]);
+  const restOf = (ix: TransactionInstruction, name: string) => ix.keys.slice(getInstruction(name).accounts.length);
+
+  it('build_candidates at a candidate page edge sends one row instead of eight (no failing batch to begin with)', async () => {
+    const { client, wallet, connection } = clientFor(closeWorld({ preferredCount: 7n }));
+    await client.buildCandidates({ closeId: 3n });
+    expect(restOf(sentIxs(wallet)[0], 'build_candidates')).toHaveLength(3);
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('a full 8-row batch is the default when nothing constrains it, and the cap refuses more', async () => {
+    const { client, wallet } = clientFor(closeWorld());
+    await client.buildCandidates({ closeId: 3n });
+    expect(restOf(sentIxs(wallet)[0], 'build_candidates')).toHaveLength(24);
+    await expect(client.buildCandidates({ closeId: 3n, rows: 9 })).rejects.toBeInstanceOf(RangeError);
+    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
+  });
+
+  it('pageFailureRebuildsWithOneRowAndSignsExactlyOnce', async () => {
+    const simulate = vi.fn().mockResolvedValueOnce(simCustom(6035)).mockResolvedValue(SIM_OK);
+    const { client, wallet, connection } = clientFor(closeWorld(), { simulateTransaction: simulate });
+    const result = await client.buildCandidates({ closeId: 3n });
+
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(2);
+    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
+    expect(connection.sendRawTransaction).toHaveBeenCalledTimes(1);
+    // The first plan carried 8 rows (24 remaining accounts), the signed one exactly 1 (3).
+    const ix = sentIxs(wallet)[0];
+    expect(restOf(ix, 'build_candidates')).toHaveLength(3);
+    expect(bytesToHex(ix.data)).toBe(bytesToHex(encodeInstructionData('build_candidates', { rows: 1 })));
+    expect(simulated(connection, 0).equals(simulated(connection, 1))).toBe(false);
+    expect(result.status).toBe('submitted');
+  });
+
+  it('if the one-row plan also fails it throws the decoded error, signs nothing and does not loop', async () => {
+    const simulate = vi.fn(async () => simCustom(6035));
+    const { client, wallet, connection } = clientFor(closeWorld(), { simulateTransaction: simulate });
+    const error = await client.buildCandidates({ closeId: 3n }).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(NativeSimulationRejectedError);
+    expect((error as NativeSimulationRejectedError).kind).toBe('page');
+    expect((error as NativeSimulationRejectedError).programError).toEqual({ code: 6035, name: 'PageNotProvisioned' });
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(2); // 8 rows, then 1 row; never the same batch twice
+    expect(simulated(connection, 0).equals(simulated(connection, 1))).toBe(false);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+    expect(connection.sendRawTransaction).not.toHaveBeenCalled();
+  });
+
+  it('a deterministic failure that fewer rows cannot cure is final on the first simulation', async () => {
+    const { client, wallet, connection } = clientFor(closeWorld(), { simulateTransaction: vi.fn(async () => simCustom(6045)) });
+    await expect(client.buildCandidates({ closeId: 3n })).rejects.toBeInstanceOf(NativeSimulationRejectedError);
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(1);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+  });
+
+  it('a one-row request has nothing to shrink to: its failure is final', async () => {
+    const { client, wallet, connection } = clientFor(closeWorld(), { simulateTransaction: vi.fn(async () => simCustom(6035)) });
+    await expect(client.buildCandidates({ closeId: 3n, rows: 1 })).rejects.toBeInstanceOf(NativeSimulationRejectedError);
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(1);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+  });
+
+  const allocateWorld = (capturedLen: bigint) => {
+    const rows = Array.from({ length: 8 }, (_, i) => ({ key: addr(70 + i), series: i % 2, remaining: 5_000n, slot: BigInt(i) }));
+    return chain([
+      [ticketAddress(), buildAccount('Ticket', { id: 3n, phase: 3, capturedLen, cursor: 0n })],
+      [snapshotAddress(0n), buildAccount('SnapshotPage', { index: 0n, ticketId: 3n, rows })],
+    ]);
+  };
+
+  it('advancePhase shrinks an allocate batch to one row when the simulation exhausts the compute budget', async () => {
+    const simulate = vi.fn().mockResolvedValueOnce(simFailure({ InstructionError: [1, 'ComputationalBudgetExceeded'] })).mockResolvedValue(SIM_OK);
+    const { client, wallet, connection } = clientFor(allocateWorld(3n), { simulateTransaction: simulate });
+    const result = await client.advancePhase({ rows: 8 });
+    expect(result.phase).toBe('Allocate');
+    expect(result.rows).toBe(1);
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(2);
+    expect(wallet.signTransaction).toHaveBeenCalledTimes(1);
+    expect(bytesToHex(sentIxs(wallet)[0].data)).toBe(bytesToHex(encodeInstructionData('allocate_rows', { expectedTicketId: 3n, expectedCursor: 0n, rows: 1 })));
+  });
+
+  it('the named ticket steps get the same fallback (allocateRows, discoverRows)', async () => {
+    const simulate = vi.fn().mockResolvedValueOnce(simCustom(6035)).mockResolvedValue(SIM_OK);
+    const { client, wallet } = clientFor(allocateWorld(3n), { simulateTransaction: simulate });
+    await client.allocateRows({ rows: 8 });
+    expect(bytesToHex(sentIxs(wallet)[0].data)).toBe(bytesToHex(encodeInstructionData('allocate_rows', { expectedTicketId: 3n, expectedCursor: 0n, rows: 1 })));
+  });
+
+  it('advancePhase refuses more than 8 rows before signing anything', async () => {
+    const { client, wallet, connection } = clientFor(allocateWorld(3n));
+    await expect(client.advancePhase({ rows: 9 })).rejects.toBeInstanceOf(RangeError);
+    await expect(client.buildAdvancePhase({ rows: 255 })).rejects.toBeInstanceOf(RangeError);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+    expect(connection.simulateTransaction).not.toHaveBeenCalled();
+  });
+
+  it('phases that carry no rows (seal_weights) have nothing to shrink and are never retried', async () => {
+    const accounts = chain([[ticketAddress(), buildAccount('Ticket', { id: 2n, phase: 2 })]]);
+    const { client, wallet, connection } = clientFor(accounts, { simulateTransaction: vi.fn(async () => simCustom(6035)) });
+    await expect(client.advancePhase({})).rejects.toBeInstanceOf(NativeSimulationRejectedError);
+    expect(connection.simulateTransaction).toHaveBeenCalledTimes(1);
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
   });
 });

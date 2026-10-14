@@ -1,7 +1,7 @@
 // IMPL-46b step 1, test 6 (+ the unknown / expired edges): the status ladder is
 // driven by injected getSignatureStatuses responses; no websocket anywhere.
 import { describe, it, expect, vi } from 'vitest';
-import { StatusTracker, describeTransactionError, type StatusRpc, type SignatureStatusValue } from './status';
+import { StatusTracker, classifySimulationFailure, describeTransactionError, type StatusRpc, type SignatureStatusValue } from './status';
 import type { StatusUpdate } from './types';
 
 const SIG = '5VERv8NMvzbJMEkV8xnrLkEaWRtSz9CosKDYjCJjBRnbJLgp8uirBgmQpjKhoR4tjF3ZpRzrFmBV6UjKdiSZkQUW';
@@ -122,5 +122,40 @@ describe('StatusTracker', () => {
     await collect(tracker.stream());
     expect(sleep).toHaveBeenCalledWith(1500);
     expect(sleep).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('classifySimulationFailure (pre-sign simulation errors)', () => {
+  const custom = (code: number) => ({ InstructionError: [1, { Custom: code }] });
+
+  it('names the program error and marks page/batch failures shrinkable', () => {
+    expect(classifySimulationFailure(custom(6035))).toMatchObject({ kind: 'page', program: { code: 6035, name: 'PageNotProvisioned' } });
+    expect(classifySimulationFailure(custom(6026))).toMatchObject({ kind: 'batch', program: { code: 6026, name: 'DuplicateWritableAccount' } });
+    expect(classifySimulationFailure(custom(6045))).toMatchObject({ kind: 'program', program: { code: 6045, name: 'PromotionTerminal' } });
+  });
+
+  it('recognizes compute-budget exhaustion from the error or from the logs', () => {
+    expect(classifySimulationFailure({ InstructionError: [1, 'ComputationalBudgetExceeded'] }).kind).toBe('budget');
+    expect(classifySimulationFailure(custom(0), ['Program X consumed 200000 of 200000 compute units', 'Program X failed: exceeded CUs meter at BPF instruction']).kind).toBe('budget');
+    expect(classifySimulationFailure({ InstructionError: [1, 'MaxInstructionTraceLengthExceeded'] }).kind).toBe('budget');
+  });
+
+  it('recognizes insufficient funds (fee, rent, system transfer) and missing accounts', () => {
+    expect(classifySimulationFailure('InsufficientFundsForFee').kind).toBe('insufficient-funds');
+    expect(classifySimulationFailure({ InsufficientFundsForRent: { account_index: 1 } }).kind).toBe('insufficient-funds');
+    expect(classifySimulationFailure(custom(1), ['Program 11111111111111111111111111111111 invoke [1]', 'Transfer: insufficient lamports 5, need 10']).kind).toBe('insufficient-funds');
+    expect(classifySimulationFailure({ InstructionError: [1, 'InsufficientFunds'] }).kind).toBe('insufficient-funds');
+    expect(classifySimulationFailure('AccountNotFound').kind).toBe('missing-account');
+    expect(classifySimulationFailure('ProgramAccountNotFound').kind).toBe('missing-account');
+    expect(classifySimulationFailure({ InstructionError: [1, 'UninitializedAccount'] }).kind).toBe('missing-account');
+    expect(classifySimulationFailure(custom(3012), ['Program log: AnchorError caused by account: user. Error Code: AccountNotInitialized. Error Number: 3012.']).kind).toBe('missing-account');
+  });
+
+  it('falls back to unknown with a readable reason and keeps whatever it could decode', () => {
+    const unknown = classifySimulationFailure('BlockhashNotFound');
+    expect(unknown.kind).toBe('unknown');
+    expect(unknown.program).toBeNull();
+    expect(unknown.reason).toContain('BlockhashNotFound');
+    expect(classifySimulationFailure(custom(6035)).reason).toContain('PageNotProvisioned');
   });
 });
