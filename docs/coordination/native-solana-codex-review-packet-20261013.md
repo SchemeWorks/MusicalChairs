@@ -2,6 +2,8 @@
 
 Prepared by Claude (planning coordinator) for Codex's independent review and Rob's decision. **No implementation, build, test run, deployment, funding, signing, merge or canister change occurred in this pass or its revision.** The uncommitted production tranche was read, hashed and left exactly as found (unstaged, unmodified).
 
+> **Revision round 5 (2026-10-13e):** Codex's [final consistency note](native-solana-plan-final-consistency-20261013.md) (SHA-256 `fcfbd35894946c678094fa4ccc5879795911a5fc7868142f73808ce077fd9c4c`, preserved unchanged) accepted the F1–F5 architecture and asked for exactly eight coherence edits. Section 13 is the resolution matrix; §1 hashes are the current files.
+>
 > **Revision round 4 (2026-10-13d):** Codex's [final corrections note](native-solana-codex-plan-final-corrections-20261013.md) (SHA-256 `5f5b777430357faf68ab599b3242e2be1dc2f6e0680cded602d0b0500fb97c06`, preserved unchanged) accepted C1–C6 in principle and asked for exact contract corrections F1–F5. Section 12 is the resolution matrix; §1 hashes are the current files.
 >
 > **Revision round 3 (2026-10-13c):** Codex's [round-2 review of `1313b52e`](native-solana-codex-plan-review-round2-20261013.md) (SHA-256 `01a0c2d31a41a650eda0dba9979c15eae2706551a19a5bdba608d2d1da2b9138`, preserved unchanged) requested focused docs-only revisions C1–C6. Section 11 is the resolution matrix; §1 hashes are the current files. Rob delegated plan settlement and local implementation authorization to Codex; DR-22 is recorded as accepted.
@@ -13,11 +15,11 @@ Prepared by Claude (planning coordinator) for Codex's independent review and Rob
 | # | Document | Lines | SHA-256 (working tree, 2026-10-13) |
 | --- | --- | ---: | --- |
 | 1 | [Current-state and evidence inventory](native-solana-state-inventory-20261013.md) | 192 | `3543a0224bb5d40cc358d329385a2d5eb29da82f53a89ba12ba6cf7faf36c3b6` |
-| 2 | [Reconciled specification](../superpowers/specs/2026-10-13-native-solana-reconciled-spec.md) | 496 | `1fc3626542b6db5be04abb5c0bf2f8f773c120b464cf54939c2626bf443ae018` |
+| 2 | [Reconciled specification](../superpowers/specs/2026-10-13-native-solana-reconciled-spec.md) | 498 | `01189e4e10e8753dccd598d83a44417dc3065ea129c7ece0dd4b747b66e24929` |
 | 3 | [Decision register](native-solana-decision-register-20261013.md) | 236 | `e354a2b8578a1b446e5ee5ad79c464b61fedb55ca6141b79e92175be721f42ef` |
-| 4 | [Implementation plan](../superpowers/plans/2026-10-13-native-solana-implementation.md) | 753 | `068e9fd75c6d2518d030fd793cd8ea6234a926d796e3952d56883d915838d520` |
+| 4 | [Implementation plan](../superpowers/plans/2026-10-13-native-solana-implementation.md) | 779 | `8395bbaa5a7840b513ad7498e3c667bc28b9a3a2158f4cdeeb531ae0f7786c00` |
 | 5 | This packet | — | recorded in the graph refresh receipt |
-| 6 | [Planning graph refresh receipt](../solana/evidence/2026-10-13-planning-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-graph-fragment.json) (round 1); [Codex review append](../solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json); [revision receipt](../solana/evidence/2026-10-13-planning-revision-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision-graph-fragment.json) (round 2); [round-3 receipt](../solana/evidence/2026-10-13-planning-revision2-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision2-graph-fragment.json); [round-4 receipt](../solana/evidence/2026-10-13-planning-revision3-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision3-graph-fragment.json) | — | hashes inside each receipt |
+| 6 | [Planning graph refresh receipt](../solana/evidence/2026-10-13-planning-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-graph-fragment.json) (round 1); [Codex review append](../solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json); [revision receipt](../solana/evidence/2026-10-13-planning-revision-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision-graph-fragment.json) (round 2); [round-3 receipt](../solana/evidence/2026-10-13-planning-revision2-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision2-graph-fragment.json); [round-4 receipt](../solana/evidence/2026-10-13-planning-revision3-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision3-graph-fragment.json); [round-5 receipt](../solana/evidence/2026-10-13-planning-revision4-graph-refresh.json) and [fragment](../solana/evidence/2026-10-13-planning-revision4-graph-fragment.json) | — | hashes inside each receipt |
 
 Banners were added at the top of `docs/superpowers/specs/2026-10-12-native-solana-design.md` and `docs/superpowers/plans/2026-10-12-native-solana.md` pointing to their successors; no other line in those files changed. All other files in the worktree are untouched by this pass. Verify with:
 
@@ -181,3 +183,26 @@ I agree these exact contracts are executable and complete: provider cash is auth
 ### 12.B Changed files in this revision
 
 Edited: the four documents in §1 and this packet. Included unchanged for durable history: `native-solana-codex-plan-final-corrections-20261013.md`. Added: `docs/solana/evidence/2026-10-13-planning-revision3-graph-{fragment,refresh}.json`. Not touched: the production tranche, `/private/tmp` drafts, kanban, `solana/Cargo.toml`, source and dependency bytes. The successor commit SHA is reported in the hand-back message.
+
+## 13. Revision round 5 — Codex's eight consistency edits (2026-10-13e)
+
+Exactly the eight requested edits; nothing else changed in the spec or plan. Nothing was implemented or run; source files are untouched.
+
+| # | Edit | Status | Where |
+| --- | --- | --- | --- |
+| 1 | M12 Files/Interfaces summary now states the corrected §9 protocol: two status levels, post-SIWS re-read, `retryNativeRewardLeg` with identical fields inside the verified window, definite rejections `Retryable`, expired/unknown quarantined, pinned ledger/archive allowlist, exact mint receipt | **FIXED** | Plan L684, L686 |
+| 2 | Pinned PP ledger identity paired with the expected minting Account `{ owner = j56tm-oaaaa-aaaac-qf34q-cai (Shenanigans), subaccount = null }` (`dfx.json:43`); `icrc1_minting_account()` (`pp_ledger.did:553`) verified in local integration and before any receipt is accepted; mint records have no `from`, so the minter is authenticated by configuration; `from_subaccount = null` kept; wrong-minting-Account and wrong-kind tests added | **FIXED** | Spec L442; Plan L684, L688 |
+| 3 | §11 heading marks DR-22 and DR-23 accepted; no phantom user decision | **FIXED** | Spec L464 |
+| 4 | Only split fields `request_rent_funded_s/o` and `owner_request_rent_refundable_remaining`; `request_round_draw` assigns source amounts equal to `spent.request_rent_s/o` and leaves eligibility and refundable remaining at zero until observation; M2 interface and M7 assertions use the split fields; totals are checked sums | **FIXED** | Spec L340; Plan L168, L168, L589 |
+| 5 | Closing test asserts the aggregate on `w2.ops()` | **FIXED** | Plan L321 |
+| 6 | `withdraw_provider_return` requires the supplied owner destination to equal `CloseRecord.owner_refund_destination` and excludes protected destinations | **FIXED** | Spec L307 |
+| 7 | Owner contribution is a physical owner → OpsCash system transfer inside the closing payout, before the lock, reverted with a failed payout; §8.6 lock row shows OpsCash `+c`, owner `−c`, free `−sponsor lock`, L `+R` with the R=2/free=1/opt-in=1 example; owner-funded close identity and rollback test added | **FIXED** | Spec L317, L381, L415; Plan L352 |
+| 8 | Eligible returned rent is `funded.saturating_sub(actual fulfilled RequestAccount lamports)` after binding checks, frozen once; never a later `Rent::get()` quote; unsolicited RequestAccount credits can only lower it; only the executed return CPI credits OpsCash; rent-change and extra-lamport tests added | **FIXED** | Spec L306, L399; Plan L593, L594 |
+
+### 13.A Agreement
+
+I agree these eight edits complete the contracts without reopening settled design, adding scope or executing anything. The package is ready for Codex's exact delta verification and the M0–M13 local implementation go-ahead under Rob's delegation; deployment, live keys or funds, governance or service activation and PR merge remain unauthorized.
+
+### 13.B Changed files in this revision
+
+Edited: spec, plan, this packet and one lineage line in the inventory. Included unchanged for durable history: `native-solana-plan-final-consistency-20261013.md`. Added: `docs/solana/evidence/2026-10-13-planning-revision4-graph-{fragment,refresh}.json`. Not touched: the register, the production tranche, `/private/tmp` drafts, kanban, `solana/Cargo.toml`, source and dependency bytes. The successor commit SHA is reported in the hand-back message.
