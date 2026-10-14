@@ -68,7 +68,11 @@
   "source_set_before_build_equal": true,
   "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
   "log_sha256": "f3ce5cf1bc1e9ef6d47c7684f08f6b516d1fc5d58f8314c67c9d7f4e01ab62c1",
-  "previous_m2_artifact": "340350dd… (667,784 B)"
+  "previous_m2_artifact": "340350dd… (667,784 B)",
+  "superseded_by_impl20": {
+   "artifact_sha256": "990ebc02b744ab1a1ce2809b8a61c6e606826c698184b9700a112ef823a94619",
+   "source_set_sha256": "50ec232cd68ee066e6e36eecb8d5d4d631acf5cb214d4f8647fa8ac138fb83f0"
+  }
  },
  "idl": {
   "sha256": "de83a400c1e2e3a0c7c074f82a240d12861fb04fd535138724f26a05b8472436",
@@ -1439,7 +1443,7 @@
   "real Squads accounts are allocated at Multisig::size (231 B for 3 members, 32 trailing zero bytes when rent_collector is None); the padded-row test covers that shape, the committed fixtures are the exact unpadded encoding",
   "existing instruction names set_pause / withdraw_operations / withdraw_management are kept (spec uses longer names)"
  ],
- "proof_level": "host unit tests + compiled SBF with complete provenance + LiteSVM execution of every control row with vault-PDA signatures from a test-only stand-in; no production game instruction is GREEN; no deployment, live Squads, live keys or funds. Codex M3 review: authentication proof PASS; Ops counters (total_contributed/total_withdrawn, positive-amount guard) PENDING (IMPL-20); stand-in accepted for application guards only.",
+ "proof_level": "host unit tests + compiled SBF with complete provenance + LiteSVM execution of every control row with vault-PDA signatures from a test-only stand-in; no production game instruction is GREEN; no deployment, live Squads, live keys or funds. Codex M3 review: authentication proof PASS; Ops counters wired and verified by IMPL-20 on ELF 990ebc02…; stand-in accepted for application guards only.",
  "solana_notes": [
   "A PDA has no private key; it signs only when its owning program calls invoke_signed. Squads vaults are PDAs of the Squads program, so locally a stand-in at that program id is the only way to produce the signature; the main program cannot tell the difference, which is exactly the boundary M14 verifies on devnet with the real Squads program.",
   "ProgramData is the upgradeable loader's record of upgrade_authority: initialize reads it like a canister controller list, except the data lives in the loader's account, not ours; LiteSVM add_program installs a non-upgradeable loader shape, so the fixture rewrites both loader accounts.",
@@ -1455,8 +1459,22 @@
   "disposition": "known pending wiring item (deferred in the M2 handoff), not a new design gate; assigned to IMPL-20 (reject zero before the CPI, atomic u128 counters, corrected fixture delta, zero-funding/counter/rollback regressions)",
   "labels": {
    "m3_authentication_proof": "PASS (source-checked by Codex; executed locally)",
-   "ops_metadata_counters": "PENDING until IMPL-20 lands; the fund/withdraw postconditions of spec §7.1 are NOT claimed complete here",
+   "ops_metadata_counters": "DONE (IMPL-20): positive-amount guard before the CPI, total_contributed/total_withdrawn maintained atomically, regressions pass on the rebuilt ELF 990ebc02…",
    "squads_standin": "accepted for application guards only; NOT real quorum/timelock proof (M14)"
   }
+ },
+ "impl20_ops_counters_correction": {
+  "commit": "see git log (IMPL-20)",
+  "program_change": "fund_operations: require!(amount > 0, InvalidState) BEFORE the system CPI; checked u128 Ops.total_contributed += amount with the free_balance update; withdraw_operations: checked u128 Ops.total_withdrawn += amount",
+  "harness_change": "expected fixture deltas include both counters; byte-identical counter checks on every rejection; new rows .zero_amount (fund → 6001 fee-only rollback; withdraw 0 → success with no lamport delta, counters unchanged)",
+  "rebuilt_artifact_sha256": "990ebc02b744ab1a1ce2809b8a61c6e606826c698184b9700a112ef823a94619",
+  "artifact_bytes": 769608,
+  "source_set_sha256": "50ec232cd68ee066e6e36eecb8d5d4d631acf5cb214d4f8647fa8ac138fb83f0",
+  "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+  "harness_result": "FAILED. 31 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.56s",
+  "cli_observations": 134,
+  "cli_copy_sha256": "3b46f2f4f1292202b4d12f0bfc31705e62534d7dcd96f704bed1c85d0b29e1ec",
+  "log_sha256": "246746bf80f881fbbb1b8c95c48997062c8c800e71c9d29924b9ad2d15b77d32",
+  "zero_amount_withdraw_outcome": "success, no delta (program does not reject a zero withdraw; spec §7.1 requires only amount <= free_balance)"
  }
 }

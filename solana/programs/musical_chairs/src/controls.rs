@@ -425,6 +425,8 @@ pub fn set_pause(ctx: Context<Pause>, paused: bool) -> Result<()> {
 
 pub fn fund_operations(ctx: Context<FundOperations>, amount: u64) -> Result<()> {
     validate_ops_cash(&ctx.accounts.ops_cash)?;
+    // Spec §7.1: a zero-lamport contribution is rejected before any CPI.
+    require!(amount > 0, crate::ErrorCode::InvalidState);
     let ops = &mut ctx.accounts.ops;
     crate::sync_ops(ops, &ctx.accounts.ops_cash.to_account_info())?;
     invoke(
@@ -440,6 +442,10 @@ pub fn fund_operations(ctx: Context<FundOperations>, amount: u64) -> Result<()> 
         ],
     )?;
     ops.free_balance = crate::checked_add(ops.free_balance, amount)?;
+    ops.total_contributed = ops
+        .total_contributed
+        .checked_add(u128::from(amount))
+        .ok_or(crate::ErrorCode::Overflow)?;
     let free_balance_after = ops.free_balance;
     let funder = ctx.accounts.sender.key();
     emit_cpi!(crate::events::OperationsFunded {
@@ -490,6 +496,10 @@ pub fn withdraw_operations(ctx: Context<WithdrawOperations>, amount: u64) -> Res
         &[signer_seeds],
     )?;
     ops.free_balance = crate::checked_sub(ops.free_balance, amount)?;
+    ops.total_withdrawn = ops
+        .total_withdrawn
+        .checked_add(u128::from(amount))
+        .ok_or(crate::ErrorCode::Overflow)?;
     let free_balance_after = ops.free_balance;
     let recipient = ctx.accounts.sponsor.key();
     emit_cpi!(crate::events::OperationsWithdrawn {

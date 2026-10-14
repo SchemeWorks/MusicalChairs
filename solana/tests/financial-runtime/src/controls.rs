@@ -231,6 +231,16 @@ fn ser<T: AnchorSerialize>(value: &T) -> Vec<u8> {
     value.try_to_vec().expect("Borsh serialization")
 }
 
+/// Little-endian bytes of the two Ops lifetime counters
+/// (`total_contributed`, `total_withdrawn`), so a rollback regression can be
+/// asserted byte-for-byte.
+fn counter_bytes(ops: &state::Ops) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    bytes[..16].copy_from_slice(&ops.total_contributed.to_le_bytes());
+    bytes[16..].copy_from_slice(&ops.total_withdrawn.to_le_bytes());
+    bytes
+}
+
 fn changed(observation: &Observation) -> BTreeSet<String> {
     observation
         .account_changes
@@ -1604,10 +1614,11 @@ pub fn fund_operations_any_signer_increases_free_balance_only() -> Vec<Observati
     rig.ok(&observation);
     let mut expected = before.clone();
     expected.free_balance += 7_000;
+    expected.total_contributed += 7_000u128;
     assert_eq!(
         ser(&rig.ops()),
         ser(&expected),
-        "only Ops.free_balance changed"
+        "only Ops.free_balance and Ops.total_contributed changed"
     );
     assert_eq!(
         changed(&observation),
@@ -1627,6 +1638,30 @@ pub fn fund_operations_any_signer_increases_free_balance_only() -> Vec<Observati
     rig.ok(&observation);
     assert_eq!(rig.ops().free_balance, 10_000);
     assert_eq!(rig.rt.account(ops_cash).lamports, rig.rt.rent(0) + 10_000);
+    let funded = rig.ops();
+    assert_eq!(
+        funded.total_contributed,
+        before.total_contributed + 7_000u128 + 3_000u128,
+        "total_contributed is the sum of both fundings"
+    );
+    assert_eq!(
+        funded.total_withdrawn, before.total_withdrawn,
+        "funding never touches total_withdrawn"
+    );
+    assert_eq!(funded.total_withdrawn, 0, "nothing has been withdrawn");
+    observations.push(observation);
+
+    // A zero-lamport contribution is rejected before the transfer CPI
+    // (`InvalidState`, 6001); Ops is untouched and only the fee moves.
+    let ops_before = ser(&rig.ops());
+    let observation = rig.fund(label(ROW_FUND_OPERATIONS, "zero_amount"), &owner_key, 0);
+    rig.rejected_program(&observation, ErrorCode::InvalidState);
+    assert_eq!(custom_code(&observation), Some(6001));
+    assert_eq!(
+        ser(&rig.ops()),
+        ops_before,
+        "a rejected zero funding leaves Ops byte-identical"
+    );
     observations.push(observation);
     observations
 }
@@ -1638,12 +1673,19 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
     let sponsor_address = sponsor_key.pubkey();
     let mut observations = Vec::new();
 
+    let initial = rig.ops();
     let funded = rig.fund(
         label(ROW_WITHDRAW_OPERATIONS, "fund_20000"),
         &sponsor_key,
         20_000,
     );
     rig.ok(&funded);
+    assert_eq!(
+        rig.ops().total_contributed,
+        initial.total_contributed + 20_000u128,
+        "the setup funding is recorded in total_contributed"
+    );
+    assert_eq!(rig.ops().total_withdrawn, initial.total_withdrawn);
     observations.push(funded);
 
     // Fixture write: 5,000 lamports locked for a close, physically held in
@@ -1654,6 +1696,10 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
     rig.rt.add_lamports(ops_cash, 5_000);
     rig.rt.conservation_check();
 
+    // Both lifetime counters as of now; every rejected withdrawal below must
+    // leave them byte-identical (rollback regression).
+    let counters_before = counter_bytes(&rig.ops());
+
     let by_other = withdraw_operations_ix(&rig.rt, attacker().pubkey(), 1);
     let observation = rig.direct(
         label(ROW_WITHDRAW_OPERATIONS, "not_the_sponsor"),
@@ -1661,6 +1707,7 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
         &[&attacker()],
     );
     rig.rejected_program(&observation, ErrorCode::NotAuthorized);
+    assert_eq!(counter_bytes(&rig.ops()), counters_before);
     observations.push(observation);
 
     // free (20,000) + locked (5,000) is physically in OpsCash, but only the
@@ -1672,6 +1719,11 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
         &[&sponsor_key],
     );
     rig.rejected_program(&observation, ErrorCode::InsufficientOperations);
+    assert_eq!(
+        counter_bytes(&rig.ops()),
+        counters_before,
+        "a rejected over-free withdrawal leaves both counters byte-identical"
+    );
     observations.push(observation);
 
     let one_over = withdraw_operations_ix(&rig.rt, sponsor_address, 20_001);
@@ -1681,6 +1733,11 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
         &[&sponsor_key],
     );
     rig.rejected_program(&observation, ErrorCode::InsufficientOperations);
+    assert_eq!(
+        counter_bytes(&rig.ops()),
+        counters_before,
+        "a rejected one-over withdrawal leaves both counters byte-identical"
+    );
     observations.push(observation);
 
     let all_free = withdraw_operations_ix(&rig.rt, sponsor_address, 20_000);
@@ -1695,12 +1752,23 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
     assert_eq!(rig.ops().free_balance, 0);
     assert_eq!(rig.ops().locked_remaining_total, 5_000);
     assert_eq!(
+        rig.ops().total_withdrawn,
+        initial.total_withdrawn + 20_000u128,
+        "total_withdrawn equals the withdrawn amount"
+    );
+    assert_eq!(
+        rig.ops().total_contributed,
+        initial.total_contributed + 20_000u128,
+        "withdrawing never touches total_contributed"
+    );
+    assert_eq!(
         rig.rt.account(ops_cash).lamports,
         rig.rt.rent(0) + 5_000,
         "OpsCash keeps its rent floor plus the locked reserve"
     );
     observations.push(observation);
 
+    let counters_drained = counter_bytes(&rig.ops());
     let after = withdraw_operations_ix(&rig.rt, sponsor_address, 1);
     let observation = rig.direct(
         label(ROW_WITHDRAW_OPERATIONS, "after_drain"),
@@ -1708,6 +1776,35 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
         &[&sponsor_key],
     );
     rig.rejected_program(&observation, ErrorCode::InsufficientOperations);
+    assert_eq!(
+        counter_bytes(&rig.ops()),
+        counters_drained,
+        "a rejected post-drain withdrawal leaves both counters byte-identical"
+    );
+    observations.push(observation);
+
+    // Zero-amount withdrawal: the spec does not forbid it, so this is an
+    // observation, not an asserted error code.  Whether it succeeds (a
+    // no-op) or is rejected, Ops.free_balance and both counters are unchanged.
+    let ops_free_before = rig.ops().free_balance;
+    let zero = withdraw_operations_ix(&rig.rt, sponsor_address, 0);
+    let observation = rig.direct(
+        label(ROW_WITHDRAW_OPERATIONS, "zero_amount"),
+        zero,
+        &[&sponsor_key],
+    );
+    if observation.success {
+        rig.ok(&observation);
+    } else {
+        observation.assert_rollback_except_fee();
+        rig.rt.conservation_check();
+    }
+    assert_eq!(rig.ops().free_balance, ops_free_before);
+    assert_eq!(
+        counter_bytes(&rig.ops()),
+        counters_drained,
+        "a zero-amount withdrawal changes neither counter"
+    );
     observations.push(observation);
 
     // A lock that is not physically backed breaks the OpsCash identity;
@@ -1723,6 +1820,7 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
     let mut ops = broken.ops();
     ops.locked_remaining_total = 5_000;
     broken.rt.replace_ops(ops);
+    let broken_counters = counter_bytes(&broken.ops());
     let unbacked = withdraw_operations_ix(&broken.rt, sponsor_address, 1);
     let observation = broken.direct(
         label(ROW_WITHDRAW_OPERATIONS, "unbacked_lock"),
@@ -1730,6 +1828,11 @@ pub fn withdraw_unreserved_operations_respects_locked_and_rent() -> Vec<Observat
         &[&sponsor_key],
     );
     broken.rejected_unbalanced(&observation, code(ErrorCode::InvalidState));
+    assert_eq!(
+        counter_bytes(&broken.ops()),
+        broken_counters,
+        "a fail-closed rejection leaves both counters byte-identical"
+    );
     observations.push(observation);
     observations
 }
