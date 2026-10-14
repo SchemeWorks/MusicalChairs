@@ -1,5 +1,6 @@
 # Musical Chairs Native Solana Implementation Roadmap
 
+> **Superseded 2026-10-13:** Tasks 1–3 below are complete as host models and local probes; Tasks 4–8 are replaced by the milestone plan in [2026-10-13-native-solana-implementation.md](2026-10-13-native-solana-implementation.md), which argues from the [reconciled specification](../specs/2026-10-13-native-solana-reconciled-spec.md). This file is retained as evidence history.
 > Update 2026-10-13: Rob accepted the defaults and authorized the Rust economic model plus local provider/resource and compiled SBF runtime probes. [Acceptance and scope](../../solana/launch-decisions.md). Earlier discovery status/evidence paragraphs are historical; no deployment or live financial action is authorized.
 > **For agentic workers:** When approved and frozen, use superpowers:subagent-driven-development or superpowers:executing-plans to implement task-by-task. Steps use checkbox syntax. The accepted host-model/local-probe subset is in execution; later production tasks remain a roadmap.
 
