@@ -6,7 +6,8 @@
 //! M2 error split; the nine after it were appended for the allocation,
 //! claim, draw and configuration paths; `WrongGovernanceProfile` (6031) was
 //! appended in M3 for Squads profile-shape failures; the five after it
-//! (6032..=6036) were appended in M4 for provisioning and cleanup.
+//! (6032..=6036) were appended in M4 for provisioning and cleanup; the two
+//! after those (6037, 6038) were appended in M5 for admission.
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -24,6 +25,8 @@ pub enum ErrorCode {
     WrongGovernanceProfile,
     // Appended in M4 (6032..=6036); keep this order.
     WrongIndex, NotClosable, AlreadyClosed, PageNotProvisioned, LockNotPermitted,
+    // Appended in M5 (6037..=6038); keep this order.
+    StaleConfig, PublicSeriesADisabled,
 }
 
 #[cfg(test)]
@@ -50,5 +53,23 @@ mod tests {
         assert_eq!(ErrorCode::AlreadyClosed as u32 + 6000, 6034);
         assert_eq!(ErrorCode::PageNotProvisioned as u32 + 6000, 6035);
         assert_eq!(ErrorCode::LockNotPermitted as u32 + 6000, 6036);
+        assert_eq!(ErrorCode::StaleConfig as u32 + 6000, 6037);
+        assert_eq!(ErrorCode::PublicSeriesADisabled as u32 + 6000, 6038);
+    }
+
+    /// The codes the M5 handlers reuse from earlier tranches must not drift.
+    #[test]
+    fn admission_and_payout_codes_are_frozen() {
+        assert_eq!(ErrorCode::BackwardsTime as u32 + 6000, 6002);
+        assert_eq!(ErrorCode::QuotaExceeded as u32 + 6000, 6003);
+        assert_eq!(ErrorCode::ProtectedDestination as u32 + 6000, 6008);
+        assert_eq!(ErrorCode::AdmissionPaused as u32 + 6000, 6009);
+        assert_eq!(ErrorCode::AllocationPending as u32 + 6000, 6010);
+        assert_eq!(ErrorCode::Closing as u32 + 6000, 6011);
+        assert_eq!(ErrorCode::MinimumDeposit as u32 + 6000, 6012);
+        assert_eq!(ErrorCode::MinimumReceive as u32 + 6000, 6013);
+        assert_eq!(ErrorCode::NotMature as u32 + 6000, 6014);
+        assert_eq!(ErrorCode::AlreadyClaimed as u32 + 6000, 6015);
+        assert_eq!(ErrorCode::StaleRound as u32 + 6000, 6016);
     }
 }

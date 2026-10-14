@@ -225,9 +225,11 @@ pub mod musical_chairs_program {
     pub fn provision_close_record(ctx: Context<ProvisionCloseRecord>, close_id: u64, funding: Funding) -> Result<()> { controls::provision_close_record(ctx,close_id,funding) }
     pub fn close_shared_account(ctx: Context<CloseSharedAccount>, kind: PageKind) -> Result<()> { controls::close_shared_account(ctx,kind) }
     pub fn reconcile_ops_cash(ctx: Context<ReconcileOpsCash>) -> Result<()> { controls::reconcile_ops_cash(ctx) }
-    pub fn open_position(ctx: Context<OpenPosition>, plan: PlanKindArg, gross_lamports:u64, client_nonce:u64) -> Result<()> { positions::open_position(ctx,plan,gross_lamports,client_nonce) }
-    pub fn fund_series_a(ctx: Context<FundSeriesA>, gross_lamports:u64) -> Result<()> { positions::fund_series_a(ctx,gross_lamports) }
-    pub fn claim_position(ctx: Context<ClaimPosition>, minimum_receive:u64, close_simple:bool) -> Result<()> { positions::claim_position(ctx,minimum_receive,close_simple) }
+    pub fn open_position(ctx: Context<OpenPosition>, plan: PlanKindArg, gross: u64, client_nonce: u64, expected_round_id: u64, expected_config: u32) -> Result<()> { positions::open_position(ctx,plan,gross,client_nonce,expected_round_id,expected_config) }
+    pub fn fund_series_a(ctx: Context<FundSeriesA>, gross: u64, expected_round_id: u64) -> Result<()> { positions::fund_series_a(ctx,gross,expected_round_id) }
+    pub fn withdraw_simple(ctx: Context<Payout>, minimum_receive: u64, max_work_contribution: u64) -> Result<()> { positions::withdraw_simple(ctx,minimum_receive,max_work_contribution) }
+    pub fn settle_compounding(ctx: Context<Payout>, minimum_receive: u64, max_work_contribution: u64) -> Result<()> { positions::settle_compounding(ctx,minimum_receive,max_work_contribution) }
+    pub fn close_simple_position(ctx: Context<CloseSimplePosition>) -> Result<()> { positions::close_simple_position(ctx) }
     pub fn discover_row(ctx:Context<DiscoverRow>,expected_cursor:u64)->Result<()> { allocation::discover_row(ctx,expected_cursor) }
     pub fn senior(ctx:Context<Senior>,expected_ticket_id:u64)->Result<()> { allocation::senior(ctx,expected_ticket_id) }
     pub fn seal_weights(ctx:Context<Seal>,expected_ticket_id:u64)->Result<()> { allocation::seal_weights(ctx,expected_ticket_id) }
