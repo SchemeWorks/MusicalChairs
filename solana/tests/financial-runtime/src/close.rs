@@ -91,6 +91,8 @@ pub const ROW_WITHDRAW_RETURN: &str =
     "withdraw_provider_return_executes_orao_withdraw_cpi_and_asserts_client_and_opscash_deltas";
 pub const ROW_TWO_PARTIAL: &str =
     "two_partial_provider_returns_then_replay_pay_exact_owner_residual_once";
+pub const ROW_RETURN_PREFLIGHT: &str =
+    "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded";
 pub const ROW_G_SIGNATURE: &str =
     "g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified";
 pub const ROW_WITHDRAW_REJECTS: &str =
@@ -137,7 +139,7 @@ pub const ROW_SECOND_CLOSE_BINDING: &str = "second_close_cannot_reuse_first_clos
 pub const ROW_TWO_CLOSES_SEQUENCE: &str = "two_closes_two_rounds_sequence";
 
 /// Every row of the suite, in execution order.
-pub const ROW_NAMES: [&str; 42] = [
+pub const ROW_NAMES: [&str; 43] = [
     ROW_PROVIDER,
     ROW_BUILD_SEALS,
     ROW_BUILD_REJECTS,
@@ -153,6 +155,7 @@ pub const ROW_NAMES: [&str; 42] = [
     ROW_EXTRA_LAMPORTS,
     ROW_WITHDRAW_RETURN,
     ROW_TWO_PARTIAL,
+    ROW_RETURN_PREFLIGHT,
     ROW_G_SIGNATURE,
     ROW_WITHDRAW_REJECTS,
     ROW_WITHDRAW_CPI_FAILURE,
@@ -2610,6 +2613,89 @@ pub fn two_partial_provider_returns_then_replay_pay_exact_owner_residual_once() 
     w.take_log()
 }
 
+/// IMPL-45 (Codex review of 366df88, DR-14): a provider return whose owner
+/// share cannot be delivered to the bound destination is refused BEFORE the
+/// ORAO CPI, fee-only, with the Client, the request account and the
+/// eligibility / owner-refundable counters untouched; it is never re-locked
+/// into the spendable owner partition.  Expiry and finalization proceed
+/// regardless; once the destination can receive the credit the same return
+/// pays the owner exactly once.  RED on the IMPL-42/43 ELF (which re-locked
+/// the share), GREEN on the IMPL-45 ELF.
+pub fn undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded(
+) -> Vec<Observation> {
+    let row = ROW_RETURN_PREFLIGHT;
+    let mut scene = observed_scene(row, "", 173_520);
+    let dest = scene.dest;
+    let w = &mut scene.w;
+    let keys = provider_keys();
+    let cash = w.rt.ops_cash_address();
+    // The bound destination no longer exists; a 100,000-lamport credit would
+    // leave it below the rent-exempt minimum, so it is not deliverable.
+    w.rt.remove_account(dest);
+    assert_eq!(w.lamports(dest), 0);
+    let minimum = w.rt.rent(0);
+    let first = 100_000u64;
+    assert!(first < minimum);
+    let (close0, ops0) = (w.close_record(1), w.ops());
+    assert!(close0.owner_request_rent_refundable_remaining >= first, "the owner is owed a share of this return");
+    assert_eq!(close0.promotion, state::Promotion::Pending, "the close is still pending");
+    let (client0, cash0) = (w.lamports(keys.client), w.lamports(cash));
+    let frozen = (w.data(w.rt.ops_address()), w.data(w.rt.close_record_address(1)));
+    let request_data = w.data(close0.request_account);
+
+    // 1. Refused before the CPI: fee-only; Client, request and counters untouched.
+    let instruction = withdraw_ix(w, 1, first);
+    let rejected = reject_g(w, "refused_before_cpi", instruction, ErrorCode::RefundNotDeliverable);
+    let orao_invoke = format!("Program {} invoke", orao::id());
+    assert!(
+        !rejected.logs.iter().any(|line| line.starts_with(&orao_invoke)),
+        "the ORAO withdraw CPI never ran: {:?}",
+        rejected.logs
+    );
+    assert!(
+        rejected.logs.iter().any(|line| line.contains("Error Code: RefundNotDeliverable")),
+        "refused by the preflight: {:?}",
+        rejected.logs
+    );
+    assert_eq!((w.data(w.rt.ops_address()), w.data(w.rt.close_record_address(1))), frozen, "nothing booked");
+    assert_eq!(w.data(close0.request_account), request_data, "the request account is untouched");
+    assert_eq!((w.lamports(keys.client), w.lamports(cash)), (client0, cash0), "Client and OpsCash untouched");
+    let close = w.close_record(1);
+    assert_eq!(close.locked_owner_remaining, close0.locked_owner_remaining, "never re-locked into the owner partition");
+    assert_eq!(close.eligible_return_remaining, close0.eligible_return_remaining);
+    assert_eq!(close.owner_request_rent_refundable_remaining, close0.owner_request_rent_refundable_remaining);
+    assert_eq!(w.ops().unallocated_excess, ops0.unallocated_excess);
+    assert_identities(w);
+
+    // 2. Expiry and finalization never depend on the provider return.
+    w.warp_past_deadline(1);
+    let expire = expire_ix(w, 1);
+    ok(w, "expire", vec![expire], &[]);
+    let finalize = finalize_ix(w, 1);
+    ok(w, "finalize", vec![finalize], &[]);
+    let close = w.close_record(1);
+    assert!(close.finalized && close.reserve_settled);
+    assert_eq!(close.eligible_return_remaining, close0.eligible_return_remaining, "eligibility survives settlement and finalization");
+    assert_eq!(close.owner_request_rent_refundable_remaining, close0.owner_request_rent_refundable_remaining);
+    assert_identities(w);
+
+    // 3. Funded destination: the same return pays the owner exactly once.
+    w.rt.credit_lamports(dest, minimum);
+    let (dest1, free1, excess1) = (w.lamports(dest), w.ops().free_balance, w.ops().unallocated_excess);
+    let instruction = withdraw_ix(w, 1, first);
+    // The headline observation of the row: the funded-destination retry.
+    ok_g(w, "", instruction);
+    assert_eq!(w.lamports(dest) - dest1, first, "all of it is owner money");
+    assert_eq!(w.ops().free_balance, free1, "none of it reached free");
+    assert_eq!(w.ops().unallocated_excess, excess1, "none of it was parked");
+    let close = w.close_record(1);
+    assert_eq!(close.owner_request_rent_refundable_remaining, close0.owner_request_rent_refundable_remaining - first);
+    assert_eq!(close.eligible_return_remaining, close0.eligible_return_remaining - first);
+    assert_eq!(close.request_rent_returned, first);
+    assert_identities(w);
+    w.take_log()
+}
+
 pub fn g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified(
 ) -> Vec<Observation> {
     let row = ROW_G_SIGNATURE;
@@ -4979,6 +5065,7 @@ pub fn rows() -> Vec<(&'static str, fn() -> Vec<Observation>)> {
         (ROW_EXTRA_LAMPORTS, extra_request_account_lamports_reduce_eligibility_never_increase),
         (ROW_WITHDRAW_RETURN, withdraw_provider_return_executes_orao_withdraw_cpi_and_asserts_client_and_opscash_deltas),
         (ROW_TWO_PARTIAL, two_partial_provider_returns_then_replay_pay_exact_owner_residual_once),
+        (ROW_RETURN_PREFLIGHT, undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded),
         (ROW_G_SIGNATURE, g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified),
         (ROW_WITHDRAW_REJECTS, withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible),
         (ROW_WITHDRAW_CPI_FAILURE, cpi_failure_rolls_back_all_accounting),

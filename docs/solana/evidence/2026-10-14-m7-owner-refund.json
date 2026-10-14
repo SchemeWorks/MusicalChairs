@@ -176,5 +176,135 @@
    "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
   ],
   "log_sha256": "6f74007bfa2a1b544df1e0f2dec29bca520ff55d4b77c42dc6497740fb6276dd"
- }
+ },
+ "impl45_provider_return_preflight": {
+  "recorded_at_utc": "2026-10-14T13:48:25.226104+00:00",
+  "card": "IMPL-45",
+  "trigger": "Codex targeted review of 366df88: terminal deferral + permissionless delivery accepted in principle; pre-settlement book_return re-locked an undeliverable provider owner share into the spendable owner partition where book_locked_rent could consume it (DR-14 violation)",
+  "fix": {
+   "withdraw_provider_return": "return_preflight(owner_share, deliverable) BEFORE the ORAO CPI: owner_share == 0 or delivery to the bound destination currently valid, else RefundNotDeliverable 6051 fee-only; Client, request account, eligibility and owner-refundable counters untouched; retry possible",
+   "book_return": "signature (ops, close, amount); always pays the owner share; no re-lock, no parking",
+   "kept": "terminal settlement deferral (settle_books) and permissionless deliver_owner_refund unchanged",
+   "schema": "no account or IDL change (check-idl ok)"
+  },
+  "unit_tests": {
+   "count": 243,
+   "changed": "the two IMPL-43 re-lock/deferral-after-return tests replaced by an_undeliverable_owner_share_is_refused_before_any_booking_and_never_relocked (preflight + book_return always pays)",
+   "log_sha256": "1a16e809ada911af73d1f954c8dbabd9cb6ddf4c5cfdd4a7395f45735c1f44f4"
+  },
+  "red_on_elf_fc2c7940": {
+   "log_sha256": "985d5f23fbb5db87339692024b46e1e2495dfc4ed8b779234f25ffeaae7afdfa",
+   "excerpt": [
+    "financial.close.undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.refused_before_cpi unexpectedly succeeded: Observation { label: \"financial.close.undelive"
+   ],
+   "meaning": "the IMPL-43 program accepted the undeliverable return and re-locked the owner share"
+  },
+  "elf": {
+   "sha256": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265",
+   "source_set_sha256": "7e703900109d1353666b7c734c7aaa7ccd1bd942e545b59bc9cff86f8135867e",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "4379a24b766dc61e603465680e12873f7ee62d06fd9df9b401abca7b37dd4003"
+  },
+  "green": {
+   "close_suite_row": {
+    "label": "financial.close.undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded",
+    "scenario": "Pending close, fulfilled + observed request with 173,520 owner-funded request rent, destination removed (0 lamports); withdraw 100,000 → RefundNotDeliverable before the CPI (no ORAO Withdraw log; Ops/CloseRecord/request bytes and Client/OpsCash lamports identical); expire + finalize succeed with eligibility intact; destination funded to the minimum → the same withdraw pays the owner exactly 100,000 (free unchanged, excess unchanged, counters decremented once)",
+    "observations": [
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.closing_payout",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.provision_preferred0",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.provision_fallback0",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.build0",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.build1",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.build2",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.build3",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.build_last",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.request",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.fulfill",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.observe",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.refused_before_cpi",
+      "success": false,
+      "error": "InstructionError(1, Custom(6051))"
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.expire",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded.finalize",
+      "success": true,
+      "error": null
+     },
+     {
+      "label": "undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded",
+      "success": true,
+      "error": null
+     }
+    ]
+   },
+   "owner_refund_after_finalize": "tests/owner_refund.rs::deferred_remainder_is_delivered_after_finalize — expire → finalize (round reopened, seed carried) → refund still owed → delivered once",
+   "full_harness": {
+    "results": [
+     "ok. 142 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 105.12s",
+     "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+     "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.90s",
+     "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s",
+     "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.50s",
+     "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s",
+     "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+    ],
+    "log_sha256": "11f63a8315755f202133e061fa8694aead6f509a326dfe15f4dac0abfb0e6576",
+    "cli_all_exit": 0,
+    "cli_observations": 1845,
+    "cli_json_sha256": "dd2603b731036318ae5df1ca8083f1288fca61f32fcc6a5725dc472d37b7696f"
+   }
+  },
+  "reading_accepted_by_codex": "reuse of the settled owner partition as the deferred refund + permissionless delivery, with this correction; spendable provider refunds are not accepted and no longer exist"
+ },
+ "proof_level": "GREEN: terminal-settlement deferral and delivery (owner_refund.rs 5 rows incl. after finalize), provider-return preflight (close-suite row, RED on fc2c7940 → GREEN), unit tests 243; predicate validated against the Agave rule text (LiteSVM gap pinned); no deployment or live action"
 }

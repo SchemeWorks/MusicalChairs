@@ -362,19 +362,13 @@ pub fn provider_deficit(eligible_budget: u64, client_balance: u64, client_rent: 
 /// Book an executed provider return of `amount` (spec section 8.4): the owner
 /// share `min(amount, owner_request_rent_refundable_remaining)` goes to the
 /// owner destination, the rest to `free_balance`.  Returns the owner lamports
-/// to transfer out of `OpsCash`.  When the destination cannot receive the
-/// share it is re-locked into the close's owner partition
-/// (`locked_owner_remaining`, counted in `ops.locked_remaining_total`): before
-/// settlement it funds owner-attributed work like the rest of the partition,
-/// after settlement it is the deferred refund `deliver_owner_refund` pays.
-/// Owner lamports are never converted into `unallocated_excess` (DR-14; Codex
-/// M7 review).
-pub fn book_return(
-    ops: &mut Ops,
-    close: &mut CloseRecord,
-    amount: u64,
-    owner_deliverable: bool,
-) -> Result<u64> {
+/// to transfer out of `OpsCash`.  The handler establishes BEFORE the ORAO CPI
+/// that the owner share is zero or deliverable ([`return_preflight`]), so the
+/// share is always paid here: a provider return is never re-locked into the
+/// spendable owner partition, where `book_locked_rent` could spend it on B or
+/// registry rent (DR-14; Codex review of 366df88).  Owner lamports are never
+/// converted into `unallocated_excess`.
+pub fn book_return(ops: &mut Ops, close: &mut CloseRecord, amount: u64) -> Result<u64> {
     require!(amount > 0 && amount <= close.eligible_return_remaining, Code::NothingEligible);
     let owner_share = amount.min(close.owner_request_rent_refundable_remaining);
     let to_free = amount - owner_share;
@@ -382,9 +376,7 @@ pub fn book_return(
     let owner_left = checked_sub(close.owner_request_rent_refundable_remaining, owner_share)?;
     let budget = checked_sub(ops.eligible_return_budget, amount)?;
     let free = checked_add(ops.free_balance, to_free)?;
-    let (pay, deferred) = if owner_deliverable { (owner_share, 0) } else { (0, owner_share) };
-    let owner_locked = checked_add(close.locked_owner_remaining, deferred)?;
-    let locked_total = checked_add(ops.locked_remaining_total, deferred)?;
+    let pay = owner_share;
     let returned = checked_add(close.request_rent_returned, amount)?;
     let returned_total = ops
         .provider_returned_total
@@ -392,13 +384,23 @@ pub fn book_return(
         .ok_or_else(|| error!(Code::Overflow))?;
     close.eligible_return_remaining = eligible_left;
     close.owner_request_rent_refundable_remaining = owner_left;
-    close.locked_owner_remaining = owner_locked;
     close.request_rent_returned = returned;
     ops.eligible_return_budget = budget;
     ops.free_balance = free;
-    ops.locked_remaining_total = locked_total;
     ops.provider_returned_total = returned_total;
     Ok(pay)
+}
+
+/// `withdraw_provider_return` preflight, before any CPI or state write: a
+/// return that would owe the owner a share must be able to pay it now.
+/// Otherwise the call is refused fee-only (`RefundNotDeliverable`) and the
+/// Client, request account, eligibility and owner-refundable counters stay
+/// exactly as they were, so the same return can be retried once the bound
+/// destination can receive the credit.  A return with no owner share is never
+/// blocked by the destination.
+pub fn return_preflight(owner_share: u64, owner_deliverable: bool) -> Result<()> {
+    require!(owner_share == 0 || owner_deliverable, Code::RefundNotDeliverable);
+    Ok(())
 }
 
 /// Record the observed Client balance and recompute the deficit.
@@ -1453,7 +1455,9 @@ pub fn withdraw_provider_return(ctx: Context<WithdrawProviderReturn>, amount: u6
     let system = a.system_program.to_account_info();
     crate::sync_ops(&mut a.ops, &cash)?;
     let owner_share = amount.min(close.owner_request_rent_refundable_remaining);
-    let deliverable = owner_share > 0 && owner_credit_deliverable(&refund, owner_share)?;
+    // Decide deliverability BEFORE the ORAO CPI: refuse fee-only rather than
+    // re-lock an owner refund into the spendable partition (IMPL-45).
+    return_preflight(owner_share, owner_share > 0 && owner_credit_deliverable(&refund, owner_share)?)?;
 
     // 1. ORAO pays the Client owner (the G vault); the Client must shrink by `amount`.
     let client_before = client.lamports();
@@ -1465,7 +1469,7 @@ pub fn withdraw_provider_return(ctx: Context<WithdrawProviderReturn>, amount: u6
     require!(cash.lamports() == checked_add(cash_before, amount)?, Code::InvalidState);
 
     // 3. Book it and pay the owner share to the immutable destination.
-    let pay = book_return(&mut a.ops, close, amount, deliverable)?;
+    let pay = book_return(&mut a.ops, close, amount)?;
     if pay > 0 {
         crate::transfer_from_cash(&cash, &refund, &system, pay)?;
     }
@@ -1903,7 +1907,7 @@ mod tests {
         assert_eq!(second.eligible_return_remaining, 1_500);
         assert_eq!(ops.eligible_return_budget, 2_100);
         // Returning against the first cannot exceed the first's own remainder.
-        assert_code(book_return(&mut ops, &mut first, 601, true), Code::NothingEligible);
+        assert_code(book_return(&mut ops, &mut first, 601), Code::NothingEligible);
     }
 
     #[test]
@@ -1916,13 +1920,13 @@ mod tests {
         ops.free_balance = 0;
 
         // First return is smaller than the owner's refundable share: all of it is owner money.
-        let pay = book_return(&mut ops, &mut close, 100_000, true).unwrap();
+        let pay = book_return(&mut ops, &mut close, 100_000).unwrap();
         assert_eq!(pay, 100_000);
         assert_eq!(ops.free_balance, 0);
         assert_eq!(close.owner_request_rent_refundable_remaining, 73_520);
         assert_eq!(close.eligible_return_remaining, 4_159_520);
         // Second return covers the owner residual once and the rest goes to free.
-        let pay = book_return(&mut ops, &mut close, 4_159_520, true).unwrap();
+        let pay = book_return(&mut ops, &mut close, 4_159_520).unwrap();
         assert_eq!(pay, 73_520);
         assert_eq!(ops.free_balance, 4_086_000);
         assert_eq!(close.owner_request_rent_refundable_remaining, 0);
@@ -1932,7 +1936,7 @@ mod tests {
         assert_eq!(ops.provider_returned_total, 4_259_520);
         // The total paid to the owner is exactly what it funded, and a third call finds nothing.
         assert_eq!(100_000 + 73_520, 173_520);
-        assert_code(book_return(&mut ops, &mut close, 1, true), Code::NothingEligible);
+        assert_code(book_return(&mut ops, &mut close, 1), Code::NothingEligible);
         assert_eq!(ops.free_balance, 4_086_000, "a replay pays nothing");
     }
 
@@ -1941,46 +1945,29 @@ mod tests {
         let (mut ops, mut close) = locked(0, 0);
         close.eligible_return_remaining = 500;
         ops.eligible_return_budget = 500;
-        assert_code(book_return(&mut ops, &mut close, 0, true), Code::NothingEligible);
-        assert_code(book_return(&mut ops, &mut close, 501, true), Code::NothingEligible);
+        assert_code(book_return(&mut ops, &mut close, 0), Code::NothingEligible);
+        assert_code(book_return(&mut ops, &mut close, 501), Code::NothingEligible);
         assert_eq!(close.eligible_return_remaining, 500);
-        assert_eq!(book_return(&mut ops, &mut close, 500, true).unwrap(), 0, "no owner share was funded");
+        assert_eq!(book_return(&mut ops, &mut close, 500).unwrap(), 0, "no owner share was funded");
         assert_eq!(ops.free_balance, 500, "an owner-free return is all free balance");
     }
 
     #[test]
-    fn an_undeliverable_owner_share_is_relocked_for_the_owner_not_lost() {
+    fn an_undeliverable_owner_share_is_refused_before_any_booking_and_never_relocked() {
+        // The handler's preflight (before the ORAO CPI): a return owing the
+        // owner a share it cannot deliver is refused; nothing is booked.
+        assert_code(return_preflight(400, false), Code::RefundNotDeliverable);
+        return_preflight(0, false).unwrap();
+        return_preflight(400, true).unwrap();
+        // book_return never re-locks or parks: the owner share is always paid.
         let (mut ops, mut close) = locked(0, 0);
         close.eligible_return_remaining = 1_000;
         close.owner_request_rent_refundable_remaining = 400;
         ops.eligible_return_budget = 1_000;
-        let pay = book_return(&mut ops, &mut close, 1_000, false).unwrap();
-        assert_eq!(pay, 0);
-        assert_eq!(ops.unallocated_excess, 0, "owner lamports never become anonymous excess");
-        assert_eq!(ops.free_balance, 600);
-        assert_eq!(close.owner_request_rent_refundable_remaining, 0, "the share is accounted exactly once");
-        assert_eq!(close.locked_owner_remaining, 400, "re-locked into the owner partition");
-        assert_eq!(ops.locked_remaining_total, 400);
-        // Not yet settled: the partition settles with the rest at terminal
-        // promotion (paid when deliverable, deferred otherwise).
-        assert_code(book_delivery(&mut ops, &mut close), Code::InvalidState);
-        assert_eq!(settle_books(&mut ops, &mut close, false).unwrap(), 0);
-        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (400, 400));
-        assert_eq!(book_delivery(&mut ops, &mut close).unwrap(), 400);
-        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (0, 0));
-    }
-
-    #[test]
-    fn an_undeliverable_owner_share_after_settlement_is_deferred_until_delivered() {
-        let (mut ops, mut close) = locked(0, 0);
-        assert_eq!(settle_books(&mut ops, &mut close, true).unwrap(), 0);
-        close.eligible_return_remaining = 1_000;
-        close.owner_request_rent_refundable_remaining = 400;
-        ops.eligible_return_budget = 1_000;
-        assert_eq!(book_return(&mut ops, &mut close, 1_000, false).unwrap(), 0);
-        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total, ops.free_balance), (400, 400, 600));
-        assert_eq!(book_delivery(&mut ops, &mut close).unwrap(), 400);
-        assert_eq!((close.locked_owner_remaining, ops.locked_remaining_total), (0, 0));
+        assert_eq!(book_return(&mut ops, &mut close, 1_000).unwrap(), 400);
+        assert_eq!((ops.free_balance, ops.unallocated_excess, ops.locked_remaining_total), (600, 0, 0));
+        assert_eq!((close.locked_owner_remaining, close.owner_request_rent_refundable_remaining), (0, 0));
+        assert_eq!(close.eligible_return_remaining, 0);
     }
 
     #[test]
@@ -2125,7 +2112,7 @@ mod tests {
         m.ops.request_rent_outstanding = 700;
         book_observation(&mut m.ops, &mut m.close, 200).unwrap();
         m.identity("observation");
-        let pay = book_return(&mut m.ops, &mut m.close, 500, true).unwrap();
+        let pay = book_return(&mut m.ops, &mut m.close, 500).unwrap();
         m.cash += 500; // G forwarded the withdrawal to OpsCash
         m.cash -= pay;
         m.identity("provider return");

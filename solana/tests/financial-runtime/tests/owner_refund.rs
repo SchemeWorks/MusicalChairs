@@ -180,6 +180,42 @@ fn legacy_rent_paying_destination_does_not_block_expiry() {
     deliver_and_check(&mut w, minimum);
 }
 
+fn finalize_ix(w: &World) -> Instruction {
+    anchor_ix(
+        accounts::FinalizeRound {
+            pool: w.rt.pool_address(),
+            close_record: w.rt.close_record_address(1),
+            event_authority: w.rt.event_authority_address(),
+            program: ID,
+        },
+        instruction::FinalizeRound {},
+    )
+}
+
+/// The deferred refund outlives the close: finalization (seed carried, round
+/// reopened) does not need it, and delivery still works afterwards (M8 proof
+/// item requested by Codex).
+#[test]
+fn deferred_remainder_is_delivered_after_finalize() {
+    let (mut w, reserve) = closing_world("deferred_after_finalize", 0);
+    let minimum = w.rt.rent(0);
+    let (dest_before, excess_before) = (w.lamports(w.dest), w.ops().unallocated_excess);
+    w.warp_seconds(601);
+    let ix = expire_ix(&w);
+    w.send("expire", vec![ix], &[]).expect("expiry must succeed");
+    assert_eq!(settled_for_the_owner(&w, dest_before, excess_before, reserve), 0, "deferred");
+    let round_before = w.pool().round_id;
+    let ix = finalize_ix(&w);
+    w.send("finalize", vec![ix], &[]).expect("finalization never depends on the deferred refund");
+    let pool = w.pool();
+    assert_eq!(pool.round_id, round_before + 1, "the round reopened");
+    assert_eq!(pool.current_close_id, None);
+    assert!(w.close_record(1).finalized);
+    assert_eq!(w.close_record(1).locked_owner_remaining, OWNER_PART, "still owed after finalize");
+    w.assert_ops_cash_identity();
+    deliver_and_check(&mut w, minimum);
+}
+
 #[test]
 fn deliverable_destination_is_paid_at_settlement_and_nothing_is_deferred() {
     let minimum = World::genesis().rt.rent(0);

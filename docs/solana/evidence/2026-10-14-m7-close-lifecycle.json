@@ -328,28 +328,29 @@
     "ask ORAO whether request creation can tolerate a pre-funded PDA (upstream; not ours)",
     "any seed-unpredictability change would reopen the accepted deterministic-seed design (not recommended here)"
    ],
-   "status": "open for Codex; no code change made"
+   "status": "Codex: fits the frozen contract; documented as an accepted griefing risk (supplement §4); no seed/provider redesign, no gate",
+   "cost_estimate": "rent-exempt minimum of an empty account 890,880 lamports ≈ 0.00089 SOL (default schedule shared by LiteSVM and the cluster for data-less accounts) + one transaction fee, stranded at the PDA, per close; impact one skipped Series B promotion, no fund loss"
   },
   {
    "id": "M7-F2",
    "severity": "cosmetic",
    "title": "capture_round_draw records IgnoredLate on an already-terminal close before the terminal check",
    "detail": "close.rs capture_round_draw: a late capture on a terminal close sets draw_state = IGNORED_LATE (a harmless field write) whereas a timely capture on a terminal close returns PromotionTerminal; ordering only, no cash or state of consequence.",
-   "status": "open; fix proposed for the M8 program pass (reorder require_pending before the deadline branch)"
+   "status": "Codex: cosmetic, deferred to the M8 program pass"
   },
   {
    "id": "M7-F3",
    "severity": "note",
    "title": "Error codes LateCapture 6027 and CandidatesIncomplete 6047 are declared but never raised",
    "detail": "Late capture is the IgnoredLate no-op; incomplete candidates expire with STAGE_CANDIDATES_INCOMPLETE. Frozen codes stay reserved.",
-   "status": "documented"
+   "status": "Codex: reserved codes are fine"
   },
   {
    "id": "M7-F4",
    "severity": "plan wording",
    "title": "Treasury fee moves at request time, not at fulfillment",
    "detail": "Probe receipts and the suite: request: Client −(fee+rent), request account +rent, Treasury +fee; fulfillment: request −excess rent, Client +excess rent. The plan sketch said \"Treasury +300,000 at fulfillment\".",
-   "status": "documented"
+   "status": "fixed in the supplement §5 (request-time fee wording)"
   }
  ],
  "limits": [
@@ -363,5 +364,21 @@
   "docs/solana/evidence/2026-10-14-m7-owner-refund.json",
   "docs/coordination/native-solana-m7-contract-supplement-20261014.md"
  ],
- "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered with ORAO or Squads, activated or merged."
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered with ORAO or Squads, activated or merged.",
+ "impl45_note": {
+  "elf_after_impl45": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265",
+  "source_set_sha256": "7e703900109d1353666b7c734c7aaa7ccd1bd942e545b59bc9cff86f8135867e",
+  "change": "withdraw_provider_return preflight (no behaviour change for deliverable returns); every M7 row re-run green on the IMPL-45 ELF",
+  "full_harness_results": [
+   "ok. 142 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 105.12s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.90s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.50s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "cli_json_sha256": "dd2603b731036318ae5df1ca8083f1288fca61f32fcc6a5725dc472d37b7696f",
+  "close_rows": 43
+ }
 }

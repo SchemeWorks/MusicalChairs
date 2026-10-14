@@ -146,5 +146,22 @@
   }
  },
  "graph_json_sha256_after": "48a5ae1010686ced003aa8c2324f87345bd24b0ed45595ebb6cfe0baed48eedc",
- "evidence_caveat": "A graph relationship is navigation evidence; financial and authority claims are verified against the committed source and the LiteSVM receipts, not the graph."
+ "evidence_caveat": "A graph relationship is navigation evidence; financial and authority claims are verified against the committed source and the LiteSVM receipts, not the graph.",
+ "impl45_correction": {
+  "fragment": {
+   "path": "docs/solana/evidence/2026-10-14-m7-graph-fragment-impl45.json",
+   "sha256": "257f379039cbf2692542a13f8aa7a0e264f4d6d970a55ebc2bc2589f1823017d",
+   "nodes": 1,
+   "edges": 8,
+   "attribute_updates": 2,
+   "community": 1458
+  },
+  "after": {
+   "nodes": 15255,
+   "edges": 22871,
+   "hyperedges": 43
+  },
+  "note": "attribute-only correction of impl2026_10_14_m7_owner_refund_deferral and impl2026_10_14_m7_contract_supplement plus one node; no graphify update (the committed sources changed only in close.rs bodies/tests already covered); all prior identities retained",
+  "graph_json_sha256_after": "876cca109f827677cc7ca3dbb4032f8940ca738f8b305ed3ee89a746e19bf3f3"
+ }
 }

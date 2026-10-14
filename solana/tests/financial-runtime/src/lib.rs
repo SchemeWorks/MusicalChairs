@@ -1250,6 +1250,11 @@ mod close_tests {
     }
 
     #[test]
+    fn undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded() {
+        m7::run_row(m7::ROW_RETURN_PREFLIGHT, m7::undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded);
+    }
+
+    #[test]
     fn g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified() {
         m7::run_row(m7::ROW_G_SIGNATURE, m7::g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified);
     }

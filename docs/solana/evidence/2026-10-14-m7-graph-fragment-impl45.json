@@ -1,0 +1,118 @@
+{
+ "nodes": [
+  {
+   "id": "impl2026_10_14_m7_provider_return_preflight",
+   "label": "withdraw_provider_return preflights before the ORAO CPI: an owner share that cannot be delivered to the bound destination is refused fee-only (RefundNotDeliverable) with Client, request and eligibility/owner-refundable counters untouched; book_return always pays the owner share; provider returns are never re-locked into the spendable owner partition",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "status": "local_runtime_executed",
+   "rationale": "IMPL-45 after Codex's targeted review of 366df88 (pre-settlement re-lock was a DR-14 violation: book_locked_rent could spend the refund). RED on ELF fc2c7940… (return accepted and re-locked) → GREEN on the IMPL-45 ELF; close-suite row undeliverable_owner_share_is_refused_before_the_cpi_and_retried_once_the_destination_is_funded; owner_refund.rs deferred_remainder_is_delivered_after_finalize.",
+   "community": 1458
+  }
+ ],
+ "edges": [
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "impl2026_10_14_m7_owner_refund_deferral",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "impl2026_10_14_m7_provider_budget_and_returns",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "plan2026_10_13_dr_14_refund_timing",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "plan2026_10_13b_dr_32_provider_attribution",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "impl2026_10_14_m7_contract_supplement",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "docs_solana_evidence_2026_10_14_m7_owner_refund_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_return_preflight",
+   "target": "impl2026_10_14_m7_close_suite",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L401",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [],
+ "attribute_updates": {
+  "impl2026_10_14_m7_owner_refund_deferral": {
+   "label": "Undeliverable owner refunds are deferred at TERMINAL SETTLEMENT only, never forfeited: credit_is_deliverable := c + a ≥ rent minimum; settle_books keeps the owner remainder in locked_owner_remaining of the settled close; permissionless deliver_owner_refund() pays it to the immutable destination exactly once (6050 NothingDeferred, 6051 RefundNotDeliverable; event OwnerRefundDelivered). Provider returns are NOT deferred: withdraw_provider_return refuses an undeliverable owner share before the CPI (IMPL-45).",
+   "rationale": "Commit 366df88 (IMPL-43) narrowed by IMPL-45 after Codex's targeted review: terminal deferral in the permanent CloseRecord + permissionless immutable-destination delivery accepted in principle; spendable provider refunds rejected and removed. LiteSVM 0.7.1 does not check rent state for data-less accounts, so the predicate is validated against the Agave rule text.",
+   "status": "local_runtime_executed"
+  },
+  "impl2026_10_14_m7_contract_supplement": {
+   "label": "M7 contract supplement: canonical (owner, loss) candidate digest, the 600 s deadline pin, the deferred-owner-refund reading of §8.5 as narrowed by IMPL-45 and accepted by Codex in principle, M7-F1 pre-funded request PDA griefing cost, M7-F4 request-time fee wording"
+  }
+ },
+ "repairs": {
+  "restored_raw_edges": [],
+  "attributes_restored": {},
+  "nodes_with_attributes_restored": [],
+  "same_symbol_as_edges": []
+ },
+ "metadata": {
+  "community": 1458,
+  "label": "IMPL-45 correction to the M7 fragment",
+  "written_by": "coordinator (Claude Fable 5.1)"
+ }
+}
