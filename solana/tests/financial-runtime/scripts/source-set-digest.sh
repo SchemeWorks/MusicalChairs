@@ -5,15 +5,31 @@
 #   the path relative to the solana/ directory, of
 #       path || 0x00 || sha256hex(file content) || 0x0A
 #   for every file in the canonical set:
+#       Cargo.toml                                  (workspace root)
+#       crates/economics/Cargo.toml
+#       crates/economics/src/**/*.rs
 #       programs/musical_chairs/Cargo.toml
 #       programs/musical_chairs/Cargo.lock
 #       programs/musical_chairs/.cargo/config.toml
 #       programs/musical_chairs/src/**/*.rs
 #       tests/financial-runtime/scripts/build-sbf.sh
+#       tests/financial-runtime/scripts/source-set-digest.sh
 #       rust-toolchain.toml
 #
-# Generated artifacts, target directories and the harness' own manifests and
-# lockfiles are deliberately not part of the set.
+# Why each file beyond the program's own sources is in the set:
+#   - crates/economics/src/**/*.rs: the program depends on it by path, so its
+#     code is compiled into the program ELF.
+#   - crates/economics/Cargo.toml: it is the manifest of that path dependency and
+#     fixes the dependency set it is compiled with.
+#   - Cargo.toml (workspace root): crates/economics inherits edition,
+#     rust-version and dependency versions from it, so a change there alters the
+#     compiled crate even when its own files do not.
+#   - tests/financial-runtime/scripts/source-set-digest.sh: this helper defines
+#     the digest encoding, so changing it changes the value the receipt reports.
+#
+# Generated artifacts, target directories, crates/economics/tests/ (test-only,
+# not a build input) and the harness' own manifests and lockfiles are
+# deliberately not part of the set.
 #
 # Usage: source-set-digest.sh [--list] [SOLANA_DIR]
 #   SOLANA_DIR  the repository solana/ directory (default: resolved from this
@@ -61,25 +77,36 @@ fi
 cd -- "$SOLANA_DIR"
 
 FIXED_FILES=(
+  "Cargo.toml"
+  "crates/economics/Cargo.toml"
   "programs/musical_chairs/Cargo.toml"
   "programs/musical_chairs/Cargo.lock"
   "programs/musical_chairs/.cargo/config.toml"
   "tests/financial-runtime/scripts/build-sbf.sh"
+  "tests/financial-runtime/scripts/source-set-digest.sh"
   "rust-toolchain.toml"
 )
-SRC_DIR="programs/musical_chairs/src"
+SRC_DIRS=(
+  "programs/musical_chairs/src"
+  "crates/economics/src"
+)
 
 for f in "${FIXED_FILES[@]}"; do
   [[ -f "$f" ]] || { echo "canonical source file is missing: $f" >&2; exit 2; }
 done
-[[ -d "$SRC_DIR" ]] || { echo "canonical source directory is missing: $SRC_DIR" >&2; exit 2; }
+for d in "${SRC_DIRS[@]}"; do
+  [[ -d "$d" ]] || { echo "canonical source directory is missing: $d" >&2; exit 2; }
+done
 
-# Fixed files plus every .rs file under src/ (symlinks included so they can be
-# rejected below instead of being silently skipped), one path per line.
+# Fixed files plus every .rs file under each source directory (symlinks included
+# so they can be rejected below instead of being silently skipped), one path per
+# line.
 PATH_LIST="$(
   {
     printf '%s\n' "${FIXED_FILES[@]}"
-    find "$SRC_DIR" \( -type f -o -type l \) -name '*.rs'
+    for d in "${SRC_DIRS[@]}"; do
+      find "$d" \( -type f -o -type l \) -name '*.rs'
+    done
   } | LC_ALL=C sort
 )"
 
