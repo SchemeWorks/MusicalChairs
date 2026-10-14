@@ -157,9 +157,10 @@ Correction to the handoff text: `createBackdatedGame` exists in `ponzi_math` (IC
 | Nodes under `solana/programs/musical_chairs/` or `solana/tests/financial-runtime/` | **0** (uncovered production source) |
 | Nodes for `docs/solana/production-accounts.md` | 0 at start of the planning pass; covered by the planning fragment since |
 | Codex review artifact | `docs/coordination/native-solana-codex-plan-review-20261013.md`, SHA-256 `d9b59efdeed52842426bc4e4d3213bdda91d888da5266b94481bb8f20bd6b15a`, 126 lines, reviewed commit `db48ce33a40e10d0a1153d738926eb051bb3b033`; preserved unchanged |
+| Codex round-2 review artifact | `docs/coordination/native-solana-codex-plan-review-round2-20261013.md`, SHA-256 `01a0c2d31a41a650eda0dba9979c15eae2706551a19a5bdba608d2d1da2b9138`, 62 lines, reviewed commit `1313b52e5f3f3b2c103d31a9ac097ebd8b930f2c`; preserved unchanged; appended to the graph by the 2026-10-13c revision receipt |
 | Required queries run (allocation phases; claim-triggered close/expiry; ICP boundary; costs) | all return relevant nodes from host models and October contracts; ICP-boundary and cost queries surface mostly May 2026 Chain Fusion nodes, which are legacy-rail context, not native design |
 
-Graph maintenance performed by this pass is recorded in `docs/solana/evidence/2026-10-13-planning-graph-refresh.json`; Codex's review append is `2026-10-13-codex-plan-review-graph-{fragment,refresh}.json` (7,921 → 7,928 nodes, 11,080 → 11,089 edges, 27 → 28 hyperedges); the revision pass is `2026-10-13-planning-revision-graph-{fragment,refresh}.json` (see review packet).
+Graph maintenance performed by this pass is recorded in `docs/solana/evidence/2026-10-13-planning-graph-refresh.json`; Codex's review append is `2026-10-13-codex-plan-review-graph-{fragment,refresh}.json` (7,921 → 7,928 nodes, 11,080 → 11,089 edges, 27 → 28 hyperedges); the round-2 revision pass is `2026-10-13-planning-revision-graph-{fragment,refresh}.json` (7,928 → 7,980 / 11,089 → 11,210 / 28 → 30); the round-3 pass is `2026-10-13-planning-revision2-graph-{fragment,refresh}.json` (see review packet).
 
 ## 8. Public snapshot deltas observed 2026-10-13 (public sources only; no private content sent)
 

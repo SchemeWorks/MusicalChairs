@@ -1,0 +1,1289 @@
+{
+ "nodes": [
+  {
+   "id": "codex20261013_plan_review_round2_document",
+   "label": "Codex planning re-review round 2: request focused docs-only revisions",
+   "file_type": "document",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L1",
+   "status": "review_requests_revision",
+   "rationale": "Reviewed 1313b52; R1–R6 substantially repaired; C1–C6 are contract contradictions, not new scope; Rob delegated settlement to Codex."
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c1",
+   "label": "C1 — Make captured reserves executable and sized per candidate set (P1)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L9",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c1"
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c2",
+   "label": "C2 — One conservation contract for residual locks, provider cash and fee changes (P1)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L17",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c2"
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c3",
+   "label": "C3 — Complete the PP protocol for unbound identity and recovery (P1)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L29",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c3"
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c4",
+   "label": "C4 — Bind verified events to genuine program provenance (P1)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L39",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c4"
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c5",
+   "label": "C5 — Exact source/artifact provenance (P1 plan correction, source fix in M0)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L45",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c5"
+  },
+  {
+   "id": "codex20261013_plan_review_round2_c6",
+   "label": "C6 — Small coherent wording corrections and delegated authorization",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L51",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13c",
+   "resolved_by": "plan2026_10_13c_resolution_c6"
+  },
+  {
+   "id": "plan2026_10_13c_revision_round_3",
+   "label": "Planning revision after Codex round-2 review (2026-10-13c)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "status": "review_resolution_pass",
+   "rationale": "Docs-only; resolves C1–C6; agreement recorded; awaiting Codex exact final acceptance."
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "label": "C1 resolved: per-set u64 candidate reserve; LockedClose provisioning from remaining partitions",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L355",
+   "status": "resolved_in_specification_unimplemented",
+   "rationale": "missing_<set> = saturating_sub(required, existing_<set>); provision_page(Candidate, index, LockedClose) one page per call; build_candidates creates nothing."
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "label": "C2 resolved: remaining-lock semantics, spent ledger, three cash locations, G-authenticated returns, budget increase, owner fallback restored",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L382",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "label": "C3 resolved: observe (pinned policy_version) then bind-and-reserve; Retryable; ledger-history reconciliation",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L425",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c4_event_provenance",
+   "label": "C4 resolved: finalized success, program id, event-authority PDA, discriminators, ancestry, cluster, exact field equality, signer provenance",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L423",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "label": "C5 resolved: canonical source_set_sha256; exact ProgramData header/elf_len/padding comparison",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L66",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "label": "C6 resolved: ORAO role wording, DR-04 schedule inputs, R15 wording, client orchestration, close_simple_position argument, Codex-delegated go-ahead, DR-22 accepted",
+   "file_type": "rationale",
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L195",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_ix_increase_provider_budget",
+   "label": "`increase_provider_budget(close_id, extra)`",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L301",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_ix_record_provider_return",
+   "label": "`record_provider_return(close_id, amount)` (G-only)",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L302",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_ix_reconcile_ops_cash",
+   "label": "`reconcile_ops_cash()`",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L303",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_ix_provision_page_locked_close",
+   "label": "`provision_page(Candidate{close_id,set}, index, LockedClose)`",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L300",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_field_spent_ledger",
+   "label": "`CloseRecord.spent` ten-field ledger by category and source",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_field_remaining_partitions",
+   "label": "`locked_sponsor_remaining` / `locked_owner_remaining` (remaining unspent)",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_field_ops_provider_fields",
+   "label": "`Ops` provider-side observations and `unallocated_excess`",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L260",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_field_per_set_counts",
+   "label": "per-set candidate page counts (u64)",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_conservation_transitions_table",
+   "label": "§8.6 conservation transition table (state deltas per event)",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L398",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_pp_observe_native_event",
+   "label": "`shenanigans.observeNativeEvent(event)` pins policy_version",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L426",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_pp_bind_and_reserve",
+   "label": "`shenanigans.bindAndReserve(event_id)` once-only effects and signup marker",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L427",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_pp_execute_leg",
+   "label": "`executeNativeRewardLeg` with Retryable/Quarantined classes",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L428",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_pp_reconcile_leg_from_ledger",
+   "label": "`reconcileLegFromLedger` via get_transactions/archives",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L428",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_pp_cursor_rule",
+   "label": "bridge cursor advances only on Observed/AlreadyObserved or durable quarantine",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L429",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "label": "DR-33 provider budget increase and OpsCash reconciliation",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L179",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_dr_34_two_phase_pp",
+   "label": "DR-34 two-phase observe/bind PP protocol with pinned policy version",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L183",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_dr_35_source_digest_exact_bytes",
+   "label": "DR-35 canonical source digest and exact deployed-byte comparison",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L187",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13c_m0_step5_source_digest",
+   "label": "M0 step 5: wrapper emits source_set_sha256; pinned stub build",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L99",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_m4_locked_close_tests",
+   "label": "M4 LockedClose provisioning tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L232",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_m7_provider_conservation_tests",
+   "label": "M7 provider conservation tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L562",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_m8_per_set_and_transition_tests",
+   "label": "M8 per-set reserve and §8.6 transition tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L599",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_m12_provenance_and_two_phase_tests",
+   "label": "M12 provenance and two-phase Shenanigans tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L650",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_m14_exact_bytes_and_pp_path",
+   "label": "M14 exact ProgramData comparison and PP path acceptance",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L674",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13c_plan_gate_codex_go_ahead",
+   "label": "Local stage begins on Codex exact final acceptance (Rob delegated)",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L19",
+   "status": "future_production_unimplemented"
+  }
+ ],
+ "edges": [
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_document",
+   "relation": "follows",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "plan2026_10_13b_revision_round_2",
+   "relation": "reviews",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "plan2026_10_13_spec_document",
+   "relation": "reviews",
+   "confidence": "INFERRED",
+   "confidence_score": 0.95,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "plan2026_10_13_plan_document",
+   "relation": "reviews",
+   "confidence": "INFERRED",
+   "confidence_score": 0.95,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "plan2026_10_13_register_document",
+   "relation": "reviews",
+   "confidence": "INFERRED",
+   "confidence_score": 0.95,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c1",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L9",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c2",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L17",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c3",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L29",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c4",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L39",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c5",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L45",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_review_round2_document",
+   "target": "codex20261013_plan_review_round2_c6",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "source_location": "L51",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13_spec_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13_plan_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13_register_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13_inventory_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13_packet_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "codex20261013_plan_review_round2_document",
+   "relation": "responds_to",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13b_revision_round_2",
+   "relation": "follows",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "target": "codex20261013_plan_review_round2_c1",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "codex20261013_plan_review_round2_c2",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "codex20261013_plan_review_round2_c3",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c4_event_provenance",
+   "target": "codex20261013_plan_review_round2_c4",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c4_event_provenance",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "target": "codex20261013_plan_review_round2_c5",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "target": "codex20261013_plan_review_round2_c6",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_revision_round_3",
+   "target": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "target": "plan2026_10_13b_resolution_r2_captured_close_reserve",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L355",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "plan2026_10_13b_resolution_r2_captured_close_reserve",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L382",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "plan2026_10_13b_fix_provider_cash_attribution",
+   "relation": "supersedes",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L382",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13b_resolution_r6_shenanigans_reservation_protocol",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L426",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "plan2026_10_13b_dr_32_provider_attribution",
+   "relation": "amends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L175",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "target": "plan2026_10_13_dr_12_reserve_check_order",
+   "relation": "amends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L97",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "plan2026_10_13_dr_14_refund_timing",
+   "relation": "amends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L105",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "target": "plan2026_10_13_dr_04_config_version",
+   "relation": "amends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L51",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "target": "plan2026_10_13_dr_09_work_contribution_abi",
+   "relation": "amends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L79",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "target": "plan2026_10_13_dr_22_native_default_view",
+   "relation": "accepts",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L195",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_increase_provider_budget",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "mutates",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L301",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_record_provider_return",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "mutates",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L302",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_reconcile_ops_cash",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "mutates",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L303",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_provision_page_locked_close",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "mutates",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L300",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_increase_provider_budget",
+   "target": "plan2026_10_13b_ix_top_up_close_reserve",
+   "relation": "supersedes",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L301",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_ix_provision_page_locked_close",
+   "target": "plan2026_10_13_ix_provision_page",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L300",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_field_spent_ledger",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "shares_data_with",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_field_remaining_partitions",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "shares_data_with",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_field_ops_provider_fields",
+   "target": "plan2026_10_13_account_ops",
+   "relation": "shares_data_with",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L260",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_field_per_set_counts",
+   "target": "plan2026_10_13_account_closerecord",
+   "relation": "shares_data_with",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L272",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "target": "plan2026_10_13c_conservation_transitions_table",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L398",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_conservation_transitions_table",
+   "target": "plan2026_10_13_invariant_ops_cash_conservation",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L398",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13c_pp_observe_native_event",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L426",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13c_pp_bind_and_reserve",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L427",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13c_pp_execute_leg",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L428",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13c_pp_reconcile_leg_from_ledger",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L428",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "target": "plan2026_10_13c_pp_cursor_rule",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L429",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_pp_observe_native_event",
+   "target": "plan2026_10_13b_protocol_reserve_native_reward",
+   "relation": "supersedes",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L426",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_pp_bind_and_reserve",
+   "target": "plan2026_10_13b_protocol_reserve_native_reward",
+   "relation": "supersedes",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L427",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_pp_execute_leg",
+   "target": "plan2026_10_13b_protocol_execute_native_reward_leg",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L428",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_register_document",
+   "target": "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L179",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_register_document",
+   "target": "plan2026_10_13c_dr_34_two_phase_pp",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L183",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_register_document",
+   "target": "plan2026_10_13c_dr_35_source_digest_exact_bytes",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L187",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "target": "plan2026_10_13c_ix_increase_provider_budget",
+   "relation": "decides",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L179",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "target": "plan2026_10_13c_ix_reconcile_ops_cash",
+   "relation": "decides",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L179",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_dr_34_two_phase_pp",
+   "target": "plan2026_10_13c_pp_observe_native_event",
+   "relation": "decides",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L183",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_dr_35_source_digest_exact_bytes",
+   "target": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "relation": "decides",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+   "source_location": "L187",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m0_step5_source_digest",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L99",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m4_locked_close_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L232",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m7_provider_conservation_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L562",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m8_per_set_and_transition_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L599",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m12_provenance_and_two_phase_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L650",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_m14_exact_bytes_and_pp_path",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L674",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13c_plan_gate_codex_go_ahead",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L19",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m0_step5_source_digest",
+   "target": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L99",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m4_locked_close_tests",
+   "target": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L232",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m7_provider_conservation_tests",
+   "target": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L562",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m8_per_set_and_transition_tests",
+   "target": "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L599",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m8_per_set_and_transition_tests",
+   "target": "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L599",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m12_provenance_and_two_phase_tests",
+   "target": "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L650",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m12_provenance_and_two_phase_tests",
+   "target": "plan2026_10_13c_resolution_c4_event_provenance",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L650",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m14_exact_bytes_and_pp_path",
+   "target": "plan2026_10_13c_resolution_c4_event_provenance",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L674",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_m14_exact_bytes_and_pp_path",
+   "target": "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L674",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13c_plan_gate_codex_go_ahead",
+   "target": "plan2026_10_13c_resolution_c6_wording_delegation",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L19",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [
+  {
+   "id": "plan2026_10_13c_codex_round2_resolutions",
+   "label": "Codex round 2 — C1–C6 and their resolutions",
+   "nodes": [
+    "plan2026_10_13c_revision_round_3",
+    "plan2026_10_13c_resolution_c1_per_set_locked_close_provisioning",
+    "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+    "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+    "plan2026_10_13c_resolution_c4_event_provenance",
+    "plan2026_10_13c_resolution_c5_source_digest_exact_bytes",
+    "plan2026_10_13c_resolution_c6_wording_delegation",
+    "codex20261013_plan_review_round2_c1",
+    "codex20261013_plan_review_round2_c2",
+    "codex20261013_plan_review_round2_c3",
+    "codex20261013_plan_review_round2_c4",
+    "codex20261013_plan_review_round2_c5",
+    "codex20261013_plan_review_round2_c6"
+   ],
+   "relation": "form",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md"
+  },
+  {
+   "id": "plan2026_10_13c_provider_cash_contract",
+   "label": "Provider cash contract: remaining locks, spent ledger, three locations, G return, budget increase",
+   "nodes": [
+    "plan2026_10_13c_resolution_c2_remaining_lock_conservation",
+    "plan2026_10_13c_conservation_transitions_table",
+    "plan2026_10_13c_field_spent_ledger",
+    "plan2026_10_13c_field_remaining_partitions",
+    "plan2026_10_13c_field_ops_provider_fields",
+    "plan2026_10_13c_ix_increase_provider_budget",
+    "plan2026_10_13c_ix_record_provider_return",
+    "plan2026_10_13c_ix_reconcile_ops_cash",
+    "plan2026_10_13c_dr_33_provider_budget_and_reconcile"
+   ],
+   "relation": "form",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md"
+  },
+  {
+   "id": "plan2026_10_13c_two_phase_pp_protocol",
+   "label": "Two-phase PP protocol: observe, bind-and-reserve, execute, reconcile, cursor",
+   "nodes": [
+    "plan2026_10_13c_resolution_c3_two_phase_pp_protocol",
+    "plan2026_10_13c_pp_observe_native_event",
+    "plan2026_10_13c_pp_bind_and_reserve",
+    "plan2026_10_13c_pp_execute_leg",
+    "plan2026_10_13c_pp_reconcile_leg_from_ledger",
+    "plan2026_10_13c_pp_cursor_rule",
+    "plan2026_10_13c_dr_34_two_phase_pp"
+   ],
+   "relation": "form",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md"
+  }
+ ],
+ "input_tokens": null,
+ "output_tokens": null,
+ "metadata": {
+  "local_date": "2026-10-13",
+  "recorded_at_utc": "2026-10-14T06:17:54.385910+00:00",
+  "pass_baseline": "c99a636b9f040c9bf0d18d3698328d9bbd33b7b2",
+  "reviewed_planning_commit": "1313b52e5f3f3b2c103d31a9ac097ebd8b930f2c",
+  "planning_branch": "codex/native-solana-plan-20261013",
+  "scope": "Docs-only revision after Codex round-2 review (C1–C6): coordinator-written semantic fragment covering the unchanged review artifact (document + six finding nodes), resolution nodes, new instructions/fields/protocol/DR nodes and plan steps; attribute updates supersede the round-2 top-up/provider-attribution/reserve-protocol nodes and mark DR-22 accepted.",
+  "source_sha256": {
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "13f33a373d5cd6ccbb2c1e8822b74f3c3dcea4dd4b6137c736f7797b70052c4f",
+   "docs/coordination/native-solana-decision-register-20261013.md": "9ebc8244995d729f011d2e740b189584bc24e162eff9327803392812a2f4c521",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "f80ce46a43fb036e0a69927c8ac182384f3bd0548e7a4e6187aa526ca82eab4d",
+   "docs/coordination/native-solana-state-inventory-20261013.md": "1fbca542727d53699d4e287605c341725a7d28d725dbaf90c3824d358ae31c03",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md": "aac14a7e5f1abc2758500fc522f78721ce68b27bc7de166ea9ebe2087010b0c8",
+   "docs/coordination/native-solana-codex-plan-review-round2-20261013.md": "01a0c2d31a41a650eda0dba9979c15eae2706551a19a5bdba608d2d1da2b9138"
+  },
+  "attribute_updates": {
+   "plan2026_10_13b_ix_top_up_close_reserve": {
+    "status": "historical_superseded",
+    "superseded_by": [
+     "plan2026_10_13c_ix_increase_provider_budget"
+    ],
+    "superseded_on": "2026-10-13c"
+   },
+   "plan2026_10_13b_fix_provider_cash_attribution": {
+    "status": "historical_superseded",
+    "superseded_by": [
+     "plan2026_10_13c_resolution_c2_remaining_lock_conservation"
+    ],
+    "superseded_on": "2026-10-13c",
+    "note": "storage-only owner partition withdrawn; owner fallback restored per accepted defaults"
+   },
+   "plan2026_10_13b_protocol_reserve_native_reward": {
+    "status": "historical_superseded",
+    "superseded_by": [
+     "plan2026_10_13c_pp_observe_native_event",
+     "plan2026_10_13c_pp_bind_and_reserve"
+    ],
+    "superseded_on": "2026-10-13c"
+   },
+   "plan2026_10_13b_dr_32_provider_attribution": {
+    "revised": "2026-10-13c"
+   },
+   "plan2026_10_13_dr_12_reserve_check_order": {
+    "revised": "2026-10-13c"
+   },
+   "plan2026_10_13_dr_14_refund_timing": {
+    "revised": "2026-10-13c"
+   },
+   "plan2026_10_13_dr_04_config_version": {
+    "revised": "2026-10-13c"
+   },
+   "plan2026_10_13_dr_09_work_contribution_abi": {
+    "revised": "2026-10-13c"
+   },
+   "plan2026_10_13_dr_22_native_default_view": {
+    "status": "accepted_policy",
+    "accepted_by": "Codex under Rob delegation 2026-10-13",
+    "revised": "2026-10-13c"
+   }
+  }
+ }
+}
