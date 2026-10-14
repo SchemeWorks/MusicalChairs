@@ -13,10 +13,12 @@ use anchor_lang::solana_program::{
     system_instruction,
 };
 
+use crate::events::{ConfigActivated, ConfigStaged, SCHEMA_VERSION};
 use crate::state::{
-    Admission, GameVault, Ops, Pool, RegistryPage, RentComponents, SnapshotPage, SnapshotRow,
-    Ticket, ADMISSION_SEED, GAME_VAULT_SEED, IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY,
-    POOL_SEED, REGISTRY_SEED, SNAPSHOT_SEED, TICKET_SEED,
+    Admission, ConfigVersion, GameVault, Ops, Pool, RegistryPage, RentComponents, RngAuthority,
+    SnapshotPage, SnapshotRow, Ticket, ADMISSION_SEED, CONFIG_SEED, GAME_VAULT_SEED, IDLE,
+    OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY, POOL_SEED, QUOTA_CALLS, REGISTRY_SEED,
+    RNG_AUTHORITY_SEED, SNAPSHOT_SEED, TICKET_SEED,
 };
 
 /// Squads v4 program used by the production authority profile.
@@ -24,10 +26,22 @@ pub const SQUADS_PROGRAM_ID: Pubkey = pubkey!("SQDS4ep65T869zMMBKyuUq6aD6EgTu8ps
 const MULTISIG_PREFIX: &[u8] = b"multisig";
 const VAULT_PREFIX: &[u8] = b"vault";
 const GOVERNANCE_DELAY: u32 = 172_800;
+const SQUADS_THRESHOLD: u16 = 2;
+/// `rotate_recipient` kinds.
+const RECIPIENT_MANAGEMENT: u8 = 0;
+const RECIPIENT_SPONSOR: u8 = 1;
 const SQUADS_MEMBER_COUNT: usize = 3;
+/// Both authorities act through their Squads vault at index 0.
+const VAULT_INDEX: u8 = 0;
 const PERMISSION_INITIATE: u8 = 1;
 const PERMISSION_VOTE: u8 = 2;
 const PERMISSION_EXECUTE: u8 = 4;
+const PERMISSION_MASK: u8 = PERMISSION_INITIATE | PERMISSION_VOTE | PERMISSION_EXECUTE;
+/// Anchor's `account:Multisig` discriminator, `sha256("account:Multisig")[..8]`.
+/// Kept as a literal so the SBF build needs no hash crate; the unit test
+/// `multisig_discriminator_matches_anchor_namespace` derives it with `sha2`.
+pub const SQUADS_MULTISIG_DISCRIMINATOR: [u8; 8] =
+    [0xe0, 0x74, 0x79, 0xba, 0x44, 0xa1, 0x4f, 0xec];
 
 /// Genesis configuration.  `sponsor` is intentionally repeated in the args
 /// and as a signer account so a fee payer cannot silently become the sponsor.
@@ -38,6 +52,187 @@ pub struct InitializeArgs {
     /// Immutable cluster domain (devnet and mainnet differ); stored once in
     /// `Pool.cluster_domain` and never writable again.
     pub cluster_domain: [u8; 32],
+    /// Provider tuple and launch fields written into `ConfigVersion#1`; they
+    /// are launch values, so `ConfigVersion::default_v1` leaves them zeroed.
+    pub provider_request_fee_lamports: u64,
+    pub provider_fee_headroom_bps: u16,
+    pub provider_program: Pubkey,
+    pub provider_network_state: Pubkey,
+    pub provider_treasury: Pubkey,
+    pub provider_client: Pubkey,
+    pub public_series_a_enabled: bool,
+}
+
+/// The governance-stageable part of a [`ConfigVersion`]: every field except
+/// the program-assigned `bump`, `version`, `staged_at` and `activated_at`.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ConfigTerms {
+    pub effective_round_id: u64,
+    pub plan_rates_bps_per_day: [u16; 3],
+    pub plan_durations_s: [u32; 3],
+    pub compound_factors_q18: [u64; 2],
+    pub simple_toll_bps: [u16; 3],
+    pub simple_toll_day_bounds: [u16; 2],
+    pub jackpot_bps: [u16; 2],
+    pub front_end_load_bps: u16,
+    pub min_game: u64,
+    pub min_a: u64,
+    pub quota_count: u8,
+    pub quota_window_s: u32,
+    pub seed_bps: u16,
+    pub senior_bps: u16,
+    pub a_bps: u16,
+    pub b_bps: u16,
+    pub a_entitlement_bps: u16,
+    pub b_entitlement_bps: u16,
+    pub open_cutoff: u64,
+    pub deadline_seconds: u32,
+    pub provider_request_fee_lamports: u64,
+    pub provider_fee_headroom_bps: u16,
+    pub pending_request_bytes: u16,
+    pub fulfilled_request_bytes: u16,
+    pub provider_program: Pubkey,
+    pub provider_network_state: Pubkey,
+    pub provider_treasury: Pubkey,
+    pub provider_client: Pubkey,
+    pub public_series_a_enabled: bool,
+    pub page_capacity: u8,
+}
+
+impl ConfigTerms {
+    /// Bounds every staged (and genesis) rule set must satisfy.  `seed_bps`
+    /// is only range-checked, not pinned to the launch value; the senior,
+    /// Series A and Series B shares must cover the allocation exactly.
+    pub fn validate(&self) -> Result<()> {
+        const BPS: u16 = 10_000;
+        let all_bps_in_range = self
+            .plan_rates_bps_per_day
+            .iter()
+            .chain(self.simple_toll_bps.iter())
+            .chain(self.jackpot_bps.iter())
+            .chain([
+                &self.front_end_load_bps,
+                &self.seed_bps,
+                &self.senior_bps,
+                &self.a_bps,
+                &self.b_bps,
+                &self.provider_fee_headroom_bps,
+            ])
+            .all(|bps| *bps <= BPS);
+        require!(all_bps_in_range, crate::ErrorCode::InvalidState);
+        let split = u32::from(self.senior_bps) + u32::from(self.a_bps) + u32::from(self.b_bps);
+        require!(split == u32::from(BPS), crate::ErrorCode::InvalidState);
+        require!(
+            self.a_entitlement_bps >= BPS && self.b_entitlement_bps >= BPS,
+            crate::ErrorCode::InvalidState
+        );
+        require!(
+            self.plan_durations_s.iter().all(|duration| *duration > 0)
+                && self.quota_window_s > 0
+                && self.deadline_seconds > 0,
+            crate::ErrorCode::InvalidState
+        );
+        // `User.successful_at` holds `QUOTA_CALLS` entries, so a larger quota
+        // could never be recorded.
+        require!(
+            self.quota_count >= 1 && self.quota_count <= QUOTA_CALLS,
+            crate::ErrorCode::InvalidState
+        );
+        require!(
+            self.page_capacity == PAGE_CAPACITY as u8,
+            crate::ErrorCode::InvalidState
+        );
+        require!(
+            self.simple_toll_day_bounds[0] < self.simple_toll_day_bounds[1],
+            crate::ErrorCode::InvalidState
+        );
+        require!(self.min_game > 0 && self.min_a > 0, crate::ErrorCode::InvalidState);
+        Ok(())
+    }
+
+    /// Assemble the stored account from these terms plus the program-assigned
+    /// fields.
+    pub fn into_config(
+        self,
+        version: u32,
+        bump: u8,
+        staged_at: u64,
+        activated_at: Option<u64>,
+    ) -> ConfigVersion {
+        ConfigVersion {
+            bump,
+            version,
+            effective_round_id: self.effective_round_id,
+            staged_at,
+            activated_at,
+            plan_rates_bps_per_day: self.plan_rates_bps_per_day,
+            plan_durations_s: self.plan_durations_s,
+            compound_factors_q18: self.compound_factors_q18,
+            simple_toll_bps: self.simple_toll_bps,
+            simple_toll_day_bounds: self.simple_toll_day_bounds,
+            jackpot_bps: self.jackpot_bps,
+            front_end_load_bps: self.front_end_load_bps,
+            min_game: self.min_game,
+            min_a: self.min_a,
+            quota_count: self.quota_count,
+            quota_window_s: self.quota_window_s,
+            seed_bps: self.seed_bps,
+            senior_bps: self.senior_bps,
+            a_bps: self.a_bps,
+            b_bps: self.b_bps,
+            a_entitlement_bps: self.a_entitlement_bps,
+            b_entitlement_bps: self.b_entitlement_bps,
+            open_cutoff: self.open_cutoff,
+            deadline_seconds: self.deadline_seconds,
+            provider_request_fee_lamports: self.provider_request_fee_lamports,
+            provider_fee_headroom_bps: self.provider_fee_headroom_bps,
+            pending_request_bytes: self.pending_request_bytes,
+            fulfilled_request_bytes: self.fulfilled_request_bytes,
+            provider_program: self.provider_program,
+            provider_network_state: self.provider_network_state,
+            provider_treasury: self.provider_treasury,
+            provider_client: self.provider_client,
+            public_series_a_enabled: self.public_series_a_enabled,
+            page_capacity: self.page_capacity,
+        }
+    }
+}
+
+impl From<&ConfigVersion> for ConfigTerms {
+    fn from(config: &ConfigVersion) -> Self {
+        Self {
+            effective_round_id: config.effective_round_id,
+            plan_rates_bps_per_day: config.plan_rates_bps_per_day,
+            plan_durations_s: config.plan_durations_s,
+            compound_factors_q18: config.compound_factors_q18,
+            simple_toll_bps: config.simple_toll_bps,
+            simple_toll_day_bounds: config.simple_toll_day_bounds,
+            jackpot_bps: config.jackpot_bps,
+            front_end_load_bps: config.front_end_load_bps,
+            min_game: config.min_game,
+            min_a: config.min_a,
+            quota_count: config.quota_count,
+            quota_window_s: config.quota_window_s,
+            seed_bps: config.seed_bps,
+            senior_bps: config.senior_bps,
+            a_bps: config.a_bps,
+            b_bps: config.b_bps,
+            a_entitlement_bps: config.a_entitlement_bps,
+            b_entitlement_bps: config.b_entitlement_bps,
+            open_cutoff: config.open_cutoff,
+            deadline_seconds: config.deadline_seconds,
+            provider_request_fee_lamports: config.provider_request_fee_lamports,
+            provider_fee_headroom_bps: config.provider_fee_headroom_bps,
+            pending_request_bytes: config.pending_request_bytes,
+            fulfilled_request_bytes: config.fulfilled_request_bytes,
+            provider_program: config.provider_program,
+            provider_network_state: config.provider_network_state,
+            provider_treasury: config.provider_treasury,
+            provider_client: config.provider_client,
+            public_series_a_enabled: config.public_series_a_enabled,
+            page_capacity: config.page_capacity,
+        }
+    }
 }
 
 /// Authenticated one-time setup.  The two Multisig accounts and the two Vault
@@ -63,21 +258,41 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
         crate::ErrorCode::WrongAccount
     );
 
-    validate_profile(
-        &ctx.accounts.governance_multisig.to_account_info(),
-        &ctx.accounts.governance.to_account_info(),
+    // G signs `initialize` as the Squads vault CPI signer; the profile is read
+    // from the Multisig account, never trusted from the caller.
+    let governance_multisig = ctx.accounts.governance_multisig.to_account_info();
+    let governance_vault = validate_profile(
+        &governance_multisig,
         GOVERNANCE_DELAY,
+        SQUADS_THRESHOLD,
+        SQUADS_MEMBER_COUNT,
     )?;
-    validate_profile(
+    require_vault_signer(
+        &governance_multisig,
+        VAULT_INDEX,
+        &ctx.accounts.governance.to_account_info(),
+    )?;
+    require_keys_eq!(
+        governance_vault,
+        ctx.accounts.governance.key(),
+        crate::ErrorCode::NotAuthorized
+    );
+    let guardian_vault = validate_profile(
         &ctx.accounts.guardian_multisig.to_account_info(),
-        &ctx.accounts.guardian.to_account_info(),
         0,
+        SQUADS_THRESHOLD,
+        SQUADS_MEMBER_COUNT,
     )?;
-    require_distinct_authorities(&ctx.accounts.governance.key(), &ctx.accounts.guardian.key())?;
+    require_keys_eq!(
+        guardian_vault,
+        ctx.accounts.guardian.key(),
+        crate::ErrorCode::WrongAccount
+    );
+    require_distinct_authorities(&governance_vault, &guardian_vault)?;
     validate_program_binding(
         &ctx.accounts.self_program.to_account_info(),
         &ctx.accounts.program_data.to_account_info(),
-        &ctx.accounts.governance.key(),
+        &governance_vault,
     )?;
 
     let ops_cash_info = ctx.accounts.ops_cash.to_account_info();
@@ -132,13 +347,13 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     pool.current_close_id = None;
     pool.total_gross_deposits = 0;
     pool.total_net_payouts = 0;
-    pool.governance = ctx.accounts.governance.key();
-    pool.guardian_vault = ctx.accounts.guardian.key();
+    pool.governance = governance_vault;
+    pool.guardian_vault = guardian_vault;
     pool.sponsor = args.sponsor;
     pool.management_recipient = args.management_recipient;
 
     ctx.accounts.admission.bump = ctx.bumps.admission;
-    ctx.accounts.admission.guardian_vault = ctx.accounts.guardian.key();
+    ctx.accounts.admission.guardian_vault = guardian_vault;
     ctx.accounts.admission.paused = false;
     ctx.accounts.admission.changed_at = 0;
 
@@ -154,9 +369,39 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     ctx.accounts.ticket.id = 0;
     ctx.accounts.ticket.phase = IDLE;
 
+    // ConfigVersion#1 is the accepted launch rule set plus the genesis
+    // provider tuple; it is active from the first round.
+    write_genesis_config(&mut ctx.accounts.config, &args, ctx.bumps.config, crate::now()?)?;
+
+    ctx.accounts.rng_authority.bump = ctx.bumps.rng_authority;
+    ctx.accounts.rng_authority.client = args.provider_client;
+
     // Keep the bump live for callers that need to construct PDA signer seeds;
     // no data is stored in the system-owned cash account itself.
     Ok(())
+}
+
+/// Fill `ConfigVersion#1` in place.  Kept out of line so the 4 KiB SBF stack
+/// frame of `initialize` does not also carry the config and terms temporaries.
+#[inline(never)]
+fn write_genesis_config(
+    config: &mut ConfigVersion,
+    args: &InitializeArgs,
+    bump: u8,
+    now: u64,
+) -> Result<()> {
+    *config = ConfigVersion::default_v1();
+    config.bump = bump;
+    config.staged_at = now;
+    config.activated_at = Some(now);
+    config.provider_request_fee_lamports = args.provider_request_fee_lamports;
+    config.provider_fee_headroom_bps = args.provider_fee_headroom_bps;
+    config.provider_program = args.provider_program;
+    config.provider_network_state = args.provider_network_state;
+    config.provider_treasury = args.provider_treasury;
+    config.provider_client = args.provider_client;
+    config.public_series_a_enabled = args.public_series_a_enabled;
+    ConfigTerms::from(&*config).validate()
 }
 
 pub fn set_pause(ctx: Context<Pause>, paused: bool) -> Result<()> {
@@ -277,7 +522,7 @@ pub fn withdraw_management(ctx: Context<WithdrawManagement>, amount: u64) -> Res
     )?;
     require!(
         amount <= ctx.accounts.pool.management,
-        crate::ErrorCode::InsufficientOperations
+        crate::ErrorCode::InsufficientManagement
     );
     crate::send_game(
         &ctx.accounts.game_vault.to_account_info(),
@@ -293,6 +538,164 @@ pub fn withdraw_management(ctx: Context<WithdrawManagement>, amount: u64) -> Res
         amount,
         management_after,
     });
+    Ok(())
+}
+
+/// Authenticate a governance (G) instruction: the supplied Multisig must pass
+/// the autonomous 2-of-3, 172,800 s profile, its index-0 vault must be the
+/// recorded `pool.governance`, and that vault must have signed (as a Squads
+/// CPI signer).  `pool.governance` alone is never trusted.
+fn require_governance(
+    multisig: &AccountInfo<'_>,
+    governance: &AccountInfo<'_>,
+    pool: &Pool,
+) -> Result<()> {
+    let vault = validate_profile(multisig, GOVERNANCE_DELAY, SQUADS_THRESHOLD, SQUADS_MEMBER_COUNT)?;
+    require_keys_eq!(vault, pool.governance, crate::ErrorCode::NotAuthorized);
+    require_vault_signer(multisig, VAULT_INDEX, governance)
+}
+
+/// Stage `ConfigVersion#version` (G only).  The new account is paid from the
+/// operations free balance and activates no earlier than
+/// `terms.effective_round_id`; staging a version that already exists fails
+/// in `create_shared` because the target is no longer a system account.
+pub fn stage_config_version(
+    ctx: Context<StageConfigVersion>,
+    version: u32,
+    terms: ConfigTerms,
+) -> Result<()> {
+    require_governance(
+        &ctx.accounts.governance_multisig.to_account_info(),
+        &ctx.accounts.governance.to_account_info(),
+        &ctx.accounts.pool,
+    )?;
+    let pool = &ctx.accounts.pool;
+    require!(
+        pool.active_config_version.checked_add(1) == Some(version),
+        crate::ErrorCode::InvalidState
+    );
+    let earliest = pool
+        .round_id
+        .checked_add(1)
+        .ok_or(crate::ErrorCode::Overflow)?;
+    require!(
+        terms.effective_round_id >= earliest,
+        crate::ErrorCode::ConfigNotActivatable
+    );
+    terms.validate()?;
+
+    let config_info = ctx.accounts.config.to_account_info();
+    let bump = pda_bump(
+        &[CONFIG_SEED, &version.to_le_bytes()],
+        &ctx.accounts.config.key(),
+    )?;
+    crate::create_shared(
+        &config_info,
+        &ctx.accounts.ops_cash.to_account_info(),
+        &ctx.accounts.system_program.to_account_info(),
+        &[CONFIG_SEED, &version.to_le_bytes(), &[bump]],
+        ConfigVersion::SPACE,
+        &mut ctx.accounts.ops,
+    )?;
+    let config = terms.into_config(version, bump, crate::now()?, None);
+    serialize_account(&config_info, &config)?;
+    emit_cpi!(ConfigStaged {
+        schema_version: SCHEMA_VERSION,
+        version,
+        effective_round_id: terms.effective_round_id,
+    });
+    Ok(())
+}
+
+/// Activate a staged version (permissionless).  Only in the idle state with
+/// no allocation ticket, and only once the pool has reached the version's
+/// `effective_round_id`, so the change is prospective.
+pub fn activate_config_version(
+    ctx: Context<ActivateConfigVersion>,
+    version: u32,
+    expected_current: u32,
+) -> Result<()> {
+    let pool = &mut ctx.accounts.pool;
+    let config = &mut ctx.accounts.config;
+    require!(
+        expected_current.checked_add(1) == Some(version)
+            && expected_current == pool.active_config_version
+            && config.version == version,
+        crate::ErrorCode::ConfigNotActivatable
+    );
+    require!(
+        pool.round_id >= config.effective_round_id,
+        crate::ErrorCode::ConfigNotActivatable
+    );
+    // `Admission` is deliberately not consulted: activation is allowed while
+    // paused.  The Ticket account only proves the singleton is the canonical one.
+    require!(
+        !pool.closing() && pool.active_ticket == 0,
+        crate::ErrorCode::ConfigNotActivatable
+    );
+    require!(config.activated_at.is_none(), crate::ErrorCode::ConfigNotActivatable);
+
+    pool.active_config_version = version;
+    config.activated_at = Some(crate::now()?);
+    let round_id = pool.round_id;
+    emit_cpi!(ConfigActivated {
+        schema_version: SCHEMA_VERSION,
+        version,
+        round_id,
+    });
+    Ok(())
+}
+
+/// Rotate a payout recipient (G only).  `kind` 0 is the management recipient
+/// (`withdraw_management`), 1 is the sponsor (`withdraw_operations`).  The
+/// sponsor is checked on `Ops.sponsor` by `withdraw_operations`, so kind 1
+/// updates it together with the `Pool.sponsor` copy.
+pub fn rotate_recipient(
+    ctx: Context<RotateRecipient>,
+    kind: u8,
+    new_recipient: Pubkey,
+) -> Result<()> {
+    require_governance(
+        &ctx.accounts.governance_multisig.to_account_info(),
+        &ctx.accounts.governance.to_account_info(),
+        &ctx.accounts.pool,
+    )?;
+    require!(kind <= RECIPIENT_SPONSOR, crate::ErrorCode::InvalidState);
+    require!(
+        new_recipient != Pubkey::default(),
+        crate::ErrorCode::ProtectedDestination
+    );
+    reject_protected_destination(&new_recipient, &program_pda_keys())?;
+    if kind == RECIPIENT_MANAGEMENT {
+        ctx.accounts.pool.management_recipient = new_recipient;
+    } else {
+        ctx.accounts.pool.sponsor = new_recipient;
+        ctx.accounts.ops.sponsor = new_recipient;
+    }
+    Ok(())
+}
+
+/// Replace the pause guardian (G only).  The new Multisig must itself pass the
+/// immediate 2-of-3 profile; `Admission.guardian_vault` (authoritative) and
+/// the `Pool.guardian_vault` copy change in this one instruction, so the old
+/// guardian is rejected from the next slot and a lost P quorum is recoverable
+/// by G alone.
+pub fn rotate_guardian(ctx: Context<RotateGuardian>) -> Result<()> {
+    require_governance(
+        &ctx.accounts.governance_multisig.to_account_info(),
+        &ctx.accounts.governance.to_account_info(),
+        &ctx.accounts.pool,
+    )?;
+    let new_vault = validate_profile(
+        &ctx.accounts.new_guardian_multisig.to_account_info(),
+        0,
+        SQUADS_THRESHOLD,
+        SQUADS_MEMBER_COUNT,
+    )?;
+    require_distinct_authorities(&ctx.accounts.pool.governance, &new_vault)?;
+    ctx.accounts.admission.guardian_vault = new_vault;
+    ctx.accounts.admission.changed_at = crate::now()?;
+    ctx.accounts.pool.guardian_vault = new_vault;
     Ok(())
 }
 
@@ -419,6 +822,19 @@ fn validate_ops_cash(account: &UncheckedAccount<'_>) -> Result<()> {
     Ok(())
 }
 
+/// The program's own singleton PDAs, none of which may become a recipient.
+fn program_pda_keys() -> [Pubkey; 6] {
+    [
+        POOL_SEED,
+        ADMISSION_SEED,
+        GAME_VAULT_SEED,
+        OPS_SEED,
+        OPS_CASH_SEED,
+        TICKET_SEED,
+    ]
+    .map(|seed| Pubkey::find_program_address(&[seed], &crate::ID).0)
+}
+
 fn reject_protected_destination(destination: &Pubkey, protected: &[Pubkey]) -> Result<()> {
     require!(
         protected.iter().all(|key| key != destination),
@@ -456,52 +872,63 @@ fn validate_existing_page<T: AccountDeserialize + AnchorSerialize + Discriminato
     Ok(())
 }
 
-/// Decode and validate the compact Squads v4 Multisig account without taking
-/// a dependency on the SDK's account layout.  The bounded member count is a
-/// safety property as well as a policy property.
+/// The Vault PDA of a Squads v4 multisig:
+/// `["multisig", multisig, "vault", vault_index]` under the Squads program.
+fn derive_vault(multisig: &Pubkey, vault_index: u8) -> Pubkey {
+    Pubkey::find_program_address(
+        &[MULTISIG_PREFIX, multisig.as_ref(), VAULT_PREFIX, &[vault_index]],
+        &SQUADS_PROGRAM_ID,
+    )
+    .0
+}
+
+/// Decode and validate the compact Squads v4 `Multisig` account without taking
+/// a dependency on the SDK's account layout, and return its index-0 Vault PDA.
+///
+/// Layout (Anchor, Borsh) at squads-protocol/v4 commit
+/// 887627b3ac3f59548fdb6dfd1dfe23a21bb72b60:
+/// `discriminator[8] | create_key: Pubkey | config_authority: Pubkey (plain,
+/// not an Option) | threshold: u16 | time_lock: u32 | transaction_index: u64 |
+/// stale_transaction_index: u64 | rent_collector: Option<Pubkey> | bump: u8 |
+/// members: Vec<{ key: Pubkey, permissions: u8 }>` (u32 LE length prefix).
+///
+/// The profile is exact: autonomous (`config_authority == default`),
+/// `threshold == expected_threshold`, `time_lock == expected_delay`, exactly
+/// `expected_members` distinct non-default voting members.  Wrong owner,
+/// discriminator, PDA or bump are `WrongAccount`; every shape failure
+/// (including a truncated body) is `WrongGovernanceProfile`.
 pub(crate) fn validate_profile(
     multisig: &AccountInfo<'_>,
-    vault: &AccountInfo<'_>,
-    timelock: u32,
-) -> Result<()> {
-    require_keys_eq!(*multisig.owner, SQUADS_PROGRAM_ID, crate::ErrorCode::WrongOwner);
-    require_keys_eq!(
-        *vault.owner,
-        anchor_lang::solana_program::system_program::ID,
-        crate::ErrorCode::WrongOwner
-    );
+    expected_delay: u32,
+    expected_threshold: u16,
+    expected_members: usize,
+) -> Result<Pubkey> {
+    require_keys_eq!(*multisig.owner, SQUADS_PROGRAM_ID, crate::ErrorCode::WrongAccount);
     let account_data = multisig.try_borrow_data()?;
     let data: &[u8] = &account_data;
-    require!(data.len() >= 8, crate::ErrorCode::InvalidState);
-    // Anchor's `account:Multisig` discriminator, SHA-256 truncated to eight
-    // bytes.  Keep this constant local so controls does not need a hash crate
-    // in the SBF dependency surface.
-    const MULTISIG_DISCRIMINATOR: [u8; 8] = [
-        0xe0, 0x74, 0x79, 0xba, 0x44, 0xa1, 0x4f, 0xc8,
-    ];
     require!(
-        &data[..8] == MULTISIG_DISCRIMINATOR,
+        data.len() >= 8 && data[..8] == SQUADS_MULTISIG_DISCRIMINATOR,
         crate::ErrorCode::WrongAccount
     );
     let mut cursor = 8usize;
-    let create_key = read_pubkey(&data, &mut cursor)?;
-    let config_authority = read_option_pubkey(&data, &mut cursor)?;
-    require!(config_authority.is_none(), crate::ErrorCode::NotAuthorized);
-    let threshold = read_u16(&data, &mut cursor)?;
-    let actual_timelock = read_u32(&data, &mut cursor)?;
-    let _transaction_index = read_u64(&data, &mut cursor)?;
-    let _stale_transaction_index = read_u64(&data, &mut cursor)?;
-    let _rent_collector = read_option_pubkey(&data, &mut cursor)?;
-    let stored_bump = read_u8(&data, &mut cursor)?;
-    let member_len = read_u32(&data, &mut cursor)? as usize;
+    let create_key = read_pubkey(data, &mut cursor)?;
+    let config_authority = read_pubkey(data, &mut cursor)?;
+    let threshold = read_u16(data, &mut cursor)?;
+    let time_lock = read_u32(data, &mut cursor)?;
+    let _transaction_index = read_u64(data, &mut cursor)?;
+    let _stale_transaction_index = read_u64(data, &mut cursor)?;
+    let _rent_collector = read_option_pubkey(data, &mut cursor)?;
+    let stored_bump = read_u8(data, &mut cursor)?;
+    let member_len = read_u32(data, &mut cursor)? as usize;
 
-    require_eq!(threshold, 2, crate::ErrorCode::NotAuthorized);
-    if timelock == GOVERNANCE_DELAY {
-        require!(actual_timelock >= GOVERNANCE_DELAY, crate::ErrorCode::NotAuthorized);
-    } else {
-        require_eq!(actual_timelock, 0, crate::ErrorCode::NotAuthorized);
-    }
-    require_eq!(member_len, SQUADS_MEMBER_COUNT, crate::ErrorCode::NotAuthorized);
+    require_keys_eq!(
+        config_authority,
+        Pubkey::default(),
+        crate::ErrorCode::WrongGovernanceProfile
+    );
+    require_eq!(threshold, expected_threshold, crate::ErrorCode::WrongGovernanceProfile);
+    require_eq!(time_lock, expected_delay, crate::ErrorCode::WrongGovernanceProfile);
+    require_eq!(member_len, expected_members, crate::ErrorCode::WrongGovernanceProfile);
 
     let (expected_multisig, expected_bump) = Pubkey::find_program_address(
         &[MULTISIG_PREFIX, MULTISIG_PREFIX, create_key.as_ref()],
@@ -509,30 +936,47 @@ pub(crate) fn validate_profile(
     );
     require_keys_eq!(expected_multisig, *multisig.key, crate::ErrorCode::WrongAccount);
     require_eq!(stored_bump, expected_bump, crate::ErrorCode::WrongAccount);
-    let (expected_vault, _) = Pubkey::find_program_address(
-        &[MULTISIG_PREFIX, multisig.key.as_ref(), VAULT_PREFIX, &[0]],
-        &SQUADS_PROGRAM_ID,
-    );
-    require_keys_eq!(expected_vault, *vault.key, crate::ErrorCode::WrongAccount);
 
-    let mut seen = [Pubkey::default(); SQUADS_MEMBER_COUNT];
+    // Members are walked in place (no allocation); each key is compared with
+    // the keys before it, which is cheap for the bounded member count.
+    let members_start = cursor;
     let mut has_initiate = false;
     let mut has_execute = false;
-    for index in 0..SQUADS_MEMBER_COUNT {
-        let key = read_pubkey(&data, &mut cursor)?;
-        let mask = read_u8(&data, &mut cursor)?;
-        require!(key != Pubkey::default(), crate::ErrorCode::NotAuthorized);
-        require!(mask & PERMISSION_VOTE != 0, crate::ErrorCode::NotAuthorized);
-        require!(mask & !(PERMISSION_INITIATE | PERMISSION_VOTE | PERMISSION_EXECUTE) == 0, crate::ErrorCode::NotAuthorized);
-        require!(
-            seen[..index].iter().all(|prior| *prior != key),
-            crate::ErrorCode::NotAuthorized
-        );
-        seen[index] = key;
+    for index in 0..member_len {
+        let key = read_pubkey(data, &mut cursor)?;
+        let mask = read_u8(data, &mut cursor)?;
+        require!(key != Pubkey::default(), crate::ErrorCode::WrongGovernanceProfile);
+        require!(mask & PERMISSION_VOTE != 0, crate::ErrorCode::WrongGovernanceProfile);
+        require!(mask & !PERMISSION_MASK == 0, crate::ErrorCode::WrongGovernanceProfile);
+        let mut prior_cursor = members_start;
+        for _ in 0..index {
+            let prior = read_pubkey(data, &mut prior_cursor)?;
+            let _ = read_u8(data, &mut prior_cursor)?;
+            require!(prior != key, crate::ErrorCode::WrongGovernanceProfile);
+        }
         has_initiate |= mask & PERMISSION_INITIATE != 0;
         has_execute |= mask & PERMISSION_EXECUTE != 0;
     }
-    require!(has_initiate && has_execute, crate::ErrorCode::NotAuthorized);
+    // A profile in which nobody can initiate or execute a vault transaction
+    // could never move the authority it guards.
+    require!(has_initiate && has_execute, crate::ErrorCode::WrongGovernanceProfile);
+    Ok(derive_vault(multisig.key, VAULT_INDEX))
+}
+
+/// Require that `signer` is the Squads Vault PDA for `vault_index` of
+/// `multisig` and that it signed this transaction (Squads signs for the PDA
+/// when it executes a vault transaction via CPI).  The multisig's own profile
+/// is checked separately by [`validate_profile`].
+pub(crate) fn require_vault_signer(
+    multisig: &AccountInfo<'_>,
+    vault_index: u8,
+    signer: &AccountInfo<'_>,
+) -> Result<()> {
+    let vault = derive_vault(multisig.key, vault_index);
+    require!(
+        *signer.key == vault && signer.is_signer,
+        crate::ErrorCode::NotAuthorized
+    );
     Ok(())
 }
 
@@ -580,45 +1024,48 @@ pub(crate) fn require_distinct_authorities(governance: &Pubkey, guardian: &Pubke
     Ok(())
 }
 
+/// Bounds-checked little-endian readers for the Squads account.  A short read
+/// or an invalid Option tag means the account is not a well-formed profile.
+fn read_bytes<'a>(data: &'a [u8], cursor: &mut usize, len: usize) -> Result<&'a [u8]> {
+    let end = cursor.checked_add(len).ok_or(crate::ErrorCode::Overflow)?;
+    let bytes = data
+        .get(*cursor..end)
+        .ok_or(crate::ErrorCode::WrongGovernanceProfile)?;
+    *cursor = end;
+    Ok(bytes)
+}
+
 fn read_u8(data: &[u8], cursor: &mut usize) -> Result<u8> {
-    let value = *data.get(*cursor).ok_or(crate::ErrorCode::InvalidState)?;
-    *cursor += 1;
-    Ok(value)
+    Ok(read_bytes(data, cursor, 1)?[0])
 }
 
 fn read_u16(data: &[u8], cursor: &mut usize) -> Result<u16> {
-    let end = cursor.checked_add(2).ok_or(crate::ErrorCode::Overflow)?;
-    let value = u16::from_le_bytes(data.get(*cursor..end).ok_or(crate::ErrorCode::InvalidState)?.try_into().unwrap());
-    *cursor = end;
-    Ok(value)
+    let bytes = read_bytes(data, cursor, 2)?;
+    Ok(u16::from_le_bytes([bytes[0], bytes[1]]))
 }
 
 fn read_u32(data: &[u8], cursor: &mut usize) -> Result<u32> {
-    let end = cursor.checked_add(4).ok_or(crate::ErrorCode::Overflow)?;
-    let value = u32::from_le_bytes(data.get(*cursor..end).ok_or(crate::ErrorCode::InvalidState)?.try_into().unwrap());
-    *cursor = end;
-    Ok(value)
+    let bytes = read_bytes(data, cursor, 4)?;
+    Ok(u32::from_le_bytes([bytes[0], bytes[1], bytes[2], bytes[3]]))
 }
 
 fn read_u64(data: &[u8], cursor: &mut usize) -> Result<u64> {
-    let end = cursor.checked_add(8).ok_or(crate::ErrorCode::Overflow)?;
-    let value = u64::from_le_bytes(data.get(*cursor..end).ok_or(crate::ErrorCode::InvalidState)?.try_into().unwrap());
-    *cursor = end;
-    Ok(value)
+    let mut array = [0u8; 8];
+    array.copy_from_slice(read_bytes(data, cursor, 8)?);
+    Ok(u64::from_le_bytes(array))
 }
 
 fn read_pubkey(data: &[u8], cursor: &mut usize) -> Result<Pubkey> {
-    let end = cursor.checked_add(32).ok_or(crate::ErrorCode::Overflow)?;
-    let value = Pubkey::new_from_array(data.get(*cursor..end).ok_or(crate::ErrorCode::InvalidState)?.try_into().unwrap());
-    *cursor = end;
-    Ok(value)
+    let mut array = [0u8; 32];
+    array.copy_from_slice(read_bytes(data, cursor, 32)?);
+    Ok(Pubkey::new_from_array(array))
 }
 
 fn read_option_pubkey(data: &[u8], cursor: &mut usize) -> Result<Option<Pubkey>> {
     match read_u8(data, cursor)? {
         0 => Ok(None),
         1 => Ok(Some(read_pubkey(data, cursor)?)),
-        _ => Err(crate::ErrorCode::InvalidState.into()),
+        _ => Err(crate::ErrorCode::WrongGovernanceProfile.into()),
     }
 }
 
@@ -636,6 +1083,16 @@ pub struct Initialize<'info> {
     pub ops: Box<Account<'info, Ops>>,
     #[account(init, payer = sponsor, space = Ticket::SPACE, seeds = [TICKET_SEED], bump)]
     pub ticket: Box<Account<'info, Ticket>>,
+    #[account(init, payer = sponsor, space = RngAuthority::SPACE, seeds = [RNG_AUTHORITY_SEED], bump)]
+    pub rng_authority: Box<Account<'info, RngAuthority>>,
+    #[account(
+        init,
+        payer = sponsor,
+        space = ConfigVersion::SPACE,
+        seeds = [CONFIG_SEED, &1u32.to_le_bytes()],
+        bump
+    )]
+    pub config: Box<Account<'info, ConfigVersion>>,
     /// CHECK: validated as the canonical empty system-owned operations PDA.
     #[account(mut)]
     pub ops_cash: UncheckedAccount<'info>,
@@ -654,6 +1111,68 @@ pub struct Initialize<'info> {
     /// CHECK: validated as this program's upgradeable-loader ProgramData.
     pub program_data: UncheckedAccount<'info>,
     pub system_program: Program<'info, System>,
+}
+
+#[event_cpi]
+#[derive(Accounts)]
+pub struct StageConfigVersion<'info> {
+    /// CHECK: Squads Multisig; owner, discriminator, PDA and profile are
+    /// validated by the handler.
+    pub governance_multisig: UncheckedAccount<'info>,
+    /// The G Vault PDA, signing through a Squads vault-transaction CPI.
+    pub governance: Signer<'info>,
+    #[account(seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Box<Account<'info, Pool>>,
+    #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
+    pub ops: Box<Account<'info, Ops>>,
+    /// CHECK: canonical empty system-owned PDA; checked by `create_shared`.
+    #[account(mut)]
+    pub ops_cash: UncheckedAccount<'info>,
+    /// CHECK: canonical `["config", version]` PDA; created and written by the
+    /// handler.
+    #[account(mut)]
+    pub config: UncheckedAccount<'info>,
+    pub system_program: Program<'info, System>,
+}
+
+#[event_cpi]
+#[derive(Accounts)]
+#[instruction(version: u32)]
+pub struct ActivateConfigVersion<'info> {
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Box<Account<'info, Pool>>,
+    #[account(mut, seeds = [CONFIG_SEED, &version.to_le_bytes()], bump = config.bump)]
+    pub config: Box<Account<'info, ConfigVersion>>,
+    #[account(seeds = [TICKET_SEED], bump = ticket.bump)]
+    pub ticket: Box<Account<'info, Ticket>>,
+    #[account(seeds = [ADMISSION_SEED], bump = admission.bump)]
+    pub admission: Box<Account<'info, Admission>>,
+}
+
+#[derive(Accounts)]
+pub struct RotateRecipient<'info> {
+    /// CHECK: Squads Multisig; validated by the handler.
+    pub governance_multisig: UncheckedAccount<'info>,
+    /// The G Vault PDA, signing through a Squads vault-transaction CPI.
+    pub governance: Signer<'info>,
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Box<Account<'info, Pool>>,
+    #[account(mut, seeds = [OPS_SEED], bump = ops.bump)]
+    pub ops: Box<Account<'info, Ops>>,
+}
+
+#[derive(Accounts)]
+pub struct RotateGuardian<'info> {
+    /// CHECK: Squads Multisig; validated by the handler.
+    pub governance_multisig: UncheckedAccount<'info>,
+    /// The G Vault PDA, signing through a Squads vault-transaction CPI.
+    pub governance: Signer<'info>,
+    #[account(mut, seeds = [ADMISSION_SEED], bump = admission.bump)]
+    pub admission: Box<Account<'info, Admission>>,
+    #[account(mut, seeds = [POOL_SEED], bump = pool.bump)]
+    pub pool: Box<Account<'info, Pool>>,
+    /// CHECK: replacement P Squads Multisig; validated by the handler.
+    pub new_guardian_multisig: UncheckedAccount<'info>,
 }
 
 #[event_cpi]
@@ -741,39 +1260,100 @@ pub struct ProvisionRegistry<'info> {
 mod tests {
     use super::*;
     use anchor_lang::solana_program::system_program;
+    use sha2::{Digest, Sha256};
 
-    fn push_pubkey(bytes: &mut Vec<u8>, key: &Pubkey) {
-        bytes.extend_from_slice(key.as_ref());
+    fn key(byte: u8) -> Pubkey {
+        Pubkey::new_from_array([byte; 32])
     }
 
-    fn multisig_bytes(
+    /// A Squads v4 `Multisig` account in the pinned layout (see
+    /// [`validate_profile`]), with every field a test might vary.
+    #[derive(Clone)]
+    struct Fixture {
         create_key: Pubkey,
-        timelock: u32,
+        config_authority: Pubkey,
         threshold: u16,
-        config_authority: bool,
-        bump: u8,
-        members: &[(Pubkey, u8); 3],
-    ) -> Vec<u8> {
-        const DISC: [u8; 8] = [0xe0, 0x74, 0x79, 0xba, 0x44, 0xa1, 0x4f, 0xc8];
-        let mut bytes = Vec::new();
-        bytes.extend_from_slice(&DISC);
-        push_pubkey(&mut bytes, &create_key);
-        bytes.push(if config_authority { 1 } else { 0 });
-        if config_authority {
-            bytes.extend_from_slice(&[9u8; 32]);
+        time_lock: u32,
+        rent_collector: Option<Pubkey>,
+        bump_override: Option<u8>,
+        members: Vec<(Pubkey, u8)>,
+    }
+
+    impl Fixture {
+        fn new(create_byte: u8, time_lock: u32) -> Self {
+            Self {
+                create_key: key(create_byte),
+                config_authority: Pubkey::default(),
+                threshold: 2,
+                time_lock,
+                rent_collector: None,
+                bump_override: None,
+                members: vec![(key(1), 7), (key(2), 7), (key(3), 7)],
+            }
         }
-        bytes.extend_from_slice(&threshold.to_le_bytes());
-        bytes.extend_from_slice(&timelock.to_le_bytes());
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        bytes.extend_from_slice(&0u64.to_le_bytes());
-        bytes.push(0); // rent_collector: None
-        bytes.push(bump);
-        bytes.extend_from_slice(&3u32.to_le_bytes());
-        for (key, permissions) in members {
-            push_pubkey(&mut bytes, key);
-            bytes.push(*permissions);
+
+        fn governance() -> Self {
+            Self::new(42, 172_800)
         }
-        bytes
+
+        fn guardian() -> Self {
+            Self::new(43, 0)
+        }
+
+        fn with_members(mut self, members: &[(Pubkey, u8)]) -> Self {
+            self.members = members.to_vec();
+            self
+        }
+
+        fn with_masks(self, masks: [u8; 3]) -> Self {
+            self.with_members(&[(key(1), masks[0]), (key(2), masks[1]), (key(3), masks[2])])
+        }
+
+        /// Multisig PDA and canonical bump, derived from the literal seeds.
+        fn multisig(&self) -> (Pubkey, u8) {
+            Pubkey::find_program_address(
+                &[b"multisig", b"multisig", self.create_key.as_ref()],
+                &SQUADS_PROGRAM_ID,
+            )
+        }
+
+        fn vault(&self, index: u8) -> Pubkey {
+            Pubkey::find_program_address(
+                &[b"multisig", self.multisig().0.as_ref(), b"vault", &[index]],
+                &SQUADS_PROGRAM_ID,
+            )
+            .0
+        }
+
+        fn bytes(&self) -> Vec<u8> {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&SQUADS_MULTISIG_DISCRIMINATOR);
+            bytes.extend_from_slice(self.create_key.as_ref());
+            // `config_authority` is a plain Pubkey, not an Option.
+            bytes.extend_from_slice(self.config_authority.as_ref());
+            bytes.extend_from_slice(&self.threshold.to_le_bytes());
+            bytes.extend_from_slice(&self.time_lock.to_le_bytes());
+            bytes.extend_from_slice(&7u64.to_le_bytes()); // transaction_index
+            bytes.extend_from_slice(&3u64.to_le_bytes()); // stale_transaction_index
+            match self.rent_collector {
+                None => bytes.push(0),
+                Some(collector) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(collector.as_ref());
+                }
+            }
+            bytes.push(self.bump_override.unwrap_or(self.multisig().1));
+            bytes.extend_from_slice(&(self.members.len() as u32).to_le_bytes());
+            for (member, permissions) in &self.members {
+                bytes.extend_from_slice(member.as_ref());
+                bytes.push(*permissions);
+            }
+            bytes
+        }
+
+        fn account(&self) -> AccountInfo<'static> {
+            account(self.multisig().0, SQUADS_PROGRAM_ID, self.bytes(), false, false)
+        }
     }
 
     fn account(
@@ -790,17 +1370,6 @@ mod tests {
         AccountInfo::new(key, signer, false, lamports, data, owner, executable, 0)
     }
 
-    fn profile_accounts(
-        data: Vec<u8>,
-        multisig: Pubkey,
-        vault: Pubkey,
-    ) -> (AccountInfo<'static>, AccountInfo<'static>) {
-        (
-            account(multisig, SQUADS_PROGRAM_ID, data, false, false),
-            account(vault, system_program::ID, vec![], true, false),
-        )
-    }
-
     fn assert_error<T: std::fmt::Debug>(result: Result<T>, expected: &str) {
         let error = result.expect_err("validator unexpectedly accepted fixture");
         assert!(
@@ -809,170 +1378,423 @@ mod tests {
         );
     }
 
-    fn valid_profile(
-        timelock: u32,
-        masks: [u8; 3],
-    ) -> (AccountInfo<'static>, AccountInfo<'static>, Pubkey, u8) {
-        let create_key = Pubkey::new_from_array([42u8; 32]);
-        let (multisig, bump) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, MULTISIG_PREFIX, create_key.as_ref()],
-            &SQUADS_PROGRAM_ID,
-        );
-        let (vault, _) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, multisig.as_ref(), VAULT_PREFIX, &[0]],
-            &SQUADS_PROGRAM_ID,
-        );
-        let members = [
-            (Pubkey::new_from_array([1u8; 32]), masks[0]),
-            (Pubkey::new_from_array([2u8; 32]), masks[1]),
-            (Pubkey::new_from_array([3u8; 32]), masks[2]),
-        ];
-        let data = multisig_bytes(create_key, timelock, 2, false, bump, &members);
-        let (multisig_account, vault_account) = profile_accounts(data, multisig, vault);
-        (multisig_account, vault_account, multisig, bump)
+    fn validate_g(fixture: &Fixture) -> Result<Pubkey> {
+        validate_profile(&fixture.account(), GOVERNANCE_DELAY, 2, 3)
+    }
+
+    fn validate_p(fixture: &Fixture) -> Result<Pubkey> {
+        validate_profile(&fixture.account(), 0, 2, 3)
     }
 
     #[test]
-    fn initialize_args_carry_the_cluster_domain_and_no_close_reserve() {
+    fn multisig_discriminator_matches_anchor_namespace() {
+        let digest = Sha256::digest(b"account:Multisig");
+        assert_eq!(&digest[..8], &SQUADS_MULTISIG_DISCRIMINATOR);
+        assert_eq!(
+            SQUADS_MULTISIG_DISCRIMINATOR,
+            [0xe0, 0x74, 0x79, 0xba, 0x44, 0xa1, 0x4f, 0xec]
+        );
+    }
+
+    #[test]
+    fn initialize_args_carry_the_cluster_domain_and_provider_tuple() {
         let args = InitializeArgs {
-            sponsor: Pubkey::new_from_array([1; 32]),
-            management_recipient: Pubkey::new_from_array([2; 32]),
+            sponsor: key(1),
+            management_recipient: key(2),
             cluster_domain: [0xC3; 32],
+            provider_request_fee_lamports: 0x0102_0304_0506_0708,
+            provider_fee_headroom_bps: 2_000,
+            provider_program: key(3),
+            provider_network_state: key(4),
+            provider_treasury: key(5),
+            provider_client: key(6),
+            public_series_a_enabled: true,
         };
         let bytes = args.try_to_vec().unwrap();
-        // sponsor + management_recipient + cluster_domain, nothing else.
-        assert_eq!(bytes.len(), 32 + 32 + 32);
-        assert_eq!(&bytes[64..], &[0xC3; 32]);
+        // 32+32+32 genesis, 8+2 provider fee, 4x32 provider tuple, 1 flag.
+        assert_eq!(bytes.len(), 32 + 32 + 32 + 8 + 2 + 32 + 32 + 32 + 32 + 1);
+        assert_eq!(bytes.len(), 235);
+        assert_eq!(&bytes[64..96], &[0xC3; 32]);
+        assert_eq!(&bytes[96..104], &0x0102_0304_0506_0708u64.to_le_bytes());
+        assert_eq!(&bytes[104..106], &2_000u16.to_le_bytes());
+        assert_eq!(&bytes[106..138], key(3).as_ref());
+        assert_eq!(&bytes[202..234], key(6).as_ref());
+        assert_eq!(bytes[234], 1);
         assert_eq!(InitializeArgs::try_from_slice(&bytes).unwrap(), args);
     }
 
     #[test]
-    fn accepts_canonical_governance_and_guardian_profiles() {
-        let (governance, governance_vault, _, _) = valid_profile(172_800, [7, 7, 7]);
-        validate_profile(&governance, &governance_vault, GOVERNANCE_DELAY).unwrap();
-
-        let (guardian, guardian_vault, _, _) = valid_profile(0, [7, 7, 7]);
-        validate_profile(&guardian, &guardian_vault, 0).unwrap();
+    fn fixture_follows_the_pinned_squads_layout() {
+        // 8 disc + 32 create_key + 32 config_authority + 2 threshold + 4
+        // time_lock + 8 + 8 indices + 1 rent_collector tag + 1 bump + 4 len
+        // + 3 members x (32 + 1).
+        let governance = Fixture::governance();
+        assert_eq!(governance.bytes().len(), 8 + 32 + 32 + 2 + 4 + 8 + 8 + 1 + 1 + 4 + 3 * 33);
+        assert_eq!(governance.bytes().len(), 199);
+        let mut with_collector = governance;
+        with_collector.rent_collector = Some(key(77));
+        assert_eq!(with_collector.bytes().len(), 199 + 32);
     }
 
     #[test]
-    fn rejects_bad_discriminator_configuration_threshold_and_delay() {
-        let (valid, vault, multisig, _) = valid_profile(172_800, [7, 7, 7]);
-        let mut bad_disc = valid.try_borrow_data().unwrap().to_vec();
+    fn validate_profile_returns_the_vault_pda_for_governance_and_guardian() {
+        let governance = Fixture::governance();
+        let governance_vault = validate_g(&governance).unwrap();
+        assert_eq!(governance_vault, governance.vault(0));
+        assert_ne!(governance_vault, governance.vault(1));
+        assert_ne!(governance_vault, governance.multisig().0);
+
+        let guardian = Fixture::guardian();
+        let guardian_vault = validate_p(&guardian).unwrap();
+        assert_eq!(guardian_vault, guardian.vault(0));
+        assert_ne!(guardian_vault, governance_vault);
+
+        // A populated rent_collector (Option tag 1 + 32 bytes) must not
+        // desynchronize the members that follow it.
+        let mut collector = Fixture::governance();
+        collector.rent_collector = Some(key(77));
+        assert_eq!(validate_g(&collector).unwrap(), governance_vault);
+
+        // Trailing realloc padding after the member list is tolerated.
+        let mut padded = Fixture::governance().bytes();
+        padded.extend_from_slice(&[0u8; 64]);
+        let padded = account(governance.multisig().0, SQUADS_PROGRAM_ID, padded, false, false);
+        assert_eq!(
+            validate_profile(&padded, GOVERNANCE_DELAY, 2, 3).unwrap(),
+            governance_vault
+        );
+    }
+
+    #[test]
+    fn rejects_non_autonomous_threshold_delay_and_member_count() {
+        let mut config_authority = Fixture::governance();
+        config_authority.config_authority = key(9);
+        assert_error(validate_g(&config_authority), "WrongGovernanceProfile");
+
+        for threshold in [0u16, 1, 3] {
+            let mut fixture = Fixture::governance();
+            fixture.threshold = threshold;
+            assert_error(validate_g(&fixture), "WrongGovernanceProfile");
+        }
+
+        // The governance delay is exact: neither shorter nor longer passes.
+        for delay in [0u32, 60, 172_799, 172_801] {
+            assert_error(validate_g(&Fixture::new(42, delay)), "WrongGovernanceProfile");
+        }
+        // The guardian delay is exact zero.
+        for delay in [1u32, 60, 172_800] {
+            assert_error(validate_p(&Fixture::new(43, delay)), "WrongGovernanceProfile");
+        }
+        // A guardian-shaped account is not a governance profile and vice versa.
+        assert_error(validate_g(&Fixture::guardian()), "WrongGovernanceProfile");
+        assert_error(validate_p(&Fixture::governance()), "WrongGovernanceProfile");
+
+        let two = Fixture::governance().with_members(&[(key(1), 7), (key(2), 7)]);
+        assert_error(validate_g(&two), "WrongGovernanceProfile");
+        let four = Fixture::governance()
+            .with_members(&[(key(1), 7), (key(2), 7), (key(3), 7), (key(4), 7)]);
+        assert_error(validate_g(&four), "WrongGovernanceProfile");
+        // The expected member count is a parameter, not a constant.
+        assert_eq!(
+            validate_profile(&four.account(), GOVERNANCE_DELAY, 2, 4).unwrap(),
+            four.vault(0)
+        );
+    }
+
+    #[test]
+    fn rejects_bad_member_sets() {
+        // Missing VOTE bit.
+        for masks in [[5u8, 7, 7], [7, 1, 7], [7, 7, 4]] {
+            assert_error(
+                validate_g(&Fixture::governance().with_masks(masks)),
+                "WrongGovernanceProfile",
+            );
+        }
+        // Unknown permission bits.
+        for unknown in [0x08u8, 0x80, 0xf8] {
+            assert_error(
+                validate_g(&Fixture::governance().with_masks([7, 7 | unknown, 7])),
+                "WrongGovernanceProfile",
+            );
+        }
+        // Nobody can initiate, or nobody can execute.
+        assert_error(
+            validate_g(&Fixture::governance().with_masks([2, 2, 6])),
+            "WrongGovernanceProfile",
+        );
+        assert_error(
+            validate_g(&Fixture::governance().with_masks([3, 3, 3])),
+            "WrongGovernanceProfile",
+        );
+        // Default key.
+        assert_error(
+            validate_g(&Fixture::governance().with_members(&[
+                (key(1), 7),
+                (Pubkey::default(), 7),
+                (key(3), 7),
+            ])),
+            "WrongGovernanceProfile",
+        );
+        // Duplicates, adjacent and not.
+        for members in [
+            [(key(1), 7), (key(1), 7), (key(3), 7)],
+            [(key(1), 7), (key(2), 7), (key(1), 7)],
+            [(key(1), 7), (key(2), 7), (key(2), 7)],
+        ] {
+            assert_error(
+                validate_g(&Fixture::governance().with_members(&members)),
+                "WrongGovernanceProfile",
+            );
+        }
+        // Distinct initiate / vote / execute specialists are fine.
+        validate_g(&Fixture::governance().with_masks([3, 2, 6])).unwrap();
+    }
+
+    #[test]
+    fn rejects_wrong_owner_discriminator_pda_bump_and_truncation() {
+        let governance = Fixture::governance();
+        let valid = governance.bytes();
+        let multisig_key = governance.multisig().0;
+
+        let wrong_owner = account(multisig_key, system_program::ID, valid.clone(), false, false);
+        assert_error(
+            validate_profile(&wrong_owner, GOVERNANCE_DELAY, 2, 3),
+            "WrongAccount",
+        );
+
+        let mut bad_disc = valid.clone();
         bad_disc[0] ^= 1;
-        let (bad_disc, bad_vault) = profile_accounts(bad_disc, multisig, vault.key());
-        assert_error(
-            validate_profile(&bad_disc, &bad_vault, GOVERNANCE_DELAY),
-            "WrongAccount",
-        );
+        let bad_disc = account(multisig_key, SQUADS_PROGRAM_ID, bad_disc, false, false);
+        assert_error(validate_profile(&bad_disc, GOVERNANCE_DELAY, 2, 3), "WrongAccount");
 
-        let create_key = Pubkey::new_from_array([42u8; 32]);
-        let (_, bump) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, MULTISIG_PREFIX, create_key.as_ref()],
-            &SQUADS_PROGRAM_ID,
-        );
-        let members = [
-            (Pubkey::new_from_array([1u8; 32]), 7),
-            (Pubkey::new_from_array([2u8; 32]), 7),
-            (Pubkey::new_from_array([3u8; 32]), 7),
-        ];
-        let (canonical_multisig, _) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, MULTISIG_PREFIX, create_key.as_ref()],
-            &SQUADS_PROGRAM_ID,
-        );
-        let (canonical_vault, _) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, canonical_multisig.as_ref(), VAULT_PREFIX, &[0]],
-            &SQUADS_PROGRAM_ID,
-        );
-        let (config, config_vault) = profile_accounts(
-            multisig_bytes(create_key, 172_800, 2, true, bump, &members),
-            canonical_multisig,
-            canonical_vault,
-        );
+        // The pre-fix constant ended in 0xc8; it must not be accepted.
+        let mut old_disc = valid.clone();
+        old_disc[7] = 0xc8;
+        let old_disc = account(multisig_key, SQUADS_PROGRAM_ID, old_disc, false, false);
+        assert_error(validate_profile(&old_disc, GOVERNANCE_DELAY, 2, 3), "WrongAccount");
+
+        let too_short = account(multisig_key, SQUADS_PROGRAM_ID, valid[..7].to_vec(), false, false);
+        assert_error(validate_profile(&too_short, GOVERNANCE_DELAY, 2, 3), "WrongAccount");
+
+        let wrong_key = account(key(99), SQUADS_PROGRAM_ID, valid.clone(), false, false);
+        assert_error(validate_profile(&wrong_key, GOVERNANCE_DELAY, 2, 3), "WrongAccount");
+
+        let mut bad_bump = governance.clone();
+        bad_bump.bump_override = Some(governance.multisig().1 ^ 1);
+        assert_error(validate_g(&bad_bump), "WrongAccount");
+
+        // Body cut inside create_key, and one byte short of the last member.
+        for length in [20usize, valid.len() - 1] {
+            let truncated = account(
+                multisig_key,
+                SQUADS_PROGRAM_ID,
+                valid[..length].to_vec(),
+                false,
+                false,
+            );
+            assert_error(
+                validate_profile(&truncated, GOVERNANCE_DELAY, 2, 3),
+                "WrongGovernanceProfile",
+            );
+        }
+
+        // Option tag other than 0/1 for rent_collector.
+        let mut bad_tag = valid;
+        bad_tag[8 + 32 + 32 + 2 + 4 + 8 + 8] = 2;
+        let bad_tag = account(multisig_key, SQUADS_PROGRAM_ID, bad_tag, false, false);
+        assert_error(validate_profile(&bad_tag, GOVERNANCE_DELAY, 2, 3), "WrongGovernanceProfile");
+    }
+
+    #[test]
+    fn require_vault_signer_demands_the_derived_vault_and_a_signature() {
+        let governance = Fixture::governance();
+        let multisig = governance.account();
+        let vault0 = governance.vault(0);
+        let vault1 = governance.vault(1);
+
+        let signed = |address: Pubkey, signed: bool| {
+            account(address, system_program::ID, vec![], signed, false)
+        };
+        require_vault_signer(&multisig, 0, &signed(vault0, true)).unwrap();
+        require_vault_signer(&multisig, 1, &signed(vault1, true)).unwrap();
+
+        // Right key, no signature.
         assert_error(
-            validate_profile(&config, &config_vault, GOVERNANCE_DELAY),
+            require_vault_signer(&multisig, 0, &signed(vault0, false)),
             "NotAuthorized",
         );
-
-        let (threshold, threshold_vault) = profile_accounts(
-            multisig_bytes(create_key, 172_800, 1, false, bump, &members),
-            canonical_multisig,
-            canonical_vault,
-        );
+        // Signature from some other key (a member, not the vault).
         assert_error(
-            validate_profile(&threshold, &threshold_vault, GOVERNANCE_DELAY),
+            require_vault_signer(&multisig, 0, &signed(key(1), true)),
             "NotAuthorized",
         );
-
-        let (delay, delay_vault, _, _) = valid_profile(60, [7, 7, 7]);
+        // Another vault index of the same multisig.
         assert_error(
-            validate_profile(&delay, &delay_vault, GOVERNANCE_DELAY),
+            require_vault_signer(&multisig, 0, &signed(vault1, true)),
+            "NotAuthorized",
+        );
+        // The P vault cannot stand in for the G vault.
+        assert_error(
+            require_vault_signer(&multisig, 0, &signed(Fixture::guardian().vault(0), true)),
             "NotAuthorized",
         );
     }
 
+    fn terms() -> ConfigTerms {
+        ConfigTerms::from(&ConfigVersion::default_v1())
+    }
+
     #[test]
-    fn rejects_member_permissions_duplicates_pda_bump_and_truncation() {
-        let (no_vote, no_vote_vault, _, _) = valid_profile(172_800, [5, 7, 7]);
-        assert_error(
-            validate_profile(&no_vote, &no_vote_vault, GOVERNANCE_DELAY),
-            "NotAuthorized",
-        );
+    fn config_terms_accept_the_launch_rule_set_and_its_variations() {
+        terms().validate().unwrap();
 
-        let create_key = Pubkey::new_from_array([42u8; 32]);
-        let (multisig, bump) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, MULTISIG_PREFIX, create_key.as_ref()],
-            &SQUADS_PROGRAM_ID,
-        );
-        let (vault, _) = Pubkey::find_program_address(
-            &[MULTISIG_PREFIX, multisig.as_ref(), VAULT_PREFIX, &[0]],
-            &SQUADS_PROGRAM_ID,
-        );
-        let duplicate_members = [
-            (Pubkey::new_from_array([1u8; 32]), 7),
-            (Pubkey::new_from_array([1u8; 32]), 7),
-            (Pubkey::new_from_array([3u8; 32]), 7),
+        let mut later = terms();
+        later.effective_round_id = 9;
+        later.front_end_load_bps = 0;
+        later.seed_bps = 0;
+        later.a_bps = 5_000;
+        later.b_bps = 1_500;
+        later.provider_fee_headroom_bps = 10_000;
+        later.quota_count = 1;
+        later.public_series_a_enabled = true;
+        later.validate().unwrap();
+
+        // `seed_bps` is range-checked, not pinned to the launch value.
+        let mut full_seed = terms();
+        full_seed.seed_bps = 10_000;
+        full_seed.validate().unwrap();
+    }
+
+    #[test]
+    fn config_terms_reject_each_bound_once() {
+        let cases: [(&str, fn(&mut ConfigTerms)); 27] = [
+            ("plan rate over 100%", |t| t.plan_rates_bps_per_day[0] = 10_001),
+            ("simple toll over 100%", |t| t.simple_toll_bps[2] = 10_001),
+            ("jackpot over 100%", |t| t.jackpot_bps[1] = 10_001),
+            ("front-end load over 100%", |t| t.front_end_load_bps = 10_001),
+            ("seed over 100%", |t| t.seed_bps = 10_001),
+            ("senior over 100%", |t| t.senior_bps = 10_001),
+            ("a over 100%", |t| t.a_bps = 10_001),
+            ("b over 100%", |t| t.b_bps = 10_001),
+            ("headroom over 100%", |t| t.provider_fee_headroom_bps = 10_001),
+            ("split short of 100%", |t| t.senior_bps = 3_400),
+            ("split over 100%", |t| t.senior_bps = 3_600),
+            ("a entitlement below 100%", |t| t.a_entitlement_bps = 9_999),
+            ("b entitlement below 100%", |t| t.b_entitlement_bps = 9_999),
+            ("zero plan duration", |t| t.plan_durations_s[1] = 0),
+            ("zero quota window", |t| t.quota_window_s = 0),
+            ("zero deadline", |t| t.deadline_seconds = 0),
+            ("zero quota count", |t| t.quota_count = 0),
+            ("quota count beyond the User array", |t| t.quota_count = QUOTA_CALLS + 1),
+            ("page capacity too small", |t| t.page_capacity = PAGE_CAPACITY as u8 - 1),
+            ("page capacity too large", |t| t.page_capacity = PAGE_CAPACITY as u8 + 1),
+            ("toll day bounds equal", |t| t.simple_toll_day_bounds = [14, 14]),
+            ("toll day bounds inverted", |t| t.simple_toll_day_bounds = [15, 14]),
+            ("zero game minimum", |t| t.min_game = 0),
+            ("zero series A minimum", |t| t.min_a = 0),
+            ("zero first plan duration", |t| t.plan_durations_s[0] = 0),
+            ("zero last plan duration", |t| t.plan_durations_s[2] = 0),
+            ("b entitlement zero", |t| t.b_entitlement_bps = 0),
         ];
-        let (duplicate, duplicate_vault) = profile_accounts(
-            multisig_bytes(create_key, 172_800, 2, false, bump, &duplicate_members),
-            multisig,
-            vault,
-        );
-        assert_error(
-            validate_profile(&duplicate, &duplicate_vault, GOVERNANCE_DELAY),
-            "NotAuthorized",
-        );
+        for (name, mutate) in cases {
+            let mut candidate = terms();
+            mutate(&mut candidate);
+            let error = candidate
+                .validate()
+                .expect_err(&format!("{name}: validator accepted the terms"));
+            assert!(
+                format!("{error:?}").contains("InvalidState"),
+                "{name}: expected InvalidState, got {error:?}"
+            );
+        }
+    }
 
-        let (wrong_pda, wrong_pda_vault, _, _) = valid_profile(172_800, [7, 7, 7]);
-        let wrong_key = Pubkey::new_from_array([99u8; 32]);
-        let wrong_pda_account = account(
-            wrong_key,
-            SQUADS_PROGRAM_ID,
-            wrong_pda.try_borrow_data().unwrap().to_vec(),
-            false,
-            false,
-        );
-        assert_error(
-            validate_profile(&wrong_pda_account, &wrong_pda_vault, GOVERNANCE_DELAY),
-            "WrongAccount",
-        );
+    #[test]
+    fn config_terms_round_trip_into_the_stored_account() {
+        let launch = ConfigVersion::default_v1();
+        assert_eq!(terms().into_config(1, 0, 0, None), launch);
 
-        let (canonical, _, canonical_key, _) = valid_profile(172_800, [7, 7, 7]);
-        let mut bad_bump_data = canonical.try_borrow_data().unwrap().to_vec();
-        bad_bump_data[8 + 32 + 1 + 2 + 4 + 8 + 8 + 1] ^= 1;
-        let (bad_bump, bad_bump_vault) = profile_accounts(bad_bump_data, canonical_key, vault);
-        assert_error(
-            validate_profile(&bad_bump, &bad_bump_vault, GOVERNANCE_DELAY),
-            "WrongAccount",
-        );
+        let staged = terms().into_config(2, 253, 1_000, None);
+        assert_eq!((staged.version, staged.bump, staged.staged_at), (2, 253, 1_000));
+        assert_eq!(staged.activated_at, None);
+        assert_eq!(ConfigTerms::from(&staged), terms());
+        let activated = terms().into_config(2, 253, 1_000, Some(2_000));
+        assert_eq!(activated.activated_at, Some(2_000));
 
-        let (truncated, _truncated_vault, _, _) = valid_profile(172_800, [7, 7, 7]);
-        let truncated_data = truncated.try_borrow_data().unwrap()[..20].to_vec();
-        let (truncated, truncated_vault) = profile_accounts(truncated_data, canonical_key, vault);
+        // Everything but bump (1), version (4), staged_at (8) and the
+        // activated_at Option<u64> (9) is in the instruction argument.
+        let bytes = terms().try_to_vec().unwrap();
+        assert_eq!(bytes.len(), ConfigVersion::SPACE - 8 - 1 - 4 - 8 - 9);
+        assert_eq!(ConfigTerms::try_from_slice(&bytes).unwrap(), terms());
+    }
+
+    #[test]
+    fn genesis_config_is_default_v1_plus_the_provider_arguments() {
+        let mut args = InitializeArgs {
+            sponsor: key(1),
+            management_recipient: key(2),
+            cluster_domain: [0xC3; 32],
+            provider_request_fee_lamports: 4_200,
+            provider_fee_headroom_bps: 1_500,
+            provider_program: key(3),
+            provider_network_state: key(4),
+            provider_treasury: key(5),
+            provider_client: key(6),
+            public_series_a_enabled: true,
+        };
+        let mut config = ConfigVersion::default();
+        write_genesis_config(&mut config, &args, 251, 1_700).unwrap();
+        let launch = ConfigVersion::default_v1();
+        assert_eq!((config.version, config.effective_round_id), (1, 1));
+        assert_eq!((config.bump, config.staged_at), (251, 1_700));
+        assert_eq!(config.activated_at, Some(1_700));
+        assert_eq!(config.provider_request_fee_lamports, 4_200);
+        assert_eq!(config.provider_fee_headroom_bps, 1_500);
+        assert_eq!(
+            [
+                config.provider_program,
+                config.provider_network_state,
+                config.provider_treasury,
+                config.provider_client,
+            ],
+            [key(3), key(4), key(5), key(6)]
+        );
+        assert!(config.public_series_a_enabled);
+        // Economic terms are untouched launch values.
+        assert_eq!(config.senior_bps, launch.senior_bps);
+        assert_eq!(config.plan_durations_s, launch.plan_durations_s);
+        assert_eq!(config.front_end_load_bps, launch.front_end_load_bps);
+
+        // Genesis arguments go through the same bounds as staged terms.
+        args.provider_fee_headroom_bps = 10_001;
         assert_error(
-            validate_profile(&truncated, &truncated_vault, GOVERNANCE_DELAY),
+            write_genesis_config(&mut ConfigVersion::default(), &args, 251, 1_700),
             "InvalidState",
         );
+    }
+
+    #[test]
+    fn recipient_rotation_protects_every_program_pda() {
+        let protected = program_pda_keys();
+        let expected = [
+            POOL_SEED,
+            ADMISSION_SEED,
+            GAME_VAULT_SEED,
+            OPS_SEED,
+            OPS_CASH_SEED,
+            TICKET_SEED,
+        ]
+        .map(|seed| Pubkey::find_program_address(&[seed], &crate::ID).0);
+        assert_eq!(protected, expected);
+        for (index, address) in protected.iter().enumerate() {
+            assert!(protected[..index].iter().all(|other| other != address));
+            assert_error(
+                reject_protected_destination(address, &protected),
+                "ProtectedDestination",
+            );
+        }
+        reject_protected_destination(&key(5), &protected).unwrap();
+        assert_eq!((RECIPIENT_MANAGEMENT, RECIPIENT_SPONSOR), (0, 1));
     }
 
     #[test]

@@ -11,6 +11,7 @@ pub mod events;
 pub use error::ErrorCode;
 pub use events::*;
 use controls::*;
+pub use controls::ConfigTerms;
 use positions::*;
 use allocation::*;
 pub use state::*;
@@ -107,6 +108,10 @@ pub mod musical_chairs_program {
     pub fn fund_operations(ctx: Context<FundOperations>, amount: u64) -> Result<()> { controls::fund_operations(ctx,amount) }
     pub fn withdraw_operations(ctx: Context<WithdrawOperations>, amount: u64) -> Result<()> { controls::withdraw_operations(ctx,amount) }
     pub fn withdraw_management(ctx: Context<WithdrawManagement>, amount: u64) -> Result<()> { controls::withdraw_management(ctx,amount) }
+    pub fn stage_config_version(ctx: Context<StageConfigVersion>, version: u32, terms: ConfigTerms) -> Result<()> { controls::stage_config_version(ctx,version,terms) }
+    pub fn activate_config_version(ctx: Context<ActivateConfigVersion>, version: u32, expected_current: u32) -> Result<()> { controls::activate_config_version(ctx,version,expected_current) }
+    pub fn rotate_recipient(ctx: Context<RotateRecipient>, kind: u8, new_recipient: Pubkey) -> Result<()> { controls::rotate_recipient(ctx,kind,new_recipient) }
+    pub fn rotate_guardian(ctx: Context<RotateGuardian>) -> Result<()> { controls::rotate_guardian(ctx) }
     pub fn provision_snapshot(ctx: Context<ProvisionSnapshot>, index: u64) -> Result<()> { controls::provision_snapshot(ctx,index) }
     pub fn provision_registry(ctx: Context<ProvisionRegistry>, index: u64) -> Result<()> { controls::provision_registry(ctx,index) }
     pub fn open_position(ctx: Context<OpenPosition>, plan: PlanKindArg, gross_lamports:u64, client_nonce:u64) -> Result<()> { positions::open_position(ctx,plan,gross_lamports,client_nonce) }

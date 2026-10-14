@@ -4,7 +4,8 @@
 //! the order below is a frozen client ABI: never reorder or insert, only
 //! append.  The first 22 variants (through `NotImplemented`, 6021) predate the
 //! M2 error split; the nine after it were appended for the allocation,
-//! claim, draw and configuration paths.
+//! claim, draw and configuration paths; `WrongGovernanceProfile` (6031) was
+//! appended in M3 for Squads profile-shape failures.
 use anchor_lang::prelude::*;
 
 #[error_code]
@@ -18,6 +19,8 @@ pub enum ErrorCode {
     NothingToClaim, InsufficientManagement, ReserveUnavailable, PositionRoundClosed,
     DuplicateWritableAccount, LateCapture, Collision, WrongProviderTuple,
     ConfigNotActivatable,
+    // Appended in M3 (6031); keep this order.
+    WrongGovernanceProfile,
 }
 
 #[cfg(test)]
@@ -38,5 +41,6 @@ mod tests {
         assert_eq!(ErrorCode::Collision as u32 + 6000, 6028);
         assert_eq!(ErrorCode::WrongProviderTuple as u32 + 6000, 6029);
         assert_eq!(ErrorCode::ConfigNotActivatable as u32 + 6000, 6030);
+        assert_eq!(ErrorCode::WrongGovernanceProfile as u32 + 6000, 6031);
     }
 }
