@@ -50,8 +50,9 @@ use crate::close::{
     expire_ok, expected_candidates, finalize_ix, finish_by_expiry, host_request, loser,
     nineteen, observe_ix, ok, ok_g, pages_of, provider_keys, provision_candidate_pages, provision_ix,
     raw_withdraw_ix, reconcile_client_ix, reconcile_ix, reject, reject_g, reject_provider,
-    rent_of, request_ix, request_rents, seal_labelled, sponsor_for_owner_rent, standard_reserve,
-    start_second_close, withdraw_ix, ApplyKeys, Part, Scene, Spec, REQUEST_FEE,
+    rent_of, request_ix, request_rents, restore, seal_labelled, sponsor_for_owner_rent,
+    standard_reserve, start_second_close, tamper, withdraw_ix, ApplyKeys, Part, Scene, Spec,
+    REQUEST_FEE,
 };
 use crate::controls::{assert_outcomes_consistent, assert_unique_labels};
 use crate::runtime::{anchor_ix, Observation};
@@ -88,9 +89,12 @@ pub const ROW_PARTICIPANT_CLOSABLE: &str =
 pub const ROW_OLD_TAG: &str = "old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts";
 pub const ROW_DEPLETED_FREE: &str = "full_cash_progress_with_depleted_free_ops_funds";
 pub const ROW_NO_CLEANUP: &str = "cleanup_is_never_required_for_commit_finalize_or_open";
+/// Codex M8 review: runtime proof of the IMPL-36 G1 guard (not a plan row).
+pub const ROW_SETTLED_LOCKS_NOTHING: &str =
+    "settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable";
 
 /// Every row, in suite order (the randomized conservation row is `fuzz.rs`).
-pub const ROW_NAMES: [&str; 19] = [
+pub const ROW_NAMES: [&str; 20] = [
     ROW_SHORT_BY_ONE,
     ROW_BOTH_SETS,
     ROW_MISSING_B,
@@ -110,6 +114,7 @@ pub const ROW_NAMES: [&str; 19] = [
     ROW_OLD_TAG,
     ROW_DEPLETED_FREE,
     ROW_NO_CLEANUP,
+    ROW_SETTLED_LOCKS_NOTHING,
 ];
 
 /// One suite row: a function that runs the scenario and returns its observations.
@@ -137,6 +142,7 @@ pub fn rows() -> Vec<(&'static str, RowFn)> {
         (ROW_OLD_TAG, old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts),
         (ROW_DEPLETED_FREE, full_cash_progress_with_depleted_free_ops_funds),
         (ROW_NO_CLEANUP, cleanup_is_never_required_for_commit_finalize_or_open),
+        (ROW_SETTLED_LOCKS_NOTHING, settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable),
     ]
 }
 
@@ -2748,5 +2754,96 @@ fn table_world_cpi_failure(row: &str, table: &mut Vec<serde_json::Value>) -> Vec
     assert_row("request_round_draw_cpi_fails", &before, &after, &[]);
     assert_eq!(w.close_record(1).draw_state, state::DRAW_NOT_REQUESTED);
     table.push(row_json("request_round_draw_cpi_fails", &before, &after));
+    scene.w.take_log()
+}
+
+// ---------------------------------------------------------------------------
+// Row: settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable
+// ---------------------------------------------------------------------------
+
+/// Codex M8 review, runtime proof of the IMPL-36 G1 guard.  A close expires with
+/// a deferred owner remainder LARGE enough to pay for a candidate page (the
+/// immutable destination was reassigned to a foreign program, so no amount is
+/// deliverable) while both candidate sets still need their first page.  Before
+/// finalization, `provision_page(Candidate{..}, LockedClose)` for each set must
+/// be refused with exact `LockNotPermitted`, fee-only, with CloseRecord, Ops,
+/// OpsCash and the page address byte-identical; finalization and, once the
+/// destination is a system wallet again, `deliver_owner_refund` still succeed.
+/// RED on the IMPL-45 ELF `28f54d5e…` (the page was provisioned out of the
+/// owner's deferred refund), GREEN from IMPL-36 (`locked_permission` requires
+/// `!reserve_settled`).
+pub fn settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable() -> Vec<Observation> {
+    let row = ROW_SETTLED_LOCKS_NOTHING;
+    let reserve = standard_reserve();
+    let page_rent = rent_of(state::CandidatePage::SPACE);
+    let owner_part = 2 * page_rent + 12_345;
+    assert!(owner_part < reserve, "the owner funds {owner_part} of the {reserve}-lamport reserve");
+    let dest_key = destination_keypair(0xD9);
+    let dest = dest_key.pubkey();
+    let spec = Spec { dest: Some(dest), ..Spec::standard().with_sponsor(reserve - owner_part) };
+    let mut scene = make_scene(row, "", spec);
+    let w = &mut scene.w;
+    let cash = w.rt.ops_cash_address();
+    let close0 = w.close_record(1);
+    assert_eq!(close0.locked_owner_remaining, owner_part);
+    assert!(close0.required_pages_per_set >= 1);
+    for set in 0u8..2 {
+        assert!(w.account(candidate_page_key(1, set, 0)).is_none(), "set {set}: the first candidate page is still missing");
+    }
+
+    // The immutable destination can no longer receive lamports: reassigned to a
+    // foreign program with data, `validate_destination` fails whatever the amount.
+    let foreign = Pubkey::new_from_array([0xF0; 32]);
+    let original = tamper(w, dest, |account| {
+        account.owner = foreign;
+        account.data = vec![1u8; 8];
+    });
+
+    w.warp_past_deadline(1);
+    let ops_before = w.ops();
+    let expire = expire_ix(w, 1);
+    ok(w, "expire", vec![expire], &[]);
+    let close = w.close_record(1);
+    assert!(close.reserve_settled, "settlement completes");
+    assert!(matches!(close.promotion, state::Promotion::Skipped { .. }));
+    assert_eq!(close.locked_sponsor_remaining, 0);
+    assert_eq!(close.locked_owner_remaining, owner_part, "deferred: undeliverable destination state, nothing spent");
+    assert!(close.locked_owner_remaining >= page_rent, "absent the guard this credit would pay for a page");
+    assert_eq!(w.ops().locked_remaining_total, owner_part);
+    assert_eq!(w.ops().free_balance, ops_before.free_balance + close0.locked_sponsor_remaining);
+    assert_eq!(w.ops().unallocated_excess, ops_before.unallocated_excess);
+    let frozen = (w.data(w.rt.close_record_address(1)), w.data(w.rt.ops_address()), w.lamports(cash));
+
+    // G1: LockedClose provisioning of the still-missing first page of EACH set is
+    // refused; nothing moves.
+    for (set, variant) in [(0u8, "locked_preferred_refused"), (1u8, "locked_fallback_refused")] {
+        let page = candidate_page_key(1, set, 0);
+        let provision = provision_ix(w, 1, set, 0, Funding::LockedClose);
+        reject(w, variant, vec![provision], &[], ErrorCode::LockNotPermitted);
+        assert!(w.account(page).is_none(), "set {set}: no page account was created");
+        assert_eq!(
+            (w.data(w.rt.close_record_address(1)), w.data(w.rt.ops_address()), w.lamports(cash)),
+            frozen,
+            "set {set}: CloseRecord, Ops and OpsCash are byte-identical"
+        );
+    }
+    assert_eq!(w.close_record(1).locked_owner_remaining, owner_part, "the deferred refund is intact");
+    assert_identities(w);
+
+    // Finalization never depends on the refund; delivery waits for a valid destination.
+    let finalize = finalize_ix(w, 1);
+    ok(w, "finalize", vec![finalize], &[]);
+    assert!(w.close_record(1).finalized);
+    let deliver = deliver_ix(w, 1, dest);
+    reject(w, "deliver_invalid_destination", vec![deliver], &[], ErrorCode::RefundNotDeliverable);
+    restore(w, dest, original);
+    let (dest0, cash0) = (w.lamports(dest), cash_of(w));
+    let deliver = deliver_ix(w, 1, dest);
+    let delivered = ok(w, "", vec![deliver], &[]);
+    assert_eq!(w.lamports(dest) - dest0, owner_part, "the whole deferred refund reached the destination");
+    assert_eq!(cash0 - cash_of(w), owner_part, "paid out of OpsCash");
+    assert_eq!((w.close_record(1).locked_owner_remaining, w.ops().locked_remaining_total), (0, 0));
+    assert_eq!(delivered.last_event::<OwnerRefundDelivered>().amount, owner_part);
+    assert_identities(w);
     scene.w.take_log()
 }

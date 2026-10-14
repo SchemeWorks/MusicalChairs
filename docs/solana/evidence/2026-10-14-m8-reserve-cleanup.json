@@ -50,7 +50,7 @@
  },
  "reserve_suite": {
   "file": "solana/tests/financial-runtime/src/reserve.rs",
-  "rows": 19,
+  "rows": 20,
   "row_names": [
    "all_free_ops_locked_then_locked_close_provisioning_builds_both_sets_without_free_funds",
    "candidate_pages_closable_only_after_their_own_close_is_terminal",
@@ -65,6 +65,7 @@
    "registry_tail_full_extension_page_created_from_locked_reserve",
    "required_reserve_covers_both_candidate_sets_when_every_participant_is_a_preferred_loser",
    "reserve_short_by_one_lamport_rejects_closing_payout_before_mutation",
+   "settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable",
    "snapshot_and_registry_pages_are_not_closable",
    "spare_sponsor_cash_is_not_mistaken_for_a_smaller_locked_obligation",
    "sponsor_partition_consumed_first_then_owner",
@@ -540,5 +541,27 @@
   "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
   "docs/solana/evidence/2026-10-14-m7-owner-refund.json"
  ],
- "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged."
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged.",
+ "g1_runtime_proof": {
+  "trigger": "Codex M8 review: the G1 guard (locked_permission requires !reserve_settled) had unit RED→GREEN but no runtime proof; the reserve suite went straight from expiry to finalize/delivery",
+  "row": "financial.reserve.settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable (reserve.rs; test-only change, no program or ELF change)",
+  "scenario": "owner funds 2 × candidate-page rent + 12,345 lamports of the reserve; no candidate page provisioned; the immutable destination is reassigned to a foreign program with data so no amount is deliverable; expiry settles with the full owner remainder deferred (≥ one page rent); provision_page(Candidate{1, set}, index 0, LockedClose) for set 0 and set 1 → LockNotPermitted 6036 fee-only, no page account created, CloseRecord / Ops / OpsCash bytes and lamports identical; finalize succeeds; deliver_owner_refund refused while the destination is invalid (RefundNotDeliverable); destination restored to a system wallet → delivered exactly once (OwnerRefundDelivered amount == owner_part)",
+  "red": {
+   "elf": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265 (IMPL-45, pre-guard)",
+   "log_sha256": "9f110eeb82d718f60d9ab07e046fbd5e7903dacae0f3c01d116a585a8815cc53",
+   "excerpt": [
+    "financial.reserve.settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable.locked_preferred_refused unexpectedly succeeded: Observation { label: \"financial.reserve.settled_clos"
+   ],
+   "meaning": "the pre-guard program provisioned the preferred candidate page out of the owner's deferred refund"
+  },
+  "green": {
+   "elf": "4b134d05c7385911 (current artifact; same program logic as d7f508ba for this path)",
+   "log_sha256": "3a17e25762b2cfa1d2c1da7d65dfb4fcc60a73f0196c1c265493a5909315120c",
+   "result": "settled_close_locks… ok; reserve_suite_lists_every_plan_row_once ok (20 rows + fuzz); reserve_suite_aggregates_every_row_with_unique_labels ok"
+  },
+  "codex_decisions_recorded": {
+   "M8-F1": "accepted/documented: an undeliverable owner rent component keeps the money on the page; cleanup never gates commit/finalize/open; no new deferral mechanism",
+   "M8-F2": "accepted as documentation / keeper requirement: align build batches with participant AND both candidate page edges, retain the one-row fallback; include in the M11 keeper contract and tests; no new error code"
+  }
+ }
 }

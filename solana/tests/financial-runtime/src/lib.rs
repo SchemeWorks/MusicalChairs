@@ -1553,6 +1553,11 @@ mod reserve_tests {
     }
 
     #[test]
+    fn settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable() {
+        m8::run_row(m8::ROW_SETTLED_LOCKS_NOTHING, m8::settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable);
+    }
+
+    #[test]
     fn cleanup_is_never_required_for_commit_finalize_or_open() {
         m8::run_row(m8::ROW_NO_CLEANUP, m8::cleanup_is_never_required_for_commit_finalize_or_open);
     }
@@ -1581,8 +1586,8 @@ mod reserve_tests {
         }
         let unique: std::collections::BTreeSet<_> = m8::ROW_NAMES.iter().collect();
         assert_eq!(unique.len(), m8::ROW_NAMES.len());
-        // 19 transaction rows here + the randomized row in fuzz.rs = the plan's 20 M8 rows.
-        assert_eq!(m8::ROW_NAMES.len() + 1, 20);
+        // 19 plan rows + the Codex G1 runtime-proof row here, + the randomized row in fuzz.rs.
+        assert_eq!(m8::ROW_NAMES.len() + 1, 21);
     }
 
     #[test]
