@@ -599,10 +599,20 @@ impl FinancialRuntime {
         self.svm.minimum_balance_for_rent_exemption(data_len)
     }
 
+    /// Anchor allocates `T::SPACE` bytes and Borsh writes the serialized prefix;
+    /// `Option`/enum fields encode shorter than the space `InitSpace` reserves,
+    /// so the fixture pads to `space` with zeros exactly as an on-chain account
+    /// created with `space = T::SPACE` would look. A longer encoding is a bug.
     fn put_program_account<T: AccountSerialize>(&mut self, key: Pubkey, value: &T, space: usize) {
-        let data = serialize_account(value);
-        assert_eq!(data.len(), space, "production account wire size changed");
-        let lamports = self.rent(data.len());
+        let mut data = serialize_account(value);
+        assert!(
+            data.len() <= space,
+            "production account wire size {} exceeds declared space {}",
+            data.len(),
+            space
+        );
+        data.resize(space, 0);
+        let lamports = self.rent(space);
         self.svm
             .set_account(
                 key,
