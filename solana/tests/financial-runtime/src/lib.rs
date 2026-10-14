@@ -13,12 +13,14 @@
 
 pub mod controls;
 pub mod financial;
+pub mod provisioning;
 pub mod runtime;
 
 pub use controls::run_controls_m3_suite;
 pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
 };
+pub use provisioning::run_provisioning_suite;
 pub use runtime::{fixtures, FinancialRuntime, Observation};
 
 /// Run the small evidence CLI without making a live transaction claim.
@@ -27,6 +29,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_allocation_golden_flow());
     observations.extend(run_controls_suite());
     observations.extend(run_controls_m3_suite());
+    observations.extend(run_provisioning_suite());
     observations
 }
 
@@ -248,6 +251,187 @@ mod controls_m3_tests {
     }
 }
 
+/// M4 provisioning and cleanup rows.  Each test runs one row of
+/// `provisioning.rs` against the actual compiled SBF (`MC_FINANCIAL_SBF`; the
+/// canonical `FinancialRuntime::new` fixture needs no stand-in).  The row
+/// asserts the exact program error code of every rejection (parsed from
+/// `Observation.error`), fee-only rollback on every rejection, both
+/// cash-register conservation invariants after every transaction, and the exact
+/// rent debit read from the runtime, never from a constant.
+#[cfg(test)]
+mod provisioning_tests {
+    use crate::provisioning::{
+        self as m4, assert_headline, assert_outcomes_consistent, assert_unique_labels,
+    };
+    use crate::runtime::Observation;
+
+    fn run_row(name: &str, row: fn() -> Vec<Observation>) {
+        let observations = row();
+        assert_headline(&observations, name);
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+    }
+
+    #[test]
+    fn provision_snapshot_sequential_only() {
+        run_row(
+            m4::ROW_SNAPSHOT_SEQUENTIAL,
+            m4::provision_snapshot_sequential_only,
+        );
+    }
+
+    #[test]
+    fn provision_from_ops_debits_free_balance_by_exact_rent() {
+        run_row(
+            m4::ROW_FROM_OPS,
+            m4::provision_from_ops_debits_free_balance_by_exact_rent,
+        );
+    }
+
+    #[test]
+    fn provision_by_caller_records_owner_component_and_refund_destination() {
+        run_row(
+            m4::ROW_BY_CALLER,
+            m4::provision_by_caller_records_owner_component_and_refund_destination,
+        );
+    }
+
+    #[test]
+    fn close_snapshot_and_registry_pages_always_refused_not_closable() {
+        run_row(
+            m4::ROW_CLOSE_SNAPSHOT_REGISTRY,
+            m4::close_snapshot_and_registry_pages_always_refused_not_closable,
+        );
+    }
+
+    #[test]
+    fn snapshot_pages_counter_never_decrements() {
+        run_row(
+            m4::ROW_COUNTER_MONOTONE,
+            m4::snapshot_pages_counter_never_decrements,
+        );
+    }
+
+    #[test]
+    fn close_candidate_page_refused_until_its_own_close_record_is_terminal() {
+        run_row(
+            m4::ROW_CLOSE_CANDIDATE,
+            m4::close_candidate_page_refused_until_its_own_close_record_is_terminal,
+        );
+    }
+
+    #[test]
+    fn close_participant_page_refused_until_that_round_finalized() {
+        run_row(
+            m4::ROW_CLOSE_PARTICIPANT,
+            m4::close_participant_page_refused_until_that_round_finalized,
+        );
+    }
+
+    #[test]
+    fn close_candidate_page_refunds_components_once() {
+        run_row(
+            m4::ROW_CANDIDATE_REFUNDS,
+            m4::close_candidate_page_refunds_components_once,
+        );
+    }
+
+    #[test]
+    fn close_close_record_always_refused() {
+        run_row(
+            m4::ROW_CLOSE_CLOSE_RECORD,
+            m4::close_close_record_always_refused,
+        );
+    }
+
+    #[test]
+    fn provision_close_record_requires_next_close_id() {
+        run_row(
+            m4::ROW_CLOSE_RECORD_NEXT,
+            m4::provision_close_record_requires_next_close_id,
+        );
+    }
+
+    #[test]
+    fn provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only() {
+        run_row(
+            m4::ROW_CANDIDATE_RESERVE,
+            m4::provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only,
+        );
+    }
+
+    #[test]
+    fn provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent() {
+        run_row(
+            m4::ROW_LOCKED_DEBITS,
+            m4::provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent,
+        );
+    }
+
+    #[test]
+    fn provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice() {
+        run_row(
+            m4::ROW_LOCKED_REJECTS,
+            m4::provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice,
+        );
+    }
+
+    #[test]
+    fn provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set() {
+        run_row(
+            m4::ROW_LOCKED_BEYOND,
+            m4::provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set,
+        );
+    }
+
+    #[test]
+    fn free_funding_respects_need_bound() {
+        run_row(m4::ROW_NEED_BOUND, m4::free_funding_respects_need_bound);
+    }
+
+    #[test]
+    fn reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess() {
+        run_row(
+            m4::ROW_RECONCILE,
+            m4::reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess,
+        );
+    }
+
+    #[test]
+    fn rent_table() {
+        let observations = m4::rent_table();
+        assert_headline(&observations, m4::ROW_RENT_TABLE);
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+        let carrier = observations
+            .iter()
+            .find(|observation| observation.label == "financial.provisioning.rent-table")
+            .expect("rent-table observation");
+        let note = carrier.unsupported.as_deref().expect("rent table note");
+        assert!(note.contains("local default rent (LiteSVM)"), "{note}");
+        for kind in [
+            "registry_page",
+            "snapshot_page",
+            "participant_page",
+            "candidate_page",
+            "close_record",
+        ] {
+            assert!(note.contains(kind), "rent table lists {kind}: {note}");
+        }
+    }
+
+    #[test]
+    fn provisioning_suite_aggregates_every_row_with_unique_labels() {
+        let observations = m4::run_provisioning_suite();
+        assert_outcomes_consistent(&observations);
+        assert_unique_labels(&observations);
+        for row in m4::ROW_NAMES {
+            assert_headline(&observations, row);
+        }
+        assert_eq!(m4::ROW_NAMES.len(), 17);
+    }
+}
+
 /// Byte-exact fixture tests.  These need no ELF: they prove the committed
 /// `.bin` files are exactly the generator output, decode them with an
 /// independent reader, and keep the fixture READMEs honest.
@@ -450,6 +634,91 @@ mod fixture_tests {
         assert_eq!(ErrorCode::ConfigNotActivatable as u32 + 6000, 6030);
         assert_eq!(ErrorCode::WrongGovernanceProfile as u32 + 6000, 6031);
         assert_eq!(anchor_lang::error::ErrorCode::AccountNotSigner as u32, 3010);
+    }
+
+    #[test]
+    fn error_codes_asserted_by_the_provisioning_suite_are_frozen() {
+        assert_eq!(ErrorCode::InvalidState as u32 + 6000, 6001);
+        assert_eq!(ErrorCode::WrongAccount as u32 + 6000, 6005);
+        assert_eq!(ErrorCode::WrongOwner as u32 + 6000, 6006);
+        assert_eq!(ErrorCode::InsufficientOperations as u32 + 6000, 6007);
+        assert_eq!(ErrorCode::WrongIndex as u32 + 6000, 6032);
+        assert_eq!(ErrorCode::NotClosable as u32 + 6000, 6033);
+        assert_eq!(ErrorCode::AlreadyClosed as u32 + 6000, 6034);
+        assert_eq!(ErrorCode::PageNotProvisioned as u32 + 6000, 6035);
+        assert_eq!(ErrorCode::LockNotPermitted as u32 + 6000, 6036);
+    }
+
+    /// The Borsh client ABI of `PageKind` and `Funding`, and the placement of
+    /// the arguments in the instruction data, read byte by byte.
+    #[test]
+    fn page_kind_and_funding_borsh_encodings_are_frozen() {
+        use anchor_lang::{AnchorSerialize, Discriminator, InstructionData};
+        use musical_chairs_program::{instruction, Funding, PageKind};
+
+        fn bytes<T: AnchorSerialize>(value: T) -> Vec<u8> {
+            value.try_to_vec().expect("Borsh")
+        }
+        assert_eq!(bytes(PageKind::Registry), vec![0]);
+        assert_eq!(bytes(PageKind::Snapshot), vec![1]);
+        let mut participant = vec![2];
+        participant.extend_from_slice(&7u64.to_le_bytes());
+        assert_eq!(bytes(PageKind::Participant { round: 7 }), participant);
+        let mut candidate = vec![3];
+        candidate.extend_from_slice(&9u64.to_le_bytes());
+        candidate.push(1);
+        assert_eq!(
+            bytes(PageKind::Candidate {
+                close_id: 9,
+                set_tag: 1
+            }),
+            candidate
+        );
+        assert_eq!(bytes(Funding::Free), vec![0]);
+        assert_eq!(bytes(Funding::Caller), vec![1]);
+        assert_eq!(bytes(Funding::LockedClose), vec![2]);
+
+        // discriminator || kind || index (u64 LE) || funding
+        let data = instruction::ProvisionPage {
+            kind: PageKind::Candidate {
+                close_id: 9,
+                set_tag: 1,
+            },
+            index: 5,
+            funding: Funding::LockedClose,
+        }
+        .data();
+        let mut expected = instruction::ProvisionPage::DISCRIMINATOR.to_vec();
+        expected.extend_from_slice(&candidate);
+        expected.extend_from_slice(&5u64.to_le_bytes());
+        expected.push(2);
+        assert_eq!(data, expected);
+
+        // discriminator || close_id (u64 LE) || funding
+        let data = instruction::ProvisionCloseRecord {
+            close_id: 4,
+            funding: Funding::Caller,
+        }
+        .data();
+        let mut expected = instruction::ProvisionCloseRecord::DISCRIMINATOR.to_vec();
+        expected.extend_from_slice(&4u64.to_le_bytes());
+        expected.push(1);
+        assert_eq!(data, expected);
+
+        // discriminator || kind (no index: the page stores its own)
+        let data = instruction::CloseSharedAccount {
+            kind: PageKind::Participant { round: 7 },
+        }
+        .data();
+        let mut expected = instruction::CloseSharedAccount::DISCRIMINATOR.to_vec();
+        expected.extend_from_slice(&participant);
+        assert_eq!(data, expected);
+
+        // discriminator only
+        assert_eq!(
+            instruction::ReconcileOpsCash.data(),
+            instruction::ReconcileOpsCash::DISCRIMINATOR.to_vec()
+        );
     }
 
     #[test]

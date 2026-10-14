@@ -1,6 +1,6 @@
 use musical_chairs_financial_runtime::{
-    run_allocation_golden_flow, run_controls_m3_suite, run_controls_suite, run_red_allocation,
-    run_red_claim, run_red_open,
+    run_allocation_golden_flow, run_controls_m3_suite, run_controls_suite, run_provisioning_suite,
+    run_red_allocation, run_red_claim, run_red_open,
 };
 
 fn main() {
@@ -12,15 +12,17 @@ fn main() {
         "flow" => run_allocation_golden_flow(),
         "controls" => run_controls_suite(),
         "controls-m3" => run_controls_m3_suite(),
+        "provisioning" => run_provisioning_suite(),
         "all" => {
             let mut observations = vec![run_red_open(), run_red_claim(), run_red_allocation()];
             observations.extend(run_allocation_golden_flow());
             observations.extend(run_controls_suite());
             observations.extend(run_controls_m3_suite());
+            observations.extend(run_provisioning_suite());
             observations
         }
         _ => panic!(
-            "suite must be open, claim, allocation, flow, controls, controls-m3 or all"
+            "suite must be open, claim, allocation, flow, controls, controls-m3, provisioning or all"
         ),
     };
     let mut report = serde_json::json!({

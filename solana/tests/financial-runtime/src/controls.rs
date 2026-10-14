@@ -793,6 +793,15 @@ fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
     assert_eq!(ops.free_balance, 0);
     assert_eq!(ops.locked_remaining_total, 0);
     assert_eq!(ops.unallocated_excess, 0);
+    assert_eq!(
+        ops.total_rent_funded, 0,
+        "no rent has been funded at genesis"
+    );
+    assert_eq!(
+        ops.protected_rent,
+        rt.rent(0),
+        "Ops.protected_rent is the live OpsCash rent floor at genesis"
+    );
 
     let ticket: state::Ticket = rt.deserialize(rt.ticket_address());
     assert_eq!(ticket.bump, pda(&[state::TICKET_SEED]).1);
@@ -822,14 +831,17 @@ fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
 }
 
 /// The genesis counters: no money, round 1, first close id 1, nothing open.
-fn assert_genesis_counters(pool: &state::Pool) {
+fn assert_genesis_counters(pool: &state::Pool, game_vault_rent: u64) {
     assert_eq!(pool.pot, 0, "pot");
     assert_eq!(pool.seed, 0, "seed");
     assert_eq!(pool.management, 0, "management");
     assert_eq!(pool.pending_toll, 0, "pending_toll");
     assert_eq!(pool.funded_claims, 0, "funded_claims");
     assert_eq!(pool.excess, 0, "excess");
-    assert_eq!(pool.protected_rent, 0, "protected_rent");
+    assert_eq!(
+        pool.protected_rent, game_vault_rent,
+        "protected_rent is the live GameVault rent floor at genesis"
+    );
     assert_eq!(pool.round_id, 1, "round_id");
     assert_eq!(pool.next_close_id, 1, "next_close_id");
     assert_eq!(pool.current_close_id, None, "current_close_id");
@@ -1191,7 +1203,7 @@ pub fn initialize_rejects_one_of_three_profile() -> Vec<Observation> {
 
 pub fn initialize_sets_pot_seed_zero_round_one_next_close_one() -> Vec<Observation> {
     let (rig, args, observation) = genesis(DEVNET_DOMAIN, ROW_INITIALIZE_GENESIS, "");
-    assert_genesis_counters(&rig.pool());
+    assert_genesis_counters(&rig.pool(), rig.rt.rent(state::GameVault::SPACE));
     assert_genesis_accounts(&rig.rt, &args);
     // `initialize` moved no game money: the vault holds only its rent floor.
     assert_eq!(
@@ -1909,6 +1921,7 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
 
     // G stages version 2 for round 2.
     let free_before = rig.ops().free_balance;
+    let rent_funded_before = rig.ops().total_rent_funded;
     let instruction = stage_ix(&rig.rt, g_multisig, g_vault, 2, terms(2));
     let observation = rig.via_g(label(ROW_STAGE_CONFIG, "accepted"), instruction, &[]);
     rig.ok(&observation);
@@ -1932,6 +1945,11 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
         rig.ops().free_balance,
         free_before - rent,
         "the operations free balance pays exactly the new account's rent"
+    );
+    assert_eq!(
+        rig.ops().total_rent_funded,
+        rent_funded_before + u128::from(rent),
+        "the sponsor-funded ConfigVersion rent is added to Ops.total_rent_funded"
     );
     assert_eq!(rig.rt.account(rig.rt.config_address(2)).lamports, rent);
     assert_eq!(rig.rt.account(rig.rt.config_address(2)).owner, ID);

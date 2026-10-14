@@ -459,6 +459,19 @@ impl FinancialRuntime {
     pub fn snapshot_address(&self, index: u64) -> Pubkey {
         pda(&[state::SNAPSHOT_SEED, &index.to_le_bytes()]).0
     }
+    /// `["participants", round, index]`: a round's participant page PDA.
+    pub fn participant_address(&self, round: u64, index: u64) -> Pubkey {
+        pda(&[
+            state::PARTICIPANTS_SEED,
+            &round.to_le_bytes(),
+            &index.to_le_bytes(),
+        ])
+        .0
+    }
+    /// `["close", close_id]`: the canonical `CloseRecord` PDA.
+    pub fn close_record_address(&self, close_id: u64) -> Pubkey {
+        pda(&[state::CLOSE_SEED, &close_id.to_le_bytes()]).0
+    }
 
     pub fn account(&self, key: Pubkey) -> Account {
         self.svm
@@ -620,6 +633,9 @@ impl FinancialRuntime {
             guardian_vault: self.attacker.pubkey(),
             sponsor: self.sponsor.pubkey(),
             management_recipient: self.management.pubkey(),
+            // Genesis shape (M4): `protected_rent` is the live GameVault rent
+            // floor, which is also what `sync_game` writes on later calls.
+            protected_rent: self.rent(state::GameVault::SPACE),
             ..state::Pool::default()
         };
         let pool_address = self.pool_address();
@@ -639,6 +655,9 @@ impl FinancialRuntime {
         let ops = state::Ops {
             bump: pda(&[state::OPS_SEED]).1,
             sponsor: self.sponsor.pubkey(),
+            // Genesis shape (M4): `protected_rent` is the live OpsCash rent
+            // floor, which is also what `sync_ops` writes on later calls.
+            protected_rent: self.rent(0),
             ..state::Ops::default()
         };
         let ops_address = self.ops_address();
@@ -791,6 +810,51 @@ impl FinancialRuntime {
         self.replace_program_account(address, &registry, state::RegistryPage::SPACE);
     }
 
+    /// Fixture write: install or overwrite `CloseRecord(record.close_id)` at
+    /// its canonical PDA.  An existing account keeps its lamports (so a
+    /// provisioned record's rent, or a pre-credit, is never disturbed); a new
+    /// one is funded with exactly its rent floor.
+    pub fn replace_close_record(&mut self, record: state::CloseRecord) {
+        let address = self.close_record_address(record.close_id);
+        self.write_program_account_keeping_lamports(address, &record, state::CloseRecord::SPACE);
+    }
+
+    /// Fixture write: a `CloseRecord`-typed, program-owned account at an
+    /// ARBITRARY address (for spoofed-address rejection rows).
+    pub fn put_close_record_at(&mut self, address: Pubkey, record: state::CloseRecord) {
+        self.write_program_account_keeping_lamports(address, &record, state::CloseRecord::SPACE);
+    }
+
+    /// Fixture write: delete an account (LiteSVM drops zero-lamport accounts).
+    pub fn remove_account(&mut self, key: Pubkey) {
+        self.svm
+            .set_account(key, Account::default())
+            .expect("fixture account removal");
+    }
+
+    /// Fixture write: credit `lamports` to `key`, creating an empty
+    /// system-owned account when none exists (a prefunded, not yet created PDA).
+    pub fn credit_lamports(&mut self, key: Pubkey, lamports: u64) {
+        match self.svm.get_account(&key) {
+            Some(account) => self.replace_lamports(key, account.lamports + lamports),
+            None => self.put_system_account(key, lamports),
+        }
+    }
+
+    /// Turn the canonical fixture into the exact post-`initialize` page shape:
+    /// `initialize` creates no registry or snapshot page, so page 0 of each is
+    /// removed and both page counters are zero.
+    pub fn strip_pages_to_genesis(&mut self) {
+        let registry = self.registry_address(0);
+        let snapshot = self.snapshot_address(0);
+        self.remove_account(registry);
+        self.remove_account(snapshot);
+        let mut pool: state::Pool = self.deserialize(self.pool_address());
+        pool.registry_pages = 0;
+        pool.snapshot_pages = 0;
+        self.replace_pool(pool);
+    }
+
     /// Install the four-row allocation fixture used by the actual-SBF golden
     /// flow.  Page size remains eight; the four rows are deliberately below
     /// the transport boundary while the separate N17/N100 cases can reuse the
@@ -910,6 +974,21 @@ impl FinancialRuntime {
 
     fn replace_program_account<T: AccountSerialize>(&mut self, key: Pubkey, value: &T, space: usize) {
         self.put_program_account(key, value, space);
+    }
+
+    /// [`Self::put_program_account`], except that an account which already
+    /// exists keeps the lamports it holds.
+    fn write_program_account_keeping_lamports<T: AccountSerialize>(
+        &mut self,
+        key: Pubkey,
+        value: &T,
+        space: usize,
+    ) {
+        let existing = self.svm.get_account(&key).map(|account| account.lamports);
+        self.put_program_account(key, value, space);
+        if let Some(lamports) = existing {
+            self.replace_lamports(key, lamports);
+        }
     }
 
     fn put_system_account(&mut self, key: Pubkey, lamports: u64) {

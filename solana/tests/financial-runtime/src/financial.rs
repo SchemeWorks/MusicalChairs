@@ -439,14 +439,21 @@ fn open_instruction(
             user: runtime.user_address(owner),
             user_round: runtime.user_round_address(1, owner),
             position,
+            // M5 account list: the pool's active ConfigVersion (v1 in the
+            // fixture) and the round-1 participant page at index
+            // `participant_count / 8` (0 in the fixture).
+            config: runtime.config_address(1),
+            participant_page: runtime.participant_address(1, 0),
             system_program: system_program::ID,
             event_authority: runtime.event_authority_address(),
             program: musical_chairs_program::ID,
         },
         instruction::OpenPosition {
             plan: PlanKindArg::Simple,
-            gross_lamports: OPEN_GROSS,
+            gross: OPEN_GROSS,
             client_nonce: nonce,
+            expected_round_id: 1,
+            expected_config: 1,
         },
     )
 }
@@ -458,25 +465,29 @@ fn claim_instruction(
     destination: Pubkey,
 ) -> Instruction {
     anchor_ix(
-        accounts::ClaimPosition {
+        accounts::Payout {
             owner,
             pool: runtime.pool_address(),
             admission: runtime.admission_address(),
             game_vault: runtime.game_vault_address(),
             ops: runtime.ops_address(),
             ops_cash: runtime.ops_cash_address(),
-            user: runtime.user_address(owner),
             user_round: runtime.user_round_address(1, owner),
             position,
             ticket: runtime.ticket_address(),
+            // The position's pinned ConfigVersion (v1 in the fixture).
+            config: runtime.config_address(1),
             destination,
+            // Optional: only a payout that closes the round passes a
+            // CloseRecord; `None` encodes as the program id placeholder.
+            close_record: None,
             system_program: system_program::ID,
             event_authority: runtime.event_authority_address(),
             program: musical_chairs_program::ID,
         },
-        instruction::ClaimPosition {
+        instruction::WithdrawSimple {
             minimum_receive: CLAIM_MINIMUM,
-            close_simple: false,
+            max_work_contribution: 0,
         },
     )
 }
