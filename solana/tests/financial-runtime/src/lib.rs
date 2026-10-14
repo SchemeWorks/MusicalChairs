@@ -24,8 +24,10 @@ pub mod allocation;
 pub mod close;
 pub mod controls;
 pub mod financial;
+pub mod fuzz;
 pub mod positions_suite;
 pub mod provisioning;
+pub mod reserve;
 pub mod runtime;
 pub mod world;
 
@@ -35,8 +37,10 @@ pub use controls::run_controls_m3_suite;
 pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
 };
+pub use fuzz::run_fuzz_suite;
 pub use positions_suite::run_positions_suite;
 pub use provisioning::run_provisioning_suite;
+pub use reserve::run_reserve_suite;
 pub use runtime::{fixtures, FinancialRuntime, Observation};
 
 /// Run the small evidence CLI without making a live transaction claim.
@@ -49,6 +53,8 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_positions_suite());
     observations.extend(run_allocation_suite());
     observations.extend(run_close_suite());
+    observations.extend(run_reserve_suite());
+    observations.extend(run_fuzz_suite());
     observations
 }
 
@@ -1447,5 +1453,168 @@ mod close_tests {
         // Framework codes the suite asserts.
         assert_eq!(anchor_lang::error::ErrorCode::AccountNotSigner as u32, 3010);
         assert_eq!(anchor_lang::error::ErrorCode::ConstraintSeeds as u32, 2006);
+    }
+}
+
+#[cfg(test)]
+mod reserve_tests {
+    use crate::fuzz as fuzz8;
+    use crate::reserve as m8;
+    use musical_chairs_program::ErrorCode;
+
+    #[test]
+    fn reserve_short_by_one_lamport_rejects_closing_payout_before_mutation() {
+        m8::run_row(m8::ROW_SHORT_BY_ONE, m8::reserve_short_by_one_lamport_rejects_closing_payout_before_mutation);
+    }
+
+    #[test]
+    fn required_reserve_covers_both_candidate_sets_when_every_participant_is_a_preferred_loser() {
+        m8::run_row(m8::ROW_BOTH_SETS, m8::required_reserve_covers_both_candidate_sets_when_every_participant_is_a_preferred_loser);
+    }
+
+    #[test]
+    fn missing_b_account_is_created_from_locked_reserve_with_ops_free_zero() {
+        m8::run_row(m8::ROW_MISSING_B, m8::missing_b_account_is_created_from_locked_reserve_with_ops_free_zero);
+    }
+
+    #[test]
+    fn registry_tail_full_extension_page_created_from_locked_reserve() {
+        m8::run_row(m8::ROW_REGISTRY_TAIL, m8::registry_tail_full_extension_page_created_from_locked_reserve);
+    }
+
+    #[test]
+    fn owner_quoted_fallback_funds_storage_and_provider_costs_after_sponsor_with_exact_source_attribution() {
+        m8::run_row(m8::ROW_OWNER_QUOTED, m8::owner_quoted_fallback_funds_storage_and_provider_costs_after_sponsor_with_exact_source_attribution);
+    }
+
+    #[test]
+    fn sponsor_partition_consumed_first_then_owner() {
+        m8::run_row(m8::ROW_SPONSOR_FIRST, m8::sponsor_partition_consumed_first_then_owner);
+    }
+
+    #[test]
+    fn spare_sponsor_cash_is_not_mistaken_for_a_smaller_locked_obligation() {
+        m8::run_row(m8::ROW_SPARE, m8::spare_sponsor_cash_is_not_mistaken_for_a_smaller_locked_obligation);
+    }
+
+    #[test]
+    fn uneven_preprovisioning_preferred_over_fallback_absent_locks_only_fallback_pages() {
+        m8::run_row(m8::ROW_UNEVEN, m8::uneven_preprovisioning_preferred_over_fallback_absent_locks_only_fallback_pages);
+    }
+
+    #[test]
+    fn all_free_ops_locked_then_locked_close_provisioning_builds_both_sets_without_free_funds() {
+        m8::run_row(m8::ROW_ALL_FREE_LOCKED, m8::all_free_ops_locked_then_locked_close_provisioning_builds_both_sets_without_free_funds);
+    }
+
+    #[test]
+    fn unused_remaining_refunded_once_at_terminal_promotion_to_ops_and_owner_destination() {
+        m8::run_row(m8::ROW_UNUSED_REFUNDED, m8::unused_remaining_refunded_once_at_terminal_promotion_to_ops_and_owner_destination);
+    }
+
+    #[test]
+    fn client_reimbursement_never_becomes_free_ops_or_owner_refund_without_withdraw_provider_return() {
+        m8::run_row(m8::ROW_CLIENT_REIMBURSEMENT, m8::client_reimbursement_never_becomes_free_ops_or_owner_refund_without_withdraw_provider_return);
+    }
+
+    #[test]
+    fn conservation_transitions_table_8_6_holds_for_every_row() {
+        m8::run_row(m8::ROW_TABLE_8_6, m8::conservation_transitions_table_8_6_holds_for_every_row);
+    }
+
+    #[test]
+    fn sponsor_withdrawal_cannot_touch_locked() {
+        m8::run_row(m8::ROW_SPONSOR_WITHDRAWAL, m8::sponsor_withdrawal_cannot_touch_locked);
+    }
+
+    #[test]
+    fn snapshot_and_registry_pages_are_not_closable() {
+        m8::run_row(m8::ROW_PERMANENT_PAGES, m8::snapshot_and_registry_pages_are_not_closable);
+    }
+
+    #[test]
+    fn candidate_pages_closable_only_after_their_own_close_is_terminal() {
+        m8::run_row(m8::ROW_CANDIDATE_CLOSABLE, m8::candidate_pages_closable_only_after_their_own_close_is_terminal);
+    }
+
+    #[test]
+    fn participant_pages_closable_only_after_their_round_finalized() {
+        m8::run_row(m8::ROW_PARTICIPANT_CLOSABLE, m8::participant_pages_closable_only_after_their_round_finalized);
+    }
+
+    #[test]
+    fn old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts() {
+        m8::run_row(m8::ROW_OLD_TAG, m8::old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts);
+    }
+
+    #[test]
+    fn full_cash_progress_with_depleted_free_ops_funds() {
+        m8::run_row(m8::ROW_DEPLETED_FREE, m8::full_cash_progress_with_depleted_free_ops_funds);
+    }
+
+    #[test]
+    fn cleanup_is_never_required_for_commit_finalize_or_open() {
+        m8::run_row(m8::ROW_NO_CLEANUP, m8::cleanup_is_never_required_for_commit_finalize_or_open);
+    }
+
+    #[test]
+    fn randomized_300_step_sequence_keeps_both_conservation_identities() {
+        let observations = fuzz8::run_fuzz_suite();
+        let headline = format!("financial.fuzz.{}", fuzz8::ROW);
+        assert!(
+            observations.iter().any(|observation| observation.label == headline),
+            "the sequence produced no headline observation {headline}"
+        );
+        assert!(observations.iter().all(|observation| observation.label.starts_with("financial.fuzz.")));
+        crate::controls::assert_outcomes_consistent(&observations);
+        crate::controls::assert_unique_labels(&observations);
+        assert_eq!(fuzz8::SEED, 0x4D43_4655_5A5A_3038, "the seed is MCFUZZ08");
+        assert_eq!(fuzz8::STEPS, 300);
+    }
+
+    #[test]
+    fn reserve_suite_lists_every_plan_row_once() {
+        let rows = m8::rows();
+        assert_eq!(rows.len(), m8::ROW_NAMES.len());
+        for ((name, _), expected) in rows.iter().zip(m8::ROW_NAMES) {
+            assert_eq!(*name, expected);
+        }
+        let unique: std::collections::BTreeSet<_> = m8::ROW_NAMES.iter().collect();
+        assert_eq!(unique.len(), m8::ROW_NAMES.len());
+        // 19 transaction rows here + the randomized row in fuzz.rs = the plan's 20 M8 rows.
+        assert_eq!(m8::ROW_NAMES.len() + 1, 20);
+    }
+
+    #[test]
+    fn reserve_suite_aggregates_every_row_with_unique_labels() {
+        let observations = m8::run_reserve_suite();
+        for (name, _) in m8::rows() {
+            m8::assert_headline(&observations, name);
+        }
+        assert!(observations.iter().all(|observation| observation.label.starts_with("financial.reserve.")));
+    }
+
+    #[test]
+    fn error_codes_asserted_by_the_reserve_suite_are_frozen() {
+        let code = |error: ErrorCode| error as u32 + 6000;
+        assert_eq!(code(ErrorCode::InvalidState), 6001);
+        assert_eq!(code(ErrorCode::NotAuthorized), 6004);
+        assert_eq!(code(ErrorCode::WrongAccount), 6005);
+        assert_eq!(code(ErrorCode::InsufficientOperations), 6007);
+        assert_eq!(code(ErrorCode::AllocationPending), 6010);
+        assert_eq!(code(ErrorCode::Closing), 6011);
+        assert_eq!(code(ErrorCode::StaleRound), 6016);
+        assert_eq!(code(ErrorCode::ReserveUnavailable), 6024);
+        assert_eq!(code(ErrorCode::WrongIndex), 6032);
+        assert_eq!(code(ErrorCode::NotClosable), 6033);
+        assert_eq!(code(ErrorCode::AlreadyClosed), 6034);
+        assert_eq!(code(ErrorCode::LockNotPermitted), 6036);
+        assert_eq!(code(ErrorCode::StaleTicket), 6039);
+        assert_eq!(code(ErrorCode::DeadlineNotReached), 6044);
+        assert_eq!(code(ErrorCode::PromotionTerminal), 6045);
+        assert_eq!(code(ErrorCode::NotSealed), 6046);
+        assert_eq!(code(ErrorCode::AlreadyObserved), 6049);
+        assert_eq!(code(ErrorCode::NothingDeferred), 6050);
+        assert_eq!(code(ErrorCode::RefundNotDeliverable), 6051);
     }
 }

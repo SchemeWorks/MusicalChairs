@@ -1,0 +1,544 @@
+{
+ "recorded_at_utc": "2026-10-14T15:19:05.080118+00:00",
+ "card": "IMPL-38 (closing IMPL-36, IMPL-37)",
+ "milestone": "M8 reserve, refund and cleanup end-to-end; randomized conservation",
+ "branch": "codex/native-solana-production-core",
+ "commit_at_run": "3e26f20ccafd9cbcf9d311b22d1834277bfe8de6",
+ "elf": {
+  "sha256": "d7f508ba3ae2c6a29af3ec5fa23f0469937c554d2a45be41a815080fe0ae4f07",
+  "source_set_sha256": "9e33c98b110b09e998a7b9ecd02f755255154e641ce4ea755df9644c6e54959f",
+  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "build_log_sha256": "d1adb8e543a170b7004879171a8a8d1db8dc113880e2e15f29a2f33584c9bdfd",
+  "idl_sha256": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "idl_unchanged_since_m7": true,
+  "program_unit_tests": 248
+ },
+ "program_pass_impl36": {
+  "commit": "3e26f20",
+  "patch_sha256_prefix": "445c79ea",
+  "unit_tests": "243 → 248",
+  "changes": {
+   "M7-F2": "capture_round_draw refactored into capture_gate (IgnoredLate replay no-op before any account read) + book_capture (Replay/IgnoredLate/Captured) with require_pending ahead of the deadline branch; a capture on a terminal close is PromotionTerminal whether timely, at the deadline or late and writes no draw_state; RED 245/1 (late capture on a terminal close got Ok) → GREEN; harness late_authentic_fulfillment_after_skip first scene updated",
+   "G1": "locked_permission gains && !close.reserve_settled: a settled close's deferred owner refund (IMPL-43) could otherwise be spent as LockedClose page rent until finalize; LockNotPermitted (existing code); Free/Caller unaffected; no lamports were at risk (the owner component returns on close_shared_account) but the deferred partition must never be spendable"
+  },
+  "per_row": {
+   "reserve_short_by_one_lamport_rejects_closing_payout_before_mutation": "HOLDS — positions::lock_split: sponsor = min(R, free), owner = min(R − sponsor, max_work_contribution), sponsor + owner == R else ReserveUnavailable; payout_preflight read-only (DR-12 order); unit lock_split_takes_sponsor_cash_first_then_the_capped_owner_contribution",
+   "required_reserve_covers_both_candidate_sets_when_every_participant_is_a_preferred_loser": "HOLDS — state::required_close_reserve sums per-set missing pages with saturating_sub; unit close_reserve_counts_one_page_per_set_for_eight_participants, closing_reserve_scales_with_participants_and_registry_tail",
+   "missing_b_account_is_created_from_locked_reserve_with_ops_free_zero": "HOLDS — apply_winner → create_locked_account → book_locked_rent(Spend::BAccount); apply_promotion never reads free_balance; promotion_holdback keeps B/registry rent in the reserve; unit locked_rent_is_booked_under_its_own_category_sponsor_first, a_request_must_leave_the_promotions_own_storage_rent_in_the_reserve",
+   "registry_tail_full_extension_page_created_from_locked_reserve": "HOLDS — append_to_registry (Spend::RegistryPage), registry_extension_required in bind_close_record, holdback, extension term in required_close_reserve; unit a_registry_tail_that_is_not_the_next_page_is_refused, close_reserve_registry_extension_follows_page_boundary",
+   "owner_quoted_fallback_funds_storage_and_provider_costs_after_sponsor_with_exact_source_attribution": "HOLDS — plan_request_spend (fee then rent, sponsor first) → book_request (spent.provider_fee_s/o, request_rent_s/o, request_rent_funded_s/o); consumed fee only in provider_fee_consumed_total; owner refunded first, only after observation, only through withdraw_provider_return (IMPL-45 preflight)",
+   "sponsor_partition_consumed_first_then_owner": "HOLDS — lib::split_locked, charge_locked, close::book_locked_rent compute-then-assign, exact _s/_o sources, O(1) locked_remaining_total == s + o; unit locked_split_pays_sponsor_partition_first_then_owner, locked_charge_decrements_partitions_sponsor_first_and_records_everything, locked_charge_fails_closed_and_leaves_both_records_untouched",
+   "spare_sponsor_cash_is_not_mistaken_for_a_smaller_locked_obligation": "HOLDS — required comes only from schedule/pool/record counts, never free_balance; lock_split(2,5,0) == (2,0); only lock.sponsor leaves free_balance",
+   "uneven_preprovisioning_preferred_over_fallback_absent_locks_only_fallback_pages": "HOLDS — per-set saturating_sub; unit close_reserve_never_lets_one_over_provisioned_set_offset_the_other, over_provisioned_candidate_sets_never_offset_each_other",
+   "all_free_ops_locked_then_locked_close_provisioning_builds_both_sets_without_free_funds": "HOLDS — create_shared_locked → charge_locked never touches free_balance (runtime part in the reserve suite)",
+   "unused_remaining_refunded_once_at_terminal_promotion_to_ops_and_owner_destination": "HOLDS + G1 FIXED — settle_books guarded by reserve_settled; sponsor remainder → free; owner remainder paid or deferred (never excess); book_delivery once; NEW: locked_permission requires !reserve_settled so the deferred refund can never be spent as LockedClose page rent (unit a_settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable; RED 246/1 → GREEN)",
+   "client_reimbursement_never_becomes_free_ops_or_owner_refund_without_withdraw_provider_return": "HOLDS — book_observation touches only eligibility counters; observe_client records the Client balance; sync_ops classifies other credits as excess; only withdraw_provider_return → book_return pays/credits",
+   "conservation_transitions_table_8_6_holds_for_every_row": "HOLDS, coverage added — pure Model test locked_total_equals_the_remaining_partitions_after_every_transition + NEW the_identity_holds_through_an_undeliverable_settlement_and_its_later_delivery; page closure by closure_split_returns_components_exactly_and_routes_the_rest_to_excess; anonymous-credit row harness-only",
+   "sponsor_withdrawal_cannot_touch_locked": "HOLDS — withdraw_operations requires amount <= free_balance and lamports >= rent_floor + L + amount; fund_operations sync_ops then free_balance/total_contributed (harness-only at runtime)",
+   "snapshot_and_registry_pages_are_not_closable": "HOLDS — controls::closable false for both; close_shared_account arm returns NotClosable; unit closability_matrix_per_kind_and_predicate",
+   "candidate_pages_closable_only_after_their_own_close_is_terminal": "HOLDS — closable requires canonical record, close_id match and promotion != Pending; handler checks decoded close_id/set_tag and derived PDA",
+   "participant_pages_closable_only_after_their_round_finalized": "HOLDS — closable requires canonical record, round match and finalized; handler checks decoded round_id and derived PDA",
+   "old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts": "HOLDS — snapshot pages never closable regardless of tag/ticket state",
+   "full_cash_progress_with_depleted_free_ops_funds": "HOLDS — CommitTicket/ClaimBacker/FinalizeRound carry no Ops/OpsCash account; book_finalize reads only cash_committed and reserve_settled (deferred refund counts as settled); promotion spends only locked partitions",
+   "cleanup_is_never_required_for_commit_finalize_or_open": "HOLDS — same account-set argument; a new round's participant page is provisioned, not cleaned up",
+   "randomized_300_step_sequence_keeps_both_conservation_identities": "harness-only (fuzz.rs)"
+  },
+  "out_of_scope_reported": [
+   "close_shared_account credits the owner rent component with only validate_destination, no credit_is_deliverable: a sub-minimum owner component to a fresh/rent-paying destination fails the close at the runtime rent check on the cluster (LiteSVM cannot show it); the page stays unclosable until the destination is funded; no loss; cleanup never a precondition — design decision for Codex (M8-F1)",
+   "codes 6027/6047 still never raised (reserved)"
+  ]
+ },
+ "reserve_suite": {
+  "file": "solana/tests/financial-runtime/src/reserve.rs",
+  "rows": 19,
+  "row_names": [
+   "all_free_ops_locked_then_locked_close_provisioning_builds_both_sets_without_free_funds",
+   "candidate_pages_closable_only_after_their_own_close_is_terminal",
+   "cleanup_is_never_required_for_commit_finalize_or_open",
+   "client_reimbursement_never_becomes_free_ops_or_owner_refund_without_withdraw_provider_return",
+   "conservation_transitions_table_8_6_holds_for_every_row",
+   "full_cash_progress_with_depleted_free_ops_funds",
+   "missing_b_account_is_created_from_locked_reserve_with_ops_free_zero",
+   "old_tag_snapshot_page_cannot_be_closed_after_new_ticket_starts",
+   "owner_quoted_fallback_funds_storage_and_provider_costs_after_sponsor_with_exact_source_attribution",
+   "participant_pages_closable_only_after_their_round_finalized",
+   "registry_tail_full_extension_page_created_from_locked_reserve",
+   "required_reserve_covers_both_candidate_sets_when_every_participant_is_a_preferred_loser",
+   "reserve_short_by_one_lamport_rejects_closing_payout_before_mutation",
+   "snapshot_and_registry_pages_are_not_closable",
+   "spare_sponsor_cash_is_not_mistaken_for_a_smaller_locked_obligation",
+   "sponsor_partition_consumed_first_then_owner",
+   "sponsor_withdrawal_cannot_touch_locked",
+   "uneven_preprovisioning_preferred_over_fallback_absent_locks_only_fallback_pages",
+   "unused_remaining_refunded_once_at_terminal_promotion_to_ops_and_owner_destination"
+  ],
+  "observations": 448,
+  "successes": 376,
+  "rejections": 72
+ },
+ "fuzz": {
+  "file": "solana/tests/financial-runtime/src/fuzz.rs",
+  "seed": "0x4D43_4655_5A5A_3038 (MCFUZZ08), xorshift64*",
+  "steps": 300,
+  "step_mix": "coverage sweep every 5th step before step 215 (least-attempted family); otherwise 52% progress-engine advance, 30% perturbation, 18% adversarial draws (15 kinds); advance forced when behind schedule",
+  "closes": "close 1 full draw path (request, fulfil, observe, G-signed provider return, apply; owner refund deferred by draining the destination in the settling transaction, OWNER_PART 400,000); close 2 expiry",
+  "families": "32 plus Aux, incl. provision_page Free|Caller|LockedClose and fund/withdraw_operations (sponsor-signed / permissionless as the program defines them)",
+  "per_step_invariants": [
+   "both conservation identities and L == Σ(s+o)",
+   "terminal ⇔ reserve_settled",
+   "remaining ≤ required_reserve",
+   "Σ eligible_return_remaining == ops.eligible_return_budget",
+   "outstanding request rent == funded rent of unobserved requests"
+  ],
+  "coverage_asserted": [
+   "≥2 finalized rounds",
+   "≥1 committed ticket",
+   "≥1 paid claim",
+   "≥1 provider return",
+   "≥1 delivered deferred refund",
+   "≥1 booked deferral",
+   "all 32 families attempted"
+  ],
+  "observations": 285,
+  "successes": 174,
+  "rejections": 111,
+  "executed": {
+   "observations": 285,
+   "distinct_steps_with_an_observation": 284,
+   "step_range": [
+    0,
+    299
+   ],
+   "coverage_summary_from_headline": {
+    "coverage": {
+     "adversary_draws": 47,
+     "claims_paid": 2,
+     "committed_tickets": 7,
+     "deferred_refunds_booked": 2,
+     "deferred_refunds_delivered": 2,
+     "draw_requests": 3,
+     "engine_rejections": 0,
+     "finalized_rounds": 4,
+     "promotions_applied": 2,
+     "promotions_skipped": 2,
+     "provider_returns": 2
+    },
+    "families": {
+     "allocate_rows": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "apply_promotion": {
+      "attempts": 6,
+      "successes": 2
+     },
+     "apply_senior": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "aux_transfer": {
+      "attempts": 2,
+      "successes": 2
+     },
+     "build_candidates": {
+      "attempts": 11,
+      "successes": 10
+     },
+     "capture_round_draw": {
+      "attempts": 5,
+      "successes": 2
+     },
+     "claim_backer": {
+      "attempts": 8,
+      "successes": 2
+     },
+     "close_shared_account": {
+      "attempts": 7,
+      "successes": 5
+     },
+     "close_simple_position": {
+      "attempts": 5,
+      "successes": 0
+     },
+     "commit_ticket": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "deliver_owner_refund": {
+      "attempts": 10,
+      "successes": 2
+     },
+     "discover_rows": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "expire_promotion": {
+      "attempts": 6,
+      "successes": 2
+     },
+     "finalize_round": {
+      "attempts": 6,
+      "successes": 4
+     },
+     "fund_operations": {
+      "attempts": 8,
+      "successes": 8
+     },
+     "fund_series_a": {
+      "attempts": 10,
+      "successes": 1
+     },
+     "increase_provider_budget": {
+      "attempts": 4,
+      "successes": 0
+     },
+     "observe_request_fulfilled": {
+      "attempts": 7,
+      "successes": 2
+     },
+     "open_position": {
+      "attempts": 43,
+      "successes": 28
+     },
+     "orao_fulfill": {
+      "attempts": 6,
+      "successes": 3
+     },
+     "provision_close_record": {
+      "attempts": 8,
+      "successes": 5
+     },
+     "provision_page_caller": {
+      "attempts": 6,
+      "successes": 6
+     },
+     "provision_page_free": {
+      "attempts": 10,
+      "successes": 3
+     },
+     "provision_page_locked_close": {
+      "attempts": 11,
+      "successes": 10
+     },
+     "prune_rows": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "reconcile_ops_cash": {
+      "attempts": 13,
+      "successes": 13
+     },
+     "reconcile_ops_cash_with_client": {
+      "attempts": 6,
+      "successes": 6
+     },
+     "request_round_draw": {
+      "attempts": 7,
+      "successes": 3
+     },
+     "seal_weights": {
+      "attempts": 7,
+      "successes": 7
+     },
+     "settle_compounding": {
+      "attempts": 5,
+      "successes": 0
+     },
+     "withdraw_operations": {
+      "attempts": 8,
+      "successes": 2
+     },
+     "withdraw_provider_return": {
+      "attempts": 9,
+      "successes": 2
+     },
+     "withdraw_simple": {
+      "attempts": 15,
+      "successes": 8
+     }
+    },
+    "history_lines": 297,
+    "profiles": "close 1: full draw + provider return + owner refund deferred by emptying D0 in the settling transaction; close 2: expiry; later closes alternate",
+    "rejection_codes": {
+     "2006": 2,
+     "3007": 3,
+     "3012": 11,
+     "6001": 19,
+     "6004": 6,
+     "6007": 5,
+     "6010": 4,
+     "6011": 21,
+     "6014": 4,
+     "6016": 2,
+     "6022": 2,
+     "6032": 10,
+     "6033": 2,
+     "6035": 2,
+     "6044": 3,
+     "6046": 3,
+     "6048": 2,
+     "6049": 3,
+     "6050": 7
+    },
+    "rng": "xorshift64* (x ^= x >> 12; x ^= x << 25; x ^= x >> 27; x * 0x2545F4914F6CDD1D)",
+    "seed": "0x4d4346555a5a3038",
+    "seed_ascii": "MCFUZZ08",
+    "step_mix": "sweep every 5th step before step 215 (least-attempted family); otherwise 52% advance (progress engine), 30% perturb, 18% adversary; 100% advance when behind schedule",
+    "steps": 300
+   },
+   "note": "steps without an observation are draws that resolved to no transaction (e.g. a Request that would turn the expiry-profile close into a draw); every executed step asserted both conservation identities and the partition identity"
+  }
+ },
+ "rejection_tally_reserve_and_fuzz": {
+  "InstructionError(1, Custom(6024))": 3,
+  "InstructionError(1, Custom(6036))": 1,
+  "InstructionError(1, Custom(6045))": 3,
+  "InstructionError(1, Custom(6050))": 9,
+  "InstructionError(1, Custom(6001))": 17,
+  "InstructionError(1, Custom(6051))": 3,
+  "InstructionError(1, Custom(6005))": 9,
+  "InstructionError(1, InsufficientFunds)": 1,
+  "InstructionError(1, Custom(6004))": 7,
+  "InstructionError(1, Custom(6007))": 12,
+  "InstructionError(1, Custom(6033))": 41,
+  "InstructionError(1, Custom(6034))": 2,
+  "InstructionError(1, Custom(3012))": 11,
+  "InstructionError(1, Custom(6032))": 10,
+  "InstructionError(1, Custom(6014))": 4,
+  "InstructionError(1, Custom(6010))": 4,
+  "InstructionError(1, Custom(6011))": 21,
+  "InstructionError(1, Custom(6035))": 2,
+  "InstructionError(1, Custom(6046))": 3,
+  "InstructionError(2, Custom(3007))": 3,
+  "InstructionError(2, Custom(6001))": 3,
+  "InstructionError(2, Custom(6044))": 1,
+  "InstructionError(1, Custom(6049))": 3,
+  "InstructionError(1, Custom(6044))": 2,
+  "InstructionError(1, Custom(6022))": 2,
+  "InstructionError(1, Custom(6016))": 2,
+  "InstructionError(1, Custom(2006))": 2,
+  "InstructionError(1, Custom(6048))": 2
+ },
+ "first_execution": {
+  "reserve_rows": "20 of 22 reserve_tests passed on the first run (fuzz excluded); the two failures shared one cause",
+  "failure": "full_cash_progress_with_depleted_free_ops_funds: 19 history-free losers fill three candidate pages per set and the row built in batches of 4, so a batch straddled a candidate-page edge; one build_candidates call carries ONE page per set and the program reports the straddle as PageNotProvisioned 6035 (close.rs build_batch, `page.page == index`); fixed by building one participant per call (coordinator); the aggregate test failed only through that row",
+  "fuzz_first_run": "1 passed in 1.66 s (300 steps; coverage counters asserted inside the test; observation set recorded from the CLI fuzz suite in the receipt)",
+  "logs": {
+   "reserve_sha256": "03b287229d5f3349cf0f8920f5f53dc4c9b4a02b07f22ca825fb41cb6ad9e9d9",
+   "fuzz_sha256": "facc37bab32d1007e5e2749d078e4773d6525a62843c3dcf1f32cddb2f3e823f",
+   "fix_sha256": "463597fdd4ec13a5ffcae1730748d4d15fa2007e78b497105727b75d20813814"
+  },
+  "coordinator_edits_to_the_worker_suite": [
+   "full_cash_progress_with_depleted_free_ops_funds: build batch 4 → 1 with a comment (page-edge alignment)"
+  ]
+ },
+ "full_harness": {
+  "results": [
+   "ok. 165 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 131.89s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.05s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 48.09s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "6992b4aabfef02bd780a90658a090c07349957d0201051430ae1d96305be452b",
+  "cli_all_exit": 0,
+  "cli_observations_total": 2578,
+  "cli_json": {
+   "path": "docs/solana/evidence/2026-10-14-m8-cli.json",
+   "sha256": "2eb2783b21e37d3f3dca42d8cc2f8e97995b4877788e512329e1cb654c63da8e"
+  }
+ },
+ "compute_and_packet_by_instruction_max_over_m8_successes": {
+  "AllocateRows": {
+   "cu_max": 42501,
+   "packet_max": 571,
+   "accounts_max": 13,
+   "n": 13
+  },
+  "ApplyPromotion": {
+   "cu_max": 73184,
+   "packet_max": 794,
+   "accounts_max": 18,
+   "n": 17
+  },
+  "ApplySenior": {
+   "cu_max": 8066,
+   "packet_max": 291,
+   "accounts_max": 5,
+   "n": 13
+  },
+  "BuildCandidates": {
+   "cu_max": 50383,
+   "packet_max": 816,
+   "accounts_max": 21,
+   "n": 125
+  },
+  "CaptureRoundDraw": {
+   "cu_max": 29742,
+   "packet_max": 383,
+   "accounts_max": 8,
+   "n": 17
+  },
+  "ClaimBacker": {
+   "cu_max": 28173,
+   "packet_max": 514,
+   "accounts_max": 10,
+   "n": 4
+  },
+  "CloseSharedAccount": {
+   "cu_max": 19401,
+   "packet_max": 425,
+   "accounts_max": 9,
+   "n": 12
+  },
+  "CommitTicket": {
+   "cu_max": 21287,
+   "packet_max": 358,
+   "accounts_max": 7,
+   "n": 13
+  },
+  "DeliverOwnerRefund": {
+   "cu_max": 25913,
+   "packet_max": 529,
+   "accounts_max": 10,
+   "n": 5
+  },
+  "DiscoverRows": {
+   "cu_max": 41029,
+   "packet_max": 644,
+   "accounts_max": 15,
+   "n": 13
+  },
+  "ExpirePromotion": {
+   "cu_max": 28277,
+   "packet_max": 449,
+   "accounts_max": 10,
+   "n": 13
+  },
+  "FinalizeRound": {
+   "cu_max": 17414,
+   "packet_max": 317,
+   "accounts_max": 6,
+   "n": 16
+  },
+  "Fulfill": {
+   "cu_max": 19747,
+   "packet_max": 628,
+   "accounts_max": 10,
+   "n": 18
+  },
+  "FundOperations": {
+   "cu_max": 16776,
+   "packet_max": 455,
+   "accounts_max": 8,
+   "n": 9
+  },
+  "FundSeriesA": {
+   "cu_max": 43300,
+   "packet_max": 628,
+   "accounts_max": 13,
+   "n": 1
+  },
+  "IncreaseProviderBudget": {
+   "cu_max": 15651,
+   "packet_max": 357,
+   "accounts_max": 7,
+   "n": 1
+  },
+  "ObserveRequestFulfilled": {
+   "cu_max": 26421,
+   "packet_max": 382,
+   "accounts_max": 8,
+   "n": 5
+  },
+  "OpenPosition": {
+   "cu_max": 61733,
+   "packet_max": 674,
+   "accounts_max": 14,
+   "n": 30
+  },
+  "ProvisionCloseRecord": {
+   "cu_max": 27209,
+   "packet_max": 392,
+   "accounts_max": 8,
+   "n": 5
+  },
+  "ProvisionPage": {
+   "cu_max": 36628,
+   "packet_max": 498,
+   "accounts_max": 9,
+   "n": 90
+  },
+  "PruneRows": {
+   "cu_max": 23035,
+   "packet_max": 438,
+   "accounts_max": 9,
+   "n": 13
+  },
+  "ReconcileOpsCash": {
+   "cu_max": 8087,
+   "packet_max": 428,
+   "accounts_max": 7,
+   "n": 16
+  },
+  "ReconcileOpsCashWithClient": {
+   "cu_max": 14948,
+   "packet_max": 316,
+   "accounts_max": 6,
+   "n": 8
+  },
+  "SealWeights": {
+   "cu_max": 4586,
+   "packet_max": 258,
+   "accounts_max": 4,
+   "n": 13
+  },
+  "Withdraw": {
+   "cu_max": 9389,
+   "packet_max": 360,
+   "accounts_max": 7,
+   "n": 1
+  },
+  "WithdrawOperations": {
+   "cu_max": 19008,
+   "packet_max": 455,
+   "accounts_max": 8,
+   "n": 5
+  },
+  "WithdrawSimple": {
+   "cu_max": 67559,
+   "packet_max": 760,
+   "accounts_max": 17,
+   "n": 38
+  }
+ },
+ "all_m8_observations_fit_legacy_packet": true,
+ "limits": [
+  "LiteSVM local default rent fixture (3,480 lamports per byte-year × 2-year exemption); LiteSVM does not check rent state for data-less accounts",
+  "one synthetic ORAO fulfil authority; Squads stand-in proves application guards only",
+  "the fuzz sequence is one fixed seed; coverage counters are asserted, not a distribution claim"
+ ],
+ "findings_for_codex": [
+  {
+   "id": "M8-F1",
+   "severity": "design (no fund loss)",
+   "title": "close_shared_account owner rent component has no deliverability preflight",
+   "detail": "Both M8 workers flagged independently: the owner component of a page's rent is credited to the recorded owner_refund destination with validate_destination only; a sub-rent-exempt component to a fresh or rent-paying destination would fail the transaction under the cluster rent rule (LiteSVM cannot show it for data-less accounts). Consequence: that page (and its sponsor component) stays unclosable until the destination is funded; no lamports are lost and cleanup is never a precondition for commit, finalize or open. Options: (a) accept and document; (b) defer the owner component into the settled close's locked_owner_remaining when undeliverable (same mechanism as IMPL-43; needs a Codex decision because it changes DR-13 wording).",
+   "status": "open for Codex; no code change made"
+  },
+  {
+   "id": "M8-F2",
+   "severity": "documentation / error naming",
+   "title": "A build_candidates batch that straddles a candidate-page edge fails as PageNotProvisioned",
+   "detail": "BuildCandidates carries one candidate page per set, so the keeper must size each batch to stay inside one page of BOTH sets (up to 8 rows otherwise). A straddle is refused fee-only with PageNotProvisioned 6035 (close.rs build_batch), which misnames the condition. Keepers should batch at page edges; the M11 keeper documentation must say so, and a dedicated code could be appended later (frozen codes are append-only). No cash impact; the build is retryable with aligned batches.",
+   "status": "documented; no code change"
+  }
+ ],
+ "related_receipts": [
+  "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+  "docs/solana/evidence/2026-10-14-m7-owner-refund.json"
+ ],
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged."
+}

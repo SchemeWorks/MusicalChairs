@@ -228,7 +228,7 @@ pub fn provider_keys() -> ProviderKeys {
     }
 }
 
-fn fulfill_authority() -> Keypair {
+pub(crate) fn fulfill_authority() -> Keypair {
     Keypair::new_from_array(FULFILL_AUTHORITY_SEED)
 }
 
@@ -236,7 +236,7 @@ fn impostor_authority() -> Keypair {
     Keypair::new_from_array(IMPOSTOR_AUTHORITY_SEED)
 }
 
-fn foreign_ix<A: ToAccountMetas, D: InstructionData>(
+pub(crate) fn foreign_ix<A: ToAccountMetas, D: InstructionData>(
     program_id: Pubkey,
     accounts: A,
     data: D,
@@ -491,7 +491,7 @@ impl World {
 // ---------------------------------------------------------------------------
 
 /// Remaining sponsor + owner partitions of every `CloseRecord` that exists.
-fn partitions_total(w: &World) -> u64 {
+pub(crate) fn partitions_total(w: &World) -> u64 {
     let pool = w.pool();
     (1..=pool.next_close_id)
         .filter_map(|close_id| {
@@ -503,7 +503,7 @@ fn partitions_total(w: &World) -> u64 {
 
 /// Both conservation identities plus the partition identity of spec 8.6:
 /// `ops.locked_remaining_total == sum of every close's remaining partitions`.
-fn assert_identities(w: &World) {
+pub(crate) fn assert_identities(w: &World) {
     w.assert_vault_identity();
     w.assert_ops_cash_identity();
     assert_eq!(
@@ -513,7 +513,7 @@ fn assert_identities(w: &World) {
     );
 }
 
-fn ok(w: &mut World, variant: &str, instructions: Vec<Instruction>, signers: &[&Keypair]) -> Observation {
+pub(crate) fn ok(w: &mut World, variant: &str, instructions: Vec<Instruction>, signers: &[&Keypair]) -> Observation {
     let observation = w
         .send(variant, instructions, signers)
         .unwrap_or_else(|failed| panic!("{} failed: {failed:?}", failed.label));
@@ -521,7 +521,7 @@ fn ok(w: &mut World, variant: &str, instructions: Vec<Instruction>, signers: &[&
     observation
 }
 
-fn ok_g(w: &mut World, variant: &str, inner: Instruction) -> Observation {
+pub(crate) fn ok_g(w: &mut World, variant: &str, inner: Instruction) -> Observation {
     let observation = w
         .send_via_g(variant, inner, &[])
         .unwrap_or_else(|failed| panic!("{} failed: {failed:?}", failed.label));
@@ -529,7 +529,7 @@ fn ok_g(w: &mut World, variant: &str, inner: Instruction) -> Observation {
     observation
 }
 
-fn failure(outcome: Outcome) -> Observation {
+pub(crate) fn failure(outcome: Outcome) -> Observation {
     match outcome {
         Err(failed) => failed,
         Ok(succeeded) => panic!("{} unexpectedly succeeded: {succeeded:?}", succeeded.label),
@@ -538,7 +538,7 @@ fn failure(outcome: Outcome) -> Observation {
 
 /// Exactly `Custom(6000 + expected)` and fee-only rollback of every watched
 /// account.
-fn reject(
+pub(crate) fn reject(
     w: &mut World,
     variant: &str,
     instructions: Vec<Instruction>,
@@ -553,7 +553,7 @@ fn reject(
     failed
 }
 
-fn reject_g(w: &mut World, variant: &str, inner: Instruction, expected: ErrorCode) -> Observation {
+pub(crate) fn reject_g(w: &mut World, variant: &str, inner: Instruction, expected: ErrorCode) -> Observation {
     let before = w.snapshot_all();
     let failed = failure(w.send_via_g(variant, inner, &[]));
     w.assert_rejected(&failed, expected);
@@ -563,7 +563,7 @@ fn reject_g(w: &mut World, variant: &str, inner: Instruction, expected: ErrorCod
 }
 
 /// A rejection with a framework code (Anchor constraint errors, system errors).
-fn reject_framework(
+pub(crate) fn reject_framework(
     w: &mut World,
     variant: &str,
     instructions: Vec<Instruction>,
@@ -581,7 +581,7 @@ fn reject_framework(
 /// A failure inside the provider (its error code is ORAO's, not ours): the
 /// transaction failed and changed nothing but the fee.  The caller checks the
 /// diagnostic it expects.
-fn reject_provider(
+pub(crate) fn reject_provider(
     w: &mut World,
     variant: &str,
     instructions: Vec<Instruction>,
@@ -595,7 +595,7 @@ fn reject_provider(
     failed
 }
 
-fn diagnostics(observation: &Observation) -> String {
+pub(crate) fn diagnostics(observation: &Observation) -> String {
     format!(
         "{} {}",
         observation.error.as_deref().unwrap_or_default(),
@@ -603,7 +603,7 @@ fn diagnostics(observation: &Observation) -> String {
     )
 }
 
-fn delta(observation: &Observation, key: Pubkey) -> i128 {
+pub(crate) fn delta(observation: &Observation, key: Pubkey) -> i128 {
     observation
         .account_changes
         .iter()
@@ -611,7 +611,7 @@ fn delta(observation: &Observation, key: Pubkey) -> i128 {
         .map_or(0, |change| change.lamport_delta)
 }
 
-fn headline(label: &str, row: &str) -> String {
+pub(crate) fn headline(label: &str, row: &str) -> String {
     if label.is_empty() {
         format!("financial.close.{row}")
     } else {
@@ -620,7 +620,7 @@ fn headline(label: &str, row: &str) -> String {
 }
 
 /// Attach `note` to the recorded observation labelled `label`.
-fn annotate(log: &mut [Observation], label: &str, note: String) {
+pub(crate) fn annotate(log: &mut [Observation], label: &str, note: String) {
     let observation = log
         .iter_mut()
         .find(|observation| observation.label == label)
@@ -632,9 +632,9 @@ fn annotate(log: &mut [Observation], label: &str, note: String) {
 // Addresses and host-side derivations
 // ---------------------------------------------------------------------------
 
-const PAGE: u64 = state::PAGE_CAPACITY as u64;
+pub(crate) const PAGE: u64 = state::PAGE_CAPACITY as u64;
 
-fn candidate_page_key(close_id: u64, set_tag: u8, index: u64) -> Pubkey {
+pub(crate) fn candidate_page_key(close_id: u64, set_tag: u8, index: u64) -> Pubkey {
     pda(&[
         state::CANDIDATES_SEED,
         &close_id.to_le_bytes(),
@@ -644,18 +644,18 @@ fn candidate_page_key(close_id: u64, set_tag: u8, index: u64) -> Pubkey {
     .0
 }
 
-fn candidate_page(w: &World, close_id: u64, set_tag: u8, index: u64) -> state::CandidatePage {
+pub(crate) fn candidate_page(w: &World, close_id: u64, set_tag: u8, index: u64) -> state::CandidatePage {
     w.rt.deserialize(candidate_page_key(close_id, set_tag, index))
 }
 
 /// The owner at participant slot `slot` of `round`.
-fn participant(w: &World, round: u64, slot: u64) -> Pubkey {
+pub(crate) fn participant(w: &World, round: u64, slot: u64) -> Pubkey {
     w.participants(round, slot / PAGE).rows[(slot % PAGE) as usize]
 }
 
 /// The protocol seed of spec section 4, computed on the host from the live
 /// pool domain and the sealed close.
-fn host_seed(w: &World, close_id: u64) -> [u8; 32] {
+pub(crate) fn host_seed(w: &World, close_id: u64) -> [u8; 32] {
     let pool = w.pool();
     let close = w.close_record(close_id);
     let (tag, count, digest) = pclose::selected_set(&close);
@@ -671,7 +671,7 @@ fn host_seed(w: &World, close_id: u64) -> [u8; 32] {
 }
 
 /// `(request PDA, protocol seed)` of a sealed close.
-fn host_request(w: &World, close_id: u64) -> (Pubkey, [u8; 32]) {
+pub(crate) fn host_request(w: &World, close_id: u64) -> (Pubkey, [u8; 32]) {
     let seed = host_seed(w, close_id);
     (provider::request_binding(&provider_keys().client, &seed).0, seed)
 }
@@ -680,17 +680,17 @@ fn host_request(w: &World, close_id: u64) -> (Pubkey, [u8; 32]) {
 /// the participants' on-chain `UserRound` / `User` (not from the program's
 /// own candidate pages).
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Candidates {
-    preferred: Vec<(Pubkey, u128)>,
-    fallback: Vec<(Pubkey, u128)>,
+pub(crate) struct Candidates {
+    pub(crate) preferred: Vec<(Pubkey, u128)>,
+    pub(crate) fallback: Vec<(Pubkey, u128)>,
 }
 
-fn expected_candidates(w: &World, close_id: u64) -> Candidates {
+pub(crate) fn expected_candidates(w: &World, close_id: u64) -> Candidates {
     expected_candidates_upto(w, close_id, w.close_record(close_id).participant_count)
 }
 
 /// [`expected_candidates`] over participant slots `0..upto` only.
-fn expected_candidates_upto(w: &World, close_id: u64, upto: u64) -> Candidates {
+pub(crate) fn expected_candidates_upto(w: &World, close_id: u64, upto: u64) -> Candidates {
     let close = w.close_record(close_id);
     let mut candidates = Candidates { preferred: Vec::new(), fallback: Vec::new() };
     for slot in 0..upto.min(close.participant_count) {
@@ -709,17 +709,17 @@ fn expected_candidates_upto(w: &World, close_id: u64, upto: u64) -> Candidates {
 }
 
 /// The ordered candidate digest of one set, by the program's chaining rule.
-fn chain(tag: u8, rows: &[(Pubkey, u128)]) -> [u8; 32] {
+pub(crate) fn chain(tag: u8, rows: &[(Pubkey, u128)]) -> [u8; 32] {
     rows.iter().fold(sampling::candidate_digest_start(tag), |digest, (owner, loss)| {
         sampling::candidate_digest_next(&digest, owner, *loss)
     })
 }
 
-fn pages_of(count: usize) -> u64 {
+pub(crate) fn pages_of(count: usize) -> u64 {
     count.div_ceil(state::PAGE_CAPACITY) as u64
 }
 
-fn hex(bytes: &[u8]) -> String {
+pub(crate) fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
@@ -727,7 +727,7 @@ fn hex(bytes: &[u8]) -> String {
 // Instruction builders
 // ---------------------------------------------------------------------------
 
-fn reconcile_ix(rt: &FinancialRuntime) -> Instruction {
+pub(crate) fn reconcile_ix(rt: &FinancialRuntime) -> Instruction {
     anchor_ix(
         accounts::ReconcileOpsCash {
             ops: rt.ops_address(),
@@ -737,7 +737,7 @@ fn reconcile_ix(rt: &FinancialRuntime) -> Instruction {
     )
 }
 
-fn reconcile_client_ix(rt: &FinancialRuntime) -> Instruction {
+pub(crate) fn reconcile_client_ix(rt: &FinancialRuntime) -> Instruction {
     anchor_ix(
         accounts::ReconcileOpsCashWithClient {
             ops: rt.ops_address(),
@@ -748,7 +748,7 @@ fn reconcile_client_ix(rt: &FinancialRuntime) -> Instruction {
     )
 }
 
-fn provision_ix(
+pub(crate) fn provision_ix(
     w: &World,
     close_id: u64,
     set_tag: u8,
@@ -775,7 +775,7 @@ fn provision_ix(
 }
 
 /// `[participant_page, user_round, user]` of one participant slot.
-fn row_accounts(w: &World, close: &state::CloseRecord, slot: u64) -> Vec<AccountMeta> {
+pub(crate) fn row_accounts(w: &World, close: &state::CloseRecord, slot: u64) -> Vec<AccountMeta> {
     let owner = participant(w, close.round_id, slot);
     vec![
         AccountMeta::new_readonly(w.rt.participant_address(close.round_id, slot / PAGE), false),
@@ -785,7 +785,7 @@ fn row_accounts(w: &World, close: &state::CloseRecord, slot: u64) -> Vec<Account
 }
 
 /// The remaining accounts of the honest batch `from..from+rows`.
-fn build_remaining(w: &World, close_id: u64, from: u64, rows: u64) -> Vec<AccountMeta> {
+pub(crate) fn build_remaining(w: &World, close_id: u64, from: u64, rows: u64) -> Vec<AccountMeta> {
     let close = w.close_record(close_id);
     (from..from + rows)
         .flat_map(|slot| row_accounts(w, &close, slot))
@@ -795,7 +795,7 @@ fn build_remaining(w: &World, close_id: u64, from: u64, rows: u64) -> Vec<Accoun
 /// `build_candidates` with caller-chosen remaining accounts.  The candidate
 /// page of each set is supplied exactly as a keeper would: the page at
 /// `count / 8` when it is provisioned, else the program-id placeholder.
-fn build_ix(w: &World, close_id: u64, rows: u8, remaining: Vec<AccountMeta>) -> Instruction {
+pub(crate) fn build_ix(w: &World, close_id: u64, rows: u8, remaining: Vec<AccountMeta>) -> Instruction {
     let rt = &w.rt;
     let close = w.close_record(close_id);
     let preferred_index = close.preferred_count / PAGE;
@@ -822,14 +822,14 @@ fn build_ix(w: &World, close_id: u64, rows: u8, remaining: Vec<AccountMeta>) -> 
 }
 
 /// The honest next batch of `rows` rows from the close's cursor.
-fn build_next(w: &World, close_id: u64, rows: u8) -> Instruction {
+pub(crate) fn build_next(w: &World, close_id: u64, rows: u8) -> Instruction {
     let cursor = w.close_record(close_id).candidate_cursor;
     build_ix(w, close_id, rows, build_remaining(w, close_id, cursor, u64::from(rows)))
 }
 
 /// Observation label of a step of close `close_id`: close 1 keeps the bare
 /// name, later closes get a `_c<id>` suffix so labels stay unique per world.
-fn lbl(close_id: u64, base: &str) -> String {
+pub(crate) fn lbl(close_id: u64, base: &str) -> String {
     if close_id == 1 {
         base.to_string()
     } else {
@@ -840,7 +840,7 @@ fn lbl(close_id: u64, base: &str) -> String {
 /// Provision exactly the candidate pages the host-derived lists need (page
 /// `ceil(count / 8)` of each non-empty set) from the locked reserve, sponsor
 /// partition first.  Returns `(preferred pages, fallback pages)`.
-fn provision_candidate_pages(w: &mut World, close_id: u64) -> (u64, u64) {
+pub(crate) fn provision_candidate_pages(w: &mut World, close_id: u64) -> (u64, u64) {
     let expected = expected_candidates(w, close_id);
     let (preferred, fallback) = (pages_of(expected.preferred.len()), pages_of(expected.fallback.len()));
     for index in 0..preferred {
@@ -854,7 +854,7 @@ fn provision_candidate_pages(w: &mut World, close_id: u64) -> (u64, u64) {
     (preferred, fallback)
 }
 
-fn request_accounts(w: &World, close_id: u64) -> accounts::RequestRoundDraw {
+pub(crate) fn request_accounts(w: &World, close_id: u64) -> accounts::RequestRoundDraw {
     let rt = &w.rt;
     let keys = provider_keys();
     let close = w.close_record(close_id);
@@ -877,11 +877,11 @@ fn request_accounts(w: &World, close_id: u64) -> accounts::RequestRoundDraw {
     }
 }
 
-fn request_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn request_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(request_accounts(w, close_id), instruction::RequestRoundDraw)
 }
 
-fn capture_accounts(w: &World, close_id: u64) -> accounts::CaptureRoundDraw {
+pub(crate) fn capture_accounts(w: &World, close_id: u64) -> accounts::CaptureRoundDraw {
     let rt = &w.rt;
     accounts::CaptureRoundDraw {
         pool: rt.pool_address(),
@@ -893,25 +893,25 @@ fn capture_accounts(w: &World, close_id: u64) -> accounts::CaptureRoundDraw {
     }
 }
 
-fn capture_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn capture_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(capture_accounts(w, close_id), instruction::CaptureRoundDraw)
 }
 
 /// The winner-side accounts of `apply_promotion`.
 #[derive(Clone, Copy, Debug, Default)]
-struct ApplyKeys {
-    candidate_page: Option<Pubkey>,
-    winner: Option<Pubkey>,
-    winner_user: Option<Pubkey>,
-    winner_user_round: Option<Pubkey>,
-    winner_backer_b: Option<Pubkey>,
-    registry_tail: Option<Pubkey>,
+pub(crate) struct ApplyKeys {
+    pub(crate) candidate_page: Option<Pubkey>,
+    pub(crate) winner: Option<Pubkey>,
+    pub(crate) winner_user: Option<Pubkey>,
+    pub(crate) winner_user_round: Option<Pubkey>,
+    pub(crate) winner_backer_b: Option<Pubkey>,
+    pub(crate) registry_tail: Option<Pubkey>,
 }
 
 /// The accounts the captured output maps to, derived on the host with the
 /// program's own `map_output` over the sealed candidate page.  An output that
 /// maps to no ordinal needs none of them.
-fn apply_keys(w: &World, close_id: u64) -> ApplyKeys {
+pub(crate) fn apply_keys(w: &World, close_id: u64) -> ApplyKeys {
     let close = w.close_record(close_id);
     let (tag, count, _) = pclose::selected_set(&close);
     let Some((ordinal, _counter)) = sampling::map_output(close.randomness, close.round_id, count)
@@ -930,7 +930,7 @@ fn apply_keys(w: &World, close_id: u64) -> ApplyKeys {
     }
 }
 
-fn apply_ix_with(w: &World, close_id: u64, keys: ApplyKeys) -> Instruction {
+pub(crate) fn apply_ix_with(w: &World, close_id: u64, keys: ApplyKeys) -> Instruction {
     let rt = &w.rt;
     let close = w.close_record(close_id);
     anchor_ix(
@@ -956,11 +956,11 @@ fn apply_ix_with(w: &World, close_id: u64, keys: ApplyKeys) -> Instruction {
     )
 }
 
-fn apply_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn apply_ix(w: &World, close_id: u64) -> Instruction {
     apply_ix_with(w, close_id, apply_keys(w, close_id))
 }
 
-fn expire_accounts(w: &World, close_id: u64) -> accounts::ExpirePromotion {
+pub(crate) fn expire_accounts(w: &World, close_id: u64) -> accounts::ExpirePromotion {
     let rt = &w.rt;
     accounts::ExpirePromotion {
         pool: rt.pool_address(),
@@ -974,11 +974,11 @@ fn expire_accounts(w: &World, close_id: u64) -> accounts::ExpirePromotion {
     }
 }
 
-fn expire_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn expire_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(expire_accounts(w, close_id), instruction::ExpirePromotion)
 }
 
-fn finalize_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn finalize_ix(w: &World, close_id: u64) -> Instruction {
     let rt = &w.rt;
     anchor_ix(
         accounts::FinalizeRound {
@@ -991,7 +991,7 @@ fn finalize_ix(w: &World, close_id: u64) -> Instruction {
     )
 }
 
-fn budget_ix(w: &World, close_id: u64, extra: u64) -> Instruction {
+pub(crate) fn budget_ix(w: &World, close_id: u64, extra: u64) -> Instruction {
     let rt = &w.rt;
     anchor_ix(
         accounts::IncreaseProviderBudget {
@@ -1004,7 +1004,7 @@ fn budget_ix(w: &World, close_id: u64, extra: u64) -> Instruction {
     )
 }
 
-fn observe_accounts(w: &World, close_id: u64) -> accounts::ObserveRequestFulfilled {
+pub(crate) fn observe_accounts(w: &World, close_id: u64) -> accounts::ObserveRequestFulfilled {
     let rt = &w.rt;
     accounts::ObserveRequestFulfilled {
         pool: rt.pool_address(),
@@ -1015,11 +1015,11 @@ fn observe_accounts(w: &World, close_id: u64) -> accounts::ObserveRequestFulfill
     }
 }
 
-fn observe_ix(w: &World, close_id: u64) -> Instruction {
+pub(crate) fn observe_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(observe_accounts(w, close_id), instruction::ObserveRequestFulfilled)
 }
 
-fn withdraw_accounts(w: &World, close_id: u64) -> accounts::WithdrawProviderReturn {
+pub(crate) fn withdraw_accounts(w: &World, close_id: u64) -> accounts::WithdrawProviderReturn {
     let rt = &w.rt;
     let close = w.close_record(close_id);
     accounts::WithdrawProviderReturn {
@@ -1037,7 +1037,7 @@ fn withdraw_accounts(w: &World, close_id: u64) -> accounts::WithdrawProviderRetu
     }
 }
 
-fn withdraw_ix(w: &World, close_id: u64, amount: u64) -> Instruction {
+pub(crate) fn withdraw_ix(w: &World, close_id: u64, amount: u64) -> Instruction {
     anchor_ix(
         withdraw_accounts(w, close_id),
         instruction::WithdrawProviderReturn { amount },
@@ -1050,35 +1050,35 @@ fn withdraw_ix(w: &World, close_id: u64, amount: u64) -> Instruction {
 
 /// What a participant holds when the round closes.
 #[derive(Clone, Copy, Debug)]
-struct Part {
-    deposits: u128,
-    net: u128,
-    ever_a: bool,
-    ever_b: bool,
+pub(crate) struct Part {
+    pub(crate) deposits: u128,
+    pub(crate) net: u128,
+    pub(crate) ever_a: bool,
+    pub(crate) ever_b: bool,
 }
 
 /// A winner: `deposits <= net`, so never a candidate.
-fn nonloser() -> Part {
+pub(crate) fn nonloser() -> Part {
     Part { deposits: 100_000_000, net: 150_000_000, ever_a: false, ever_b: false }
 }
 
 /// Break-even: `deposits == net`, so never a candidate.
-fn breakeven() -> Part {
+pub(crate) fn breakeven() -> Part {
     Part { deposits: 100_000_000, net: 100_000_000, ever_a: false, ever_b: false }
 }
 
 /// A winner with Series B history: a non-candidate whatever its history.
-fn nonloser_b() -> Part {
+pub(crate) fn nonloser_b() -> Part {
     Part { ever_b: true, ..nonloser() }
 }
 
 /// A loser with no Series A / B history: preferred and fallback candidate.
-fn loser(loss: u128) -> Part {
+pub(crate) fn loser(loss: u128) -> Part {
     Part { deposits: 1_000_000_000, net: 1_000_000_000 - loss, ever_a: false, ever_b: false }
 }
 
 /// A loser with Series A history: fallback candidate only.
-fn loser_a(loss: u128) -> Part {
+pub(crate) fn loser_a(loss: u128) -> Part {
     Part { ever_a: true, ..loser(loss) }
 }
 
@@ -1086,7 +1086,7 @@ fn loser_a(loss: u128) -> Part {
 /// loser of 912,000,000): losers at slots 2, 6 and 11 (preferred) and 3, 8
 /// and 14 (Series A history, fallback only).  With the closer that is 7
 /// losers, 4 preferred and 7 fallback among 20 participants.
-fn nineteen() -> Vec<Part> {
+pub(crate) fn nineteen() -> Vec<Part> {
     // Index `slot - 1` is slot `slot`.
     let mut parts = vec![nonloser(); 19];
     let mut set = |slot: usize, part: Part| parts[slot - 1] = part;
@@ -1103,43 +1103,43 @@ fn nineteen() -> Vec<Part> {
 }
 
 /// Slot `slot >= 1` of the standard roster.
-fn roster_key(slot: usize) -> Pubkey {
+pub(crate) fn roster_key(slot: usize) -> Pubkey {
     World::synthetic_participant(slot as u64)
 }
 
 /// LiteSVM's default rent (what `FinancialRuntime::rent` charges).
-fn rent_of(bytes: usize) -> u64 {
+pub(crate) fn rent_of(bytes: usize) -> u64 {
     Rent::default().minimum_balance(bytes)
 }
 
 /// How to build a closing scene.
 #[derive(Clone, Debug)]
-struct Spec {
+pub(crate) struct Spec {
     /// Participants after the closer, in slot order.
-    roster: Vec<Part>,
+    pub(crate) roster: Vec<Part>,
     /// Their owner keys (defaults to the synthetic roster keys).
-    keys: Vec<Pubkey>,
+    pub(crate) keys: Vec<Pubkey>,
     /// Open Series A Backers; any makes the toll ride a closing ticket.
-    backers: Vec<Pubkey>,
+    pub(crate) backers: Vec<Pubkey>,
     /// The closer's positions `(nonce, gross)`.  All but the last are settled
     /// by real solvent payouts first; the last is the closing payout.
-    positions: Vec<(u64, u64)>,
-    days: u64,
-    pot: u64,
+    pub(crate) positions: Vec<(u64, u64)>,
+    pub(crate) days: u64,
+    pub(crate) pot: u64,
     /// Operations free cash at the closing payout (`None`: exactly the
     /// reserve; the owner opts in for anything short of it).
-    sponsor: Option<u64>,
+    pub(crate) sponsor: Option<u64>,
     /// Free cash on top of the reserve (not locked).
-    spare: u64,
-    domain: Option<[u8; 32]>,
-    request_bytes: Option<u16>,
-    genesis_pages: bool,
+    pub(crate) spare: u64,
+    pub(crate) domain: Option<[u8; 32]>,
+    pub(crate) request_bytes: Option<u16>,
+    pub(crate) genesis_pages: bool,
     /// The closing payout's destination (the World's `dest` when `None`).
-    dest: Option<Pubkey>,
+    pub(crate) dest: Option<Pubkey>,
 }
 
 impl Spec {
-    fn standard() -> Self {
+    pub(crate) fn standard() -> Self {
         Self {
             roster: nineteen(),
             keys: Vec::new(),
@@ -1156,29 +1156,29 @@ impl Spec {
         }
     }
 
-    fn with_sponsor(mut self, sponsor: u64) -> Self {
+    pub(crate) fn with_sponsor(mut self, sponsor: u64) -> Self {
         self.sponsor = Some(sponsor);
         self
     }
 
-    fn with_spare(mut self, spare: u64) -> Self {
+    pub(crate) fn with_spare(mut self, spare: u64) -> Self {
         self.spare = spare;
         self
     }
 
-    fn with_backers(mut self, backers: Vec<Pubkey>) -> Self {
+    pub(crate) fn with_backers(mut self, backers: Vec<Pubkey>) -> Self {
         self.backers = backers;
         self.genesis_pages = false;
         self
     }
 
-    fn key(&self, index: usize) -> Pubkey {
+    pub(crate) fn key(&self, index: usize) -> Pubkey {
         self.keys.get(index).copied().unwrap_or_else(|| roster_key(index + 1))
     }
 
     /// 21 days at 11% a day against a 1.5 SOL pot: the closer is paid more
     /// than it deposited, so it is a winner and nobody has to be a candidate.
-    fn winners_only() -> Self {
+    pub(crate) fn winners_only() -> Self {
         Self {
             roster: vec![nonloser(); 19],
             days: 21,
@@ -1189,20 +1189,20 @@ impl Spec {
 }
 
 /// A round that has been closed by a real `withdraw_simple`.
-struct Scene {
-    w: World,
-    owner: Keypair,
-    dest: Pubkey,
+pub(crate) struct Scene {
+    pub(crate) w: World,
+    pub(crate) owner: Keypair,
+    pub(crate) dest: Pubkey,
     /// The reserve the payout locked.
-    reserve: u64,
+    pub(crate) reserve: u64,
     /// The payout event of the closing payout.
-    payout: PayoutPaid,
+    pub(crate) payout: PayoutPaid,
 }
 
 impl Scene {
     /// Build the world of `spec` up to and including the closing payout.  The
     /// World's scope is `financial.close.<row>[.<tag>]`.
-    fn new(row: &str, tag: &str, spec: Spec) -> Self {
+    pub(crate) fn new(row: &str, tag: &str, spec: Spec) -> Self {
         let mut w = World::genesis_with_provider().scoped_label(headline(tag, row));
         w.provider_setup();
         assert_eq!(rent_of(0), w.rt.rent(0), "LiteSVM's rent schedule is Rent::default()");
@@ -1299,7 +1299,7 @@ impl Scene {
     }
 
     /// Commit the closing ticket (batches of 8 rows), when the toll rode one.
-    fn commit_cash(&mut self) {
+    pub(crate) fn commit_cash(&mut self) {
         assert!(self.w.close_record(1).closing_ticket_id.is_some(), "no closing ticket");
         self.w.advance_until_idle(8);
         assert_identities(&self.w);
@@ -1308,14 +1308,14 @@ impl Scene {
 
     /// Provision the host-derived candidate pages and seal the sets (4 rows a
     /// batch, final batch labelled `last`).
-    fn provision_and_seal(&mut self, last: &str) {
+    pub(crate) fn provision_and_seal(&mut self, last: &str) {
         provision_candidate_pages(&mut self.w, 1);
         seal_labelled(&mut self.w, 1, 4, last);
     }
 
     /// `provision_and_seal` + request + fulfil + capture (all inside the
     /// deadline).
-    fn through_capture(&mut self) {
+    pub(crate) fn through_capture(&mut self) {
         self.provision_and_seal("build_last");
         do_request(&mut self.w, 1, "request");
         self.w.fulfill("fulfill", 1).expect("fulfill");
@@ -1325,7 +1325,7 @@ impl Scene {
 }
 
 /// [`seal`] with an explicit label for the final (sealing) batch.
-fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str) -> Vec<Observation> {
+pub(crate) fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str) -> Vec<Observation> {
     let mut observations = Vec::new();
     for call in 0.. {
         let close = w.close_record(close_id);
@@ -1348,7 +1348,7 @@ fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str) -> Vec<Obs
 
 /// `request_round_draw` for `close_id`, watching the request PDA for the
 /// fee-only snapshots.
-fn do_request(w: &mut World, close_id: u64, variant: &str) -> Observation {
+pub(crate) fn do_request(w: &mut World, close_id: u64, variant: &str) -> Observation {
     let request = host_request(w, close_id).0;
     w.watch(request);
     let instruction = request_ix(w, close_id);
@@ -1358,13 +1358,13 @@ fn do_request(w: &mut World, close_id: u64, variant: &str) -> Observation {
 /// The sponsor cash that leaves the owner partition funding exactly
 /// `owner_rent` of the pending-request rent (and none of the fee): two
 /// candidate pages, the fee, and the rent less `owner_rent`.
-fn sponsor_for_owner_rent(owner_rent: u64) -> u64 {
+pub(crate) fn sponsor_for_owner_rent(owner_rent: u64) -> u64 {
     2 * rent_of(state::CandidatePage::SPACE) + REQUEST_FEE + rent_of(759) - owner_rent
 }
 
 /// A standard round whose owner funded exactly `owner_rent` of the rent,
 /// sealed, requested and fulfilled (the reimbursement not yet observed).
-fn fulfilled_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
+pub(crate) fn fulfilled_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
     let mut scene = Scene::new(
         row,
         tag,
@@ -1378,7 +1378,7 @@ fn fulfilled_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
 }
 
 /// [`fulfilled_scene`] plus `observe_request_fulfilled`.
-fn observed_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
+pub(crate) fn observed_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
     let mut scene = fulfilled_scene(row, tag, owner_rent);
     let observe = observe_ix(&scene.w, 1);
     ok(&mut scene.w, "observe", vec![observe], &[]);
@@ -1387,7 +1387,7 @@ fn observed_scene(row: &str, tag: &str, owner_rent: u64) -> Scene {
 
 /// The pending-request rent and the rent the fulfilled account retains, at
 /// LiteSVM's default schedule.
-fn request_rents() -> (u64, u64) {
+pub(crate) fn request_rents() -> (u64, u64) {
     (rent_of(759), rent_of(147))
 }
 
@@ -2433,7 +2433,7 @@ pub fn extra_request_account_lamports_reduce_eligibility_never_increase() -> Vec
 
 /// The Squads stand-in wrapper that `FinancialRuntime::execute_via_vault`
 /// builds, so a vault-signed instruction can share a transaction with others.
-fn via_vault(multisig: Pubkey, inner: Instruction) -> Instruction {
+pub(crate) fn via_vault(multisig: Pubkey, inner: Instruction) -> Instruction {
     let (vault, bump) = crate::runtime::fixtures::squads::vault_address(&multisig, 0);
     let mut data = vec![0u8, bump];
     data.extend_from_slice(&inner.data);
@@ -2457,7 +2457,7 @@ fn via_vault(multisig: Pubkey, inner: Instruction) -> Instruction {
 
 /// A program-owned copy of config v1 at an address that is NOT its PDA: Anchor
 /// decodes it, then the `seeds` constraint refuses it (`ConstraintSeeds`, 2006).
-fn decoy_config(w: &mut World) -> Pubkey {
+pub(crate) fn decoy_config(w: &mut World) -> Pubkey {
     let key = Pubkey::new_from_array([0x95; 32]);
     let original = w.account(w.rt.config_address(1)).expect("config v1");
     w.rt.svm.set_account(key, original).expect("decoy config");
@@ -2465,7 +2465,7 @@ fn decoy_config(w: &mut World) -> Pubkey {
 }
 
 /// A failure of a G-signed instruction inside the provider (ORAO's codes).
-fn reject_provider_g(w: &mut World, variant: &str, inner: Instruction) -> Observation {
+pub(crate) fn reject_provider_g(w: &mut World, variant: &str, inner: Instruction) -> Observation {
     let before = w.snapshot_all();
     let failed = failure(w.send_via_g(variant, inner, &[]));
     failed.assert_rollback_except_fee();
@@ -2475,7 +2475,7 @@ fn reject_provider_g(w: &mut World, variant: &str, inner: Instruction) -> Observ
 }
 
 /// A rejection of an instruction executed as another Squads multisig's vault.
-fn reject_vault(
+pub(crate) fn reject_vault(
     w: &mut World,
     variant: &str,
     multisig: Pubkey,
@@ -2492,7 +2492,7 @@ fn reject_vault(
 
 /// G's own ORAO `withdraw` (not the program's instruction): the Client owner
 /// pulls `amount` out of the Client to itself.
-fn raw_withdraw_ix(w: &World, amount: u64) -> Instruction {
+pub(crate) fn raw_withdraw_ix(w: &World, amount: u64) -> Instruction {
     foreign_ix(
         orao::id(),
         orao::accounts::Withdraw {
@@ -2506,7 +2506,7 @@ fn raw_withdraw_ix(w: &World, amount: u64) -> Instruction {
 }
 
 /// Client lamports above its own rent: what ORAO will let the owner withdraw.
-fn client_spendable(w: &World) -> u64 {
+pub(crate) fn client_spendable(w: &World) -> u64 {
     let client = w.account(provider_keys().client).expect("Client account");
     client.lamports - w.rt.rent(client.data.len())
 }
@@ -2867,15 +2867,15 @@ pub fn cpi_failure_rolls_back_all_accounting() -> Vec<Observation> {
 // ---------------------------------------------------------------------------
 
 /// The facts of a second close.
-struct SecondClose {
-    payout: PayoutPaid,
+pub(crate) struct SecondClose {
+    pub(crate) payout: PayoutPaid,
 }
 
 /// With close 1 finalized (round 2, no close in progress), set up a fresh
 /// round and close it with a real `withdraw_simple` by `closer` (nonce
 /// `nonce`) to `dest`.  `backers` become open Series A Backers first; `others`
 /// extra winners join the round.  Round 2 has its own `CloseRecord(2)`.
-fn start_second_close(
+pub(crate) fn start_second_close(
     w: &mut World,
     closer: &Keypair,
     nonce: u64,
@@ -2933,7 +2933,7 @@ fn start_second_close(
 }
 
 /// Warp past the deadline, expire and finalize `close_id`.
-fn finish_by_expiry(w: &mut World, close_id: u64) {
+pub(crate) fn finish_by_expiry(w: &mut World, close_id: u64) {
     w.warp_past_deadline(close_id);
     let expire = expire_ix(w, close_id);
     ok(w, &lbl(close_id, "expire"), vec![expire], &[]);
@@ -2944,7 +2944,7 @@ fn finish_by_expiry(w: &mut World, close_id: u64) {
 /// Round 2 with `attacker` as an open Series A Backer: commit the closing
 /// ticket, let the Backer claim, then expire and finalize the close.  Returns
 /// the claimed lamports.
-fn round2_cash_progress(w: &mut World, closer: &Keypair, attacker: &Keypair) -> u64 {
+pub(crate) fn round2_cash_progress(w: &mut World, closer: &Keypair, attacker: &Keypair) -> u64 {
     let dest2 = Pubkey::new_from_array([0xDF; 32]);
     start_second_close(w, closer, 2, dest2, &[attacker.pubkey()], 3);
     assert!(!w.close_record(2).cash_committed, "the toll rides a closing ticket");
@@ -2961,7 +2961,7 @@ fn round2_cash_progress(w: &mut World, closer: &Keypair, attacker: &Keypair) -> 
 }
 
 /// Replace a program-owned or ORAO-owned account, returning what it was.
-fn tamper(w: &mut World, key: Pubkey, change: impl FnOnce(&mut Account)) -> Account {
+pub(crate) fn tamper(w: &mut World, key: Pubkey, change: impl FnOnce(&mut Account)) -> Account {
     let original = w.account(key).expect("account to tamper with");
     let mut changed = original.clone();
     change(&mut changed);
@@ -2969,7 +2969,7 @@ fn tamper(w: &mut World, key: Pubkey, change: impl FnOnce(&mut Account)) -> Acco
     original
 }
 
-fn restore(w: &mut World, key: Pubkey, original: Account) {
+pub(crate) fn restore(w: &mut World, key: Pubkey, original: Account) {
     w.rt.svm.set_account(key, original).expect("restored account");
 }
 
@@ -3366,7 +3366,7 @@ pub fn late_authentic_fulfillment_after_skip_cannot_mint_or_revive() -> Vec<Obse
 
 /// `(pot, seed, management, pending_toll, funded_claims, excess)`: every game
 /// partition a promotion must leave alone.
-fn game_cash(pool: &state::Pool) -> (u64, u64, u64, u64, u128, u64) {
+pub(crate) fn game_cash(pool: &state::Pool) -> (u64, u64, u64, u64, u128, u64) {
     (pool.pot, pool.seed, pool.management, pool.pending_toll, pool.funded_claims, pool.excess)
 }
 
@@ -3715,7 +3715,7 @@ pub fn apply_promotion_terminalizes_entropy_exhausted_from_labeled_synthetic_sta
 // ---------------------------------------------------------------------------
 
 /// `expire_promotion` accepted at `stage`, with the settlement it must book.
-fn expire_ok(w: &mut World, variant: &str, dest: Pubkey, stage: u8) -> Observation {
+pub(crate) fn expire_ok(w: &mut World, variant: &str, dest: Pubkey, stage: u8) -> Observation {
     let (close_before, ops_before) = (w.close_record(1), w.ops());
     let (dest_before, cash_before) = (w.lamports(dest), w.lamports(w.rt.ops_cash_address()));
     let game_before = game_cash(&w.pool());
@@ -4502,7 +4502,7 @@ pub fn increase_provider_budget_moves_extra_from_free_raises_cap_and_refunds_unu
 
 /// The reserve of the standard 20-participant, empty-registry round, from the
 /// rent schedule alone (cross-checked against the program's own figure).
-fn standard_reserve() -> u64 {
+pub(crate) fn standard_reserve() -> u64 {
     6 * rent_of(state::CandidatePage::SPACE)
         + rent_of(state::RegistryPage::SPACE)
         + rent_of(state::Backer::SPACE)
@@ -4725,7 +4725,7 @@ pub fn request_rejects_wrong_client_owner_wrong_client_state_or_wrong_account_ow
 
 /// Rewrite the registered ORAO `Client` in place, returning the account as it
 /// was.
-fn tamper_client(w: &mut World, change: impl FnOnce(&mut orao::state::client::Client)) -> Account {
+pub(crate) fn tamper_client(w: &mut World, change: impl FnOnce(&mut orao::state::client::Client)) -> Account {
     use anchor_lang::AccountSerialize;
     let key = provider_keys().client;
     let mut client: orao::state::client::Client = w.rt.deserialize(key);

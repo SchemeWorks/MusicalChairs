@@ -282,6 +282,12 @@ impl World {
         std::mem::take(&mut self.log)
     }
 
+    /// The observations recorded so far, without draining them (the M8 suites
+    /// read the closing payout's lamport deltas from the log).
+    pub fn logged(&self) -> &[Observation] {
+        &self.log
+    }
+
     /// Make the owner the fee payer too (one signature, 5,000 lamports), so
     /// the owner's balance carries the fee as well as every other movement.
     pub fn pay_fees_as_owner(&mut self) {
