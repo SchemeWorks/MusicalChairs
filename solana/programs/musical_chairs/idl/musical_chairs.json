@@ -1,0 +1,3790 @@
+{
+  "address": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+  "metadata": {
+    "name": "musical_chairs_program",
+    "version": "0.1.0",
+    "spec": "0.1.0"
+  },
+  "instructions": [
+    {
+      "name": "allocate_row",
+      "discriminator": [
+        166,
+        9,
+        93,
+        3,
+        6,
+        74,
+        227,
+        209
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "snapshot_page",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  110,
+                  97,
+                  112,
+                  115,
+                  104,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "snapshot_page.index",
+                "account": "SnapshotPage"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_backer",
+      "discriminator": [
+        172,
+        148,
+        83,
+        118,
+        116,
+        185,
+        190,
+        133
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "owner_signer",
+          "signer": true
+        },
+        {
+          "name": "backer",
+          "writable": true
+        },
+        {
+          "name": "destination",
+          "writable": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "claim_position",
+      "discriminator": [
+        168,
+        90,
+        89,
+        44,
+        203,
+        246,
+        210,
+        46
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "signer": true,
+          "relations": [
+            "user",
+            "position"
+          ]
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "docs": [
+            "system-owned `[ops-cash]` PDA before any close reserve is locked."
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115,
+                  45,
+                  99,
+                  97,
+                  115,
+                  104
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_round",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "account",
+                "path": "position.nonce",
+                "account": "Position"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "destination",
+          "docs": [
+            "signature/destination policy before `send_game`."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "minimum_receive",
+          "type": "u64"
+        },
+        {
+          "name": "close_simple",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "commit",
+      "discriminator": [
+        223,
+        140,
+        142,
+        165,
+        229,
+        208,
+        156,
+        74
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "discover_row",
+      "discriminator": [
+        83,
+        62,
+        4,
+        149,
+        51,
+        82,
+        205,
+        178
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "registry_page",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  101,
+                  103,
+                  105,
+                  115,
+                  116,
+                  114,
+                  121
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "registry_page.index",
+                "account": "RegistryPage"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer",
+          "writable": true
+        },
+        {
+          "name": "snapshot_page",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  115,
+                  110,
+                  97,
+                  112,
+                  115,
+                  104,
+                  111,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "snapshot_page.index",
+                "account": "SnapshotPage"
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fund_operations",
+      "discriminator": [
+        165,
+        82,
+        28,
+        5,
+        251,
+        236,
+        9,
+        219
+      ],
+      "accounts": [
+        {
+          "name": "sender",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "fund_series_a",
+      "discriminator": [
+        98,
+        127,
+        201,
+        110,
+        164,
+        159,
+        145,
+        75
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "backer",
+          "writable": true
+        },
+        {
+          "name": "registry",
+          "docs": [
+            "when a new/reopened row appends; active same-owner top-ups need no page."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "gross_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "sponsor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "squads_program"
+        },
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "signer": true
+        },
+        {
+          "name": "guardian_multisig"
+        },
+        {
+          "name": "guardian"
+        },
+        {
+          "name": "self_program"
+        },
+        {
+          "name": "program_data"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "defined": {
+              "name": "InitializeArgs"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "open_position",
+      "discriminator": [
+        135,
+        128,
+        47,
+        77,
+        15,
+        152,
+        240,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "owner",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "user",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "user_round",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  117,
+                  115,
+                  101,
+                  114,
+                  45,
+                  114,
+                  111,
+                  117,
+                  110,
+                  100
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "pool.round_id",
+                "account": "Pool"
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              }
+            ]
+          }
+        },
+        {
+          "name": "position",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  115,
+                  105,
+                  116,
+                  105,
+                  111,
+                  110
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "owner"
+              },
+              {
+                "kind": "arg",
+                "path": "client_nonce"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "plan",
+          "type": {
+            "defined": {
+              "name": "PlanKindArg"
+            }
+          }
+        },
+        {
+          "name": "gross_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "client_nonce",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "provision_registry",
+      "discriminator": [
+        25,
+        101,
+        109,
+        218,
+        10,
+        249,
+        210,
+        87
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "registry_page",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "provision_snapshot",
+      "discriminator": [
+        9,
+        249,
+        232,
+        212,
+        194,
+        76,
+        186,
+        143
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "snapshot_page",
+          "writable": true
+        },
+        {
+          "name": "payer",
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "index",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "prune_row",
+      "discriminator": [
+        85,
+        110,
+        244,
+        187,
+        11,
+        98,
+        160,
+        192
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "snapshot_page",
+          "writable": true
+        },
+        {
+          "name": "backer",
+          "docs": [
+            "captured key/series/slot before mutation."
+          ],
+          "writable": true
+        },
+        {
+          "name": "registry_page",
+          "writable": true
+        },
+        {
+          "name": "last_registry_page",
+          "docs": [
+            "original page and is written through one alias-safe codec."
+          ],
+          "writable": true
+        },
+        {
+          "name": "moved_backer",
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_cursor",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "seal_weights",
+      "discriminator": [
+        150,
+        37,
+        135,
+        52,
+        11,
+        255,
+        95,
+        223
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "senior",
+      "discriminator": [
+        33,
+        105,
+        176,
+        117,
+        66,
+        179,
+        10,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "oldest_backer",
+          "docs": [
+            "active membership, captured slot, owner binding, and ticket oldest key."
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "expected_ticket_id",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_pause",
+      "discriminator": [
+        63,
+        32,
+        154,
+        2,
+        56,
+        103,
+        79,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "guardian",
+          "signer": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_management",
+      "discriminator": [
+        103,
+        191,
+        132,
+        81,
+        199,
+        29,
+        91,
+        49
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "game_vault",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  103,
+                  97,
+                  109,
+                  101,
+                  45,
+                  118,
+                  97,
+                  117,
+                  108,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash"
+        },
+        {
+          "name": "recipient",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "withdraw_operations",
+      "discriminator": [
+        150,
+        4,
+        1,
+        176,
+        194,
+        59,
+        19,
+        140
+      ],
+      "accounts": [
+        {
+          "name": "sponsor",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Admission",
+      "discriminator": [
+        83,
+        88,
+        234,
+        149,
+        171,
+        195,
+        64,
+        40
+      ]
+    },
+    {
+      "name": "Backer",
+      "discriminator": [
+        199,
+        128,
+        179,
+        190,
+        2,
+        66,
+        118,
+        252
+      ]
+    },
+    {
+      "name": "GameVault",
+      "discriminator": [
+        152,
+        194,
+        238,
+        3,
+        140,
+        24,
+        51,
+        32
+      ]
+    },
+    {
+      "name": "Ops",
+      "discriminator": [
+        138,
+        43,
+        132,
+        42,
+        176,
+        7,
+        46,
+        18
+      ]
+    },
+    {
+      "name": "Pool",
+      "discriminator": [
+        241,
+        154,
+        109,
+        4,
+        17,
+        177,
+        109,
+        188
+      ]
+    },
+    {
+      "name": "Position",
+      "discriminator": [
+        170,
+        188,
+        143,
+        228,
+        122,
+        64,
+        247,
+        208
+      ]
+    },
+    {
+      "name": "RegistryPage",
+      "discriminator": [
+        190,
+        151,
+        207,
+        163,
+        226,
+        253,
+        16,
+        250
+      ]
+    },
+    {
+      "name": "SnapshotPage",
+      "discriminator": [
+        249,
+        175,
+        151,
+        41,
+        53,
+        179,
+        39,
+        246
+      ]
+    },
+    {
+      "name": "Ticket",
+      "discriminator": [
+        41,
+        228,
+        24,
+        165,
+        78,
+        90,
+        235,
+        200
+      ]
+    },
+    {
+      "name": "User",
+      "discriminator": [
+        159,
+        117,
+        95,
+        227,
+        239,
+        151,
+        58,
+        236
+      ]
+    },
+    {
+      "name": "UserRound",
+      "discriminator": [
+        60,
+        172,
+        176,
+        210,
+        41,
+        180,
+        197,
+        119
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "AdmissionPauseSet",
+      "discriminator": [
+        174,
+        220,
+        248,
+        236,
+        200,
+        32,
+        218,
+        196
+      ]
+    },
+    {
+      "name": "BackerClaimed",
+      "discriminator": [
+        240,
+        32,
+        166,
+        120,
+        229,
+        219,
+        215,
+        119
+      ]
+    },
+    {
+      "name": "CandidatesSealed",
+      "discriminator": [
+        176,
+        19,
+        141,
+        167,
+        16,
+        190,
+        250,
+        59
+      ]
+    },
+    {
+      "name": "ConfigActivated",
+      "discriminator": [
+        235,
+        116,
+        42,
+        193,
+        113,
+        251,
+        137,
+        137
+      ]
+    },
+    {
+      "name": "ConfigStaged",
+      "discriminator": [
+        81,
+        169,
+        171,
+        99,
+        27,
+        198,
+        211,
+        18
+      ]
+    },
+    {
+      "name": "DrawCaptured",
+      "discriminator": [
+        41,
+        106,
+        131,
+        224,
+        25,
+        237,
+        84,
+        147
+      ]
+    },
+    {
+      "name": "DrawRequested",
+      "discriminator": [
+        59,
+        172,
+        219,
+        42,
+        28,
+        94,
+        93,
+        75
+      ]
+    },
+    {
+      "name": "ManagementWithdrawn",
+      "discriminator": [
+        31,
+        107,
+        206,
+        27,
+        239,
+        175,
+        86,
+        69
+      ]
+    },
+    {
+      "name": "OperationsFunded",
+      "discriminator": [
+        204,
+        112,
+        57,
+        128,
+        210,
+        31,
+        86,
+        31
+      ]
+    },
+    {
+      "name": "OperationsWithdrawn",
+      "discriminator": [
+        25,
+        157,
+        99,
+        68,
+        124,
+        185,
+        68,
+        44
+      ]
+    },
+    {
+      "name": "PayoutPaid",
+      "discriminator": [
+        64,
+        207,
+        193,
+        176,
+        14,
+        102,
+        54,
+        159
+      ]
+    },
+    {
+      "name": "PositionClosed",
+      "discriminator": [
+        157,
+        163,
+        227,
+        228,
+        13,
+        97,
+        138,
+        121
+      ]
+    },
+    {
+      "name": "PositionOpened",
+      "discriminator": [
+        237,
+        175,
+        243,
+        230,
+        147,
+        117,
+        101,
+        121
+      ]
+    },
+    {
+      "name": "PromotionApplied",
+      "discriminator": [
+        32,
+        10,
+        191,
+        155,
+        240,
+        223,
+        140,
+        187
+      ]
+    },
+    {
+      "name": "PromotionSkipped",
+      "discriminator": [
+        67,
+        165,
+        43,
+        0,
+        17,
+        182,
+        32,
+        115
+      ]
+    },
+    {
+      "name": "RoundClosed",
+      "discriminator": [
+        45,
+        243,
+        28,
+        22,
+        132,
+        70,
+        175,
+        226
+      ]
+    },
+    {
+      "name": "RoundFinalized",
+      "discriminator": [
+        43,
+        187,
+        17,
+        193,
+        36,
+        241,
+        48,
+        82
+      ]
+    },
+    {
+      "name": "SeriesAFunded",
+      "discriminator": [
+        222,
+        209,
+        96,
+        136,
+        35,
+        30,
+        161,
+        254
+      ]
+    },
+    {
+      "name": "TicketCommitted",
+      "discriminator": [
+        33,
+        192,
+        69,
+        179,
+        56,
+        204,
+        203,
+        126
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "Overflow"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidState"
+    },
+    {
+      "code": 6002,
+      "name": "BackwardsTime"
+    },
+    {
+      "code": 6003,
+      "name": "QuotaExceeded"
+    },
+    {
+      "code": 6004,
+      "name": "NotAuthorized"
+    },
+    {
+      "code": 6005,
+      "name": "WrongAccount"
+    },
+    {
+      "code": 6006,
+      "name": "WrongOwner"
+    },
+    {
+      "code": 6007,
+      "name": "InsufficientOperations"
+    },
+    {
+      "code": 6008,
+      "name": "ProtectedDestination"
+    },
+    {
+      "code": 6009,
+      "name": "AdmissionPaused"
+    },
+    {
+      "code": 6010,
+      "name": "AllocationPending"
+    },
+    {
+      "code": 6011,
+      "name": "Closing"
+    },
+    {
+      "code": 6012,
+      "name": "MinimumDeposit"
+    },
+    {
+      "code": 6013,
+      "name": "MinimumReceive"
+    },
+    {
+      "code": 6014,
+      "name": "NotMature"
+    },
+    {
+      "code": 6015,
+      "name": "AlreadyClaimed"
+    },
+    {
+      "code": 6016,
+      "name": "StaleRound"
+    },
+    {
+      "code": 6017,
+      "name": "Replay"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidPhase"
+    },
+    {
+      "code": 6019,
+      "name": "CursorMismatch"
+    },
+    {
+      "code": 6020,
+      "name": "CapExceeded"
+    },
+    {
+      "code": 6021,
+      "name": "NotImplemented"
+    },
+    {
+      "code": 6022,
+      "name": "NothingToClaim"
+    },
+    {
+      "code": 6023,
+      "name": "InsufficientManagement"
+    },
+    {
+      "code": 6024,
+      "name": "ReserveUnavailable"
+    },
+    {
+      "code": 6025,
+      "name": "PositionRoundClosed"
+    },
+    {
+      "code": 6026,
+      "name": "DuplicateWritableAccount"
+    },
+    {
+      "code": 6027,
+      "name": "LateCapture"
+    },
+    {
+      "code": 6028,
+      "name": "Collision"
+    },
+    {
+      "code": 6029,
+      "name": "WrongProviderTuple"
+    },
+    {
+      "code": 6030,
+      "name": "ConfigNotActivatable"
+    }
+  ],
+  "types": [
+    {
+      "name": "Admission",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "guardian_vault",
+            "docs": [
+              "Authoritative guardian key; written by `initialize` and `rotate_guardian`."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "changed_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AdmissionPauseSet",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "guardian_vault",
+            "type": "pubkey"
+          },
+          {
+            "name": "changed_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Backer",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "series",
+            "type": "u8"
+          },
+          {
+            "name": "amount",
+            "type": "u128"
+          },
+          {
+            "name": "entitlement",
+            "type": "u128"
+          },
+          {
+            "name": "lifetime",
+            "type": "u128"
+          },
+          {
+            "name": "funded",
+            "type": "u64"
+          },
+          {
+            "name": "pending",
+            "type": "u64"
+          },
+          {
+            "name": "pending_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "first_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "active",
+            "type": "bool"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          },
+          {
+            "name": "rent_funded_by_ops",
+            "type": "u64"
+          },
+          {
+            "name": "rent_funded_by_owner",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "BackerClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "a_part",
+            "type": "u64"
+          },
+          {
+            "name": "b_part",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "CandidatesSealed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "tag",
+            "type": "u8"
+          },
+          {
+            "name": "count",
+            "type": "u64"
+          },
+          {
+            "name": "digest",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigActivated",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigStaged",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DrawCaptured",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "captured_at",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DrawRequested",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "request_account",
+            "type": "pubkey"
+          },
+          {
+            "name": "fee_paid",
+            "type": "u64"
+          },
+          {
+            "name": "request_rent",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GameVault",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitializeArgs",
+      "docs": [
+        "Genesis configuration.  `sponsor` is intentionally repeated in the args",
+        "and as a signer account so a fee payer cannot silently become the sponsor."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "management_recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "cluster_domain",
+            "docs": [
+              "Immutable cluster domain (devnet and mainnet differ); stored once in",
+              "`Pool.cluster_domain` and never writable again."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "ManagementWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "management_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OperationsFunded",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "funder",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "free_balance_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OperationsWithdrawn",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "recipient",
+            "type": "pubkey"
+          },
+          {
+            "name": "amount",
+            "type": "u64"
+          },
+          {
+            "name": "free_balance_after",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ops",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "free_balance",
+            "type": "u64"
+          },
+          {
+            "name": "locked_remaining_total",
+            "docs": [
+              "O(1) aggregate of close-reserve lamports still locked; never rescanned."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "unallocated_excess",
+            "docs": [
+              "Anonymous OpsCash credits not yet assigned to a partition."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_consumed_total",
+            "type": "u128"
+          },
+          {
+            "name": "request_rent_outstanding",
+            "type": "u64"
+          },
+          {
+            "name": "eligible_return_budget",
+            "type": "u64"
+          },
+          {
+            "name": "provider_returned_total",
+            "type": "u128"
+          },
+          {
+            "name": "provider_deficit",
+            "type": "u64"
+          },
+          {
+            "name": "client_balance_observed",
+            "type": "u64"
+          },
+          {
+            "name": "client_protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "total_contributed",
+            "type": "u128"
+          },
+          {
+            "name": "total_withdrawn",
+            "type": "u128"
+          },
+          {
+            "name": "total_rent_funded",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayoutPaid",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "gross_paid",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "net",
+            "type": "u64"
+          },
+          {
+            "name": "destination",
+            "type": "pubkey"
+          },
+          {
+            "name": "closing",
+            "type": "bool"
+          },
+          {
+            "name": "close_id",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "ticket_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PlanKindArg",
+      "docs": [
+        "The three plan discriminants are part of the instruction ABI.  They are",
+        "deliberately separate from the host enum so Anchor serializes a stable",
+        "on-chain representation without importing host state."
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Simple"
+          },
+          {
+            "name": "Compound15"
+          },
+          {
+            "name": "Compound30"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Pool",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "cluster_domain",
+            "docs": [
+              "Immutable genesis domain: written once by `initialize`, never again."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "active_config_version",
+            "type": "u32"
+          },
+          {
+            "name": "pot",
+            "type": "u64"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          },
+          {
+            "name": "management",
+            "type": "u64"
+          },
+          {
+            "name": "pending_toll",
+            "type": "u64"
+          },
+          {
+            "name": "funded_claims",
+            "type": "u128"
+          },
+          {
+            "name": "excess",
+            "type": "u64"
+          },
+          {
+            "name": "protected_rent",
+            "type": "u64"
+          },
+          {
+            "name": "registry_len",
+            "type": "u64"
+          },
+          {
+            "name": "registry_version",
+            "type": "u64"
+          },
+          {
+            "name": "next_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "next_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "active_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "finalized_ticket",
+            "type": "u64"
+          },
+          {
+            "name": "snapshot_pages",
+            "type": "u64"
+          },
+          {
+            "name": "registry_pages",
+            "type": "u64"
+          },
+          {
+            "name": "participant_count",
+            "type": "u64"
+          },
+          {
+            "name": "participant_pages",
+            "docs": [
+              "Current-round participant page capacity; reset at finalize."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "next_close_id",
+            "type": "u64"
+          },
+          {
+            "name": "current_close_id",
+            "docs": [
+              "`Some` exactly while a close is in progress; see [`Pool::closing`]."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "total_gross_deposits",
+            "type": "u128"
+          },
+          {
+            "name": "total_net_payouts",
+            "type": "u128"
+          },
+          {
+            "name": "governance",
+            "type": "pubkey"
+          },
+          {
+            "name": "guardian_vault",
+            "docs": [
+              "Genesis guardian vault. `Admission.guardian_vault` is authoritative.",
+              "Genesis copy of `Admission.guardian_vault`; `rotate_guardian` (M3) writes both in one instruction."
+            ],
+            "type": "pubkey"
+          },
+          {
+            "name": "sponsor",
+            "type": "pubkey"
+          },
+          {
+            "name": "management_recipient",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Position",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          },
+          {
+            "name": "kind",
+            "type": "u8"
+          },
+          {
+            "name": "principal",
+            "type": "u64"
+          },
+          {
+            "name": "opened_at",
+            "type": "u64"
+          },
+          {
+            "name": "maturity_at",
+            "type": "u64"
+          },
+          {
+            "name": "last_accrued_at",
+            "type": "u64"
+          },
+          {
+            "name": "remainder",
+            "type": "u128"
+          },
+          {
+            "name": "accrued_gross",
+            "type": "u128"
+          },
+          {
+            "name": "paid_gross",
+            "type": "u128"
+          },
+          {
+            "name": "net_payout",
+            "type": "u128"
+          },
+          {
+            "name": "claimed",
+            "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PositionOpened",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` (and `close_id`) only; `close_id` is always `None` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "nonce",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `None`: an opening is never attributed to a close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "plan",
+            "type": "u8"
+          },
+          {
+            "name": "gross",
+            "type": "u64"
+          },
+          {
+            "name": "load",
+            "type": "u64"
+          },
+          {
+            "name": "config_version",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PromotionApplied",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` and `close_id` only; `close_id` is always `Some` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `Some`: a promotion belongs to exactly one close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "winner",
+            "type": "pubkey"
+          },
+          {
+            "name": "loss",
+            "type": "u64"
+          },
+          {
+            "name": "entitlement",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PromotionSkipped",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "reason",
+            "type": "u8"
+          },
+          {
+            "name": "stage",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RegistryPage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "keys",
+            "type": {
+              "array": [
+                "pubkey",
+                8
+              ]
+            }
+          },
+          {
+            "name": "rent",
+            "type": {
+              "defined": {
+                "name": "RentComponents"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RentComponents",
+      "docs": [
+        "Who funded a shared account's rent, in at most two components (DR-13).",
+        "The actual payer of the `create_account` CPI is the `OpsCash` PDA; this",
+        "records the beneficial funders and where the owner share is refunded."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "ops",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "u64"
+          },
+          {
+            "name": "owner_refund",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RoundClosed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "deadline",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RoundFinalized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "type": "u64"
+          },
+          {
+            "name": "new_round",
+            "type": "u64"
+          },
+          {
+            "name": "seed_carried",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SeriesAFunded",
+      "docs": [
+        "Ingested by the ICP bridge, which compares descriptor fields against",
+        "`round_id` (and `close_id`) only; `close_id` is always `None` here."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "Always `None`: funding is never attributed to a close."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "gross",
+            "type": "u64"
+          },
+          {
+            "name": "entitlement_after",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "SnapshotPage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "index",
+            "type": "u64"
+          },
+          {
+            "name": "ticket_id",
+            "type": "u64"
+          },
+          {
+            "name": "rows",
+            "type": {
+              "array": [
+                {
+                  "defined": {
+                    "name": "SnapshotRow"
+                  }
+                },
+                8
+              ]
+            }
+          },
+          {
+            "name": "rent",
+            "type": {
+              "defined": {
+                "name": "RentComponents"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "SnapshotRow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "key",
+            "type": "pubkey"
+          },
+          {
+            "name": "series",
+            "type": "u8"
+          },
+          {
+            "name": "remaining",
+            "type": "u128"
+          },
+          {
+            "name": "slot",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Ticket",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "phase",
+            "type": "u8"
+          },
+          {
+            "name": "close_id",
+            "docs": [
+              "`Some` when this ticket allocates a closing payout's toll."
+            ],
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "captured_len",
+            "type": "u64"
+          },
+          {
+            "name": "expected_version",
+            "type": "u64"
+          },
+          {
+            "name": "cursor",
+            "type": "u64"
+          },
+          {
+            "name": "a_count",
+            "type": "u64"
+          },
+          {
+            "name": "b_count",
+            "type": "u64"
+          },
+          {
+            "name": "a_remainder_total",
+            "docs": [
+              "Discovery accumulator: U256 sum of Series-A remainders, little-endian.",
+              "A sum of u128 remainders can exceed u128, so it never narrows."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "sealed_a_denominator",
+            "docs": [
+              "Fixed U256 denominator frozen at seal, serialized little-endian."
+            ],
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "oldest",
+            "type": "pubkey"
+          },
+          {
+            "name": "oldest_sequence",
+            "type": "u64"
+          },
+          {
+            "name": "oldest_slot",
+            "type": "u64"
+          },
+          {
+            "name": "senior_credit",
+            "type": "u64"
+          },
+          {
+            "name": "senior_slice",
+            "type": "u64"
+          },
+          {
+            "name": "a_slice",
+            "type": "u64"
+          },
+          {
+            "name": "b_slice",
+            "type": "u64"
+          },
+          {
+            "name": "seed_credit",
+            "type": "u64"
+          },
+          {
+            "name": "credited",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "senior_bps",
+            "docs": [
+              "Backer-half split pinned from `ConfigVersion` when the ticket is created."
+            ],
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketCommitted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "schema_version",
+            "type": "u8"
+          },
+          {
+            "name": "ticket_id",
+            "type": "u64"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "toll",
+            "type": "u64"
+          },
+          {
+            "name": "credited",
+            "type": "u64"
+          },
+          {
+            "name": "seed",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "User",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "ever_a",
+            "type": "bool"
+          },
+          {
+            "name": "ever_b",
+            "type": "bool"
+          },
+          {
+            "name": "successful_at",
+            "type": {
+              "array": [
+                "u64",
+                3
+              ]
+            }
+          },
+          {
+            "name": "call_count",
+            "type": "u8"
+          },
+          {
+            "name": "b_entitlement",
+            "type": "u128"
+          }
+        ]
+      }
+    },
+    {
+      "name": "UserRound",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "round_id",
+            "type": "u64"
+          },
+          {
+            "name": "owner",
+            "type": "pubkey"
+          },
+          {
+            "name": "deposits",
+            "type": "u128"
+          },
+          {
+            "name": "net_payout",
+            "type": "u128"
+          },
+          {
+            "name": "participant_slot",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ]
+}
