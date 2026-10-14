@@ -8,19 +8,20 @@ use std::{
 
 use anchor_lang::{AccountDeserialize, AccountSerialize};
 use litesvm::LiteSVM;
-use musical_chairs_program::{state, ID};
+use musical_chairs_program::{controls::SQUADS_PROGRAM_ID, state, ID};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use solana_sdk::{
     account::Account,
     clock::Clock,
     compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction,
+    instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
+use solana_sdk_ids::bpf_loader_upgradeable;
 use solana_system_interface::program as system_program;
 
 pub const PACKET_LIMIT_BYTES: usize = 1_232;
@@ -30,6 +31,11 @@ pub const OWNER_SEED: [u8; 32] = [0x22; 32];
 pub const ATTACKER_SEED: [u8; 32] = [0x33; 32];
 pub const SPONSOR_SEED: [u8; 32] = [0x44; 32];
 pub const MANAGEMENT_SEED: [u8; 32] = [0x55; 32];
+/// Squads `create_key` of the governance (G) multisig fixture.  The Multisig
+/// PDA and its index-0 Vault PDA are derived from it (see `fixtures::squads`).
+pub const G_CREATE_KEY: [u8; 32] = [0x47; 32];
+/// Squads `create_key` of the pause-guardian (P) multisig fixture.
+pub const P_CREATE_KEY: [u8; 32] = [0x50; 32];
 
 const AIRDROP_LAMPORTS: u64 = 100_000_000_000;
 const DAY: u64 = 86_400;
@@ -41,7 +47,7 @@ const CLAIM_TOLL: u64 = 1_320_000;
 const CLAIM_NET: u64 = 9_680_000;
 /// Synthetic 32-byte `Pool.cluster_domain` test vector.  It is a fixture
 /// label, not a real devnet/mainnet cluster domain.
-const FIXTURE_CLUSTER_DOMAIN: [u8; 32] = *b"musical-chairs-litesvm-fixture!!";
+pub const FIXTURE_CLUSTER_DOMAIN: [u8; 32] = *b"musical-chairs-litesvm-fixture!!";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AccountChange {
@@ -99,10 +105,54 @@ pub struct FinancialRuntime {
     pub sponsor: Keypair,
     pub management: Keypair,
     artifact_sha256: String,
+    /// The main program ELF, kept so the loader fixture can append it to the
+    /// `ProgramData` header.
+    elf: Vec<u8>,
+    /// SHA-256 of the Squads vault stand-in ELF when it is loaded.
+    standin_sha256: Option<String>,
 }
 
 impl FinancialRuntime {
+    /// The M0/M2 fixture: canonical state injected, no Squads accounts and no
+    /// upgradeable-loader shape.  The pause guardian is the synthetic
+    /// `attacker` keypair so the M0 control rows keep their recorded
+    /// outcomes; `Pool.governance` stays unset.  M3 authenticated-controls
+    /// tests use [`FinancialRuntime::new_governed`] instead.
     pub fn new() -> Self {
+        let mut runtime = Self::bootstrap(false);
+        runtime.inject_canonical_fixture();
+        runtime
+    }
+
+    /// Programs loaded (main ELF under the upgradeable loader, Squads vault
+    /// stand-in at the Squads id), actors funded, `ProgramData` authority =
+    /// the G vault, and the committed G and P `Multisig` accounts installed
+    /// owned by the Squads id.  NO program state is injected, so `initialize`
+    /// runs against fresh PDAs.
+    pub fn new_uninitialized() -> Self {
+        Self::bootstrap(true)
+    }
+
+    /// [`FinancialRuntime::new_uninitialized`] plus the canonical state
+    /// fixture, bound to the Squads fixtures: `Pool.governance` is the G
+    /// vault and `Pool.guardian_vault` = `Admission.guardian_vault` is the P
+    /// vault.  This is the post-`initialize` genesis shape.
+    pub fn new_governed() -> Self {
+        let mut runtime = Self::new_uninitialized();
+        runtime.inject_canonical_fixture();
+        let governance = runtime.g_vault();
+        let guardian = runtime.p_vault();
+        let mut pool: state::Pool = runtime.deserialize(runtime.pool_address());
+        pool.governance = governance;
+        pool.guardian_vault = guardian;
+        runtime.replace_pool(pool);
+        let mut admission: state::Admission = runtime.deserialize(runtime.admission_address());
+        admission.guardian_vault = guardian;
+        runtime.replace_admission(admission);
+        runtime
+    }
+
+    fn bootstrap(m3: bool) -> Self {
         let mut svm = LiteSVM::new();
         let payer = Keypair::new_from_array(PAYER_SEED);
         let owner = Keypair::new_from_array(OWNER_SEED);
@@ -118,13 +168,14 @@ impl FinancialRuntime {
         let artifact_sha256 = hex_sha256(&elf);
         svm.add_program(ID, &elf)
             .expect("actual Musical Chairs financial ELF must load into LiteSVM");
-        svm.set_sysvar(&Clock {
-            slot: 1,
-            epoch_start_timestamp: 0,
-            epoch: 0,
-            leader_schedule_epoch: 0,
-            unix_timestamp: 0,
-        });
+        let standin_sha256 = if m3 {
+            let standin = read_standin_elf();
+            svm.add_program(SQUADS_PROGRAM_ID, &standin)
+                .expect("actual Squads vault stand-in ELF must load into LiteSVM");
+            Some(hex_sha256(&standin))
+        } else {
+            None
+        };
 
         let mut runtime = Self {
             svm,
@@ -134,9 +185,36 @@ impl FinancialRuntime {
             sponsor,
             management,
             artifact_sha256,
+            elf,
+            standin_sha256,
         };
-        runtime.inject_canonical_fixture();
+        if m3 {
+            // Installed while the clock is still at its default, exactly like
+            // the M0 `add_program` above, so no program-cache entry is created
+            // after the slot moves.
+            let governance = runtime.g_vault();
+            runtime.install_loader_fixture(Some(governance));
+            let g_multisig = runtime.g_multisig();
+            runtime.install_squads_account(
+                g_multisig,
+                SQUADS_PROGRAM_ID,
+                fixtures::squads::committed_governance(),
+            );
+            let p_multisig = runtime.p_multisig();
+            runtime.install_squads_account(
+                p_multisig,
+                SQUADS_PROGRAM_ID,
+                fixtures::squads::committed_guardian(),
+            );
+        }
+        runtime.set_clock(0, 1);
         runtime
+    }
+
+    /// SHA-256 of the loaded Squads vault stand-in ELF, when this runtime
+    /// loaded it (`new_uninitialized` / `new_governed`).
+    pub fn standin_artifact_sha256(&self) -> Option<&str> {
+        self.standin_sha256.as_deref()
     }
 
     pub fn set_clock(&mut self, now: i64, slot: u64) {
@@ -147,6 +225,192 @@ impl FinancialRuntime {
             leader_schedule_epoch: 0,
             unix_timestamp: now,
         });
+    }
+
+    /// The G (governance) Squads `Multisig` PDA.
+    pub fn g_multisig(&self) -> Pubkey {
+        fixtures::squads::multisig_address(&Pubkey::new_from_array(G_CREATE_KEY)).0
+    }
+    /// The G Vault PDA (vault index 0) that must sign governance instructions.
+    pub fn g_vault(&self) -> Pubkey {
+        fixtures::squads::vault_address(&self.g_multisig(), 0).0
+    }
+    /// The P (pause guardian) Squads `Multisig` PDA.
+    pub fn p_multisig(&self) -> Pubkey {
+        fixtures::squads::multisig_address(&Pubkey::new_from_array(P_CREATE_KEY)).0
+    }
+    /// The P Vault PDA (vault index 0) that must sign `set_pause`.
+    pub fn p_vault(&self) -> Pubkey {
+        fixtures::squads::vault_address(&self.p_multisig(), 0).0
+    }
+    /// `["<main program id>"]` under the upgradeable loader.
+    pub fn program_data_address(&self) -> Pubkey {
+        fixtures::loader::program_data_address()
+    }
+
+    /// Install the loader-shaped fixture: a `ProgramData` account (header
+    /// with `slot` 1 and `authority`, then the main ELF) and the `Program`
+    /// account at the main program id, owned by the upgradeable loader and
+    /// executable.  The ProgramData is written first because LiteSVM loads
+    /// the program from it.  Execution keeps using the actual ELF.
+    pub fn install_loader_fixture(&mut self, authority: Option<Pubkey>) {
+        let mut program_data =
+            fixtures::loader::programdata_header(fixtures::loader::SLOT, authority);
+        program_data.extend_from_slice(&self.elf);
+        let lamports = self.rent(program_data.len());
+        self.svm
+            .set_account(
+                fixtures::loader::program_data_address(),
+                Account {
+                    lamports,
+                    data: program_data,
+                    owner: bpf_loader_upgradeable::id(),
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .expect("ProgramData loader fixture");
+        let program = fixtures::loader::program_header();
+        let lamports = self.rent(program.len());
+        self.svm
+            .set_account(
+                ID,
+                Account {
+                    lamports,
+                    data: program,
+                    owner: bpf_loader_upgradeable::id(),
+                    executable: true,
+                    rent_epoch: 0,
+                },
+            )
+            .expect("Program loader fixture");
+    }
+
+    /// Rewrite only the `ProgramData` header (the ELF suffix and the program
+    /// cache entry are untouched), e.g. to model an authority mismatch or an
+    /// immutable (`None`) program.
+    pub fn set_programdata_authority(&mut self, authority: Option<Pubkey>) {
+        let address = fixtures::loader::program_data_address();
+        let mut account = self.account(address);
+        let header = fixtures::loader::programdata_header(fixtures::loader::SLOT, authority);
+        account.data[..header.len()].copy_from_slice(&header);
+        self.svm
+            .set_account(address, account)
+            .expect("ProgramData authority rewrite");
+    }
+
+    /// Install (or overwrite) an arbitrary account with rent-exempt lamports.
+    /// Used for the Squads `Multisig` fixtures, including malformed variants.
+    pub fn install_squads_account(&mut self, address: Pubkey, owner: Pubkey, data: Vec<u8>) {
+        let lamports = self.rent(data.len());
+        self.svm
+            .set_account(
+                address,
+                Account {
+                    lamports,
+                    data,
+                    owner,
+                    executable: false,
+                    rent_epoch: 0,
+                },
+            )
+            .expect("Squads multisig fixture account");
+    }
+
+    /// Install a canonical-shape Multisig (threshold 2, three members with
+    /// mask 7, autonomous, no rent collector) for `create_key` with the given
+    /// `time_lock`, owned by the Squads id.  Returns the Multisig PDA.
+    pub fn install_multisig(&mut self, create_key: [u8; 32], time_lock: u32) -> Pubkey {
+        let data = fixtures::squads::profile_bytes(create_key, time_lock, 2);
+        let (address, _) = fixtures::squads::multisig_address(&Pubkey::new_from_array(create_key));
+        self.install_squads_account(address, SQUADS_PROGRAM_ID, data);
+        address
+    }
+
+    /// Run `inner` as if the Squads vault at `vault_index` of `multisig` had
+    /// executed it: wrap it in one stand-in instruction.
+    ///
+    /// Stand-in data: `[vault_index u8][bump u8][inner.data]`.  Stand-in
+    /// accounts, in order: `[multisig (read-only), vault (read-only, NOT a
+    /// signer in this outer list), inner.program_id (read-only), inner.accounts
+    /// ...]` where the vault's own meta inside the inner list is de-signed
+    /// here and re-signed by the stand-in through `invoke_signed` with the
+    /// vault seeds.  Every other signer flag is kept, so the matching keypairs
+    /// must be in `extra_signers`.
+    pub fn execute_via_vault(
+        &mut self,
+        label: impl Into<String>,
+        multisig: Pubkey,
+        vault_index: u8,
+        inner: Instruction,
+        extra_signers: &[&Keypair],
+        compute_limit: u32,
+    ) -> Observation {
+        let (vault, bump) = fixtures::squads::vault_address(&multisig, vault_index);
+        let mut data = Vec::with_capacity(2 + inner.data.len());
+        data.push(vault_index);
+        data.push(bump);
+        data.extend_from_slice(&inner.data);
+        let mut accounts = vec![
+            AccountMeta::new_readonly(multisig, false),
+            AccountMeta::new_readonly(vault, false),
+            AccountMeta::new_readonly(inner.program_id, false),
+        ];
+        accounts.extend(inner.accounts.into_iter().map(|mut meta| {
+            if meta.pubkey == vault {
+                meta.is_signer = false;
+            }
+            meta
+        }));
+        let wrapped = Instruction {
+            program_id: SQUADS_PROGRAM_ID,
+            accounts,
+            data,
+        };
+        self.execute(label, vec![wrapped], extra_signers, compute_limit)
+    }
+
+    /// Value-conservation invariants of the two physical cash registers,
+    /// asserted on current state:
+    /// `ops_cash.lamports - rent(0) == free + locked + unallocated_excess` and
+    /// `game_vault.lamports - rent(GameVault::SPACE) ==` every game partition
+    /// (`pot + seed + management + pending_toll + funded_claims + excess`, the
+    /// program's own `game_accounted`).
+    pub fn conservation_check(&self) {
+        let pool: state::Pool = self.deserialize(self.pool_address());
+        let ops: state::Ops = self.deserialize(self.ops_address());
+        let ops_cash = self.account(self.ops_cash_address()).lamports;
+        let ops_spendable = ops_cash
+            .checked_sub(self.rent(0))
+            .unwrap_or_else(|| panic!("ops_cash {ops_cash} lamports is below its rent floor"));
+        let ops_recorded = u128::from(ops.free_balance)
+            + u128::from(ops.locked_remaining_total)
+            + u128::from(ops.unallocated_excess);
+        assert_eq!(
+            u128::from(ops_spendable),
+            ops_recorded,
+            "ops_cash conservation: spendable {ops_spendable} != free {} + locked {} + unallocated {}",
+            ops.free_balance,
+            ops.locked_remaining_total,
+            ops.unallocated_excess
+        );
+        let vault = self.account(self.game_vault_address()).lamports;
+        let vault_spendable = vault
+            .checked_sub(self.rent(state::GameVault::SPACE))
+            .unwrap_or_else(|| panic!("game_vault {vault} lamports is below its rent floor"));
+        let accounted = musical_chairs_program::game_accounted(&pool)
+            .expect("game partitions sum without overflow");
+        assert_eq!(
+            u128::from(vault_spendable),
+            accounted,
+            "game_vault conservation: spendable {vault_spendable} != pot {} + seed {} + management {} + pending_toll {} + funded_claims {} + excess {}",
+            pool.pot,
+            pool.seed,
+            pool.management,
+            pool.pending_toll,
+            pool.funded_claims,
+            pool.excess
+        );
     }
 
     pub fn pool_address(&self) -> Pubkey {
@@ -490,6 +754,23 @@ impl FinancialRuntime {
         self.replace_program_account(address, &pool, state::Pool::SPACE);
     }
 
+    pub fn replace_admission(&mut self, admission: state::Admission) {
+        let address = self.admission_address();
+        self.replace_program_account(address, &admission, state::Admission::SPACE);
+    }
+
+    pub fn replace_ops(&mut self, ops: state::Ops) {
+        let address = self.ops_address();
+        self.replace_program_account(address, &ops, state::Ops::SPACE);
+    }
+
+    /// Fixture write: credit `lamports` to an existing account (the funding
+    /// half of a state seed, so conservation keeps holding).
+    pub fn add_lamports(&mut self, key: Pubkey, lamports: u64) {
+        let current = self.account(key).lamports;
+        self.replace_lamports(key, current + lamports);
+    }
+
     pub fn replace_ticket(&mut self, ticket: state::Ticket) {
         let address = self.ticket_address();
         self.replace_program_account(address, &ticket, state::Ticket::SPACE);
@@ -595,7 +876,7 @@ impl FinancialRuntime {
         self.replace_snapshot(snapshot);
     }
 
-    fn rent(&self, data_len: usize) -> u64 {
+    pub fn rent(&self, data_len: usize) -> u64 {
         self.svm.minimum_balance_for_rent_exemption(data_len)
     }
 
@@ -697,6 +978,26 @@ fn read_financial_elf() -> Vec<u8> {
     fs::read(&path).unwrap_or_else(|error| {
         panic!(
             "actual compiled financial SBF {} is required (set MC_FINANCIAL_SBF): {error}",
+            path.display()
+        )
+    })
+}
+
+/// SHA-256 of the Squads vault stand-in ELF selected by `MC_STANDIN_SBF`.
+pub fn standin_artifact_sha256() -> String {
+    hex_sha256(&read_standin_elf())
+}
+
+fn read_standin_elf() -> Vec<u8> {
+    let path = env::var_os("MC_STANDIN_SBF")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("standin/squads-vault-standin/artifacts/squads_vault_standin.so")
+        });
+    fs::read(&path).unwrap_or_else(|error| {
+        panic!(
+            "actual compiled Squads vault stand-in SBF {} is required (set MC_STANDIN_SBF): {error}",
             path.display()
         )
     })
@@ -816,4 +1117,266 @@ pub fn open_constants() -> (u64, u64, u64) {
 
 pub fn claim_constants() -> (u64, u64, u64) {
     (CLAIM_GROSS, CLAIM_TOLL, CLAIM_NET)
+}
+
+/// Byte-exact local fixtures for the two external account shapes the control
+/// plane reads: Squads v4 `Multisig` accounts and the upgradeable-loader
+/// `Program`/`ProgramData` pair.  Both are LOCAL fixtures: no on-chain Squads
+/// account or deployed program is involved.  The committed `.bin` files under
+/// `fixtures/` are reproduced by these generators (see the tests in `lib.rs`).
+pub mod fixtures {
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
+
+    fn fixture_path(relative: &str) -> PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures").join(relative)
+    }
+
+    fn read_fixture(relative: &str) -> Vec<u8> {
+        let path = fixture_path(relative);
+        fs::read(&path).unwrap_or_else(|error| {
+            panic!("committed fixture {} is required: {error}", path.display())
+        })
+    }
+
+    pub mod squads {
+        use musical_chairs_program::controls::{SQUADS_MULTISIG_DISCRIMINATOR, SQUADS_PROGRAM_ID};
+        use solana_sdk::pubkey::Pubkey;
+
+        use super::{fixture_path, read_fixture};
+        use crate::runtime::{G_CREATE_KEY, P_CREATE_KEY};
+
+        /// squads-protocol/v4 commit the `Multisig` layout is taken from
+        /// (`programs/squads_multisig_program/src/state/multisig.rs`).
+        pub const PINNED_COMMIT: &str = "887627b3ac3f59548fdb6dfd1dfe23a21bb72b60";
+        /// `Permissions { mask }`: Initiate (1) | Vote (2) | Execute (4).
+        pub const ALL_PERMISSIONS: u8 = 7;
+        /// A freshly created multisig has executed no transactions.
+        pub const TRANSACTION_INDEX: u64 = 0;
+        pub const STALE_TRANSACTION_INDEX: u64 = 0;
+        pub const GOVERNANCE_TIME_LOCK: u32 = 172_800;
+        pub const GUARDIAN_TIME_LOCK: u32 = 0;
+        pub const THRESHOLD: u16 = 2;
+        pub const MEMBER_COUNT: usize = 3;
+        pub const GOVERNANCE_FILE: &str = "squads/multisig_g.bin";
+        pub const GUARDIAN_FILE: &str = "squads/multisig_p.bin";
+
+        /// `["multisig", "multisig", create_key]` under the Squads program.
+        pub fn multisig_address(create_key: &Pubkey) -> (Pubkey, u8) {
+            Pubkey::find_program_address(
+                &[b"multisig", b"multisig", create_key.as_ref()],
+                &SQUADS_PROGRAM_ID,
+            )
+        }
+
+        /// `["multisig", multisig, "vault", [vault_index]]` under the Squads
+        /// program.  The Squads vault stand-in signs with the same seeds.
+        pub fn vault_address(multisig: &Pubkey, vault_index: u8) -> (Pubkey, u8) {
+            Pubkey::find_program_address(
+                &[b"multisig", multisig.as_ref(), b"vault", &[vault_index]],
+                &SQUADS_PROGRAM_ID,
+            )
+        }
+
+        /// Three distinct synthetic members for a multisig: the first byte is
+        /// the `create_key` tag, the last byte is the member ordinal.
+        pub fn canonical_members(create_key: &Pubkey) -> Vec<(Pubkey, u8)> {
+            (1..=MEMBER_COUNT as u8)
+                .map(|ordinal| {
+                    let mut key = [create_key.to_bytes()[0]; 32];
+                    key[31] = ordinal;
+                    (Pubkey::new_from_array(key), ALL_PERMISSIONS)
+                })
+                .collect()
+        }
+
+        /// Serialize a `Multisig` account in the pinned Borsh layout:
+        /// `discriminator[8] | create_key | config_authority (plain Pubkey) |
+        /// threshold u16 | time_lock u32 | transaction_index u64 |
+        /// stale_transaction_index u64 | rent_collector Option<Pubkey> (tag +
+        /// 32 if Some) | bump u8 | members: u32 len + N x (key | permissions
+        /// mask u8)`.  Integers are little-endian.  No allocation padding.
+        pub fn multisig_bytes(
+            create_key: Pubkey,
+            config_authority: Pubkey,
+            threshold: u16,
+            time_lock: u32,
+            rent_collector: Option<Pubkey>,
+            bump: u8,
+            members: &[(Pubkey, u8)],
+        ) -> Vec<u8> {
+            let mut bytes = Vec::with_capacity(8 + 32 + 32 + 2 + 4 + 8 + 8 + 33 + 1 + 4 + members.len() * 33);
+            bytes.extend_from_slice(&SQUADS_MULTISIG_DISCRIMINATOR);
+            bytes.extend_from_slice(create_key.as_ref());
+            bytes.extend_from_slice(config_authority.as_ref());
+            bytes.extend_from_slice(&threshold.to_le_bytes());
+            bytes.extend_from_slice(&time_lock.to_le_bytes());
+            bytes.extend_from_slice(&TRANSACTION_INDEX.to_le_bytes());
+            bytes.extend_from_slice(&STALE_TRANSACTION_INDEX.to_le_bytes());
+            match rent_collector {
+                None => bytes.push(0),
+                Some(collector) => {
+                    bytes.push(1);
+                    bytes.extend_from_slice(collector.as_ref());
+                }
+            }
+            bytes.push(bump);
+            bytes.extend_from_slice(&(members.len() as u32).to_le_bytes());
+            for (key, mask) in members {
+                bytes.extend_from_slice(key.as_ref());
+                bytes.push(*mask);
+            }
+            bytes
+        }
+
+        /// The size Squads allocates for a multisig with `member_count`
+        /// members: `Option<Pubkey>` always reserves 33 bytes, so an account
+        /// whose `rent_collector` is `None` carries 32 trailing zero bytes.
+        pub fn multisig_space(member_count: usize) -> usize {
+            8 + 32 + 32 + 2 + 4 + 8 + 8 + 33 + 1 + 4 + member_count * 33
+        }
+
+        /// Zero-pad serialized bytes up to the allocation size (never shrinks).
+        pub fn pad_to_allocation(mut bytes: Vec<u8>, member_count: usize) -> Vec<u8> {
+            let space = multisig_space(member_count);
+            if bytes.len() < space {
+                bytes.resize(space, 0);
+            }
+            bytes
+        }
+
+        /// Autonomous (`config_authority` = default), no rent collector,
+        /// canonical members and canonical bump, with the given threshold and
+        /// time lock.
+        pub fn profile_bytes(create_key: [u8; 32], time_lock: u32, threshold: u16) -> Vec<u8> {
+            let create_key = Pubkey::new_from_array(create_key);
+            let (_, bump) = multisig_address(&create_key);
+            multisig_bytes(
+                create_key,
+                Pubkey::default(),
+                threshold,
+                time_lock,
+                None,
+                bump,
+                &canonical_members(&create_key),
+            )
+        }
+
+        /// The G profile: 2-of-3, 172,800 s time lock, `create_key` `[0x47; 32]`.
+        pub fn governance_bytes() -> Vec<u8> {
+            profile_bytes(G_CREATE_KEY, GOVERNANCE_TIME_LOCK, THRESHOLD)
+        }
+
+        /// The P profile: 2-of-3, no time lock, `create_key` `[0x50; 32]`.
+        pub fn guardian_bytes() -> Vec<u8> {
+            profile_bytes(P_CREATE_KEY, GUARDIAN_TIME_LOCK, THRESHOLD)
+        }
+
+        /// The committed `multisig_g.bin`.
+        pub fn committed_governance() -> Vec<u8> {
+            read_fixture(GOVERNANCE_FILE)
+        }
+
+        /// The committed `multisig_p.bin`.
+        pub fn committed_guardian() -> Vec<u8> {
+            read_fixture(GUARDIAN_FILE)
+        }
+
+        /// Write both committed fixtures from the generators (used by the
+        /// fixture regeneration helper; the tests only compare).
+        pub fn write_committed() {
+            for (file, bytes) in [
+                (GOVERNANCE_FILE, governance_bytes()),
+                (GUARDIAN_FILE, guardian_bytes()),
+            ] {
+                let path = fixture_path(file);
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).expect("fixture directory");
+                }
+                std::fs::write(&path, bytes).expect("fixture write");
+            }
+        }
+    }
+
+    pub mod loader {
+        use musical_chairs_program::ID;
+        use solana_loader_v3_interface::state::UpgradeableLoaderState;
+        use solana_sdk::pubkey::Pubkey;
+        use solana_sdk_ids::bpf_loader_upgradeable;
+
+        use super::{fixture_path, read_fixture};
+
+        /// `ProgramData.slot` of the fixture.
+        pub const SLOT: u64 = 1;
+        pub const PROGRAM_FILE: &str = "loader/program.bin";
+        pub const PROGRAMDATA_FILE: &str = "loader/programdata.bin";
+
+        /// `["<main program id>"]` under the upgradeable loader.
+        pub fn program_data_address() -> Pubkey {
+            Pubkey::find_program_address(&[ID.as_ref()], &bpf_loader_upgradeable::id()).0
+        }
+
+        /// Serialized `UpgradeableLoaderState::Program { programdata_address }`:
+        /// variant 2 (u32) then the 32-byte address, 36 bytes.
+        pub fn program_header() -> Vec<u8> {
+            bincode::serialize(&UpgradeableLoaderState::Program {
+                programdata_address: program_data_address(),
+            })
+            .expect("Program header serialization")
+        }
+
+        /// Serialized `UpgradeableLoaderState::ProgramData` header: variant 3
+        /// (u32), slot (u64), `Option<Pubkey>` authority (tag + 32 if Some),
+        /// zero-padded to the 45-byte metadata size (so an immutable `None`
+        /// program has a zero tag byte and 32 zero bytes).  The ELF follows
+        /// this header in the real account; it is appended at runtime.
+        pub fn programdata_header(slot: u64, authority: Option<Pubkey>) -> Vec<u8> {
+            let mut bytes = bincode::serialize(&UpgradeableLoaderState::ProgramData {
+                slot,
+                upgrade_authority_address: authority,
+            })
+            .expect("ProgramData header serialization");
+            bytes.resize(UpgradeableLoaderState::size_of_programdata_metadata(), 0);
+            bytes
+        }
+
+        /// The committed `program.bin`.
+        pub fn committed_program() -> Vec<u8> {
+            read_fixture(PROGRAM_FILE)
+        }
+
+        /// The committed `programdata.bin` (authority = the G vault).
+        pub fn committed_programdata() -> Vec<u8> {
+            read_fixture(PROGRAMDATA_FILE)
+        }
+
+        /// The generator output for the committed `programdata.bin`.
+        pub fn governance_programdata_header() -> Vec<u8> {
+            let governance = super::squads::vault_address(
+                &super::squads::multisig_address(&Pubkey::new_from_array(
+                    crate::runtime::G_CREATE_KEY,
+                ))
+                .0,
+                0,
+            )
+            .0;
+            programdata_header(SLOT, Some(governance))
+        }
+
+        /// Write both committed fixtures from the generators.
+        pub fn write_committed() {
+            for (file, bytes) in [
+                (PROGRAM_FILE, program_header()),
+                (PROGRAMDATA_FILE, governance_programdata_header()),
+            ] {
+                let path = fixture_path(file);
+                if let Some(parent) = path.parent() {
+                    std::fs::create_dir_all(parent).expect("fixture directory");
+                }
+                std::fs::write(&path, bytes).expect("fixture write");
+            }
+        }
+    }
 }
