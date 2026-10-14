@@ -7,6 +7,142 @@
   },
   "instructions": [
     {
+      "name": "activate_config_version",
+      "discriminator": [
+        181,
+        229,
+        114,
+        59,
+        173,
+        84,
+        14,
+        59
+      ],
+      "accounts": [
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "arg",
+                "path": "version"
+              }
+            ]
+          }
+        },
+        {
+          "name": "ticket",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admission",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "expected_current",
+          "type": "u32"
+        }
+      ]
+    },
+    {
       "name": "allocate_row",
       "discriminator": [
         166,
@@ -1031,6 +1167,60 @@
           }
         },
         {
+          "name": "rng_authority",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  114,
+                  110,
+                  103,
+                  45,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              },
+              {
+                "kind": "const",
+                "value": [
+                  1,
+                  0,
+                  0,
+                  0
+                ]
+              }
+            ]
+          }
+        },
+        {
           "name": "ops_cash",
           "writable": true
         },
@@ -1512,6 +1702,142 @@
       ]
     },
     {
+      "name": "rotate_guardian",
+      "discriminator": [
+        71,
+        22,
+        223,
+        22,
+        230,
+        118,
+        101,
+        114
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "admission",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  100,
+                  109,
+                  105,
+                  115,
+                  115,
+                  105,
+                  111,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "new_guardian_multisig"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "rotate_recipient",
+      "discriminator": [
+        109,
+        175,
+        166,
+        31,
+        13,
+        88,
+        76,
+        35
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig"
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "kind",
+          "type": "u8"
+        },
+        {
+          "name": "new_recipient",
+          "type": "pubkey"
+        }
+      ]
+    },
+    {
       "name": "seal_weights",
       "discriminator": [
         150,
@@ -1708,6 +2034,127 @@
         {
           "name": "paused",
           "type": "bool"
+        }
+      ]
+    },
+    {
+      "name": "stage_config_version",
+      "discriminator": [
+        88,
+        193,
+        10,
+        101,
+        219,
+        44,
+        28,
+        68
+      ],
+      "accounts": [
+        {
+          "name": "governance_multisig",
+          "docs": [
+            "validated by the handler."
+          ]
+        },
+        {
+          "name": "governance",
+          "docs": [
+            "The G Vault PDA, signing through a Squads vault-transaction CPI."
+          ],
+          "signer": true
+        },
+        {
+          "name": "pool",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  111,
+                  112,
+                  115
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "ops_cash",
+          "writable": true
+        },
+        {
+          "name": "config",
+          "docs": [
+            "handler."
+          ],
+          "writable": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "event_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  95,
+                  95,
+                  101,
+                  118,
+                  101,
+                  110,
+                  116,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "program"
+        }
+      ],
+      "args": [
+        {
+          "name": "version",
+          "type": "u32"
+        },
+        {
+          "name": "terms",
+          "type": {
+            "defined": {
+              "name": "ConfigTerms"
+            }
+          }
         }
       ]
     },
@@ -1938,6 +2385,19 @@
       ]
     },
     {
+      "name": "ConfigVersion",
+      "discriminator": [
+        183,
+        155,
+        81,
+        94,
+        60,
+        36,
+        199,
+        89
+      ]
+    },
+    {
       "name": "GameVault",
       "discriminator": [
         152,
@@ -2000,6 +2460,19 @@
         253,
         16,
         250
+      ]
+    },
+    {
+      "name": "RngAuthority",
+      "discriminator": [
+        10,
+        211,
+        60,
+        36,
+        227,
+        60,
+        149,
+        22
       ]
     },
     {
@@ -2428,6 +2901,10 @@
     {
       "code": 6030,
       "name": "ConfigNotActivatable"
+    },
+    {
+      "code": 6031,
+      "name": "WrongGovernanceProfile"
     }
   ],
   "types": [
@@ -2656,6 +3133,351 @@
       }
     },
     {
+      "name": "ConfigTerms",
+      "docs": [
+        "The governance-stageable part of a [`ConfigVersion`]: every field except",
+        "the program-assigned `bump`, `version`, `staged_at` and `activated_at`."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          },
+          {
+            "name": "plan_rates_bps_per_day",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "plan_durations_s",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "compound_factors_q18",
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_day_bounds",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "jackpot_bps",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "front_end_load_bps",
+            "type": "u16"
+          },
+          {
+            "name": "min_game",
+            "type": "u64"
+          },
+          {
+            "name": "min_a",
+            "type": "u64"
+          },
+          {
+            "name": "quota_count",
+            "type": "u8"
+          },
+          {
+            "name": "quota_window_s",
+            "type": "u32"
+          },
+          {
+            "name": "seed_bps",
+            "type": "u16"
+          },
+          {
+            "name": "senior_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "open_cutoff",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "fulfilled_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "page_capacity",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ConfigVersion",
+      "docs": [
+        "One immutable-once-activated rule set. Positions and tickets pin the",
+        "version they were created under, so a later version never rewrites them."
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "version",
+            "type": "u32"
+          },
+          {
+            "name": "effective_round_id",
+            "type": "u64"
+          },
+          {
+            "name": "staged_at",
+            "type": "u64"
+          },
+          {
+            "name": "activated_at",
+            "type": {
+              "option": "u64"
+            }
+          },
+          {
+            "name": "plan_rates_bps_per_day",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "plan_durations_s",
+            "type": {
+              "array": [
+                "u32",
+                3
+              ]
+            }
+          },
+          {
+            "name": "compound_factors_q18",
+            "docs": [
+              "Compound15 / Compound30 total-return factors (Q18), not per-day rates."
+            ],
+            "type": {
+              "array": [
+                "u64",
+                2
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_bps",
+            "type": {
+              "array": [
+                "u16",
+                3
+              ]
+            }
+          },
+          {
+            "name": "simple_toll_day_bounds",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "jackpot_bps",
+            "type": {
+              "array": [
+                "u16",
+                2
+              ]
+            }
+          },
+          {
+            "name": "front_end_load_bps",
+            "type": "u16"
+          },
+          {
+            "name": "min_game",
+            "type": "u64"
+          },
+          {
+            "name": "min_a",
+            "type": "u64"
+          },
+          {
+            "name": "quota_count",
+            "type": "u8"
+          },
+          {
+            "name": "quota_window_s",
+            "type": "u32"
+          },
+          {
+            "name": "seed_bps",
+            "type": "u16"
+          },
+          {
+            "name": "senior_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_bps",
+            "type": "u16"
+          },
+          {
+            "name": "a_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "b_entitlement_bps",
+            "type": "u16"
+          },
+          {
+            "name": "open_cutoff",
+            "type": "u64"
+          },
+          {
+            "name": "deadline_seconds",
+            "type": "u32"
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "pending_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "fulfilled_request_bytes",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
+          },
+          {
+            "name": "page_capacity",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "DrawCaptured",
       "type": {
         "kind": "struct",
@@ -2752,6 +3574,38 @@
                 32
               ]
             }
+          },
+          {
+            "name": "provider_request_fee_lamports",
+            "docs": [
+              "Provider tuple and launch fields written into `ConfigVersion#1`; they",
+              "are launch values, so `ConfigVersion::default_v1` leaves them zeroed."
+            ],
+            "type": "u64"
+          },
+          {
+            "name": "provider_fee_headroom_bps",
+            "type": "u16"
+          },
+          {
+            "name": "provider_program",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_network_state",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "provider_client",
+            "type": "pubkey"
+          },
+          {
+            "name": "public_series_a_enabled",
+            "type": "bool"
           }
         ]
       }
@@ -3393,6 +4247,25 @@
           },
           {
             "name": "owner_refund",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RngAuthority",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "client",
+            "docs": [
+              "The registered ORAO client this authority signs requests for."
+            ],
             "type": "pubkey"
           }
         ]
