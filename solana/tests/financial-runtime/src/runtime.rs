@@ -19,9 +19,9 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_program,
     transaction::Transaction,
 };
+use solana_system_interface::program as system_program;
 
 pub const PACKET_LIMIT_BYTES: usize = 1_232;
 pub const COMPUTE_LIMIT: u32 = 1_400_000;
@@ -39,6 +39,10 @@ const ENTRY_MANAGEMENT: u64 = 4_000_000;
 const CLAIM_GROSS: u64 = 11_000_000;
 const CLAIM_TOLL: u64 = 1_320_000;
 const CLAIM_NET: u64 = 9_680_000;
+/// Synthetic genesis close reserve.  `controls::initialize` rejects zero, so a
+/// genesis-shaped Pool needs a nonzero value; this is NOT a launch reserve
+/// (reserve values stay an open decision-register item).
+const SYNTHETIC_CLOSE_RESERVE: u64 = 1_000_000;
 
 #[derive(Clone, Debug, Serialize)]
 pub struct AccountChange {
@@ -290,7 +294,7 @@ impl FinancialRuntime {
             artifact_sha256: self.artifact_sha256.clone(),
             success,
             error,
-            signature: signature.map(|value| value.to_string()),
+            signature: Some(signature.to_string()),
             expected_fee_lamports,
             payer_lamports_before: payer_before,
             payer_lamports_after: payer_after,
@@ -322,8 +326,16 @@ impl FinancialRuntime {
         let pool = state::Pool {
             bump: pda(&[state::POOL_SEED]).1,
             round_id: round,
+            // No active Backer is seeded here (the two Backer accounts below
+            // are inactive, `first_sequence == 0`), so the next sequence is
+            // the genesis value one past the highest seeded sequence (0).
             next_sequence: 1,
             next_ticket: 1,
+            // The empty RegistryPage 0 below holds no rows.
+            registry_len: 0,
+            // SnapshotPage 0 is injected below, so exactly one page exists.
+            snapshot_pages: 1,
+            close_reserve: SYNTHETIC_CLOSE_RESERVE,
             sponsor: self.sponsor.pubkey(),
             management_recipient: self.management.pubkey(),
             ..state::Pool::default()
@@ -352,8 +364,12 @@ impl FinancialRuntime {
         let ops_cash_address = self.ops_cash_address();
         let ops_cash_rent = self.rent(0);
         self.put_system_account(ops_cash_address, ops_cash_rent);
+        // Genesis-shaped, mirroring `controls::initialize`: id 0, phase IDLE,
+        // every other field zero.
         let ticket = state::Ticket {
             bump: pda(&[state::TICKET_SEED]).1,
+            id: 0,
+            phase: state::IDLE,
             ..state::Ticket::default()
         };
         let ticket_address = self.ticket_address();
@@ -458,6 +474,15 @@ impl FinancialRuntime {
     /// flow.  Page size remains eight; the four rows are deliberately below
     /// the transport boundary while the separate N17/N100 cases can reuse the
     /// same account codec when the worker expands them.
+    ///
+    /// Inputs are the accepted `allocation_golden_t10000` vector: toll 10_000,
+    /// Series-A remaining 4_000 / 6_000, two Series-B rows.  They are seeded
+    /// as Backer state; the Discover-phase ticket carries only
+    /// `id`/`phase`/`captured_len`/`expected_version`/`toll`.  Counts, slices,
+    /// `a_remaining`, `oldest*` and `credited` start at zero because the
+    /// handlers compute them (so no `ticket.oldest` is seeded; the handler
+    /// derives it as a Backer PDA).  Registry and snapshot row keys are Backer
+    /// PDA addresses, not owner wallet keys.
     pub fn seed_allocation(&mut self) {
         let owners = [
             self.owner.pubkey(),
@@ -466,29 +491,33 @@ impl FinancialRuntime {
             self.management.pubkey(),
         ];
         let series = [0u8, 0, 1, 1];
-        let remaining = [100_000u128, 200_000, 100_000, 100_000];
+        let remaining = [4_000u128, 6_000, 100_000, 100_000];
+        let backer_keys: [Pubkey; 4] =
+            std::array::from_fn(|index| self.backer_address(series[index], owners[index]));
+        // Seeded Backer funding sequences; `next_sequence` is one past the max.
+        let first_sequences = [1u64, 2, 3, 4];
+        let highest_first_sequence = first_sequences.into_iter().max().unwrap_or(0);
+
         let mut pool: state::Pool = self.deserialize(self.pool_address());
         pool.pending_toll = 10_000;
-        pool.registry_len = 4;
+        pool.registry_len = owners.len() as u64;
         pool.registry_version = 1;
+        pool.next_sequence = highest_first_sequence + 1;
+        // Ticket 1 is already minted and active, so the next id is 2.
+        pool.next_ticket = 2;
         pool.active_ticket = 1;
+        pool.snapshot_pages = 1;
         self.replace_pool(pool);
 
-        let mut ticket: state::Ticket = self.deserialize(self.ticket_address());
-        ticket.id = 1;
-        ticket.phase = state::DISCOVER;
-        ticket.captured_len = 4;
-        ticket.a_count = 2;
-        ticket.b_count = 2;
-        ticket.expected_version = 1;
-        ticket.seed_credit = 5_000;
-        ticket.senior_slice = 1_750;
-        ticket.a_slice = 2_250;
-        ticket.b_slice = 1_000;
-        ticket.toll = 10_000;
-        ticket.oldest = owners[0];
-        ticket.oldest_sequence = 1;
-        ticket.oldest_slot = 0;
+        let ticket = state::Ticket {
+            bump: pda(&[state::TICKET_SEED]).1,
+            id: 1,
+            phase: state::DISCOVER,
+            captured_len: owners.len() as u64,
+            expected_version: 1,
+            toll: 10_000,
+            ..state::Ticket::default()
+        };
         self.replace_ticket(ticket);
 
         let mut registry: state::RegistryPage = self.deserialize(self.registry_address(0));
@@ -496,10 +525,10 @@ impl FinancialRuntime {
         registry.index = 0;
         snapshot.index = 0;
         snapshot.ticket_id = 1;
-        for index in 0..4 {
-            registry.keys[index] = owners[index];
+        for index in 0..owners.len() {
+            registry.keys[index] = backer_keys[index];
             snapshot.rows[index] = state::SnapshotRow {
-                key: owners[index],
+                key: backer_keys[index],
                 series: series[index],
                 remaining: remaining[index],
                 slot: index as u64,
@@ -509,7 +538,7 @@ impl FinancialRuntime {
                 owner: owners[index],
                 series: series[index],
                 entitlement: remaining[index],
-                first_sequence: index as u64 + 1,
+                first_sequence: first_sequences[index],
                 active: true,
                 slot: index as u64,
                 ..state::Backer::default()

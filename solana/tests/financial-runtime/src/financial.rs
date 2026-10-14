@@ -6,8 +6,8 @@ use solana_sdk::{
     instruction::Instruction,
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_program,
 };
+use solana_system_interface::program as system_program;
 
 use crate::runtime::{
     anchor_ix, FinancialRuntime, Observation, ATTACKER_SEED, OWNER_SEED, SPONSOR_SEED,
@@ -87,31 +87,12 @@ pub fn run_red_allocation() -> Observation {
     assert_eq!(slices.a, 2_250);
     assert_eq!(slices.b, 1_000);
 
+    // Golden inputs (toll 10_000, A 4_000/6_000 remaining, two B) are seeded
+    // as Backer state; the fresh Discover ticket carries no preloaded
+    // counts or slices because `discover_row` computes them.
     let mut runtime = FinancialRuntime::new();
+    runtime.seed_allocation();
     let owner = runtime.owner.pubkey();
-    let mut pool: musical_chairs_program::state::Pool = runtime.deserialize(runtime.pool_address());
-    pool.pending_toll = 10_000;
-    pool.registry_len = 4;
-    pool.registry_version = 1;
-    pool.active_ticket = 1;
-    runtime.replace_pool(pool);
-    let mut ticket: musical_chairs_program::state::Ticket = runtime.deserialize(runtime.ticket_address());
-    ticket.id = 1;
-    ticket.phase = musical_chairs_program::state::DISCOVER;
-    ticket.captured_len = 4;
-    ticket.a_count = 2;
-    ticket.b_count = 2;
-    ticket.expected_version = 1;
-    ticket.seed_credit = 5_000;
-    ticket.senior_slice = 1_750;
-    ticket.a_slice = 2_250;
-    ticket.b_slice = 1_000;
-    ticket.toll = 10_000;
-    runtime.replace_ticket(ticket);
-    let mut snapshot: musical_chairs_program::state::SnapshotPage =
-        runtime.deserialize(runtime.snapshot_address(0));
-    snapshot.ticket_id = 1;
-    runtime.replace_snapshot(snapshot);
     let instruction = anchor_ix(
         accounts::DiscoverRow {
             pool: runtime.pool_address(),
