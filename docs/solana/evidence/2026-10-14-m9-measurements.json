@@ -1954,5 +1954,51 @@
    ],
    "reading": "The second inline entry point behaves identically to withdraw_simple: CU within 500 of the Simple rows at every N (82,013 / 109,166 / 146,535 vs 82,483 / 109,636 / 147,005), same packet bytes and key counts; Compound30 at N = 8 is 146,553 CU. Fits the legacy packet and the 200k default compute at N = 8."
   }
+ },
+ "linux_ci": {
+  "recorded_at_utc": "2026-10-14T17:55:54.914788+00:00",
+  "run_id": "38605447811",
+  "url": "https://github.com/SchemeWorks/MusicalChairs/actions/runs/38605447811",
+  "runner": "ubuntu-latest (GitHub-hosted)",
+  "linux_artifact_sha256": "b824ec0bffc02fe9547c8337a5fbacfb3b1c462e32a9a9a3bf70e0579f76961d",
+  "linux_source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+  "linux_lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "standin_artifact_sha256": "955441aa488074c17af35e1cf191a564977f5a810da91a3622927ee8de0ee7ca",
+  "cargo_build_sbf_version": "cargo-build-sbf 3.1.0-beta.0",
+  "platform_rustc": "rustc 1.84.1-dev",
+  "test_results": [
+   "ok. 175 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 823.25s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.22s",
+   "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.34s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.65s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 303.74s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.23s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "steps": {
+   "Set up job": "success",
+   "Run actions/checkout@v4": "success",
+   "Run dtolnay/rust-toolchain@1.92.0": "success",
+   "Read the pinned archive hashes": "success",
+   "Restore the pinned toolchain archives": "success",
+   "Download and verify the pinned toolchain archives": "success",
+   "Unpack the toolchain into the job-local directory": "success",
+   "Build the program and the vault stand-in with the pinned tools (provenance guard on)": "success",
+   "Assert the source set and lock against the committed pins; record the artifact hash": "success",
+   "Run the LiteSVM harness on the fresh artifact": "success",
+   "Clippy (deny warnings)": "success",
+   "Post Restore the pinned toolchain archives": "success",
+   "Post Run actions/checkout@v4": "success",
+   "Complete job": "success"
+  },
+  "clippy": "success",
+  "artifact_vs_macos_pin": "Artifact differs from the local macOS build (Linux b824ec0b\u2026 vs pinned d77b23bf\u2026): expected for a different host/path (latest-build.json reproducibility note); source set and lock asserted equal to the pins",
+  "note": "Linux bytes are not required to equal the macOS bytes; the source set and lock are asserted equal to docs/solana/evidence/latest-build.json",
+  "harness": "success",
+  "tests_passed_total": 195,
+  "macos_artifact_sha256_pinned": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+  "artifact_bytes_equal_macos": false,
+  "proof_level": "GitHub-hosted Linux runner executed the pinned production SBF build, the whole LiteSVM harness and clippy; Linux ELF hash recorded on its own; source set and lock asserted equal to the committed pins; cross-host bytes are not required to be equal"
  }
 }

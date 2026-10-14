@@ -1,0 +1,132 @@
+{
+ "recorded_at_utc": "2026-10-14T17:57:24.826116+00:00",
+ "card": "IMPL-39c",
+ "milestone": "M9 measurement, decision output, budget, inline allocation and production SBF CI — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "3c3003c8c81e4316ab717f4f8e8e60919c197932",
+ "head_at_graph_update": "3c3003c",
+ "head_at_receipt": "37185ea",
+ "branch": "codex/native-solana-production-core",
+ "note_on_commit": "graphify update ran on the 3c3003c working tree (the committed M9 program/harness state); 37185ea then added the Compound15/30 inline test and docs — that test is represented by the fragment node impl2026_10_14_m9_inline_allocation_impl39b, and the working tree at receipt time additionally holds the UNCOMMITTED IMPL-40a program repairs, which this receipt does NOT cover (the M10 refresh will)",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m8-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m7-graph-refresh.json (incl. the IMPL-45 correction and delta pins)",
+  "docs/solana/evidence/2026-10-14-m6-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "cd0082ff16cd272a7c571386a4c0ca72fdd9becd6c444a38fe0561f4cb2790d0",
+   "result": "16,159 nodes / 24,318 edges / 44 hyperedges → 16,703 / 25,191 / 44 (AST re-extraction of 188 changed files; lost prior 0 after repair)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m9-fragment-spec.json 1632 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "1249aac5b9a93a4bd632900e4ddbaf4dfdd453b89c9f2e6491aac1e95cef713b",
+   "builder_sha256": "be4ed8d97b63b30b93fe07aec205483dfa03f249af3993e4f09d87e2979a1a59",
+   "result": "APPLIED 16710 / 25267 / 45"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 16159,
+  "edges": 24318,
+  "hyperedges": 44
+ },
+ "after_graphify_update": {
+  "nodes": 16703,
+  "edges": 25191,
+  "hyperedges": 44
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 17,
+  "attributes_restored_on_nodes": 321,
+  "note": "graphify update collapses same-endpoint raw edges and strips coordinator attributes (status, rationale, historical_source_sha256 …); both restored from the backup before the merge, as in M6–M8"
+ },
+ "fragment": {
+  "label": "Native Solana 2026-10-14 M9 measurement, decision output, budget and production SBF CI (IMPL-39a..c)",
+  "nodes": [
+   "impl2026_10_14_m9_measurement_matrix",
+   "impl2026_10_14_m9_decision_output",
+   "impl2026_10_14_m9_budget_measured",
+   "impl2026_10_14_m9_production_sbf_ci",
+   "impl2026_10_14_m9_linux_ci_evidence",
+   "impl2026_10_14_m9_inline_allocation_impl39b",
+   "impl2026_10_14_m9_receipt"
+  ],
+  "edges": 59,
+  "hyperedges": [
+   "m9_measurement_2026_10_14"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_dr_27_rent_dated",
+   "plan2026_10_13_gap_inline_allocation_and_production_cu_unmeasured",
+   "plan2026_10_13_kernel_chunk_fit_measurement",
+   "plan2026_10_13_m9_budget_rebuild",
+   "plan2026_10_13_m9_decision_output",
+   "plan2026_10_13_m9_measurement",
+   "plan2026_10_13_m9_measurement_matrix",
+   "plan2026_10_13_m9_measurements_receipt_planned",
+   "plan2026_10_13_test_dust_claims_m9",
+   "plan2026_10_13b_dr_31_inline_threshold",
+   "plan2026_10_13b_fix_inline_threshold_rule",
+   "plan2026_10_13b_fix_production_sbf_ci",
+   "plan2026_10_13b_m9_step4_production_sbf_ci"
+  ],
+  "skipped_edge_targets_not_in_graph": [
+   "impl2026_10_14_m0_provenance_guard",
+   "impl2026_10_14_m0_source_set_digest"
+  ],
+  "file": "docs/solana/evidence/2026-10-14-m9-graph-fragment.json",
+  "file_sha256": "2b8b2e38b15a4aa5394ccab0b0f883474df13ba48de88c72f6f92fea755ec9b0"
+ },
+ "after_merge": {
+  "nodes": 16710,
+  "edges": 25267,
+  "hyperedges": 45
+ },
+ "invariants": {
+  "every_prior_node_id_preserved": true,
+  "prior_hyperedges_preserved": true,
+  "edge_direction_preserved": true
+ },
+ "scope": {
+  "covered_files_sha256_at_receipt": {
+   ".github/workflows/native-solana-model.yml": "426bb8ea00bd796ff173b139b8ba39e614d72512ba5aa89e3f56bcf46b78fd2a",
+   "docs/coordination/kanban.md": "15bf8ab0e28b000604d925fceeec9c24ebd36d1102099cdc195d57d3b37eaac1",
+   "docs/coordination/native-solana-icp-budget.md": "79c0ad0811f3cd53bc96c0b344e58681afb79bef58f8e8f7501cd7e3243b788e",
+   "docs/solana/evidence/2026-10-14-m9-measurements.json": "aea3224a7251476e3d0220c370d416cac2ee36c219fbeea77c16b089a70df92b",
+   "docs/solana/evidence/latest-build.json": "e9fe1422b6502cf497e02ea0670db2f33316569f78c1b0e72baf5124676962a6",
+   "docs/solana/measurements-2026-10.md": "65dc125e63230098ba6b83c8924bd5aba0e6c607ebf0b20b4b9d0b6196d21931",
+   "solana/programs/musical_chairs/src/allocation.rs": "515c8305035290ad8dbe8fcc00731cb608dc92c5d93a4f8c0a6eb1c72b5247fc",
+   "solana/programs/musical_chairs/src/positions.rs": "212558059240ee5f3ba86da1b8f2cba3bee451eb45da2e72334a15d574013a42",
+   "solana/tests/financial-runtime/src/measure.rs": "263546c7a023be3f116182a575e046a71addefe8e63b5512a182f454596e625d",
+   "solana/tests/financial-runtime/tests/inline_alloc.rs": "23510675c54bf5e7b1798bd86da18984f9b79ab90d32951dd4efd7438323bafd"
+  },
+  "freshness": "AST structural freshness at 3c3003c for solana/**; semantic design documents (spec/plan/budget/measurements) represented by coordinator fragment nodes only; M10 files (threat model, review evidence, program repairs) NOT covered until the M10 refresh"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m9_linux_ci_evidence\"",
+   "result": "Node: Linux production-SBF CI evidence: run 38605447811 on ubuntu-latest (GitHub-hosted) built the program with the pinned tools (source set"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m9_inline_allocation_impl39b\"",
+   "result": "Node: Opt-in inline allocation inside non-closing payouts (IMPL-39b): registry_len <= INLINE_THRESHOLD = 8 with the Backer PDAs + RegistryPa"
+  },
+  {
+   "cmd": "graphify path \"M9 receipt\" \"production-sbf CI job\"",
+   "result": "Shortest path (6 hops):   receipt <--contains [EXTRACTED]-- artifact <--contains [EXTRACTED]-- 2026-10-14-m0-red-baseline.json <--references [EXTRACTED]-- M0 step 7: genuine RED — open/claim/allocation-golden fail with Anchor 6021 NotImpl"
+  },
+  {
+   "cmd": "graphify query \"Linux production-SBF CI evidence\"",
+   "result": "Traversal: BFS depth=2 | Start: ['production-sbf CI job: platform-tools v1.48 and agave v3.1.0-beta.0 Linux archives pinned by SHA-256 from "
+  },
+  {
+   "note": "`graphify query` matches node LABELS (BFS from the matched label), `explain` matches ids; fragment ids are therefore reached through explain or through label text"
+  }
+ ]
+}
