@@ -848,7 +848,10 @@ fn page_target(
 }
 
 /// `LockedClose` is allowed only for a candidate page of the close currently
-/// in progress, and only inside the pages that close reserved for (spec §7.1).
+/// in progress, and only inside the pages that close reserved for (spec §7.1),
+/// and only until its reserve is settled: after settlement the owner partition
+/// can hold a deferred owner refund (spec §8.5, DR-14), which is owed to the
+/// owner destination and is never spendable as page rent.
 /// `Free` and `Caller` are always allowed here.
 fn locked_permission(
     kind: &PageKind,
@@ -863,6 +866,7 @@ fn locked_permission(
     match (kind, close) {
         (PageKind::Candidate { close_id, .. }, Some(close))
             if Some(*close_id) == pool.current_close_id
+                && !close.reserve_settled
                 && index < close.required_pages_per_set =>
         {
             Ok(())
@@ -2600,6 +2604,37 @@ mod tests {
             locked_permission(&candidate(1), Funding::LockedClose, 0, &pool, None),
             "LockNotPermitted",
         );
+    }
+
+    /// M8: settlement happens once at terminal promotion; a deferred owner
+    /// refund (`reserve_settled` with `locked_owner_remaining > 0`) is owed to
+    /// the owner destination and may not be spent as page rent by anyone.
+    #[test]
+    fn a_settled_close_locks_no_further_pages_so_a_deferred_owner_refund_is_not_spendable() {
+        let pool = counted_pool(); // close 1 is still the close in progress
+        let mut open = counted_close(1);
+        open.required_pages_per_set = 4;
+        open.locked_owner_remaining = 5_000_000;
+        let candidate = |set_tag| PageKind::Candidate { close_id: 1, set_tag };
+        // Unsettled: the owner partition is still the close's spendable reserve.
+        for set_tag in [0, 1] {
+            assert!(locked_permission(&candidate(set_tag), Funding::LockedClose, 1, &pool, Some(&open)).is_ok());
+        }
+        // Settled with a deferred owner refund: the same page is refused.
+        let mut deferred = counted_close(1);
+        deferred.required_pages_per_set = 4;
+        deferred.locked_owner_remaining = 5_000_000;
+        deferred.reserve_settled = true;
+        for set_tag in [0, 1] {
+            assert_error(
+                locked_permission(&candidate(set_tag), Funding::LockedClose, 1, &pool, Some(&deferred)),
+                "LockNotPermitted",
+            );
+        }
+        // Free and Caller funding never touch the partitions and stay open.
+        for funding in [Funding::Free, Funding::Caller] {
+            assert!(locked_permission(&candidate(0), funding, 1, &pool, Some(&deferred)).is_ok());
+        }
     }
 
     #[test]

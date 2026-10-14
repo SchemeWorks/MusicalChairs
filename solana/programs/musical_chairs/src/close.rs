@@ -450,6 +450,51 @@ fn require_pending(close: &CloseRecord) -> Result<()> {
     Ok(())
 }
 
+/// Whether `capture_round_draw` goes on to authenticate the request: a decided
+/// ignore is a no-op replay (before any account is read), a requested or
+/// already captured draw proceeds, anything else is not capturable.
+pub fn capture_gate(draw_state: u8) -> Result<bool> {
+    match draw_state {
+        DRAW_IGNORED_LATE => Ok(false),
+        DRAW_CAPTURED | DRAW_REQUESTED => Ok(true),
+        _ => err!(Code::InvalidState),
+    }
+}
+
+/// What an authenticated capture attempt did to the close.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CaptureOutcome {
+    /// The same result was already captured; nothing changed.
+    Replay,
+    /// The result arrived after the deadline: recorded, nothing copied.
+    IgnoredLate,
+    /// The result was copied into the close (emit `DrawCaptured`).
+    Captured,
+}
+
+/// Book a capture of an authenticated, fulfilled request's `randomness` at
+/// `now`.  A replay of the captured result is a no-op (a different result is
+/// `InvalidState`); otherwise the close must still be `Pending`
+/// (`PromotionTerminal`), and only then does the deadline decide between
+/// capturing (`now <= promotion_deadline`) and recording `IgnoredLate`.
+pub fn book_capture(close: &mut CloseRecord, randomness: [u8; 64], now: u64) -> Result<CaptureOutcome> {
+    if close.draw_state == DRAW_CAPTURED {
+        require!(close.randomness == randomness, Code::InvalidState);
+        return Ok(CaptureOutcome::Replay);
+    }
+    // Terminal first (M7-F2): a capture on an already-terminal close is
+    // `PromotionTerminal` however late it is and records no decision.
+    require_pending(close)?;
+    if now > close.promotion_deadline {
+        close.draw_state = DRAW_IGNORED_LATE;
+        return Ok(CaptureOutcome::IgnoredLate);
+    }
+    close.randomness = randomness;
+    close.draw_state = DRAW_CAPTURED;
+    close.captured_at = now;
+    Ok(CaptureOutcome::Captured)
+}
+
 // ---------------------------------------------------------------------------
 // Candidate building
 // ---------------------------------------------------------------------------
@@ -1079,41 +1124,32 @@ pub fn request_round_draw(ctx: Context<RequestRoundDraw>) -> Result<()> {
 }
 
 /// `capture_round_draw()`: copy the fulfilled randomness once.  A result seen
-/// after the deadline is recorded as `IgnoredLate` and copies nothing.
+/// after the deadline while the promotion is still pending is recorded as
+/// `IgnoredLate` and copies nothing; on a terminal promotion every new capture
+/// is `PromotionTerminal` (see [`book_capture`]).
 pub fn capture_round_draw(ctx: Context<CaptureRoundDraw>) -> Result<()> {
     let now = crate::now()?;
     let event = {
         let a = &mut *ctx.accounts;
         let close = &mut *a.close_record;
         require!(close.close_id < a.pool.next_close_id, Code::InvalidState);
-        match close.draw_state {
-            // Replays after the decision are no-ops once the binding re-checks.
-            DRAW_IGNORED_LATE => return Ok(()),
-            DRAW_CAPTURED | DRAW_REQUESTED => {}
-            _ => return err!(Code::InvalidState),
+        // Replays after the decision are no-ops once the binding re-checks.
+        if !capture_gate(close.draw_state)? {
+            return Ok(());
         }
         let (client_key, _) = provider::client_address();
         require_keys_eq!(a.client.key(), client_key, Code::WrongProviderTuple);
         let request = a.request.to_account_info();
         require_keys_eq!(request.key(), close.request_account, Code::WrongAccount);
         let (randomness, _) = provider::read_fulfilled(&request, &client_key, &close.protocol_seed)?;
-        if close.draw_state == DRAW_CAPTURED {
-            require!(close.randomness == randomness, Code::InvalidState);
-            return Ok(());
-        }
-        if now > close.promotion_deadline {
-            close.draw_state = DRAW_IGNORED_LATE;
-            return Ok(());
-        }
-        require_pending(close)?;
-        close.randomness = randomness;
-        close.draw_state = DRAW_CAPTURED;
-        close.captured_at = now;
-        DrawCaptured {
-            schema_version: SCHEMA_VERSION,
-            round_id: close.round_id,
-            close_id: close.close_id,
-            captured_at: now,
+        match book_capture(close, randomness, now)? {
+            CaptureOutcome::Replay | CaptureOutcome::IgnoredLate => return Ok(()),
+            CaptureOutcome::Captured => DrawCaptured {
+                schema_version: SCHEMA_VERSION,
+                round_id: close.round_id,
+                close_id: close.close_id,
+                captured_at: now,
+            },
         }
     };
     emit_cpi!(event);
@@ -1751,6 +1787,91 @@ mod tests {
         assert_eq!(close.spent.b_rent_s + close.spent.b_rent_o, 0);
     }
 
+    // ---- capture ---------------------------------------------------------------
+
+    const DEADLINE: u64 = 1_600;
+
+    /// A sealed close whose draw has been requested, with its deadline pinned.
+    fn requested() -> CloseRecord {
+        CloseRecord {
+            close_id: 1,
+            round_id: 1,
+            sealed: true,
+            draw_state: DRAW_REQUESTED,
+            promotion_deadline: DEADLINE,
+            ..CloseRecord::default()
+        }
+    }
+
+    /// M7-F2: the terminal check precedes the deadline branch, so a capture on an
+    /// already-terminal close is `PromotionTerminal` whether it is timely, exactly
+    /// at the deadline, or late, and records nothing in any of the three.
+    #[test]
+    fn a_capture_on_a_terminal_close_is_refused_before_the_deadline_is_consulted() {
+        let result = [7u8; 64];
+        for promotion in [
+            Promotion::Applied { winner: key(1), entitlement: 1 },
+            Promotion::Skipped { reason: REASON_DEADLINE, stage: STAGE_REQUESTED_UNFULFILLED },
+        ] {
+            for now in [DEADLINE - 1, DEADLINE, DEADLINE + 1, u64::MAX] {
+                let mut close = requested();
+                close.promotion = promotion;
+                assert_code(book_capture(&mut close, result, now), Code::PromotionTerminal);
+                assert_eq!(close.draw_state, DRAW_REQUESTED, "a refused capture records no decision (now {now})");
+                assert_eq!((close.randomness, close.captured_at), ([0; 64], 0));
+            }
+        }
+    }
+
+    #[test]
+    fn a_pending_close_captures_up_to_the_deadline_inclusive_and_ignores_a_later_result() {
+        let result = [7u8; 64];
+        for now in [0, DEADLINE - 1, DEADLINE] {
+            let mut close = requested();
+            assert_eq!(book_capture(&mut close, result, now).unwrap(), CaptureOutcome::Captured);
+            assert_eq!(
+                (close.draw_state, close.randomness, close.captured_at),
+                (DRAW_CAPTURED, result, now),
+                "timely at {now}"
+            );
+        }
+        for now in [DEADLINE + 1, u64::MAX] {
+            let mut close = requested();
+            assert_eq!(book_capture(&mut close, result, now).unwrap(), CaptureOutcome::IgnoredLate);
+            assert_eq!((close.draw_state, close.randomness, close.captured_at), (DRAW_IGNORED_LATE, [0; 64], 0));
+            assert_eq!(close.promotion, Promotion::Pending, "an ignored capture skips nothing");
+        }
+    }
+
+    #[test]
+    fn capture_replays_are_no_ops_before_and_after_the_promotion_is_terminal() {
+        let result = [7u8; 64];
+        let mut close = requested();
+        assert_eq!(book_capture(&mut close, result, DEADLINE).unwrap(), CaptureOutcome::Captured);
+        let bytes = |close: &CloseRecord| account_bytes(close, CloseRecord::SPACE);
+        let captured = bytes(&close);
+        // The same result again changes nothing, whenever it arrives.
+        for now in [DEADLINE, DEADLINE + 1] {
+            assert_eq!(book_capture(&mut close, result, now).unwrap(), CaptureOutcome::Replay);
+            assert_eq!(bytes(&close), captured);
+        }
+        // ... including once the promotion has been applied.
+        close.promotion = Promotion::Applied { winner: key(1), entitlement: 1 };
+        let applied = bytes(&close);
+        assert_eq!(book_capture(&mut close, result, DEADLINE + 9).unwrap(), CaptureOutcome::Replay);
+        assert_eq!(bytes(&close), applied);
+        // A different result for a captured draw is never accepted.
+        assert_code(book_capture(&mut close, [8u8; 64], DEADLINE), Code::InvalidState);
+        assert_eq!(bytes(&close), applied);
+        // The gate: a decided ignore is a no-op, a requested or captured draw
+        // proceeds, anything else is not capturable.
+        assert!(!capture_gate(DRAW_IGNORED_LATE).unwrap());
+        assert!(capture_gate(DRAW_REQUESTED).unwrap());
+        assert!(capture_gate(DRAW_CAPTURED).unwrap());
+        assert_code(capture_gate(DRAW_NOT_REQUESTED), Code::InvalidState);
+        assert_code(capture_gate(200), Code::InvalidState);
+    }
+
     // ---- budget, settlement ----------------------------------------------------
 
     #[test]
@@ -2117,6 +2238,47 @@ mod tests {
         m.cash -= pay;
         m.identity("provider return");
         assert_eq!(m.close.eligible_return_remaining, 0);
+    }
+
+    /// The deferred-owner-refund variant of the settlement row and the delivery
+    /// row (spec 8.6 as amended by the M7 supplement): the identity and the
+    /// aggregate hold after each, nothing becomes excess, and a settled close
+    /// pays the owner exactly once however the remainder is routed.
+    #[test]
+    fn the_identity_holds_through_an_undeliverable_settlement_and_its_later_delivery() {
+        let mut m = Model {
+            cash: RENT_FLOOR + 3_100,
+            ops: Ops { protected_rent: RENT_FLOOR, locked_remaining_total: 3_100, ..Ops::default() },
+            close: CloseRecord {
+                close_id: 1,
+                locked_sponsor_remaining: 2_800,
+                locked_owner_remaining: 300,
+                required_reserve: 3_100,
+                ..CloseRecord::default()
+            },
+        };
+        m.identity("locked");
+        // Spend part of the sponsor partition first, then settle with an undeliverable destination.
+        book_locked_rent(&mut m.ops, &mut m.close, 1_000, Spend::BAccount).unwrap();
+        m.cash -= 1_000;
+        m.identity("spend");
+        let pay = settle_books(&mut m.ops, &mut m.close, false).unwrap();
+        assert_eq!(pay, 0, "nothing leaves OpsCash while the destination cannot take it");
+        m.identity("undeliverable settlement");
+        assert_eq!((m.ops.free_balance, m.ops.locked_remaining_total, m.ops.unallocated_excess), (1_800, 300, 0));
+        assert_eq!((m.close.locked_sponsor_remaining, m.close.locked_owner_remaining), (0, 300));
+        // A second settlement changes nothing.
+        assert_eq!(settle_books(&mut m.ops, &mut m.close, true).unwrap(), 0);
+        m.identity("settlement replay");
+        // Delivery pays the owner partition out of OpsCash, once.
+        let pay = book_delivery(&mut m.ops, &mut m.close).unwrap();
+        assert_eq!(pay, 300);
+        m.cash -= pay;
+        m.identity("delivery");
+        assert_eq!((m.ops.locked_remaining_total, m.close.locked_owner_remaining), (0, 0));
+        assert_code(book_delivery(&mut m.ops, &mut m.close), Code::NothingDeferred);
+        m.identity("delivery replay");
+        assert_eq!(m.ops.free_balance, 1_800, "the sponsor remainder is the only thing that returned to free");
     }
 
     // ---- candidate building ---------------------------------------------------------

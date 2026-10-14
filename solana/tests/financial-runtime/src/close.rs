@@ -3314,12 +3314,15 @@ pub fn late_authentic_fulfillment_after_skip_cannot_mint_or_revive() -> Vec<Obse
     let (pool0, registry0) = (w.pool(), w.pool().registry_len);
     w.fulfill("", 1).expect("late authentic fulfillment");
     assert_identities(w);
+    // IMPL-36 (M7-F2): a capture on an already-terminal close is refused as
+    // PromotionTerminal whether it is timely or late, and writes nothing (the
+    // IMPL-32 program recorded IgnoredLate here first).
     let capture = capture_ix(w, 1);
-    ok(w, "late_capture", vec![capture], &[]);
+    reject(w, "late_capture", vec![capture], &[], ErrorCode::PromotionTerminal);
     let close = w.close_record(1);
     assert_eq!(close.promotion, skipped, "the skip stands");
     assert_eq!((close.randomness, close.captured_at), ([0u8; 64], 0), "no randomness was captured");
-    assert_eq!(close.draw_state, state::DRAW_IGNORED_LATE);
+    assert_eq!(close.draw_state, state::DRAW_REQUESTED, "no draw_state write on a terminal close");
     // Nothing can be minted or revived.
     let apply = apply_ix_with(w, 1, ApplyKeys::default());
     reject(w, "apply_after_skip", vec![apply], &[], ErrorCode::PromotionTerminal);
