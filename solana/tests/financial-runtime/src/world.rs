@@ -162,7 +162,17 @@ impl World {
     /// (`ConfigVersion::default_v1()` has it off; the rows that test the flag
     /// turn it off again with [`World::set_public_series_a`]).
     pub fn genesis() -> Self {
-        let mut rt = FinancialRuntime::new_governed();
+        Self::genesis_on(FinancialRuntime::new_governed())
+    }
+
+    /// [`World::genesis`] on a runtime that also has the captured ORAO
+    /// executable loaded (the close suite).  Call [`World::provider_setup`]
+    /// (close.rs) to initialise, configure and register the provider.
+    pub fn genesis_with_provider() -> Self {
+        Self::genesis_on(FinancialRuntime::new_governed_with_provider())
+    }
+
+    fn genesis_on(mut rt: FinancialRuntime) -> Self {
         rt.install_participant_page(1, 0);
         let mut config: state::ConfigVersion = rt.deserialize(rt.config_address(1));
         config.public_series_a_enabled = true;
@@ -307,6 +317,28 @@ impl World {
     /// Advance the clock by `seconds` (one slot per call).
     pub fn warp_seconds(&mut self, seconds: u64) {
         self.now += seconds as i64;
+        self.slot += 1;
+        self.rt.set_clock(self.now, self.slot);
+    }
+
+    /// Move the clock to exactly `unix` (never backwards; one slot per call).
+    pub fn warp_to(&mut self, unix: u64) {
+        let target = i64::try_from(unix).expect("unix time fits i64");
+        assert!(target >= self.now, "the World's clock never runs backwards");
+        self.warp_seconds((target - self.now) as u64);
+    }
+
+    /// Set the Clock sysvar to a time BEFORE the World's own clock, without
+    /// moving the World's clock (a backdated-clock probe).  Call
+    /// [`World::restore_clock`] before the next ordinary transaction.
+    pub fn backdate_clock(&mut self, unix: u64) {
+        self.slot += 1;
+        self.rt
+            .set_clock(i64::try_from(unix).expect("unix time fits i64"), self.slot);
+    }
+
+    /// Put the Clock sysvar back to the World's own time.
+    pub fn restore_clock(&mut self) {
         self.slot += 1;
         self.rt.set_clock(self.now, self.slot);
     }
@@ -546,6 +578,57 @@ impl World {
     ) -> Outcome {
         let label = self.label(variant);
         let observation = self.rt.execute(label, instructions, signers, CU);
+        self.record(observation, true)
+    }
+
+    /// Execute `inner` as the G (governance) vault through the test-only Squads
+    /// stand-in (`FinancialRuntime::execute_via_vault`), record the
+    /// observation under `variant` and check both cash registers.
+    pub fn send_via_g(
+        &mut self,
+        variant: &str,
+        inner: Instruction,
+        signers: &[&Keypair],
+    ) -> Outcome {
+        let multisig = self.rt.g_multisig();
+        self.send_via_vault(variant, multisig, inner, signers)
+    }
+
+    /// [`World::send_via_g`] for any Squads multisig's index-0 vault (the P
+    /// vault, a rogue multisig).
+    pub fn send_via_vault(
+        &mut self,
+        variant: &str,
+        multisig: Pubkey,
+        inner: Instruction,
+        signers: &[&Keypair],
+    ) -> Outcome {
+        let label = self.label(variant);
+        let observation = self
+            .rt
+            .execute_via_vault(label, multisig, 0, inner, signers, CU);
+        self.record(observation, true)
+    }
+
+    /// [`World::send`] with the Rent sysvar's `lamports_per_byte_year` set to
+    /// `rate` for this one transaction only (a rent-quote change between a
+    /// fulfillment and its observation).  The original schedule is restored
+    /// before the cash registers are checked, because the registers' rent
+    /// floors are the schedule in force when the program last synced them.
+    pub fn send_with_rent_rate(
+        &mut self,
+        variant: &str,
+        instructions: Vec<Instruction>,
+        signers: &[&Keypair],
+        rate: u64,
+    ) -> Outcome {
+        let original: Rent = self.rt.svm.get_sysvar::<Rent>();
+        let mut changed = original.clone();
+        changed.lamports_per_byte_year = rate;
+        self.rt.svm.set_sysvar(&changed);
+        let label = self.label(variant);
+        let observation = self.rt.execute(label, instructions, signers, CU);
+        self.rt.svm.set_sysvar(&original);
         self.record(observation, true)
     }
 
@@ -1037,6 +1120,56 @@ impl World {
             pool.participant_count += 1;
             pool.participant_pages = pool.participant_pages.max(index + 1);
         });
+    }
+
+    /// A fixture participant of the current round with its sealed `UserRound`
+    /// (`deposits`, `net_payout`) and `User` history bits, appended to the
+    /// participant list: the inputs `build_candidates` reads.  The list row,
+    /// `participant_count`, `UserRound.participant_slot` and the pool totals
+    /// stay consistent; no cash moves (the lamports behind `deposits` are not
+    /// modelled, exactly like [`World::open_fixture_simple`]).
+    pub fn install_participant(
+        &mut self,
+        owner: Pubkey,
+        deposits: u128,
+        net_payout: u128,
+        ever_a: bool,
+        ever_b: bool,
+    ) {
+        let pool = self.pool();
+        self.install_user(owner, ever_a, ever_b);
+        self.rt.replace_user_round(state::UserRound {
+            bump: pda(&[
+                state::USER_ROUND_SEED,
+                &pool.round_id.to_le_bytes(),
+                owner.as_ref(),
+            ])
+            .1,
+            round_id: pool.round_id,
+            owner,
+            deposits,
+            net_payout,
+            participant_slot: pool.participant_count,
+        });
+        self.append_participant(owner);
+        self.set_pool(|pool| {
+            pool.total_gross_deposits += deposits;
+            pool.total_net_payouts += net_payout;
+        });
+        self.watch.insert(self.rt.user_round_address(pool.round_id, owner));
+    }
+
+    /// Fixture write: the `User` account of `owner` with the given Series A /
+    /// B history bits (everything else default).
+    pub fn install_user(&mut self, owner: Pubkey, ever_a: bool, ever_b: bool) {
+        self.rt.replace_user(state::User {
+            bump: pda(&[state::USER_SEED, owner.as_ref()]).1,
+            owner,
+            ever_a,
+            ever_b,
+            ..state::User::default()
+        });
+        self.watch.insert(self.rt.user_address(owner));
     }
 
     /// `count` synthetic participants (never the owner) after the existing

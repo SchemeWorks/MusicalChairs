@@ -10,8 +10,18 @@
 //! Squads program id, plus byte-exact local Squads `Multisig` and
 //! upgradeable-loader fixtures (`fixtures`).  The stand-in is never deployed and
 //! proves no real Squads execution.
+//!
+//! The M7 close suite (`close`) additionally loads the CAPTURED mainnet ORAO
+//! VRF-with-callback executable (`MC_ORAO_SBF` overrides the committed path;
+//! its SHA-256 is pinned by `solana/probes/runtime/fixtures/orao-provenance.json`)
+//! at its mainnet id, initialises, configures (ONE synthetic fulfill authority,
+//! `[0x55; 32]`) and registers it with real ORAO transactions, and drives every
+//! close step against it.  No cluster latency, no real Squads, no live
+//! randomness: see `close.rs` for the places a `CloseRecord` is rewritten
+//! (labelled `synthetic`).
 
 pub mod allocation;
+pub mod close;
 pub mod controls;
 pub mod financial;
 pub mod positions_suite;
@@ -20,6 +30,7 @@ pub mod runtime;
 pub mod world;
 
 pub use allocation::run_allocation_suite;
+pub use close::run_close_suite;
 pub use controls::run_controls_m3_suite;
 pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
@@ -37,6 +48,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_provisioning_suite());
     observations.extend(run_positions_suite());
     observations.extend(run_allocation_suite());
+    observations.extend(run_close_suite());
     observations
 }
 
@@ -1148,5 +1160,287 @@ mod fixture_tests {
         assert!(runtime.account(SQUADS_PROGRAM_ID).executable, "stand-in loaded at the Squads id");
         assert!(runtime.standin_artifact_sha256().is_some());
         assert!(runtime.svm.get_account(&runtime.pool_address()).is_none(), "no state injected");
+    }
+}
+
+/// M7 close-lifecycle rows.  Each test runs one row of `close.rs` against the
+/// actual compiled SBF, the captured ORAO executable and the test-only Squads
+/// vault stand-in (`MC_FINANCIAL_SBF`, `MC_STANDIN_SBF`; `MC_ORAO_SBF` optional).
+/// A row asserts the exact program error code of every rejection (parsed from
+/// `Observation.error`), fee-only rollback on every rejection, and both
+/// cash-register identities plus the partition identity on every success.
+#[cfg(test)]
+mod close_tests {
+    use crate::close as m7;
+    use musical_chairs_program::ErrorCode;
+
+    #[test]
+    fn provider_setup_registers_a_g_owned_client_against_the_pinned_orao_elf() {
+        m7::run_row(m7::ROW_PROVIDER, m7::provider_setup_row);
+    }
+
+    #[test]
+    fn build_candidates_visits_every_participant_once_and_seals_digests() {
+        m7::run_row(m7::ROW_BUILD_SEALS, m7::build_candidates_visits_every_participant_once_and_seals_digests);
+    }
+
+    #[test]
+    fn build_candidates_rejects_skipped_or_reordered_rows() {
+        m7::run_row(m7::ROW_BUILD_REJECTS, m7::build_candidates_rejects_skipped_or_reordered_rows);
+    }
+
+    #[test]
+    fn same_owner_multi_position_aggregation_and_sealed_userround_immutability() {
+        m7::run_row(m7::ROW_AGGREGATION, m7::same_owner_multi_position_aggregation_and_sealed_userround_immutability);
+    }
+
+    #[test]
+    fn sealed_with_zero_losers_skips_no_candidates_without_request() {
+        m7::run_row(m7::ROW_ZERO_LOSERS, m7::sealed_with_zero_losers_skips_no_candidates_without_request);
+    }
+
+    #[test]
+    fn request_round_draw_creates_request_with_protocol_seed_and_marker_atomically() {
+        m7::run_row(m7::ROW_REQUEST_CREATES, m7::request_round_draw_creates_request_with_protocol_seed_and_marker_atomically);
+    }
+
+    #[test]
+    fn protocol_seed_differs_between_devnet_and_mainnet_cluster_domains_and_matches_host_vector() {
+        m7::run_row(m7::ROW_SEED_VECTORS, m7::protocol_seed_differs_between_devnet_and_mainnet_cluster_domains_and_matches_host_vector);
+    }
+
+    #[test]
+    fn request_decrements_remaining_partitions_sponsor_first_and_records_spent_split() {
+        m7::run_row(m7::ROW_REQUEST_PARTITIONS, m7::request_decrements_remaining_partitions_sponsor_first_and_records_spent_split);
+    }
+
+    #[test]
+    fn request_cpi_failure_leaves_partitions_and_ledger_unchanged() {
+        m7::run_row(m7::ROW_REQUEST_CPI_FAILURE, m7::request_cpi_failure_leaves_partitions_and_ledger_unchanged);
+    }
+
+    #[test]
+    fn fulfillment_reimburses_excess_rent_to_client_only_and_changes_no_ops_accounting() {
+        m7::run_row(m7::ROW_FULFILLMENT, m7::fulfillment_reimburses_excess_rent_to_client_only_and_changes_no_ops_accounting);
+    }
+
+    #[test]
+    fn observe_request_fulfilled_once_sets_eligible_and_owner_refundable_remaining_and_rejects_pending() {
+        m7::run_row(m7::ROW_OBSERVE, m7::observe_request_fulfilled_once_sets_eligible_and_owner_refundable_remaining_and_rejects_pending);
+    }
+
+    #[test]
+    fn changed_rent_sysvar_after_fulfillment_does_not_overstate_eligible() {
+        m7::run_row(m7::ROW_CHANGED_RENT, m7::changed_rent_sysvar_after_fulfillment_does_not_overstate_eligible);
+    }
+
+    #[test]
+    fn extra_request_account_lamports_reduce_eligibility_never_increase() {
+        m7::run_row(m7::ROW_EXTRA_LAMPORTS, m7::extra_request_account_lamports_reduce_eligibility_never_increase);
+    }
+
+    #[test]
+    fn withdraw_provider_return_executes_orao_withdraw_cpi_and_asserts_client_and_opscash_deltas() {
+        m7::run_row(m7::ROW_WITHDRAW_RETURN, m7::withdraw_provider_return_executes_orao_withdraw_cpi_and_asserts_client_and_opscash_deltas);
+    }
+
+    #[test]
+    fn two_partial_provider_returns_then_replay_pay_exact_owner_residual_once() {
+        m7::run_row(m7::ROW_TWO_PARTIAL, m7::two_partial_provider_returns_then_replay_pay_exact_owner_residual_once);
+    }
+
+    #[test]
+    fn g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified() {
+        m7::run_row(m7::ROW_G_SIGNATURE, m7::g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified);
+    }
+
+    #[test]
+    fn withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible() {
+        m7::run_row(m7::ROW_WITHDRAW_REJECTS, m7::withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible);
+    }
+
+    #[test]
+    fn cpi_failure_rolls_back_all_accounting() {
+        m7::run_row(m7::ROW_WITHDRAW_CPI_FAILURE, m7::cpi_failure_rolls_back_all_accounting);
+    }
+
+    #[test]
+    fn two_closes_cannot_claim_the_same_reimbursement() {
+        m7::run_row(m7::ROW_TWO_CLOSES_REIMBURSEMENT, m7::two_closes_cannot_claim_the_same_reimbursement);
+    }
+
+    #[test]
+    fn late_fulfillment_after_expiry_becomes_eligible_only_when_observed() {
+        m7::run_row(m7::ROW_LATE_FULFILLMENT, m7::late_fulfillment_after_expiry_becomes_eligible_only_when_observed);
+    }
+
+    #[test]
+    fn locked_remaining_total_aggregate_equals_sum_of_remaining_partitions_after_every_transition() {
+        m7::run_row(m7::ROW_PARTITION_AGGREGATE, m7::locked_remaining_total_aggregate_equals_sum_of_remaining_partitions_after_every_transition);
+    }
+
+    #[test]
+    fn observed_deficit_then_real_return_lowers_it_and_never_blocks_commit_expire_finalize_or_claims() {
+        m7::run_row(m7::ROW_DEFICIT_THEN_RETURN, m7::observed_deficit_then_real_return_lowers_it_and_never_blocks_commit_expire_finalize_or_claims);
+    }
+
+    #[test]
+    fn expired_unfulfilled_request_keeps_rent_outstanding_and_late_fulfillment_reimburses_client_later() {
+        m7::run_row(m7::ROW_EXPIRED_UNFULFILLED, m7::expired_unfulfilled_request_keeps_rent_outstanding_and_late_fulfillment_reimburses_client_later);
+    }
+
+    #[test]
+    fn g_withdraws_client_elsewhere_records_deficit_without_blocking_commit_expire_finalize_or_claims() {
+        m7::run_row(m7::ROW_G_WITHDRAWS_ELSEWHERE, m7::g_withdraws_client_elsewhere_records_deficit_without_blocking_commit_expire_finalize_or_claims);
+    }
+
+    #[test]
+    fn increase_provider_budget_moves_extra_from_free_raises_cap_and_refunds_unused_once() {
+        m7::run_row(m7::ROW_BUDGET, m7::increase_provider_budget_moves_extra_from_free_raises_cap_and_refunds_unused_once);
+    }
+
+    #[test]
+    fn settlement_refunds_only_remaining_partitions_never_spent_amounts() {
+        m7::run_row(m7::ROW_SETTLEMENT, m7::settlement_refunds_only_remaining_partitions_never_spent_amounts);
+    }
+
+    #[test]
+    fn anonymous_ops_cash_credit_becomes_unallocated_excess_and_is_never_spent() {
+        m7::run_row(m7::ROW_ANONYMOUS_CREDIT, m7::anonymous_ops_cash_credit_becomes_unallocated_excess_and_is_never_spent);
+    }
+
+    #[test]
+    fn request_rejects_wrong_client_owner_wrong_client_state_or_wrong_account_owner() {
+        m7::run_row(m7::ROW_REQUEST_REJECTS_PROVIDER, m7::request_rejects_wrong_client_owner_wrong_client_state_or_wrong_account_owner);
+    }
+
+    #[test]
+    fn owner_fallback_may_fund_provider_fee_and_rent_after_sponsor_exhausted_with_exact_attribution() {
+        m7::run_row(m7::ROW_OWNER_FALLBACK, m7::owner_fallback_may_fund_provider_fee_and_rent_after_sponsor_exhausted_with_exact_attribution);
+    }
+
+    #[test]
+    fn request_after_deadline_is_rejected_before_fees() {
+        m7::run_row(m7::ROW_REQUEST_AFTER_DEADLINE, m7::request_after_deadline_is_rejected_before_fees);
+    }
+
+    #[test]
+    fn collision_with_preexisting_request_fails_closed_no_alternate_seed() {
+        m7::run_row(m7::ROW_COLLISION, m7::collision_with_preexisting_request_fails_closed_no_alternate_seed);
+    }
+
+    #[test]
+    fn capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop() {
+        m7::run_row(m7::ROW_CAPTURE_DEADLINE, m7::capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop);
+    }
+
+    #[test]
+    fn apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116() {
+        m7::run_row(m7::ROW_APPLY_PROMOTION, m7::apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116);
+    }
+
+    #[test]
+    fn apply_promotion_terminalizes_entropy_exhausted_from_labeled_synthetic_state() {
+        m7::run_row(m7::ROW_ENTROPY_EXHAUSTED, m7::apply_promotion_terminalizes_entropy_exhausted_from_labeled_synthetic_state);
+    }
+
+    #[test]
+    fn expire_promotion_requires_clock_past_deadline_and_no_capture() {
+        m7::run_row(m7::ROW_EXPIRE, m7::expire_promotion_requires_clock_past_deadline_and_no_capture);
+    }
+
+    #[test]
+    fn timely_capture_cannot_be_expired_and_applies_after_deadline() {
+        m7::run_row(m7::ROW_TIMELY_CAPTURE, m7::timely_capture_cannot_be_expired_and_applies_after_deadline);
+    }
+
+    #[test]
+    fn expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash() {
+        m7::run_row(m7::ROW_EXPIRE_DURING_BUILD, m7::expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash);
+    }
+
+    #[test]
+    fn finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once() {
+        m7::run_row(m7::ROW_FINALIZE, m7::finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once);
+    }
+
+    #[test]
+    fn direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round() {
+        m7::run_row(m7::ROW_COMPOSED, m7::direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round);
+    }
+
+    #[test]
+    fn late_authentic_fulfillment_after_skip_cannot_mint_or_revive() {
+        m7::run_row(m7::ROW_LATE_AUTHENTIC, m7::late_authentic_fulfillment_after_skip_cannot_mint_or_revive);
+    }
+
+    #[test]
+    fn second_close_cannot_reuse_first_close_request_binding() {
+        m7::run_row(m7::ROW_SECOND_CLOSE_BINDING, m7::second_close_cannot_reuse_first_close_request_binding);
+    }
+
+    #[test]
+    fn two_closes_two_rounds_sequence() {
+        m7::run_row(m7::ROW_TWO_CLOSES_SEQUENCE, m7::two_closes_two_rounds_sequence);
+    }
+
+    /// Pure host row: the sampler's all-64-rejected exhaustion path.
+    #[test]
+    fn sampler_all_64_counters_rejected_pure() {
+        m7::sampler_all_64_counters_rejected_pure();
+    }
+
+    /// Pure host row: the committed seed-vector file is the program sampler's.
+    #[test]
+    fn seed_vectors_file_matches_the_program_sampler() {
+        m7::seed_vectors_file_matches_the_program_sampler();
+    }
+
+    #[test]
+    fn close_suite_lists_every_plan_row_once() {
+        let rows = m7::rows();
+        assert_eq!(rows.len(), m7::ROW_NAMES.len());
+        for ((name, _), expected) in rows.iter().zip(m7::ROW_NAMES) {
+            assert_eq!(*name, expected);
+        }
+        let unique: std::collections::BTreeSet<_> = m7::ROW_NAMES.iter().collect();
+        assert_eq!(unique.len(), m7::ROW_NAMES.len());
+    }
+
+    #[test]
+    fn close_suite_aggregates_every_row_with_unique_labels() {
+        let observations = m7::run_close_suite();
+        for (name, _) in m7::rows() {
+            m7::assert_headline(&observations, name);
+        }
+        assert!(observations.iter().all(|observation| observation.label.starts_with("financial.close.")));
+    }
+
+    #[test]
+    fn error_codes_asserted_by_the_close_suite_are_frozen() {
+        let code = |error: ErrorCode| error as u32 + 6000;
+        assert_eq!(code(ErrorCode::InvalidState), 6001);
+        assert_eq!(code(ErrorCode::NotAuthorized), 6004);
+        assert_eq!(code(ErrorCode::WrongAccount), 6005);
+        assert_eq!(code(ErrorCode::WrongOwner), 6006);
+        assert_eq!(code(ErrorCode::InsufficientOperations), 6007);
+        assert_eq!(code(ErrorCode::Closing), 6011);
+        assert_eq!(code(ErrorCode::StaleRound), 6016);
+        assert_eq!(code(ErrorCode::CursorMismatch), 6019);
+        assert_eq!(code(ErrorCode::Collision), 6028);
+        assert_eq!(code(ErrorCode::WrongProviderTuple), 6029);
+        assert_eq!(code(ErrorCode::PageNotProvisioned), 6035);
+        assert_eq!(code(ErrorCode::ProviderFeeExceeded), 6041);
+        assert_eq!(code(ErrorCode::RequestNotFulfilled), 6042);
+        assert_eq!(code(ErrorCode::DeadlinePassed), 6043);
+        assert_eq!(code(ErrorCode::DeadlineNotReached), 6044);
+        assert_eq!(code(ErrorCode::PromotionTerminal), 6045);
+        assert_eq!(code(ErrorCode::NotSealed), 6046);
+        assert_eq!(code(ErrorCode::CandidatesIncomplete), 6047);
+        assert_eq!(code(ErrorCode::NothingEligible), 6048);
+        assert_eq!(code(ErrorCode::AlreadyObserved), 6049);
+        // Framework codes the suite asserts.
+        assert_eq!(anchor_lang::error::ErrorCode::AccountNotSigner as u32, 3010);
+        assert_eq!(anchor_lang::error::ErrorCode::ConstraintSeeds as u32, 2006);
     }
 }

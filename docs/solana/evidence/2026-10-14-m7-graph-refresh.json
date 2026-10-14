@@ -1,0 +1,150 @@
+{
+ "recorded_at_utc": "2026-10-14T13:29:06.592343+00:00",
+ "card": "IMPL-34",
+ "milestone": "M7 close lifecycle — graph receipt (incl. IMPL-42/43/44)",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "366df88233d807cb75b5ea94ca33102b2ebf8b59",
+ "head_at_graph_update": "366df88",
+ "branch": "codex/native-solana-production-core",
+ "note_on_commit": "the update ran on the working tree that the IMPL-33/34 commit then recorded; the committed files are hashed below",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m6-graph-refresh.json (combined M5–M6)",
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "ca5bafec074e5284be4cb48f7449d290cbc98c18423f8ea676508cb3d1d49504",
+   "result": "13,927 nodes / 20,250 edges / 42 hyperedges → 15,244 / 22,740 / 42 (lost prior 0)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m7-fragment-spec.json 1458 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "42e44cc7f21923ffdd2b8628d04fdb279b8cf440bbbd894af739513df637a470",
+   "builder_sha256": "4d71f7b9db661ab63fb9439a7da67f689b24faa8b5de965e4d237390997cf9b8",
+   "result": "APPLIED 15254 / 22863 / 43; one edge skipped by the builder because its target does not exist (impl2026_10_14_m0_toolchain_pins)"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 13927,
+  "edges": 20250,
+  "hyperedges": 42
+ },
+ "after_graphify_update": {
+  "nodes": 15244,
+  "edges": 22740,
+  "hyperedges": 42
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 0,
+  "note": "same idempotent 16-edge/321-status repair as every prior milestone"
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m7-graph-fragment.json",
+  "sha256": "f23cef078b31cffea8b5832f596d217d8049943a52d4d2c116ce31d4707b7ec8",
+  "nodes": 10,
+  "edges": 107,
+  "hyperedges": 1,
+  "attribute_updates": 53,
+  "community": 1458,
+  "flips": "plan2026_10_13_m7_close_draw_finalize → completed_receipt; gap_no_candidate_promotion_expiry_finalize_code, acc_deferral_candidate_sealing, acc_deferral_orao_integration → resolved_in_local_implementation; DR-14 refund timing, 8 ix, 8 states, 2 rules, DR-17/18/32/33, F1/R5 resolutions, 6 M7 test-group nodes and 15 plan2026_10_13_test_* rows matched by name → local_runtime_executed"
+ },
+ "after": {
+  "nodes": 15254,
+  "edges": 22863,
+  "hyperedges": 43
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/close.rs": "ca01640f1561172f11d4ec45914bee3e17ab6f3e66c84938089630415a413480",
+   "solana/programs/musical_chairs/src/provider.rs": "4a23418a069f0d444dde537a0fb202b9c066bfc81e199c5f87fd5aba9783af12",
+   "solana/programs/musical_chairs/src/sampling.rs": "217880ff393549cdad288b97a8db9566b86e07a9a52beae87ba3d5e95a83edf0",
+   "solana/programs/musical_chairs/src/controls.rs": "e187f40bbf8737825d25f3929c6402b4ceb6b03cdc63f50b44bbd23c04c6c949",
+   "solana/programs/musical_chairs/src/error.rs": "1648a5e469cc9b5aa4c1c63b4ad78046b117a741d0112d5588a1770031753dd8",
+   "solana/programs/musical_chairs/src/events.rs": "9e67f002246426f9d3f786819bf643136ee7e90636975a4dfe6dd42a1cb6dc26",
+   "solana/programs/musical_chairs/src/state.rs": "cea16307afba5686cc14b871323f0f19ab7d63585e8f93ae3862e07dac9d49a1",
+   "solana/programs/musical_chairs/src/lib.rs": "1265119ffd4c7a901fad43154a55aa17b385926a9c9d82f5583ef134fe046474",
+   "solana/programs/musical_chairs/idl/musical_chairs.json": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+   "solana/fixtures/sampling.json": "c9b63e4469799e7552e318a4aeebde448aa912095bbfd8009f89c0a7cacf8c2d",
+   "solana/fixtures/seed-vectors.json": "964bf1db0abf173544418ebd7c3d4f131c2cac140ee3115b0174efc4c8eca8db",
+   "solana/fixtures/event-encodings.json": "b2041b53ac68ca629cd2742e39078724dfd607a56c36bee5c9c6d3883a5c369f",
+   "solana/tests/financial-runtime/src/close.rs": "0914f380e28677ef644025c56cc338e374e636ebee1d0ab35357fe0afe7aee75",
+   "solana/tests/financial-runtime/src/world.rs": "d0d71ef34e08d11ea8921d91a63fb5e82b582df3c9f0cc8d6358875b9e3bbbb8",
+   "solana/tests/financial-runtime/src/runtime.rs": "5c439f89bc40c3ebd79e0837cf8354468230b3adaa220b61a4d4d3c93fb9cfe4",
+   "solana/tests/financial-runtime/src/lib.rs": "84d4f440abff5b8cc58fae8186eb98a5c0f55ce36899b8cb562c9ce13cdca756",
+   "solana/tests/financial-runtime/src/main.rs": "6f2ea8a51abc5a90fd77a7d3268f079a4539746996339d0c5b17b869e2cfc367",
+   "solana/tests/financial-runtime/src/controls.rs": "56fd01f91526c147e2692cd5027d451863051a20b4c3cb37edbd23b78a87701b",
+   "solana/tests/financial-runtime/tests/owner_refund.rs": "d0769c13c2c354540d00cd922f90eb9a375bf07eac2562a84df8ea54cb69337f",
+   "solana/tests/financial-runtime/tests/transfer_constraints.rs": "e3093cc535c18fe467a0a31be02655c3f3ae79682b66181e76eafdf72eeffbf4",
+   "docs/coordination/kanban.md": "f4b19893b392b48dead1b9c1ee88d344ee4fc7a743ca8c9504f048e12d4ee85e",
+   "docs/coordination/native-solana-m7-contract-supplement-20261014.md": "83b648cdcb1b2ae6e94218ecfd29e5a2a0bc8baac90d27624a313fc5da9e5e70",
+   "docs/coordination/native-solana-m7-handoff-20261014.md": "e423877bc7bf7b6a841c779a98a2460ce7f79f64ccdbc511157509b6335b3487",
+   "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json": "712bd425584ad89d144f57fbebce1f8266b6eb7ca7b9e638e336610b204289b9",
+   "docs/solana/evidence/2026-10-14-m7-cli.json": "6e94d326717eaa1ed7366bde68cbe4abf6f007c0df624c294c7131e93015abe8",
+   "docs/solana/evidence/2026-10-14-m7-deadline-pin.json": "5a249b8f1c7d5a80c7c79e484f163b070637d2a85c62a999541c6dae2a255ece",
+   "docs/solana/evidence/2026-10-14-m7-owner-refund.json": "e53c4c62e36f5cfa3d31cdfdb0e60fb61d9b1e00463197e50a85ce416a5295ec",
+   "docs/solana/evidence/2026-10-14-m7-graph-fragment.json": "f23cef078b31cffea8b5832f596d217d8049943a52d4d2c116ce31d4707b7ec8"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at this update; semantic coverage is the listed files and the fragment; docs/solana/evidence/2026-10-14-m7-cli.json (4.9 MB) gets no graphify file node and is referenced only from the receipt"
+ },
+ "stale_or_uncovered": [
+  "docs/solana/evidence/2026-10-14-m7-cli.json: no graphify file node (size)",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only",
+  "27 of the 42 close-suite rows have no plan2026_10_13_test_* node by exact name (they are supplement/extra rows); they are covered by the impl2026_10_14_m7_close_suite node"
+ ],
+ "checks": {
+  "all_prior_13927_node_ids_retained": true,
+  "all_prior_20250_raw_edge_identities_retained": true,
+  "all_prior_42_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "m7_plan_node_implemented_edges": 10,
+  "community_1458_nodes": 10,
+  "statuses_after": {
+   "plan2026_10_13_m7_close_draw_finalize": "completed_receipt",
+   "plan2026_10_13_gap_no_candidate_promotion_expiry_finalize_code": "resolved_in_local_implementation",
+   "plan2026_10_13_acc_deferral_orao_integration": "resolved_in_local_implementation",
+   "plan2026_10_13_dr_14_refund_timing": "local_runtime_executed"
+  }
+ },
+ "query_checks": {
+  "m7-explain.txt": {
+   "sha256": "39bd3ea2c829fde7d5773737f8ac34b0aeab3f86c0fd90189205943d3d6101f2",
+   "explained_ids": [
+    "impl2026_10_14_m7_close_lifecycle_handlers",
+    "impl2026_10_14_m7_owner_refund_deferral",
+    "impl2026_10_14_m7_close_suite"
+   ],
+   "all_resolved": true
+  },
+  "m7-queries.txt": {
+   "sha256": "28839e4e539b19c83ab53b396329a32dd564171e06e075c0af28049748052c0e",
+   "note": "the free-text query \"M7 close lifecycle request_round_draw apply_promotion deliver_owner_refund\" surfaces the AST handler nodes first; the concept nodes are reached through explain <id> (label matching is ambiguous, as in M3–M6)"
+  }
+ },
+ "graph_json_sha256_after": "48a5ae1010686ced003aa8c2324f87345bd24b0ed45595ebb6cfe0baed48eedc",
+ "evidence_caveat": "A graph relationship is navigation evidence; financial and authority claims are verified against the committed source and the LiteSVM receipts, not the graph."
+}

@@ -8,13 +8,16 @@ use std::{
 
 use anchor_lang::{event::EVENT_IX_TAG_LE, AccountDeserialize, AccountSerialize, Event};
 use litesvm::LiteSVM;
-use musical_chairs_program::{accounts, controls::SQUADS_PROGRAM_ID, instruction, state, ID};
+use musical_chairs_program::{
+    accounts, controls::SQUADS_PROGRAM_ID, instruction, provider::orao, state, ID,
+};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use solana_sdk::{
     account::Account,
     clock::Clock,
     compute_budget::ComputeBudgetInstruction,
+    ed25519_program,
     instruction::{AccountMeta, Instruction},
     message::Message,
     pubkey::Pubkey,
@@ -176,6 +179,9 @@ pub struct FinancialRuntime {
     elf: Vec<u8>,
     /// SHA-256 of the Squads vault stand-in ELF when it is loaded.
     standin_sha256: Option<String>,
+    /// SHA-256 of the captured ORAO VRF-with-callback ELF when it is loaded
+    /// (the close suite; see [`FinancialRuntime::new_governed_with_provider`]).
+    provider_sha256: Option<String>,
 }
 
 impl FinancialRuntime {
@@ -185,7 +191,7 @@ impl FinancialRuntime {
     /// outcomes; `Pool.governance` stays unset.  M3 authenticated-controls
     /// tests use [`FinancialRuntime::new_governed`] instead.
     pub fn new() -> Self {
-        let mut runtime = Self::bootstrap(false);
+        let mut runtime = Self::bootstrap(false, false);
         runtime.inject_canonical_fixture();
         runtime
     }
@@ -196,7 +202,7 @@ impl FinancialRuntime {
     /// owned by the Squads id.  NO program state is injected, so `initialize`
     /// runs against fresh PDAs.
     pub fn new_uninitialized() -> Self {
-        Self::bootstrap(true)
+        Self::bootstrap(true, false)
     }
 
     /// [`FinancialRuntime::new_uninitialized`] plus the canonical state
@@ -204,7 +210,20 @@ impl FinancialRuntime {
     /// vault and `Pool.guardian_vault` = `Admission.guardian_vault` is the P
     /// vault.  This is the post-`initialize` genesis shape.
     pub fn new_governed() -> Self {
-        let mut runtime = Self::new_uninitialized();
+        Self::governed_on(Self::new_uninitialized())
+    }
+
+    /// [`FinancialRuntime::new_governed`] with the captured ORAO VRF-with-
+    /// callback ELF also loaded at its mainnet program id (the close suite).
+    /// The provider is loaded together with the other programs, before the
+    /// clock is first set, exactly like the main ELF and the Squads stand-in.
+    /// No provider state exists yet: `World::provider_setup` initialises,
+    /// configures and registers it with real ORAO transactions.
+    pub fn new_governed_with_provider() -> Self {
+        Self::governed_on(Self::bootstrap(true, true))
+    }
+
+    fn governed_on(mut runtime: Self) -> Self {
         runtime.inject_canonical_fixture();
         let governance = runtime.g_vault();
         let guardian = runtime.p_vault();
@@ -218,7 +237,7 @@ impl FinancialRuntime {
         runtime
     }
 
-    fn bootstrap(m3: bool) -> Self {
+    fn bootstrap(m3: bool, provider: bool) -> Self {
         let mut svm = LiteSVM::new();
         let payer = Keypair::new_from_array(PAYER_SEED);
         let owner = Keypair::new_from_array(OWNER_SEED);
@@ -243,6 +262,15 @@ impl FinancialRuntime {
             None
         };
 
+        let provider_sha256 = if provider {
+            let orao_elf = read_provider_elf();
+            svm.add_program(orao::id(), &orao_elf)
+                .expect("captured ORAO ELF must load into LiteSVM");
+            Some(hex_sha256(&orao_elf))
+        } else {
+            None
+        };
+
         let mut runtime = Self {
             svm,
             payer,
@@ -253,6 +281,7 @@ impl FinancialRuntime {
             artifact_sha256,
             elf,
             standin_sha256,
+            provider_sha256,
         };
         if m3 {
             // Installed while the clock is still at its default, exactly like
@@ -281,6 +310,12 @@ impl FinancialRuntime {
     /// loaded it (`new_uninitialized` / `new_governed`).
     pub fn standin_artifact_sha256(&self) -> Option<&str> {
         self.standin_sha256.as_deref()
+    }
+
+    /// SHA-256 of the loaded ORAO ELF, when this runtime loaded it
+    /// (`new_governed_with_provider`).
+    pub fn provider_artifact_sha256(&self) -> Option<&str> {
+        self.provider_sha256.as_deref()
     }
 
     pub fn set_clock(&mut self, now: i64, slot: u64) {
@@ -623,7 +658,17 @@ impl FinancialRuntime {
         let message_keys: BTreeSet<Pubkey> = message.account_keys.iter().copied().collect();
         let snapshots = self.snapshot(&message_keys);
         let payer_before = self.account(self.payer.pubkey()).lamports;
-        let expected_fee_lamports = 5_000 * u64::from(message.header.num_required_signatures);
+        // Every Ed25519 precompile signature is charged like a transaction
+        // signature (the ORAO `fulfill` rows carry one); the first data byte
+        // of an Ed25519 instruction is its signature count.
+        let precompile_signatures: u64 = message
+            .instructions
+            .iter()
+            .filter(|ix| message.account_keys[usize::from(ix.program_id_index)] == ed25519_program::id())
+            .map(|ix| ix.data.first().copied().map_or(0, u64::from))
+            .sum();
+        let expected_fee_lamports =
+            5_000 * (u64::from(message.header.num_required_signatures) + precompile_signatures);
         let declared_account_data_bytes = snapshots
             .values()
             .filter_map(|snapshot| snapshot.0.as_ref())
@@ -974,6 +1019,13 @@ impl FinancialRuntime {
     pub fn replace_ticket(&mut self, ticket: state::Ticket) {
         let address = self.ticket_address();
         self.replace_program_account(address, &ticket, state::Ticket::SPACE);
+    }
+
+    /// Fixture write: overwrite the `RngAuthority` PDA (the close suite binds
+    /// it to the registered ORAO client after the real `register`).
+    pub fn replace_rng_authority(&mut self, authority: state::RngAuthority) {
+        let address = self.rng_authority_address();
+        self.replace_program_account(address, &authority, state::RngAuthority::SPACE);
     }
 
     pub fn replace_snapshot(&mut self, snapshot: state::SnapshotPage) {
@@ -1614,6 +1666,55 @@ fn read_financial_elf() -> Vec<u8> {
             path.display()
         )
     })
+}
+
+/// SHA-256 of the captured ORAO VRF-with-callback mainnet ELF, pinned by
+/// `solana/probes/runtime/fixtures/orao-provenance.json`
+/// (`program_binary.elf_sha256`).
+pub const ORAO_ELF_SHA256: &str = "6d180b1e91be7d5c541f75e2413146beb047d9beeb76ac8eb1d7c883200c6b8b";
+
+fn orao_fixture_dir() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../probes/runtime/fixtures")
+}
+
+/// The captured ORAO ELF (`MC_ORAO_SBF` overrides the committed path), checked
+/// against the pinned SHA-256 and against `orao-provenance.json`.
+fn read_provider_elf() -> Vec<u8> {
+    let path = env::var_os("MC_ORAO_SBF")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| orao_fixture_dir().join("orao-callback-mainnet-finalized.so"));
+    let elf = fs::read(&path).unwrap_or_else(|error| {
+        panic!("captured ORAO ELF {} is required: {error}", path.display())
+    });
+    assert_eq!(
+        hex_sha256(&elf),
+        ORAO_ELF_SHA256,
+        "the captured ORAO executable changed: {} is not the pinned mainnet finalized ELF",
+        path.display()
+    );
+    let provenance_path = orao_fixture_dir().join("orao-provenance.json");
+    let provenance: serde_json::Value = serde_json::from_slice(
+        &fs::read(&provenance_path).unwrap_or_else(|error| {
+            panic!("ORAO provenance {} is required: {error}", provenance_path.display())
+        }),
+    )
+    .expect("orao-provenance.json is JSON");
+    assert_eq!(
+        provenance["program_binary"]["elf_sha256"].as_str(),
+        Some(ORAO_ELF_SHA256),
+        "orao-provenance.json no longer pins the ELF this harness loads"
+    );
+    assert_eq!(
+        provenance["program_binary"]["program_id"].as_str(),
+        Some(orao::id().to_string().as_str()),
+        "orao-provenance.json names a different program id"
+    );
+    elf
+}
+
+/// SHA-256 of the captured ORAO ELF (after the provenance checks above).
+pub fn provider_artifact_sha256() -> String {
+    hex_sha256(&read_provider_elf())
 }
 
 /// SHA-256 of the Squads vault stand-in ELF selected by `MC_STANDIN_SBF`.
