@@ -107,7 +107,7 @@
    "solana/programs/musical_chairs/src/positions.rs": "b359be56e4e63d4785d4f85a7a6f793fe8397e80ab69a0bf435a71403f977808",
    "solana/programs/musical_chairs/src/allocation.rs": "68ca145b447f159fd9576fa52732bc1a1f14144649efbc6d9e6dac98960ddbea",
    "solana/programs/musical_chairs/src/claims.rs": "1cd0bab6d9b161e083df0dd3e1d2b963c419ce420de3711e774b2b3aea07d830",
-   "solana/programs/musical_chairs/src/controls.rs": "19decc67cc422ddf1b00107cc28576cb8b3e81788e42e8f7c660c6dbe96fa2cc",
+   "solana/programs/musical_chairs/src/controls.rs": "469a239c47559f187d257a1de0300ef1944ae0b44e09aaa2504c03a96c2e0c80",
    "solana/programs/musical_chairs/src/lib.rs": "83e94d92eade1527eb3d45334c934f6c98057c00d0011b829c20b53c02bb8ed3",
    "solana/programs/musical_chairs/src/error.rs": "fd97291431b43e645d2a81459c456d56a6daa0bbfa193a76f1f7088bb7f295b2",
    "solana/programs/musical_chairs/src/state.rs": "5219c54ff28f490a2f6c77e79c091bdf32dc0ae42d04fb81e9a61029f0fd0598",
@@ -122,23 +122,36 @@
    "solana/tests/financial-runtime/src/main.rs": "353f372b2e48bd6bffdc659e883abb2426e4537331dc2164c6e403baeb9bbaa4",
    "solana/tests/financial-runtime/tests/payout_props.rs": "05def6897b2ad1a9a392cc6aef1a38dc39370cf7bf370a468bb3b13b8d3ec897",
    "solana/tests/financial-runtime/tests/allocation_diff.rs": "3ac5c0bf28ff0fe87cd79815ccee5c1105cafdf0852f50296d40686acad6a505",
-   "docs/coordination/kanban.md": "dcb2e269ba1fe0fca681990c22922133e62b0fbcd80a958179fc08c509f53ba5",
+   "docs/coordination/kanban.md": "a9cc2195fa17222bf14c9b19869d4f681f32253bfb8741a9818797d0bf5e8bac",
    "docs/solana/evidence/2026-10-14-m5-admission-payouts.json": "f083bf40df273054393293d0e687fd403258050311895557c6cd95f04a44731a",
    "docs/solana/evidence/2026-10-14-m5-cli.json": "4e815d026b9b70aea0927a0f2e8316e2d98e02b28ad290833fb37ae7e12ba021",
    "docs/solana/evidence/2026-10-14-m5-quota-pin.json": "08f241eb78056c499488c8b34980afbf6d7c144baa351f6767098efa2489aff5",
    "docs/solana/evidence/2026-10-14-m5-config-pins.json": "6ad1dc80b856d18cb3d5ff48743c16005a068693919dc643504e25d4b60a298e",
-   "docs/solana/evidence/2026-10-14-m6-allocation.json": "71e6810d7392a20aaaaa6a01a373c57107410118f2a21adc4bedcd37db9527a9",
+   "docs/solana/evidence/2026-10-14-m6-allocation.json": "c5741ad49b50aae230d67982bcd02e03c4b09f3f1550ed1ad037f09e59826118",
    "docs/solana/evidence/2026-10-14-m6-cli.json": "03c1325c461b634f78efe3ddf23657175d366f38b36c3d08ee80d2109cbd0a3b",
    "docs/solana/evidence/2026-10-14-m5-graph-fragment.json": "9241f92206e646ca3fc81ac15127420103fc1ef960220c9fe10ea8df2b0cabb4",
    "docs/solana/evidence/2026-10-14-m6-graph-fragment.json": "3dd417ea6d3cdace86f981e489fdb35e1041c708ebdf52f20ea4acb001f1dec0"
   },
-  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at cabfd01; semantic coverage is the listed files plus the two fragments. tests/allocation_diff.rs (IMPL-30) was being written during the update, so its AST nodes reflect an in-progress copy; the final file (sha listed) is executed and recorded in 2026-10-14-m6-allocation.json and will be re-extracted at the M7 refresh."
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at cabfd01; semantic coverage is the listed files plus the two fragments. tests/allocation_diff.rs (IMPL-30) was being written during the update, so its AST nodes reflect an in-progress copy; the final file (sha listed) is executed and recorded in 2026-10-14-m6-allocation.json and will be re-extracted at the M7 refresh.",
+  "pinned_at": "c6fdaa7 for unchanged files; the three files corrected after the Codex M5/M6 handoff check (m6-allocation.json proof_level wording, controls.rs validate doc comment, kanban.md) are pinned at their corrected content in the follow-up docs commit",
+  "repin_history": [
+   {
+    "reason": "Codex handoff check c6fdaa7 item (2): the m6-allocation.json pin predated the IMPL-30 differential section; re-pinned at the corrected receipt",
+    "before": {
+     "docs/solana/evidence/2026-10-14-m6-allocation.json": "71e6810d7392a20aaaaa6a01a373c57107410118f2a21adc4bedcd37db9527a9",
+     "solana/programs/musical_chairs/src/controls.rs": "19decc67cc422ddf1b00107cc28576cb8b3e81788e42e8f7c660c6dbe96fa2cc",
+     "docs/coordination/kanban.md": "dcb2e269ba1fe0fca681990c22922133e62b0fbcd80a958179fc08c509f53ba5"
+    }
+   }
+  ],
+  "graphify_manifest_note": "graphify-out/manifest.json (gitignored) keys files by mtime + ast_hash, not sha256; its entry for 2026-10-14-m6-allocation.json (ast_hash c3a76a25…) and the evidence_2026_10_14_m6_allocation_* leaf nodes were extracted from the receipt BEFORE the differential_impl30 section and the proof_level correction were added. The graph identities are unchanged; the differential section is carried into the graph at the M7 refresh (no redundant whole-graph refresh)."
  },
  "stale_or_uncovered": [
   "solana/tests/financial-runtime/tests/allocation_diff.rs: AST from an in-progress copy (final file hashed above; re-extract at M7)",
   "docs/solana/evidence/2026-10-14-m6-cli.json (2.7 MB): no graphify file node; referenced through the receipt leaf evidence_2026_10_14_m6_allocation_cli_copy",
   "IMPL-32 M7 program (close.rs/provider.rs/sampling.rs) lives in an isolated worktree, not in this tree: uncovered until applied",
-  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only"
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only",
+  "docs/solana/evidence/2026-10-14-m6-allocation.json: graph leaf nodes/manifest reflect the pre-IMPL-30 version (re-extract at M7)"
  ],
  "checks": {
   "all_prior_12585_node_ids_retained": true,

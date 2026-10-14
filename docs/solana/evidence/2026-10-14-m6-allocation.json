@@ -1842,7 +1842,7 @@
   "small claims are paid to a funded destination to avoid the runtime rent-exempt refusal",
   "ApplySenior.backer became optional after the harness showed the program-id placeholder failing Anchor's mut check"
  ],
- "proof_level": "GREEN on real lamports in LiteSVM for the full allocation ticket (discover → senior → seal → allocate → prune → commit) and lazy claims, with host-oracle agreement at the program-unit level (120 sequences) and in the harness (37-backer Book comparison); the M0 RED baseline is now entirely GREEN; the M6 step-4 LiteSVM differential (IMPL-30) is pending; no deployment or live action",
+ "proof_level": "GREEN on real lamports in LiteSVM for the full allocation ticket (discover → senior → seal → allocate → prune → commit) and lazy claims, with host-oracle agreement at the program-unit level (120 sequences), in the harness (37-backer Book comparison) and in the M6 step-4 LiteSVM differential (IMPL-30: 50 random tickets with interleaved claims, Series A re-fundings and fixture credits, 2 passed on ELF 24716634…, two mutation checks fail as expected); the M0 RED baseline is now entirely GREEN; no deployment or live action",
  "solana_notes": [
   "Remaining accounts let one instruction carry a variable number of pages and Backers; the program re-derives every PDA from registry rows so a keeper cannot substitute accounts, and duplicates of a writable Backer are rejected because two decoded copies would overwrite each other.",
   "Packet size, not compute, is the binding limit for chunk width: an eight-row prune carries 27 account keys and still fits 1,232 bytes; compute stays under 90k of the 1.4M budget.",

@@ -103,9 +103,13 @@ pub struct ConfigTerms {
 }
 
 impl ConfigTerms {
-    /// Bounds every staged (and genesis) rule set must satisfy.  `seed_bps`
-    /// is only range-checked, not pinned to the launch value; the senior,
-    /// Series A and Series B shares must cover the allocation exactly.
+    /// Bounds every staged (and genesis) rule set must satisfy.  The fields
+    /// that fixed helpers consume are pinned to their canonical values rather
+    /// than range-checked: the Simple rate (1,100 bps/day), the Series A and
+    /// Series B entitlements (12,400 / 11,600 bps), `seed_bps` (5,000 — half
+    /// the toll), the open cutoff (10 lamports) and the quota (3 per 3,600 s).
+    /// The senior, Series A and Series B shares must cover the allocation
+    /// exactly.
     pub fn validate(&self) -> Result<()> {
         const BPS: u16 = 10_000;
         let all_bps_in_range = self
