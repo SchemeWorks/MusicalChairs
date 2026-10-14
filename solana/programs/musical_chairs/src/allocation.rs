@@ -138,7 +138,8 @@ pub fn decode_a_denominator(bytes: [u8; 32]) -> U256 {
 }
 
 /// Encode a weighted denominator without truncating high words.  The caller
-/// must persist the resulting bytes unchanged in `Ticket.a_remaining`.
+/// must persist the resulting bytes unchanged in `Ticket.a_remainder_total`
+/// (discovery accumulator) or `Ticket.sealed_a_denominator` (frozen at seal).
 pub fn encode_a_denominator(value: U256) -> [u8; 32] {
     value.to_le_bytes()
 }

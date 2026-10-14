@@ -14,8 +14,8 @@ use anchor_lang::solana_program::{
 };
 
 use crate::state::{
-    Admission, GameVault, Ops, Pool, RegistryPage, SnapshotPage, SnapshotRow, Ticket,
-    ADMISSION_SEED, GAME_VAULT_SEED, IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY,
+    Admission, GameVault, Ops, Pool, RegistryPage, RentComponents, SnapshotPage, SnapshotRow,
+    Ticket, ADMISSION_SEED, GAME_VAULT_SEED, IDLE, OPS_CASH_SEED, OPS_SEED, PAGE_CAPACITY,
     POOL_SEED, REGISTRY_SEED, SNAPSHOT_SEED, TICKET_SEED,
 };
 
@@ -35,7 +35,9 @@ const PERMISSION_EXECUTE: u8 = 4;
 pub struct InitializeArgs {
     pub sponsor: Pubkey,
     pub management_recipient: Pubkey,
-    pub close_reserve: u64,
+    /// Immutable cluster domain (devnet and mainnet differ); stored once in
+    /// `Pool.cluster_domain` and never writable again.
+    pub cluster_domain: [u8; 32],
 }
 
 /// Authenticated one-time setup.  The two Multisig accounts and the two Vault
@@ -44,7 +46,6 @@ pub struct InitializeArgs {
 pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> {
     require_keys_eq!(args.sponsor, ctx.accounts.sponsor.key(), crate::ErrorCode::NotAuthorized);
     require!(args.management_recipient != Pubkey::default(), crate::ErrorCode::InvalidState);
-    require!(args.close_reserve > 0, crate::ErrorCode::InvalidState);
 
     require_keys_eq!(
         ctx.accounts.squads_program.key(),
@@ -107,13 +108,16 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
 
     let pool = &mut ctx.accounts.pool;
     pool.bump = ctx.bumps.pool;
+    pool.cluster_domain = args.cluster_domain;
     pool.round_id = 1;
+    pool.active_config_version = 1;
     pool.pot = 0;
     pool.seed = 0;
     pool.management = 0;
     pool.pending_toll = 0;
     pool.funded_claims = 0;
     pool.excess = 0;
+    pool.protected_rent = 0;
     pool.registry_len = 0;
     pool.registry_version = 0;
     pool.next_sequence = 1;
@@ -121,27 +125,30 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
     pool.active_ticket = 0;
     pool.finalized_ticket = 0;
     pool.snapshot_pages = 0;
+    pool.registry_pages = 0;
     pool.participant_count = 0;
-    pool.closing = false;
-    pool.closed_at = 0;
-    pool.deadline = 0;
+    pool.participant_pages = 0;
+    pool.next_close_id = 1;
+    pool.current_close_id = None;
+    pool.total_gross_deposits = 0;
+    pool.total_net_payouts = 0;
     pool.governance = ctx.accounts.governance.key();
-    pool.guardian = ctx.accounts.guardian.key();
+    pool.guardian_vault = ctx.accounts.guardian.key();
     pool.sponsor = args.sponsor;
     pool.management_recipient = args.management_recipient;
-    pool.close_reserve = args.close_reserve;
 
     ctx.accounts.admission.bump = ctx.bumps.admission;
-    ctx.accounts.admission.guardian = ctx.accounts.guardian.key();
+    ctx.accounts.admission.guardian_vault = ctx.accounts.guardian.key();
     ctx.accounts.admission.paused = false;
+    ctx.accounts.admission.changed_at = 0;
 
     ctx.accounts.game_vault.bump = ctx.bumps.game_vault;
 
     ctx.accounts.ops.bump = ctx.bumps.ops;
     ctx.accounts.ops.sponsor = args.sponsor;
-    ctx.accounts.ops.free = 0;
-    ctx.accounts.ops.locked = 0;
-    ctx.accounts.ops.excess = ops_cash_info.lamports().saturating_sub(rent);
+    ctx.accounts.ops.free_balance = 0;
+    ctx.accounts.ops.locked_remaining_total = 0;
+    ctx.accounts.ops.unallocated_excess = ops_cash_info.lamports().saturating_sub(rent);
 
     ctx.accounts.ticket.bump = ctx.bumps.ticket;
     ctx.accounts.ticket.id = 0;
@@ -154,11 +161,12 @@ pub fn initialize(ctx: Context<Initialize>, args: InitializeArgs) -> Result<()> 
 
 pub fn set_pause(ctx: Context<Pause>, paused: bool) -> Result<()> {
     require_keys_eq!(
-        ctx.accounts.admission.guardian,
+        ctx.accounts.admission.guardian_vault,
         ctx.accounts.guardian.key(),
         crate::ErrorCode::NotAuthorized
     );
     ctx.accounts.admission.paused = paused;
+    ctx.accounts.admission.changed_at = crate::now()?;
     Ok(())
 }
 
@@ -178,7 +186,7 @@ pub fn fund_operations(ctx: Context<FundOperations>, amount: u64) -> Result<()> 
             ctx.accounts.system_program.to_account_info(),
         ],
     )?;
-    ops.free = crate::checked_add(ops.free, amount)?;
+    ops.free_balance = crate::checked_add(ops.free_balance, amount)?;
     Ok(())
 }
 
@@ -191,11 +199,11 @@ pub fn withdraw_operations(ctx: Context<WithdrawOperations>, amount: u64) -> Res
         ctx.accounts.sponsor.key(),
         crate::ErrorCode::NotAuthorized
     );
-    require!(amount <= ops.free, crate::ErrorCode::InsufficientOperations);
+    require!(amount <= ops.free_balance, crate::ErrorCode::InsufficientOperations);
 
     let rent = Rent::get()?.minimum_balance(0);
     let protected = rent
-        .checked_add(ops.locked)
+        .checked_add(ops.locked_remaining_total)
         .ok_or(crate::ErrorCode::Overflow)?;
     let required = protected
         .checked_add(amount)
@@ -220,7 +228,7 @@ pub fn withdraw_operations(ctx: Context<WithdrawOperations>, amount: u64) -> Res
         ],
         &[signer_seeds],
     )?;
-    ops.free = crate::checked_sub(ops.free, amount)?;
+    ops.free_balance = crate::checked_sub(ops.free_balance, amount)?;
     Ok(())
 }
 
@@ -294,6 +302,7 @@ pub fn provision_snapshot(
             index,
             ticket_id: 0,
             rows: [SnapshotRow::default(); PAGE_CAPACITY],
+            rent: RentComponents::default(),
         };
         serialize_account(&ctx.accounts.snapshot_page.to_account_info(), &page)?;
         ctx.accounts.pool.snapshot_pages = expected
@@ -344,6 +353,7 @@ pub fn provision_registry(
         bump,
         index,
         keys: [Pubkey::default(); PAGE_CAPACITY],
+        rent: RentComponents::default(),
     };
     serialize_account(&ctx.accounts.registry_page.to_account_info(), &page)?;
     Ok(())
@@ -755,7 +765,7 @@ mod tests {
         )
     }
 
-    fn assert_error<T>(result: Result<T>, expected: &str) {
+    fn assert_error<T: std::fmt::Debug>(result: Result<T>, expected: &str) {
         let error = result.expect_err("validator unexpectedly accepted fixture");
         assert!(
             format!("{error:?}").contains(expected),
@@ -784,6 +794,20 @@ mod tests {
         let data = multisig_bytes(create_key, timelock, 2, false, bump, &members);
         let (multisig_account, vault_account) = profile_accounts(data, multisig, vault);
         (multisig_account, vault_account, multisig, bump)
+    }
+
+    #[test]
+    fn initialize_args_carry_the_cluster_domain_and_no_close_reserve() {
+        let args = InitializeArgs {
+            sponsor: Pubkey::new_from_array([1; 32]),
+            management_recipient: Pubkey::new_from_array([2; 32]),
+            cluster_domain: [0xC3; 32],
+        };
+        let bytes = args.try_to_vec().unwrap();
+        // sponsor + management_recipient + cluster_domain, nothing else.
+        assert_eq!(bytes.len(), 32 + 32 + 32);
+        assert_eq!(&bytes[64..], &[0xC3; 32]);
+        assert_eq!(InitializeArgs::try_from_slice(&bytes).unwrap(), args);
     }
 
     #[test]
@@ -844,7 +868,7 @@ mod tests {
             "NotAuthorized",
         );
 
-        let (delay, delay_vault) = valid_profile(60, [7, 7, 7]);
+        let (delay, delay_vault, _, _) = valid_profile(60, [7, 7, 7]);
         assert_error(
             validate_profile(&delay, &delay_vault, GOVERNANCE_DELAY),
             "NotAuthorized",
