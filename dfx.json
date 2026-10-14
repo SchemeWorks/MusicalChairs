@@ -16,6 +16,10 @@
       "main": "shenanigans/main.mo",
       "type": "motoko"
     },
+    "native_sol_bridge": {
+      "main": "native_sol_bridge/main.mo",
+      "type": "motoko"
+    },
     "musical_chairs_observatory": {
       "main": "observatory/main.mo",
       "type": "motoko"
