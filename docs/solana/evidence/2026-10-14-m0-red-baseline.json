@@ -1,0 +1,128 @@
+{
+ "card": "IMPL-06",
+ "milestone": "M0 step 7 (genuine RED)",
+ "recorded_at_utc": "2026-10-14T07:35:34.347807+00:00",
+ "branch": "codex/native-solana-production-core",
+ "harness_head": "9ecdf70 (IMPL-04 fixtures committed)",
+ "artifact": {
+  "path": "solana/programs/musical_chairs/artifacts/musical_chairs_program.so",
+  "sha256": "d7538b07aa834a28efbf583bf6420244a131a67f02122b469519dad92e91f6ce",
+  "built_at_head": "5d9afa5",
+  "receipt": "2026-10-14-m0-stub-build.json"
+ },
+ "source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
+ "source_set_coverage": "INCOMPLETE \u2014 this digest predates the DR-35/C5 correction: it omits crates/economics/Cargo.toml, crates/economics/src/**/*.rs (a path dependency compiled into the ELF), the solana/Cargo.toml workspace root the economics manifest inherits edition/rust-version/dependency versions from, and source-set-digest.sh itself. IMPL-09 corrects the set, rebuilds once and refreshes this receipt; until then provenance is NOT complete.",
+ "runner": "LiteSVM 0.7.1 in-process; ELF loaded from MC_FINANCIAL_SBF; host cargo 1.92.0; CARGO_HOME/CARGO_TARGET_DIR pinned to /private/tmp/mc-solana-runtime-tools-20261013/{cargo-home,harness-target}",
+ "cargo_test": {
+  "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 --nocapture",
+  "exit_code": 101,
+  "result_line": "FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.70s",
+  "failed": [
+   "tests::allocation_golden_t10000",
+   "tests::claim_moves_real_sol",
+   "tests::open_moves_real_sol"
+  ],
+  "passed": [
+   "tests::allocation_six_phase_flow_has_unique_row_observations",
+   "tests::fee_only_rollback_is_observed_for_the_current_open_gate"
+  ],
+  "log_sha256": "21f4c910066b235af02287839941c05e4f19c5de83def6ae37ff4014626ea15a"
+ },
+ "red_assertions": [
+  {
+   "label": "financial.open_moves_real_sol",
+   "error": "InstructionError(1, Custom(6021))",
+   "anchor_error_code": 6021,
+   "error_name": "NotImplemented (ErrorCode index 21; program log: \"Error Code: NotImplemented. Error Number: 6021\")",
+   "expected_fee_lamports": 10000,
+   "payer_lamport_delta": -10000,
+   "changed_data_bytes": 0,
+   "rollback_except_fee": true,
+   "compute_units": 27333,
+   "packet_bytes": 562,
+   "fits_legacy_packet": true,
+   "message_account_count": 11,
+   "signature": "64gf1ZVPQJcQ88JhYReiBTuXozWxRf4hx7tvG76xbWBwijVm6d9kit8eSc1QYhK29Wi4PvH3updhFNczGDSYAewT",
+   "program_log_error_line": "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented."
+  },
+  {
+   "label": "financial.claim_moves_real_sol",
+   "error": "InstructionError(1, Custom(6021))",
+   "anchor_error_code": 6021,
+   "error_name": "NotImplemented (ErrorCode index 21; program log: \"Error Code: NotImplemented. Error Number: 6021\")",
+   "expected_fee_lamports": 10000,
+   "payer_lamport_delta": -10000,
+   "changed_data_bytes": 0,
+   "rollback_except_fee": true,
+   "compute_units": 22466,
+   "packet_bytes": 686,
+   "fits_legacy_packet": true,
+   "message_account_count": 15,
+   "signature": "4ueSzKGshxLMEnQrGMobBmJB1xaTjynRXNGVxLgwyR8YfDsPTpjKaa2tbi8ZNonpzFGAQXZKwg11i8RCwi66nvXB",
+   "program_log_error_line": "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented."
+  },
+  {
+   "label": "financial.allocation.golden-t10000.discover-row",
+   "error": "InstructionError(1, Custom(6021))",
+   "anchor_error_code": 6021,
+   "error_name": "NotImplemented (ErrorCode index 21; program log: \"Error Code: NotImplemented. Error Number: 6021\")",
+   "expected_fee_lamports": 5000,
+   "payer_lamport_delta": -5000,
+   "changed_data_bytes": 0,
+   "rollback_except_fee": true,
+   "compute_units": 14097,
+   "packet_bytes": 390,
+   "fits_legacy_packet": true,
+   "message_account_count": 8,
+   "signature": "5hT1TPrerTKAmxidGuDnVtoEaMKzzqVj3HeMWVusa8EjYttjL47oCo6a573uXW6Cq1Ju51ZZS7HYaNkDf9Uvt6d2",
+   "program_log_error_line": "Program log: AnchorError occurred. Error Code: NotImplemented. Error Number: 6021. Error Message: NotImplemented."
+  }
+ ],
+ "why_this_is_genuine_red": "Each failing test asserts observation.success on a transaction executed against the exact compiled stub ELF with valid genesis-shaped fixtures; the program dispatched the real instruction (OpenPosition / ClaimPosition / DiscoverRow per log) and returned NotImplemented; only the fee left the payer; zero account data bytes changed. Not a compile error, CLI observation or invalid-fixture failure.",
+ "cli_receipt": {
+  "command": "MC_FINANCIAL_EVIDENCE_PATH=... cargo +1.92.0 run --locked --bin musical-chairs-financial-runtime -- all",
+  "exit_code": 0,
+  "note": "receipt generation only; exits 0 by design",
+  "observations": 24,
+  "error_tally": {
+   "InstructionError(1, Custom(6021))": 19,
+   "None": 3,
+   "InstructionError(1, Custom(6004))": 1,
+   "InstructionError(1, Custom(6007))": 1
+  },
+  "copy": "docs/solana/evidence/2026-10-14-m0-red-baseline-cli.json",
+  "copy_sha256": "c6cec79012bb1cbf6560b356367d27fce67f5d3e4d2888d4e86647424c43509a",
+  "controls_suite": [
+   {
+    "label": "financial.controls.pause.guardian",
+    "success": true,
+    "error": null
+   },
+   {
+    "label": "financial.controls.pause.wrong-guardian",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))"
+   },
+   {
+    "label": "financial.controls.operations.fund-20000",
+    "success": true,
+    "error": null
+   },
+   {
+    "label": "financial.controls.operations.withdraw-5000",
+    "success": true,
+    "error": null
+   },
+   {
+    "label": "financial.controls.management.empty-balance",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))"
+   }
+  ],
+  "controls_error_names_from_enum_order": {
+   "6004": "NotAuthorized (index 4)",
+   "6007": "InsufficientOperations (index 7)"
+  }
+ },
+ "proof_level": "genuine RED baseline on the exact local stub ELF; nothing is GREEN; no financial-correctness or deployment proof; source-set provenance incomplete (see source_set_coverage)"
+}
