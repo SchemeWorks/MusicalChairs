@@ -1597,13 +1597,13 @@ pub fn build_candidates_visits_every_participant_once_and_seals_digests() -> Vec
     let page = candidate_page(w, 1, 0, 0);
     assert_eq!(page.len, 4);
     assert_eq!(
-        page.rows[..4].iter().copied().collect::<Vec<_>>(),
+        page.rows[..4].to_vec(),
         expected.preferred.iter().map(|(owner, _)| *owner).collect::<Vec<_>>()
     );
     let page = candidate_page(w, 1, 1, 0);
     assert_eq!(page.len, 7);
     assert_eq!(
-        page.rows[..7].iter().copied().collect::<Vec<_>>(),
+        page.rows[..7].to_vec(),
         expected.fallback.iter().map(|(owner, _)| *owner).collect::<Vec<_>>()
     );
     // Building creates no account and moves no cash; it reads the sealed inputs.
@@ -1988,7 +1988,7 @@ pub fn load_seed_vectors() -> serde_json::Value {
 }
 
 fn unhex(text: &str) -> Vec<u8> {
-    assert!(text.len() % 2 == 0, "even hex length");
+    assert!(text.len().is_multiple_of(2), "even hex length");
     (0..text.len() / 2)
         .map(|index| u8::from_str_radix(&text[2 * index..2 * index + 2], 16).expect("hex"))
         .collect()
@@ -5050,8 +5050,11 @@ pub fn seed_vectors_file_matches_the_program_sampler() {
 // The suite
 // ---------------------------------------------------------------------------
 
+/// One suite row: its headline name and the function that runs it.
+pub type RowEntry = (&'static str, fn() -> Vec<Observation>);
+
 /// Every transaction row, in suite order.
-pub fn rows() -> Vec<(&'static str, fn() -> Vec<Observation>)> {
+pub fn rows() -> Vec<RowEntry> {
     vec![
         (ROW_PROVIDER, provider_setup_row),
         (ROW_BUILD_SEALS, build_candidates_visits_every_participant_once_and_seals_digests),

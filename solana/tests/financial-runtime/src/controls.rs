@@ -1948,7 +1948,8 @@ pub fn stage_config_requires_g_and_future_round() -> Vec<Observation> {
     // entitlement multipliers, seed half, open cutoff); a staged value other
     // than the frozen one is rejected at staging with fee-only rollback
     // (Codex M6 follow-up).
-    let pinned: [(&str, fn(&mut ConfigTerms)); 7] = [
+    type Pin = (&'static str, fn(&mut ConfigTerms));
+    let pinned: [Pin; 7] = [
         ("noncanonical_simple_rate", |t| t.plan_rates_bps_per_day[0] = 1_000),
         ("noncanonical_a_entitlement", |t| t.a_entitlement_bps = 12_000),
         ("noncanonical_b_entitlement", |t| t.b_entitlement_bps = 12_000),

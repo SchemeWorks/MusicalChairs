@@ -1,0 +1,1647 @@
+{
+ "recorded_at_utc": "2026-10-14T16:10:51.099679+00:00",
+ "card": "IMPL-39c (closing IMPL-39a)",
+ "milestone": "M9 measurement and inline feasibility",
+ "branch": "codex/native-solana-production-core",
+ "commit_at_run": "931b6d5f96730c5eaf916f3377678b1aee8deb95",
+ "elf": {
+  "sha256": "4b134d05c7385911ccac934ec29b605597215a33ae937f5e18ae86612d83f83c",
+  "source_set_sha256": "1d7359b71cf0f67e200a143fb2e71df4b89a6b068b1661338735954da99ac9bf",
+  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "pins": "docs/solana/evidence/latest-build.json"
+ },
+ "measure_suite": {
+  "file": "solana/tests/financial-runtime/src/measure.rs",
+  "families": 6,
+  "headline_rows": 24,
+  "observations": 6680,
+  "first_execution": "9/9 measure_tests on the first run (86.8 s); full harness afterwards",
+  "rent_local_default": {
+   "accounts": {
+    "Admission": {
+     "rent_lamports": 1238880,
+     "space_bytes": 50
+    },
+    "Backer": {
+     "rent_lamports": 1914000,
+     "space_bytes": 147
+    },
+    "CandidatePage": {
+     "rent_lamports": 3194640,
+     "space_bytes": 331
+    },
+    "CloseRecord": {
+     "rent_lamports": 5463600,
+     "space_bytes": 657
+    },
+    "ConfigVersion": {
+     "rent_lamports": 2818800,
+     "space_bytes": 277
+    },
+    "GameVault": {
+     "rent_lamports": 953520,
+     "space_bytes": 9
+    },
+    "ORAO fulfilled request (config)": {
+     "rent_lamports": 1914000,
+     "space_bytes": 147
+    },
+    "ORAO pending request (config)": {
+     "rent_lamports": 6173520,
+     "space_bytes": 759
+    },
+    "Ops": {
+     "rent_lamports": 2234160,
+     "space_bytes": 193
+    },
+    "ParticipantPage": {
+     "rent_lamports": 3187680,
+     "space_bytes": 330
+    },
+    "Pool": {
+     "rent_lamports": 3493920,
+     "space_bytes": 374
+    },
+    "Position": {
+     "rent_lamports": 1997520,
+     "space_bytes": 159
+    },
+    "RegistryPage": {
+     "rent_lamports": 3125040,
+     "space_bytes": 321
+    },
+    "RngAuthority": {
+     "rent_lamports": 1176240,
+     "space_bytes": 41
+    },
+    "SnapshotPage": {
+     "rent_lamports": 4572720,
+     "space_bytes": 529
+    },
+    "Ticket": {
+     "rent_lamports": 2568240,
+     "space_bytes": 241
+    },
+    "User": {
+     "rent_lamports": 1475520,
+     "space_bytes": 84
+    },
+    "UserRound": {
+     "rent_lamports": 1510320,
+     "space_bytes": 89
+    }
+   },
+   "exemption_threshold_years": 2.0,
+   "label": "LOCAL-DEFAULT RENT: LiteSVM's Rent sysvar (Rent::default()), not a mainnet quote and not any SIMD-0437 step",
+   "lamports_per_byte_year": 3480,
+   "per_data_byte_lamports": 6960,
+   "rent_exempt_zero_data_account": 890880
+  }
+ },
+ "chunk_populations": {
+  "N=64 rows=1": {
+   "tx_total": 195,
+   "tx_by_phase": {
+    "allocate": 64,
+    "commit": 1,
+    "discover": 64,
+    "prune": 64,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 57,
+   "rows_pruned": 9,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 11872,
+     "packet_bytes_max": 333,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 64
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 18991,
+     "packet_bytes_max": 399,
+     "message_keys_max": 8,
+     "writable_max": 3,
+     "tx": 64
+    },
+    "prune": {
+     "cu_max": 25344,
+     "packet_bytes_max": 465,
+     "message_keys_max": 10,
+     "writable_max": 7,
+     "tx": 64
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=64 rows=4": {
+   "tx_total": 51,
+   "tx_by_phase": {
+    "allocate": 16,
+    "commit": 1,
+    "discover": 16,
+    "prune": 16,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 57,
+   "rows_pruned": 9,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 24739,
+     "packet_bytes_max": 435,
+     "message_keys_max": 9,
+     "writable_max": 6,
+     "tx": 16
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 28131,
+     "packet_bytes_max": 504,
+     "message_keys_max": 11,
+     "writable_max": 3,
+     "tx": 16
+    },
+    "prune": {
+     "cu_max": 51170,
+     "packet_bytes_max": 704,
+     "message_keys_max": 17,
+     "writable_max": 14,
+     "tx": 16
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=64 rows=8": {
+   "tx_total": 27,
+   "tx_by_phase": {
+    "allocate": 8,
+    "commit": 1,
+    "discover": 8,
+    "prune": 8,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 57,
+   "rows_pruned": 9,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 40849,
+     "packet_bytes_max": 571,
+     "message_keys_max": 13,
+     "writable_max": 10,
+     "tx": 8
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 40467,
+     "packet_bytes_max": 644,
+     "message_keys_max": 15,
+     "writable_max": 3,
+     "tx": 8
+    },
+    "prune": {
+     "cu_max": 53696,
+     "packet_bytes_max": 724,
+     "message_keys_max": 17,
+     "writable_max": 14,
+     "tx": 8
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=100 rows=1": {
+   "tx_total": 303,
+   "tx_by_phase": {
+    "allocate": 100,
+    "commit": 1,
+    "discover": 100,
+    "prune": 100,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 88,
+   "rows_pruned": 18,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 11872,
+     "packet_bytes_max": 333,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 100
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 18991,
+     "packet_bytes_max": 399,
+     "message_keys_max": 8,
+     "writable_max": 3,
+     "tx": 100
+    },
+    "prune": {
+     "cu_max": 25344,
+     "packet_bytes_max": 465,
+     "message_keys_max": 10,
+     "writable_max": 7,
+     "tx": 100
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=100 rows=4": {
+   "tx_total": 78,
+   "tx_by_phase": {
+    "allocate": 25,
+    "commit": 1,
+    "discover": 25,
+    "prune": 25,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 88,
+   "rows_pruned": 18,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 24739,
+     "packet_bytes_max": 435,
+     "message_keys_max": 9,
+     "writable_max": 6,
+     "tx": 25
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 28322,
+     "packet_bytes_max": 504,
+     "message_keys_max": 11,
+     "writable_max": 3,
+     "tx": 25
+    },
+    "prune": {
+     "cu_max": 47808,
+     "packet_bytes_max": 672,
+     "message_keys_max": 16,
+     "writable_max": 13,
+     "tx": 25
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=100 rows=8": {
+   "tx_total": 42,
+   "tx_by_phase": {
+    "allocate": 13,
+    "commit": 1,
+    "discover": 13,
+    "prune": 13,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 88,
+   "rows_pruned": 18,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 41358,
+     "packet_bytes_max": 571,
+     "message_keys_max": 13,
+     "writable_max": 10,
+     "tx": 13
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 39693,
+     "packet_bytes_max": 644,
+     "message_keys_max": 15,
+     "writable_max": 3,
+     "tx": 13
+    },
+    "prune": {
+     "cu_max": 49720,
+     "packet_bytes_max": 692,
+     "message_keys_max": 16,
+     "writable_max": 13,
+     "tx": 13
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=256 rows=1": {
+   "tx_total": 771,
+   "tx_by_phase": {
+    "allocate": 256,
+    "commit": 1,
+    "discover": 256,
+    "prune": 256,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 223,
+   "rows_pruned": 53,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 11824,
+     "packet_bytes_max": 333,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 256
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 18866,
+     "packet_bytes_max": 399,
+     "message_keys_max": 8,
+     "writable_max": 3,
+     "tx": 256
+    },
+    "prune": {
+     "cu_max": 25344,
+     "packet_bytes_max": 465,
+     "message_keys_max": 10,
+     "writable_max": 7,
+     "tx": 256
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=256 rows=4": {
+   "tx_total": 195,
+   "tx_by_phase": {
+    "allocate": 64,
+    "commit": 1,
+    "discover": 64,
+    "prune": 64,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 223,
+   "rows_pruned": 53,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 24739,
+     "packet_bytes_max": 435,
+     "message_keys_max": 9,
+     "writable_max": 6,
+     "tx": 64
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 28131,
+     "packet_bytes_max": 504,
+     "message_keys_max": 11,
+     "writable_max": 3,
+     "tx": 64
+    },
+    "prune": {
+     "cu_max": 47808,
+     "packet_bytes_max": 672,
+     "message_keys_max": 16,
+     "writable_max": 13,
+     "tx": 64
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=256 rows=8": {
+   "tx_total": 99,
+   "tx_by_phase": {
+    "allocate": 32,
+    "commit": 1,
+    "discover": 32,
+    "prune": 32,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 223,
+   "rows_pruned": 53,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 41869,
+     "packet_bytes_max": 571,
+     "message_keys_max": 13,
+     "writable_max": 10,
+     "tx": 32
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 40467,
+     "packet_bytes_max": 644,
+     "message_keys_max": 15,
+     "writable_max": 3,
+     "tx": 32
+    },
+    "prune": {
+     "cu_max": 57410,
+     "packet_bytes_max": 756,
+     "message_keys_max": 18,
+     "writable_max": 15,
+     "tx": 32
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=1024 rows=1": {
+   "tx_total": 3075,
+   "tx_by_phase": {
+    "allocate": 1024,
+    "commit": 1,
+    "discover": 1024,
+    "prune": 1024,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 910,
+   "rows_pruned": 157,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 11824,
+     "packet_bytes_max": 333,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1024
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 18866,
+     "packet_bytes_max": 399,
+     "message_keys_max": 8,
+     "writable_max": 3,
+     "tx": 1024
+    },
+    "prune": {
+     "cu_max": 25344,
+     "packet_bytes_max": 465,
+     "message_keys_max": 10,
+     "writable_max": 7,
+     "tx": 1024
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=1024 rows=4": {
+   "tx_total": 771,
+   "tx_by_phase": {
+    "allocate": 256,
+    "commit": 1,
+    "discover": 256,
+    "prune": 256,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 910,
+   "rows_pruned": 157,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 24739,
+     "packet_bytes_max": 435,
+     "message_keys_max": 9,
+     "writable_max": 6,
+     "tx": 256
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 27978,
+     "packet_bytes_max": 504,
+     "message_keys_max": 11,
+     "writable_max": 3,
+     "tx": 256
+    },
+    "prune": {
+     "cu_max": 47808,
+     "packet_bytes_max": 672,
+     "message_keys_max": 16,
+     "writable_max": 13,
+     "tx": 256
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  },
+  "N=1024 rows=8": {
+   "tx_total": 387,
+   "tx_by_phase": {
+    "allocate": 128,
+    "commit": 1,
+    "discover": 128,
+    "prune": 128,
+    "seal": 1,
+    "senior": 1
+   },
+   "every_transaction_within_all_limits": true,
+   "credited_plus_seed_equals_toll": true,
+   "open_rows_credited": 910,
+   "rows_pruned": 157,
+   "phase_max": {
+    "allocate": {
+     "cu_max": 42379,
+     "packet_bytes_max": 571,
+     "message_keys_max": 13,
+     "writable_max": 10,
+     "tx": 128
+    },
+    "commit": {
+     "cu_max": 14785,
+     "packet_bytes_max": 326,
+     "message_keys_max": 6,
+     "writable_max": 3,
+     "tx": 1
+    },
+    "discover": {
+     "cu_max": 40564,
+     "packet_bytes_max": 644,
+     "message_keys_max": 15,
+     "writable_max": 3,
+     "tx": 128
+    },
+    "prune": {
+     "cu_max": 57410,
+     "packet_bytes_max": 756,
+     "message_keys_max": 18,
+     "writable_max": 15,
+     "tx": 128
+    },
+    "seal": {
+     "cu_max": 4517,
+     "packet_bytes_max": 258,
+     "message_keys_max": 4,
+     "writable_max": 2,
+     "tx": 1
+    },
+    "senior": {
+     "cu_max": 7988,
+     "packet_bytes_max": 291,
+     "message_keys_max": 5,
+     "writable_max": 3,
+     "tx": 1
+    }
+   }
+  }
+ },
+ "churn": {
+  "cycles": 20,
+  "digest_snapshots": 41,
+  "digest_snapshots_distinct": 41,
+  "every_transaction_succeeded": true,
+  "first_funding_series_a": {
+   "cu_max": 49300,
+   "packet_bytes_max": 628
+  },
+  "max_tx_in_one_cycle": 30,
+  "next_ticket_final": 21,
+  "prune": {
+   "cu_max": 30814,
+   "packet_bytes_max": 500
+  },
+  "refund_series_a": {
+   "cu_max": 42269,
+   "packet_bytes_max": 628
+  },
+  "registry_len_final": 64,
+  "tx_total": 603
+ },
+ "dust_claims": {
+  "rent_exempt_destination": [
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_01",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_02",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_03",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_04",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_05",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_06",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_07",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_08",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_09",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 28099,
+    "declared_account_data_bytes": 672,
+    "fits_legacy_packet": true,
+    "message_keys": 10,
+    "packet_bytes": 514,
+    "success": true,
+    "variant": "owed_10",
+    "writable_accounts": 5
+   },
+   {
+    "compute_units": 31221,
+    "declared_account_data_bytes": 819,
+    "fits_legacy_packet": true,
+    "message_keys": 11,
+    "packet_bytes": 546,
+    "success": true,
+    "variant": "owed_a3_b4_combined",
+    "writable_accounts": 6
+   }
+  ],
+  "fresh_destination": {
+   "litesvm_accepted_every_claim": true,
+   "cluster_note": "LiteSVM 0.7.1 applies the rent-state transition rule only to accounts WITH data, so this credit SUCCEEDS locally; the cluster would refuse it (a data-less account may end a transaction rent-paying only if it was already rent-paying and was not credited), so on a cluster a dust claim to a sub-minimum fresh wallet fails atomically with the runtime's InsufficientFundsForRent and the credit stays claimable. Cluster behaviour is NOT asserted here; see tests/transfer_constraints.rs",
+   "claims": [
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_01",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_02",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_03",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_04",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_05",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_06",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_07",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_08",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_09",
+     "writable_accounts": 5
+    },
+    {
+     "compute_units": 28099,
+     "declared_account_data_bytes": 672,
+     "fits_legacy_packet": true,
+     "message_keys": 10,
+     "packet_bytes": 514,
+     "success": true,
+     "variant": "owed_10",
+     "writable_accounts": 5
+    }
+   ]
+  }
+ },
+ "full_close_m100": {
+  "reserve": {
+   "candidate_pages_reserved": 26,
+   "components": {
+    "candidate_page_rent_each": 3194640,
+    "candidate_pages": 83060640,
+    "headroom_bps": 2000,
+    "pending_request_rent": 6173520,
+    "provider_fee": 300000,
+    "provider_fee_cap_with_headroom": 360000,
+    "registry_extension_page": 3125040,
+    "winner_b_account": 1914000
+   },
+   "existing_candidate_pages": [
+    0,
+    0
+   ],
+   "participants": 100,
+   "registry_len": 0,
+   "required_close_reserve": 94633200
+  },
+  "by_kind": {
+   "apply": {
+    "cu_max": 72245,
+    "cu_mean": 72245,
+    "cu_min": 72245,
+    "cu_sum": 72245,
+    "declared_account_data_bytes_max": 2077,
+    "fits_legacy_packet": true,
+    "message_keys_max": 17,
+    "packet_bytes_max": 681,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 9
+   },
+   "build": {
+    "cu_max": 65799,
+    "cu_mean": 56543,
+    "cu_min": 30885,
+    "cu_sum": 904700,
+    "declared_account_data_bytes_max": 4002,
+    "fits_legacy_packet": true,
+    "message_keys_max": 30,
+    "packet_bytes_max": 1116,
+    "tx": 16,
+    "within_all_limits": true,
+    "writable_accounts_max": 7
+   },
+   "capture": {
+    "cu_max": 26684,
+    "cu_mean": 26684,
+    "cu_min": 26684,
+    "cu_sum": 26684,
+    "declared_account_data_bytes_max": 1359,
+    "fits_legacy_packet": true,
+    "message_keys_max": 8,
+    "packet_bytes_max": 383,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 2
+   },
+   "close_candidate_set": {
+    "cu_max": 19224,
+    "cu_mean": 16557,
+    "cu_min": 14724,
+    "cu_sum": 149016,
+    "declared_account_data_bytes_max": 1253,
+    "fits_legacy_packet": true,
+    "message_keys_max": 9,
+    "packet_bytes_max": 425,
+    "tx": 9,
+    "within_all_limits": true,
+    "writable_accounts_max": 5
+   },
+   "close_participant": {
+    "cu_max": 19183,
+    "cu_mean": 15836,
+    "cu_min": 14683,
+    "cu_sum": 205879,
+    "declared_account_data_bytes_max": 1252,
+    "fits_legacy_packet": true,
+    "message_keys_max": 9,
+    "packet_bytes_max": 424,
+    "tx": 13,
+    "within_all_limits": true,
+    "writable_accounts_max": 5
+   },
+   "closing_payout": {
+    "cu_max": 61182,
+    "cu_mean": 61182,
+    "cu_min": 61182,
+    "cu_sum": 61182,
+    "declared_account_data_bytes_max": 2121,
+    "fits_legacy_packet": true,
+    "message_keys_max": 17,
+    "packet_bytes_max": 760,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 11
+   },
+   "finalize": {
+    "cu_max": 17356,
+    "cu_mean": 17356,
+    "cu_min": 17356,
+    "cu_sum": 17356,
+    "declared_account_data_bytes_max": 1089,
+    "fits_legacy_packet": true,
+    "message_keys_max": 6,
+    "packet_bytes_max": 317,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 3
+   },
+   "fulfill": {
+    "cu_max": 19747,
+    "cu_mean": 19747,
+    "cu_min": 19747,
+    "cu_sum": 19747,
+    "declared_account_data_bytes_max": 617594,
+    "fits_legacy_packet": true,
+    "message_keys_max": 10,
+    "packet_bytes_max": 628,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 4
+   },
+   "observe": {
+    "cu_max": 23363,
+    "cu_mean": 23363,
+    "cu_min": 23363,
+    "cu_sum": 23363,
+    "declared_account_data_bytes_max": 1552,
+    "fits_legacy_packet": true,
+    "message_keys_max": 8,
+    "packet_bytes_max": 382,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 3
+   },
+   "provision_set": {
+    "cu_max": 36569,
+    "cu_mean": 33901,
+    "cu_min": 32067,
+    "cu_sum": 305115,
+    "declared_account_data_bytes_max": 1296,
+    "fits_legacy_packet": true,
+    "message_keys_max": 9,
+    "packet_bytes_max": 435,
+    "tx": 9,
+    "within_all_limits": true,
+    "writable_accounts_max": 6
+   },
+   "request": {
+    "cu_max": 67198,
+    "cu_mean": 67198,
+    "cu_min": 67198,
+    "cu_sum": 67198,
+    "declared_account_data_bytes_max": 618350,
+    "fits_legacy_packet": true,
+    "message_keys_max": 16,
+    "packet_bytes_max": 648,
+    "tx": 1,
+    "within_all_limits": true,
+    "writable_accounts_max": 8
+   }
+  },
+  "rent_flow_local_default": {
+   "held_by_close_accounts_before_cleanup": {
+    "candidate_pages": 28751760,
+    "participant_pages": 41439840,
+    "pending_request_account": 1914000,
+    "total": 72105600
+   },
+   "locked_at_the_closing_payout": 94633200,
+   "note": "participant pages are fixtures here (installed with default rent components), so their rent returns as unallocated excess, not as free operations cash; the provider fee is consumed to the ORAO treasury and the pending-request rent stays in the (fulfilled) request account",
+   "returned_by_close_shared_account": {
+    "ops_free_balance_delta": 28751760,
+    "ops_unallocated_excess_delta": 41439840,
+    "to_ops_cash": 70191600,
+    "to_owner_refund_destination": 0
+   },
+   "spent_ledger": {
+    "b_rent_sponsor": 1914000,
+    "candidate_rent_owner": 0,
+    "candidate_rent_sponsor": 28751760,
+    "provider_fee_sponsor": 300000,
+    "registry_rent_sponsor": 3125040,
+    "request_rent_sponsor": 6173520
+   }
+  },
+  "result": {
+   "build_batches_within_limits": true,
+   "every_transaction_within_all_limits": true,
+   "keeper_signed_core": 20,
+   "planned_build_batches_by_max_rows": {
+    "1": 100,
+    "4": 26,
+    "8": 16
+   },
+   "tx_by_kind": {
+    "apply_promotion": 1,
+    "build_candidates": 16,
+    "capture_round_draw": 1,
+    "close_shared_account": 22,
+    "closing_payout": 1,
+    "finalize_round": 1,
+    "fulfill_oracle": 1,
+    "observe_request_fulfilled": 1,
+    "provision_candidate_pages": 9,
+    "request_round_draw": 1
+   },
+   "tx_total": 54
+  }
+ },
+ "inline_envelope": {
+  "rows": [
+   {
+    "cu_headroom_pct_of_1_4m": 97,
+    "declared_account_data_bytes": 1464,
+    "estimated_inline_cu": 48563,
+    "fits_all": true,
+    "fits_packet": true,
+    "message_keys": 16,
+    "n": 0,
+    "packet_bytes": 728,
+    "payout_cu": 48563,
+    "under_1_4m_cu": true,
+    "under_200k_cu": true,
+    "under_64_locks": true,
+    "writable_accounts": 10
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 91,
+    "declared_account_data_bytes": 2461,
+    "estimated_inline_cu": 132929,
+    "fits_all": true,
+    "fits_packet": true,
+    "message_keys": 19,
+    "n": 1,
+    "packet_bytes": 827,
+    "payout_cu": 49432,
+    "under_1_4m_cu": true,
+    "under_200k_cu": true,
+    "under_64_locks": true,
+    "writable_accounts": 13
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 87,
+    "declared_account_data_bytes": 2608,
+    "estimated_inline_cu": 189401,
+    "fits_all": true,
+    "fits_packet": true,
+    "message_keys": 20,
+    "n": 2,
+    "packet_bytes": 860,
+    "payout_cu": 49697,
+    "under_1_4m_cu": true,
+    "under_200k_cu": true,
+    "under_64_locks": true,
+    "writable_accounts": 14
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 79,
+    "declared_account_data_bytes": 2902,
+    "estimated_inline_cu": 302345,
+    "fits_all": true,
+    "fits_packet": true,
+    "message_keys": 22,
+    "n": 4,
+    "packet_bytes": 926,
+    "payout_cu": 50227,
+    "under_1_4m_cu": true,
+    "under_200k_cu": false,
+    "under_64_locks": true,
+    "writable_accounts": 16
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 63,
+    "declared_account_data_bytes": 3490,
+    "estimated_inline_cu": 528233,
+    "fits_all": true,
+    "fits_packet": true,
+    "message_keys": 26,
+    "n": 8,
+    "packet_bytes": 1058,
+    "payout_cu": 51287,
+    "under_1_4m_cu": true,
+    "under_200k_cu": false,
+    "under_64_locks": true,
+    "writable_accounts": 20
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 30,
+    "declared_account_data_bytes": 5516,
+    "estimated_inline_cu": 980539,
+    "fits_all": false,
+    "fits_packet": false,
+    "message_keys": 36,
+    "n": 16,
+    "packet_bytes": 1388,
+    "payout_cu": 53937,
+    "under_1_4m_cu": true,
+    "under_200k_cu": false,
+    "under_64_locks": true,
+    "writable_accounts": 30
+   },
+   {
+    "cu_headroom_pct_of_1_4m": 26,
+    "declared_account_data_bytes": 6513,
+    "estimated_inline_cu": 1037541,
+    "fits_all": false,
+    "fits_packet": false,
+    "message_keys": 39,
+    "n": 17,
+    "packet_bytes": 1487,
+    "payout_cu": 54732,
+    "under_1_4m_cu": true,
+    "under_200k_cu": false,
+    "under_64_locks": true,
+    "writable_accounts": 33
+   }
+  ],
+  "feasible_n_under_the_fits_all_rule": [
+   0,
+   1,
+   2,
+   4,
+   8
+  ],
+  "largest_feasible_n": 8,
+  "estimate_formulas": {
+   "estimated_inline_cu": 528233,
+   "fits_all_rule": "fits_packet && under_64_locks && estimated_inline_cu <= 1,400,000 with at least 25% headroom",
+   "fixed_cu": {
+    "commit": 14785,
+    "seal": 4517,
+    "senior": 7988
+   },
+   "formula": "estimated_inline_cu = payout_cu + N x (discover + allocate + prune CU of ONE row, each the maximum over the rows-1 transactions of the 64-row population) + senior + seal + commit",
+   "marginal_basis": {
+    "estimated_inline_cu": 213583,
+    "formula": "payout_cu + batch_fixed + N x marginal_row + senior + seal + commit, marginal_row = (rows-8 cu_max - rows-1 cu_max) / 7 per phase, batch_fixed = one-row cost - marginal_row",
+    "marginal_row_cu": {
+     "allocate": 4139,
+     "discover": 3068,
+     "prune": 4050
+    },
+    "under_1_4m_cu": true,
+    "under_200k_cu": false
+   },
+   "mean_basis": {
+    "estimated_inline_cu": 425553,
+    "per_row_cu_rows1_mean": {
+     "allocate": 11249,
+     "discover": 17837,
+     "prune": 14286
+    },
+    "under_1_4m_cu": true,
+    "under_200k_cu": false
+   },
+   "payout_includes": "the ticket_start an inline path would not run (for N > 0)",
+   "per_row_cu_rows1_max": {
+    "allocate": 11872,
+    "discover": 18991,
+    "prune": 25344
+   }
+  }
+ },
+ "keeper_count": {
+  "base_network_fee": {
+   "assumption": "5,000 lamports per signature, one signature per keeper transaction (the documented planning assumption, not a quote)",
+   "measured_core_sol": 0.211,
+   "measured_with_everything_sol": 0.2126,
+   "measured_with_provisioning_sol": 0.21145,
+   "scenario_sol": 0.21085
+  },
+  "carrier_observation": "a COPY of financial.measure.full_close.m100.finalize; this row is arithmetic over measured transaction counts, not an additional transaction",
+  "chosen_rows_b": 8,
+  "chosen_rows_rule": "the largest of 8 / 4 / 1 for which every transaction of the N = 100 ticket fits the legacy packet, 64 locks and the 1.4 M compute limit",
+  "close_m100": {
+   "build_batches": 16,
+   "build_batches_source": "executed (page-edge-aware 8-row plan)",
+   "build_batches_within_limits_at_8": true,
+   "cleanup_close_shared_account_tx": 22,
+   "closing_payout_tx_user_paid": 1,
+   "executed_tx_total": 54,
+   "fallback_candidates": 41,
+   "fulfill_tx_oracle_paid": 1,
+   "keeper_core_tx": 20,
+   "observe_tx": 1,
+   "participants": 100,
+   "planned_build_batches_by_max_rows": {
+    "1": 100,
+    "4": 26,
+    "8": 16
+   },
+   "preferred_candidates": 21,
+   "provision_tx": 9,
+   "scenario_tx": 17
+  },
+  "every_transaction_fits_at_b": true,
+  "family": "keeper_count",
+  "formulas": {
+   "extras": "K_with_provisioning = K_measured + C x provision_tx; K_with_everything = K_with_provisioning + C x (observe + close_shared_account transactions)",
+   "measured": "K_measured = P x ticket_tx(N = 100, b) + C x close_core_tx(M = 100, b); close_core_tx = build_candidates batches + request + capture + apply + finalize",
+   "scenario": "K_scenario = P x (3 x ceil(N/b) + 3) + C x (ceil(M/b) + 4)"
+  },
+  "icp_signing_cycles": {
+   "cycles_per_signature": "26153846153",
+   "measured_core": "1103692307656600",
+   "measured_with_provisioning": "1106046153810370",
+   "scenario": "1102907692272010"
+  },
+  "k_by_rows": [
+   {
+    "close_build_batches_planned": 100,
+    "every_transaction_fits": true,
+    "k_measured_core": 304040,
+    "k_scenario": 304040,
+    "rows": 1,
+    "ticket_tx": 303
+   },
+   {
+    "close_build_batches_planned": 26,
+    "every_transaction_fits": true,
+    "k_measured_core": 78300,
+    "k_scenario": 78290,
+    "rows": 4,
+    "ticket_tx": 78
+   },
+   {
+    "close_build_batches_planned": 16,
+    "every_transaction_fits": true,
+    "k_measured_core": 42200,
+    "k_scenario": 42170,
+    "rows": 8,
+    "ticket_tx": 42
+   }
+  ],
+  "k_monthly": {
+   "measured_core": 42200,
+   "measured_core_minus_scenario": 30,
+   "measured_with_provisioning": 42290,
+   "measured_with_provisioning_observe_and_cleanup": 42520,
+   "scenario": 42170
+  },
+  "not_counted": "fee retries, standby races, ordinal exhaustion of the draw, zero-toll / inline shortcuts that reduce K, and any batch smaller than b forced by a chained Prune move beyond what the measured ticket shows",
+  "pilot": {
+   "C_closes": 10,
+   "M_participants": 100,
+   "N_backers": 100,
+   "P_payouts": 1000,
+   "keeper_signatures_per_transaction": 1
+  },
+  "rent_local_default": {
+   "accounts": {
+    "Admission": {
+     "rent_lamports": 1238880,
+     "space_bytes": 50
+    },
+    "Backer": {
+     "rent_lamports": 1914000,
+     "space_bytes": 147
+    },
+    "CandidatePage": {
+     "rent_lamports": 3194640,
+     "space_bytes": 331
+    },
+    "CloseRecord": {
+     "rent_lamports": 5463600,
+     "space_bytes": 657
+    },
+    "ConfigVersion": {
+     "rent_lamports": 2818800,
+     "space_bytes": 277
+    },
+    "GameVault": {
+     "rent_lamports": 953520,
+     "space_bytes": 9
+    },
+    "ORAO fulfilled request (config)": {
+     "rent_lamports": 1914000,
+     "space_bytes": 147
+    },
+    "ORAO pending request (config)": {
+     "rent_lamports": 6173520,
+     "space_bytes": 759
+    },
+    "Ops": {
+     "rent_lamports": 2234160,
+     "space_bytes": 193
+    },
+    "ParticipantPage": {
+     "rent_lamports": 3187680,
+     "space_bytes": 330
+    },
+    "Pool": {
+     "rent_lamports": 3493920,
+     "space_bytes": 374
+    },
+    "Position": {
+     "rent_lamports": 1997520,
+     "space_bytes": 159
+    },
+    "RegistryPage": {
+     "rent_lamports": 3125040,
+     "space_bytes": 321
+    },
+    "RngAuthority": {
+     "rent_lamports": 1176240,
+     "space_bytes": 41
+    },
+    "SnapshotPage": {
+     "rent_lamports": 4572720,
+     "space_bytes": 529
+    },
+    "Ticket": {
+     "rent_lamports": 2568240,
+     "space_bytes": 241
+    },
+    "User": {
+     "rent_lamports": 1475520,
+     "space_bytes": 84
+    },
+    "UserRound": {
+     "rent_lamports": 1510320,
+     "space_bytes": 89
+    }
+   },
+   "exemption_threshold_years": 2.0,
+   "label": "LOCAL-DEFAULT RENT: LiteSVM's Rent sysvar (Rent::default()), not a mainnet quote and not any SIMD-0437 step",
+   "lamports_per_byte_year": 3480,
+   "per_data_byte_lamports": 6960,
+   "rent_exempt_zero_data_account": 890880
+  },
+  "rent_note": "every count here is rent-independent; the schedule is the one the M = 100 close was priced at",
+  "row": "pilot",
+  "ticket_n100": {
+   "rows": 8,
+   "scenario_tx": 42,
+   "source": "financial.measure.chunk.n100_rows8",
+   "tx_by_phase": {
+    "allocate": 13,
+    "commit": 1,
+    "discover": 13,
+    "prune": 13,
+    "seal": 1,
+    "senior": 1
+   },
+   "tx_total": 42
+  }
+ },
+ "decision_output_dr31": {
+  "chunk_default_rows": 8,
+  "chunk_evidence": "every phase transaction of every N × rows run is within the legacy packet, 64 locks and compute; worst packet 756 B (N=256 rows=8 prune), worst CU 57,410 (N=256 rows=8 prune); one-row fallback executed at every N",
+  "inline_threshold_envelope": 8,
+  "inline_evidence": "measured envelope of a REAL payout with N Backer + page accounts appended: packet fits up to N = 8 (1,058 B, 26 keys); N = 16 is 1,388 B and N = 17 is 1,487 B (> 1,232); estimated inline CU at N = 8: 528,233 conservative / 213,583 marginal (needs a compute-budget instruction above the 200k default; under 1.4M with 62% headroom)",
+  "inline_step": "FEASIBLE for registry_len ≤ 8 on the measured envelope → IMPL-39b implements the in-instruction Discover→Commit for registry_len <= INLINE_THRESHOLD (8) in withdraw_simple/settle_compounding, with golden + conservation tests and a REAL inline measurement row that must confirm packet/CU at N = 1..8 before the threshold is final; zero-toll and zero-slice shortcuts stay inline regardless; chunks remain for N > 8",
+  "returned_to_rob": "none: the inline step is the plan's own step 2(b), bounded by the measured N = 8; no page-capacity or keeper-format change is proposed (DR-28 legacy/v0 format fits everywhere)"
+ },
+ "full_harness": {
+  "results": [
+   "ok. 175 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 219.45s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.83s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.23s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 45.32s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "1e9397a077ef8b45ee6c9a5e5dba29a963093be6283f358979c706f1e7c01adf",
+  "cli_all_exit": 0,
+  "cli_observations_total": 9265,
+  "cli_json": {
+   "path": "docs/solana/evidence/2026-10-14-m9-cli.json",
+   "sha256": "9959f765984559268ddce2bef508993aba19f81389193e84ac2ea291ba855c03"
+  }
+ },
+ "limits": [
+  "every number is LiteSVM at the local default rent (3,480 lamports per byte-year × 2-year exemption) and the legacy transaction format; not a cluster measurement",
+  "the inline CU figures are ESTIMATES from per-row phase costs until IMPL-39b measures the real inline path",
+  "LiteSVM does not check rent state for data-less accounts (dust claims to fresh wallets succeed locally; the cluster refuses them)",
+  "wall-clock figures in the notes are not evidence"
+ ],
+ "findings_for_codex": [
+  {
+   "id": "M9-F1",
+   "severity": "documentation / error naming (= M8-F2)",
+   "title": "claim_backer has no deliverability preflight",
+   "detail": "claims.rs claim_backer credits the destination with validate_destination only (like close_shared_account, M8-F1): a dust claim to a sub-minimum fresh wallet passes the program and fails at the cluster rent rule with the credit left claimable; no loss; inconsistent with the refund path's credit_is_deliverable. Options: accept/document (recommended, mirrors M8-F1) or add the preflight (RefundNotDeliverable-style refusal).",
+   "status": "open for Codex; no code change"
+  }
+ ],
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered, activated or merged."
+}

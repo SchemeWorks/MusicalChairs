@@ -134,6 +134,27 @@ Batching matters: b=32 instead of 8 would reduce pilot K to **15,080**, cutting 
 
 For a hybrid, a small external worker VM is an operating estimate around **$6–$12/month for compute alone** using a current [published VPS example](https://www.digitalocean.com/pricing/droplets). RPC/archive/monitoring/backup/security operations cost extra; no vendor capacity, free production RPC or server order is claimed. ICP can retain the durable history/PP services and monitor/backup, reducing signing spend sharply. Neither host is trusted for native payment eligibility.
 
+## Measured (2026-10-14, local LiteSVM; supersedes the scenario figures above where they differ)
+
+Source: `docs/solana/measurements-2026-10.md` and receipt `docs/solana/evidence/2026-10-14-m9-measurements.json`. Rent is the local default fixture (3,480 lamports per byte-year × 2-year exemption = 6,960 lamports per byte; the active SIMD-0437 step at measurement time) with the 696-lamport terminal step as a second column (DR-27). The 12-SOL and 0.5–1.5-SOL figures above remain superseded scenarios, not measurements.
+
+| Quantity | Measured (local default rent) | At the 696-lamport terminal step |
+| --- | ---: | ---: |
+| Keeper transactions per month, core (P = 1,000, C = 10, N = M = 100, b = 8) | 42,200 (scenario 42,170) | same |
+| … plus LockedClose provisioning (+9 per close) | 42,290 | same |
+| … plus observe and cleanup (+23 per close) | 42,520 | same |
+| Base network fee at 5,000 lamports per signature (assumption, not a quote) | 0.211 SOL/month core; 0.2126 with everything | same |
+| ICP signing cycles (26,153,846,153 per signature), core | 1,103.7 T | same |
+| Required close reserve, M = 100, N = 0 (locked at the closing payout, mostly refundable) | 94,633,200 lamports | 9,463,320 lamports |
+| Candidate page rent (331 B) | 3,194,640 | 319,464 |
+| Participant page rent (330 B) | 3,187,680 | 318,768 |
+| Backer / B account rent (147 B) | 1,914,000 | 191,400 |
+| Pending ORAO request rent (759 B) / fulfilled (147 B) | 6,173,520 / 1,914,000 | 617,352 / 191,400 |
+| Rent held by one M = 100 close before cleanup / returned by cleanup | 72,105,600 / 70,191,600 | ÷ 10 |
+| Retained per close (fulfilled request record + consumed provider fee + B account when a winner exists) | 1,914,000 + 300,000 (+ 1,914,000) | rent ÷ 10; fee unchanged |
+
+Reading: the eight-row chunk assumption of the scenario holds with production accounts (every transaction of the N = 100 and N = 1,024 tickets fits), so the planning count was right within +30 core transactions for the pilot; provisioning and cleanup add about 320 keeper transactions per month. Rent is a refundable deposit: the close reserve is locked at the payout and returned at settlement and cleanup; only the fulfilled request record, the consumed oracle fee and a new B account are retained. An inline allocation inside the payout is feasible on the measured envelope only up to eight Backers (packet-bound), so it removes keeper signatures only for very small registries; the pilot's N = 100 stays on chunks. The deployment buffer, RPC/host subscriptions and the hybrid VM estimate above are unchanged inputs, not measurements.
+
 ## What this resolves before implementation
 
 The selected workload now has a budget and both host options, with recommendation to use hybrid until measured batching justifies fully ICP. No game liquidity or legacy reserves are included. Early implementation replaces fictional byte/chunk/binary sizes with measured values and verifies ICP SDK/Candid/current subnet/key behavior. Pre-deployment replans exact code/storage/provider/governance/fee reserves from current prices; no funding or deployment is authorized here. Old Round/request records and sponsor cleanup overlap must be classified, not assumed free.

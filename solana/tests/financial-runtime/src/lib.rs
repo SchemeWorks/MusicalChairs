@@ -19,12 +19,26 @@
 //! close step against it.  No cluster latency, no real Squads, no live
 //! randomness: see `close.rs` for the places a `CloseRecord` is rewritten
 //! (labelled `synthetic`).
+//!
+//! The M9 measurement matrix (`measure`) runs the same compiled program (and,
+//! for the full close path, the same ORAO executable and stand-in) over chunk
+//! populations, churn, dust claims, a 100-participant close, an inline-allocation
+//! envelope and the pilot keeper count, and records compute, packet, key,
+//! writable and declared-byte figures at LiteSVM's local-default rent.  It is a
+//! measurement: see the `measure` module docs for what each row is and is not.
+
+// `Outcome = Result<Observation, Observation>` carries the full LiteSVM observation on both
+// arms on purpose (labels, logs, account deltas, compute, packet): the harness is evidence
+// tooling and every rejection row reads the Err payload. Boxing it would hide nothing and
+// change every suite's helpers; the lint is suppressed crate-wide instead.
+#![allow(clippy::result_large_err)]
 
 pub mod allocation;
 pub mod close;
 pub mod controls;
 pub mod financial;
 pub mod fuzz;
+pub mod measure;
 pub mod positions_suite;
 pub mod provisioning;
 pub mod reserve;
@@ -38,6 +52,7 @@ pub use financial::{
     run_allocation_golden_flow, run_controls_suite, run_red_allocation, run_red_claim, run_red_open,
 };
 pub use fuzz::run_fuzz_suite;
+pub use measure::run_measure_suite;
 pub use positions_suite::run_positions_suite;
 pub use provisioning::run_provisioning_suite;
 pub use reserve::run_reserve_suite;
@@ -55,6 +70,7 @@ pub fn run_suite() -> Vec<Observation> {
     observations.extend(run_close_suite());
     observations.extend(run_reserve_suite());
     observations.extend(run_fuzz_suite());
+    observations.extend(run_measure_suite());
     observations
 }
 
@@ -1621,5 +1637,336 @@ mod reserve_tests {
         assert_eq!(code(ErrorCode::AlreadyObserved), 6049);
         assert_eq!(code(ErrorCode::NothingDeferred), 6050);
         assert_eq!(code(ErrorCode::RefundNotDeliverable), 6051);
+    }
+}
+
+/// M9 measurement matrix (plan Milestone 9, step 1): one test per matrix
+/// family.  Each runs its family against the actual compiled SBF (the close
+/// path also the captured ORAO executable and the test-only Squads stand-in),
+/// checks that every row has its `financial.measure.<family>.<row>` headline,
+/// that every observation is internally consistent with a unique label, and
+/// that every headline carries a JSON summary naming its family and row and the
+/// local-default rent schedule.  The measured numbers are evidence, not
+/// assertions: a row that exceeds the packet, lock or compute limit still
+/// passes (the matrix exists to find those rows).  The fixtures' own
+/// expectations (every open Backer credited, every ticket retired, the capped
+/// rows pruned, both conservation identities after every transaction) are
+/// asserted by the rows themselves.
+#[cfg(test)]
+mod measure_tests {
+    use std::collections::BTreeSet;
+
+    use crate::controls::{assert_outcomes_consistent, assert_unique_labels};
+    use crate::measure as m9;
+    use crate::runtime::Observation;
+    use musical_chairs_program::state;
+    use serde_json::Value;
+
+    fn headline<'a>(observations: &'a [Observation], family: &str, row: &str) -> &'a Observation {
+        let wanted = m9::label(family, row);
+        observations
+            .iter()
+            .find(|observation| observation.label == wanted)
+            .unwrap_or_else(|| panic!("no headline observation {wanted}"))
+    }
+
+    fn summary(observations: &[Observation], family: &str, row: &str) -> Value {
+        let text = headline(observations, family, row)
+            .unsupported
+            .as_deref()
+            .expect("the headline carries its summary");
+        serde_json::from_str(text).expect("the summary is JSON")
+    }
+
+    fn check_family(observations: &[Observation], family: &str, rows: &[String]) {
+        for row in rows {
+            m9::assert_headline(observations, family, row);
+            let note = summary(observations, family, row);
+            assert_eq!(note["family"], family);
+            assert_eq!(note["row"], row.as_str());
+            assert!(
+                note["rent_local_default"]["label"]
+                    .as_str()
+                    .is_some_and(|label| label.contains("LOCAL-DEFAULT")),
+                "{family}.{row}: the summary labels its rent schedule as local default"
+            );
+        }
+        assert_outcomes_consistent(observations);
+        assert_unique_labels(observations);
+        let prefix = format!("{}.{family}.", m9::ROOT);
+        assert!(observations
+            .iter()
+            .all(|observation| observation.label.starts_with(&prefix)));
+    }
+
+    #[test]
+    fn measure_matrix_lists_every_planned_row_once() {
+        let labels = m9::planned_labels();
+        let unique: BTreeSet<&String> = labels.iter().collect();
+        assert_eq!(unique.len(), labels.len());
+        // chunk runs + churn + 2 dust rows + the M = 100 close + 7 envelope rows + the keeper count
+        assert_eq!(labels.len(), m9::chunk_plan().len() + 1 + 2 + 1 + 7 + 1);
+        assert!(labels
+            .iter()
+            .all(|label| label.starts_with("financial.measure.")));
+        for wanted in [
+            "financial.measure.chunk.n64_rows1",
+            "financial.measure.chunk.n100_rows8",
+            "financial.measure.dust_claim.fresh_destination_litesvm_accepts",
+            "financial.measure.full_close.m100",
+            "financial.measure.inline_envelope.n16",
+            "financial.measure.keeper_count.pilot",
+        ] {
+            assert!(
+                labels.iter().any(|label| label == wanted),
+                "{wanted} is planned"
+            );
+        }
+    }
+
+    /// Host only (no transaction): the chunk fixture has Prune work, an oldest
+    /// open A, and a toll for which the host Book credits every open row.
+    #[test]
+    fn chunk_fixtures_have_prune_work_and_a_toll_that_credits_every_open_row() {
+        for n in m9::CHUNK_SIZES {
+            let specs = m9::measure_specs(n as usize);
+            assert_eq!(specs.len() as u64, n);
+            let closed = specs
+                .iter()
+                .filter(|spec| spec.remaining() <= state::BACKER_REMAINING_CUTOFF)
+                .count();
+            assert!(
+                closed >= 2,
+                "N = {n}: at least the two fixed closed rows give Prune work"
+            );
+            assert!(
+                specs[0].series == musical_chairs_program::allocation::SERIES_A
+                    && specs[0].remaining() == 100_000
+            );
+            let toll = m9::solve_toll(&specs);
+            assert!(toll >= n * 1_000 * 4, "N = {n}: toll {toll}");
+            let owners: BTreeSet<_> = specs.iter().map(|spec| spec.owner).collect();
+            assert_eq!(
+                owners.len() as u64,
+                n,
+                "N = {n}: every Backer has its own owner"
+            );
+        }
+    }
+
+    /// Host only: the `build_candidates` batch plan never lets a batch append
+    /// to one set across a candidate-page edge, visits every participant once,
+    /// and never exceeds the batch size.
+    #[test]
+    fn build_batches_never_straddle_a_candidate_page_edge_pure() {
+        let mut flags = Vec::new();
+        for slot in 0..100usize {
+            flags.push(match slot % 5 {
+                0 => (true, true),
+                1 => (false, true),
+                _ => (false, false),
+            });
+        }
+        // A denser pattern too: every participant a candidate of both sets.
+        let dense = vec![(true, true); 40];
+        for flags in [flags, dense] {
+            for max_rows in [8usize, 4, 1] {
+                let sizes = m9::plan_build_batches(&flags, max_rows);
+                assert_eq!(sizes.iter().sum::<usize>(), flags.len());
+                assert!(sizes.iter().all(|size| (1..=max_rows).contains(size)));
+                let (mut preferred, mut fallback, mut at) = (0u64, 0u64, 0usize);
+                for size in &sizes {
+                    let (start_preferred, start_fallback) = (preferred / 8, fallback / 8);
+                    for (is_preferred, is_fallback) in &flags[at..at + size] {
+                        if *is_preferred {
+                            assert_eq!(
+                                preferred / 8,
+                                start_preferred,
+                                "preferred append stays on the batch's page"
+                            );
+                            preferred += 1;
+                        }
+                        if *is_fallback {
+                            assert_eq!(
+                                fallback / 8,
+                                start_fallback,
+                                "fallback append stays on the batch's page"
+                            );
+                            fallback += 1;
+                        }
+                    }
+                    at += size;
+                }
+            }
+        }
+        // The dense pattern needs a batch boundary at every multiple of 8.
+        assert_eq!(m9::plan_build_batches(&[(true, true); 40], 8), [8usize; 5]);
+    }
+
+    #[test]
+    fn chunk_populations_record_every_phase_for_n_64_100_256_1024_at_rows_1_4_8() {
+        let observations = m9::run_chunk_family();
+        let rows: Vec<String> = m9::chunk_plan()
+            .into_iter()
+            .map(|(n, rows)| m9::chunk_row(n, rows))
+            .collect();
+        check_family(&observations, m9::FAMILY_CHUNK, &rows);
+        assert!(observations.iter().all(|observation| observation.success));
+        for (n, rows) in m9::chunk_plan() {
+            let note = summary(&observations, m9::FAMILY_CHUNK, &m9::chunk_row(n, rows));
+            let batches = n.div_ceil(u64::from(rows));
+            assert_eq!(note["result"]["tx_by_phase"]["discover"], batches);
+            assert_eq!(note["result"]["tx_by_phase"]["allocate"], batches);
+            assert_eq!(note["result"]["tx_by_phase"]["senior"], 1);
+            assert_eq!(note["result"]["tx_by_phase"]["seal"], 1);
+            assert_eq!(note["result"]["tx_by_phase"]["commit"], 1);
+            assert_eq!(
+                note["result"]["open_rows_credited"],
+                note["fixture"]["open_rows_at_start"]
+            );
+        }
+    }
+
+    #[test]
+    fn churn_20_reopen_prune_cycles_keep_a_64_row_registry_and_both_identities() {
+        let observations = m9::churn();
+        check_family(
+            &observations,
+            m9::FAMILY_CHURN,
+            &[m9::ROW_CHURN.to_string()],
+        );
+        assert!(observations.iter().all(|observation| observation.success));
+        let note = summary(&observations, m9::FAMILY_CHURN, m9::ROW_CHURN);
+        assert_eq!(note["result"]["cycles"], 20);
+        assert_eq!(note["result"]["registry_len_final"], 64);
+        assert_eq!(note["result"]["next_ticket_final"], 21);
+        assert_eq!(note["per_cycle"].as_array().expect("cycles").len(), 20);
+        assert_eq!(
+            note["result"]["digest_snapshots"], note["result"]["digest_snapshots_distinct"],
+            "the financial state is new after every ticket and every funding"
+        );
+    }
+
+    #[test]
+    fn dust_claims_of_1_to_10_lamports_record_rent_exempt_and_fresh_destinations() {
+        let observations = m9::dust_claims();
+        let rows = [
+            m9::ROW_DUST_RENT_EXEMPT.to_string(),
+            m9::ROW_DUST_FRESH.to_string(),
+        ];
+        check_family(&observations, m9::FAMILY_DUST, &rows[..1]);
+        check_family(&observations, "dust_claim", &rows[1..]);
+        let exempt = summary(&observations, m9::FAMILY_DUST, m9::ROW_DUST_RENT_EXEMPT);
+        let claims = exempt["claims"].as_array().expect("claims");
+        assert_eq!(
+            claims.len(),
+            11,
+            "ten single-series claims and the combined A+B claim"
+        );
+        assert!(
+            claims.iter().all(|claim| claim["success"] == true),
+            "a rent-exempt destination accepts every dust claim"
+        );
+        let fresh = summary(&observations, m9::FAMILY_DUST, m9::ROW_DUST_FRESH);
+        assert_eq!(fresh["claims"].as_array().expect("claims").len(), 10);
+        assert!(
+            fresh["cluster_note"]
+                .as_str()
+                .is_some_and(|text| text.contains("cluster would refuse")),
+            "the fresh-destination row states that the cluster would refuse it"
+        );
+    }
+
+    #[test]
+    fn full_close_path_m100_records_every_instruction_and_returns_every_page() {
+        let (observations, facts) = m9::full_close_m100();
+        check_family(
+            &observations,
+            m9::FAMILY_FULL_CLOSE,
+            &[m9::ROW_FULL_CLOSE.to_string()],
+        );
+        assert!(observations.iter().all(|observation| observation.success));
+        assert_eq!(facts.participants, 100);
+        assert!(facts.preferred >= 20 && facts.fallback >= 20);
+        assert_eq!(facts.tx_total, observations.len());
+        assert_eq!(facts.build_tx, facts.build_batch_sizes.len());
+        assert_eq!(facts.build_batch_sizes.iter().sum::<usize>(), 100);
+        assert!(facts
+            .build_batch_sizes
+            .iter()
+            .all(|rows| (1..=8).contains(rows)));
+        assert_eq!(
+            facts.provision_tx,
+            facts.preferred.div_ceil(8) + facts.fallback.div_ceil(8)
+        );
+        // every candidate page and all 13 participant pages are closed again
+        assert_eq!(facts.cleanup_tx, facts.provision_tx + 13);
+        assert_eq!(
+            (
+                facts.closing_payout_tx,
+                facts.request_tx,
+                facts.fulfill_tx,
+                facts.capture_tx,
+                facts.apply_tx,
+                facts.finalize_tx
+            ),
+            (1, 1, 1, 1, 1, 1)
+        );
+    }
+
+    #[test]
+    fn inline_envelope_n0_to_n17_records_packet_keys_locks_and_the_cu_estimate() {
+        let observations = m9::run_inline_envelope();
+        let rows: Vec<String> = m9::ENVELOPE_NS
+            .iter()
+            .map(|&n| m9::envelope_row(n))
+            .collect();
+        check_family(&observations, m9::FAMILY_ENVELOPE, &rows);
+        assert!(observations.iter().all(|observation| observation.success));
+        assert_eq!(observations.len(), m9::ENVELOPE_NS.len());
+        let packets: Vec<usize> = m9::ENVELOPE_NS
+            .iter()
+            .map(|&n| {
+                headline(&observations, m9::FAMILY_ENVELOPE, &m9::envelope_row(n)).packet_bytes
+            })
+            .collect();
+        assert!(
+            packets.windows(2).all(|pair| pair[0] <= pair[1]),
+            "more accounts never shrink the packet: {packets:?}"
+        );
+        for &n in &m9::ENVELOPE_NS {
+            let note = summary(&observations, m9::FAMILY_ENVELOPE, &m9::envelope_row(n));
+            assert_eq!(note["measured"]["n"], n);
+            assert!(note["estimate"]["estimated_inline_cu"].as_u64().is_some());
+            assert!(note["summary_over_all_n"]["rows"]
+                .as_array()
+                .is_some_and(|rows| rows.len() == 7));
+        }
+    }
+
+    #[test]
+    fn keeper_count_pilot_is_computed_from_measured_phase_counts() {
+        let observations = m9::run_keeper_count();
+        check_family(
+            &observations,
+            m9::FAMILY_KEEPER,
+            &[m9::ROW_KEEPER.to_string()],
+        );
+        let note = summary(&observations, m9::FAMILY_KEEPER, m9::ROW_KEEPER);
+        let b = note["chosen_rows_b"].as_u64().expect("chosen rows");
+        assert!([1, 4, 8].contains(&b));
+        let scenario = 1_000 * (3 * 100u64.div_ceil(b) + 3) + 10 * (100u64.div_ceil(b) + 4);
+        assert_eq!(note["k_monthly"]["scenario"], scenario);
+        if b == 8 {
+            assert_eq!(scenario, 42_170, "the documented planning figure");
+        }
+        let ticket_tx = note["ticket_n100"]["tx_total"].as_u64().expect("ticket tx");
+        let build = note["close_m100"]["build_batches"]
+            .as_u64()
+            .expect("build batches");
+        assert_eq!(
+            note["k_monthly"]["measured_core"],
+            1_000 * ticket_tx + 10 * (build + 4)
+        );
     }
 }

@@ -1,6 +1,6 @@
 use musical_chairs_financial_runtime::{
     run_allocation_golden_flow, run_allocation_suite, run_close_suite, run_controls_m3_suite,
-    run_controls_suite, run_fuzz_suite, run_positions_suite, run_provisioning_suite,
+    run_controls_suite, run_fuzz_suite, run_measure_suite, run_positions_suite, run_provisioning_suite,
     run_red_allocation, run_red_claim, run_red_open, run_reserve_suite,
 };
 
@@ -28,6 +28,11 @@ fn main() {
         "reserve" => run_reserve_suite(),
         // ... and the seeded 300-step conservation sequence.
         "fuzz" => run_fuzz_suite(),
+        // M9: the measurement matrix (chunk populations, churn, dust claims,
+        // the M = 100 close, the inline envelope and the pilot keeper count).
+        // The 1,024-Backer population honours MC_MEASURE_N1024_ROWS (comma
+        // list of 1 / 4 / 8, default all three).
+        "measure" => run_measure_suite(),
         "all" => {
             let mut observations = vec![run_red_open(), run_red_claim(), run_red_allocation()];
             observations.extend(run_allocation_golden_flow());
@@ -39,10 +44,11 @@ fn main() {
             observations.extend(run_close_suite());
             observations.extend(run_reserve_suite());
             observations.extend(run_fuzz_suite());
+            observations.extend(run_measure_suite());
             observations
         }
         _ => panic!(
-            "suite must be open, claim, allocation, flow, controls, controls-m3, provisioning, positions, close, reserve, fuzz or all"
+            "suite must be open, claim, allocation, flow, controls, controls-m3, provisioning, positions, close, reserve, fuzz, measure or all"
         ),
     };
     let mut report = serde_json::json!({
@@ -57,7 +63,7 @@ fn main() {
         },
         "observations": observations
     });
-    if matches!(suite.as_str(), "controls-m3" | "reserve" | "fuzz" | "all") {
+    if matches!(suite.as_str(), "controls-m3" | "reserve" | "fuzz" | "measure" | "all") {
         // The M3 rows execute vault-signed instructions through a TEST-ONLY
         // Squads stand-in; record which ELF it was.
         report["standin"] = serde_json::json!({
@@ -66,7 +72,7 @@ fn main() {
             "scope": "test-only stand-in loaded at the Squads program id; it signs as the vault PDA and is never deployed"
         });
     }
-    if matches!(suite.as_str(), "close" | "reserve" | "fuzz" | "all") {
+    if matches!(suite.as_str(), "close" | "reserve" | "fuzz" | "measure" | "all") {
         // The M7 rows run the CAPTURED mainnet ORAO executable (never a stub)
         // under ONE synthetic fulfill authority; record which ELF it was.
         report["provider"] = serde_json::json!({

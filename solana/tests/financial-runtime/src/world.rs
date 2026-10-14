@@ -1298,7 +1298,7 @@ impl World {
 
         let per_set = participants.div_ceil(PAGE);
         let missing_pages = per_set.saturating_sub(existing_p) + per_set.saturating_sub(existing_f);
-        let registry_extension = u64::from(registry_len % PAGE == 0);
+        let registry_extension = u64::from(registry_len.is_multiple_of(PAGE));
         let fee = config.provider_request_fee_lamports;
         let provider_cap = fee + fee * u64::from(config.provider_fee_headroom_bps) / 10_000;
         let by_hand = self.rt.rent(state::CandidatePage::SPACE) * missing_pages
@@ -1354,6 +1354,8 @@ impl Xorshift64 {
         Self(seed.wrapping_mul(0x9E37_79B9_7F4A_7C15) | 1)
     }
 
+    // Not an `Iterator`: a seeded generator that never ends; the name is deliberate.
+    #[allow(clippy::should_implement_trait)]
     pub fn next(&mut self) -> u64 {
         let mut x = self.0;
         x ^= x >> 12;
