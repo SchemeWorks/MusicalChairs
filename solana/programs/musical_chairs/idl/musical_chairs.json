@@ -225,9 +225,13 @@
         {
           "name": "backer",
           "docs": [
-            "ticket's tracked oldest open A, a canonical Backer PDA."
+            "ticket's tracked oldest open A, a canonical Backer PDA. Optional so a",
+            "ticket with no open A (senior already folded to seed) can pass the",
+            "program id as the Anchor `None` placeholder instead of a writable",
+            "stand-in (a read-only program account would fail the `mut` check)."
           ],
-          "writable": true
+          "writable": true,
+          "optional": true
         }
       ],
       "args": [

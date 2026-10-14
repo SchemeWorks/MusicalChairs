@@ -1307,7 +1307,8 @@ impl FinancialRuntime {
     /// (`ConstraintMut`, 2000).  `senior_step` reads no account in that case,
     /// so any writable account will do; the Pool PDA is used.
     pub fn senior_stand_in(&self) -> Pubkey {
-        self.pool_address()
+        // `ApplySenior.backer` is optional; the program id is Anchor's `None`.
+        ID
     }
 
     /// The Backer `apply_senior` must carry: the tracked oldest open A, or
@@ -1404,7 +1405,8 @@ impl FinancialRuntime {
         anchor_ix(
             accounts::ApplySenior {
                 ticket: self.ticket_address(),
-                backer,
+                // Anchor optional account: the program id is `None`.
+                backer: if backer == ID { None } else { Some(backer) },
             },
             instruction::ApplySenior { expected_ticket_id },
         )

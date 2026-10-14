@@ -530,15 +530,18 @@ pub fn credit_backer(backer: &mut Backer, ticket: &mut Ticket, amount: u64) -> R
 /// the instruction only advances (and reads no account).
 pub fn senior_step(
     ticket: &mut Ticket,
-    oldest_backer: &AccountInfo,
+    oldest_backer: Option<&AccountInfo>,
     expected_ticket_id: u64,
 ) -> Result<()> {
     require_ticket(ticket, None, expected_ticket_id, SENIOR)?;
     if ticket.a_count == 0 {
+        // No open A: the senior tier was folded at Discover; whatever account
+        // (or none) was supplied is ignored.
         ticket.senior_credit = 0;
         ticket.phase = SEAL;
         return Ok(());
     }
+    let oldest_backer = oldest_backer.ok_or_else(|| error!(Code::WrongAccount))?;
     require!(ticket.oldest != Pubkey::default(), Code::InvalidState);
     require_keys_eq!(*oldest_backer.key, ticket.oldest, Code::WrongAccount);
     let mut backer = read_program_account::<Backer>(oldest_backer)?;
@@ -1072,9 +1075,12 @@ pub struct ApplySenior<'info> {
     #[account(mut, seeds = [TICKET_SEED], bump = ticket.bump)]
     pub ticket: Box<Account<'info, Ticket>>,
     /// CHECK: decoded and fully verified by `senior_step`: it must be the
-    /// ticket's tracked oldest open A, a canonical Backer PDA.
+    /// ticket's tracked oldest open A, a canonical Backer PDA. Optional so a
+    /// ticket with no open A (senior already folded to seed) can pass the
+    /// program id as the Anchor `None` placeholder instead of a writable
+    /// stand-in (a read-only program account would fail the `mut` check).
     #[account(mut)]
-    pub backer: UncheckedAccount<'info>,
+    pub backer: Option<UncheckedAccount<'info>>,
 }
 
 #[derive(Accounts)]
@@ -1131,8 +1137,8 @@ pub fn discover_rows(
 }
 
 pub fn apply_senior(ctx: Context<ApplySenior>, expected_ticket_id: u64) -> Result<()> {
-    let backer = ctx.accounts.backer.to_account_info();
-    senior_step(&mut ctx.accounts.ticket, &backer, expected_ticket_id)
+    let backer = ctx.accounts.backer.as_ref().map(|account| account.to_account_info());
+    senior_step(&mut ctx.accounts.ticket, backer.as_ref(), expected_ticket_id)
 }
 
 pub fn seal_weights(ctx: Context<SealWeights>, expected_ticket_id: u64) -> Result<()> {
@@ -1540,7 +1546,7 @@ mod ticket_tests {
                 self.backer_account(&self.ticket.oldest).clone()
             };
             let id = self.ticket.id;
-            senior_step(&mut self.ticket, &oldest, id)
+            senior_step(&mut self.ticket, Some(&oldest), id)
         }
 
         fn seal(&mut self) -> Result<()> {
@@ -1853,10 +1859,10 @@ mod ticket_tests {
         w.advance_to(SENIOR, 8);
         let id = w.ticket.id;
         let not_oldest = w.backers[1].clone();
-        assert_code(senior_step(&mut w.ticket, &not_oldest, id), Code::WrongAccount);
+        assert_code(senior_step(&mut w.ticket, Some(&not_oldest), id), Code::WrongAccount);
         let a_b_series = w.backers[2].clone();
-        assert_code(senior_step(&mut w.ticket, &a_b_series, id), Code::WrongAccount);
-        assert_code(senior_step(&mut w.ticket, &placeholder(), id), Code::WrongAccount);
+        assert_code(senior_step(&mut w.ticket, Some(&a_b_series), id), Code::WrongAccount);
+        assert_code(senior_step(&mut w.ticket, Some(&placeholder()), id), Code::WrongAccount);
         // Nothing advanced.
         assert_eq!(w.ticket.phase, SENIOR);
         w.senior().unwrap();
@@ -2123,7 +2129,7 @@ mod ticket_tests {
         let stale = 1;
         let accounts = w.discover_accounts(2);
         assert_code(discover_batch(&mut w.ticket, &w.pool, &accounts, stale, 0, 2), Code::StaleTicket);
-        assert_code(senior_step(&mut w.ticket, &placeholder(), stale), Code::StaleTicket);
+        assert_code(senior_step(&mut w.ticket, Some(&placeholder()), stale), Code::StaleTicket);
         assert_code(seal_step(&mut w.ticket, stale), Code::StaleTicket);
         assert_code(allocate_batch(&mut w.ticket, &[], stale, 0, 1), Code::StaleTicket);
         assert_code(
@@ -2146,7 +2152,7 @@ mod ticket_tests {
         let accounts = w.discover_accounts(1);
         assert_code(discover_batch(&mut w.ticket, &w.pool, &accounts, id, 0, 1), Code::StaleTicket);
         // The instructions without the pool see an IDLE phase.
-        assert_code(senior_step(&mut w.ticket, &placeholder(), id), Code::InvalidPhase);
+        assert_code(senior_step(&mut w.ticket, Some(&placeholder()), id), Code::InvalidPhase);
         assert_code(seal_step(&mut w.ticket, id), Code::InvalidPhase);
         assert_code(allocate_batch(&mut w.ticket, &[], id, 0, 1), Code::InvalidPhase);
     }
@@ -2156,7 +2162,7 @@ mod ticket_tests {
         let mut w = World::new(&[a(100_000), b(1_000_000)]);
         w.start_ticket(10_000);
         let id = w.ticket.id;
-        assert_code(senior_step(&mut w.ticket, &placeholder(), id), Code::InvalidPhase);
+        assert_code(senior_step(&mut w.ticket, Some(&placeholder()), id), Code::InvalidPhase);
         assert_code(seal_step(&mut w.ticket, id), Code::InvalidPhase);
         assert_code(allocate_batch(&mut w.ticket, &[], id, 0, 1), Code::InvalidPhase);
         assert_code(prune_batch(&mut w.ticket, &mut w.pool, &[], id, 0, 1), Code::InvalidPhase);

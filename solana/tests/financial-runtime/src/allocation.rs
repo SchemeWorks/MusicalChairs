@@ -1581,17 +1581,16 @@ pub fn senior_without_an_open_a_needs_a_writable_stand_in() -> Vec<Observation> 
     assert_eq!((ticket.seed_credit, ticket.b_slice), (6_750, 3_250));
     let id = ticket.id;
 
+    // `ApplySenior.backer` is optional: with no open A the program id is the
+    // Anchor `None` placeholder and must be accepted (it used to fail Anchor's
+    // `mut` check with ConstraintMut 2000 when the account was mandatory).
     let program_id = w.rt.senior_ix(id, ID);
     let attempt = w.send("program_id_placeholder", vec![program_id], &[]);
     let advanced = attempt.is_ok();
-
-    if !advanced {
-        w.apply_senior("", id).expect("the writable stand-in");
-    } else {
-        // The program id was accepted: the stand-in is not needed, and the
-        // headline is the attempt itself.
-        assert_eq!(w.ticket().phase, SEAL);
-    }
+    assert!(
+        advanced,
+        "program-id placeholder must be accepted for a ticket with no open A: {attempt:?}"
+    );
     assert_eq!(w.ticket().phase, SEAL);
     assert_eq!(w.ticket().senior_credit, 0);
     w.advance_until_idle(8);
