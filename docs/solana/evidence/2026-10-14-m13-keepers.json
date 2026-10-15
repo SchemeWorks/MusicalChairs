@@ -66,7 +66,6 @@
    "rearms_timer_after_upgrade",
    "fee_address_has_no_program_authority"
   ],
-  "red": "M0009 import errors before the modules existed (worker-recorded)",
   "type_check": "moc --check main.mo: 0 errors under 1.5.1 and 0.16.2 (14 M0155 guarded-subtraction warnings, identical); full wasm builds succeed",
   "didc_check": "pinned sol_rpc_canister.did vs probe actor: exit 0, no warning; negative controls: Nat16→Nat fails; dropped variant tag / extra opt field only warn (acceptance = exit 0 AND no warning)",
   "generators": "test/gen/authority_table.py --check and test/gen/fixtures.py --check both current (coordinator re-run)",
@@ -100,7 +99,33 @@
    "actor glue (tick, RPC awaits, timer, upgrade re-arm) type-checked and wasm-built only; replica plan test/replica/native-sol-keeper.md unrun",
    "local threshold Ed25519 may not exist on the dfx replica",
    "rpcCycles / signCycles placeholders"
-  ]
+  ],
+  "red_withdrawn": "The earlier \"RED\" entry (M0009 import errors before the modules existed) is WITHDRAWN: a missing-module compile failure is not a failing assertion. The watchdog tests were written before the implementation but their first runs failed at compile level only, so no assertion-level failing-test-first evidence exists for 48b.",
+  "negative_controls": {
+   "label": "assertion-level negative controls on VALID wrong-variant modules, written AFTER the implementation (IMPL-49e, Codex R5); not historical failing-test-first development",
+   "dir": "native_sol_keeper/test/negative/ (README.md, negative.py check|run, expected_fail_lines.txt, 9 Wrong*.mo + 9 Wrong*.test.mo)",
+   "method": "each Wrong*.mo is a valid module with the real module's full public API overriding only the buggy function(s); each Wrong*.test.mo is a textual copy of policy.test.mo / authority.test.mo with only the subject import changed; negative.py check proves the assertions are identical to the real suites and the API complete; negative.py run requires per control and per compiler (moc 1.5.1 and dfx 0.16.2): non-zero exit, a \"check(s) FAILED\" trap, no ALL PASS, no compile/type/import error, ≥ 1 PASS, FAIL lines exactly equal to expected_fail_lines.txt",
+   "coordinator_run": "negative.py check → current; negative.py run → RESULT: OK under both compilers (log scratchpad/impl48/negative-run.log)",
+   "controls": {
+    "stale_sign_timing (signs_only_after_stale_progress_threshold)": {
+     "WrongPolicyEarlySign": "PASS 44 / FAIL 10 (60 s→Alert, 61 s→Alert, 299 s→Alert, 300 s with unknown→Blocked, unknown does not hide Alert, unconfigured→Blocked ×2, signAfterNs=0 invalid, signAfterNs<alertAfterNs invalid, signed 10 s ago→Alert)",
+     "WrongPolicySignsAtAlert": "PASS 50 / FAIL 4",
+     "WrongPolicyIgnoresUnknown": "PASS 53 / FAIL 1 (300 s with an unresolved unknown must be Blocked)",
+     "WrongPolicyIgnoresUnconfigured": "PASS 52 / FAIL 2"
+    },
+    "timer_rearm (rearms_timer_after_upgrade)": {
+     "WrongPolicyNeverRearm": "PASS 51 / FAIL 3 (armed+configured→postupgrade re-arms ×2; disarm clears)",
+     "WrongPolicyRearmWhenDisarmed": "PASS 52 / FAIL 2 (disarmed stays disarmed after an upgrade; no resurrection)"
+    },
+    "prohibited_authority (fee_address_has_no_program_authority)": {
+     "WrongPlannerFeeInAuthoritySlot": "PASS 80 / FAIL 6 (seal_weights and finalize_round: flags vs IDL, signer/fee-address checks, no instruction references the fee address)",
+     "WrongPlannerExtraSigner": "PASS 82 / FAIL 4 (commit_ticket and expire_promotion: only-signer checks)",
+     "WrongAuthorityTablePayerIsAuthority": "PASS 85 / FAIL 1 (no payer account marked authority)"
+    }
+   },
+   "real_suites_after": "policy 54, journal 47, authority 86, gate 28, pda 23, accounts 42, tx 34, planner 78 — ALL PASS under both compilers",
+   "boundary": "pure modules Policy, Planner + Tx.compile and the generated AuthorityTable only; the actor's await paths, the timer at runtime and threshold Ed25519 signing remain unproven (replica plan unrun; local threshold Ed25519 may be unavailable on the dfx replica)"
+  }
  },
  "operations_doc": "docs/solana/operations.md (roles, 60 s / 300 s meaning, escalation from any wallet, metrics fields of both keepers, fee floor and hourly budget, not-automated list, bring-up, no-credentials rule; pause conditions are a proposed policy)",
  "limits": "No services started, nothing deployed, no live keys, no public network. M14 (devnet) remains an authorization gate.",
