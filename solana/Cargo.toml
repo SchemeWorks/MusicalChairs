@@ -1,6 +1,6 @@
 [workspace]
 members = ["crates/economics"]
-exclude = ["probes/provider-resources", "probes/runtime", "programs/musical_chairs", "tests/financial-runtime", "tools/idl-build"]
+exclude = ["probes/provider-resources", "probes/runtime", "programs/musical_chairs", "tests/financial-runtime", "keepers/worker", "tools/idl-build"]
 resolver = "2"
 
 [workspace.package]

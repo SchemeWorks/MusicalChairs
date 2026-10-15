@@ -29,6 +29,21 @@ jobs:
       - run: cargo test --manifest-path solana/Cargo.toml --workspace --locked
       - run: cargo clippy --manifest-path solana/Cargo.toml --workspace --all-targets --locked -- -D warnings
 
+  keeper-worker:
+    name: Fee-only keeper worker (M13, no services started)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path Cargo.toml --all -- --check
+        working-directory: solana/keepers/worker
+      - run: cargo test --manifest-path Cargo.toml --locked
+        working-directory: solana/keepers/worker
+      - run: cargo clippy --manifest-path Cargo.toml --all-targets --locked -- -D warnings
+        working-directory: solana/keepers/worker
+
   provider-probe:
     name: Standalone provider/resource probe
     runs-on: ubuntu-latest
