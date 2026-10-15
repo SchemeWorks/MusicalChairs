@@ -37,7 +37,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.92.0
         with:
           components: rustfmt, clippy
-      - run: cargo fmt --manifest-path Cargo.toml --all -- --check
+      # no --all: cargo-fmt's --all also walks PATH dependencies (the program crate), which this job does not own
+      - run: cargo fmt --manifest-path Cargo.toml -- --check
         working-directory: solana/keepers/worker
       - run: cargo test --manifest-path Cargo.toml --locked
         working-directory: solana/keepers/worker
