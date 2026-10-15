@@ -11,7 +11,12 @@
 # Usage:   bash native_sol_bridge/test/replica/run.sh
 # Needs:   dfx 0.29.x with a running shared local network that has pp_ledger (5xv2o-...) and
 #          siws_provider (tcm26-...) installed, python3 (stdlib only).
-# Output:  native_sol_bridge/test/replica/receipt-2026-10-14.json (+ a progress log on stdout)
+# Output:  native_sol_bridge/test/replica/receipt-2026-10-14-v2.json (+ a progress log on stdout);
+#          the IMPL-47d receipt-2026-10-14.json (v1) is left untouched.
+# v2 (IMPL-49b): initial legs are executed through the bridge's executeReservedLeg by a throwaway
+#          NON-ADMIN dfx identity (mc-nonadmin, created here with plaintext key storage; remove it
+#          afterwards with `dfx identity remove mc-nonadmin`). It is never made a controller,
+#          admin, relayer or allowlist member, and it is never the default identity.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -79,6 +84,17 @@ say "install (reinstall = clean state; pp_ledger / siws_provider are untouched)"
 
 BRIDGE="$( cd "$ROOT" && dfx canister id native_sol_bridge --network local )"
 ME="$(dfx identity get-principal)"
+
+# --- throwaway non-admin identity (plaintext key, local use only) ------------------------------
+NONADMIN=mc-nonadmin
+if ! dfx identity list 2>/dev/null | grep -qx "$NONADMIN"; then
+  dfx identity new "$NONADMIN" --storage-mode plaintext >/dev/null 2>&1   # output holds a seed phrase; not logged
+fi
+NONADMIN_PRINCIPAL="$(dfx --identity "$NONADMIN" identity get-principal)"
+if [ "$NONADMIN_PRINCIPAL" = "$ME" ]; then
+  echo "refusing to run: the non-admin identity resolves to the operator principal" >&2; exit 2
+fi
+echo "non-admin identity: $NONADMIN = $NONADMIN_PRINCIPAL (operator is $ME)"
 echo "bridge=$BRIDGE shenanigans=$SHEN stub=$STUB ledger=$LEDGER siws=$SIWS operator=$ME"
 
 say "configure"
@@ -105,4 +121,5 @@ say "drive the scenarios"
 export MC_REPLICA_ROOT="$ROOT" MC_REPLICA_HERE="$HERE" MC_BRIDGE="$BRIDGE" MC_ME="$ME"
 export MC_LEDGER="$LEDGER" MC_SIWS="$SIWS" MC_SHEN="$SHEN" MC_STUB="$STUB"
 export MC_BOUND_PUBKEY="$BOUND_PUBKEY" MC_BOUND_PRINCIPAL="$BOUND_PRINCIPAL"
+export MC_NONADMIN_IDENTITY="$NONADMIN" MC_NONADMIN_PRINCIPAL="$NONADMIN_PRINCIPAL"
 python3 -I "$HERE/drive.py" "$@"

@@ -3,6 +3,7 @@ import Buffer "mo:base/Buffer";
 import Int "mo:base/Int";
 import Nat "mo:base/Nat";
 import OrderedMap "mo:base/OrderedMap";
+import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 
 import Decode "Decode";
@@ -31,6 +32,24 @@ import Verify "Verify";
 /// transaction version) and Verified-but-unacknowledged entries block it.
 /// It is derived from the set of open entries, so it can never run ahead of
 /// a gap and never moves backwards.
+///
+/// INVALID IS AN INTAKE/AUDIT TERMINAL STATE, NOT VERIFIED DELIVERY. A
+/// descriptor the bridge proved false from an agreed finalized observation is
+/// stored as `#Invalid` so the cursor can pass it and so a corrected
+/// descriptor for the same event id stays admissible (it becomes a new entry).
+/// It says nothing was delivered to Shenanigans. The PUBLIC history is the
+/// verified-delivery checkpoint only (`verifiedHistory`): Forwarded
+/// (Shenanigans answered Observed/AlreadyObserved) or Quarantined (a durable
+/// permanent Shenanigans rejection, returned with its status). Everything
+/// else (Pending, Unverified, Verified-but-unacknowledged, Invalid) is the
+/// operator/audit `intake` view; the two pages partition the store.
+///
+/// Reward legs: once an entry is Forwarded AND Bound (Shenanigans holds a
+/// Reserved obligation) any caller may ask the bridge to execute ONE frozen
+/// leg. The bridge supplies nothing but the event id and leg index;
+/// Shenanigans holds the recipient, amount, memo and timestamp. The per-leg
+/// status Shenanigans returns is recorded in a separate additive `LegStore`
+/// (not in `Entry`, so stored entries keep their shape across upgrades).
 ///
 /// Binding is a separate, later fact: a Forwarded entry whose beneficiary has
 /// no SIWS binding yet stays in the pubkey-keyed `unbound` index until
@@ -174,17 +193,41 @@ module {
         };
     };
 
-    /// Newest-first page of the whole store (history/feeds, DR-25).
-    /// `before`: only entries with `seq < before`.
-    public func recent(s : State, before : ?Nat, limit : Nat) : [Entry] {
+    /// The verified-delivery checkpoint (DR-25 / spec section 9 "verified
+    /// history/feeds"): Shenanigans durably holds the observation
+    /// (Forwarded = Observed or AlreadyObserved) or durably and permanently
+    /// rejected it (Quarantined). Pending, Unverified, Verified-but-
+    /// unacknowledged and Invalid are NOT verified delivery.
+    public func inVerifiedHistory(st : Status) : Bool {
+        switch (st) {
+            case (#Forwarded(_)) { true };
+            case (#Quarantined(_)) { true };
+            case (_) { false };
+        };
+    };
+
+    /// Newest-first page of entries matching `keep`. `before`: only entries
+    /// with `seq < before`. The page cap is MAX_PAGE whatever `limit` says.
+    func pageOf(s : State, before : ?Nat, limit : Nat, keep : Entry -> Bool) : [Entry] {
         let cap = Nat.min(limit, MAX_PAGE);
         let out = Buffer.Buffer<Entry>(cap);
         label scan for ((seq, e) in nat().entriesRev(s.entries)) {
             if (out.size() >= cap) { break scan };
             let ok = switch (before) { case (null) { true }; case (?b) { seq < b } };
-            if (ok) { out.add(e) };
+            if (ok and keep(e)) { out.add(e) };
         };
         Buffer.toArray(out);
+    };
+
+    /// PUBLIC history: verified-delivery entries only (see `inVerifiedHistory`).
+    public func verifiedHistory(s : State, before : ?Nat, limit : Nat) : [Entry] {
+        pageOf(s, before, limit, func(e) { inVerifiedHistory(e.status) });
+    };
+
+    /// Operator/audit intake view: the complement of the verified history
+    /// (Pending, Unverified, Verified-unacknowledged, Invalid).
+    public func intake(s : State, before : ?Nat, limit : Nat) : [Entry] {
+        pageOf(s, before, limit, func(e) { not inVerifiedHistory(e.status) });
     };
 
     // ------------------------------------------------------------------
@@ -371,10 +414,10 @@ module {
                     // follow immediately (IMPL-47d finding 1: otherwise releasePending answered
                     // #Cooldown for up to 30 s after the forward).
                     case (#Observed(id)) {
-                        { e with status = #Forwarded({ obligation_id = id; already_observed = false; at = now }); next_attempt_at = 0 };
+                        { e with status = #Forwarded({ obligation_id = id; already_observed = false; at = now }); next_attempt_at = (0 : Nat64) };
                     };
                     case (#AlreadyObserved(id)) {
-                        { e with status = #Forwarded({ obligation_id = id; already_observed = true; at = now }); next_attempt_at = 0 };
+                        { e with status = #Forwarded({ obligation_id = id; already_observed = true; at = now }); next_attempt_at = (0 : Nat64) };
                     };
                     case (#Rejected({ reason; permanent = true })) {
                         { e with status = #Quarantined({ reason; at = now }) };
@@ -419,7 +462,9 @@ module {
                     // Not bound (yet): the event stays pubkey-keyed.
                     case (#Unbound or #UnknownEvent or #Rejected(_)) { #Applied(e) };
                     case (#Reserved or #AlreadyReserved) {
-                        let upd = { e with binding = #Bound({ at = now }) };
+                        // Like a successful forward, a successful bind clears the per-event
+                        // attempt gate so the first executeReservedLeg is not throttled by it.
+                        let upd : Entry = { e with binding = #Bound({ at = now }); next_attempt_at = (0 : Nat64) };
                         put(s, upd);
                         switch (upd.verified) {
                             case (?v) { removeUnbound(s, v.forward.beneficiary_pubkey, upd.seq) };
@@ -428,6 +473,129 @@ module {
                         #Applied(upd);
                     };
                 };
+            };
+        };
+    };
+
+    // ------------------------------------------------------------------
+    // Bridge-driven execution of frozen reserved legs (IMPL-49b / review R2)
+    // ------------------------------------------------------------------
+
+    /// `executeReservedLeg` is permissionless but never for the anonymous principal.
+    public func mayExecute(caller : Principal) : Bool { not Principal.isAnonymous(caller) };
+
+    /// Highest leg index the bridge will forward to Shenanigans (a defensive
+    /// bound on garbage indices; an obligation has a handful of legs).
+    public let MAX_LEG_INDEX : Nat = 63;
+
+    /// What the bridge last learned about one leg from Shenanigans.
+    public type LegRecord = {
+        event_key : Text;
+        index : Nat;
+        /// The last status Shenanigans RETURNED (`null`: never answered).
+        status : ?Events.LegStatus;
+        /// The last call failure (reject / trap), cleared by the next answer.
+        last_error : ?Text;
+        /// Calls the bridge has made to Shenanigans for this leg.
+        calls : Nat;
+        checked_at : Nat64;
+    };
+
+    /// Separate from `State` so adding it is an additive stable field (adding
+    /// a field to `State` or `Entry` would change already-stored records).
+    public type LegStore = { var legs : OrderedMap.Map<Text, LegRecord> };
+
+    public func emptyLegs() : LegStore { { var legs = txt().empty<LegRecord>() } };
+
+    func legKey(key : Text, index : Nat) : Text { key # "#" # Nat.toText(index) };
+
+    public func getLeg(l : LegStore, key : Text, index : Nat) : ?LegRecord { txt().get(l.legs, legKey(key, index)) };
+
+    /// Recorded legs of one event, ascending by index (at most MAX_LEG_INDEX + 1 lookups).
+    public func legsOf(l : LegStore, key : Text) : [LegRecord] {
+        let out = Buffer.Buffer<LegRecord>(8);
+        var i = 0;
+        while (i <= MAX_LEG_INDEX) {
+            switch (getLeg(l, key, i)) { case (?r) { out.add(r) }; case (null) {} };
+            i += 1;
+        };
+        Buffer.toArray(out);
+    };
+
+    func isCommitted(r : LegRecord) : Bool {
+        switch (r.status) { case (?#Committed(_)) { true }; case (_) { false } };
+    };
+
+    public type ExecGate = {
+        #Unknown;
+        #BadLegIndex;
+        /// Not Forwarded yet (Pending / Unverified / Verified-unacknowledged / Invalid /
+        /// Quarantined): Shenanigans holds no reservable observation for it.
+        #NotForwarded;
+        /// Forwarded but no SIWS binding yet (or Shenanigans answered Unbound): nothing is
+        /// Reserved, so there is no frozen leg to execute.
+        #NotBound;
+        /// The leg is already Committed: answer from the record, no call.
+        #Stored : LegRecord;
+        #Cooldown : Nat64;
+        /// Proceed to call Shenanigans. `next_attempt_at` was advanced.
+        #Go : Entry;
+    };
+
+    /// Gate for `executeReservedLeg`: the entry must be Forwarded AND Bound
+    /// (Shenanigans answered Reserved/AlreadyReserved). A Committed leg is
+    /// answered from the record without a call (idempotent, un-throttled);
+    /// every other known or unknown leg state calls Shenanigans again behind
+    /// the per-event attempt gate (Pending / SubmittedUnknown / Retryable /
+    /// Quarantined / never answered: Shenanigans' own idempotency decides).
+    public func beginExecute(s : State, l : LegStore, key : Text, index : Nat, now : Nat64, cooldown_ns : Nat64) : ExecGate {
+        let e = switch (get(s, key)) { case (null) { return #Unknown }; case (?x) { x } };
+        if (index > MAX_LEG_INDEX) { return #BadLegIndex };
+        switch (e.status) { case (#Forwarded(_)) {}; case (_) { return #NotForwarded } };
+        switch (e.binding) { case (#Bound(_)) {}; case (#Unbound) { return #NotBound } };
+        switch (getLeg(l, key, index)) {
+            case (?r) { if (isCommitted(r)) { return #Stored(r) } };
+            case (null) {};
+        };
+        if (now < e.next_attempt_at) { return #Cooldown(e.next_attempt_at) };
+        let upd = { e with next_attempt_at = now + cooldown_ns };
+        put(s, upd);
+        #Go(upd);
+    };
+
+    public type LegApplied = {
+        #Applied : LegRecord;
+        /// A Committed record is final: a later (stale) answer never overwrites it.
+        #Stale : LegRecord;
+        /// No such entry, or (for an error) nothing recorded to attach it to.
+        #Unknown;
+    };
+
+    /// Record the status Shenanigans returned for one leg.
+    public func applyLegStatus(s : State, l : LegStore, key : Text, index : Nat, st : Events.LegStatus, now : Nat64) : LegApplied {
+        switch (get(s, key)) { case (null) { return #Unknown }; case (?_) {} };
+        let prev = getLeg(l, key, index);
+        switch (prev) {
+            case (?r) { if (isCommitted(r)) { return #Stale(r) } };
+            case (null) {};
+        };
+        let calls : Nat = switch (prev) { case (?r) { r.calls }; case (null) { 0 } };
+        let rec : LegRecord = { event_key = key; index; status = ?st; last_error = null; calls = calls + 1; checked_at = now };
+        l.legs := txt().put(l.legs, legKey(key, index), rec);
+        #Applied(rec);
+    };
+
+    /// The call to Shenanigans failed (reject / trap). Attached only to a leg the bridge
+    /// already knows: a failed call for an index Shenanigans never confirmed creates no
+    /// record, so garbage indices cannot grow the store.
+    public func applyLegError(l : LegStore, key : Text, index : Nat, message : Text, now : Nat64) : LegApplied {
+        switch (getLeg(l, key, index)) {
+            case (null) { #Unknown };
+            case (?r) {
+                if (isCommitted(r)) { return #Stale(r) };
+                let upd = { r with last_error = ?message; calls = r.calls + 1; checked_at = now };
+                l.legs := txt().put(l.legs, legKey(key, index), upd);
+                #Applied(upd);
             };
         };
     };

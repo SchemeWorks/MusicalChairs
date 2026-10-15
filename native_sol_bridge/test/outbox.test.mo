@@ -9,6 +9,7 @@
 // captured finalized transaction (flows-007 open, flows-009 Series A,
 // closing-009 promotion, closing-012 open).
 
+import Array "mo:base/Array";
 import Debug "mo:base/Debug";
 import Nat64 "mo:base/Nat64";
 import Principal "mo:base/Principal";
@@ -59,6 +60,7 @@ func submitOk(s : Outbox.State, d : Events.Descriptor, now : Nat64) : Nat {
 func statusOf(s : Outbox.State, d : Events.Descriptor) : Outbox.Status {
   switch (Outbox.get(s, key(d))) { case (?e) { e.status }; case (null) { Debug.trap("no entry") } };
 };
+func isMember(es : [Outbox.Entry], seq : Nat) : Bool { Array.find<Outbox.Entry>(es, func(e) { e.seq == seq }) != null };
 func isApplied(a : Outbox.Applied) : Bool { switch (a) { case (#Applied(_)) true; case (_) false } };
 func isStale(a : Outbox.Applied) : Bool { switch (a) { case (#Stale(_)) true; case (_) false } };
 func verify(s : Outbox.State, d : Events.Descriptor, now : Nat64) : Bool { isApplied(Outbox.applyVerdict(s, key(d), realVerdict(d), now)) };
@@ -284,20 +286,70 @@ do {
 };
 
 // =====================================================================
-// verified event store for history (DR-25)
+// verifiedHistoryExcludesIntake (IMPL-49b / review R3): the PUBLIC history is the
+// verified-delivery checkpoint only; intake/audit statuses are a separate page.
 // =====================================================================
 do {
+  Debug.print("== verifiedHistoryExcludesIntake ==");
   let s = Outbox.empty();
-  for (d in [openD, seriesAD, promoD, open2D].vals()) { ignore submitOk(s, d, 1); ignore verify(s, d, 2) };
-  let newest = Outbox.recent(s, null, 2);
-  check(newest.size() == 2 and newest[0].seq == 4 and newest[1].seq == 3, "recent(): newest first, limited");
-  let older = Outbox.recent(s, ?3, 10);
-  check(older.size() == 2 and older[0].seq == 2 and older[1].seq == 1, "recent(before = 3): strictly older entries");
-  var carriesEvents = true;
-  for (e in Outbox.recent(s, null, 10).vals()) { if (e.verified == null) { carriesEvents := false } };
-  check(carriesEvents, "verified entries carry the decoded event and the forwarded descriptor");
-  check(Outbox.recent(s, null, 1_000).size() == 4 and Outbox.pending(s, 0, 1_000).size() == 4, "page sizes are capped at MAX_PAGE, not at the caller's limit");
-  check(Outbox.pending(s, 2, 10).size() == 2, "pending(after = 2) lists only seq > 2");
+  func variant(d : Events.Descriptor, inner : Nat) : Events.Descriptor { { d with event_id = { d.event_id with inner_instruction_index = inner } } };
+  let dPending = variant(openD, 9);   // seq 1: submitted, never verified
+  let dUnverified = variant(openD, 8); // seq 2: providers have no such tx
+  let dInvalid = variant(openD, 7);   // seq 3: provably false
+  ignore submitOk(s, dPending, 1);
+  ignore submitOk(s, dUnverified, 1);
+  ignore submitOk(s, dInvalid, 1);
+  ignore submitOk(s, openD, 1);    // seq 4: Verified, not yet acknowledged by Shenanigans
+  ignore submitOk(s, seriesAD, 1); // seq 5: Forwarded (Observed)
+  ignore submitOk(s, promoD, 1);   // seq 6: Forwarded (AlreadyObserved)
+  ignore submitOk(s, open2D, 1);   // seq 7: Quarantined (durable permanent Shenanigans rejection)
+  check(isApplied(Outbox.applyVerdict(s, key(dUnverified), #Unverifiable(#NotFound), 2)), "(setup) seq 2 Unverified(NotFound)");
+  check(isApplied(Outbox.applyVerdict(s, key(dInvalid), #Invalid(#BasisMismatch), 2)), "(setup) seq 3 Invalid(BasisMismatch)");
+  check(verify(s, openD, 2) and verify(s, seriesAD, 2) and verify(s, promoD, 2) and verify(s, open2D, 2), "(setup) four real events verify");
+  check(isApplied(Outbox.applyForward(s, key(seriesAD), #Observed("obl-5"), 3)), "(setup) seq 5 #Observed");
+  check(isApplied(Outbox.applyForward(s, key(promoD), #AlreadyObserved("obl-6"), 3)), "(setup) seq 6 #AlreadyObserved");
+  check(isApplied(Outbox.applyForward(s, key(open2D), #Rejected({ reason = "policy refuses this event"; permanent = true }), 3)), "(setup) seq 7 permanently rejected");
+  func seqs(es : [Outbox.Entry]) : [Nat] { Array.map<Outbox.Entry, Nat>(es, func(e) { e.seq }) };
+
+  let pub = Outbox.verifiedHistory(s, null, 100);
+  check(seqs(pub) == [7, 6, 5], "verified history = Quarantined(7), Forwarded/AlreadyObserved(6), Forwarded/Observed(5), newest first (got " # debug_show (seqs(pub)) # ")");
+  check(not isMember(pub, 1) and not isMember(pub, 2) and not isMember(pub, 3) and not isMember(pub, 4), "Pending, Unverified, Invalid and Verified-unacknowledged are EXCLUDED from the verified history");
+  switch (pub[0].status, pub[1].status, pub[2].status) {
+    case (#Quarantined({ reason = "policy refuses this event" }), #Forwarded({ already_observed = true }), #Forwarded({ already_observed = false })) {
+      check(true, "returned statuses are right: Quarantined carries its reason; Forwarded keeps already_observed true/false");
+    };
+    case (_) { check(false, "returned statuses") };
+  };
+  var allVerified = true;
+  for (e in pub.vals()) { if (e.verified == null) { allVerified := false } };
+  check(allVerified, "every verified-history entry carries the decoded event and the forwarded descriptor");
+
+  let intake = Outbox.intake(s, null, 100);
+  check(seqs(intake) == [4, 3, 2, 1], "intake page = Verified-unacknowledged(4), Invalid(3), Unverified(2), Pending(1) (got " # debug_show (seqs(intake)) # ")");
+  check(Array.size(pub) + Array.size(intake) == 7, "the two pages partition the store: 3 + 4 = 7 entries, no overlap");
+  switch (intake[1].status) { case (#Invalid(_)) { check(true, "the Invalid entry is visible to operators in the intake page") }; case (_) { check(false, "invalid in intake") } };
+
+  // paging by `before` is unchanged: strictly older entries, within each page
+  check(seqs(Outbox.verifiedHistory(s, ?7, 100)) == [6, 5], "verifiedHistory(before = 7) -> [6, 5]");
+  check(seqs(Outbox.verifiedHistory(s, ?6, 100)) == [5], "verifiedHistory(before = 6) -> [5]");
+  check(seqs(Outbox.verifiedHistory(s, ?5, 100)) == [], "verifiedHistory(before = 5) -> [] (older entries are all intake)");
+  check(seqs(Outbox.verifiedHistory(s, null, 2)) == [7, 6], "verifiedHistory(limit = 2) -> newest two");
+  check(seqs(Outbox.intake(s, ?4, 100)) == [3, 2, 1], "intake(before = 4) -> [3, 2, 1]");
+  check(seqs(Outbox.intake(s, null, 1)) == [4], "intake(limit = 1) -> [4]");
+  check(seqs(Outbox.pending(s, 0, 1_000)) == [1, 2, 4], "pending lists exactly the cursor-blocking entries (Pending 1, Unverified 2, Verified-unacknowledged 4); Invalid 3 is passable");
+  check(Outbox.pending(s, 4, 10).size() == 0, "pending(after = 4): nothing open beyond seq 4");
+  let big = Outbox.empty();
+  var k = 0;
+  while (k < 105) { ignore submitOk(big, variant(openD, 20 + k), 1); k += 1 };
+  check(Outbox.intake(big, null, 1_000).size() == Outbox.MAX_PAGE and Outbox.pending(big, 0, 1_000).size() == Outbox.MAX_PAGE and Outbox.verifiedHistory(big, null, 1_000).size() == 0,
+    "page sizes are capped at MAX_PAGE (100) whatever the caller's limit; 105 pending entries give a 100-entry intake page and an empty verified page");
+
+  // Invalid is an intake terminal, not delivery: it is passable (cursor) yet never "verified history".
+  check(Outbox.passable(statusOf(s, dInvalid)) and not Outbox.inVerifiedHistory(statusOf(s, dInvalid)), "Invalid is passable for the cursor but NOT verified delivery");
+  check(not Outbox.passable(statusOf(s, openD)) and not Outbox.inVerifiedHistory(statusOf(s, openD)), "Verified-unacknowledged blocks the cursor and is not verified delivery");
+  // a corrected descriptor for the Invalid id stays admissible and appears in intake until it is delivered
+  check(submitOk(s, dInvalid, 4) == 8, "a corrected descriptor for the Invalid event id is admitted as a new entry (seq 8)");
+  check(seqs(Outbox.intake(s, null, 100)) == [8, 4, 3, 2, 1] and seqs(Outbox.verifiedHistory(s, null, 100)) == [7, 6, 5], "...it joins the intake page, the public history is unchanged");
 };
 
 if (failures > 0) { Debug.trap("outbox.test.mo: " # debug_show (failures) # " check(s) FAILED") };

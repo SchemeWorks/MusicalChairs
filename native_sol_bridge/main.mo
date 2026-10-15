@@ -62,6 +62,9 @@ persistent actor NativeSolBridge {
     type ShenanigansActor = actor {
         observeNativeEvent : shared Events.Descriptor -> async Events.ObserveResult;
         bindAndReserve : shared Events.EventId -> async Events.BindResult;
+        /// Bridge-or-admin on Shenanigans. The bridge passes only (event id, leg index);
+        /// recipient, amount, memo and created_at_time are the legs Shenanigans froze at bind.
+        executeNativeRewardLeg : shared (Events.EventId, Nat) -> async Events.LegStatus;
     };
 
     public type Summary = {
@@ -80,6 +83,9 @@ persistent actor NativeSolBridge {
     var config : ?Config = null;
     var relayers : [Principal] = [];
     let outbox : Outbox.State = Outbox.empty();
+    /// Per-leg statuses Shenanigans returned to executeReservedLeg. A separate additive
+    /// stable field: `Outbox.Entry` and `Outbox.State` keep their stored shape.
+    let legs : Outbox.LegStore = Outbox.emptyLegs();
 
     // ------------------------------------------------------------------
     // Constants
@@ -96,6 +102,10 @@ persistent actor NativeSolBridge {
     /// Minimum gap between verify/forward attempts on one event (ns).
     transient let ATTEMPT_COOLDOWN_NS : Nat64 = 30_000_000_000;
     transient let BIND_COOLDOWN_NS : Nat64 = 10_000_000_000;
+    /// Per-event gap between calls that reach Shenanigans to execute a leg (shares the
+    /// Entry.next_attempt_at gate with verify and bind; a successful forward or bind clears it,
+    /// and a Committed leg is answered from the record with no call and no cooldown).
+    transient let EXECUTE_COOLDOWN_NS : Nat64 = 10_000_000_000;
 
     func nowNs() : Nat64 { Nat64.fromNat(Int.abs(Time.now())) };
 
@@ -334,6 +344,87 @@ persistent actor NativeSolBridge {
     };
 
     // ------------------------------------------------------------------
+    // Bridge-driven execution of one frozen reserved leg (permissionless)
+    // ------------------------------------------------------------------
+
+    public type ExecuteResponse = {
+        #ok : {
+            leg : Outbox.LegRecord;
+            /// The status Shenanigans returned (or the stored Committed status).
+            status : Events.LegStatus;
+            /// true: a Committed leg answered from the record, no call was made.
+            from_record : Bool;
+        };
+        #err : {
+            #NotConfigured;
+            #Anonymous;
+            #UnknownEvent;
+            #BadLegIndex;
+            /// The outbox entry is not Forwarded (Shenanigans does not hold it as Observed).
+            #NotForwarded;
+            /// Forwarded but not bound to a principal yet: nothing is Reserved to execute.
+            #NotBound;
+            #Cooldown : Nat64;
+            /// Shenanigans rejected or trapped the call (for example an index it has no leg for).
+            #CallFailed : Text;
+        };
+    };
+
+    /// Execute ONE frozen leg of a Reserved obligation. Anyone may call it (the anonymous
+    /// principal is refused); the caller supplies no recipient, amount or bytes: the bridge
+    /// calls `shenanigans.executeNativeRewardLeg(event_id, leg_index)` as itself (it is on
+    /// Shenanigans' execute allowlist) and Shenanigans re-presents the fields it froze at bind.
+    /// Requires the outbox entry to be Forwarded AND bound. Idempotent: a Committed leg returns
+    /// the stored status with no call; Pending / SubmittedUnknown / Retryable / Quarantined legs
+    /// call again and Shenanigans' own idempotency (write-ahead SubmittedUnknown, identical
+    /// retry, ledger Duplicate, dedup-window quarantine) decides. Per-event cooldown applies.
+    /// The admin path on Shenanigans stays available as a fallback; the observation allowlist is
+    /// never touched here.
+    public shared ({ caller }) func executeReservedLeg(eventId : Events.EventId, legIndex : Nat) : async ExecuteResponse {
+        if (not Outbox.mayExecute(caller)) { return #err(#Anonymous) };
+        let cfg = switch (config) { case (null) { return #err(#NotConfigured) }; case (?c) { c } };
+        let key = Events.eventKey(eventId);
+        switch (Outbox.beginExecute(outbox, legs, key, legIndex, nowNs(), EXECUTE_COOLDOWN_NS)) {
+            case (#Unknown) { #err(#UnknownEvent) };
+            case (#BadLegIndex) { #err(#BadLegIndex) };
+            case (#NotForwarded) { #err(#NotForwarded) };
+            case (#NotBound) { #err(#NotBound) };
+            case (#Cooldown(t)) { #err(#Cooldown(t)) };
+            case (#Stored(r)) {
+                switch (r.status) {
+                    case (?st) { #ok({ leg = r; status = st; from_record = true }) };
+                    case (null) { #err(#CallFailed("unreachable: stored leg without status")) };
+                };
+            };
+            case (#Go(_)) {
+                let sh : ShenanigansActor = actor (Principal.toText(cfg.shenanigans));
+                let res : { #ok : Events.LegStatus; #err : Text } = try {
+                    #ok(await sh.executeNativeRewardLeg(eventId, legIndex));
+                } catch (e) { #err(Error.message(e)) };
+                switch (res) {
+                    case (#err(m)) {
+                        ignore Outbox.applyLegError(legs, key, legIndex, m, nowNs());
+                        #err(#CallFailed(m));
+                    };
+                    case (#ok(st)) {
+                        switch (Outbox.applyLegStatus(outbox, legs, key, legIndex, st, nowNs())) {
+                            case (#Applied(r)) { #ok({ leg = r; status = st; from_record = false }) };
+                            // A Committed record is final: report it, not the stale answer.
+                            case (#Stale(r)) {
+                                switch (r.status) {
+                                    case (?kept) { #ok({ leg = r; status = kept; from_record = true }) };
+                                    case (null) { #ok({ leg = r; status = st; from_record = false }) };
+                                };
+                            };
+                            case (#Unknown) { #err(#UnknownEvent) };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    // ------------------------------------------------------------------
     // Reads (relayer cursor, history and feeds - DR-25)
     // ------------------------------------------------------------------
 
@@ -357,8 +448,28 @@ persistent actor NativeSolBridge {
         Outbox.unboundFor(outbox, pubkey);
     };
 
-    /// Newest-first page of the verified-event store (`before`: seq bound).
+    /// PUBLIC verified history (DR-25, spec section 9): newest-first page of entries at the
+    /// verified-delivery checkpoint only: `Forwarded` (Shenanigans answered Observed or
+    /// AlreadyObserved) and `Quarantined` (a durable PERMANENT Shenanigans rejection, returned
+    /// with its status). `before`: only entries with seq < before. Pending, Unverified,
+    /// Verified-but-unacknowledged and Invalid entries are NOT here; see `getIntakeEvents`.
     public query func getRecentEvents(before : ?Nat, limit : Nat) : async [Outbox.Entry] {
-        Outbox.recent(outbox, before, limit);
+        Outbox.verifiedHistory(outbox, before, limit);
+    };
+
+    /// Operator/audit intake view, newest-first, the complement of `getRecentEvents`:
+    /// Pending, Unverified (including gaps), Verified-but-unacknowledged and Invalid.
+    /// `Invalid` is an intake/audit terminal state: the descriptor was proven false from an
+    /// agreed finalized observation, the cursor may pass it, and a corrected descriptor for the
+    /// same event id is admitted as a new entry. It is NOT verified delivery and never appears
+    /// in the public history.
+    public query func getIntakeEvents(before : ?Nat, limit : Nat) : async [Outbox.Entry] {
+        Outbox.intake(outbox, before, limit);
+    };
+
+    /// What the bridge has recorded from Shenanigans about this event's reward legs
+    /// (ascending leg index): the last status returned, the last call error, call count.
+    public query func getLegStatuses(eventId : Events.EventId) : async [Outbox.LegRecord] {
+        Outbox.legsOf(legs, Events.eventKey(eventId));
     };
 };

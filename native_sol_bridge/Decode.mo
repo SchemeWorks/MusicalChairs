@@ -167,6 +167,32 @@ module {
         ?Buffer.toArray(out);
     };
 
+    private let B64_ALPHABET : [Char] = [
+        'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+        'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z',
+        '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/',
+    ];
+
+    /// Standard alphabet with '=' padding (RFC 4648). Used by the replica SOL RPC stub to
+    /// re-encode a re-signed copy of a captured transaction; round-trips `base64Decode`.
+    public func base64Encode(bytes : [Nat8]) : Text {
+        let out = Buffer.Buffer<Char>(bytes.size() * 4 / 3 + 4);
+        let n = bytes.size();
+        var i = 0;
+        while (i < n) {
+            let b0 = Nat8.toNat(bytes[i]);
+            let b1 = if (i + 1 < n) { Nat8.toNat(bytes[i + 1]) } else { 0 };
+            let b2 = if (i + 2 < n) { Nat8.toNat(bytes[i + 2]) } else { 0 };
+            let v = b0 * 65536 + b1 * 256 + b2;
+            out.add(B64_ALPHABET[(v / 262144) % 64]);
+            out.add(B64_ALPHABET[(v / 4096) % 64]);
+            out.add(if (i + 1 < n) { B64_ALPHABET[(v / 64) % 64] } else { '=' });
+            out.add(if (i + 2 < n) { B64_ALPHABET[v % 64] } else { '=' });
+            i += 3;
+        };
+        Text.fromIter(out.vals());
+    };
+
     // ==================================================================
     // Byte reader (little-endian, Borsh / wire primitives)
     // ==================================================================

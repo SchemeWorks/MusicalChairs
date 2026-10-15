@@ -75,6 +75,19 @@ module {
         #Rejected : Text;
     };
 
+    /// Per-leg status as Shenanigans reports it. Mirrors
+    /// `NativeRewards.LegStatus` EXACTLY (shenanigans/NativeRewards.mo): the
+    /// reply of `executeNativeRewardLeg` is decoded against this type, and a
+    /// narrower variant here would trap the decode after the leg was already
+    /// submitted to the ledger.
+    public type LegStatus = {
+        #Pending;
+        #SubmittedUnknown;
+        #Committed : { block : Nat };
+        #Retryable : { reason : Text; attempts : Nat };
+        #Quarantined : { reason : Text; recoverable : Bool };
+    };
+
     // ------------------------------------------------------------------
     // Typed events (schema_version = 1)
     // ------------------------------------------------------------------

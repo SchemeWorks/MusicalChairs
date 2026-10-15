@@ -12,6 +12,7 @@ import Blob "mo:base/Blob";
 import Debug "mo:base/Debug";
 import Nat8 "mo:base/Nat8";
 import Result "mo:base/Result";
+import Text "mo:base/Text";
 
 import Decode "../Decode";
 import Events "../Events";
@@ -62,6 +63,51 @@ do {
   check(Decode.base64Decode("+/8=") == ?[251, 255], "base64: + and / map to 62 and 63");
   check(Decode.base64Decode("T*Fu") == null, "base64: invalid character rejected");
   check(Decode.base64Decode("TQ=Q") == null, "base64: data after padding rejected");
+};
+
+// ------------------------------------------------------- base64 encode
+do {
+  func enc(t : Text) : Text { Decode.base64Encode(Blob.toArray(Text.encodeUtf8(t))) };
+  check(enc("") == "" and enc("f") == "Zg==" and enc("fo") == "Zm8=" and enc("foo") == "Zm9v" and enc("foob") == "Zm9vYg==" and enc("fooba") == "Zm9vYmE=" and enc("foobar") == "Zm9vYmFy", "base64Encode: the RFC 4648 section 10 test vectors");
+  check(Decode.base64Encode([251, 255]) == "+/8=", "base64Encode: 62 and 63 map to + and /");
+  var all = true;
+  for (f in Fx.all.vals()) {
+    switch (f.rpc.transaction.transaction) {
+      case (#binary((s, #base64))) {
+        switch (Decode.base64Decode(s)) {
+          case (?bytes) { if (Decode.base64Encode(bytes) != s) { all := false } };
+          case (null) { all := false };
+        };
+      };
+      case (_) { all := false };
+    };
+  };
+  check(all, "base64Encode(base64Decode(s)) == s for all 29 captured wire transactions");
+};
+
+// ----------------- the re-signing transform the replica stub applies (cloneFixture)
+do {
+  let f = Fx.get("flows-009");
+  switch (f.rpc.transaction.transaction) {
+    case (#binary((w, #base64))) {
+      switch (Decode.base64Decode(w)) {
+        case (?bytes) {
+          let nb = Array.tabulate<Nat8>(bytes.size(), func(i) { if (i >= 1 and i < 65) { 0x66 } else { bytes[i] } });
+          let newSig = Decode.base58Encode(Blob.fromArray(Array.subArray<Nat8>(nb, 1, 64)));
+          let copy = { f.rpc with transaction = { f.rpc.transaction with transaction = #binary((Decode.base64Encode(nb), #base64)) } };
+          switch (Decode.fromRpc(f.rpc), Decode.fromRpc(copy)) {
+            case (#ok(a), #ok(b)) {
+              check(b.signature == newSig and b.signature != a.signature, "re-signed copy: the wire transaction decodes with the new first signature");
+              check({ b with signature = a.signature } == a, "re-signed copy: everything else (keys, instructions, inner instructions, version, status) is identical to the captured transaction");
+            };
+            case (_, _) { check(false, "re-signed copy decodes") };
+          };
+        };
+        case (null) { check(false, "base64 decode") };
+      };
+    };
+    case (_) { check(false, "binary base64 fixture") };
+  };
 };
 
 // ------------------------------------------- wire path == JSON path (real)

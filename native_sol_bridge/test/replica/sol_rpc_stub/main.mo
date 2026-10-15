@@ -1,10 +1,12 @@
 import Array "mo:base/Array";
+import Blob "mo:base/Blob";
 import Cycles "mo:base/ExperimentalCycles";
 import Nat "mo:base/Nat";
 import OrderedMap "mo:base/OrderedMap";
 import Principal "mo:base/Principal";
 import Text "mo:base/Text";
 
+import Decode "../../../Decode";
 import Rpc "../../../Rpc";
 import Fx "../../fixtures.test";
 
@@ -79,6 +81,25 @@ persistent actor SolRpcStub {
             case (?t) { fixtures := tm().put(fixtures, signature, t) };
             case (null) { fixtures := tm().delete(fixtures, signature) };
         };
+    };
+
+    /// Test helper (IMPL-49b): store a SYNTHETIC COPY of a captured fixture under a fresh
+    /// signature (the 64 signature bytes of the wire transaction are replaced by `tag`), so the
+    /// replica run can have more distinct events than the captured transactions provide. The
+    /// copy is NOT a captured transaction and its signature is not a valid ed25519 signature;
+    /// the bridge does not verify signatures (it trusts two providers) and only checks that the
+    /// returned transaction carries the signature it asked for. Returns the new signature.
+    public shared ({ caller }) func cloneFixture(fromSignature : Text, tag : Nat8) : async ?Text {
+        requireController(caller);
+        let t = switch (tm().get(fixtures, fromSignature)) { case (?x) { x }; case (null) { return null } };
+        let wire : Text = switch (t.transaction.transaction) { case (#binary((w, #base64))) { w }; case (_) { return null } };
+        let bytes = switch (Decode.base64Decode(wire)) { case (?b) { b }; case (null) { return null } };
+        if (bytes.size() < 65 or bytes[0] != 1) { return null };
+        let nb = Array.tabulate<Nat8>(bytes.size(), func(i) { if (i >= 1 and i < 65) { tag } else { bytes[i] } });
+        let newSig = Decode.base58Encode(Blob.fromArray(Array.subArray<Nat8>(nb, 1, 64)));
+        let t2 : Rpc.EncodedConfirmedTransactionWithStatusMeta = { t with transaction = { t.transaction with transaction = #binary((Decode.base64Encode(nb), #base64)) } };
+        fixtures := tm().put(fixtures, newSig, t2);
+        ?newSig;
     };
 
     public shared ({ caller }) func setMode(m : Mode) : async () {

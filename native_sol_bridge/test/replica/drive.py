@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""IMPL-47d scenario driver (called by run.sh; stdlib only; local replica only).
+"""IMPL-47d / IMPL-49b scenario driver (called by run.sh; stdlib only; local replica only).
+
+v2 (IMPL-49b, review R2/R3): initial reward execution goes through the bridge's permissionless
+`executeReservedLeg`, called by a THROWAWAY NON-ADMIN dfx identity (mc-nonadmin: not a controller,
+not an admin, not a relayer, not on any allowlist); the admin path on Shenanigans is kept as ONE
+fallback check (E2). History checks split the public verified page (`getRecentEvents`) from the
+operator intake page (`getIntakeEvents`). Receipt: receipt-2026-10-14-v2.json (v1 is kept).
 
 Runs the bridge -> Shenanigans -> PP ledger path end to end against the canisters run.sh just
 (re)installed, asserts as it goes, and writes receipt-2026-10-14.json. Every `dfx` call here is
@@ -12,7 +18,8 @@ ROOT, HERE = E["MC_REPLICA_ROOT"], E["MC_REPLICA_HERE"]
 BRIDGE, ME = E["MC_BRIDGE"], E["MC_ME"]
 LEDGER, SIWS, SHEN, STUB = E["MC_LEDGER"], E["MC_SIWS"], E["MC_SHEN"], E["MC_STUB"]
 BOUND_PUBKEY, BOUND_PRINCIPAL = E["MC_BOUND_PUBKEY"], E["MC_BOUND_PRINCIPAL"]
-RECEIPT_PATH = os.path.join(HERE, "receipt-2026-10-14.json")
+RECEIPT_PATH = os.path.join(HERE, "receipt-2026-10-14-v2.json")
+NONADMIN, NONADMIN_PRINCIPAL = E["MC_NONADMIN_IDENTITY"], E["MC_NONADMIN_PRINCIPAL"]
 FIXDIR = os.path.join(ROOT, "solana", "fixtures")
 PROGRAM = "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7"
 AUTHORITY = "BuzaujH9dKaTPZGcLmRe3SA1DNvHJGN9GAGrGVAzwZd6"
@@ -80,12 +87,20 @@ def shorten(s, k=600):
     return s if len(s) <= k else s[:k] + "...(%d chars)" % len(s)
 
 
+def caller_label(identity):
+    if identity is None:
+        return "operator(dfx identity; controller+admin+relayer)"
+    if identity == NONADMIN:
+        return "%s(throwaway non-admin: not controller, not admin, not relayer)" % NONADMIN
+    return identity
+
+
 def call(step, cid, method, arg="()", identity=None, record=True):
     rep = dfx_call(cid, method, arg, identity)
     if record:
         STEPS.append({
             "n": len(STEPS) + 1, "t": now_iso(), "step": step, "canister": NAMES.get(cid, cid), "canister_id": cid,
-            "method": method, "caller": identity or "operator(dfx identity)", "arg": shorten(arg),
+            "method": method, "caller": caller_label(identity), "arg": shorten(arg),
             "ok": rep.ok, "reply": rep.val if rep.ok else None, "error": shorten(rep.err, 1500) if not rep.ok else None,
         })
     return rep
@@ -256,12 +271,12 @@ def bridge_summary(rep):
     return ("OK", st, pl, tag(p["binding"]), n(p["cursor"]), n(p["seq"]))
 
 
-def retry_cooldown(step, cid, method, arg, max_wait=150):
+def retry_cooldown(step, cid, method, arg, max_wait=150, identity=None):
     """Call a bridge method; on `err.Cooldown` record that first reply, wait, retry. Records the final reply too.
     Returns (final Reply, first Cooldown Reply or None)."""
     t0, first = time.time(), None
     while True:
-        rep = call(step, cid, method, arg, record=False)
+        rep = call(step, cid, method, arg, identity=identity, record=False)
         if rep.ok:
             t, p = V(rep.val)
             if t == "err" and isinstance(p, dict) and "Cooldown" in p:
@@ -269,13 +284,13 @@ def retry_cooldown(step, cid, method, arg, max_wait=150):
                     first = rep
                     log("%s: Cooldown reply (as designed), waiting it out" % step)
                     STEPS.append({"n": len(STEPS) + 1, "t": now_iso(), "step": step + " [first attempt: Cooldown]", "canister": NAMES.get(cid, cid), "canister_id": cid,
-                                  "method": method, "caller": "operator(dfx identity)", "arg": shorten(arg), "ok": True, "reply": rep.val, "error": None})
+                                  "method": method, "caller": caller_label(identity), "arg": shorten(arg), "ok": True, "reply": rep.val, "error": None})
                 if time.time() - t0 > max_wait:
                     return rep, first
                 time.sleep(5)
                 continue
         STEPS.append({"n": len(STEPS) + 1, "t": now_iso(), "step": step, "canister": NAMES.get(cid, cid), "canister_id": cid, "method": method,
-                      "caller": "operator(dfx identity)", "arg": shorten(arg), "ok": rep.ok, "reply": rep.val if rep.ok else None, "error": shorten(rep.err, 1500) if not rep.ok else None})
+                      "caller": caller_label(identity), "arg": shorten(arg), "ok": rep.ok, "reply": rep.val if rep.ok else None, "error": shorten(rep.err, 1500) if not rep.ok else None})
         return rep, first
 
 
@@ -289,6 +304,43 @@ def exp_legs(basis, rate, gift_pp=None, bps=1000):
         out += [("signupGift", gb - gc, "player"), ("residual", gc, "house")]
     out += [("player", base - cas, "player"), ("residual", cas, "house")]
     return out
+
+
+def exec_leg(ev, idx, step, identity="__nonadmin__", wait=True):
+    """Bridge-driven execution of ONE frozen leg, by default as the throwaway non-admin identity."""
+    ident = NONADMIN if identity == "__nonadmin__" else identity
+    arg = "(%s, %d : nat)" % (eid_arg(ev), idx)
+    if wait:
+        rep, _ = retry_cooldown(step, BRIDGE, "executeReservedLeg", arg, identity=ident)
+        return rep
+    return call(step, BRIDGE, "executeReservedLeg", arg, identity=ident)
+
+
+def exec_summary(rep):
+    """executeReservedLeg reply -> ("ok", status tag, status payload, from_record, LegRecord) | ("err", tag, payload) | ("trap", text)"""
+    if not rep.ok:
+        return ("trap", rep.err)
+    t, p = V(rep.val)
+    if t == "err":
+        et, ep = V(p)
+        return ("err", et, ep)
+    st, pl = V(p["status"])
+    return ("ok", st, pl, p["from_record"], p["leg"])
+
+
+def leg_records(ev):
+    return call("bridge getLegStatuses", BRIDGE, "getLegStatuses", "(%s)" % eid_arg(ev), record=False).val
+
+
+def history_pages(label, want_verified, want_intake, desc):
+    v = call("bridge getRecentEvents (public verified history)", BRIDGE, "getRecentEvents", "(null, 100 : nat)").val
+    i = call("bridge getIntakeEvents (operator/audit intake)", BRIDGE, "getIntakeEvents", "(null, 100 : nat)").val
+    vs, is_ = [n(e["seq"]) for e in v], [n(e["seq"]) for e in i]
+    vst, ist = {n(e["seq"]): tag(e["status"]) for e in v}, {n(e["seq"]): tag(e["status"]) for e in i}
+    chk(label + "-verified", "public history %s: %s" % (desc, want_verified), vs == want_verified and all(x in ("Forwarded", "Quarantined") for x in vst.values()), {"seqs": vs, "statuses": vst})
+    chk(label + "-intake", "operator intake page %s: %s" % (desc, want_intake), is_ == want_intake and all(x not in ("Forwarded", "Quarantined") for x in ist.values()), {"seqs": is_, "statuses": ist})
+    chk(label + "-partition", "the two pages are disjoint (an Invalid or unacknowledged entry is never listed as verified delivery)", not (set(vs) & set(is_)))
+    return vst, ist
 
 
 def group_by_recipient(legs):
@@ -332,7 +384,8 @@ def mint_matches(leg, block):
 
 # ================================================================ scenario
 def main():
-    receipt = {"receipt": "IMPL-47d bridge -> Shenanigans -> PP ledger on the local replica", "date": "2026-10-14",
+    receipt = {"receipt": "IMPL-49b v2: bridge-driven frozen-leg execution by a non-admin, verified vs intake history; bridge -> Shenanigans -> PP ledger on the local replica", "date": "2026-10-14",
+               "supersedes": "receipt-2026-10-14.json (IMPL-47d v1: every initial leg was executed by the admin identity)",
                "started": now_iso(), "network": "local dfx replica 127.0.0.1:4943 (pocket-ic); nothing public"}
 
     # ---- 0. environment -------------------------------------------------------------------
@@ -359,6 +412,16 @@ def main():
     call("stub setMode Agree", STUB, "setMode", "(variant { Agree })")
     call("stub clearCallLog", STUB, "clearCallLog")
 
+    # the throwaway identity must be UNPRIVILEGED everywhere or the R2 proof means nothing
+    privileged = []
+    for nm, cid in (("native_sol_bridge", BRIDGE), ("shenanigans", SHEN), ("pp_ledger", LEDGER)):
+        okc, info = dfx_admin("canister info " + nm, "canister", "info", cid, record=False)
+        if NONADMIN_PRINCIPAL in info:
+            privileged.append(nm)
+    rl = call("bridge getRelayers", BRIDGE, "getRelayers").val
+    chk("ENV-8", "mc-nonadmin (%s) is not a controller of the bridge, Shenanigans or the ledger, not a relayer, not on the Shenanigans bridge allowlist, and is not the operator identity" % NONADMIN_PRINCIPAL,
+        not privileged and NONADMIN_PRINCIPAL not in rl and NONADMIN_PRINCIPAL not in al.val and NONADMIN_PRINCIPAL != ME, {"controller_of": privileged, "relayers": rl, "allowlist": al.val})
+    receipt["nonadmin_identity"] = {"name": NONADMIN, "principal": NONADMIN_PRINCIPAL, "role": "throwaway local dfx identity used for every initial leg execution and for verifyAndForward/releasePending in v2"}
     L0, S0 = ledger_len(), supply()
     receipt["ledger_baseline"] = {"log_length": L0, "total_supply": S0}
 
@@ -390,8 +453,8 @@ def main():
 
     # ---- 2. verify + forward (mode Agree) ---------------------------------------------------
     log("2. verifyAndForward with two agreeing providers")
-    def vaf(ev, step, record=True):
-        return call(step, BRIDGE, "verifyAndForward", "(%s)" % eid_arg(ev), record=record)
+    def vaf(ev, step, record=True, identity=None):
+        return call(step, BRIDGE, "verifyAndForward", "(%s)" % eid_arg(ev), identity=identity, record=record)
     keyE = {}
     for name, ev in (("E1", E1), ("E2", E2)):
         rep = vaf(ev, "verifyAndForward %s (%s)" % (name, ev["fixture"]))
@@ -442,6 +505,31 @@ def main():
         o = obl(ev)
         chk("POL-pin-" + nm, "%s obligation pinned policy v%d at observation" % (nm, want), o and o["policy_version"] == want and o["status"] == "Observed", o and (o["policy_version"], o["status"]))
 
+    # ---- 2b. live negative controls for executeReservedLeg and the verified/intake history pages ----
+    log("2b. executeReservedLeg refusals (valid canister, wrong state) and history pages")
+    def refused(ev, idx, want, step, identity="__nonadmin__"):
+        es = exec_summary(exec_leg(ev, idx, step, identity=identity, wait=False))
+        return es[0] == "err" and es[1] == want, es
+    ok_, es = refused(E3, 0, "NotBound", "executeReservedLeg E3 leg 0 [E3 is Forwarded but UNBOUND]")
+    chk("NEG-1", "negative control (live): E3 is Forwarded but has no SIWS binding -> err NotBound; nothing reached Shenanigans", ok_, es)
+    ok_, es = refused(E1, 0, "NotBound", "executeReservedLeg E1 leg 0 [E1 is Forwarded, not yet bound]")
+    chk("NEG-2", "negative control (live): E1 is Forwarded but not yet bound -> err NotBound", ok_, es)
+    ok_, es = refused(E4, 0, "NotForwarded", "executeReservedLeg E4 leg 0 [E4 is Unverified]")
+    chk("NEG-3", "negative control (live): E4 is Unverified (not forwarded) -> err NotForwarded", ok_, es)
+    sig_x = dict(E1); sig_x["sig"] = "1" * 64
+    ok_, es = refused(sig_x, 0, "UnknownEvent", "executeReservedLeg for an event the bridge never saw")
+    chk("NEG-4", "unknown event -> err UnknownEvent", ok_, es)
+    ok_, es = refused(E1, 64, "BadLegIndex", "executeReservedLeg E1 leg 64")
+    chk("NEG-5", "leg index 64 (> MAX_LEG_INDEX 63) -> err BadLegIndex", ok_, es)
+    ok_, es = refused(E1, 0, "Anonymous", "executeReservedLeg as anonymous", identity="anonymous")
+    chk("NEG-6", "the anonymous principal is refused -> err Anonymous", ok_, es)
+    chk("NEG-7", "none of the refusals recorded a leg or touched Shenanigans (no leg records for E1/E3/E4; E1 and E3 still Observed with no legs)",
+        all(leg_records(e) == [] for e in (E1, E3, E4)) and obl(E1)["status"] == "Observed" and obl(E1)["legs"] == [] and obl(E3)["legs"] == [])
+    history_pages("PAGES-1", [5, 2, 1], [4, 3], "after round 1 (E1, E2, E3 Forwarded; E4 Unverified; the forged E3 entry Invalid)")
+    chk("PAGES-1-paging", "paging by `before` is unchanged: getRecentEvents(before = 5) -> [2, 1]; getIntakeEvents(before = 4) -> [3]",
+        [n(e["seq"]) for e in call("bridge getRecentEvents(before 5)", BRIDGE, "getRecentEvents", "(opt (5 : nat), 100 : nat)", record=False).val] == [2, 1]
+        and [n(e["seq"]) for e in call("bridge getIntakeEvents(before 4)", BRIDGE, "getIntakeEvents", "(opt (4 : nat), 100 : nat)", record=False).val] == [3])
+
     # ---- 3. bridge upgrade preserves state --------------------------------------------------
     log("3. bridge upgrade")
     def bridge_state():
@@ -476,6 +564,9 @@ def main():
     chk("BIND-E1-idem-shen", "direct second bindAndReserve -> AlreadyReserved", rep.val == {"AlreadyReserved": None}, rep.val)
     snapE1 = canon(o1["raw"])
     bal1 = snapshot_balances("E1", o1["legs"])
+    es = exec_summary(exec_leg(E1, 9, "executeReservedLeg E1 leg 9 (Shenanigans has only 4 legs)", wait=True))
+    chk("NEG-8", "an index Shenanigans has no leg for: err CallFailed carrying Shenanigans' trap text ('unknown native reward leg'); the bridge records NO leg for it (garbage indices cannot grow the store)",
+        es[0] == "err" and es[1] == "CallFailed" and "unknown native reward leg" in es[2] and leg_records(E1) == [], es)
 
     # ---- 5. upgrade #1 between bind and execute ---------------------------------------------
     def shen_state():
@@ -497,53 +588,72 @@ def main():
         return ok and before == after
     chk("UPG-1", "upgrade between bind and execute: Reserved legs, Observed obligations, policy table and allowlist identical", upgrade_shen("shenanigans: E1 Reserved/Pending, E2 + E3 Observed"))
 
-    # ---- 6. B3: ledger down => SubmittedUnknown, upgrade, then identical retry --------------
-    log("6. E1 leg 0 with pp_ledger stopped (SubmittedUnknown boundary)")
+    # ---- 6. B3: ledger down => SubmittedUnknown, upgrade, then identical retry (all bridge-driven) --
+    log("6. E1 leg 0 executed through the bridge by the NON-ADMIN identity with pp_ledger stopped (SubmittedUnknown boundary)")
     leg0 = o1["legs"][0]
     ok, out = dfx_admin("stop pp_ledger (a few seconds)", "canister", "stop", LEDGER)
-    rep = call("executeNativeRewardLeg E1 leg 0 [ledger stopped]", SHEN, "executeNativeRewardLeg", "(%s, 0 : nat)" % eid_arg(E1))
-    # upgrade while the leg is SubmittedUnknown
+    rep = exec_leg(E1, 0, "executeReservedLeg E1 leg 0 [ledger stopped] (non-admin)")
+    es = exec_summary(rep)
     oU = obl(E1)
-    chk("SU-1", "leg 0 reply is SubmittedUnknown (the outcome of a call to a stopped ledger is unknown)", rep.ok and rep.val == {"SubmittedUnknown": None}, rep.val if rep.ok else rep.err)
+    chk("SU-1", "bridge-driven leg 0 with the ledger down: ok, status SubmittedUnknown (the outcome of a call to a stopped ledger is unknown), from_record = false",
+        es[0] == "ok" and es[1] == "SubmittedUnknown" and es[3] is False, rep.val if rep.ok else rep.err)
+    lr = leg_records(E1)
+    chk("SU-1b", "the bridge recorded the answer: getLegStatuses(E1) = [leg 0: SubmittedUnknown, calls 1, no error]",
+        len(lr) == 1 and n(lr[0]["index"]) == 0 and opt(lr[0]["status"]) == {"SubmittedUnknown": None} and n(lr[0]["calls"]) == 1 and lr[0]["last_error"] == [], lr)
     chk("SU-2", "SubmittedUnknown persisted before the await: attempts = 1, frozen memo/created_at_time unchanged", oU["legs"][0]["status"] == "SubmittedUnknown" and oU["legs"][0]["attempts"] == 1 and oU["legs"][0]["memo"] == leg0["memo"] and oU["legs"][0]["created_at_time"] == leg0["created_at_time"], oU["legs"][0]["status_payload"])
     chk("UPG-1b", "upgrade while a leg is SubmittedUnknown: state identical", upgrade_shen("shenanigans: E1 leg 0 SubmittedUnknown (ledger stopped)"))
     ok, out = dfx_admin("start pp_ledger", "canister", "start", LEDGER)
     time.sleep(2)
     chk("SU-3", "no mint happened while the ledger was down", ledger_len() == L0 and bal(leg0["owner"], leg0["sub"]) == bal1[(leg0["owner"], json.dumps(leg0["sub"]))])
-    rep = call("retryNativeRewardLeg E1 leg 0 (identical frozen fields)", SHEN, "retryNativeRewardLeg", "(%s, 0 : nat)" % eid_arg(E1))
+    rep = exec_leg(E1, 0, "executeReservedLeg E1 leg 0 again (non-admin): Shenanigans re-presents the identical frozen fields")
+    es = exec_summary(rep)
     oR = obl(E1)
-    chk("SU-4", "retry re-presents the identical fields and commits (attempts = 2)", rep.ok and tag(rep.val) == "Committed" and oR["legs"][0]["attempts"] == 2 and oR["legs"][0]["memo"] == leg0["memo"] and oR["legs"][0]["created_at_time"] == leg0["created_at_time"], rep.val if rep.ok else rep.err)
+    chk("SU-4", "the bridge-driven retry commits the SubmittedUnknown leg with the identical memo and created_at_time (Shenanigans attempts = 2)", es[0] == "ok" and es[1] == "Committed" and es[3] is False and oR["legs"][0]["attempts"] == 2 and oR["legs"][0]["memo"] == leg0["memo"] and oR["legs"][0]["created_at_time"] == leg0["created_at_time"], rep.val if rep.ok else rep.err)
     blk0 = oR["legs"][0]["block"]
     chk("SU-5", "ledger block %s is an exact mint (kind, to, amount, memo, created_at_time) of leg 0" % blk0, mint_matches(oR["legs"][0], blk0))
+    lr = leg_records(E1)
+    chk("SU-6", "bridge record for leg 0 is now Committed{%s} with calls = 2" % blk0, len(lr) == 1 and opt(lr[0]["status"]) == {"Committed": {"block": str(blk0)}} and n(lr[0]["calls"]) == 2, lr)
 
-    # ---- 7. execute the remaining legs ------------------------------------------------------
-    log("7. execute legs 1..3")
+    # ---- 7. execute the remaining legs (bridge-driven, non-admin) ---------------------------------
+    log("7. execute legs 1..3 through the bridge as the non-admin identity")
     for i in (1, 2, 3):
-        rep = call("executeNativeRewardLeg E1 leg %d" % i, SHEN, "executeNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E1), i))
-        chk("EXE-E1-%d" % i, "leg %d -> Committed" % i, rep.ok and tag(rep.val) == "Committed", rep.val if rep.ok else rep.err)
+        rep = exec_leg(E1, i, "executeReservedLeg E1 leg %d (non-admin)" % i)
+        es = exec_summary(rep)
+        chk("EXE-E1-%d" % i, "leg %d -> ok, Committed, from_record = false (a real call to Shenanigans)" % i, es[0] == "ok" and es[1] == "Committed" and es[3] is False, rep.val if rep.ok else rep.err)
     o1 = obl(E1, "getNativeObligation E1 (all executed)")
     blocks = [l["block"] for l in o1["legs"]]
     chk("EXE-E1-status", "obligation Completed, every leg Committed with distinct blocks %s" % blocks, o1["status"] == "Completed" and all(l["status"] == "Committed" for l in o1["legs"]) and len(set(blocks)) == 4, blocks)
     chk("EXE-E1-mints", "each block is an exact mint of its leg (kind, to, amount, memo, created_at_time)", all(mint_matches(l, l["block"]) for l in o1["legs"]))
     chk("EXE-E1-balances", "recipient chip balances rose by exactly the leg amounts (Bow1 chip +99e9, house chip +11e9)", check_balances("E1", o1["legs"], bal1))
     chk("EXE-E1-supply", "ledger supply rose by exactly the four legs; log grew by four blocks", supply() == S0 + sum(l["amount"] for l in o1["legs"]) and ledger_len() == L0 + 4, [supply() - S0, ledger_len() - L0])
+    lr = leg_records(E1)
+    chk("EXE-E1-records", "getLegStatuses(E1) lists 4 legs, ascending, each Committed at the block Shenanigans reports", [n(r["index"]) for r in lr] == [0, 1, 2, 3] and all(opt(r["status"]) == {"Committed": {"block": str(l["block"])}} for r, l in zip(lr, o1["legs"])), lr)
+    alw = call("getNativeBridgeAllowlist", SHEN, "getNativeBridgeAllowlist").val
+    chk("EXE-E1-allowlist", "the Shenanigans observation allowlist is still exactly [bridge]: the non-admin principal and nobody else was added to make this work", alw == [BRIDGE], alw)
     balE1 = {k: bal(r["owner"], r["sub"]) for k, r in ((json.dumps([r["owner"], r["sub"]]), r) for r in group_by_recipient(o1["legs"]))}
     Lh, Sh = ledger_len(), supply()
 
     # ---- 8. idempotency ---------------------------------------------------------------------
-    log("8. idempotency: second execute / retry of Committed legs")
+    log("8. idempotency: a second executeReservedLeg / retry of Committed legs")
+    calls_before = {n(r["index"]): n(r["calls"]) for r in lr}
+    att_before = {l["index"]: l["attempts"] for l in o1["legs"]}
     same = True
+    from_rec = True
     for l in o1["legs"]:
-        a = call("executeNativeRewardLeg E1 leg %d AGAIN" % l["index"], SHEN, "executeNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E1), l["index"]))
-        b = call("retryNativeRewardLeg E1 leg %d AGAIN" % l["index"], SHEN, "retryNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E1), l["index"]))
-        same &= a.ok and b.ok and a.val == {"Committed": {"block": str(l["block"])}} and b.val == a.val
-    chk("IDEM-1", "second execute and retry of every Committed leg return the stored Committed block", same)
+        a = exec_leg(E1, l["index"], "executeReservedLeg E1 leg %d AGAIN (non-admin)" % l["index"], wait=False)
+        es = exec_summary(a)
+        same &= es[0] == "ok" and es[1] == "Committed" and es[2] == {"block": str(l["block"])}
+        from_rec &= es[0] == "ok" and es[3] is True
+        b = call("retryNativeRewardLeg E1 leg %d AGAIN (non-admin; public)" % l["index"], SHEN, "retryNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E1), l["index"]), identity=NONADMIN)
+        same &= b.ok and b.val == {"Committed": {"block": str(l["block"])}}
+    chk("IDEM-1", "a second executeReservedLeg for every Committed leg answers from the bridge's record (from_record = true) with no Cooldown error even back to back; public retryNativeRewardLeg also returns the stored Committed block", same and from_rec)
+    chk("IDEM-1b", "no second call: the bridge's per-leg call counts and Shenanigans' per-leg attempts are unchanged", {n(r["index"]): n(r["calls"]) for r in leg_records(E1)} == calls_before and {l["index"]: l["attempts"] for l in obl(E1)["legs"]} == att_before, [calls_before, att_before])
     chk("IDEM-2", "no second mint: ledger log length, total supply and recipient balances unchanged", ledger_len() == Lh and supply() == Sh and all(bal(r["owner"], r["sub"]) == balE1[json.dumps([r["owner"], r["sub"]])] for r in group_by_recipient(o1["legs"])))
-    calls_before = n(call("stub getCallCount", STUB, "getCallCount", record=False).val)
-    rep = vaf(E1, "verifyAndForward E1 AGAIN")
+    calls_before_rpc = n(call("stub getCallCount", STUB, "getCallCount", record=False).val)
+    rep = vaf(E1, "verifyAndForward E1 AGAIN (non-admin)", identity=NONADMIN)
     sA = bridge_summary(rep)
-    calls_after = n(call("stub getCallCount", STUB, "getCallCount", record=False).val)
-    chk("IDEM-3", "second verifyAndForward returns the stored Forwarded status (no new RPC call, no new Shenanigans call)", sA[0] == "OK" and sA[1] == "Forwarded" and sA[2]["already_observed"] is False and calls_before == calls_after, [calls_before, calls_after, rep.val])
+    calls_after_rpc = n(call("stub getCallCount", STUB, "getCallCount", record=False).val)
+    chk("IDEM-3", "second verifyAndForward returns the stored Forwarded status (no new RPC call, no new Shenanigans call)", sA[0] == "OK" and sA[1] == "Forwarded" and sA[2]["already_observed"] is False and calls_before_rpc == calls_after_rpc, [calls_before_rpc, calls_after_rpc, rep.val])
 
     # ---- 9. upgrade #2 between execute and reconcile; reconcile guard -------------------------
     chk("UPG-2", "upgrade between execute and reconcile: Completed obligation, blocks and memos identical", upgrade_shen("shenanigans: E1 Completed (all legs Committed)"))
@@ -568,9 +678,9 @@ def main():
     snap = out2.split("Snapshot ID:")[1].split()[0] if "Snapshot ID:" in out2 else None
     dfx_admin("start shenanigans", "canister", "start", SHEN)
     chk("B7-0", "snapshot of shenanigans taken (E2 Reserved, all legs Pending)", ok and ok2 and snap, out2)
-    e2a = [call("executeNativeRewardLeg E2 leg %d" % i, SHEN, "executeNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E2), i)) for i in (0, 1)]
+    e2a = [call("FALLBACK admin path: executeNativeRewardLeg E2 leg %d (operator is Shenanigans admin; the bridge is not involved)" % i, SHEN, "executeNativeRewardLeg", "(%s, %d : nat)" % (eid_arg(E2), i)) for i in (0, 1)]
     oE2 = obl(E2)
-    chk("B7-1", "both E2 legs minted", all(r.ok and tag(r.val) == "Committed" for r in e2a) and oE2["status"] == "Completed", [r.val for r in e2a])
+    chk("B7-1", "FALLBACK check: the admin path on Shenanigans still executes both E2 legs without the bridge (bridge leg records stay empty)", all(r.ok and tag(r.val) == "Committed" for r in e2a) and oE2["status"] == "Completed" and leg_records(E2) == [], [r.val for r in e2a])
     blk = [l["block"] for l in oE2["legs"]]
     chk("B7-2", "E2 balances rose by exactly the legs", check_balances("E2 before rollback", oE2["legs"], bal2))
     Lm, Sm = ledger_len(), supply()
@@ -595,9 +705,13 @@ def main():
     chk("REC-neg-4", "anonymous reconcile is refused", ok_, info)
     rep = call("reconcileLegFromLedger E2 leg 0 block %d (real receipt)" % blk[0], SHEN, "reconcileLegFromLedger", "(%s, 0 : nat, %d : nat)" % (eid_arg(E2), blk[0]))
     chk("REC-pos", "reconcile of the rolled-back leg 0 against its real mint: Committed{block %d} (get_transactions + archives + icrc1_minting_account decoded against the real ledger)" % blk[0], rep.ok and rep.val == {"Committed": {"block": str(blk[0])}}, rep.val if rep.ok else rep.err)
-    rep = call("executeNativeRewardLeg E2 leg 1 (ledger answers Duplicate)", SHEN, "executeNativeRewardLeg", "(%s, 1 : nat)" % eid_arg(E2))
+    rep = exec_leg(E2, 0, "executeReservedLeg E2 leg 0 (non-admin) after the direct reconcile")
+    es = exec_summary(rep)
+    chk("REC-pos-bridge", "the bridge catches up: Shenanigans reports the reconciled leg 0 as Committed{%d}; the bridge records it (from_record = false)" % blk[0], es[0] == "ok" and es[1] == "Committed" and es[2] == {"block": str(blk[0])} and es[3] is False, rep.val if rep.ok else rep.err)
+    rep = exec_leg(E2, 1, "executeReservedLeg E2 leg 1 (non-admin; the ledger answers Duplicate)")
+    es = exec_summary(rep)
     oD = obl(E2)
-    chk("REC-dup", "re-presenting the identical frozen fields of the rolled-back leg 1 makes the ledger answer Duplicate{duplicate_of}; Shenanigans commits the ORIGINAL block %d" % blk[1], rep.ok and rep.val == {"Committed": {"block": str(blk[1])}} and oD["legs"][1]["attempts"] == 1, rep.val if rep.ok else rep.err)
+    chk("REC-dup", "bridge-driven re-presentation of the identical frozen fields of the rolled-back leg 1: the ledger answers Duplicate{duplicate_of}; Shenanigans commits the ORIGINAL block %d and the bridge records it" % blk[1], es[0] == "ok" and es[1] == "Committed" and es[2] == {"block": str(blk[1])} and oD["legs"][1]["attempts"] == 1, rep.val if rep.ok else rep.err)
     chk("REC-nomint", "no second mint: log length and total supply unchanged since before the rollback; E2 obligation Completed", ledger_len() == Lm and supply() == Sm and oD["status"] == "Completed", [ledger_len() - Lm, supply() - Sm, oD["status"]])
     chk("REC-balances", "E2 recipients hold the legs exactly once", check_balances("E2 after rollback+reconcile+duplicate", oD["legs"], bal2))
     dfx_admin("snapshot delete shenanigans", "canister", "snapshot", "delete", SHEN, snap)
@@ -644,6 +758,8 @@ def main():
     chk("FWD-retry", "both providers agree (E4 Verified) but the forward call to a stopped Shenanigans fails: status Verified{retries = 1, last_reason}, cursor stays 2 (a failed call is not an acknowledgement)",
         ok_s and s[0] == "OK" and s[1] == "Verified" and n(s[2]["retries"]) == 1 and bool(s[2]["last_reason"]) and cur == 2, rep.val if rep.ok else rep.err)
     MODES.append({"mode": "Agree + Shenanigans stopped", "event": "E4 flows-009", "status": s[1] if s[0] == "OK" else s, "payload": s[2] if s[0] == "OK" else None, "cursor": cur})
+    vst_, ist_ = history_pages("PAGES-1b", [5, 2, 1], [4, 3], "while E4 is Verified-but-unacknowledged (the forward to a stopped Shenanigans failed)")
+    chk("PAGES-1b-status", "E4 (seq 3) is listed in the intake page as Verified (unacknowledged) and is NOT in the public history; Invalid (seq 4) stays intake-only", ist_.get(3) == "Verified" and 3 not in vst_ and ist_.get(4) == "Invalid", {"intake": ist_, "verified": vst_})
     call("shenanigans stopObserver (after start)", SHEN, "stopObserver")
     stub_calls_before = n(call("stub getCallCount", STUB, "getCallCount", record=False).val)
 
@@ -661,8 +777,32 @@ def main():
     s = bridge_summary(rep)
     chk("OBS-4", "bridge forward answered AlreadyObserved by Shenanigans -> Forwarded{already_observed = true}", s[0] == "OK" and s[1] == "Forwarded" and s[2]["already_observed"] is True, rep.val if rep.ok else rep.err)
     chk("OBS-5", "the retry of an already-Verified entry re-used its stored verification: no new getTransaction call reached the stub", n(call("stub getCallCount", STUB, "getCallCount", record=False).val) == stub_calls_before)
+    history_pages("PAGES-2", [5, 3, 2, 1], [4], "after E4 is delivered (AlreadyObserved): the gap entry moved from intake to verified history")
     cur = n(call("getCursor", BRIDGE, "getCursor").val)
     chk("CUR-3", "only now does the cursor pass the gap: cursor == 5 (seq 1,2,3 Forwarded; 4 Invalid; 5 Forwarded)", cur == 5 and call("getPending", BRIDGE, "getPending", "(0 : nat, 10 : nat)", record=False).val == [], cur)
+
+    # ---- 12b. Quarantined: a durable permanent Shenanigans rejection is verified-history material -------
+    log("12b. E6 (synthetic re-signed copy of flows-009): Shenanigans permanently rejects it -> Quarantined")
+    cl = call("stub cloneFixture(flows-009 -> synthetic copy with another signature)", STUB, "cloneFixture", '("%s", 102 : nat8)' % E4["sig"])
+    newsig = opt(cl.val) if cl.ok else None
+    E6 = dict(E4)
+    E6["sig"], E6["fixture"] = newsig, "synthetic clone of flows-009 (NOT a captured transaction)"
+    receipt["events"]["E6_synthetic_clone_of_flows-009"] = E6
+    r6 = submit(E6, "submit E6 (synthetic clone)")
+    chk("Q-1", "E6 accepted as seq 6", newsig and tag(V(r6.val)[1]) == "Submitted" and n(V(V(r6.val)[1])[1]["seq"]) == 6, r6.val)
+    call("setNativeBridgeAllowlist [bridge, operator] (test only)", SHEN, "setNativeBridgeAllowlist", '(vec { principal "%s"; principal "%s" })' % (BRIDGE, ME))
+    pre6 = call("observeNativeEvent E6 directly with a DIFFERENT basis (so the real descriptor conflicts)", SHEN, "observeNativeEvent", "(%s)" % desc_arg(E6, basis=E6["basis"] + 1))
+    call("setNativeBridgeAllowlist [bridge] (restored)", SHEN, "setNativeBridgeAllowlist", '(vec { principal "%s" })' % BRIDGE)
+    rep = vaf(E6, "verifyAndForward E6 (non-admin)", identity=NONADMIN)
+    s6 = bridge_summary(rep)
+    chk("Q-2", "Shenanigans answers Rejected(permanent=true, 'event id re-presented with different fields'): the bridge stores a durable Quarantined record carrying the reason",
+        pre6.ok and s6[0] == "OK" and s6[1] == "Quarantined" and "re-presented with different fields" in s6[2]["reason"], rep.val if rep.ok else rep.err)
+    cur = n(call("getCursor", BRIDGE, "getCursor").val)
+    chk("Q-3", "the cursor passes the durable quarantine record: cursor == 6", cur == 6, cur)
+    vst, ist = history_pages("PAGES-3", [6, 5, 3, 2, 1], [4], "with a Quarantined entry")
+    chk("Q-4", "the Quarantined entry is returned by the public verified history WITH its status; the Invalid entry (seq 4) is only in the intake page", vst.get(6) == "Quarantined" and ist.get(4) == "Invalid" and 4 not in vst)
+    es = exec_summary(exec_leg(E6, 0, "executeReservedLeg E6 leg 0 [E6 is Quarantined]", wait=False))
+    chk("Q-5", "negative control (live): a Quarantined entry has nothing reserved -> executeReservedLeg answers err NotForwarded", es[0] == "err" and es[1] == "NotForwarded", es)
 
     # ---- 13. authorization -------------------------------------------------------------------
     log("13. authorization")
@@ -672,6 +812,12 @@ def main():
     chk("AUTH-2", "executeNativeRewardLeg from anonymous traps Unauthorized", (not r.ok) and "Unauthorized: native bridge or admin only" in r.err, r.err[:200])
     r = call("bindAndReserve as anonymous", SHEN, "bindAndReserve", "(%s)" % eid_arg(E3), identity="anonymous")
     chk("AUTH-3", "bindAndReserve from anonymous traps 'Authentication required'", (not r.ok) and "Authentication required" in r.err, r.err[:200])
+    r = call("executeNativeRewardLeg DIRECTLY on Shenanigans as the non-admin identity", SHEN, "executeNativeRewardLeg", "(%s, 0 : nat)" % eid_arg(E1), identity=NONADMIN)
+    chk("AUTH-5", "the non-admin identity cannot execute on Shenanigans itself (traps Unauthorized): it can only reach the legs through the bridge's frozen-leg entry point", (not r.ok) and "Unauthorized" in r.err, r.err[:200])
+    r = call("observeNativeEvent DIRECTLY on Shenanigans as the non-admin identity", SHEN, "observeNativeEvent", "(%s)" % d4, identity=NONADMIN)
+    chk("AUTH-5b", "...nor observe events there", (not r.ok) and "Unauthorized" in r.err, r.err[:200])
+    alw = call("getNativeBridgeAllowlist (final)", SHEN, "getNativeBridgeAllowlist").val
+    chk("AUTH-6", "after the whole run the Shenanigans observation allowlist is again exactly [bridge]", alw == [BRIDGE], alw)
     r = call("bridge setConfig as anonymous", BRIDGE, "setRelayers", "(vec {})", identity="anonymous")
     chk("AUTH-4", "bridge setRelayers from anonymous: controllers only", r.ok and r.val == {"err": "controllers only"}, r.val if r.ok else r.err)
 
@@ -853,7 +999,9 @@ NOT_PROVEN.extend([
     "reconcileLegFromLedger's ARCHIVE path: the local ledger archived nothing (archives() is empty), so selectArchive / an archive's get_transactions were not driven; only the ledger-direct get_transactions path was.",
     "A reconcile against a real `transfer` or `burn` block: the local ledger has no funded non-minting account to create one (kind checks are covered only by shenanigans' pure tests).",
     "Wrong-deployment guard (worker B plan section 4: shenanigans at a non-pinned id next to a ledger whose minter is j56tm...): the replica dfx.json is stub-only and the root dfx.json was not changed, so a second shenanigans instance was not deployed. The Retryable (BadFee / InsufficientFunds) path through Shenanigans and the minting-account-mismatch rejection were not driven.",
-    "Keeper-driven leg execution by the bridge: native_sol_bridge/main.mo has no call to executeNativeRewardLeg (spec section 9: 'bridge or keeper'); every leg here was executed by the admin identity.",
+    "No automatic caller: executeReservedLeg is one explicit permissionless call per frozen leg (by design); no keeper or timer drives it, and the bridge's LegRecord can lag Shenanigans (for example after a direct admin execute) until the next executeReservedLeg. A Committed record is trusted over a later Shenanigans snapshot rollback.",
+    "The live Quarantined history row uses E6, a SYNTHETIC copy of captured flows-009 with its 64 signature bytes replaced by the stub (not a captured transaction; the bridge does not verify signatures). A real permanent Shenanigans rejection path was exercised, but not for a genuinely distinct on-chain event.",
+    "Phase 2 (concurrency / dedup window) still executes with the admin identity on synthetic Shenanigans-only observations: they have no bridge outbox entry, so executeReservedLeg (which requires Forwarded + Bound) cannot apply.",
     "Whether the two concurrent CLI calls in phase 2 actually interleaved their awaits inside the canister is not observable from outside; the asserted invariants hold for any interleaving, but interleaving itself is not proven.",
     "Lost reply AFTER a successful forward (the bridge trapping between Shenanigans' reply and applyForward) was simulated by observing the event directly first, not by crashing the bridge mid-call.",
     "Fixture transaction authenticity: the bridge does not verify ed25519 signatures (spec: two RPC providers are the trust boundary); the generator verified every fixture signature offline.",
