@@ -17,6 +17,8 @@ Branch `codex/native-solana-production-core`; cards IMPL-46a (encoding fixture),
 | `e7e3cfe` | fix(frontend): native adapter — cluster identity, pre-sign simulation, batch cap with page-edge alignment and one-row fallback, signed fee-payer binding (IMPL-46b, Codex R1–R4) |
 | `417948d` | fix(frontend): native adapter — retry after a cluster switch fails closed; read-only reconcile on the origin cluster (IMPL-46b, Codex selected-cluster case) |
 | `1f93263` | feat(frontend): native Solana adapter behind existing SOL panels; gross projections; correct split text; dev-only local-cluster wallet (IMPL-46c) |
+| `89f4660` | fix(frontend): label every legacy-only rail and make "Check status" a read-only reconcile (Codex P1/P2; LegacyRail.test.tsx 11 static-render tests, panelsStatusActions.test.ts 7 handler tests incl. the A→switch B→Check status regression; 456 vitest) |
+| `cd0630d` | test(frontend): local SIWS login test runs the full delegation flow (principal == get_principal) with optional browser-session export; verifying-card copy "will appear once it is verified" |
 
 ## What M11 delivered
 
@@ -98,10 +100,18 @@ Ticket completion is the keeper's first priority (any toll ≥ 5 lamports starts
 ## Caveats
 
 - local validator only; no public network, live wallet, deployment or activation
-- the closing / promotion path needs an insolvent payout (days of real accrual at 11 %/day) and is not driven on the live validator — it stays proven in LiteSVM (M7/M8) with clock warps
+- the closing / promotion path IS driven on the local validator (live closing test `daa9f12`/`26041c0`; browser runs 1–3) from the `export-closing-fixture` world. What is synthetic is the fixture setup only: the 1-SOL position was opened in LiteSVM under a Clock sysvar set to wall time − 10 days and the pot was set to 0.1 SOL before the accounts were exported as validator genesis; everything after genesis (insolvent payout, CloseRecord, closing run, candidate pages, `request_round_draw`, capture, `apply_promotion`, `finalize_round`, round-2 open) is real program execution. The randomness was fulfilled by the LOCAL oracle (`local_cluster oracle`, synthetic fulfil authority against the captured ORAO executable), so this is a draw-pipeline proof on the real ORAO program, not a live ORAO-network proof
+- the pure production legacy-rail branch (`unavailable` → "Legacy (Chain Fusion)" banner above the legacy form in SolInvestPanel / SolBackerPanel) is proven by `LegacyRail.test.tsx` static renders, not by a browser capture: it needs a non-local SIWS session registered against the mainnet backend canister (useActor.ts pins the mainnet host), which is a public-network action outside this scope. The `loading` view, the GameTracking / HouseDashboard legacy banners and the labeled legacy sections ARE browser-captured (run 3); in dev-only local mode SolInvestPanel / SolBackerPanel substitute a "native program isn't available" card for the legacy form (compiled out of production)
 - the plan's Agave 2.3.13 validator pin is superseded by the M0-pinned 3.1.0-beta.0 toolchain (recorded in latest-build.json)
 - hook tests are typecheck-only (no jsdom / testing-library added)
 - The frontend's legacy ponzi_math_sol flows (deposit intents, withdrawals, Backer claims through the ICP canister) are untouched and listed separately from native positions; nothing in the local-cluster mode signs or sends to an ICP canister.
+
+## Packet correction (2026-10-14, after the Codex panel review of `1f93263`)
+
+- Browser evidence root: `docs/solana/evidence/m11-browser/` (README with scope and baseline/comparison pairs; `MANIFEST.sha256` over 53 JPEGs: run1 23 of 24, run2 13, run3 17). `run1/02-import-wallet-secret.jpg` is omitted from the durable inventory on purpose (key pixels); its sha256 `88825c56…4131f19` is recorded in the README.
+- Codex P1 (legacy rail clarity) and P2 (unknown outcome) fixed in `89f4660`; verifying-card copy in `cd0630d`. tsc clean; vitest 34 files / 456 tests (3 skipped). Codex: both independent reviewers PASS on `89f4660`; core M11 source/unit acceptance includes these repairs.
+- Run 3 (fresh fixture cluster, burner wallet, no secret import): deposit 0.5 SOL → gross projection → Confirmed with the origin line "Sent on localnet (127.0.0.1:8899)" → Finalized on the same signature; P2 live: a dev-only loopback proxy forwarded one `sendTransaction` and withheld the outcome → "Outcome unknown" with "Check status" and the guarded "Resend the same transaction" → Check status (read-only reconcile on the origin) → once the origin was readable the card resolved to Finalized on the original signature; the proxy log shows exactly one forwarded send. P1 live: Profit Center legacy-rail banner with the legacy-only tally caption (native unavailable); the verifying view on Invest (no deposit form), Profit Center (no Withdraw, "legacy (Chain Fusion) figures until it finishes") and Seed Round (no funding form, no backer list); Seed Round legacy banner + `Legacy (Chain Fusion) backers`; native views with the labeled legacy sections.
+- The M11 live-proof caveat above was corrected: the closing / promotion path is driven on the local validator from the synthetic fixture; the synthetic clock setup is distinguished from the live-oracle question.
 
 ## Proof level
 
