@@ -114,11 +114,17 @@ let noEffects : NR.EffectsSnapshot = {
 
 let noMarkers : NR.SignupMarkers = principalMap.empty<Int>();
 
-func bindEnv(markers : NR.SignupMarkers, fx : NR.EffectsSnapshot) : NR.BindEnv = {
+let noBook : NR.GiftBook = principalMap.empty<NR.GiftReservation>();
+
+// markers = principals whose gift is already COMMITTED (the old signupGiftClaimed map); book = shared reservations
+func bindEnvB(markers : NR.SignupMarkers, book : NR.GiftBook, fx : NR.EffectsSnapshot) : NR.BindEnv = {
   self = SELF;
   signupMarkers = markers;
+  giftBook = book;
   effects = fx;
 };
+
+func bindEnv(markers : NR.SignupMarkers, fx : NR.EffectsSnapshot) : NR.BindEnv = bindEnvB(markers, noBook, fx);
 
 func observeOk(s : NR.State, ev : NR.NativeEvent, now : Int) : NR.State {
   let (s2, r) = NR.observe(s, ev, now);
@@ -237,14 +243,14 @@ do {
   var distinctMemos = true;
   for (a in obl.legs.vals()) { for (b in obl.legs.vals()) { if (a.index != b.index and a.memo == b.memo) { distinctMemos := false } } };
   check(distinctMemos, "every leg has a distinct memo");
-  check(principalMap.get(out.signupMarkers, alice) == ?tBind, "signup marker for alice written at binding time");
+  check(principalMap.get(out.giftBook, alice) == ?{ owner = #native; state = #Reserved; at = tBind }, "gift reservation for alice written at binding time (Reserved by native)");
   check(roleCount(obl.legs, isGift) == 1, "exactly one signup gift leg");
 
   // second bind: nothing recomputed, nothing consumed
-  let again = NR.applyBind(out.state, bindEnv(out.signupMarkers, noEffects), e1.event_id, ?alice, tBind + 99 * NS);
+  let again = NR.applyBind(out.state, bindEnvB(noMarkers, out.giftBook, noEffects), e1.event_id, ?alice, tBind + 99 * NS);
   check(again.result == #AlreadyReserved, "second bind is #AlreadyReserved");
   check(oblOf(again.state, e1.event_id).legs == obl.legs and again.siphonConsumed.size() == 0, "second bind leaves legs untouched and consumes no effect cap");
-  check(principalMap.get(again.signupMarkers, alice) == ?tBind, "second bind does not rewrite the signup marker");
+  check(principalMap.get(again.giftBook, alice) == ?{ owner = #native; state = #Reserved; at = tBind }, "second bind does not rewrite the gift reservation");
 };
 
 // effects consumed exactly once at binding (multiplier + siphon with cap)
@@ -268,7 +274,7 @@ do {
   check(obl.legs[0].amount == 1_030_000_000_000 and obl.legs[0].holder == alice, "player leg = net x multiplier minus capped siphon");
   check(obl.legs[1].amount == 50_000_000_000 and obl.legs[1].holder == dave, "siphon leg pays the siphoner the capped take");
   check(out.siphonConsumed == [(alice, 50_000_000_000)], "siphon cap consumption (alice, 5e10) reported once for the actor to apply");
-  let again = NR.applyBind(out.state, bindEnv(out.signupMarkers, fx), e1.event_id, ?alice, T0 + 2 * NS);
+  let again = NR.applyBind(out.state, bindEnvB(markers, out.giftBook, fx), e1.event_id, ?alice, T0 + 2 * NS);
   check(again.result == #AlreadyReserved and again.siphonConsumed.size() == 0, "re-binding consumes nothing further");
 };
 
@@ -305,12 +311,12 @@ do {
   check(miss.result == #Unbound, "unresolved SIWS lookup returns #Unbound");
   let o = oblOf(miss.state, e1.event_id);
   check(o.status == #Observed and o.beneficiary == null and o.legs.size() == 0, "obligation stays #Observed, pubkey-keyed, no legs");
-  check(principalMap.get(miss.signupMarkers, alice) == null and miss.siphonConsumed.size() == 0, "nothing consumed while unbound");
+  check(principalMap.get(miss.giftBook, alice) == null and miss.siphonConsumed.size() == 0, "nothing consumed (no gift reservation, no siphon cap) while unbound");
   check(obsOf(miss.state, e1.event_id).beneficiary_pubkey == PUBKEY_A, "observation keeps the pubkey");
-  let later = NR.applyBind(miss.state, bindEnv(miss.signupMarkers, noEffects), e1.event_id, ?alice, T0 + 3_600 * NS);
+  let later = NR.applyBind(miss.state, bindEnvB(noMarkers, miss.giftBook, noEffects), e1.event_id, ?alice, T0 + 3_600 * NS);
   check(later.result == #Reserved and oblOf(later.state, e1.event_id).beneficiary == ?alice, "binding later reserves for the principal that resolves then");
   check(oblOf(later.state, e1.event_id).policy_version == 1 and oblOf(later.state, e1.event_id).legs[0].created_at_time == Nat64.fromNat(Int.abs(T0 + 3_600 * NS)), "late binding keeps v1 and stamps the legs at the late binding time");
-  let rebind = NR.applyBind(later.state, bindEnv(later.signupMarkers, noEffects), e1.event_id, ?bob, T0 + 4_000 * NS);
+  let rebind = NR.applyBind(later.state, bindEnvB(noMarkers, later.giftBook, noEffects), e1.event_id, ?bob, T0 + 4_000 * NS);
   check(rebind.result == #AlreadyReserved and oblOf(rebind.state, e1.event_id).beneficiary == ?alice, "a later different lookup never rebinds the reserved obligation");
   let anon = NR.applyBind(s2, bindEnv(noMarkers, noEffects), e1.event_id, ?Principal.fromText("2vxsx-fae"), T0 + NS);
   check(anon.result == #Unbound, "a lookup that resolves to the anonymous principal is treated as unbound");
@@ -320,35 +326,90 @@ do {
 
 Debug.print("== signupGiftMarkerWrittenBeforeAwaitBothOrderings");
 do {
-  // pure marker step
-  let (m1, first) = NR.claimSignupGiftMarker(noMarkers, alice, T0);
-  let (m2, second) = NR.claimSignupGiftMarker(m1, alice, T0 + NS);
-  check(first and not second, "claimSignupGiftMarker: first claim wins, second is refused");
-  check(principalMap.get(m2, alice) == ?T0, "claimSignupGiftMarker never overwrites the first claim time");
+  // The shared reservation policy (pure unit checks)
+  let (b1, r1) = NR.reserveGift(noBook, noMarkers, alice, #native, T0);
+  check(r1 == #Granted and principalMap.get(b1, alice) == ?{ owner = #native; state = #Reserved; at = T0 }, "reserveGift: first claimant is Granted and Reserved");
+  let (b2, r2) = NR.reserveGift(b1, noMarkers, alice, #legacy, T0 + NS);
+  check(r2 == #Denied(#HeldBy(#native)) and b2 == b1, "reserveGift: legacy is Denied while native holds #Reserved (book unchanged)");
+  let (_, r3) = NR.reserveGift(b1, noMarkers, alice, #native, T0 + NS);
+  check(r3 == #Denied(#NativeSingleShot), "reserveGift: a second native claim is Denied (single shot)");
+  let (l1, rl) = NR.reserveGift(noBook, noMarkers, alice, #legacy, T0);
+  let (_, rn) = NR.reserveGift(l1, noMarkers, alice, #native, T0 + NS);
+  check(rl == #Granted and rn == #Denied(#HeldBy(#legacy)), "reserveGift: native is Denied while a legacy mint is in flight (the old race)");
+  let (l2, _) = NR.finalizeGift(l1, noMarkers, alice, #legacy, #Err, T0 + 2 * NS);
+  check(principalMap.get(l2, alice) == ?{ owner = #legacy; state = #Failed; at = T0 + 2 * NS }, "finalizeGift: legacy #Err -> Failed");
+  let (_, rRetry) = NR.reserveGift(l2, noMarkers, alice, #legacy, T0 + 3 * NS);
+  let (_, rTake) = NR.reserveGift(l2, noMarkers, alice, #native, T0 + 3 * NS);
+  check(rRetry == #Granted and rTake == #Granted, "a Failed(legacy) gift can be retried by legacy and taken by native");
+  let (l3, rl3) = NR.reserveGift(l2, noMarkers, alice, #legacy, T0 + 3 * NS);
+  let (_, rn3) = NR.reserveGift(l3, noMarkers, alice, #native, T0 + 4 * NS);
+  check(rl3 == #Granted and rn3 == #Denied(#HeldBy(#legacy)), "after legacy re-reserves its Failed gift, native is denied again");
+  let (l4, claimed4) = NR.finalizeGift(l3, noMarkers, alice, #legacy, #Ok, T0 + 5 * NS);
+  check(principalMap.get(l4, alice) == ?{ owner = #legacy; state = #Committed; at = T0 + 5 * NS } and principalMap.get(claimed4, alice) == ?(T0 + 5 * NS), "finalizeGift: legacy #Ok -> Committed and the claimed map records the commit time");
+  let (_, rAfter) = NR.reserveGift(l4, claimed4, alice, #native, T0 + 6 * NS);
+  let (_, rAfterL) = NR.reserveGift(l4, claimed4, alice, #legacy, T0 + 6 * NS);
+  check(rAfter == #Denied(#AlreadyCommitted) and rAfterL == #Denied(#AlreadyCommitted), "nobody can reserve after Committed");
+  // defence in depth: a Committed book entry denies both sources even if the claimed map were missing it
+  let committedOnly : NR.GiftBook = principalMap.put(noBook, alice, { owner = #legacy; state = #Committed; at = T0 });
+  let (_, c1) = NR.reserveGift(committedOnly, noMarkers, alice, #native, T0 + NS);
+  let (_, c2) = NR.reserveGift(committedOnly, noMarkers, alice, #legacy, T0 + NS);
+  check(c1 == #Denied(#AlreadyCommitted) and c2 == #Denied(#AlreadyCommitted), "a Committed book entry denies both sources on its own");
+  // finalize by the wrong owner or from a non-Reserved state moves nothing
+  let (w1, wc) = NR.finalizeGift(b1, noMarkers, alice, #legacy, #Ok, T0 + 2 * NS);
+  check(w1 == b1 and wc == noMarkers, "finalizeGift by a non-owner is a no-op");
+  // the old claimed map alone (grandfathered / earlier commit) denies both sources
+  let grand = principalMap.put(noMarkers, alice, T0 - 99);
+  let (_, g1) = NR.reserveGift(noBook, grand, alice, #legacy, T0);
+  let (_, g2) = NR.reserveGift(noBook, grand, alice, #native, T0);
+  check(g1 == #Denied(#AlreadyCommitted) and g2 == #Denied(#AlreadyCommitted), "a principal in the claimed map (committed or grandfathered) is denied by both sources");
+  // a Failed(native) gift is retried only by native (never taken by legacy)
+  let nativeFailed : NR.GiftBook = principalMap.put(noBook, alice, { owner = #native; state = #Failed; at = T0 });
+  let (_, nf1) = NR.reserveGift(nativeFailed, noMarkers, alice, #legacy, T0 + NS);
+  let (_, nf2) = NR.reserveGift(nativeFailed, noMarkers, alice, #native, T0 + NS);
+  check(nf1 == #Denied(#FailedByOther(#native)) and nf2 == #Granted, "Failed(native) can be retried only by native");
 
-  // native -> legacy: native binds first; the legacy observer's check (marker present) sees it
+  // native -> legacy: native binds first; the legacy observer's claim then finds native holding Reserved
   let s1 = observeOk(freshState(), posEvent("sigA", LAMPORTS, #Simple, PUBKEY_A), T0);
   let nativeFirst = NR.applyBind(s1, bindEnv(noMarkers, noEffects), eventId("sigA"), ?alice, T0 + NS);
   check(roleCount(oblOf(nativeFirst.state, eventId("sigA")).legs, isGift) == 1, "native->legacy: native emitted the single gift leg");
-  check(principalMap.get(nativeFirst.signupMarkers, alice) != null, "native->legacy: marker is set in the same atomic step as the reservation, so the legacy observer skips its gift");
+  let (_, legacyAfterNative) = NR.reserveGift(nativeFirst.giftBook, noMarkers, alice, #legacy, T0 + 2 * NS);
+  check(legacyAfterNative == #Denied(#HeldBy(#native)), "native->legacy: the reservation is written in the same atomic step as the bind, so the legacy observer skips its gift");
 
-  // legacy -> native: the legacy observer already minted the gift and wrote the shared marker
+  // legacy -> native, mint committed: the legacy observer wrote the claimed map
   let legacyMarkers = principalMap.put(noMarkers, alice, T0 - 5 * NS);
   let legacyFirst = NR.applyBind(s1, bindEnv(legacyMarkers, noEffects), eventId("sigA"), ?alice, T0 + NS);
   check(roleCount(oblOf(legacyFirst.state, eventId("sigA")).legs, isGift) == 0, "legacy->native: native emits no gift leg");
-  check(principalMap.get(legacyFirst.signupMarkers, alice) == ?(T0 - 5 * NS), "legacy->native: legacy marker value preserved");
   check(oblOf(legacyFirst.state, eventId("sigA")).legs.size() == 4, "legacy->native: only the player chain remains (4 legs)");
+  check(principalMap.get(legacyFirst.giftBook, alice) == null, "legacy->native: native writes no reservation when the gift is already committed");
+
+  // legacy -> native, legacy mint IN FLIGHT (the R1 await window): native must not take the gift
+  let (inflight, _) = NR.reserveGift(noBook, noMarkers, alice, #legacy, T0);
+  let during = NR.applyBind(s1, bindEnvB(noMarkers, inflight, noEffects), eventId("sigA"), ?alice, T0 + NS);
+  check(during.result == #Reserved and roleCount(oblOf(during.state, eventId("sigA")).legs, isGift) == 0, "legacy mint in flight: native binds WITHOUT a gift leg");
+  check(principalMap.get(during.giftBook, alice) == ?{ owner = #legacy; state = #Reserved; at = T0 }, "legacy mint in flight: the legacy reservation is untouched");
+  // legacy mint failed afterwards: Failed(legacy) -> the next native event may take the gift
+  let (failed, _) = NR.finalizeGift(inflight, noMarkers, alice, #legacy, #Err, T0 + NS);
+  let s1b = observeOk(freshState(), posEvent("sigA2", LAMPORTS, #Simple, PUBKEY_A), T0);
+  let afterFail = NR.applyBind(s1b, bindEnvB(noMarkers, failed, noEffects), eventId("sigA2"), ?alice, T0 + 2 * NS);
+  check(roleCount(oblOf(afterFail.state, eventId("sigA2")).legs, isGift) == 1 and principalMap.get(afterFail.giftBook, alice) == ?{ owner = #native; state = #Reserved; at = T0 + 2 * NS }, "legacy mint Failed: native takes the gift at its next bind");
 
   // gift only on PositionOpened (mirrors the legacy observer: backer deltas never gift)
   let s2 = observeOk(freshState(), seriesAEvent("sigB", 50_000_000, PUBKEY_A), T0);
   let a = NR.applyBind(s2, bindEnv(noMarkers, noEffects), eventId("sigB"), ?alice, T0 + NS);
-  check(roleCount(oblOf(a.state, eventId("sigB")).legs, isGift) == 0 and principalMap.get(a.signupMarkers, alice) == null, "SeriesAFunded never claims the signup marker");
+  check(roleCount(oblOf(a.state, eventId("sigB")).legs, isGift) == 0 and principalMap.get(a.giftBook, alice) == null, "SeriesAFunded never reserves the signup gift");
 
-  // signupGiftPp = 0 disables the gift and does not claim the marker
+  // signupGiftPp = 0 disables the gift and does not reserve
   let zero = withPolicy(NR.emptyState(), { draft() with signupGiftPp = 0 }, T0);
   let s3 = observeOk(zero, posEvent("sigC", LAMPORTS, #Simple, PUBKEY_A), T0);
   let z = NR.applyBind(s3, bindEnv(noMarkers, noEffects), eventId("sigC"), ?alice, T0 + NS);
-  check(roleCount(oblOf(z.state, eventId("sigC")).legs, isGift) == 0 and principalMap.get(z.signupMarkers, alice) == null, "signupGiftPp = 0 emits no gift and claims no marker");
+  check(roleCount(oblOf(z.state, eventId("sigC")).legs, isGift) == 0 and principalMap.get(z.giftBook, alice) == null, "signupGiftPp = 0 emits no gift and reserves nothing");
+
+  // committing the native gift leg commits the reservation and records the claim; other legs are no-ops
+  let gl = oblOf(nativeFirst.state, eventId("sigA")).legs;
+  let (cb, cc) = NR.onLegCommitted(nativeFirst.giftBook, noMarkers, gl[0], T0 + 9 * NS);
+  check(gl[0].role == #signupGift and principalMap.get(cb, alice) == ?{ owner = #native; state = #Committed; at = T0 + 9 * NS } and principalMap.get(cc, alice) == ?(T0 + 9 * NS), "onLegCommitted(signupGift leg): reservation Committed and claim recorded");
+  let (cb2, cc2) = NR.onLegCommitted(nativeFirst.giftBook, noMarkers, gl[4], T0 + 9 * NS);
+  check(cb2 == nativeFirst.giftBook and cc2 == noMarkers, "onLegCommitted(player leg) changes nothing");
 };
 
 Debug.print("== twoSimultaneousNativeFirstEventsYieldOneSignupGift");
@@ -364,7 +425,7 @@ do {
   check(switch (p1, p2) { case (#Lookup _, #Lookup _) { true }; case _ { false } }, "both events are bindable (#Observed) while both awaits are in flight");
   // the awaits return in either order; each resumption is one atomic applyBind
   let first = NR.applyBind(s, bindEnv(noMarkers, noEffects), e2.event_id, ?alice, T0 + NS);
-  let second = NR.applyBind(first.state, bindEnv(first.signupMarkers, noEffects), e1.event_id, ?alice, T0 + 2 * NS);
+  let second = NR.applyBind(first.state, bindEnvB(noMarkers, first.giftBook, noEffects), e1.event_id, ?alice, T0 + 2 * NS);
   let gifts = roleCount(oblOf(second.state, e1.event_id).legs, isGift) + roleCount(oblOf(second.state, e2.event_id).legs, isGift);
   check(gifts == 1, "two simultaneous first events for one principal yield exactly one signup gift leg");
   check(roleCount(oblOf(second.state, e2.event_id).legs, isGift) == 1 and roleCount(oblOf(second.state, e1.event_id).legs, isGift) == 0, "the gift belongs to whichever binding resumed first");
@@ -381,9 +442,9 @@ do {
   check(switch (prepA, prepB) { case (#Lookup _, #Lookup _) { true }; case _ { false } }, "two callers both pass the pre-await status check");
   let a = NR.applyBind(s, bindEnv(noMarkers, noEffects), id, ?alice, T0 + NS);
   check(a.result == #Reserved, "caller A resumes first and reserves");
-  let b = NR.applyBind(a.state, bindEnv(a.signupMarkers, noEffects), id, ?alice, T0 + 2 * NS);
+  let b = NR.applyBind(a.state, bindEnvB(noMarkers, a.giftBook, noEffects), id, ?alice, T0 + 2 * NS);
   check(b.result == #AlreadyReserved, "caller B re-reads the obligation after its await and is rejected");
-  check(oblOf(b.state, id).legs == oblOf(a.state, id).legs and principalMap.get(b.signupMarkers, alice) == principalMap.get(a.signupMarkers, alice), "second binder changes neither legs nor marker");
+  check(oblOf(b.state, id).legs == oblOf(a.state, id).legs and principalMap.get(b.giftBook, alice) == principalMap.get(a.giftBook, alice), "second binder changes neither legs nor gift reservation");
   check(NR.prepareBind(a.state, id) == #AlreadyReserved, "prepareBind on a reserved obligation is #AlreadyReserved (no SIWS await spent)");
 };
 
@@ -397,13 +458,13 @@ do {
   let badSchema = { base with event_id = { base.event_id with event_schema_version = 99 } };
   let (s1, r1) = NR.observe(s, badSchema, T0);
   check(isPerm(r1, "schema"), "unknown schema version -> permanent reject naming the schema");
-  let (_, r2) = NR.observe(s, { base with basis_lamports = 0 }, T0);
+  let (_, r2) = NR.observe(s, { base with basis_lamports = (0 : Nat64) }, T0);
   check(isPerm(r2, "basis"), "zero basis -> permanent reject");
   let (_, r3) = NR.observe(s, { base with beneficiary_pubkey = "not-base58-0OIl" }, T0);
   check(isPerm(r3, "beneficiary"), "malformed beneficiary pubkey -> permanent reject");
   let (_, r4) = NR.observe(s, { base with plan = null }, T0);
   check(isPerm(r4, "plan"), "PositionOpened without a plan -> permanent reject");
-  let (_, r5) = NR.observe(s, { seriesAEvent("sigB", 50_000_000, PUBKEY_A) with source_close_id = ?1 }, T0);
+  let (_, r5) = NR.observe(s, { seriesAEvent("sigB", 50_000_000, PUBKEY_A) with source_close_id = ?(1 : Nat64) }, T0);
   check(isPerm(r5, "close"), "SeriesAFunded carrying a close id -> permanent reject");
   let (_, r6) = NR.observe(s, { promoEvent("sigC", 250_000_000, PUBKEY_A) with source_close_id = null }, T0);
   check(isPerm(r6, "close"), "PromotionApplied without a close id -> permanent reject");

@@ -81,7 +81,7 @@ func reserved() : (NR.State, NR.EventId) {
   let s0 = switch (NR.appendPolicy(NR.emptyState(), draft(), T0)) { case (#Ok r) { r.state }; case (#Err e) { Debug.trap(e) } };
   let (s1, _) = NR.observe(s0, ev, T0);
   let markers = principalMap.put(principalMap.empty<Int>(), alice, T0 - 1000);
-  let out = NR.applyBind(s1, { self = SELF; signupMarkers = markers; effects = noEffects }, id, ?alice, TBIND);
+  let out = NR.applyBind(s1, { self = SELF; signupMarkers = markers; giftBook = principalMap.empty<NR.GiftReservation>(); effects = noEffects }, id, ?alice, TBIND);
   (out.state, id);
 };
 

@@ -15,17 +15,54 @@
  *   observe          -> obligation #Observed, policy_version pinned, nothing consumed
  *   prepareBind      -> which SIWS address to look up (no state change)
  *   [await siws.get_principal]
- *   applyBind        -> re-reads the obligation, rejects a second binder, claims the
- *                       shared signup marker, computes EVERY leg once under the pinned
- *                       policy version, consumes effect/siphon caps, freezes memo and
- *                       created_at_time per leg => #Reserved. NO await between the
- *                       marker claim and the obligation write.
+ *   applyBind        -> re-reads the obligation, rejects a second binder, takes the
+ *                       shared signup-gift RESERVATION (if eligible and free), computes
+ *                       EVERY leg once under the pinned policy version, consumes
+ *                       effect/siphon caps, freezes memo and created_at_time per leg
+ *                       => #Reserved. NO await between the reservation and the
+ *                       obligation write, and none before any ledger await.
  *   beginExecute     -> leg #SubmittedUnknown, committed BEFORE the icrc1_transfer await
  *   [await icrc1_transfer]
  *   applyTransferOutcome -> #Committed / #Retryable / #Quarantined
  *   beginRetry       -> identical frozen fields, only inside the dedup window
  *   reconcileFromLedgerBlock -> commits only on an exact `mint` record from the pinned
  *                       ledger (or a listed archive) with a verified minting account
+ *
+ * SIGNUP GIFT RESERVATION (IMPL-49a / Codex R1)
+ *   The legacy observer and the native bind path both may grant the one signup gift of a
+ *   principal. Before this protocol the legacy path checked `signupGiftClaimed`, AWAITED
+ *   its mint and wrote the marker afterwards, so a native bind landing during that await
+ *   reserved a second gift. Now both paths claim ONE shared reservation per principal,
+ *   synchronously (no await between check and claim) and BEFORE their mint/ledger await:
+ *
+ *     GiftReservation = { owner : #legacy | #native; state : #Reserved | #Committed | #Failed; at }
+ *
+ *     none --reserve--> Reserved(owner)
+ *     Reserved(legacy) --mint #Ok--> Committed(legacy)      (also writes signupGiftClaimed)
+ *     Reserved(legacy) --mint #Err--> Failed(legacy)        (retry: ONLY legacy, on its next gift check;
+ *                                                            native may take a Failed(legacy) gift)
+ *     Reserved(native) --gift leg Committed--> Committed(native)  (also writes signupGiftClaimed)
+ *     Reserved(native) stays Reserved while the gift leg is Pending/SubmittedUnknown/Retryable/
+ *                      Quarantined: it is never auto-released, so a possibly-committable gift is
+ *                      never doubled (a permanent quarantine needs reviewed recovery).
+ *     Committed is terminal. signupGiftClaimed (the old map) now means "gift committed or
+ *     grandfathered"; it is no longer written at reservation time.
+ *
+ *   INVARIANT: for every principal, at most ONE gift ever reaches the ledger / #Committed,
+ *   across both sources, across any interleaving of {legacy reserve, native bind, legacy
+ *   finalize ok/err, legacy retry, native leg commit}, including failed-mint retries.
+ *   Proven by exhaustive interleaving in test/native-rewards-gift-interleave.test.mo, with a
+ *   negative control that reproduces the old claim-after-await ordering and double-gifts.
+ *   Assumption: the legacy observer is single flight (`observerRunning`), so a legacy-owned
+ *   #Reserved at the start of a gift check is an interrupted attempt, safe to retry because
+ *   mintWithEffects is idempotent per eventId.
+ *
+ * KNOWN LIMITS (disclosed, no eligibility change)
+ *   * Native events do NOT update the legacy activity watermark `lastQualifyingDeposit`;
+ *     native-only principals therefore do not count as "active" uplines in the cascade
+ *     (their share flows around them). Accepted read-only reuse of the referral/effect tables.
+ *   * Aged Pending legs are quarantined, never re-stamped; frozen created_at_time is immutable.
+ *   * PromotionApplied uses the Backer PP/SOL rate on the B-loss basis (frozen policy).
  *
  * DESIGN NOTES
  *   * Memo is sha256(domain || 0x00 || event key || 0x00 || be32(leg index)), the
@@ -201,8 +238,17 @@ module {
 
     public type ObsMap = OrderedMap.Map<Text, NativeObservation>;
     public type OblMap = OrderedMap.Map<Text, NativeRewardObligation>;
-    /// The shared canonical `signupGiftClaimed` map (principal -> claim time ns).
+    /// The existing `signupGiftClaimed` map (principal -> claim time ns). Under the
+    /// shared reservation protocol it records a gift that is COMMITTED (or was
+    /// grandfathered by seedMigrationV2); it is no longer written at reservation time.
     public type SignupMarkers = OrderedMap.Map<Principal, Int>;
+
+    /// Who holds / held the one signup gift of a principal.
+    public type GiftOwner = { #legacy; #native };
+    public type GiftState = { #Reserved; #Committed; #Failed };
+    /// One reservation per principal (the shared arbitration record; `at` is the time of the last transition).
+    public type GiftReservation = { owner : GiftOwner; state : GiftState; at : Int };
+    public type GiftBook = OrderedMap.Map<Principal, GiftReservation>;
 
     public type State = {
         bridgeAllowlist : [Principal];
@@ -321,7 +367,10 @@ module {
 
     public type BindEnv = {
         self : Principal; // the Shenanigans canister (owner of the chip subaccounts)
+        /// Read-only: principals whose gift is already COMMITTED (`signupGiftClaimed`).
         signupMarkers : SignupMarkers;
+        /// The shared gift reservation book (`signupGiftReservations`); returned updated by applyBind.
+        giftBook : GiftBook;
         effects : EffectsSnapshot;
     };
 
@@ -645,13 +694,97 @@ module {
         };
     };
 
-    /// The shared canonical signup marker step. First claim wins and is never
-    /// overwritten. `applyBind` runs it in the same atomic block as the
-    /// reservation; the actor must not insert an await between them.
-    public func claimSignupGiftMarker(m : SignupMarkers, p : Principal, now : Int) : (SignupMarkers, Bool) {
-        switch (pm().get(m, p)) {
-            case (?_) { (m, false) };
-            case null { (pm().put(m, p, now), true) };
+    // ----------------------------------------------------------------
+    // Shared signup-gift reservation (R1; the ONLY arbitration point)
+    // ----------------------------------------------------------------
+
+    public type GiftDenied = {
+        /// A gift is already COMMITTED for this principal (claimed map or book).
+        #AlreadyCommitted;
+        /// The other source holds a #Reserved reservation (mint / leg in flight).
+        #HeldBy : GiftOwner;
+        /// A native reservation is single shot: its gift leg is already frozen.
+        #NativeSingleShot;
+        /// The other source's #Failed reservation may only be retried by that source.
+        #FailedByOther : GiftOwner;
+    };
+
+    public type GiftReserveResult = { #Granted; #Denied : GiftDenied };
+
+    /// Claim the signup gift for `owner`. SYNCHRONOUS: call it with no await between
+    /// the check and the claim, and always BEFORE any mint / ledger await.
+    ///
+    /// Policy (per principal):
+    ///   * `claimed` has p, or the book is #Committed        -> Denied(AlreadyCommitted)
+    ///   * no reservation                                    -> Granted (Reserved by owner)
+    ///   * #Reserved by the OTHER owner                      -> Denied(HeldBy)
+    ///   * #Reserved by the same owner:
+    ///       legacy -> Granted again. The legacy observer is single flight (`observerRunning`),
+    ///                 so an owner-held Reserved at the start of a check is an INTERRUPTED attempt,
+    ///                 and its mint is idempotent through `mintedEventIds`.
+    ///       native -> Denied(NativeSingleShot) (a second event may not take a second gift).
+    ///   * #Failed by the same owner                         -> Granted (that owner's retry)
+    ///   * #Failed(legacy) and owner = native                -> Granted (native may take a failed legacy gift)
+    ///   * #Failed(native) and owner = legacy                -> Denied(FailedByOther)
+    public func reserveGift(book : GiftBook, claimed : SignupMarkers, p : Principal, owner : GiftOwner, now : Int) : (GiftBook, GiftReserveResult) {
+        if (pm().contains(claimed, p)) { return (book, #Denied(#AlreadyCommitted)) };
+        func grant() : (GiftBook, GiftReserveResult) = (pm().put(book, p, { owner = owner; state = #Reserved; at = now }), #Granted);
+        switch (pm().get(book, p)) {
+            case null { grant() };
+            case (?r) {
+                switch (r.state) {
+                    case (#Committed) { (book, #Denied(#AlreadyCommitted)) };
+                    case (#Reserved) {
+                        if (r.owner != owner) { (book, #Denied(#HeldBy(r.owner))) } else {
+                            switch (owner) {
+                                case (#legacy) { grant() };
+                                case (#native) { (book, #Denied(#NativeSingleShot)) };
+                            };
+                        };
+                    };
+                    case (#Failed) {
+                        if (r.owner == owner) { grant() } else {
+                            switch (owner, r.owner) {
+                                case (#native, #legacy) { grant() };
+                                case _ { (book, #Denied(#FailedByOther(r.owner))) };
+                            };
+                        };
+                    };
+                };
+            };
+        };
+    };
+
+    /// Record the outcome of the gift attempt `owner` holds. Only the owner's #Reserved
+    /// reservation moves: #Ok -> #Committed (and the claimed map gets the claim time if
+    /// absent); #Err -> #Failed. Any other state is returned unchanged.
+    public func finalizeGift(book : GiftBook, claimed : SignupMarkers, p : Principal, owner : GiftOwner, outcome : { #Ok; #Err }, now : Int) : (GiftBook, SignupMarkers) {
+        switch (pm().get(book, p)) {
+            case (?r) {
+                if (r.owner != owner or r.state != #Reserved) { return (book, claimed) };
+                switch (outcome) {
+                    case (#Ok) {
+                        (
+                            pm().put(book, p, { r with state = #Committed; at = now }),
+                            if (pm().contains(claimed, p)) { claimed } else { pm().put(claimed, p, now) },
+                        );
+                    };
+                    case (#Err) { (pm().put(book, p, { r with state = #Failed; at = now }), claimed) };
+                };
+            };
+            case null { (book, claimed) };
+        };
+    };
+
+    /// First-commit hook for a native leg: a committed #signupGift leg commits the
+    /// native reservation (and records the claim). Every other leg is a no-op.
+    /// A quarantined native gift leg deliberately does NOT release the reservation:
+    /// only ledger-history proof or a reviewed recovery may resolve it, so a second
+    /// gift can never be issued while the first might still be committable.
+    public func onLegCommitted(book : GiftBook, claimed : SignupMarkers, leg : Leg, now : Int) : (GiftBook, SignupMarkers) {
+        switch (leg.role) {
+            case (#signupGift) { finalizeGift(book, claimed, leg.holder, #native, #Ok, now) };
+            case _ { (book, claimed) };
         };
     };
 
@@ -665,7 +798,8 @@ module {
 
     public type BindOutput = {
         state : State;
-        signupMarkers : SignupMarkers;
+        /// The updated gift reservation book (the native gift, if any, is #Reserved here).
+        giftBook : GiftBook;
         /// (holder, units) siphon cap consumed at this binding; the actor adds it
         /// to `mintSiphons[holder].siphonedSoFar`. Empty unless the bind reserved.
         siphonConsumed : [(Principal, Nat)];
@@ -819,14 +953,15 @@ module {
     };
 
     /// Post-await: ONE atomic, synchronous step. Re-reads the obligation (another
-    /// caller may have bound it while this one awaited SIWS), then claims the
-    /// signup marker, computes every leg once under the pinned policy version,
-    /// consumes effect/siphon caps and freezes the legs. The actor must commit
-    /// the returned state, markers and siphon consumption without any await in between.
+    /// caller may have bound it while this one awaited SIWS), then takes the shared
+    /// signup-gift reservation (if eligible and free), computes every leg once under
+    /// the pinned policy version, consumes effect/siphon caps and freezes the legs.
+    /// The actor must commit the returned state, gift book and siphon consumption
+    /// without any await in between (and before any ledger await).
     public func applyBind(s : State, env : BindEnv, id : EventId, lookup : ?Principal, now : Int) : BindOutput {
         func unchanged(r : BindResult) : BindOutput = {
             state = s;
-            signupMarkers = env.signupMarkers;
+            giftBook = env.giftBook;
             siphonConsumed = [];
             result = r;
         };
@@ -848,10 +983,17 @@ module {
                     case null { return unchanged(#Rejected("observation has no rate (PositionOpened without a plan)")) };
                 };
                 // Signup gift only on a PositionOpened (a backer-class event never gifts, as in the
-                // legacy observer). The marker is claimed in THIS atomic step.
+                // legacy observer). The shared reservation is claimed in THIS atomic step: after the
+                // SIWS lookup, after the re-read above, and before any ledger await.
                 let giftWanted = obs.kind == #PositionOpened and policy.signupGiftPp > 0;
-                let (markers, giftLeg) = if (giftWanted) { claimSignupGiftMarker(env.signupMarkers, beneficiary, now) } else { (env.signupMarkers, false) };
-                let computed = computeLegs({ env with signupMarkers = markers }, policy, obs, key, beneficiary, giftLeg, ppPerSol, now);
+                var book = env.giftBook;
+                var giftLeg = false;
+                if (giftWanted) {
+                    let (b, r) = reserveGift(env.giftBook, env.signupMarkers, beneficiary, #native, now);
+                    book := b;
+                    giftLeg := (r == #Granted);
+                };
+                let computed = computeLegs(env, policy, obs, key, beneficiary, giftLeg, ppPerSol, now);
                 let reserved : NativeRewardObligation = {
                     obl with
                     status = recomputeStatus(#Reserved, computed.legs);
@@ -861,7 +1003,7 @@ module {
                 };
                 {
                     state = { s with obligations = tm().put(s.obligations, key, reserved) };
-                    signupMarkers = markers;
+                    giftBook = book;
                     siphonConsumed = computed.siphonConsumed;
                     result = #Reserved;
                 };

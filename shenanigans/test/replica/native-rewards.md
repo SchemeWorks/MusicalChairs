@@ -19,7 +19,7 @@ durable state survives `--mode upgrade`.
 cd <worktree>
 source <scratchpad>/moc-rig/env.sh            # MOC, MOC_SOURCES (moc 1.5.1, base 0.16.0)
 $MOC --check $MOC_SOURCES shenanigans/main.mo                       # 0 errors (2 pre-existing M0155 warnings)
-for t in observe-bind execute reconcile; do $MOC -r $MOC_SOURCES shenanigans/test/native-rewards-$t.test.mo | tail -1; done
+for t in observe-bind execute reconcile gift-interleave; do $MOC -r $MOC_SOURCES shenanigans/test/native-rewards-$t.test.mo | tail -1; done   # gift-interleave: 3,190 interleavings, ~12 s
 bash shenanigans/test/legacy-untouched.test.sh                      # legacy mint code byte-identical, native path never reaches it
 # upgrade additivity: new stable vars only
 $MOC -c --stable-types -o /tmp/nr-new.wasm $MOC_SOURCES shenanigans/main.mo
@@ -65,6 +65,7 @@ Helpers (bash):
 
 ```bash
 BOUND=Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew
+BOUND_PRINCIPAL=m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe
 UNBOUND=4Nd1mBQtrMJVYVfKGEfnrXz1pZzU3x9Jhc1sYQhQ6Wq7
 eid()  { echo "record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"$1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }"; }
 observe() { # $1 sig  $2 pubkey  $3 lamports  $4 plan
@@ -81,7 +82,7 @@ candid text), then continue the flow to prove it still works after the upgrade.
 | # | Boundary | Steps | Expected before-upgrade state | After-upgrade continuation |
 |---|---|---|---|---|
 | B1 | Observed (unbound) | `observe sigU $UNBOUND 1000000000 Simple`; `bindAndReserve(sigU)` | observe returns `Observed("ev1\|6c6f63616c6e6574\|MCprogLocal...\|sigU\|0\|0\|1")`; bind returns `Unbound`; obligation `status = Observed`, `beneficiary = null`, `legs = vec {}`, `policy_version = 1` | append policy v3 (any rates); `upgrade`; bind still `Unbound`; obligation still `policy_version = 1` |
-| B2 | Reserved, all legs Pending (bound) | `observe sigB $BOUND 1000000000 Simple`; append a v3 policy with different rates; `bindAndReserve(sigB)` | bind returns `Reserved`; obligation `Reserved`, `policy_version = 1`; 4 legs (no uplines, house inactive): player gift `45_000_000_000`, house residual `5_000_000_000`, player `540_000_000_000`, house residual `60_000_000_000`; every leg `Pending`, 32-byte memo, one shared `created_at_time` | `upgrade`; a SECOND `bindAndReserve(sigB)` returns `AlreadyReserved`; legs byte-identical; `observe sigB2 $BOUND ...` then bind yields NO gift leg (signup marker survived) |
+| B2 | Reserved, all legs Pending (bound) | `observe sigB $BOUND 1000000000 Simple`; append a v3 policy with different rates; `bindAndReserve(sigB)` | bind returns `Reserved`; obligation `Reserved`, `policy_version = 1`; 4 legs (no uplines, house inactive): player gift `45_000_000_000`, house residual `5_000_000_000`, player `540_000_000_000`, house residual `60_000_000_000`; every leg `Pending`, 32-byte memo, one shared `created_at_time` | `upgrade`; a SECOND `bindAndReserve(sigB)` returns `AlreadyReserved`; legs byte-identical; `getSignupGiftReservation($BOUND_PRINCIPAL)` is still `Reserved{owner = native}`; `observe sigB2 $BOUND ...` then bind yields NO gift leg (the shared reservation survived the upgrade) |
 | B3 | SubmittedUnknown | `dfx canister stop pp_ledger`; `executeNativeRewardLeg(sigB, 0)` | call returns `SubmittedUnknown` (the inter-canister call to a stopped canister rejects -> `CallFailed`); leg 0 `attempts = 1` | `upgrade`; `dfx canister start pp_ledger`; `retryNativeRewardLeg(sigB, 0)` returns `Committed{block = N}`; frozen `memo`/`created_at_time` unchanged; `attempts = 2` |
 | B4 | Committed + sibling progress | execute legs 1..3 | all legs `Committed`; obligation `Completed`; ledger balance of the player chip subaccount (read `recipient` from `obl`) `= 585_000_000_000` (5,850 PP), admin chip `= 65_000_000_000` | `upgrade`; `executeNativeRewardLeg` on every leg returns the stored `Committed` and the ledger log length does not change (no re-mint) |
 | B5 | Quarantined (window) | make the 660 s policy the LATEST version (append another `appendNativePolicyFromMintConfig(660_000_000_000)` if later versions exist), then `observe sigW $BOUND 1000000000 Simple`; `bindAndReserve(sigW)`; wait 6 min 5 s (window 660 s minus the 5 min safety margin); `executeNativeRewardLeg(sigW, 0)` | returns `Quarantined{recoverable = true; reason contains "reconcile"}` and NO `icrc1_transfer` is made (ledger log length unchanged); the other legs are still `Pending` | `upgrade`; leg 0 still `Quarantined`; `retryNativeRewardLeg(sigW, 0)` and `executeNativeRewardLeg(sigW, 0)` both return the same status; frozen `created_at_time`/`memo` unchanged |
@@ -108,6 +109,51 @@ Archive path (optional, long): drive the ledger past `trigger_threshold = 2000` 
 * Second binder: two concurrent `bindAndReserve(sigD)` -> one `Reserved`, one `AlreadyReserved`; legs identical to a single bind.
 * Concurrent execute of one leg: two concurrent `executeNativeRewardLeg(sigD, 0)` -> both return `Committed` with the same
   block (the loser sees the ledger's `Duplicate`); `getNativeObligation` shows `attempts = 2`, one ledger mint.
+
+## 3b. Signup-gift reservation: actor-level interleave checks (IMPL-49a / Codex R1)
+
+The exhaustive proof is the pure suite `native-rewards-gift-interleave.test.mo` (3,190 interleavings of legacy
+reserve / native bind / finalize ok|err / retry / lost callback / native commit, plus a negative control that
+reproduces the old claim-after-await ordering and double-gifts in 1,452 of them). This section exercises the REAL
+await points of the actor. Predictions, not yet run.
+
+Harness additions (outside the Shenanigans canister, test-only): a stub legacy game source so the legacy observer has a game to
+gift for the bound principal. Save as `shenanigans/test/replica/LegacyGamesStub.mo` and add a throwaway `dfx.json` entry
+(or `dfx canister create/install` with `--wasm`):
+
+```motoko
+persistent actor {
+  type Game = { id : Nat; player : Principal; plan : { #simple21Day; #compounding15Day; #compounding30Day }; amount : Float;
+                startTime : Int; isCompounding : Bool; isActive : Bool; lastUpdateTime : Int; accumulatedEarnings : Float; totalWithdrawn : Float };
+  var games : [Game] = [];
+  public shared func setGames(g : [Game]) : async () { games := g };
+  public query func getAllGames() : async [Game] { games };
+  public query func getBackerPositions() : async [{ owner : Principal; amount : Float; entitlement : Float; startTime : Int; isActive : Bool;
+                                                      backerType : { #seriesA; #seriesB }; firstDepositDate : ?Int }] { [] };
+  public query func getCurrentRoundId() : async Nat { 1 };
+};
+```
+
+Setup (after section 1): `dfx canister call shenanigans initialize '(principal "<stub id>")'` (re-point the legacy source at the stub; admin may call
+`initialize` again), `dfx canister call shenanigans seedMigrationV2` (bootstrap with an EMPTY stub so nothing is grandfathered), then
+`dfx canister call shenanigans stopObserver` so only manual `runObserverOnce` ticks run. Give the stub one game for `$BOUND_PRINCIPAL`:
+`setGames '(vec { record { id = 0 : nat; player = principal "$BOUND_PRINCIPAL"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })'`.
+Each scenario starts from a fresh principal/state (re-deploy or use a different bound identity). `R()` below is
+`dfx canister call shenanigans getSignupGiftReservation "(principal \"$BOUND_PRINCIPAL\")"`. The gift is counted on the ledger: one gift =
+one mint of net 450 PP (45_000_000_000 units, legacy memo `signup-<principal>` or the native gift leg memo) to that principal's chip subaccount.
+
+| # | Scenario | Steps | Expected |
+|---|---|---|---|
+| G1 | Real await window (timing race, assertion deterministic) | `observe sigG1 $BOUND ...`; start `runObserverOnce &` and, in parallel, loop `bindAndReserve(sigG1)` 30x at ~100 ms; `wait` | Whatever the interleaving: exactly ONE gift on the ledger after executing the native legs. EITHER `R() = Committed{owner = legacy}` and the native obligation has NO `signupGift` leg, OR `R() = Committed{owner = native}` (after `executeNativeRewardLeg` of the gift leg) and the legacy observer logged no gift mint. Repeat >= 10 times; a repeat may land in either branch, never both |
+| G2 | Legacy mint fails (ledger stopped) then native takes the Failed gift | `observe sigG2 ...`; `dfx canister stop pp_ledger`; `runObserverOnce` (legacy reserves, mint rejects); `R()`; `bindAndReserve(sigG2)`; `dfx canister start pp_ledger`; `runObserverOnce`; execute native legs | after the failed tick `R() = Failed{owner = legacy}`; bind returns `Reserved` WITH a `signupGift` leg; `R() = Reserved{owner = native}`; the second tick logs no gift mint (legacy skipped: held by native); after the gift leg commits `R() = Committed{owner = native}`; ledger shows ONE gift |
+| G3 | Legacy retry after a failed mint wins; native then gets no gift | `dfx canister stop pp_ledger`; `runObserverOnce` (fails -> `Failed{legacy}`); `dfx canister start pp_ledger`; `runObserverOnce` (the same game is re-presented, legacy re-reserves its own Failed gift and the mint commits); `observe sigG3 ...`; `bindAndReserve(sigG3)` | `R() = Committed{owner = legacy}`; the native obligation has NO `signupGift` leg (4-leg player chain only); ONE gift on the ledger |
+| G4 | Native binds first; legacy skips | `observe sigG4 ...`; `bindAndReserve(sigG4)`; `runObserverOnce` | `R() = Reserved{owner = native}`; the tick mints no legacy gift; execute the native legs -> `Committed{owner = native}`; ONE gift |
+| G5 | Native gift leg in flight, legacy tick | as G4 but `stop pp_ledger` before executing the gift leg (-> `SubmittedUnknown`), then `runObserverOnce`, `start pp_ledger`, `retryNativeRewardLeg` | the tick still skips (reservation stays `Reserved{native}` through `SubmittedUnknown`); after the retry `Committed{owner = native}`; ONE gift |
+| G6 | Upgrade with a reservation in each state | repeat G2 (Failed), G4 (Reserved), G3 (Committed) and run `upgrade` between the steps | `R()` byte-identical before/after each `upgrade`; behaviour afterwards as in the scenario |
+
+Static counterpart: `shenanigans/test/legacy-untouched.test.sh` asserts that the legacy gift block claims the reservation before its
+mint await and finalizes after it, that `processNewGames` differs from its pre-IMPL-49a text on exactly the three tagged lines,
+and that `bindAndReserve` awaits only the SIWS lookup (applyBind and all commits follow it with no await).
 
 ## 4. Wrong-deployment guard (minting-account verification, `Retryable` boundary)
 

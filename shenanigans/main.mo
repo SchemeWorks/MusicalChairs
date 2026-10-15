@@ -1471,7 +1471,7 @@ persistent actor Self {
                 // Signup gift — gated on first qualifying game record.
                 // Gift itself goes through the deductive cascade (mint event).
                 if (mintConfig.signupGiftPp > 0) {
-                    switch (principalMap.get(signupGiftClaimed, game.player)) {
+                    switch (signupGiftLegacyClaim(game.player)) { // IMPL-49a: shared reservation, claimed BEFORE the mint await; null = granted
                         case (?_) {}; // already claimed
                         case (null) {
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
@@ -1494,9 +1494,11 @@ persistent actor Self {
                                     // mint below is already at-least-once). Set BEFORE the
                                     // cascade so a cascade failure can't re-trigger the gift.
                                     signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                                    signupGiftLegacyFinalize(game.player, true); // IMPL-49a: reservation -> Committed
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
+                                    signupGiftLegacyFinalize(game.player, false); // IMPL-49a: reservation -> Failed (legacy-only retry)
                                     Debug.print("Signup-gift mint failed for " # giftEventId # ": " # msg);
                                 };
                             };
@@ -5965,7 +5967,13 @@ persistent actor Self {
     //
     // INVARIANTS the glue must keep:
     //   * bindAndReserve: nothing is awaited between NativeRewards.applyBind and
-    //     the commits of the obligation, signup marker and siphon consumption.
+    //     the commits of the obligation, the signup-gift reservation book and the
+    //     siphon consumption; the single SIWS await comes BEFORE applyBind (which
+    //     re-reads the obligation), and no ledger await precedes the reservation.
+    //   * Signup gift (IMPL-49a / Codex R1): ONE shared reservation per principal in
+    //     `signupGiftReservations`, claimed synchronously by BOTH this block and the legacy
+    //     observer BEFORE their mint/ledger await (see NativeRewards.reserveGift). The
+    //     legacy observer is touched on exactly three lines, tagged `IMPL-49a`.
     //   * executeNativeRewardLeg / retryNativeRewardLeg: the state returned by
     //     beginExecute/beginRetry (leg #SubmittedUnknown) is committed BEFORE the
     //     icrc1_transfer await.
@@ -6001,6 +6009,48 @@ persistent actor Self {
         #Unbound;
         #UnknownEvent;
         #Rejected : Text;
+    };
+
+    /// Shared signup-gift reservation book (IMPL-49a / Codex R1). ONE reservation per
+    /// principal, claimed synchronously by BOTH the legacy observer and the native bind path
+    /// before their mint / ledger await. `signupGiftClaimed` keeps meaning "gift committed
+    /// (or grandfathered)". New stable var with an initializer: implicit, additive upgrade.
+    var signupGiftReservations : NativeRewards.GiftBook = principalMap.empty<NativeRewards.GiftReservation>();
+
+    /// Legacy observer, BEFORE its gift mint await. Returns null iff the legacy path now
+    /// holds the reservation (proceed to mint); any non-null value means skip the gift
+    /// (already committed, or the native path holds it). Synchronous: no await between
+    /// the check and the claim.
+    func signupGiftLegacyClaim(p : Principal) : ?Int {
+        let now = Time.now();
+        let (book, r) = NativeRewards.reserveGift(signupGiftReservations, signupGiftClaimed, p, #legacy, now);
+        switch (r) {
+            case (#Granted) {
+                signupGiftReservations := book;
+                null;
+            };
+            case (#Denied(_)) {
+                switch (principalMap.get(signupGiftClaimed, p)) {
+                    case (?t) { ?t };
+                    case null { ?now };
+                };
+            };
+        };
+    };
+
+    /// Legacy observer, AFTER its gift mint await: #Ok -> Committed, #Err -> Failed
+    /// (retryable only by the legacy path, and takeable by native while Failed).
+    func signupGiftLegacyFinalize(p : Principal, ok : Bool) {
+        let (book, claimed) = NativeRewards.finalizeGift(
+            signupGiftReservations,
+            signupGiftClaimed,
+            p,
+            #legacy,
+            if ok { #Ok } else { #Err },
+            Time.now(),
+        );
+        signupGiftReservations := book;
+        signupGiftClaimed := claimed;
     };
 
     func nativeState() : NativeRewards.State {
@@ -6086,6 +6136,10 @@ persistent actor Self {
             case (?obl) {
                 if (leg_index < obl.legs.size()) {
                     let leg = obl.legs[leg_index];
+                    // A committed native signup-gift leg commits the shared reservation (and records the claim).
+                    let (book, claimed) = NativeRewards.onLegCommitted(signupGiftReservations, signupGiftClaimed, leg, Time.now());
+                    signupGiftReservations := book;
+                    signupGiftClaimed := claimed;
                     // Without this the holder is invisible to stimulus/raid spells and leaderboards.
                     knownPpHolders := principalMap.put(knownPpHolders, leg.holder, true);
                     switch (leg.role) {
@@ -6127,7 +6181,7 @@ persistent actor Self {
                 // ---- ONE atomic, await-free block: re-read, claim marker, compute legs, consume caps, store ----
                 let out = NativeRewards.applyBind(
                     nativeState(),
-                    { self = Principal.fromActor(Self); signupMarkers = signupGiftClaimed; effects = nativeEffectsSnapshot() },
+                    { self = Principal.fromActor(Self); signupMarkers = signupGiftClaimed; giftBook = signupGiftReservations; effects = nativeEffectsSnapshot() },
                     event_id,
                     lookup,
                     Time.now(),
@@ -6135,7 +6189,7 @@ persistent actor Self {
                 switch (out.result) {
                     case (#Reserved) {
                         nativeCommit(out.state);
-                        signupGiftClaimed := out.signupMarkers;
+                        signupGiftReservations := out.giftBook;
                         nativeApplySiphonConsumption(out.siphonConsumed);
                     };
                     case _ {};
@@ -6258,6 +6312,11 @@ persistent actor Self {
 
     public query func getNativeObligation(event_id : NativeRewards.EventId) : async ?NativeRewards.NativeRewardObligation {
         NativeRewards.getObligation(nativeState(), event_id);
+    };
+
+    /// The shared signup-gift reservation of a principal (null = none). Read-only; for operators and replica tests.
+    public query func getSignupGiftReservation(p : Principal) : async ?NativeRewards.GiftReservation {
+        principalMap.get(signupGiftReservations, p);
     };
 
     public query func getNativeObservation(event_id : NativeRewards.EventId) : async ?NativeRewards.NativeObservation {
