@@ -1,9 +1,12 @@
 # Native rewards: local-replica plan (`upgradeAtEveryDurableBoundaryPreservesState` and ledger integration)
 
-Status: PLAN ONLY. Nothing below has been run; every "expected" line is a prediction from the
-pure-module tests and the code, not a tested fact. The coordinator runs it on a loopback dfx
-replica (never mainnet). No deploy, no network beyond the dfx wasm downloads already named in
-`dfx.json`.
+Status (2026-10-15):
+* Section 3b (the signup-gift reservation, scenarios G1-G6) was RUN on the local dfx replica by
+  `gift-interleave.sh` (IMPL-49h): 91 checks, 0 failed, every call and reply in
+  `receipt-gift-interleave-2026-10-15.json`. See 3b for exactly what that run does and does not prove.
+* Sections 0-3 and 4 below are still PLANS written by the IMPL-47c worker; this file does not claim they were run.
+  The bridge worker's receipts under `native_sol_bridge/test/replica/` exercised parts of them (B-type boundaries, reconcile
+  decode); they were not re-verified here. Where a line below says "expected", it is a prediction unless 3b says otherwise.
 
 What the pure tests (`shenanigans/test/native-rewards-*.test.mo`) already prove, so this plan
 does not repeat it: leg arithmetic, policy pinning, write-ahead `SubmittedUnknown`, identical-field
@@ -110,50 +113,56 @@ Archive path (optional, long): drive the ledger past `trigger_threshold = 2000` 
 * Concurrent execute of one leg: two concurrent `executeNativeRewardLeg(sigD, 0)` -> both return `Committed` with the same
   block (the loser sees the ledger's `Duplicate`); `getNativeObligation` shows `attempts = 2`, one ledger mint.
 
-## 3b. Signup-gift reservation: actor-level interleave checks (IMPL-49a / Codex R1)
+## 3b. Signup-gift reservation: actor-level interleave checks (IMPL-49a / Codex R1) - RUN 2026-10-15 (IMPL-49h)
 
-The exhaustive proof is the pure suite `native-rewards-gift-interleave.test.mo` (3,190 interleavings of legacy
-reserve / native bind / finalize ok|err / retry / lost callback / native commit, plus a negative control that
-reproduces the old claim-after-await ordering and double-gifts in 1,452 of them). This section exercises the REAL
-await points of the actor. Predictions, not yet run.
+How to run: `bash shenanigans/test/replica/gift-interleave.sh [A1 A2 A3 H1 H3 H5 H4a H4b]` (all by default; about 11 minutes;
+`MC_GIFT_SKIP_BUILD=1` reuses previously built wasm). Loopback only. It REINSTALLS shenanigans (j56tm-...) once per scenario
+(wiping its state, including any COOL-1 leftovers), creates/reinstalls `legacy_games_stub`, `latch_ledger` and `shenanigans_latch`,
+briefly STOPS and STARTS the real pp_ledger (restored by a trap), and never touches siws_provider or native_sol_bridge.
+The 3,190-interleaving enumeration (`native-rewards-gift-interleave.test.mo`) is a pure MODEL of the reservation protocol; nothing
+below relies on it, and it is not evidence for the actor wiring.
 
-Harness additions (outside the Shenanigans canister, test-only): a stub legacy game source so the legacy observer has a game to
-gift for the bound principal. Save as `shenanigans/test/replica/LegacyGamesStub.mo` and add a throwaway `dfx.json` entry
-(or `dfx canister create/install` with `--wasm`):
+Fixture (all under `legacy_games_stub/`, own `dfx.json`):
+* `main.mo` - the legacy game source. It returns exactly one qualifying game naming the SIWS-bound principal m7ydg-... (the same
+  principal the native path binds from Bow1CG...), so the real legacy observer runs its real gift block for the same principal.
+* `latch_ledger.mo` - a PP-ledger stand-in with a deterministic latch (hold the reply to the legacy gift mint, reject it, or fail
+  every call). It does NOT enforce the real ledger's 32-byte memo limit.
+* `shenanigans_latch` - a build of the SAME sources (main.mo, NativeRewards.mo, Subaccount.mo, Reginald.mo, icrc21.mo byte-identical,
+  hashes in the receipt) whose only difference is the PP ledger id constant in `PpLedger.mo`, pointing at the latch stub.
 
-```motoko
-persistent actor {
-  type Game = { id : Nat; player : Principal; plan : { #simple21Day; #compounding15Day; #compounding30Day }; amount : Float;
-                startTime : Int; isCompounding : Bool; isActive : Bool; lastUpdateTime : Int; accumulatedEarnings : Float; totalWithdrawn : Float };
-  var games : [Game] = [];
-  public shared func setGames(g : [Game]) : async () { games := g };
-  public query func getAllGames() : async [Game] { games };
-  public query func getBackerPositions() : async [{ owner : Principal; amount : Float; entitlement : Float; startTime : Int; isActive : Bool;
-                                                      backerType : { #seriesA; #seriesB }; firstDepositDate : ?Int }] { [] };
-  public query func getCurrentRoundId() : async Nat { 1 };
-};
-```
+Why two stacks: stopping the real pp_ledger makes the gift-mint await FAIL FAST (observed: the tick returned in ~5 s; the caller saw
+`Canister 5xv2o-... is stopped`, IC0508), it does not leave the await pending, and the real ledger answers within about a round. So the real
+stack (PART A: committed wasm + real pp_ledger + real siws_provider) covers failure/ordering/durability, and the latch variant
+(PART B) is the deterministic hold. Gifts are counted on the REAL ledger in Part A and on the stub's mint records in Part B.
 
-Setup (after section 1): `dfx canister call shenanigans initialize '(principal "<stub id>")'` (re-point the legacy source at the stub; admin may call
-`initialize` again), `dfx canister call shenanigans seedMigrationV2` (bootstrap with an EMPTY stub so nothing is grandfathered), then
-`dfx canister call shenanigans stopObserver` so only manual `runObserverOnce` ticks run. Give the stub one game for `$BOUND_PRINCIPAL`:
-`setGames '(vec { record { id = 0 : nat; player = principal "$BOUND_PRINCIPAL"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })'`.
-Each scenario starts from a fresh principal/state (re-deploy or use a different bound identity). `R()` below is
-`dfx canister call shenanigans getSignupGiftReservation "(principal \"$BOUND_PRINCIPAL\")"`. The gift is counted on the ledger: one gift =
-one mint of net 450 PP (45_000_000_000 units, legacy memo `signup-<principal>` or the native gift leg memo) to that principal's chip subaccount.
-
-| # | Scenario | Steps | Expected |
+| Scenario | Stack | What it ran | Result (receipt check ids) |
 |---|---|---|---|
-| G1 | Real await window (timing race, assertion deterministic) | `observe sigG1 $BOUND ...`; start `runObserverOnce &` and, in parallel, loop `bindAndReserve(sigG1)` 30x at ~100 ms; `wait` | Whatever the interleaving: exactly ONE gift on the ledger after executing the native legs. EITHER `R() = Committed{owner = legacy}` and the native obligation has NO `signupGift` leg, OR `R() = Committed{owner = native}` (after `executeNativeRewardLeg` of the gift leg) and the legacy observer logged no gift mint. Repeat >= 10 times; a repeat may land in either branch, never both |
-| G2 | Legacy mint fails (ledger stopped) then native takes the Failed gift | `observe sigG2 ...`; `dfx canister stop pp_ledger`; `runObserverOnce` (legacy reserves, mint rejects); `R()`; `bindAndReserve(sigG2)`; `dfx canister start pp_ledger`; `runObserverOnce`; execute native legs | after the failed tick `R() = Failed{owner = legacy}`; bind returns `Reserved` WITH a `signupGift` leg; `R() = Reserved{owner = native}`; the second tick logs no gift mint (legacy skipped: held by native); after the gift leg commits `R() = Committed{owner = native}`; ledger shows ONE gift |
-| G3 | Legacy retry after a failed mint wins; native then gets no gift | `dfx canister stop pp_ledger`; `runObserverOnce` (fails -> `Failed{legacy}`); `dfx canister start pp_ledger`; `runObserverOnce` (the same game is re-presented, legacy re-reserves its own Failed gift and the mint commits); `observe sigG3 ...`; `bindAndReserve(sigG3)` | `R() = Committed{owner = legacy}`; the native obligation has NO `signupGift` leg (4-leg player chain only); ONE gift on the ledger |
-| G4 | Native binds first; legacy skips | `observe sigG4 ...`; `bindAndReserve(sigG4)`; `runObserverOnce` | `R() = Reserved{owner = native}`; the tick mints no legacy gift; execute the native legs -> `Committed{owner = native}`; ONE gift |
-| G5 | Native gift leg in flight, legacy tick | as G4 but `stop pp_ledger` before executing the gift leg (-> `SubmittedUnknown`), then `runObserverOnce`, `start pp_ledger`, `retryNativeRewardLeg` | the tick still skips (reservation stays `Reserved{native}` through `SubmittedUnknown`); after the retry `Committed{owner = native}`; ONE gift |
-| G6 | Upgrade with a reservation in each state | repeat G2 (Failed), G4 (Reserved), G3 (Committed) and run `upgrade` between the steps | `R()` byte-identical before/after each `upgrade`; behaviour afterwards as in the scenario |
+| G1 held await + native bind inside the window | latch (commitThenHold) | start `runObserverOnce`; poll `getSignupGiftReservation` until `Reserved{legacy}` while the tick call is still pending and the latch holds 1 call (the stub has already committed the legacy mint); `bindAndReserve` (real SIWS lookup) and the native leg executions run to completion INSIDE the window; release | PASS H1-*: bind got no gift leg; reservation untouched; after release `Committed{legacy}`; one gift; IC timestamps legacy-reserve < native-bind < legacy-commit (H1-window-timestamps); LEGACY won |
+| G2 failed legacy mint, native takes the gift | real (A1, A2); latch (H3) | stop pp_ledger, tick -> `Failed{legacy}`; native bind takes the Failed gift; legs commit | PASS A1-*, A2-*, H3-*: exactly one gift (native) on the real ledger in A1/A2; NATIVE won |
+| G3 failed legacy mint, legacy retry wins | latch (H5) | stub fails every call, tick -> Failed; recover; the re-presented game makes legacy re-claim its Failed gift | PASS H5-*: `Committed{legacy}`, one gift, native bind then gets none; LEGACY won. On the REAL local ledger the retry re-claims (A1-reclaimed) but cannot commit (see Findings) |
+| G4 native Reserved blocks legacy | real (A2, A3) | native binds first; tick with the ledger up and stopped | PASS A2-skip, A3-blocked, A3-no-attempt-log: reservation and timestamp untouched, no gift attempt logged |
+| G5 native gift leg SubmittedUnknown still blocks legacy | real (A3) | execute the gift leg with the ledger stopped -> SubmittedUnknown; tick; start; retry | PASS A3-submitted-unknown, A3-blocked-2, A3-retry, A3-one-gift |
+| G6 durability | real (A1, A2) at rest; latch (H4) in flight | `install --mode upgrade --wasm-memory-persistence keep` in each of Failed, Reserved{native} with Pending legs, Committed; and with the legacy await HELD | PASS A1-upgrade, A2-up1/up2/up3, H4-*-durable: byte-identical. In flight: the upgrade was accepted, the open call context SURVIVED it, and after the release the continuation ran in the upgraded instance (reject mode -> Failed then native takeover, commit mode -> Committed); one gift each |
 
-Static counterpart: `shenanigans/test/legacy-untouched.test.sh` asserts that the legacy gift block claims the reservation before its
-mint await and finalizes after it, that `processNewGames` differs from its pre-IMPL-49a text on exactly the three tagged lines,
-and that `bindAndReserve` awaits only the SIWS lookup (applyBind and all commits follow it with no await).
+Findings recorded by the run (see `observations` in the receipt):
+1. FAILURE CLASSIFICATION, plain unbounded awaits, nothing bounded or best-effort: (a) a stopped ledger: the caught reject text is
+   `Canister 5xv2o-... is stopped` (outside caller: reject code CanisterError, IC0508); (b) the running real ledger trapping on the
+   legacy gift memo: `IC0503: ... Canister called ic0.trap with message: 'the memo field size of 70 bytes is above the allowed limit
+   of 32 bytes'`; (c) a synthetic reject from the stub. All three arrive as a caught `Error` that `mintInternal` maps to
+   `#Err("ppLedger call failed: <text>")`. The canister logs the message text only, so reject codes seen inside the canister are
+   not observed. No SYS_UNKNOWN or best-effort behaviour was observed or is claimed. A caught reject AFTER an already-committed
+   real-ledger mint was not produced.
+2. MEMO LIMIT: the legacy gift memo is `signup-` + the principal text = 70 bytes; the REAL local pp_ledger (dfx.json init_arg, default
+   `max_memo_length`) rejects it, so on THIS local ledger the legacy gift can never commit (A1: stopped-ledger failure, then the
+   memo trap on the re-claim, then native takeover). The mainnet ledger's limit was not read here; no claim is made about it. Native
+   gift legs use 32-byte memos and commit.
+3. After a held gift mint is REJECTED the same tick still mints the game PP, so the game cursor advances and the Failed legacy gift gets
+   no automatic retry until that player's next legacy game; a native bind can take it meanwhile (H3). If the whole ledger fails (A1/H5)
+   the game is re-presented and legacy retries on the next tick.
+4. The legacy retry re-claims its own `Failed` gift (A1-reclaimed: the timestamp advanced).
+
+Not proven by this run: the held-await scenarios use the latch stub (not the real ledger) and a variant build differing by one constant;
+the 3,190 enumeration is a model; an upgrade to a DIFFERENT module version with an await in flight was not tested; mainnet memo limit.
 
 ## 4. Wrong-deployment guard (minting-account verification, `Retryable` boundary)
 
