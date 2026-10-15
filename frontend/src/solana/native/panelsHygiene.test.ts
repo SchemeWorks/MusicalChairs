@@ -121,3 +121,37 @@ describe('local-cluster mode makes no ICP call', () => {
     expect(imports.filter((i) => /siws|agent|auth-client|declarations|oisy/i.test(i))).toEqual([]);
   });
 });
+
+describe('the ICP bridge has exactly one frontend consumer (IMPL-49c)', () => {
+  const ALLOWED = [path.join('hooks', 'useNativeHistory.ts')];
+  const isBridgeUse = (text: string) =>
+    /declarations\/native_sol_bridge/.test(text) || /\bgetRecentEvents\b/.test(text) || /VITE_NATIVE_BRIDGE_CANISTER_ID/.test(text);
+
+  it('only hooks/useNativeHistory.ts imports the bridge declarations or calls its methods', () => {
+    const offenders = walk(srcRoot)
+      .filter((file) => !file.includes(`${path.sep}declarations${path.sep}`))
+      .filter((file) => !ALLOWED.some((allowed) => file.endsWith(allowed)))
+      .filter((file) => isBridgeUse(read(file)))
+      .map((file) => path.relative(srcRoot, file));
+    expect(offenders).toEqual([]);
+    expect(isBridgeUse(read(path.join(srcRoot, 'hooks', 'useNativeHistory.ts')))).toBe(true);
+  });
+
+  it('the feed component reads the hook, never the actor, and the bridge never feeds a balance', () => {
+    const feed = read(path.join(srcRoot, 'components', 'NativeHistoryFeed.tsx'));
+    expect(feed).toMatch(/useNativeHistory/);
+    expect(feed).not.toMatch(/Actor|HttpAgent|declarations/);
+    // financial reads stay on Solana: nothing in the history hook is a balance, position or claim read
+    const hook = read(path.join(srcRoot, 'hooks', 'useNativeHistory.ts')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(hook).not.toMatch(/getBalance|readPool|readPosition|listPositions|claimBacker/);
+  });
+
+  it('the hook queries anonymously (no identity, no update calls) and is disabled without a canister id', () => {
+    const hook = read(path.join(srcRoot, 'hooks', 'useNativeHistory.ts')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    expect(hook).not.toMatch(/identity|useWallet\(\)|signTransaction/);
+    expect(hook).toMatch(/enabled: canisterId !== null/);
+    expect(hook).toMatch(/getRecentEvents/);
+    // it asks only for the verified-history method, never the operator/intake ones
+    expect(hook).not.toMatch(/getPending|getUnbound|getEvent\b|getIntakeEvents|verifyAndForward|submitEventDescriptor/);
+  });
+});

@@ -16,6 +16,7 @@ import { describeNativeError, quoteBacker } from '../solana/native/panelsQuote';
 import type { NativePool, NativeTxResult } from '../solana/native/types';
 import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
 import { railOf } from '../solana/native/panelsRail';
+import NativeHistoryFeed from './NativeHistoryFeed';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
@@ -219,7 +220,7 @@ function HouseLedgerRecords() {
     <div className="space-y-6">
       {isSol && nativeOn && (
         <p className="text-xs mc-text-muted text-center">
-          This ledger lists legacy (Chain Fusion) activity. Activity on the native program is recorded on-chain and is not listed here yet.
+          This ledger lists legacy (Chain Fusion) activity only. Verified native program activity is in its own feed above.
         </p>
       )}
       {ledgerRail === 'legacy' && <LegacyRailBanner what="the ledger" />}
@@ -633,6 +634,26 @@ function BackerPositions() {
 }
 
 /* ================================================================
+   Ledger tab
+   ================================================================ */
+/**
+ * Solana sessions: the verified native feed (ICP bridge, informational) and the legacy (Chain Fusion) ledger,
+ * side by side but never merged, each under its own label. Every other session keeps the single ledger.
+ */
+export function HouseLedgerTab({ isSol }: { isSol: boolean }) {
+  if (!isSol) return <HouseLedgerRecords />;
+  return (
+    <div className="space-y-8">
+      <NativeHistoryFeed />
+      <section className="space-y-4" data-testid="legacy-activity" data-rail="legacy">
+        <h3 className="font-display text-base mc-text-primary">Legacy (Chain Fusion) activity</h3>
+        <HouseLedgerRecords />
+      </section>
+    </div>
+  );
+}
+
+/* ================================================================
    Main Export
    ================================================================ */
 export default function HouseDashboard() {
@@ -657,7 +678,7 @@ export default function HouseDashboard() {
     <div className="space-y-6">
       <TabControl activeTab={activeTab} onTabChange={setActiveTab} backerCount={backerCount} ledgerCount={ledgerCount} />
       <div className="mc-enter">
-        {activeTab === 'backers' ? <BackerPositions /> : <HouseLedgerRecords />}
+        {activeTab === 'backers' ? <BackerPositions /> : <HouseLedgerTab isSol={isSol} />}
       </div>
     </div>
   );
