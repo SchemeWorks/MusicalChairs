@@ -103,5 +103,17 @@
   ]
  },
  "operations_doc": "docs/solana/operations.md (roles, 60 s / 300 s meaning, escalation from any wallet, metrics fields of both keepers, fee floor and hourly budget, not-automated list, bring-up, no-credentials rule; pause conditions are a proposed policy)",
- "limits": "No services started, nothing deployed, no live keys, no public network. M14 (devnet) remains an authorization gate."
+ "limits": "No services started, nothing deployed, no live keys, no public network. M14 (devnet) remains an authorization gate.",
+ "linux_ci": {
+  "run": "38683877850",
+  "head": "f9cbcc5",
+  "url": "https://github.com/SchemeWorks/MusicalChairs/actions/runs/38683877850",
+  "jobs": {
+   "Economic workspace": "success",
+   "Standalone provider/resource probe": "success",
+   "Fee-only keeper worker (M13, no services started)": "success",
+   "Production SBF build, provenance and LiteSVM suites": "success"
+  },
+  "note": "the first keeper-worker run (a93d4d0) failed on cargo fmt --all walking the program crate and the SBF pin assertion failed on the edited root workspace manifest; both fixed in 8474d63 (fmt scoped to the crate; manifest restored to the pinned content)"
+ }
 }
