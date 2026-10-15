@@ -1,0 +1,145 @@
+{
+ "recorded_at_utc": "2026-10-15T08:21:45.609042+00:00",
+ "cards": [
+  "IMPL-49f"
+ ],
+ "milestone": "Codex R1–R5 corrections to M12/M13 — graph receipt",
+ "head_at_graph_update": "d20f1bb",
+ "branch": "codex/native-solana-production-core",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m12-m13-graph-refresh.json"
+ ],
+ "pre_update_backup": "scratchpad/graph-backup-corrections (the accepted 20,696 / 31,163 / 49 state, taken before this update)",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log": "scratchpad/impl47/graphify-update-corrections.log",
+   "result": "20,696 / 31,163 / 49 → 21,742 / 32,673 / 49 (AST re-extraction incl. the R1–R5 code, replica drivers and stubs, the frontend hook/feed)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> corrections-fragment-spec.json 1782 validate|apply",
+   "result": "restored 17 collapsed raw edges and 321 stripped attributes (the same recurring set); fragment 9 nodes / 22 edges / 1 hyperedge / 2 attribute updates; APPLIED 21,751 / 32,712 / 50; fragment docs/solana/evidence/2026-10-15-m12-m13-corrections-graph-fragment.json"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 20696,
+  "edges": 31163,
+  "hyperedges": 49
+ },
+ "after_graphify_update": {
+  "nodes": 21742,
+  "edges": 32673,
+  "hyperedges": 49
+ },
+ "after_merge": {
+  "nodes": 21751,
+  "edges": 32712,
+  "hyperedges": 50
+ },
+ "fragment": {
+  "label": "Native Solana 2026-10-15 Codex R1–R5 corrections to M12/M13 (IMPL-49a..h)",
+  "community": 1782,
+  "nodes": [
+   "review2026_10_14_codex_m12_m13_review",
+   "review2026_10_15_codex_r1_r5_closure_review_1",
+   "impl2026_10_15_r1_shared_gift_reservation",
+   "impl2026_10_15_r1_actor_level_interleave_proof",
+   "impl2026_10_15_r2_bridge_driven_execution",
+   "impl2026_10_15_r3_verified_history",
+   "impl2026_10_15_r4_keeper_operations",
+   "impl2026_10_15_r5_watchdog_negative_controls",
+   "impl2026_10_15_corrections_receipt"
+  ],
+  "hyperedges": [
+   "m12_m13_corrections_2026_10_15"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_m12_icp_bridge resolution updated",
+   "plan2026_10_13_m13_keepers_monitoring resolution updated"
+  ]
+ },
+ "invariants": {
+  "every_prior_node_id_preserved": true,
+  "prior_raw_edge_multiplicity_preserved": true,
+  "prior_hyperedges_preserved": true,
+  "duplicate_node_ids": 0,
+  "dangling_edges": 0,
+  "edge_direction_preserved": true,
+  "all_committed_fragment_nodes_present": true
+ },
+ "scope": {
+  "covered_files_sha256_at_head": {
+   "frontend/src/components/HouseDashboard.tsx": "98f178ccb5a28911e61ce0bdc05e78a96ff0981c9b6b26cad85868c3d1ee9661",
+   "frontend/src/components/NativeHistoryFeed.test.tsx": "aa2becd02889df3af9043d8f5f73d8c68450d251ae2423d9a736bc7df9cc4915",
+   "frontend/src/components/NativeHistoryFeed.tsx": "2bd5e5902df51e6f6ae3160f82325ff7744a09dc290d77fca1f62fcae4655de7",
+   "frontend/src/declarations/native_sol_bridge/native_sol_bridge.did": "8a73865dcc289a267ff1e0b551a9a71799d4259ba702cccde8fed1a39e1b1abc",
+   "frontend/src/declarations/native_sol_bridge/native_sol_bridge.did.d.ts": "52733611d6bd4764ccaa8860a323cfed5caf187403c8a255e4352ce47c8314d0",
+   "frontend/src/declarations/native_sol_bridge/native_sol_bridge.did.js": "6ede7a06fe0599356a0bc71f7a108f7a9abb4323644d2a754689ec842968f4b0",
+   "frontend/src/hooks/useNativeHistory.test.tsx": "7beefc298db442623ae026e023601e727f6ae5bf855e29ecd7d49899bb27a98a",
+   "frontend/src/hooks/useNativeHistory.ts": "29541e2a1b1bd112299dc08abf3a101dc30d15ce2ad3fde0047b5071e8cd3f5a",
+   "frontend/src/solana/native/panelsHygiene.test.ts": "2a058f1eab613bb1c75b972fbb1482e36d3af9d4048e093f0d9db6cb6eebdff8",
+   "native_sol_bridge/Decode.mo": "b790fa7560970842017486c41e32ef8ad047132e9e7b1265e6c9266e85c7af46",
+   "native_sol_bridge/Events.mo": "369e02e79ce0f831d367191424c39d20617a61cf27d3466c83bdb87632a36ed5",
+   "native_sol_bridge/Outbox.mo": "5ed716a943e306805ef897515d19cd289623ee7d77c54a329b18d1a9233f8d57",
+   "native_sol_bridge/main.mo": "7fe48758b7b1914b935553f822f4ebca13b898be5588f250525a07bbb193b186",
+   "native_sol_bridge/test/decode.test.mo": "51a08a5ef6e7ccad741fa4379d364ffb3e97876cdda0dffbe97972e7be35ccfa",
+   "native_sol_bridge/test/execute.test.mo": "6121d1f3141a4eb8e40909ba02a75c2eba96928a05b26559e58ada515c40c296",
+   "native_sol_bridge/test/outbox.test.mo": "5985ab9e1e6b6effe5b6fce91afbcb96bad7436647f099ec7943877db57cd0fd",
+   "native_sol_bridge/test/replica/drive.py": "eb3fbfe87b0ec659c6fe7d46ebcad89c8df11f9dc1a85eec58c6b1b9f79ee258",
+   "native_sol_bridge/test/replica/run.sh": "a57f1427f38dcacd2a6eb7628e463f5792e9da66a99f0b826aee9b6f78e310d7",
+   "native_sol_bridge/test/replica/run_cool1_supplement.sh": "071c861d2a944302e5cdc325fb28e788fbca66160a52e9c035902eed375b7c90",
+   "native_sol_bridge/test/replica/sol_rpc_stub/main.mo": "1893317257d3b8abedc962a657d85c7836e9f0f2b211ffdbe002f11c2662ca80",
+   "native_sol_keeper/test/negative/WrongAuthorityTablePayerIsAuthority.mo": "25bd7cea722d869e449cfd5b9ca3996721c51858c103fc175b21f903c78a7c2d",
+   "native_sol_keeper/test/negative/WrongAuthorityTablePayerIsAuthority.test.mo": "054b09b7b4ef7464438137271662b9d7b78448d3b2c3e3b33efdefdda9d3aca0",
+   "native_sol_keeper/test/negative/WrongPlannerExtraSigner.mo": "ee219300e056a48ba178fc06d54f7d10c6b20d9a9f3ac988930c6feb177a8b0c",
+   "native_sol_keeper/test/negative/WrongPlannerExtraSigner.test.mo": "72f3993a7ec760f342800302181f026bce481ebe6314beadd4b4ea3a342a826d",
+   "native_sol_keeper/test/negative/WrongPlannerFeeInAuthoritySlot.mo": "596af23873fd978e69d901295300bb804ad56abba66c42964d42c14c766e13f0",
+   "native_sol_keeper/test/negative/WrongPlannerFeeInAuthoritySlot.test.mo": "9b927b60a48f974749e8185a2f0793ce3d84ab83da607a0a3c6c3cf99edbdcb9",
+   "native_sol_keeper/test/negative/WrongPolicyEarlySign.mo": "848d3f54b9be804caf10bdd82888e54f70de823290f855afa520becbc24bb3d6",
+   "native_sol_keeper/test/negative/WrongPolicyEarlySign.test.mo": "551fbea6344cc2dca34c3977de9f3cf0511b74b5b60110c533d11a4831360748",
+   "native_sol_keeper/test/negative/WrongPolicyIgnoresUnconfigured.mo": "efdc541b7aa728ac75522ca628eafd94227f50889dc487b8925c48b14e82ddaa",
+   "native_sol_keeper/test/negative/WrongPolicyIgnoresUnconfigured.test.mo": "f3c184ad404ecc051866a6729aa0de79d48d9396e282de327c1e61a94c001477",
+   "native_sol_keeper/test/negative/WrongPolicyIgnoresUnknown.mo": "44484281be3dbf323a08f64e862068a896f0640fcfd56c9c8de075866eb091cf",
+   "native_sol_keeper/test/negative/WrongPolicyIgnoresUnknown.test.mo": "8500682aba8895d3a8c5538594e8c8637b2b928874de8e569f2755f1108eeb81",
+   "native_sol_keeper/test/negative/WrongPolicyNeverRearm.mo": "e653be55a6bcba45d971ba72830f8092ece0b014c8bc87756738d7bdb69e70be",
+   "native_sol_keeper/test/negative/WrongPolicyNeverRearm.test.mo": "02b76e2ad9e52f8d27ec0911c5895690071dae5a8a09911f6758979b73e1a5ac",
+   "native_sol_keeper/test/negative/WrongPolicyRearmWhenDisarmed.mo": "b50fe0cc48ed21150f000000bbf9e3e47cffc6e7c4967c2d923d9de465525f0b",
+   "native_sol_keeper/test/negative/WrongPolicyRearmWhenDisarmed.test.mo": "f2ba6366e0b6f95d6c84f57424859a95af9a8f5fc9562ccbc01b4332837ebf98",
+   "native_sol_keeper/test/negative/WrongPolicySignsAtAlert.mo": "f927255f32bdc4d3ea87a24dceb97f45630052accc6e5aca9798298b9d6639a1",
+   "native_sol_keeper/test/negative/WrongPolicySignsAtAlert.test.mo": "52d0b16446f165d0763f4c99775c57e3e189a6ff94824bc87f5cd0914fb79535",
+   "native_sol_keeper/test/negative/negative.py": "70976f2409f20c3637dfbe4e0efc4f9a4fd0afb4d1ddce3ab9fdab653a4cdd7b",
+   "shenanigans/NativeRewards.mo": "24456cb8a7b55645ae30c4a64e22dbacfb358b2473c86f44f08558e50055133c",
+   "shenanigans/main.mo": "9df6b46f9db41840c5508e66059790e5fc65269734dc3442529a1eae8179029f",
+   "shenanigans/test/legacy-untouched.test.sh": "b2b8c778607f7bae9b8bec32f23392ae296730c9843ba0ca13915f98cff9ba4f",
+   "shenanigans/test/native-rewards-execute.test.mo": "6c8cf137ebd400910a45872b11bdcd25abe4ba66218473da6929f93379b121be",
+   "shenanigans/test/native-rewards-gift-interleave.test.mo": "6c2ea1053314d508353e0051be460d1ddeed709d0d2e70007fc943e0d49cc7b6",
+   "shenanigans/test/native-rewards-observe-bind.test.mo": "6a6afd1e81b8214fc4121439dd39942aa0716fac70430a9038b6b2f325138716",
+   "shenanigans/test/native-rewards-reconcile.test.mo": "b5c26695319c4862730066fd3a2df87cfb115c56196bee53540697ff27368f9f",
+   "shenanigans/test/replica/gift-interleave.sh": "f57cdf06f33cb6e53578449931a71680c3cea4ea1368670da6eb5be57da474f2",
+   "shenanigans/test/replica/gift_interleave.py": "4477ffa7aa97eec5e0b1daa4d4d756835e8dc00f020cc3b83452620a1ec10a43",
+   "shenanigans/test/replica/legacy_games_stub/latch_ledger.mo": "96aa6ef2da3b220992004f0d43b90ca5416b8e6cdf86f1319e9ba6217c840576",
+   "shenanigans/test/replica/legacy_games_stub/main.mo": "d6fac516d1cebe29cf2575c1a7834cc44366de6ce64ed9676f2d7bd115b84bee",
+   "solana/keepers/worker/src/journal.rs": "4a53c5102b8e94c0774dd4a7a6596705aa1c5745600626cb2b8c3a8fe989a4a7",
+   "solana/keepers/worker/src/lib.rs": "76b69845900db0a0153ce7c41dd3f59e297a34d57574cbc8eb7da63d590497b5",
+   "solana/keepers/worker/src/main.rs": "6d2b11793606c6a393faa6720bd8fbfa2fe3f0a666bc56d9ec60a7fe39176ad0",
+   "solana/keepers/worker/src/plan.rs": "1f0225a27e1f801a9ad8f21a1a500e8da188b32410087e62a357219db571b3c4",
+   "solana/keepers/worker/src/runner.rs": "6fdf4b232dc41784d16f2cb6983c19624ac18ad70cb4f900877a0b135befbf7e",
+   "solana/keepers/worker/src/state.rs": "6eebc28980db601806081b53d7f0684b4f42330e284c64c4ac84a3865d456d12",
+   "solana/keepers/worker/tests/fixtures/mod.rs": "6f7f7c194bff7f31dddfac15d7d774f9e1762d05bb3ca5033f1c73aaea6c56e5",
+   "solana/keepers/worker/tests/keeper.rs": "0ccc0a9e333717575d6516fe8450572b137dd66095ff9ca6a237ad1a3108e5c4",
+   "vite.config.ts": "3e84bae3c7a955763cdbe474406991506b7a06f53789d79da453ce77a65539dd"
+  },
+  "note": "semantic coverage = this fragment (coordinator-authored from the two review docs, the receipts and the handoff); AST coverage = graphify update on the committed tree"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_15_r1_actor_level_interleave_proof\"",
+   "result": "Node: R1 actor-level proof on the local replica (G1–G6 run, 91 checks): real shenanigans + real pp_ledger + real siws_provider with a legacy-games stub, and a latch-ledger build for the deterministic held await; observed classification: caught rejects → Failed, native leg → SubmittedUnknown, no SYS_UNKNOWN; finding: the 70-byte legacy signup-gift memo exceeds the 32-byte ledger limit (mainnet advertises 32 too) — disclosed, not changed\n  ID:        impl2026_10_15_r1_actor_level_interleave_proof\n"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_15_r2_bridge_driven_execution\"",
+   "result": "Node: R2: permissionless one-leg-per-call executeReservedLeg through the bridge's own Shenanigans allowlist (no caller recipient/amount/bytes; Forwarded AND bound; Committed answered from the bridge record; per-leg LegStore); replica v2 154/153 with the stale COOL-1 oracle kept honest + a 2/2 supplement; mc-nonadmin executed every initial leg → real mints at ledger blocks 30–33; live negative controls; four upgrade points\n  ID:        impl2026_10_15_r2_bridge_driven_execution\n  Source:    native"
+  }
+ ],
+ "note": "A graph relationship is navigation evidence only; financial and authority claims are verified against current source and tests."
+}
