@@ -76,6 +76,8 @@ export function disabledCopy(history: Extract<NativeHistoryResult, { enabled: fa
   switch (history.reason) {
     case 'cluster-mismatch':
       return `Native activity is hidden: the ICP bridge follows ${history.bridgeCluster ?? 'another cluster'}, but this app is on ${app}. Nothing from another cluster is listed.`;
+    case 'program-mismatch':
+      return `Native activity is hidden: the ICP bridge follows another program deployment on ${app}. Nothing from another deployment is listed.`;
     case 'cluster-unresolved':
       return "Native activity can't be listed yet: this build's Solana cluster isn't set up for the native game, so the ICP bridge's cluster can't be checked.";
     case 'config-unavailable':

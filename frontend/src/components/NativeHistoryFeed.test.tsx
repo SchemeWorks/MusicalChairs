@@ -100,6 +100,7 @@ function enabled(over: Partial<Extract<NativeHistoryResult, { enabled: true }>> 
   return {
     enabled: true,
     items: toNativeHistoryItems(bridgePage),
+    droppedProgramMismatch: 0,
     isLoading: false,
     error: null,
     hasMore: false,
@@ -188,10 +189,19 @@ describe('cluster guard: the feed is off with a visible reason and lists nothing
     expect(html).not.toMatch(/musical-chairs|[1-9A-HJ-NP-Za-km-z]{32,}|https?:/);
   });
 
+  it('a same-cluster, other-program bridge: named by label only ("another program deployment on <cluster>"), nothing listed', () => {
+    const html = render(<NativeHistoryList history={off({ reason: 'program-mismatch', appCluster: 'devnet', bridgeCluster: 'devnet' })} />);
+    expect(html).toContain('data-reason="program-mismatch"');
+    expect(html).toContain('the ICP bridge follows another program deployment on devnet');
+    expect(html).toContain('Nothing from another deployment is listed.');
+    expect(html).not.toContain('data-testid="native-history-row"');
+    expect(html).not.toMatch(/musical-chairs|[1-9A-HJ-NP-Za-km-z]{32,}|https?:/);
+  });
+
   it('every reason has its own visible sentence and lists nothing', () => {
-    const reasons = ['not-configured', 'invalid-canister-id', 'cluster-unresolved', 'cluster-mismatch', 'config-unavailable', 'bridge-uninitialized'] as const;
+    const reasons = ['not-configured', 'invalid-canister-id', 'cluster-unresolved', 'cluster-mismatch', 'program-mismatch', 'config-unavailable', 'bridge-uninitialized'] as const;
     const texts = reasons.map((reason) => disabledCopy({ enabled: false, reason, appCluster: 'localnet', bridgeCluster: 'devnet' }));
-    expect(new Set(texts.filter((_, i) => i !== 1)).size).toBe(5); // invalid id reads like "not configured"
+    expect(new Set(texts.filter((_, i) => i !== 1)).size).toBe(6); // invalid id reads like "not configured"
     expect(disabledCopy({ enabled: false, reason: 'cluster-unresolved' })).toMatch(/cluster isn't set up for the native game/);
     expect(disabledCopy({ enabled: false, reason: 'config-unavailable', appCluster: 'devnet' })).toMatch(/configuration couldn't be read.*follows devnet/);
     expect(disabledCopy({ enabled: false, reason: 'bridge-uninitialized' })).toMatch(/isn't configured for any cluster yet/);

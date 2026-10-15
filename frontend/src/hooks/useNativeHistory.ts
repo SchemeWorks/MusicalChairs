@@ -23,16 +23,25 @@
 //          replica http://localhost:4943 (with fetchRootKey), anything else -> https://icp0.io.
 // The actor is anonymous (queries only): no identity, no signing.
 //
-// CLUSTER GUARD (IMPL-49c part 2). Before anything is listed, the hook reads the bridge's own public
-// `getConfig()` and compares its `cluster_domain` (32 bytes) with the domain the app's native adapter
-// expects (the same `expectedClusterDomain` it verifies against Pool.clusterDomain, cluster.ts). The
-// verified feed of ANOTHER cluster is never shown: on a mismatch, an unresolved app cluster (e.g. the
+// CLUSTER AND PROGRAM GUARD (IMPL-49c part 2 and 49g). Before anything is listed, the hook reads the
+// bridge's own public `getConfig()` and compares BOTH
+//   * `cluster_domain` (32 bytes) with the domain the app's native adapter expects (the same
+//     `expectedClusterDomain` it verifies against Pool.clusterDomain, cluster.ts), and
+//   * `program_id` (base58) with the adapter identity's `cluster.programId`,
+// because a bridge for ANOTHER program on the same cluster would otherwise list unrelated verified
+// events as this app's history (program_id is part of event identity, spec section 9; the cache
+// identity is cluster + programId, section 11). On any mismatch, an unresolved app cluster (e.g. the
 // default mainnet endpoint, which has no cluster domain yet), an uninitialized bridge or a failed
-// config read the feed is disabled with a reason and nothing is listed. The bridge's config is cached
-// per (host, canister id). Clusters are only ever named by label (localnet, devnet, ...), never by key.
+// config read the feed is disabled with a reason and nothing is listed. As a second line of defense
+// the mapper drops any record whose own event id carries a different program id (and counts them).
+//
+// Identity: the config check, the config cache and the history query key are all bound to
+//   (host, bridge canister id, expected cluster domain, expected program id)
+// so a change of any of them starts a fresh check and a fresh page cache; an earlier verdict or page
+// is never reused. Clusters and programs are only ever named by label, never by key.
 
 import { useMemo } from 'react';
-import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
+import { infiniteQueryOptions, queryOptions, useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import { Actor, HttpAgent, type ActorSubclass } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
 import { idlFactory } from '../declarations/native_sol_bridge/native_sol_bridge.did.js';
@@ -76,16 +85,32 @@ const PLANS: readonly NativeHistoryPlan[] = ['Simple', 'Compound15', 'Compound30
 
 const variantName = (variant: object): string | undefined => Object.keys(variant)[0];
 
+export interface NativeHistoryMapping {
+  items: NativeHistoryItem[];
+  /** Verified-delivery records dropped because their event id names a different program than the app's. */
+  droppedProgramMismatch: number;
+}
+
 /**
- * Bridge entries -> user-facing items, newest first. DEFENSIVE: only Forwarded and Quarantined survive;
- * Pending, Unverified, Verified and Invalid (and anything unrecognised) are dropped.
+ * Bridge entries -> user-facing items, newest first. DEFENSIVE:
+ *  * only Forwarded and Quarantined survive; Pending, Unverified, Verified and Invalid (and anything
+ *    unrecognised) are dropped silently;
+ *  * with `expectedProgramId`, a record whose event id carries a DIFFERENT program id is dropped too and
+ *    counted in `droppedProgramMismatch` (program_id is part of event identity).
  */
-export function toNativeHistoryItems(entries: readonly BridgeEntry[]): NativeHistoryItem[] {
+export function mapNativeHistory(entries: readonly BridgeEntry[], expectedProgramId?: string): NativeHistoryMapping {
   const items: NativeHistoryItem[] = [];
+  let droppedProgramMismatch = 0;
   for (const entry of entries) {
     const status: Status = entry.status;
     const kind = variantName(entry.descriptor.kind) as NativeHistoryKind | undefined;
     if (!kind || !KINDS.includes(kind)) continue;
+    const verifiedDelivery = 'Forwarded' in status || 'Quarantined' in status;
+    if (!verifiedDelivery) continue; // intake/audit data never reaches a user-facing feed
+    if (expectedProgramId !== undefined && entry.descriptor.event_id.program_id !== expectedProgramId) {
+      droppedProgramMismatch += 1;
+      continue;
+    }
     const plan = entry.descriptor.plan[0] ? (variantName(entry.descriptor.plan[0]) as NativeHistoryPlan | undefined) : undefined;
     const base = {
       seq: entry.seq,
@@ -109,9 +134,14 @@ export function toNativeHistoryItems(entries: readonly BridgeEntry[]): NativeHis
     } else if ('Quarantined' in status) {
       items.push({ ...base, deliveredAt: status.Quarantined.at, outcome: 'rejected', reason: status.Quarantined.reason });
     }
-    // every other status is intake/audit data and never reaches a user-facing feed
   }
-  return items.sort((a, b) => (a.seq < b.seq ? 1 : a.seq > b.seq ? -1 : 0));
+  items.sort((a, b) => (a.seq < b.seq ? 1 : a.seq > b.seq ? -1 : 0));
+  return { items, droppedProgramMismatch };
+}
+
+/** `mapNativeHistory(...).items`: the items only (pass `expectedProgramId` to also enforce the program). */
+export function toNativeHistoryItems(entries: readonly BridgeEntry[], expectedProgramId?: string): NativeHistoryItem[] {
+  return mapNativeHistory(entries, expectedProgramId).items;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,6 +156,8 @@ export type HistoryDisabledReason =
   | 'cluster-unresolved'
   /** The bridge follows a different cluster than the app. */
   | 'cluster-mismatch'
+  /** The bridge follows the app's cluster but ANOTHER program deployment on it. */
+  | 'program-mismatch'
   /** The bridge's config could not be read, so its cluster cannot be checked. */
   | 'config-unavailable'
   /** The bridge canister has no config yet (it follows no cluster). */
@@ -168,7 +200,7 @@ function bridgeActor(canisterId: string, host: string = IC_HOST): Promise<ActorS
 }
 
 // ---------------------------------------------------------------------------
-// Cluster guard
+// Cluster and program guard
 // ---------------------------------------------------------------------------
 
 const sameBytes = (a: ArrayLike<number>, b: ArrayLike<number>): boolean => a.length === b.length && Array.from(a).every((byte, i) => byte === b[i]);
@@ -181,98 +213,131 @@ export function clusterDomainLabel(domain: ArrayLike<number>): string {
   return 'another deployment';
 }
 
-export type ExpectedCluster = { ok: true; domain: Uint8Array; label: string } | { ok: false };
+/** What the app expects the bridge to follow: the cluster domain AND the program id of the adapter's identity. */
+export type ExpectedCluster = { ok: true; domain: Uint8Array; label: string; programId: string } | { ok: false };
 
-/** The cluster domain the app expects (the adapter's `expectedClusterDomain`), or not-ok when it cannot be resolved. */
+/** The identity the app's native adapter verifies against (`expectedClusterDomain` + `programId`), or not-ok when it cannot be resolved. */
 export function expectedAppCluster(identity: NativeClusterIdentity | null): ExpectedCluster {
   if (!identity) return { ok: false };
   try {
     const domain = resolveExpectedDomain(identity.cluster);
     const named = identity.cluster.expectedClusterDomain;
-    return { ok: true, domain, label: typeof named === 'string' ? named : clusterDomainLabel(domain) };
+    return { ok: true, domain, label: typeof named === 'string' ? named : clusterDomainLabel(domain), programId: identity.cluster.programId };
   } catch {
     return { ok: false }; // e.g. NativeClusterNotConfiguredError: mainnet-beta has no domain yet
   }
 }
 
-type GuardReason = 'cluster-unresolved' | 'cluster-mismatch' | 'config-unavailable' | 'bridge-uninitialized';
+type GuardReason = 'cluster-unresolved' | 'cluster-mismatch' | 'program-mismatch' | 'config-unavailable' | 'bridge-uninitialized';
 
 export type ClusterVerdict =
   | { state: 'checking' }
   | { state: 'ok' }
   | { state: 'disabled'; reason: GuardReason; appCluster?: string; bridgeCluster?: string };
 
-/** What was learned about the bridge's cluster: still loading, failed, no config, or its domain. */
-export type BridgeDomain = { loading: true } | { error: true } | { domain: ArrayLike<number> | null };
+/** The fields of the bridge's public `getConfig()` the guard compares. */
+export interface BridgeConfig {
+  domain: ArrayLike<number>;
+  /** Base58 program id. */
+  programId: string;
+}
+
+/** What was learned about the bridge: still loading, failed, no config, or its config. */
+export type BridgeRead = { loading: true } | { error: true } | { config: BridgeConfig | null };
 
 /** Pure verdict. The order matters: nothing is ever listed unless this returns `ok`. */
-export function judgeBridgeCluster(input: { expected: ExpectedCluster; bridge: BridgeDomain }): ClusterVerdict {
+export function judgeBridgeCluster(input: { expected: ExpectedCluster; bridge: BridgeRead }): ClusterVerdict {
   const { expected, bridge } = input;
   if (!expected.ok) return { state: 'disabled', reason: 'cluster-unresolved' };
   if ('loading' in bridge) return { state: 'checking' };
   if ('error' in bridge) return { state: 'disabled', reason: 'config-unavailable', appCluster: expected.label };
-  if (bridge.domain === null) return { state: 'disabled', reason: 'bridge-uninitialized', appCluster: expected.label };
-  if (!sameBytes(bridge.domain, expected.domain)) {
-    return { state: 'disabled', reason: 'cluster-mismatch', appCluster: expected.label, bridgeCluster: clusterDomainLabel(bridge.domain) };
+  if (bridge.config === null) return { state: 'disabled', reason: 'bridge-uninitialized', appCluster: expected.label };
+  if (!sameBytes(bridge.config.domain, expected.domain)) {
+    return { state: 'disabled', reason: 'cluster-mismatch', appCluster: expected.label, bridgeCluster: clusterDomainLabel(bridge.config.domain) };
+  }
+  // Same cluster: it must also be the same PROGRAM deployment (program_id is part of event identity).
+  if (bridge.config.programId.trim() !== expected.programId) {
+    return { state: 'disabled', reason: 'program-mismatch', appCluster: expected.label, bridgeCluster: expected.label };
   }
   return { state: 'ok' };
 }
 
-const bridgeDomains = new Map<string, Promise<Uint8Array | null>>();
+/**
+ * The four things a verdict, a config read and a page cache depend on. A change of ANY of them is a different
+ * scope: it gets a fresh config check and a fresh query key, never an earlier verdict or page.
+ */
+export interface BridgeScope {
+  host: string;
+  canisterId: string;
+  expected: ExpectedCluster;
+}
+
+/** Key parts of a scope: host, canister id, expected cluster domain (hex), expected program id. */
+export function scopeParts(scope: BridgeScope): [string, string, string, string] {
+  const { expected } = scope;
+  return [scope.host, scope.canisterId, expected.ok ? bytesToHex(expected.domain) : 'unresolved', expected.ok ? expected.programId : 'unresolved'];
+}
+
+export const bridgeCacheKey = (scope: BridgeScope): string => scopeParts(scope).join('|');
+export const clusterCheckQueryKey = (scope: BridgeScope): readonly unknown[] => ['native-bridge-cluster', ...scopeParts(scope)];
+export const historyQueryKey = (scope: BridgeScope): readonly unknown[] => ['native-bridge-history', ...scopeParts(scope)];
+
+const bridgeConfigs = new Map<string, Promise<BridgeConfig | null>>();
 
 /**
- * The bridge's `cluster_domain`, cached per (host, canister id). A failed read and an uninitialized bridge
- * (null) are NOT cached, so the next check asks again; a real domain is kept for the life of the page.
+ * The bridge's config, cached per scope key (host, canister id, expected domain, expected program). A failed
+ * read and an uninitialized bridge (null) are NOT cached, so the next check asks again; a real config is kept
+ * for the life of the page, for that scope only.
  */
-export function cachedBridgeDomain(key: string, load: () => Promise<Uint8Array | null>): Promise<Uint8Array | null> {
-  const existing = bridgeDomains.get(key);
+export function cachedBridgeConfig(key: string, load: () => Promise<BridgeConfig | null>): Promise<BridgeConfig | null> {
+  const existing = bridgeConfigs.get(key);
   if (existing) return existing;
   const attempt = load().then(
-    (domain) => {
-      if (domain === null) bridgeDomains.delete(key);
-      return domain;
+    (config) => {
+      if (config === null) bridgeConfigs.delete(key);
+      return config;
     },
     (error: unknown) => {
-      bridgeDomains.delete(key);
+      bridgeConfigs.delete(key);
       throw error;
     },
   );
-  bridgeDomains.set(key, attempt);
+  bridgeConfigs.set(key, attempt);
   return attempt;
 }
 
 export function resetBridgeConfigCacheForTests(): void {
-  bridgeDomains.clear();
+  bridgeConfigs.clear();
 }
 
-/** Read the bridge's public config through its anonymous actor (cached). */
-function readBridgeDomain(canisterId: string, host: string = IC_HOST): Promise<Uint8Array | null> {
-  return cachedBridgeDomain(`${host}|${canisterId}`, async () => {
-    const config = await (await bridgeActor(canisterId, host)).getConfig();
-    return config[0] ? Uint8Array.from(config[0].cluster_domain) : null;
+/** Read the bridge's public config through its anonymous actor (cached per scope). */
+function readBridgeConfig(scope: BridgeScope): Promise<BridgeConfig | null> {
+  return cachedBridgeConfig(bridgeCacheKey(scope), async () => {
+    const config = await (await bridgeActor(scope.canisterId, scope.host)).getConfig();
+    return config[0] ? { domain: Uint8Array.from(config[0].cluster_domain), programId: config[0].program_id } : null;
   });
 }
 
 /** Resolve the verdict for `expected` against the bridge, reading its config only when the app's cluster is resolved. */
-export async function verifyBridgeCluster(expected: ExpectedCluster, loadDomain: () => Promise<Uint8Array | null>): Promise<ClusterVerdict> {
+export async function verifyBridgeCluster(expected: ExpectedCluster, loadConfig: () => Promise<BridgeConfig | null>): Promise<ClusterVerdict> {
   if (!expected.ok) return judgeBridgeCluster({ expected, bridge: { loading: true } }); // unresolved wins before any read
   try {
-    return judgeBridgeCluster({ expected, bridge: { domain: await loadDomain() } });
+    return judgeBridgeCluster({ expected, bridge: { config: await loadConfig() } });
   } catch {
     return judgeBridgeCluster({ expected, bridge: { error: true } });
   }
 }
 
-/** A listing was refused because the bridge is not the app's cluster (or could not be checked). */
+/** A listing was refused because the bridge is not the app's cluster and program (or could not be checked). */
 export class BridgeClusterError extends Error {
   constructor(readonly verdict: Extract<ClusterVerdict, { state: 'disabled' }>) {
-    super(`The ICP bridge is not usable for this cluster (${verdict.reason}).`);
+    super(`The ICP bridge is not usable for this cluster and program (${verdict.reason}).`);
     this.name = 'BridgeClusterError';
   }
 }
 
 // ---------------------------------------------------------------------------
-// The hook
+// Pages
 // ---------------------------------------------------------------------------
 
 export interface HistoryPage {
@@ -281,6 +346,8 @@ export interface HistoryPage {
   rawCount: number;
   /** Oldest raw sequence number of the page: the next `before`. */
   oldestSeq: bigint | null;
+  /** Verified-delivery records dropped because their event id names another program. */
+  droppedProgramMismatch: number;
 }
 
 export type NativeHistoryResult =
@@ -294,6 +361,8 @@ export type NativeHistoryResult =
   | {
       enabled: true;
       items: NativeHistoryItem[];
+      /** Records dropped (across the loaded pages) for carrying another program's id. Normally 0. */
+      droppedProgramMismatch: number;
       isLoading: boolean;
       error: Error | null;
       hasMore: boolean;
@@ -307,35 +376,80 @@ export function nextHistoryCursor(page: Pick<HistoryPage, 'rawCount' | 'oldestSe
   return page.rawCount >= pageSize && page.oldestSeq !== null ? page.oldestSeq : undefined;
 }
 
-/** Fetch one page: `before` is the previous page's oldest raw seq (null = newest). */
+type RecentEventsActor = { getRecentEvents: (before: [] | [bigint], limit: bigint) => Promise<BridgeEntry[]> };
+
+/** Fetch one page: `before` is the previous page's oldest raw seq (null = newest). `expectedProgramId` also drops other programs' records. */
 export async function fetchHistoryPage(
-  actor: { getRecentEvents: (before: [] | [bigint], limit: bigint) => Promise<BridgeEntry[]> },
+  actor: RecentEventsActor,
   before: bigint | null,
   limit: number = NATIVE_HISTORY_PAGE_SIZE,
+  expectedProgramId?: string,
 ): Promise<HistoryPage> {
   const raw = await actor.getRecentEvents(before === null ? [] : [before], BigInt(limit));
   let oldest: bigint | null = null;
   for (const entry of raw) if (oldest === null || entry.seq < oldest) oldest = entry.seq;
-  return { items: toNativeHistoryItems(raw), rawCount: raw.length, oldestSeq: oldest };
+  const { items, droppedProgramMismatch } = mapNativeHistory(raw, expectedProgramId);
+  return { items, rawCount: raw.length, oldestSeq: oldest, droppedProgramMismatch };
 }
 
 /**
- * Fetch one page, but only after the cluster guard passes: nothing is listed on a mismatch, an unresolved
- * app cluster, an uninitialized bridge or a failed config read (the listing method is never called then).
+ * Fetch one page, but only after the guard passes: nothing is listed on a cluster or program mismatch, an
+ * unresolved app cluster, an uninitialized bridge or a failed config read (the listing method is never called
+ * then). Records of another program are dropped from what is listed.
  */
 export async function fetchGuardedPage(
-  actor: { getRecentEvents: (before: [] | [bigint], limit: bigint) => Promise<BridgeEntry[]> },
+  actor: RecentEventsActor,
   expected: ExpectedCluster,
-  loadDomain: () => Promise<Uint8Array | null>,
+  loadConfig: () => Promise<BridgeConfig | null>,
   before: bigint | null,
   limit: number = NATIVE_HISTORY_PAGE_SIZE,
 ): Promise<HistoryPage> {
-  const verdict = await verifyBridgeCluster(expected, loadDomain);
-  if (verdict.state !== 'ok') {
+  const verdict = await verifyBridgeCluster(expected, loadConfig);
+  if (verdict.state !== 'ok' || !expected.ok) {
     throw new BridgeClusterError(verdict.state === 'disabled' ? verdict : { state: 'disabled', reason: 'cluster-unresolved' });
   }
-  return fetchHistoryPage(actor, before, limit);
+  return fetchHistoryPage(actor, before, limit, expected.programId);
 }
+
+// ---------------------------------------------------------------------------
+// Query definitions (injectable, so identity-switch behavior is testable with a real QueryClient)
+// ---------------------------------------------------------------------------
+
+export interface BridgeDeps {
+  actor(scope: BridgeScope): Promise<RecentEventsActor>;
+  config(scope: BridgeScope): Promise<BridgeConfig | null>;
+}
+
+export const productionBridgeDeps: BridgeDeps = {
+  actor: (scope) => bridgeActor(scope.canisterId, scope.host),
+  config: readBridgeConfig,
+};
+
+/** The guard query: one verdict per scope, never shared across scopes. */
+export function clusterCheckOptions(scope: BridgeScope, deps: BridgeDeps = productionBridgeDeps) {
+  return queryOptions<ClusterVerdict, Error>({
+    queryKey: clusterCheckQueryKey(scope),
+    queryFn: () => verifyBridgeCluster(scope.expected, () => deps.config(scope)),
+    staleTime: 60_000,
+    retry: false,
+  });
+}
+
+/** The listing query: pages are cached per scope and every page re-checks the guard (through the per-scope config cache). */
+export function historyOptions(scope: BridgeScope, deps: BridgeDeps = productionBridgeDeps) {
+  return infiniteQueryOptions({
+    queryKey: historyQueryKey(scope),
+    initialPageParam: null as bigint | null,
+    queryFn: async ({ pageParam }: { pageParam: bigint | null }): Promise<HistoryPage> =>
+      fetchGuardedPage(await deps.actor(scope), scope.expected, () => deps.config(scope), pageParam),
+    getNextPageParam: (last: HistoryPage) => nextHistoryCursor(last),
+    staleTime: REFRESH_MS / 2,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// The hook
+// ---------------------------------------------------------------------------
 
 /**
  * Verified native activity, newest first, paged by `before`. Disabled (no call, no actor) unless a bridge
@@ -346,46 +460,37 @@ export function useNativeHistory(configuredId: string | undefined = process.env.
   const canisterId = 'id' in configured ? configured.id : null;
   const cluster = useNativeClusterIdentity();
   const expected = useMemo(() => expectedAppCluster(cluster.identity), [cluster.key]); // eslint-disable-line react-hooks/exhaustive-deps
-  const domainKey = expected.ok ? bytesToHex(expected.domain) : 'unresolved';
+  const scope: BridgeScope = { host: IC_HOST, canisterId: canisterId ?? '', expected };
 
-  // 1. The guard: the bridge's own cluster_domain against the app's (cached per host and canister id).
-  const check = useQuery<ClusterVerdict, Error>({
-    queryKey: ['native-bridge-cluster', IC_HOST, canisterId, domainKey],
-    queryFn: () => verifyBridgeCluster(expected, () => readBridgeDomain(canisterId as string)),
-    enabled: canisterId !== null,
-    staleTime: 60_000,
-    retry: false,
-  });
+  // 1. The guard: the bridge's cluster_domain AND program_id against the app's, once per scope.
+  const check = useQuery({ ...clusterCheckOptions(scope), enabled: canisterId !== null });
   const verdict: ClusterVerdict = canisterId === null ? { state: 'checking' } : check.data ?? { state: 'checking' };
 
-  // 2. The listing: only once the guard says the cluster matches, and it re-checks (cached) before each page.
-  const query = useInfiniteQuery<HistoryPage, Error, { pages: HistoryPage[] }, readonly unknown[], bigint | null>({
-    queryKey: ['native-bridge-history', canisterId, domainKey],
-    initialPageParam: null,
-    queryFn: async ({ pageParam }) =>
-      fetchGuardedPage(await bridgeActor(canisterId as string), expected, () => readBridgeDomain(canisterId as string), pageParam),
-    getNextPageParam: (last) => nextHistoryCursor(last),
+  // 2. The listing: only once the guard says cluster AND program match, and it re-checks before each page.
+  const query = useInfiniteQuery({
+    ...historyOptions(scope),
     enabled: canisterId !== null && verdict.state === 'ok',
     refetchInterval: REFRESH_MS,
-    staleTime: REFRESH_MS / 2,
-    retry: (count, error) => !(error instanceof BridgeClusterError) && count < 2,
+    retry: (count: number, error: Error) => !(error instanceof BridgeClusterError) && count < 2,
   });
+  const pages = query.data?.pages ?? [];
   const items = useMemo(() => {
-    const merged = (query.data?.pages ?? []).flatMap((page) => page.items);
+    const merged = pages.flatMap((page) => page.items);
     // a refetch of earlier pages can overlap a later page boundary: keep one row per seq
     const seen = new Set<bigint>();
     return merged.filter((item) => (seen.has(item.seq) ? false : (seen.add(item.seq), true)));
-  }, [query.data]);
+  }, [query.data]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (canisterId === null) return { enabled: false, reason: (configured as { disabled: HistoryDisabledReason }).disabled };
   const refused = query.error instanceof BridgeClusterError ? query.error.verdict : verdict.state === 'disabled' ? verdict : null;
   if (refused) {
-    // Nothing is listed: not from this query, not from an earlier cluster's cache (the key carries the domain).
+    // Nothing is listed: not from this query, not from an earlier scope's cache (the key carries all four identity parts).
     return { enabled: false, reason: refused.reason, appCluster: refused.appCluster, bridgeCluster: refused.bridgeCluster };
   }
   return {
     enabled: true,
     items: verdict.state === 'ok' ? items : [],
+    droppedProgramMismatch: verdict.state === 'ok' ? pages.reduce((sum, page) => sum + page.droppedProgramMismatch, 0) : 0,
     isLoading: verdict.state !== 'ok' || query.isLoading,
     error: query.error,
     hasMore: verdict.state === 'ok' && !!query.hasNextPage,

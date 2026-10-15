@@ -10,13 +10,22 @@ import { Actor } from '@dfinity/agent';
 import {
   BridgeClusterError,
   NATIVE_HISTORY_PAGE_SIZE,
-  cachedBridgeDomain,
+  bridgeCacheKey,
+  cachedBridgeConfig,
+  clusterCheckOptions,
+  clusterCheckQueryKey,
   clusterDomainLabel,
   expectedAppCluster,
+  type BridgeConfig,
+  type BridgeDeps,
+  type BridgeScope,
   type ExpectedCluster,
   fetchGuardedPage,
   fetchHistoryPage,
+  historyOptions,
+  historyQueryKey,
   judgeBridgeCluster,
+  mapNativeHistory,
   nextHistoryCursor,
   resetBridgeConfigCacheForTests,
   resolveBridgeCanisterId,
@@ -218,23 +227,27 @@ describe('the hook', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Cluster guard: the bridge's cluster_domain must be the app's, or nothing is listed
+// Cluster and program guard: the bridge's cluster_domain AND program_id must be the app's, or nothing is listed
 // ---------------------------------------------------------------------------
 
-const identity = (name: 'localnet' | 'devnet' | 'mainnet-beta'): NativeClusterIdentity => ({
-  cluster: { expectedClusterDomain: name, programId: idl.address },
+const PROGRAM = idl.address;
+const OTHER_PROGRAM = '11111111111111111111111111111111';
+
+const identity = (name: 'localnet' | 'devnet' | 'mainnet-beta', programId: string = PROGRAM): NativeClusterIdentity => ({
+  cluster: { expectedClusterDomain: name, programId },
   rpcEndpoint: 'http://127.0.0.1:8899',
 });
 const LOCAL = CLUSTER_DOMAINS.localnet;
 const DEVNET = CLUSTER_DOMAINS.devnet;
+const config = (domain: Uint8Array | number[], programId: string = PROGRAM): BridgeConfig => ({ domain, programId });
 
-describe('the app\'s expected cluster', () => {
-  it('is the adapter\'s expectedClusterDomain, labeled by name', () => {
+describe('the app\'s expected cluster and program', () => {
+  it('is the adapter\'s expectedClusterDomain AND programId, labeled by name', () => {
     const local = expectedAppCluster(identity('localnet'));
-    expect(local).toMatchObject({ ok: true, label: 'localnet' });
+    expect(local).toMatchObject({ ok: true, label: 'localnet', programId: PROGRAM });
     expect(local.ok && Array.from(local.domain)).toEqual(Array.from(LOCAL));
-    expect(expectedAppCluster(identity('devnet'))).toMatchObject({ ok: true, label: 'devnet' });
-    expect(expectedAppCluster(defaultClusterIdentity('https://api.devnet.solana.com'))).toMatchObject({ ok: true, label: 'devnet' });
+    expect(expectedAppCluster(identity('devnet', OTHER_PROGRAM))).toMatchObject({ ok: true, label: 'devnet', programId: OTHER_PROGRAM });
+    expect(expectedAppCluster(defaultClusterIdentity('https://api.devnet.solana.com'))).toMatchObject({ ok: true, label: 'devnet', programId: PROGRAM });
   });
 
   it('is unresolved without an identity and for mainnet-beta (no cluster domain exists yet)', () => {
@@ -246,7 +259,7 @@ describe('the app\'s expected cluster', () => {
     expect(clusterDomainLabel(LOCAL)).toBe('localnet');
     expect(clusterDomainLabel(Array.from(DEVNET))).toBe('devnet');
     expect(clusterDomainLabel(new Uint8Array(32).fill(7))).toBe('another deployment');
-    const custom = expectedAppCluster({ cluster: { expectedClusterDomain: new Uint8Array(32).fill(7), programId: idl.address }, rpcEndpoint: 'http://127.0.0.1:8899' });
+    const custom = expectedAppCluster({ cluster: { expectedClusterDomain: new Uint8Array(32).fill(7), programId: PROGRAM }, rpcEndpoint: 'http://127.0.0.1:8899' });
     expect(custom).toMatchObject({ ok: true, label: 'another deployment' });
   });
 });
@@ -254,15 +267,15 @@ describe('the app\'s expected cluster', () => {
 describe('judgeBridgeCluster', () => {
   const app = expectedAppCluster(identity('localnet'));
 
-  it('match: the bridge follows the app\'s cluster', () => {
-    expect(judgeBridgeCluster({ expected: app, bridge: { domain: Uint8Array.from(LOCAL) } })).toEqual({ state: 'ok' });
-    expect(judgeBridgeCluster({ expected: app, bridge: { domain: Array.from(LOCAL) } })).toEqual({ state: 'ok' }); // candid may hand back number[]
+  it('match: the bridge follows the app\'s cluster and program', () => {
+    expect(judgeBridgeCluster({ expected: app, bridge: { config: config(Uint8Array.from(LOCAL)) } })).toEqual({ state: 'ok' });
+    expect(judgeBridgeCluster({ expected: app, bridge: { config: config(Array.from(LOCAL)) } })).toEqual({ state: 'ok' }); // candid may hand back number[]
   });
 
-  it('mismatch: disabled, naming BOTH clusters by label and neither by key', () => {
-    const v = judgeBridgeCluster({ expected: app, bridge: { domain: DEVNET } });
+  it('cluster mismatch: disabled, naming BOTH clusters by label and neither by key', () => {
+    const v = judgeBridgeCluster({ expected: app, bridge: { config: config(DEVNET) } });
     expect(v).toEqual({ state: 'disabled', reason: 'cluster-mismatch', appCluster: 'localnet', bridgeCluster: 'devnet' });
-    const unknown = judgeBridgeCluster({ expected: app, bridge: { domain: new Uint8Array(32).fill(9) } });
+    const unknown = judgeBridgeCluster({ expected: app, bridge: { config: config(new Uint8Array(32).fill(9)) } });
     expect(unknown).toMatchObject({ reason: 'cluster-mismatch', bridgeCluster: 'another deployment' });
     for (const verdict of [v, unknown]) {
       const text = JSON.stringify(verdict);
@@ -272,15 +285,26 @@ describe('judgeBridgeCluster', () => {
     }
   });
 
+  it('SAME cluster, WRONG program: disabled as program-mismatch, named by cluster label and no program key', () => {
+    const v = judgeBridgeCluster({ expected: app, bridge: { config: config(Uint8Array.from(LOCAL), OTHER_PROGRAM) } });
+    expect(v).toEqual({ state: 'disabled', reason: 'program-mismatch', appCluster: 'localnet', bridgeCluster: 'localnet' });
+    expect(JSON.stringify(v)).not.toContain(OTHER_PROGRAM);
+    expect(JSON.stringify(v)).not.toContain(PROGRAM);
+    // the cluster is checked first: a different cluster is a cluster mismatch even with a different program too
+    expect(judgeBridgeCluster({ expected: app, bridge: { config: config(DEVNET, OTHER_PROGRAM) } })).toMatchObject({ reason: 'cluster-mismatch' });
+    // surrounding whitespace in the candid text is not a different program
+    expect(judgeBridgeCluster({ expected: app, bridge: { config: config(Uint8Array.from(LOCAL), ` ${PROGRAM} `) } })).toEqual({ state: 'ok' });
+  });
+
   it('unconfigured app cluster: disabled with a reason, before the bridge is even consulted', () => {
     const unresolved = expectedAppCluster(identity('mainnet-beta'));
-    expect(judgeBridgeCluster({ expected: unresolved, bridge: { domain: Uint8Array.from(LOCAL) } })).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
+    expect(judgeBridgeCluster({ expected: unresolved, bridge: { config: config(Uint8Array.from(LOCAL)) } })).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
     expect(judgeBridgeCluster({ expected: unresolved, bridge: { loading: true } })).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
   });
 
   it('config read failure and an uninitialized bridge are disabled, not "ok"', () => {
     expect(judgeBridgeCluster({ expected: app, bridge: { error: true } })).toEqual({ state: 'disabled', reason: 'config-unavailable', appCluster: 'localnet' });
-    expect(judgeBridgeCluster({ expected: app, bridge: { domain: null } })).toEqual({ state: 'disabled', reason: 'bridge-uninitialized', appCluster: 'localnet' });
+    expect(judgeBridgeCluster({ expected: app, bridge: { config: null } })).toEqual({ state: 'disabled', reason: 'bridge-uninitialized', appCluster: 'localnet' });
   });
 
   it('while the config is loading the verdict is "checking" (not ok, not disabled)', () => {
@@ -291,25 +315,28 @@ describe('judgeBridgeCluster', () => {
 describe('verifyBridgeCluster and the config cache', () => {
   const app = expectedAppCluster(identity('localnet'));
 
-  it('reads the config once per (host, canister id) and keeps a real domain', async () => {
+  it('reads the config once per scope (host, canister id, expected domain, expected program) and keeps a real config', async () => {
     resetBridgeConfigCacheForTests();
-    const load = vi.fn(async () => Uint8Array.from(LOCAL));
-    const key = 'https://icp0.io|ryjl3-tyaaa-aaaaa-aaaba-cai';
-    await Promise.all([cachedBridgeDomain(key, load), cachedBridgeDomain(key, load)]);
-    await cachedBridgeDomain(key, load);
+    const load = vi.fn(async () => config(Uint8Array.from(LOCAL)));
+    const scope: BridgeScope = { host: 'https://icp0.io', canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai', expected: app };
+    await Promise.all([cachedBridgeConfig(bridgeCacheKey(scope), load), cachedBridgeConfig(bridgeCacheKey(scope), load)]);
+    await cachedBridgeConfig(bridgeCacheKey(scope), load);
     expect(load).toHaveBeenCalledTimes(1);
-    await cachedBridgeDomain('http://localhost:4943|ryjl3-tyaaa-aaaaa-aaaba-cai', load); // another host: its own entry
-    await cachedBridgeDomain('https://icp0.io|rrkah-fqaaa-aaaaa-aaaaq-cai', load); // another canister: its own entry
-    expect(load).toHaveBeenCalledTimes(3);
+    // a change of ANY identity part is a different scope with its own (fresh) read
+    await cachedBridgeConfig(bridgeCacheKey({ ...scope, host: 'http://localhost:4943' }), load);
+    await cachedBridgeConfig(bridgeCacheKey({ ...scope, canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai' }), load);
+    await cachedBridgeConfig(bridgeCacheKey({ ...scope, expected: expectedAppCluster(identity('devnet')) }), load);
+    await cachedBridgeConfig(bridgeCacheKey({ ...scope, expected: expectedAppCluster(identity('localnet', OTHER_PROGRAM)) }), load);
+    expect(load).toHaveBeenCalledTimes(5);
   });
 
   it('a failed read and an uninitialized bridge (null) are NOT cached: the next check asks again', async () => {
     resetBridgeConfigCacheForTests();
-    const load = vi.fn().mockRejectedValueOnce(new Error('replica down')).mockResolvedValueOnce(null).mockResolvedValue(Uint8Array.from(LOCAL));
-    await expect(cachedBridgeDomain('k', load)).rejects.toThrow('replica down');
-    expect(await cachedBridgeDomain('k', load)).toBeNull();
-    expect(await cachedBridgeDomain('k', load)).toEqual(Uint8Array.from(LOCAL));
-    expect(await cachedBridgeDomain('k', load)).toEqual(Uint8Array.from(LOCAL));
+    const load = vi.fn().mockRejectedValueOnce(new Error('replica down')).mockResolvedValueOnce(null).mockResolvedValue(config(Uint8Array.from(LOCAL)));
+    await expect(cachedBridgeConfig('k', load)).rejects.toThrow('replica down');
+    expect(await cachedBridgeConfig('k', load)).toBeNull();
+    expect(await cachedBridgeConfig('k', load)).toEqual(config(Uint8Array.from(LOCAL)));
+    expect(await cachedBridgeConfig('k', load)).toEqual(config(Uint8Array.from(LOCAL)));
     expect(load).toHaveBeenCalledTimes(3);
   });
 
@@ -321,13 +348,13 @@ describe('verifyBridgeCluster and the config cache', () => {
   });
 
   it('does not read the bridge at all when the app\'s own cluster is unresolved', async () => {
-    const load = vi.fn(async () => Uint8Array.from(LOCAL));
+    const load = vi.fn(async () => config(Uint8Array.from(LOCAL)));
     expect(await verifyBridgeCluster(expectedAppCluster(identity('mainnet-beta')), load)).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
     expect(load).not.toHaveBeenCalled();
   });
 });
 
-describe('fetchGuardedPage lists nothing unless the clusters match', () => {
+describe('fetchGuardedPage lists nothing unless cluster AND program match', () => {
   const forwardedStatus = (): Status => ({ Forwarded: { at: 1n, already_observed: false, obligation_id: 'o' } });
   const quarantinedStatus = (): Status => ({ Quarantined: { at: 2n, reason: 'no' } });
   const page = (): Entry[] => [entry(5, forwardedStatus()), entry(4, quarantinedStatus())];
@@ -336,14 +363,16 @@ describe('fetchGuardedPage lists nothing unless the clusters match', () => {
 
   it('match: the verified page is fetched and mapped', async () => {
     const a = actor();
-    const out = await fetchGuardedPage(a, app, async () => Uint8Array.from(LOCAL), null, 20);
+    const out = await fetchGuardedPage(a, app, async () => config(Uint8Array.from(LOCAL)), null, 20);
     expect(a.getRecentEvents).toHaveBeenCalledTimes(1);
     expect(out.items.map((i) => i.seq)).toEqual([5n, 4n]);
+    expect(out.droppedProgramMismatch).toBe(0);
   });
 
-  const refusals: Array<[string, ExpectedCluster, () => Promise<Uint8Array | null>, string]> = [
-    ['mismatch', app, async () => Uint8Array.from(DEVNET), 'cluster-mismatch'],
-    ['unconfigured app cluster', expectedAppCluster(identity('mainnet-beta')), async () => Uint8Array.from(LOCAL), 'cluster-unresolved'],
+  const refusals: Array<[string, ExpectedCluster, () => Promise<BridgeConfig | null>, string]> = [
+    ['cluster mismatch', app, async () => config(Uint8Array.from(DEVNET)), 'cluster-mismatch'],
+    ['same cluster, wrong program', app, async () => config(Uint8Array.from(LOCAL), OTHER_PROGRAM), 'program-mismatch'],
+    ['unconfigured app cluster', expectedAppCluster(identity('mainnet-beta')), async () => config(Uint8Array.from(LOCAL)), 'cluster-unresolved'],
     ['config read failure', app, async () => { throw new Error('boom'); }, 'config-unavailable'],
     ['bridge without config', app, async () => null, 'bridge-uninitialized'],
   ];
@@ -353,5 +382,136 @@ describe('fetchGuardedPage lists nothing unless the clusters match', () => {
     expect(error).toBeInstanceOf(BridgeClusterError);
     expect((error as BridgeClusterError).verdict.reason).toBe(reason);
     expect(a.getRecentEvents).not.toHaveBeenCalled();
+  });
+
+  it('the expected program is enforced per record even when the bridge config says it matches', async () => {
+    const mixed: Entry[] = [entry(7, forwardedStatus()), entry(6, forwardedStatus()), entry(5, quarantinedStatus())];
+    mixed[1] = { ...mixed[1], descriptor: { ...mixed[1].descriptor, event_id: { ...mixed[1].descriptor.event_id, program_id: OTHER_PROGRAM } } };
+    const out = await fetchGuardedPage({ getRecentEvents: async () => mixed }, app, async () => config(Uint8Array.from(LOCAL)), null, 20);
+    expect(out.items.map((i) => i.seq)).toEqual([7n, 5n]);
+    expect(out.droppedProgramMismatch).toBe(1);
+    expect(out.rawCount).toBe(3); // the cursor still counts the dropped row
+    expect(out.oldestSeq).toBe(5n);
+  });
+});
+
+describe('record-level program defense (mapper)', () => {
+  const forwarded = (): Status => ({ Forwarded: { at: 1n, already_observed: false, obligation_id: 'o' } });
+  const withProgram = (seq: number, status: Status, programId: string): Entry => {
+    const e = entry(seq, status);
+    return { ...e, descriptor: { ...e.descriptor, event_id: { ...e.descriptor.event_id, program_id: programId } } };
+  };
+
+  it('drops a verified record of another program and counts it; intake rows are dropped without counting', () => {
+    const result = mapNativeHistory(
+      [
+        withProgram(9, forwarded(), PROGRAM),
+        withProgram(8, forwarded(), OTHER_PROGRAM),
+        withProgram(7, { Quarantined: { at: 1n, reason: 'r' } }, OTHER_PROGRAM),
+        withProgram(6, { Pending: null }, OTHER_PROGRAM), // intake: silently dropped, not a program-mismatch drop
+        withProgram(5, forwarded(), PROGRAM),
+      ],
+      PROGRAM,
+    );
+    expect(result.items.map((i) => i.seq)).toEqual([9n, 5n]);
+    expect(result.droppedProgramMismatch).toBe(2);
+  });
+
+  it('without an expected program nothing is filtered by program (the unguarded mapper)', () => {
+    const result = mapNativeHistory([withProgram(1, forwarded(), OTHER_PROGRAM)]);
+    expect(result.items).toHaveLength(1);
+    expect(result.droppedProgramMismatch).toBe(0);
+    expect(toNativeHistoryItems([withProgram(1, forwarded(), OTHER_PROGRAM)], PROGRAM)).toEqual([]);
+  });
+});
+
+describe('identity switch: a fresh config check and a fresh query key, never a stale verdict or page', () => {
+  const local = expectedAppCluster(identity('localnet'));
+  const base: BridgeScope = { host: 'https://icp0.io', canisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai', expected: local };
+
+  it('every part of the identity is part of both query keys', () => {
+    const variants: BridgeScope[] = [
+      { ...base, host: 'http://localhost:4943' },
+      { ...base, canisterId: 'rrkah-fqaaa-aaaaa-aaaaq-cai' },
+      { ...base, expected: expectedAppCluster(identity('devnet')) },
+      { ...base, expected: expectedAppCluster(identity('localnet', OTHER_PROGRAM)) },
+      { ...base, expected: expectedAppCluster(identity('mainnet-beta')) }, // unresolved
+    ];
+    const keys = (scope: BridgeScope) => [JSON.stringify(clusterCheckQueryKey(scope)), JSON.stringify(historyQueryKey(scope)), bridgeCacheKey(scope)];
+    const baseKeys = keys(base);
+    for (const variant of variants) {
+      const changed = keys(variant);
+      baseKeys.forEach((key, i) => expect(changed[i], `${JSON.stringify(variant.expected)} ${variant.host} ${variant.canisterId}`).not.toBe(key));
+    }
+    // the same scope is the same key (the cache is shared, not defeated)
+    expect(keys({ ...base })).toEqual(baseKeys);
+    // the program id and domain appear by value in the key parts, so two programs never collide
+    expect(JSON.stringify(historyQueryKey(base))).toContain(PROGRAM);
+  });
+
+  /** A bridge whose config can be swapped, plus a call log. */
+  function world(initial: BridgeConfig | null) {
+    const state = { config: initial, configReads: 0 };
+    const getRecentEvents = vi.fn(async (_b: [] | [bigint], _l: bigint) => [entry(3, { Forwarded: { at: 1n, already_observed: false, obligation_id: 'o' } })]);
+    const deps: BridgeDeps = {
+      actor: async () => ({ getRecentEvents }),
+      config: (scope) => {
+        state.configReads += 1;
+        return cachedBridgeConfig(bridgeCacheKey(scope), async () => state.config);
+      },
+    };
+    return { state, deps, getRecentEvents };
+  }
+
+  it('switching the expected PROGRAM re-checks the config and refuses the other program\'s bridge; A\'s pages are not reused', async () => {
+    resetBridgeConfigCacheForTests();
+    const client = new QueryClient();
+    const { state, deps, getRecentEvents } = world(config(Uint8Array.from(LOCAL), PROGRAM));
+
+    // identity A: localnet + PROGRAM -> ok, a page is cached under A's key
+    const scopeA: BridgeScope = { ...base, expected: expectedAppCluster(identity('localnet', PROGRAM)) };
+    expect(await client.fetchQuery(clusterCheckOptions(scopeA, deps))).toEqual({ state: 'ok' });
+    const pagesA = await client.fetchInfiniteQuery(historyOptions(scopeA, deps));
+    expect(pagesA.pages[0].items.map((i) => i.seq)).toEqual([3n]);
+    expect(state.configReads).toBeGreaterThan(0);
+    const readsAfterA = state.configReads;
+    const eventCallsAfterA = getRecentEvents.mock.calls.length;
+
+    // identity B: the same cluster, ANOTHER program -> a FRESH check against the same bridge
+    const scopeB: BridgeScope = { ...base, expected: expectedAppCluster(identity('localnet', OTHER_PROGRAM)) };
+    const verdictB = await client.fetchQuery(clusterCheckOptions(scopeB, deps));
+    expect(verdictB).toEqual({ state: 'disabled', reason: 'program-mismatch', appCluster: 'localnet', bridgeCluster: 'localnet' });
+    expect(state.configReads).toBeGreaterThan(readsAfterA); // not answered from A's verdict or A's config cache
+
+    // B's listing is refused before any page call, and A's cached pages do not leak into B's key
+    await expect(client.fetchInfiniteQuery(historyOptions(scopeB, deps))).rejects.toBeInstanceOf(BridgeClusterError);
+    expect(getRecentEvents.mock.calls.length).toBe(eventCallsAfterA);
+    expect(client.getQueryData(historyOptions(scopeB, deps).queryKey)).toBeUndefined();
+    expect(client.getQueryData(historyOptions(scopeA, deps).queryKey)).toBeDefined(); // A\'s own cache is untouched
+  });
+
+  it('switching the CLUSTER likewise: a bridge for devnet is refused on localnet with its own fresh verdict', async () => {
+    resetBridgeConfigCacheForTests();
+    const client = new QueryClient();
+    const { deps, getRecentEvents } = world(config(Uint8Array.from(DEVNET), PROGRAM));
+    const onDevnet: BridgeScope = { ...base, expected: expectedAppCluster(identity('devnet')) };
+    const onLocal: BridgeScope = { ...base, expected: expectedAppCluster(identity('localnet')) };
+    expect(await client.fetchQuery(clusterCheckOptions(onDevnet, deps))).toEqual({ state: 'ok' });
+    await client.fetchInfiniteQuery(historyOptions(onDevnet, deps));
+    const calls = getRecentEvents.mock.calls.length;
+    expect(await client.fetchQuery(clusterCheckOptions(onLocal, deps))).toMatchObject({ state: 'disabled', reason: 'cluster-mismatch', appCluster: 'localnet', bridgeCluster: 'devnet' });
+    await expect(client.fetchInfiniteQuery(historyOptions(onLocal, deps))).rejects.toBeInstanceOf(BridgeClusterError);
+    expect(getRecentEvents.mock.calls.length).toBe(calls);
+  });
+
+  it('a verdict is not served across a change of the bridge itself: a corrected bridge config is picked up on a fresh scope', async () => {
+    resetBridgeConfigCacheForTests();
+    const client = new QueryClient();
+    const { state, deps } = world(null); // bridge not configured yet
+    const scope: BridgeScope = { ...base, expected: local };
+    expect(await client.fetchQuery(clusterCheckOptions(scope, deps))).toMatchObject({ reason: 'bridge-uninitialized' });
+    state.config = config(Uint8Array.from(LOCAL)); // now configured (null was never cached)
+    client.removeQueries({ queryKey: clusterCheckQueryKey(scope) });
+    expect(await client.fetchQuery(clusterCheckOptions(scope, deps))).toEqual({ state: 'ok' });
   });
 });
