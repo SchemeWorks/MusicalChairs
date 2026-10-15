@@ -367,11 +367,14 @@ module {
                     case (_) { return #Stale(e) };
                 };
                 let upd : Entry = switch (r) {
+                    // A successful forward clears the per-event attempt cooldown so a bind can
+                    // follow immediately (IMPL-47d finding 1: otherwise releasePending answered
+                    // #Cooldown for up to 30 s after the forward).
                     case (#Observed(id)) {
-                        { e with status = #Forwarded({ obligation_id = id; already_observed = false; at = now }) };
+                        { e with status = #Forwarded({ obligation_id = id; already_observed = false; at = now }); next_attempt_at = 0 };
                     };
                     case (#AlreadyObserved(id)) {
-                        { e with status = #Forwarded({ obligation_id = id; already_observed = true; at = now }) };
+                        { e with status = #Forwarded({ obligation_id = id; already_observed = true; at = now }); next_attempt_at = 0 };
                     };
                     case (#Rejected({ reason; permanent = true })) {
                         { e with status = #Quarantined({ reason; at = now }) };

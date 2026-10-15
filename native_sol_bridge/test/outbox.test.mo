@@ -274,8 +274,10 @@ do {
   switch (Outbox.beginAttempt(s, key(openD), 1_010, 30)) { case (#Cooldown(1_030)) { check(true, "a second attempt inside the cooldown is refused") }; case (_) { check(false, "cooldown enforced") } };
   switch (Outbox.beginAttempt(s, key(openD), 1_030, 30)) { case (#Go(_)) { check(true, "attempts resume when the cooldown ends") }; case (_) { check(false, "attempt after cooldown") } };
   switch (Outbox.beginAttempt(s, "nope", 5_000, 30)) { case (#Unknown) { check(true, "unknown event key") }; case (_) { check(false, "unknown key") } };
+  switch (Outbox.beginAttempt(s, key(openD), 1_990, 30)) { case (#Go(e)) { check(e.next_attempt_at == 2_020, "(setup) a verification attempt just before the forward arms the cooldown") }; case (_) { check(false, "setup attempt before forward") } };
   check(verify(s, openD, 2000), "(setup) verified");
   check(isApplied(Outbox.applyForward(s, key(openD), #Observed("o"), 2001)), "(setup) forwarded");
+  switch (Outbox.beginBind(s, key(openD), 2_002, 30)) { case (#Go(_)) { check(true, "a bind right after a successful forward is not throttled by the forward's cooldown (IMPL-47d finding 1)") }; case (#Cooldown(t)) { check(false, "bind throttled after forward until " # debug_show t) }; case (_) { check(false, "bind go after forward") } };
   switch (Outbox.beginAttempt(s, key(openD), 9_999, 30)) { case (#Terminal(_)) { check(true, "a durable-done entry needs no further attempts") }; case (_) { check(false, "terminal") } };
   switch (Outbox.beginBind(s, key(openD), 10_000, 30)) { case (#Go(_)) { check(true, "bind attempt allowed for Forwarded + Unbound") }; case (_) { check(false, "bind go") } };
   switch (Outbox.beginBind(s, key(openD), 10_001, 30)) { case (#Cooldown(_)) { check(true, "bind attempts are rate limited too") }; case (_) { check(false, "bind cooldown") } };
