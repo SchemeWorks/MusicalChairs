@@ -223,7 +223,12 @@ impl Journal {
             .ok_or_else(|| JournalError::UnknownSignature(signature.to_string()))?;
         entry.status = status;
         entry.at = at;
-        entry.note = note;
+        // Keep what the entry already says (the amount of an increase) and add the new reason after it.
+        entry.note = match (entry.note.take(), note) {
+            (Some(old), Some(new)) => Some(format!("{old}; {new}")),
+            (old, None) => old,
+            (None, new) => new,
+        };
         self.append(entry)
     }
 

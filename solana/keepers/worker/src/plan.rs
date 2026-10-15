@@ -14,7 +14,23 @@
 //!    terminal and its reserve settled;
 //! 3. otherwise, lowest priority and only while idle: (opt-in) provision the
 //!    next close record, deliver a deferred owner refund of the last close,
-//!    observe its fulfilled provider request.
+//!    observe its fulfilled provider request, close an eligible shared page of
+//!    the last close, reconcile the OpsCash books.
+//!
+//! One operation sits inside the closing pipeline instead, because its
+//! predicate only holds there: `increase_provider_budget` is planned right
+//! before `request_round_draw` when (and only when) the request would be refused
+//! for want of reserve AND the operator opted in (`max_provider_topup_lamports`,
+//! default 0 = never).  It moves FREE SPONSOR operations funds (`ops.free_balance`)
+//! into the close's locked sponsor partition; the fee payer pays nothing for it,
+//! so the opt-in flag is a sponsor budget decision, not a fee-key payment.  The
+//! extra is exactly the shortfall (never partial) and must fit the opted-in
+//! maximum, so repeats cannot exceed it in total.
+//!
+//! Cleanup (`close_shared_account`) looks at the LAST finished close only, probes at most
+//! [`crate::state::CLEANUP_PROBE_CAP`] page accounts and closes one page per transaction; leftovers of older
+//! closes (or pages beyond the cap) need a wallet.  The refund goes to the destination the page itself
+//! recorded; when no owner share is owed OpsCash fills the (never paid) slot.
 //!
 //! The planner invents nothing: every account comes from the snapshot or from
 //! the program's own derivations, every amount from an on-chain counter.  It
@@ -41,6 +57,10 @@
 //! | `finalize_round` | pool, close record, event authority, program | - |
 //! | `deliver_owner_refund` | close record, ops, ops cash, owner refund, system, event authority, program | - |
 //! | `observe_request_fulfilled` | pool, close record, ops, request, client | - |
+//! | `increase_provider_budget` | pool, close record, ops, ops cash | - |
+//! | `reconcile_ops_cash` | ops, ops cash | - |
+//! | `reconcile_ops_cash_with_client` | ops, ops cash, client | - |
+//! | `close_shared_account` | page, ops, ops cash, owner refund (the destination the page recorded; OpsCash, never paid, when no owner component), close record, system | - |
 
 use std::collections::{HashMap, HashSet};
 
@@ -49,7 +69,7 @@ use anchor_lang::{Discriminator, InstructionData, ToAccountMetas};
 use musical_chairs_program::{
     accounts,
     allocation::SERIES_B,
-    close::{credit_is_deliverable, selected_set},
+    close::{credit_is_deliverable, promotion_holdback, provider_deficit, selected_set},
     instruction, provider,
     sampling::{map_output, protocol_seed},
     state::{
@@ -73,7 +93,7 @@ use crate::{
         backer_address, candidate_address, close_record_address, config_address,
         event_authority_address, ops_address, ops_cash_address, participant_address, pool_address,
         registry_address, rng_authority_address, snapshot_address, ticket_address, user_address,
-        user_round_address, Snapshot, PAGE, PROGRAM_ID,
+        user_round_address, SharedPage, Snapshot, PAGE, PROGRAM_ID,
     },
 };
 
@@ -110,6 +130,15 @@ pub struct Limits {
     /// Opt-in: while idle, provision `CloseRecord(next_close_id)` (the payer fronts its refundable rent)
     /// so a user's closing payout does not fail `PageNotProvisioned`.
     pub preprovision_close_record: bool,
+    /// Opt-in ceiling, in lamports, on the free sponsor operations funds one `increase_provider_budget` may
+    /// move into a close's locked reserve (spec: an owner/operator contribution needs an explicit maximum).
+    /// The default 0 means the step is never planned.  The extra is exactly the shortfall (never partial, so a
+    /// repeat cannot exceed the ceiling), planned only when that shortfall is at most this many lamports.
+    pub max_provider_topup_lamports: u64,
+    /// The OpsCash / ORAO Client books are reconciled only for a change of at least this many lamports (a
+    /// dust donation costs the donor 1 lamport and would cost the keeper a fee).  The default 0 reconciles any
+    /// change; a changed protected-rent floor always counts.
+    pub min_reconcile_lamports: u64,
 }
 
 impl Default for Limits {
@@ -118,6 +147,8 @@ impl Default for Limits {
             max_rows: MAX_BATCH_ROWS,
             skip_newly_capped: false,
             preprovision_close_record: false,
+            max_provider_topup_lamports: 0,
+            min_reconcile_lamports: 0,
         }
     }
 }
@@ -182,6 +213,29 @@ pub enum StepKind {
     ObserveRequestFulfilled {
         close_id: u64,
     },
+    /// Opt-in, before the draw request only: move `extra` lamports of free sponsor operations funds into the
+    /// close's locked sponsor partition (and raise its provider-fee cap by the same amount).
+    IncreaseProviderBudget {
+        close_id: u64,
+        extra: u64,
+    },
+    /// Idle bookkeeping: fold the OpsCash surplus into `unallocated_excess` (the books held these figures).
+    ReconcileOpsCash {
+        observed_excess: u64,
+        observed_protected_rent: u64,
+    },
+    /// As `ReconcileOpsCash`, plus the ORAO Client observation.
+    ReconcileOpsCashWithClient {
+        observed_excess: u64,
+        observed_client_balance: u64,
+    },
+    /// Idle cleanup of one released shared page, judged by `CloseRecord(close_id)`; the rent returns to
+    /// OpsCash and to the refund destination the page itself recorded.
+    CloseSharedAccount {
+        close_id: u64,
+        page: PageKind,
+        index: u64,
+    },
 }
 
 /// One transaction's worth of work, independent of who pays for it.
@@ -218,6 +272,10 @@ impl Step {
             StepKind::Finalize { .. } => "finalize_round",
             StepKind::DeliverOwnerRefund { .. } => "deliver_owner_refund",
             StepKind::ObserveRequestFulfilled { .. } => "observe_request_fulfilled",
+            StepKind::IncreaseProviderBudget { .. } => "increase_provider_budget",
+            StepKind::ReconcileOpsCash { .. } => "reconcile_ops_cash",
+            StepKind::ReconcileOpsCashWithClient { .. } => "reconcile_ops_cash_with_client",
+            StepKind::CloseSharedAccount { .. } => "close_shared_account",
         }
     }
 
@@ -249,7 +307,38 @@ impl Step {
             | StepKind::ExpirePromotion { close_id }
             | StepKind::Finalize { close_id }
             | StepKind::DeliverOwnerRefund { close_id }
-            | StepKind::ObserveRequestFulfilled { close_id } => format!("{name}:{close_id}"),
+            | StepKind::ObserveRequestFulfilled { close_id }
+            | StepKind::IncreaseProviderBudget { close_id, .. } => format!("{name}:{close_id}"),
+            StepKind::ReconcileOpsCash {
+                observed_excess,
+                observed_protected_rent,
+            } => format!("{name}:{observed_excess}:{observed_protected_rent}"),
+            StepKind::ReconcileOpsCashWithClient {
+                observed_excess,
+                observed_client_balance,
+            } => format!("{name}:{observed_excess}:{observed_client_balance}"),
+            StepKind::CloseSharedAccount {
+                close_id,
+                page,
+                index,
+            } => {
+                let which = match page {
+                    PageKind::Participant { .. } => "p".to_string(),
+                    PageKind::Candidate { set_tag, .. } => format!("c{set_tag}"),
+                    PageKind::Registry | PageKind::Snapshot => "x".to_string(),
+                };
+                format!("{name}:{close_id}:{which}:{index}")
+            }
+        }
+    }
+
+    /// What the journal records beside the signed bytes (the amount an `increase_provider_budget` moves).
+    pub fn journal_note(&self) -> Option<String> {
+        match &self.kind {
+            StepKind::IncreaseProviderBudget { extra, .. } => Some(format!(
+                "extra={extra} lamports of free operations funds into the close's provider reserve"
+            )),
+            _ => None,
         }
     }
 
@@ -321,6 +410,16 @@ impl Step {
             StepKind::Finalize { .. } => instruction::FinalizeRound.data(),
             StepKind::DeliverOwnerRefund { .. } => instruction::DeliverOwnerRefund.data(),
             StepKind::ObserveRequestFulfilled { .. } => instruction::ObserveRequestFulfilled.data(),
+            StepKind::IncreaseProviderBudget { extra, .. } => {
+                instruction::IncreaseProviderBudget { extra: *extra }.data()
+            }
+            StepKind::ReconcileOpsCash { .. } => instruction::ReconcileOpsCash.data(),
+            StepKind::ReconcileOpsCashWithClient { .. } => {
+                instruction::ReconcileOpsCashWithClient.data()
+            }
+            StepKind::CloseSharedAccount { page, .. } => {
+                instruction::CloseSharedAccount { kind: *page }.data()
+            }
         }
     }
 
@@ -775,7 +874,13 @@ fn closing_step(
         return build_candidates_step(snapshot, close, limits).map(Some);
     }
     match close.draw_state {
-        DRAW_NOT_REQUESTED => request_step(snapshot, close).map(Some),
+        DRAW_NOT_REQUESTED => {
+            // Only when the request would be refused for want of reserve and the operator opted in.
+            if let Some(topup) = increase_budget_step(snapshot, close, limits) {
+                return Ok(Some(topup));
+            }
+            request_step(snapshot, close).map(Some)
+        }
         // Known pending: wait. Fulfilled or not knowable: try the capture and let the program decide.
         DRAW_REQUESTED if snapshot.request_fulfilled == Some(false) => Ok(None),
         DRAW_REQUESTED => capture_step(snapshot, close).map(Some),
@@ -1063,6 +1168,15 @@ fn idle_step(snapshot: &Snapshot, limits: &Limits) -> Option<Step> {
             Vec::new(),
         ));
     }
+    if let Some(step) = last_close_step(snapshot) {
+        return Some(step);
+    }
+    cleanup_step(snapshot).or_else(|| reconcile_step(snapshot, limits))
+}
+
+/// Lowest-priority steps that look at the most recent finished close: the deferred owner refund, then the
+/// provider-reimbursement observation.
+fn last_close_step(snapshot: &Snapshot) -> Option<Step> {
     let last = snapshot.last_close.as_ref()?;
     if refund_is_deliverable(snapshot, last) {
         let accounts = accounts::DeliverOwnerRefund {
@@ -1127,6 +1241,231 @@ fn refund_is_deliverable(snapshot: &Snapshot, last: &CloseRecord) -> bool {
             last.locked_owner_remaining,
             snapshot.rent_exempt_zero,
         )
+}
+
+// ---------------------------------------------------------------------------
+// Provider budget, cleanup, bookkeeping (IMPL-49d)
+// ---------------------------------------------------------------------------
+
+/// The extra lamports `increase_provider_budget` must add before the program accepts `request_round_draw`,
+/// or `None` when the request is affordable (or cannot be judged: the live fee, the Ops books or the config
+/// were not read).  The request is refused (`ProviderFeeExceeded`) when the live ORAO fee is over the close's
+/// `approved_provider_fee_cap`, or when `fee + request rent + promotion_holdback` is over what the sponsor
+/// and owner partitions still hold; one extra raises BOTH the partition and the cap, so the extra needed is the
+/// larger of the two gaps.
+pub fn provider_budget_shortfall(snapshot: &Snapshot, close: &CloseRecord) -> Option<u64> {
+    let config = snapshot.config.as_ref()?;
+    let fee = snapshot.provider_fee?;
+    let rent = snapshot
+        .rent
+        .minimum_balance(usize::from(config.pending_request_bytes));
+    let holdback = promotion_holdback(close).ok()?;
+    let needed = fee.checked_add(rent)?.checked_add(holdback)?;
+    let available = close
+        .locked_sponsor_remaining
+        .checked_add(close.locked_owner_remaining)?;
+    let extra = needed
+        .saturating_sub(available)
+        .max(fee.saturating_sub(close.approved_provider_fee_cap));
+    (extra > 0).then_some(extra)
+}
+
+/// `increase_provider_budget`, planned right before `request_round_draw`: only when the operator opted in
+/// (`max_provider_topup_lamports`; the extra is FREE SPONSOR operations funds, `ops.free_balance`, moved into
+/// the close's locked sponsor partition, so the flag is a sponsor budget decision and not a fee-key payment),
+/// the request would be refused for want of reserve ([`provider_budget_shortfall`]), the free operations
+/// balance can cover the shortfall, and the whole shortfall is within the opted-in maximum.  Never partial: a
+/// partial top-up would repeat on the next pass and exceed the maximum in total.
+fn increase_budget_step(snapshot: &Snapshot, close: &CloseRecord, limits: &Limits) -> Option<Step> {
+    if limits.max_provider_topup_lamports == 0 {
+        return None;
+    }
+    let extra = provider_budget_shortfall(snapshot, close)?;
+    let ops = snapshot.ops.as_ref()?;
+    if extra > limits.max_provider_topup_lamports || extra > ops.free_balance {
+        return None;
+    }
+    let accounts = accounts::IncreaseProviderBudget {
+        pool: pool_address(),
+        close_record: close_record_address(close.close_id),
+        ops: ops_address(),
+        ops_cash: ops_cash_address(),
+    }
+    .to_account_metas(None);
+    Some(step(
+        StepKind::IncreaseProviderBudget {
+            close_id: close.close_id,
+            extra,
+        },
+        0,
+        accounts,
+        Vec::new(),
+    ))
+}
+
+/// What `sync_ops` would compute from the physical OpsCash account: `(unallocated_excess, rent floor)`, or
+/// `None` when the handler would reject the call (OpsCash missing, not a plain system account, below its own
+/// rent floor, or holding less than free + locked) or the books were not read.
+fn synced_books(snapshot: &Snapshot) -> Option<(u64, u64)> {
+    let ops = snapshot.ops.as_ref()?;
+    let cash = snapshot.ops_cash.as_ref()?;
+    if !cash.plain_system_account {
+        return None;
+    }
+    let floor = snapshot.rent.minimum_balance(0);
+    let available = cash.lamports.checked_sub(floor)?;
+    let owned = ops.free_balance.checked_add(ops.locked_remaining_total)?;
+    Some((available.checked_sub(owned)?, floor))
+}
+
+/// `reconcile_ops_cash` / `reconcile_ops_cash_with_client` when the books differ from the physical accounts
+/// and the handler would accept the call (it runs `sync_ops` first, so books that would fail it block both).
+/// The Client variant is planned when the ORAO Client observation differs (a moved balance, a changed rent
+/// floor, or a deficit computed from a newer reimbursement budget); it also covers the OpsCash books.  Otherwise
+/// the plain variant when `unallocated_excess` or the protected-rent floor differ.  A balance difference below
+/// `min_reconcile_lamports` (a dust donation) is not worth a fee; a changed rent floor or deficit always is.
+fn reconcile_step(snapshot: &Snapshot, limits: &Limits) -> Option<Step> {
+    let (excess, floor) = synced_books(snapshot)?;
+    let ops = snapshot.ops.as_ref()?;
+    let minimum = limits.min_reconcile_lamports.max(1);
+
+    if let Some(client) = snapshot.client {
+        let client_rent = snapshot.rent.minimum_balance(client.data_len);
+        let deficit = provider_deficit(ops.eligible_return_budget, client.lamports, client_rent);
+        if client.lamports.abs_diff(ops.client_balance_observed) >= minimum
+            || client_rent != ops.client_protected_rent
+            || deficit != ops.provider_deficit
+        {
+            let accounts = accounts::ReconcileOpsCashWithClient {
+                ops: ops_address(),
+                ops_cash: ops_cash_address(),
+                client: provider::client_address().0,
+            }
+            .to_account_metas(None);
+            return Some(step(
+                StepKind::ReconcileOpsCashWithClient {
+                    observed_excess: ops.unallocated_excess,
+                    observed_client_balance: ops.client_balance_observed,
+                },
+                0,
+                accounts,
+                Vec::new(),
+            ));
+        }
+    }
+    if excess.abs_diff(ops.unallocated_excess) >= minimum || floor != ops.protected_rent {
+        let accounts = accounts::ReconcileOpsCash {
+            ops: ops_address(),
+            ops_cash: ops_cash_address(),
+        }
+        .to_account_metas(None);
+        return Some(step(
+            StepKind::ReconcileOpsCash {
+                observed_excess: ops.unallocated_excess,
+                observed_protected_rent: ops.protected_rent,
+            },
+            0,
+            accounts,
+            Vec::new(),
+        ));
+    }
+    None
+}
+
+/// The address a shared page of this kind and index must have (never a caller-chosen one).
+fn shared_page_address(kind: &PageKind, index: u64) -> Option<Pubkey> {
+    match *kind {
+        PageKind::Participant { round } => Some(participant_address(round, index)),
+        PageKind::Candidate { close_id, set_tag } => {
+            Some(candidate_address(close_id, set_tag, index))
+        }
+        PageKind::Registry | PageKind::Snapshot => None,
+    }
+}
+
+/// The program's `closable` predicate: registry and snapshot pages are permanent; a participant page closes
+/// once its round's close record is finalized; a candidate page once its own close's promotion is terminal.
+fn page_is_closable(last: &CloseRecord, kind: &PageKind) -> bool {
+    match *kind {
+        PageKind::Registry | PageKind::Snapshot => false,
+        PageKind::Participant { round } => last.round_id == round && last.finalized,
+        PageKind::Candidate { close_id, .. } => {
+            last.close_id == close_id && last.promotion != Promotion::Pending
+        }
+    }
+}
+
+/// Whether `close_shared_account` on `page` would succeed: closable, the page address is the derived one, it
+/// holds at least the components it recorded, and (when an owner share is owed) the destination THE PAGE recorded
+/// is a plain non-OpsCash account that can take the credit (the handler has no deliverability preflight of its
+/// own, and the runtime would reject the transfer).
+fn page_can_be_closed(
+    snapshot: &Snapshot,
+    last: &CloseRecord,
+    page: &SharedPage,
+    floor: u64,
+) -> bool {
+    if !page_is_closable(last, &page.kind)
+        || shared_page_address(&page.kind, page.index) != Some(page.address)
+    {
+        return false;
+    }
+    let Some(components) = page.rent.ops.checked_add(page.rent.owner) else {
+        return false;
+    };
+    if page.lamports < components {
+        return false;
+    }
+    if page.rent.owner == 0 {
+        return true;
+    }
+    let destination = page.rent.owner_refund;
+    snapshot
+        .page_refund_targets
+        .get(&destination)
+        .is_some_and(|target| {
+            target.plain_system_account
+                && destination != ops_cash_address()
+                && credit_is_deliverable(target.lamports, page.rent.owner, floor)
+        })
+}
+
+/// `close_shared_account` for the first released shared page of the LAST finished close (older closes'
+/// leftovers need a wallet), one page per transaction.  The handler runs `sync_ops` first, so books that would
+/// fail it block the cleanup.  The refund slot holds the destination the page recorded whenever an owner share
+/// is owed; with no owner share nothing is paid to it and OpsCash (already writable in the instruction) fills
+/// it, because the recorded field may be the default key and a read-only demoted account fails Anchor's `mut`.
+fn cleanup_step(snapshot: &Snapshot) -> Option<Step> {
+    let last = snapshot.last_close.as_ref()?;
+    let (_, floor) = synced_books(snapshot)?;
+    let page = snapshot
+        .shared_pages
+        .iter()
+        .find(|page| page_can_be_closed(snapshot, last, page, floor))?;
+    let owner_refund = if page.rent.owner > 0 {
+        page.rent.owner_refund
+    } else {
+        ops_cash_address()
+    };
+    let accounts = accounts::CloseSharedAccount {
+        page: page.address,
+        ops: ops_address(),
+        ops_cash: ops_cash_address(),
+        owner_refund,
+        close_record: close_record_address(last.close_id),
+        system_program: system_program::ID,
+    }
+    .to_account_metas(None);
+    Some(step(
+        StepKind::CloseSharedAccount {
+            close_id: last.close_id,
+            page: page.kind,
+            index: page.index,
+        },
+        0,
+        accounts,
+        Vec::new(),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -1207,7 +1546,7 @@ pub fn ensure_budget(step: Step, sim: &dyn Simulator) -> Result<Budgeted, RpcErr
 // ---------------------------------------------------------------------------
 
 /// Discriminators of every instruction the worker may send.
-fn keeper_discriminators() -> [&'static [u8]; 16] {
+fn keeper_discriminators() -> [&'static [u8]; 20] {
     [
         instruction::DiscoverRows::DISCRIMINATOR,
         instruction::ApplySenior::DISCRIMINATOR,
@@ -1225,6 +1564,10 @@ fn keeper_discriminators() -> [&'static [u8]; 16] {
         instruction::FinalizeRound::DISCRIMINATOR,
         instruction::DeliverOwnerRefund::DISCRIMINATOR,
         instruction::ObserveRequestFulfilled::DISCRIMINATOR,
+        instruction::IncreaseProviderBudget::DISCRIMINATOR,
+        instruction::ReconcileOpsCash::DISCRIMINATOR,
+        instruction::ReconcileOpsCashWithClient::DISCRIMINATOR,
+        instruction::CloseSharedAccount::DISCRIMINATOR,
     ]
 }
 

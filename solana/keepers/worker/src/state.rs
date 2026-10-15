@@ -16,13 +16,20 @@ use anchor_lang::solana_program::system_program;
 use anchor_lang::AccountDeserialize;
 use musical_chairs_program::{
     close::selected_set,
-    provider::orao::state::request::{RequestAccount, RequestState},
+    provider::orao::{
+        self,
+        state::{
+            network_state::NetworkState,
+            request::{RequestAccount, RequestState},
+        },
+    },
     sampling::map_output,
     state::{
-        Backer, CandidatePage, CloseRecord, ConfigVersion, ParticipantPage, Pool, Promotion,
-        RegistryPage, SnapshotPage, Ticket, ALLOCATE, DISCOVER, DRAW_CAPTURED, DRAW_NOT_REQUESTED,
-        DRAW_REQUESTED, PAGE_CAPACITY, PRUNE,
+        Backer, CandidatePage, CloseRecord, ConfigVersion, Ops, ParticipantPage, Pool, Promotion,
+        RegistryPage, RentComponents, SnapshotPage, Ticket, ALLOCATE, DISCOVER, DRAW_CAPTURED,
+        DRAW_NOT_REQUESTED, DRAW_REQUESTED, PAGE_CAPACITY, PRUNE,
     },
+    PageKind,
 };
 use solana_sdk::{account::Account, clock::Clock, pubkey::Pubkey, rent::Rent, sysvar};
 
@@ -32,6 +39,11 @@ pub use musical_chairs_program::ID as PROGRAM_ID;
 
 /// Rows per page, as a slot divisor.
 pub const PAGE: u64 = PAGE_CAPACITY as u64;
+
+/// Most shared-page accounts one idle pass probes for cleanup (the last finished close only).  A close with
+/// more candidate and participant pages than this is cleaned only up to the cap by this keeper; any wallet can
+/// close the rest.
+pub const CLEANUP_PROBE_CAP: usize = 512;
 
 // ---------------------------------------------------------------------------
 // PDA derivations
@@ -153,15 +165,65 @@ pub struct Snapshot {
     pub refund_target: Option<RefundTarget>,
     /// `Rent::minimum_balance(0)`: the floor a credit to a data-less account must reach.
     pub rent_exempt_zero: u64,
+    /// The Rent sysvar (idle passes, and the pre-request branch of a close).
+    pub rent: Rent,
+    /// The Ops account (idle passes, and the pre-request branch of a close).
+    pub ops: Option<Ops>,
+    /// The OpsCash PDA as a system account (idle passes); `None` when it does not exist.
+    pub ops_cash: Option<SystemAccountView>,
+    /// The ORAO Client at the address this program derives, when it exists and the provider owns it (idle passes).
+    pub client: Option<ClientView>,
+    /// The live ORAO per-request fee (a close that is sealed, not yet requested and still pending).
+    pub provider_fee: Option<u64>,
+    /// Existing, decodable participant / candidate pages of `last_close`, lowest index first (idle passes).
+    pub shared_pages: Vec<SharedPage>,
+    /// The refund destinations the program recorded on `shared_pages` that owe an owner component.
+    pub page_refund_targets: BTreeMap<Pubkey, SystemAccountView>,
+}
+
+/// A system account as the program's destination checks see it: its lamports and whether it is a plain
+/// (system-owned, empty, non-executable) account.  An account that does not exist counts as plain with 0 lamports.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SystemAccountView {
+    pub lamports: u64,
+    pub plain_system_account: bool,
 }
 
 /// What the planner needs to know about a refund destination to run the program's
 /// `credit_is_deliverable` / `validate_destination` preflight.
+pub type RefundTarget = SystemAccountView;
+
+/// The ORAO Client account as `reconcile_ops_cash_with_client` observes it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct RefundTarget {
+pub struct ClientView {
     pub lamports: u64,
-    /// System-owned, empty, non-executable (an account that does not exist counts as plain with 0 lamports).
-    pub plain_system_account: bool,
+    pub data_len: usize,
+}
+
+/// One existing shared page that may be closable, with the rent components the program recorded on it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SharedPage {
+    /// `PageKind::Participant { round }` or `PageKind::Candidate { close_id, set_tag }`.
+    pub kind: PageKind,
+    pub index: u64,
+    pub address: Pubkey,
+    pub lamports: u64,
+    pub rent: RentComponents,
+}
+
+fn view_of(account: Option<&Account>) -> SystemAccountView {
+    match account {
+        None => SystemAccountView {
+            lamports: 0,
+            plain_system_account: true,
+        },
+        Some(account) => SystemAccountView {
+            lamports: account.lamports,
+            plain_system_account: account.owner == system_program::ID
+                && account.data.is_empty()
+                && !account.executable,
+        },
+    }
 }
 
 impl Snapshot {
@@ -183,6 +245,13 @@ impl Snapshot {
             request_fulfilled: None,
             refund_target: None,
             rent_exempt_zero: Rent::default().minimum_balance(0),
+            rent: Rent::default(),
+            ops: None,
+            ops_cash: None,
+            client: None,
+            provider_fee: None,
+            shared_pages: Vec::new(),
+            page_refund_targets: BTreeMap::new(),
         }
     }
 
@@ -325,44 +394,140 @@ pub fn load_snapshot(chain: &dyn ChainReader) -> Result<Snapshot, StateError> {
     Ok(snapshot)
 }
 
-/// Idle pool: whether the next close record exists, and the leftovers of the most recent close.
+/// Idle pool: the bookkeeping accounts, whether the next close record exists, and the leftovers of the
+/// most recent close (deferred refund, unobserved request, closable shared pages).
 fn load_idle(chain: &dyn ChainReader, snapshot: &mut Snapshot) -> Result<(), StateError> {
     let next_id = snapshot.pool.next_close_id;
-    let mut keys = vec![close_record_address(next_id)];
+    let mut keys = vec![
+        close_record_address(next_id),
+        ops_address(),
+        ops_cash_address(),
+        musical_chairs_program::provider::client_address().0,
+        sysvar::rent::ID,
+    ];
     if next_id >= 2 {
         keys.push(close_record_address(next_id - 1));
     }
     let accounts = fetch(chain, &keys)?;
     snapshot.next_close_record_exists = accounts[0].is_some();
-    let Some(Some(account)) = accounts.get(1) else {
+    if let Some(account) = &accounts[1] {
+        snapshot.ops = Some(decode("ops", account)?);
+    }
+    snapshot.ops_cash = accounts[2].as_ref().map(|account| view_of(Some(account)));
+    snapshot.client = accounts[3]
+        .as_ref()
+        .filter(|account| account.owner == orao::id())
+        .map(|account| ClientView {
+            lamports: account.lamports,
+            data_len: account.data.len(),
+        });
+    apply_rent_sysvar(snapshot, accounts[4].as_ref());
+
+    let Some(Some(account)) = accounts.get(5) else {
         return Ok(());
     };
     let last: CloseRecord = decode("last close record", account)?;
 
     if last.reserve_settled && last.locked_owner_remaining > 0 {
-        let fetched = fetch(chain, &[last.owner_refund_destination, sysvar::rent::ID])?;
-        snapshot.refund_target = Some(match &fetched[0] {
-            None => RefundTarget {
-                lamports: 0,
-                plain_system_account: true,
-            },
-            Some(destination) => RefundTarget {
-                lamports: destination.lamports,
-                plain_system_account: destination.owner == system_program::ID
-                    && destination.data.is_empty()
-                    && !destination.executable,
-            },
-        });
-        if let Some(rent) = &fetched[1] {
-            if let Ok(rent) = bincode::deserialize::<Rent>(&rent.data) {
-                snapshot.rent_exempt_zero = rent.minimum_balance(0);
-            }
-        }
+        let fetched = fetch(chain, &[last.owner_refund_destination])?;
+        snapshot.refund_target = Some(view_of(fetched[0].as_ref()));
     }
     if last.draw_state != DRAW_NOT_REQUESTED && !last.reimbursement_observed {
         snapshot.request_fulfilled = request_fulfilled(chain, &last)?;
     }
+    if last.promotion != Promotion::Pending {
+        load_shared_pages(chain, snapshot, &last)?;
+    }
     snapshot.last_close = Some(last);
+    Ok(())
+}
+
+fn apply_rent_sysvar(snapshot: &mut Snapshot, account: Option<&Account>) {
+    if let Some(account) = account {
+        if let Ok(rent) = bincode::deserialize::<Rent>(&account.data) {
+            snapshot.rent_exempt_zero = rent.minimum_balance(0);
+            snapshot.rent = rent;
+        }
+    }
+}
+
+/// Probe the participant (once finalized) and candidate pages of a finished close and keep the ones that
+/// still exist, with the rent components the program recorded on them and the recorded refund destinations.
+fn load_shared_pages(
+    chain: &dyn ChainReader,
+    snapshot: &mut Snapshot,
+    last: &CloseRecord,
+) -> Result<(), StateError> {
+    let mut wanted: Vec<(PageKind, u64, Pubkey)> = Vec::new();
+    for (set_tag, provisioned) in [
+        (0u8, last.provisioned_preferred_pages),
+        (1u8, last.provisioned_fallback_pages),
+    ] {
+        for index in 0..provisioned {
+            let kind = PageKind::Candidate {
+                close_id: last.close_id,
+                set_tag,
+            };
+            wanted.push((
+                kind,
+                index,
+                candidate_address(last.close_id, set_tag, index),
+            ));
+        }
+    }
+    if last.finalized {
+        // Participant pages are not counted on the record: one past the pages the participants fill covers a
+        // spare provisioned tail page.
+        for index in 0..last.participant_count.div_ceil(PAGE).saturating_add(1) {
+            let kind = PageKind::Participant {
+                round: last.round_id,
+            };
+            wanted.push((kind, index, participant_address(last.round_id, index)));
+        }
+    }
+    wanted.truncate(CLEANUP_PROBE_CAP);
+    let keys: Vec<Pubkey> = wanted.iter().map(|(_, _, address)| *address).collect();
+    for ((kind, index, address), account) in wanted.iter().zip(fetch(chain, &keys)?) {
+        let Some(account) = account else { continue };
+        if account.owner != PROGRAM_ID {
+            continue;
+        }
+        let mut data: &[u8] = &account.data;
+        let rent = match *kind {
+            PageKind::Candidate { close_id, set_tag } => CandidatePage::try_deserialize(&mut data)
+                .ok()
+                .filter(|page| {
+                    page.close_id == close_id && page.set_tag == set_tag && page.page == *index
+                })
+                .map(|page| page.rent),
+            PageKind::Participant { round } => ParticipantPage::try_deserialize(&mut data)
+                .ok()
+                .filter(|page| page.round_id == round && page.page == *index)
+                .map(|page| page.rent),
+            _ => None,
+        };
+        if let Some(rent) = rent {
+            snapshot.shared_pages.push(SharedPage {
+                kind: *kind,
+                index: *index,
+                address: *address,
+                lamports: account.lamports,
+                rent,
+            });
+        }
+    }
+    let destinations: BTreeSet<Pubkey> = snapshot
+        .shared_pages
+        .iter()
+        .filter(|page| page.rent.owner > 0)
+        .map(|page| page.rent.owner_refund)
+        .collect();
+    let keys: Vec<Pubkey> = destinations.into_iter().collect();
+    for (key, account) in keys.iter().zip(fetch(chain, &keys)?) {
+        snapshot
+            .page_refund_targets
+            .insert(*key, view_of(account.as_ref()));
+    }
     Ok(())
 }
 
@@ -512,6 +677,40 @@ fn load_close(
     if close.draw_state == DRAW_REQUESTED && close.promotion == Promotion::Pending {
         snapshot.request_fulfilled = request_fulfilled(chain, &close)?;
     }
+    if close.sealed
+        && close.draw_state == DRAW_NOT_REQUESTED
+        && close.promotion == Promotion::Pending
+        && close.cash_committed
+    {
+        load_request_inputs(chain, snapshot)?;
+    }
     snapshot.close = Some(close);
+    Ok(())
+}
+
+/// What the provider-budget predicate reads before a draw is requested: the Ops books, the live ORAO
+/// per-request fee and the Rent sysvar.
+fn load_request_inputs(chain: &dyn ChainReader, snapshot: &mut Snapshot) -> Result<(), StateError> {
+    let Some(config) = &snapshot.config else {
+        return Ok(());
+    };
+    let fetched = fetch(
+        chain,
+        &[
+            ops_address(),
+            config.provider_network_state,
+            sysvar::rent::ID,
+        ],
+    )?;
+    if let Some(account) = &fetched[0] {
+        snapshot.ops = Some(decode("ops", account)?);
+    }
+    if let Some(account) = fetched[1].as_ref().filter(|a| a.owner == orao::id()) {
+        let mut data: &[u8] = &account.data;
+        if let Ok(network) = NetworkState::try_deserialize(&mut data) {
+            snapshot.provider_fee = Some(network.config.request_fee);
+        }
+    }
+    apply_rent_sysvar(snapshot, fetched[2].as_ref());
     Ok(())
 }

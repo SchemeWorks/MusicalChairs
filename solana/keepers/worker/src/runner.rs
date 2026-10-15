@@ -420,7 +420,7 @@ impl<'a, C: Chain> Worker<'a, C> {
             tx_hex: hex_encode(&bytes),
             status: JStatus::Submitted,
             at: now,
-            note: None,
+            note: step.journal_note(),
         })?;
 
         let outcome = match self.chain.send_raw(&bytes, false) {

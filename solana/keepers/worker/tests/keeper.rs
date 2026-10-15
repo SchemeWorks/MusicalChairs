@@ -20,19 +20,28 @@ use musical_chairs_keeper::{
     runner::{Action, SendOutcome, Worker},
     sha256_hex,
     state::{
-        close_record_address, load_snapshot, ops_cash_address, pool_address, registry_address,
-        snapshot_address, ticket_address, RefundTarget, PROGRAM_ID,
+        candidate_address, close_record_address, load_snapshot, ops_address, ops_cash_address,
+        participant_address, pool_address, registry_address, snapshot_address, ticket_address,
+        RefundTarget, SharedPage, Snapshot, SystemAccountView, PROGRAM_ID,
     },
 };
 use musical_chairs_program::{
-    instruction::{ApplySenior, CaptureRoundDraw, DeliverOwnerRefund, DiscoverRows, PruneRows},
+    close::{plan_request_spend, promotion_holdback},
+    instruction::{
+        ApplySenior, CaptureRoundDraw, CloseSharedAccount, DeliverOwnerRefund, DiscoverRows,
+        IncreaseProviderBudget, PruneRows,
+    },
     provider,
-    state::{CloseRecord, DRAW_CAPTURED, DRAW_NOT_REQUESTED},
+    state::{
+        CloseRecord, Promotion, RentComponents, DRAW_CAPTURED, DRAW_NOT_REQUESTED, DRAW_REQUESTED,
+    },
+    PageKind,
 };
 use solana_sdk::{
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
+    rent::Rent,
     signature::{Keypair, Signer},
     transaction::Transaction,
 };
@@ -395,7 +404,7 @@ fn any_wallet_can_run_the_same_plan() {
     let wallet_b = Keypair::new();
     assert_ne!(wallet_a.pubkey(), wallet_b.pubkey());
     let scenarios = scenarios();
-    assert_eq!(scenarios.len(), 14, "one scenario per kind of step");
+    assert_eq!(scenarios.len(), 18, "one scenario per kind of step");
 
     let mut seen = std::collections::BTreeSet::new();
     for (expected_name, snapshot, limits) in &scenarios {
@@ -494,8 +503,8 @@ fn any_wallet_can_run_the_same_plan() {
     }
     assert_eq!(
         seen.len(),
-        14,
-        "all fourteen keeper instructions were exercised: {seen:?}"
+        18,
+        "all eighteen keeper instructions were exercised: {seen:?}"
     );
 
     // End to end: two unrelated wallets run the same pass against identical worlds.
@@ -1184,4 +1193,591 @@ fn journal_replays_the_last_line_of_each_signature() {
         Journal::open(Box::new(corrupt)),
         Err(JournalError::Corrupt(_))
     ));
+}
+
+// ---------------------------------------------------------------------------
+// IMPL-49d (Codex review R4): provider budget, OpsCash books, shared-page cleanup
+// ---------------------------------------------------------------------------
+
+fn plan_name(snapshot: &Snapshot, limits: &Limits) -> Option<&'static str> {
+    next_step(snapshot, limits)
+        .expect("plan")
+        .map(|step| step.name())
+}
+
+#[test]
+fn plans_increase_provider_budget_only_when_short_and_opted_in() {
+    let needed = request_fee() + request_rent() + b_account_rent();
+    let opted_in = Limits {
+        max_provider_topup_lamports: 1_000_000,
+        ..Limits::default()
+    };
+    // A close short by 400,000 lamports of reserve (fee cap ample, free operations balance ample).
+    let short = topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 5_000_000);
+
+    // Default 0: never planned. The draw request goes out and the program will refuse it: the operator did not opt in.
+    assert_eq!(
+        plan_name(&short, &Limits::default()),
+        Some("request_round_draw")
+    );
+
+    // Opted in: exactly the shortfall, within the maximum, journaled with its amount.
+    let step = next_step(&short, &opted_in).expect("plan").expect("a step");
+    assert_eq!(step.name(), "increase_provider_budget");
+    assert_eq!(step.key(), "increase_provider_budget:1");
+    assert_eq!(&step.data()[..8], IncreaseProviderBudget::DISCRIMINATOR);
+    let args = IncreaseProviderBudget::try_from_slice(&step.data()[8..]).expect("args");
+    assert_eq!(args.extra, 400_000);
+    assert!(args.extra <= opted_in.max_provider_topup_lamports);
+    let accounts: Vec<Pubkey> = step.accounts.iter().map(|meta| meta.pubkey).collect();
+    assert_eq!(
+        accounts,
+        vec![
+            pool_address(),
+            close_record_address(1),
+            ops_address(),
+            ops_cash_address()
+        ]
+    );
+    assert!(step
+        .journal_note()
+        .expect("the amount is journaled")
+        .contains("extra=400000"));
+    assert!(
+        idl_accounts("increase_provider_budget")
+            .iter()
+            .all(|account| !account.signer),
+        "permissionless: no signer, and the fee payer pays nothing toward the extra"
+    );
+
+    // The program's own helper agrees: the request is refused before the top-up and accepted after it.
+    let close = short.close.as_ref().expect("close");
+    let holdback = promotion_holdback(close).expect("holdback");
+    let (sponsor, owner) = (close.locked_sponsor_remaining, close.locked_owner_remaining);
+    assert!(plan_request_spend(sponsor, owner, request_fee(), request_rent(), holdback).is_err());
+    assert!(plan_request_spend(
+        sponsor + args.extra,
+        owner,
+        request_fee(),
+        request_rent(),
+        holdback
+    )
+    .is_ok());
+
+    // Never partial: a shortfall above the opted-in maximum is not planned (a repeat could exceed the cap).
+    let one_short = Limits {
+        max_provider_topup_lamports: 399_999,
+        ..Limits::default()
+    };
+    assert_eq!(plan_name(&short, &one_short), Some("request_round_draw"));
+    let exact = Limits {
+        max_provider_topup_lamports: 400_000,
+        ..Limits::default()
+    };
+    assert_eq!(plan_name(&short, &exact), Some("increase_provider_budget"));
+
+    // The owner partition counts toward what the request can spend.
+    let split = topup_snapshot(needed - 500_000, 100_000, 500_000, request_fee(), 5_000_000);
+    let step = next_step(&split, &opted_in).expect("plan").expect("a step");
+    assert_eq!(
+        IncreaseProviderBudget::try_from_slice(&step.data()[8..])
+            .expect("args")
+            .extra,
+        400_000
+    );
+
+    // NEGATIVE CONTROL: a close that is not short is never topped up, opted in or not.
+    for sponsor in [needed, needed + 1, needed + 10_000_000] {
+        let enough = topup_snapshot(sponsor, 0, 500_000, request_fee(), 5_000_000);
+        assert_eq!(
+            plan_name(&enough, &opted_in),
+            Some("request_round_draw"),
+            "sponsor {sponsor}"
+        );
+    }
+
+    // A live fee above the close's fee cap is also a shortfall: the cap rises by the same extra.
+    let cap_short = topup_snapshot(needed + 10_000_000, 0, 432_000, 500_000, 5_000_000);
+    let step = next_step(&cap_short, &opted_in)
+        .expect("plan")
+        .expect("a step");
+    assert_eq!(
+        IncreaseProviderBudget::try_from_slice(&step.data()[8..])
+            .expect("args")
+            .extra,
+        500_000 - 432_000
+    );
+    // Both gaps: the larger one decides (one extra raises both the partition and the cap).
+    let both = topup_snapshot(needed - 400_000, 0, 432_000, 500_000, 5_000_000);
+    let step = next_step(&both, &opted_in).expect("plan").expect("a step");
+    let extra = IncreaseProviderBudget::try_from_slice(&step.data()[8..])
+        .expect("args")
+        .extra;
+    assert_eq!(
+        extra, 540_000,
+        "reserve gap 400,000 + 140,000 more fee; the 68,000 cap gap is covered by it"
+    );
+
+    // NEGATIVE CONTROLS: the program would refuse these, so they are not planned.
+    let poor = topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 399_999);
+    assert_eq!(
+        plan_name(&poor, &opted_in),
+        Some("request_round_draw"),
+        "free operations funds cannot cover it"
+    );
+    let mut unknown_fee = topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 5_000_000);
+    unknown_fee.provider_fee = None;
+    assert_eq!(
+        plan_name(&unknown_fee, &opted_in),
+        Some("request_round_draw"),
+        "the live fee was not read"
+    );
+    let mut unknown_books = topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 5_000_000);
+    unknown_books.ops = None;
+    assert_eq!(
+        plan_name(&unknown_books, &opted_in),
+        Some("request_round_draw"),
+        "the Ops books were not read"
+    );
+    let mut requested = topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 5_000_000);
+    requested.close.as_mut().expect("close").draw_state = DRAW_REQUESTED;
+    assert_ne!(
+        plan_name(&requested, &opted_in),
+        Some("increase_provider_budget"),
+        "only before the request"
+    );
+
+    // End to end through the loader (Ops account, ORAO NetworkState fee): opted in sends the top-up and journals
+    // the amount; not opted in sends the draw request.
+    let payer = Keypair::new();
+    let chain = MockChain::new();
+    topup_world(&chain, needed - 400_000, 500_000, request_fee(), 5_000_000);
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, opted_in);
+    let report = worker.once(NOW).expect("a pass");
+    assert!(
+        matches!(&report.action, Action::Sent { step, .. } if step == "increase_provider_budget:1"),
+        "got {:?}",
+        report.action
+    );
+    let (accounts, data) = program_instruction(&decode_sent(&chain, 0));
+    assert_eq!(&data[..8], IncreaseProviderBudget::DISCRIMINATOR);
+    assert_eq!(accounts[2], ops_address());
+    let entry = worker.journal().entries()[0].clone();
+    assert!(
+        entry.note.as_deref().unwrap_or("").contains("extra=400000"),
+        "{:?}",
+        entry.note
+    );
+    assert_eq!(entry.step, "increase_provider_budget:1");
+
+    let chain = MockChain::new();
+    topup_world(&chain, needed - 400_000, 500_000, request_fee(), 5_000_000);
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, Limits::default());
+    let report = worker.once(NOW).expect("a pass");
+    assert!(
+        matches!(&report.action, Action::Sent { step, .. } if step == "request_round_draw:1"),
+        "got {:?}",
+        report.action
+    );
+}
+
+#[test]
+fn reconciles_ops_cash_only_when_the_predicate_holds() {
+    let limits = Limits::default();
+    let floor = Rent::default().minimum_balance(0);
+
+    // In sync: nothing to reconcile.
+    assert_eq!(plan_name(&books_snapshot(0), &limits), None);
+
+    // An unsolicited credit to OpsCash: the books differ and the handler accepts the call. No ORAO Client is
+    // loaded, so the plain variant.
+    let donated = books_snapshot(5);
+    let step = next_step(&donated, &limits).expect("plan").expect("a step");
+    assert_eq!(step.name(), "reconcile_ops_cash");
+    assert_eq!(step.key(), format!("reconcile_ops_cash:0:{floor}"));
+    assert_eq!(
+        &step.data()[..8],
+        musical_chairs_program::instruction::ReconcileOpsCash::DISCRIMINATOR
+    );
+    let accounts: Vec<Pubkey> = step.accounts.iter().map(|meta| meta.pubkey).collect();
+    assert_eq!(accounts, vec![ops_address(), ops_cash_address()]);
+    assert!(idl_accounts("reconcile_ops_cash")
+        .iter()
+        .all(|account| !account.signer));
+
+    // Dust below the operator's minimum is not worth a fee; at the minimum it is.
+    let dust = Limits {
+        min_reconcile_lamports: 10,
+        ..limits
+    };
+    assert_eq!(plan_name(&donated, &dust), None);
+    assert_eq!(
+        plan_name(&books_snapshot(10), &dust),
+        Some("reconcile_ops_cash")
+    );
+    // A changed protected-rent floor always counts, whatever the minimum.
+    let mut stale_floor = books_snapshot(0);
+    stale_floor.ops.as_mut().expect("ops").protected_rent = 1;
+    let huge = Limits {
+        min_reconcile_lamports: u64::MAX,
+        ..limits
+    };
+    assert_eq!(plan_name(&stale_floor, &huge), Some("reconcile_ops_cash"));
+
+    // NEGATIVE CONTROLS: a call the handler would reject is never planned.
+    let mut shortfall = books_snapshot(0);
+    shortfall.ops_cash.as_mut().expect("cash").lamports -= 1; // below floor + free + locked: sync_ops would fail
+    shortfall.ops.as_mut().expect("ops").unallocated_excess = 99; // ... even though the books differ
+    assert_eq!(plan_name(&shortfall, &limits), None);
+    let mut below_floor = books_snapshot(0);
+    below_floor.ops_cash = Some(SystemAccountView {
+        lamports: floor - 1,
+        plain_system_account: true,
+    });
+    below_floor.ops.as_mut().expect("ops").protected_rent = 1;
+    assert_eq!(plan_name(&below_floor, &limits), None);
+    let mut not_plain = books_snapshot(5);
+    not_plain
+        .ops_cash
+        .as_mut()
+        .expect("cash")
+        .plain_system_account = false;
+    assert_eq!(plan_name(&not_plain, &limits), None);
+    let mut no_cash = books_snapshot(5);
+    no_cash.ops_cash = None;
+    assert_eq!(plan_name(&no_cash, &limits), None);
+    let mut no_books = books_snapshot(5);
+    no_books.ops = None;
+    assert_eq!(plan_name(&no_books, &limits), None);
+
+    // The ORAO-Client variant: in sync, nothing; a moved Client balance, a changed Client rent floor or a stale
+    // deficit each plan it, and it also covers the OpsCash books.
+    let in_sync = with_client(books_snapshot(0), 100_000);
+    assert_eq!(plan_name(&in_sync, &limits), None);
+
+    let mut moved = in_sync.clone();
+    moved.client.as_mut().expect("client").lamports += 7;
+    let step = next_step(&moved, &limits).expect("plan").expect("a step");
+    assert_eq!(step.name(), "reconcile_ops_cash_with_client");
+    assert_eq!(step.key(), "reconcile_ops_cash_with_client:0:100000");
+    assert_eq!(
+        &step.data()[..8],
+        musical_chairs_program::instruction::ReconcileOpsCashWithClient::DISCRIMINATOR
+    );
+    let accounts: Vec<Pubkey> = step.accounts.iter().map(|meta| meta.pubkey).collect();
+    assert_eq!(
+        accounts,
+        vec![
+            ops_address(),
+            ops_cash_address(),
+            provider::client_address().0
+        ]
+    );
+    assert!(idl_accounts("reconcile_ops_cash_with_client")
+        .iter()
+        .all(|account| !account.signer));
+    assert_eq!(
+        plan_name(&moved, &dust),
+        None,
+        "a 7-lamport move is below the minimum"
+    );
+    moved.client.as_mut().expect("client").lamports += 3;
+    assert_eq!(
+        plan_name(&moved, &dust),
+        Some("reconcile_ops_cash_with_client")
+    );
+
+    let mut stale_rent = in_sync.clone();
+    stale_rent.ops.as_mut().expect("ops").client_protected_rent = 1;
+    assert_eq!(
+        plan_name(&stale_rent, &huge),
+        Some("reconcile_ops_cash_with_client")
+    );
+
+    let mut stale_deficit = in_sync.clone();
+    stale_deficit
+        .ops
+        .as_mut()
+        .expect("ops")
+        .eligible_return_budget = 1_000_000; // budget grew since the observation
+    assert_eq!(
+        plan_name(&stale_deficit, &limits),
+        Some("reconcile_ops_cash_with_client")
+    );
+
+    let mut both = moved.clone();
+    both.ops_cash.as_mut().expect("cash").lamports += 5;
+    assert_eq!(
+        plan_name(&both, &limits),
+        Some("reconcile_ops_cash_with_client"),
+        "the superset variant"
+    );
+
+    // NEGATIVE CONTROL: a moved Client balance cannot be recorded while OpsCash itself would fail `sync_ops`.
+    let mut client_but_shortfall = in_sync.clone();
+    client_but_shortfall
+        .client
+        .as_mut()
+        .expect("client")
+        .lamports += 7;
+    client_but_shortfall
+        .ops_cash
+        .as_mut()
+        .expect("cash")
+        .lamports -= 1;
+    assert_eq!(plan_name(&client_but_shortfall, &limits), None);
+    // Without a provider-owned Client at the derived address the plain variant is the only one.
+    let mut no_client = in_sync.clone();
+    no_client.client = None;
+    no_client.ops_cash.as_mut().expect("cash").lamports += 5;
+    assert_eq!(plan_name(&no_client, &limits), Some("reconcile_ops_cash"));
+
+    // End to end through the loader.
+    let payer = Keypair::new();
+    let chain = MockChain::new();
+    books_world(&chain, 5, None);
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, Limits::default());
+    let report = worker.once(NOW).expect("a pass");
+    assert!(
+        matches!(&report.action, Action::Sent { step, .. } if step == &format!("reconcile_ops_cash:0:{floor}")),
+        "got {:?}",
+        report.action
+    );
+
+    let chain = MockChain::new();
+    books_world(&chain, 0, Some((100_000, 100_007)));
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, Limits::default());
+    let report = worker.once(NOW).expect("a pass");
+    assert!(
+        matches!(&report.action, Action::Sent { step, .. } if step == "reconcile_ops_cash_with_client:0:100000"),
+        "got {:?}",
+        report.action
+    );
+
+    let chain = MockChain::new();
+    books_world(&chain, 0, Some((100_000, 100_000)));
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, Limits::default());
+    let report = worker.once(NOW).expect("a pass");
+    assert_eq!(report.action, Action::Idle, "books and Client in sync");
+    assert!(chain.sent().is_empty());
+}
+
+#[test]
+fn cleans_up_only_eligible_shared_accounts_with_the_recorded_refund_destination() {
+    let limits = Limits::default();
+    let recorded = key(0x88);
+
+    // Two released pages: candidate page 0 of set 0 (owes the recorded destination an owner share) first.
+    let snapshot = cleanup_snapshot();
+    let step = next_step(&snapshot, &limits)
+        .expect("plan")
+        .expect("a cleanup");
+    assert_eq!(step.name(), "close_shared_account");
+    assert_eq!(step.key(), "close_shared_account:1:c0:0");
+    let accounts: Vec<Pubkey> = step.accounts.iter().map(|meta| meta.pubkey).collect();
+    assert_eq!(
+        accounts,
+        vec![
+            candidate_address(1, 0, 0),
+            ops_address(),
+            ops_cash_address(),
+            recorded,
+            close_record_address(1),
+            anchor_lang::solana_program::system_program::ID,
+        ],
+        "the refund slot holds the destination the PAGE recorded, never a caller-chosen one"
+    );
+    assert!(step.accounts[3].is_writable && !step.accounts[3].is_signer);
+    assert_eq!(idl_accounts("close_shared_account")[3].name, "owner_refund");
+    assert!(idl_accounts("close_shared_account")
+        .iter()
+        .all(|account| !account.signer));
+    assert_eq!(&step.data()[..8], CloseSharedAccount::DISCRIMINATOR);
+    let args = CloseSharedAccount::try_from_slice(&step.data()[8..]).expect("args");
+    assert_eq!(
+        args.kind,
+        PageKind::Candidate {
+            close_id: 1,
+            set_tag: 0
+        }
+    );
+
+    // The next page (ops share only) names OpsCash in the refund slot: nothing is paid to it.
+    let mut after_first = snapshot.clone();
+    after_first.shared_pages.remove(0);
+    let step = next_step(&after_first, &limits)
+        .expect("plan")
+        .expect("a cleanup");
+    assert_eq!(step.key(), "close_shared_account:1:p:0");
+    let accounts: Vec<Pubkey> = step.accounts.iter().map(|meta| meta.pubkey).collect();
+    assert_eq!(accounts[0], participant_address(1, 0));
+    assert_eq!(
+        accounts[3],
+        ops_cash_address(),
+        "no owner component: the slot is never paid"
+    );
+    let args = CloseSharedAccount::try_from_slice(&step.data()[8..]).expect("args");
+    assert_eq!(args.kind, PageKind::Participant { round: 1 });
+
+    // Nothing left: nothing planned.
+    after_first.shared_pages.clear();
+    assert_eq!(plan_name(&after_first, &limits), None);
+
+    // NEGATIVE CONTROL (still funded): the judging close is still Pending, so its candidate reserve is in use.
+    let mut in_use = cleanup_snapshot();
+    {
+        let last = in_use.last_close.as_mut().expect("last close");
+        last.promotion = Promotion::Pending;
+        last.finalized = false;
+    }
+    assert_eq!(plan_name(&in_use, &limits), None);
+
+    // NEGATIVE CONTROL: a terminal promotion releases candidate pages but not the round's participant pages.
+    let mut not_finalized = cleanup_snapshot();
+    not_finalized
+        .last_close
+        .as_mut()
+        .expect("last close")
+        .finalized = false;
+    let step = next_step(&not_finalized, &limits)
+        .expect("plan")
+        .expect("the candidate page");
+    assert_eq!(step.key(), "close_shared_account:1:c0:0");
+    not_finalized.shared_pages.remove(0);
+    assert_eq!(
+        plan_name(&not_finalized, &limits),
+        None,
+        "the participant page is not closable yet"
+    );
+
+    // NEGATIVE CONTROL: registry and snapshot pages are permanent, whatever they hold.
+    for kind in [PageKind::Registry, PageKind::Snapshot] {
+        let mut permanent = cleanup_snapshot();
+        permanent.shared_pages = vec![SharedPage {
+            kind,
+            index: 0,
+            address: registry_address(0),
+            lamports: 3_000_000,
+            rent: recorded_rent(),
+        }];
+        assert_eq!(plan_name(&permanent, &limits), None, "{kind:?}");
+    }
+
+    // NEGATIVE CONTROL: a page of some other close is not judged by the last close's record.
+    let mut foreign = cleanup_snapshot();
+    foreign.shared_pages = vec![candidate_shared_page(7, 0, 0, recorded_rent(), 3_000_000)];
+    assert_eq!(plan_name(&foreign, &limits), None);
+
+    // NEGATIVE CONTROLS: an owner share the recorded destination cannot take (the runtime would reject the
+    // transfer), a destination that is not a plain account, one that was not loaded, and a page holding less
+    // than the components it recorded are skipped, not attempted.
+    let small_owner = RentComponents {
+        ops: 1_000_000,
+        owner: 100,
+        owner_refund: recorded,
+    };
+    let candidate_with = |rent: RentComponents, lamports: u64| {
+        let mut snapshot = cleanup_snapshot();
+        snapshot.shared_pages = vec![candidate_shared_page(1, 0, 0, rent, lamports)];
+        snapshot
+    };
+    assert_eq!(
+        plan_name(&candidate_with(small_owner, 1_000_100), &limits),
+        None,
+        "0 + 100 lamports is below the rent floor"
+    );
+    let mut funded_destination = candidate_with(small_owner, 1_000_100);
+    funded_destination.page_refund_targets.insert(
+        recorded,
+        SystemAccountView {
+            lamports: Rent::default().minimum_balance(0),
+            plain_system_account: true,
+        },
+    );
+    assert_eq!(
+        plan_name(&funded_destination, &limits),
+        Some("close_shared_account"),
+        "a destination already at the floor can take it"
+    );
+    let mut not_plain = candidate_with(recorded_rent(), 3_000_000);
+    not_plain.page_refund_targets.insert(
+        recorded,
+        SystemAccountView {
+            lamports: 0,
+            plain_system_account: false,
+        },
+    );
+    assert_eq!(plan_name(&not_plain, &limits), None);
+    let mut not_loaded = candidate_with(recorded_rent(), 3_000_000);
+    not_loaded.page_refund_targets.clear();
+    assert_eq!(plan_name(&not_loaded, &limits), None);
+    assert_eq!(
+        plan_name(&candidate_with(recorded_rent(), 2_999_999), &limits),
+        None,
+        "less than ops + owner"
+    );
+    let mut to_ops_cash = candidate_with(
+        RentComponents {
+            owner_refund: ops_cash_address(),
+            ..recorded_rent()
+        },
+        3_000_000,
+    );
+    to_ops_cash.page_refund_targets.insert(
+        ops_cash_address(),
+        SystemAccountView {
+            lamports: 0,
+            plain_system_account: true,
+        },
+    );
+    assert_eq!(
+        plan_name(&to_ops_cash, &limits),
+        None,
+        "OpsCash is never a payout destination"
+    );
+
+    // NEGATIVE CONTROL: the handler runs `sync_ops` first; books that would fail it block the cleanup.
+    let mut shortfall = cleanup_snapshot();
+    shortfall.ops_cash.as_mut().expect("cash").lamports -= 1;
+    assert_eq!(plan_name(&shortfall, &limits), None);
+    let mut no_books = cleanup_snapshot();
+    no_books.ops = None;
+    assert_eq!(plan_name(&no_books, &limits), None);
+
+    // End to end through the loader: the page exists on chain and owes the recorded destination; after it is
+    // closed (gone) the next pass has nothing to clean.
+    let payer = Keypair::new();
+    let chain = MockChain::new();
+    let page = cleanup_world(&chain);
+    let (journal, _sink) = memory_journal();
+    let mut worker = Worker::new(&chain, &payer, journal, Limits::default());
+    let report = worker.once(NOW).expect("a pass");
+    assert!(
+        matches!(&report.action, Action::Sent { step, .. } if step == "close_shared_account:1:c0:0"),
+        "got {:?}",
+        report.action
+    );
+    let tx = decode_sent(&chain, 0);
+    assert_eq!(
+        tx.message.header.num_required_signatures, 1,
+        "only the fee payer signs"
+    );
+    let (accounts, _) = program_instruction(&tx);
+    assert_eq!(accounts[0], page);
+    assert_eq!(accounts[3], recorded);
+    let signature = chain.sent()[0].signature;
+    chain.script_status(signature, StatusAnswer::Confirmed);
+    chain.remove_account(&page);
+    let report = worker.once(NOW + 5).expect("a pass");
+    assert_eq!(
+        report.action,
+        Action::Idle,
+        "closed pages are gone; the books are in sync"
+    );
+    assert_eq!(chain.sent().len(), 1);
 }

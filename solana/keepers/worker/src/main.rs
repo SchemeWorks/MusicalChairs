@@ -5,7 +5,16 @@
 //!                    [--journal <path>] [--metrics-json <path>] [--interval <seconds>]
 //!                    [--dry-run] [--max-rows <1..8>] [--skip-newly-capped]
 //!                    [--preprovision-close-record]
+//!                    [--max-provider-topup-lamports <n>] [--min-reconcile-lamports <n>]
 //! ```
+//!
+//! `--max-provider-topup-lamports` (default 0 = never) lets the worker call `increase_provider_budget`, but only
+//! when a draw request would be refused for want of reserve and the whole shortfall fits the maximum.  The extra
+//! is FREE SPONSOR operations funds (`ops.free_balance`) moved into the close's provider budget: this flag is a
+//! sponsor budget decision, not a payment from the fee key (the fee key pays only transaction fees).
+//! `--min-reconcile-lamports` (default 0 = any difference) is a dust threshold: the OpsCash / ORAO Client books are
+//! reconciled only for a balance change of at least that many lamports, so a 1-lamport donation does not cost a
+//! fee.  Cleanup (`close_shared_account`) covers the last finished close only; older closes' leftovers need a wallet.
 //!
 //! The fee payer is ANY ed25519 keypair file: it pays network fees (and the
 //! refundable rent of an opt-in `provision_close_record`) and is never an
@@ -51,7 +60,13 @@ struct Cli {
 
 const USAGE: &str = "usage: mc-keeper once|run --rpc <url> --fee-payer <keypair.json> [--journal <path>] \
 [--metrics-json <path>] [--interval <seconds>] [--dry-run] [--max-rows <1..8>] [--skip-newly-capped] \
-[--preprovision-close-record]";
+[--preprovision-close-record] [--max-provider-topup-lamports <n>] [--min-reconcile-lamports <n>]
+  --max-provider-topup-lamports <n>  default 0 = never. Let the worker call increase_provider_budget when a draw
+                                     request would be refused for want of reserve and the whole shortfall is at most
+                                     <n>. The extra is FREE SPONSOR operations funds (ops.free_balance) moved into the
+                                     close's provider budget: a sponsor budget decision, not a fee-key payment.
+  --min-reconcile-lamports <n>       default 0 = any difference. Dust threshold: reconcile the OpsCash / ORAO Client
+                                     books only for a balance change of at least <n> lamports.";
 
 fn parse_args(args: &[String]) -> Result<Cli, String> {
     let mut iter = args.iter();
@@ -95,6 +110,18 @@ fn parse_args(args: &[String]) -> Result<Cli, String> {
             "--dry-run" => dry_run = true,
             "--skip-newly-capped" => limits.skip_newly_capped = true,
             "--preprovision-close-record" => limits.preprovision_close_record = true,
+            "--max-provider-topup-lamports" => {
+                limits.max_provider_topup_lamports = value("--max-provider-topup-lamports")?
+                    .parse()
+                    .map_err(|_| {
+                        "--max-provider-topup-lamports must be whole lamports".to_string()
+                    })?;
+            }
+            "--min-reconcile-lamports" => {
+                limits.min_reconcile_lamports = value("--min-reconcile-lamports")?
+                    .parse()
+                    .map_err(|_| "--min-reconcile-lamports must be whole lamports".to_string())?;
+            }
             other => return Err(format!("unknown argument {other}\n{USAGE}")),
         }
     }

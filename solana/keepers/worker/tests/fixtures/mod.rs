@@ -6,27 +6,37 @@
 
 use std::{fs, path::Path};
 
+use anchor_lang::solana_program::system_program;
 use anchor_lang::AccountSerialize;
 use musical_chairs_keeper::{
     plan::Limits,
     rpc::MockChain,
     state::{
-        close_record_address, config_address, pool_address, registry_address, ticket_address,
-        Snapshot, PROGRAM_ID,
+        candidate_address, close_record_address, config_address, ops_address, ops_cash_address,
+        participant_address, pool_address, registry_address, ticket_address, ClientView,
+        SharedPage, Snapshot, SystemAccountView, PROGRAM_ID,
     },
 };
 use musical_chairs_program::{
-    provider::orao::{
+    close::provider_deficit,
+    provider::{
         self,
-        state::request::{Fulfilled, Pending, RequestAccount, RequestState},
+        orao::{
+            self,
+            state::{
+                network_state::{NetworkConfiguration, NetworkState},
+                request::{Fulfilled, Pending, RequestAccount, RequestState},
+            },
+        },
     },
     state::{
-        Backer, CandidatePage, CloseRecord, ConfigVersion, ParticipantPage, Pool, Promotion,
-        RegistryPage, SnapshotPage, SnapshotRow, Ticket, ALLOCATE, COMMIT, DISCOVER, DRAW_CAPTURED,
-        DRAW_NOT_REQUESTED, DRAW_REQUESTED, PRUNE, SEAL, SENIOR,
+        Backer, CandidatePage, CloseRecord, ConfigVersion, Ops, ParticipantPage, Pool, Promotion,
+        RegistryPage, RentComponents, ReserveSchedule, SnapshotPage, SnapshotRow, Ticket, ALLOCATE,
+        COMMIT, DISCOVER, DRAW_CAPTURED, DRAW_NOT_REQUESTED, DRAW_REQUESTED, PRUNE, SEAL, SENIOR,
     },
+    PageKind,
 };
-use solana_sdk::{account::Account, pubkey::Pubkey};
+use solana_sdk::{account::Account, pubkey::Pubkey, rent::Rent};
 
 /// Wall-clock and cluster-clock "now" of every fixture (unix seconds).
 pub const NOW: u64 = 1_700_000_000;
@@ -240,7 +250,9 @@ fn close_mut(snapshot: &mut Snapshot) -> &mut CloseRecord {
 }
 
 /// One snapshot per kind of step the planner can emit, with the limits to plan it under.
-/// Order: ticket phases (6), closing pipeline (7), opt-in close-record provisioning (1).
+/// Order: ticket phases (6), closing pipeline (7), opt-in close-record provisioning (1), then the IMPL-49d
+/// operations (4): increase_provider_budget, reconcile_ops_cash, reconcile_ops_cash_with_client,
+/// close_shared_account.  New scenarios are only ever appended, so earlier indexes stay valid.
 pub fn scenarios() -> Vec<(&'static str, Snapshot, Limits)> {
     let limits = Limits::default();
     let mut all: Vec<(&'static str, Snapshot, Limits)> = Vec::new();
@@ -458,6 +470,31 @@ pub fn scenarios() -> Vec<(&'static str, Snapshot, Limits)> {
         },
     ));
 
+    // 15. A sealed close whose draw would be refused for want of 400,000 lamports of reserve, opted in.
+    let needed = request_fee() + request_rent() + b_account_rent();
+    all.push((
+        "increase_provider_budget",
+        topup_snapshot(needed - 400_000, 0, 500_000, request_fee(), 5_000_000),
+        Limits {
+            max_provider_topup_lamports: 1_000_000,
+            ..limits
+        },
+    ));
+
+    // 16. Idle books with an unsolicited credit in OpsCash and no ORAO Client at the derived address.
+    all.push(("reconcile_ops_cash", books_snapshot(5), limits));
+
+    // 17. The same, and the ORAO Client balance moved since it was last observed.
+    let mut snapshot = with_client(books_snapshot(0), 100_000);
+    snapshot.client = Some(ClientView {
+        lamports: 100_007,
+        data_len: 100,
+    });
+    all.push(("reconcile_ops_cash_with_client", snapshot, limits));
+
+    // 18. A finished close with a released candidate page owing an owner component to its recorded destination.
+    all.push(("close_shared_account", cleanup_snapshot(), limits));
+
     all
 }
 
@@ -639,4 +676,298 @@ pub fn idle_snapshot(close: CloseRecord) -> Snapshot {
     let mut snapshot = Snapshot::new(pool, NOW as i64);
     snapshot.last_close = Some(close);
     snapshot
+}
+
+// ---------------------------------------------------------------------------
+// IMPL-49d worlds: provider budget, OpsCash books, shared-page cleanup
+// ---------------------------------------------------------------------------
+
+/// The ORAO per-request fee of the fixtures.
+pub fn request_fee() -> u64 {
+    360_000
+}
+
+/// Rent of the provider's pending request account (`ConfigVersion::default_v1().pending_request_bytes` = 759 bytes).
+pub fn request_rent() -> u64 {
+    Rent::default().minimum_balance(usize::from(
+        ConfigVersion::default_v1().pending_request_bytes,
+    ))
+}
+
+/// Rent of the Series-B Backer account the promotion still needs (`promotion_holdback`, no registry extension).
+pub fn b_account_rent() -> u64 {
+    Rent::default().minimum_balance(Backer::SPACE)
+}
+
+/// A close that is sealed, with the draw NOT requested yet, holding `sponsor` / `owner` lamports of locked
+/// reserve and a provider-fee `cap`; the live ORAO fee is `fee` and the free operations balance `free`.
+pub fn topup_snapshot(sponsor: u64, owner: u64, cap: u64, fee: u64, free: u64) -> Snapshot {
+    let mut snapshot = closing_snapshot();
+    {
+        let close = close_mut(&mut snapshot);
+        close.candidate_cursor = 10;
+        close.sealed = true;
+        close.selected_set_tag = 0;
+        close.preferred_count = 3;
+        close.preferred_digest = [4; 32];
+        close.provisioned_preferred_pages = 2;
+        close.provisioned_fallback_pages = 2;
+        close.draw_state = DRAW_NOT_REQUESTED;
+        close.locked_sponsor_remaining = sponsor;
+        close.locked_owner_remaining = owner;
+        close.approved_provider_fee_cap = cap;
+        close.registry_extension_required = false;
+        close.reserve_schedule = ReserveSchedule {
+            b_account_rent: b_account_rent(),
+            ..ReserveSchedule::default()
+        };
+    }
+    snapshot.provider_fee = Some(fee);
+    snapshot.ops = Some(Ops {
+        free_balance: free,
+        ..Ops::default()
+    });
+    snapshot
+}
+
+fn idle_pool() -> Pool {
+    Pool {
+        round_id: 2,
+        active_config_version: 1,
+        next_close_id: 2,
+        cluster_domain: [9; 32],
+        ..Pool::default()
+    }
+}
+
+/// An idle pool whose Ops books agree with the physical OpsCash account, plus `donation` unsolicited lamports
+/// in OpsCash.  No ORAO Client is loaded.
+pub fn books_snapshot(donation: u64) -> Snapshot {
+    let floor = Rent::default().minimum_balance(0);
+    let (free, locked) = (10_000_000, 2_000_000);
+    let mut snapshot = Snapshot::new(idle_pool(), NOW as i64);
+    snapshot.ops = Some(Ops {
+        free_balance: free,
+        locked_remaining_total: locked,
+        unallocated_excess: 0,
+        protected_rent: floor,
+        ..Ops::default()
+    });
+    snapshot.ops_cash = Some(SystemAccountView {
+        lamports: floor + free + locked + donation,
+        plain_system_account: true,
+    });
+    snapshot
+}
+
+/// `books_snapshot` plus an ORAO Client at the derived address holding `lamports`, observed in full by the books.
+pub fn with_client(mut snapshot: Snapshot, lamports: u64) -> Snapshot {
+    let rent = Rent::default().minimum_balance(100);
+    snapshot.client = Some(ClientView {
+        lamports,
+        data_len: 100,
+    });
+    let ops = snapshot.ops.as_mut().expect("books snapshot");
+    ops.client_balance_observed = lamports;
+    ops.client_protected_rent = rent;
+    ops.provider_deficit = provider_deficit(ops.eligible_return_budget, lamports, rent);
+    snapshot
+}
+
+/// An existing candidate page of `close_id`'s set `set_tag`, as the loader would report it.
+pub fn candidate_shared_page(
+    close_id: u64,
+    set_tag: u8,
+    index: u64,
+    rent: RentComponents,
+    lamports: u64,
+) -> SharedPage {
+    SharedPage {
+        kind: PageKind::Candidate { close_id, set_tag },
+        index,
+        address: candidate_address(close_id, set_tag, index),
+        lamports,
+        rent,
+    }
+}
+
+/// An existing participant page of `round`.
+pub fn participant_shared_page(
+    round: u64,
+    index: u64,
+    rent: RentComponents,
+    lamports: u64,
+) -> SharedPage {
+    SharedPage {
+        kind: PageKind::Participant { round },
+        index,
+        address: participant_address(round, index),
+        lamports,
+        rent,
+    }
+}
+
+/// The rent components the cleanup fixtures record on their candidate page: an ops share and an owner share
+/// refunded to `key(0x88)`.
+pub fn recorded_rent() -> RentComponents {
+    RentComponents {
+        ops: 1_000_000,
+        owner: 2_000_000,
+        owner_refund: key(0x88),
+    }
+}
+
+/// A finished (finalized, terminal-promotion) close 1, healthy books and two released pages: candidate page 0
+/// of set 0 (owes `key(0x88)` an owner share) and participant page 0 (ops share only).
+pub fn cleanup_snapshot() -> Snapshot {
+    let mut snapshot = books_snapshot(0);
+    snapshot.last_close = Some(settled_close(0));
+    snapshot.shared_pages = vec![
+        candidate_shared_page(1, 0, 0, recorded_rent(), 3_000_000),
+        participant_shared_page(
+            1,
+            0,
+            RentComponents {
+                ops: 500_000,
+                owner: 0,
+                owner_refund: Pubkey::default(),
+            },
+            500_000,
+        ),
+    ];
+    snapshot.page_refund_targets.insert(
+        key(0x88),
+        SystemAccountView {
+            lamports: 0,
+            plain_system_account: true,
+        },
+    );
+    snapshot
+}
+
+fn ops_account(ops: &Ops) -> Account {
+    program_account(ops)
+}
+
+fn system_account(lamports: u64) -> Account {
+    Account {
+        lamports,
+        data: Vec::new(),
+        owner: system_program::ID,
+        executable: false,
+        rent_epoch: 0,
+    }
+}
+
+fn network_account(fee: u64) -> Account {
+    let network = NetworkState::new(255, NetworkConfiguration::new(key(0xC0), key(0xA3), fee));
+    let mut data = Vec::new();
+    anchor_lang::AccountSerialize::try_serialize(&network, &mut data)
+        .expect("network state serializes");
+    Account {
+        lamports: 1_000_000_000,
+        data,
+        owner: orao::id(),
+        executable: false,
+        rent_epoch: 0,
+    }
+}
+
+/// The mock twin of `topup_snapshot`: a sealed close, draw not requested, the Ops account and the ORAO
+/// NetworkState (the live fee) on chain.
+pub fn topup_world(chain: &MockChain, sponsor: u64, cap: u64, fee: u64, free: u64) {
+    let close = CloseRecord {
+        candidate_cursor: 10,
+        sealed: true,
+        selected_set_tag: 0,
+        preferred_count: 3,
+        preferred_digest: [4; 32],
+        provisioned_preferred_pages: 2,
+        provisioned_fallback_pages: 2,
+        draw_state: DRAW_NOT_REQUESTED,
+        locked_sponsor_remaining: sponsor,
+        approved_provider_fee_cap: cap,
+        reserve_schedule: ReserveSchedule {
+            b_account_rent: b_account_rent(),
+            ..ReserveSchedule::default()
+        },
+        ..base_close()
+    };
+    chain.set_clock(NOW as i64, 100);
+    chain.set_account(pool_address(), program_account(&closing_pool()));
+    chain.set_account(close_record_address(1), program_account(&close));
+    chain.set_account(config_address(1), program_account(&provider_config()));
+    chain.set_account(
+        ops_address(),
+        ops_account(&Ops {
+            free_balance: free,
+            ..Ops::default()
+        }),
+    );
+    chain.set_account(key(0xA2), network_account(fee));
+}
+
+/// The mock twin of `books_snapshot` (+ `with_client` when `client_lamports` is `Some`): the Ops account whose
+/// books agree with OpsCash, `donation` unsolicited lamports in OpsCash, the ORAO Client holding
+/// `client_lamports` while the books observed `observed_client_lamports`.
+pub fn books_world(chain: &MockChain, donation: u64, client: Option<(u64, u64)>) {
+    idle_world(chain, None);
+    let floor = Rent::default().minimum_balance(0);
+    let (free, locked) = (10_000_000, 2_000_000);
+    let mut ops = Ops {
+        free_balance: free,
+        locked_remaining_total: locked,
+        unallocated_excess: 0,
+        protected_rent: floor,
+        ..Ops::default()
+    };
+    if let Some((observed, actual)) = client {
+        let rent = Rent::default().minimum_balance(100);
+        ops.client_balance_observed = observed;
+        ops.client_protected_rent = rent;
+        ops.provider_deficit = provider_deficit(ops.eligible_return_budget, observed, rent);
+        chain.set_account(
+            provider::client_address().0,
+            Account {
+                lamports: actual,
+                data: vec![0; 100],
+                owner: orao::id(),
+                executable: false,
+                rent_epoch: 0,
+            },
+        );
+    }
+    chain.set_account(ops_address(), ops_account(&ops));
+    chain.set_account(
+        ops_cash_address(),
+        system_account(floor + free + locked + donation),
+    );
+}
+
+/// A finished close 1 on chain with one released candidate page (set 0, index 0) that owes `key(0x88)` an owner
+/// share; healthy books.  Returns the page's address.
+pub fn cleanup_world(chain: &MockChain) -> Pubkey {
+    let last = CloseRecord {
+        provisioned_preferred_pages: 1,
+        ..settled_close(0)
+    };
+    books_world(chain, 0, None);
+    idle_world(chain, Some(&last));
+    let page = CandidatePage {
+        close_id: 1,
+        set_tag: 0,
+        page: 0,
+        len: 0,
+        rent: recorded_rent(),
+        ..CandidatePage::default()
+    };
+    let address = candidate_address(1, 0, 0);
+    chain.set_account(
+        address,
+        Account {
+            lamports: 3_000_000,
+            ..program_account(&page)
+        },
+    );
+    address
 }

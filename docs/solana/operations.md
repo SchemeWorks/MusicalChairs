@@ -101,7 +101,8 @@ determined by on-chain state alone:
 | draw captured | `apply_promotion` (payer; applies even after the deadline) | no |
 | deadline passed and draw not captured | `expire_promotion` | yes (after `deadlineMarginSecs`) |
 | promotion terminal, reserve settled | `finalize_round` | yes |
-| after finalize | optional cleanup: `close_shared_account`, `deliver_owner_refund`, `reconcile_ops_cash*` | no |
+| sealed, draw not requested, provider budget short | `increase_provider_budget(extra)` — the worker plans it ONLY when the close's provider budget cannot cover the live fee + request rent + holdback AND the operator opted in with `--max-provider-topup-lamports <n>` (default 0 = never); exact-or-nothing within that maximum; `extra` moves sponsor operations funds (`ops.free_balance`) into the close's provider budget — a sponsor budget decision, not a fee-key payment | no |
+| after finalize (idle) | the worker's lowest-priority steps, in order: optional `provision_close_record` (opt-in), `deliver_owner_refund` (only when the recorded destination can take it), `observe_request_fulfilled` (once), on-chain cleanup `close_shared_account(kind)` of the last finished close's released participant/candidate pages (one page per transaction, ≤ 512 pages probed per pass; the rent refund goes to the destination the program recorded; registry/snapshot pages are never closable), then `reconcile_ops_cash` / `reconcile_ops_cash_with_client` when the books differ by at least `--min-reconcile-lamports` (default 0). Older closes' leftovers need a wallet. The worker has NO file, worktree or ledger deletion authority — cleanup means these on-chain instructions only | no |
 
 If a wallet and a keeper race, the loser fails fee-only. Never "retry harder": check `getStatus` /
 the worker journal first, because a transaction with an unknown outcome must be read before it is replaced.
@@ -189,7 +190,8 @@ starting point until real burn is measured; a cycles monitor such as CycleOps ca
   worker key means a new address to fund; the watchdog re-derives and `arm` needs the new address).
 - In the watchdog: `provision_page`, `provision_close_record`, `build_candidates`, `request_round_draw`,
   `capture_round_draw`, `apply_promotion` (all `#Blocked "unsupported step: ..."`), plus cleanup,
-  `deliver_owner_refund`, `observe_request_fulfilled` and `reconcile_ops_cash*`. The primary or a wallet runs them.
+  `deliver_owner_refund`, `observe_request_fulfilled`, `increase_provider_budget` and `reconcile_ops_cash*`. The primary
+  worker runs all of these (section 2); a wallet can run any of them by hand.
 - Standby election, leases, automatic failover between providers, idle backoff beyond the two fixed intervals.
 - Alert delivery (the watchdog has no outbound HTTP; a monitor must poll), paging, on-call.
 - Pausing (P), configuration staging and activation (G), provider returns, upgrades of the program or of the

@@ -12,6 +12,14 @@
 //! step is harmless because every step carries an expected ticket id / cursor
 //! and the loser fails fee-only.
 //!
+//! Lowest-priority housekeeping goes through the same permissionless instructions: delivering a deferred owner
+//! refund, observing a fulfilled provider request, `close_shared_account` for released pages, the
+//! `reconcile_ops_cash*` bookkeeping and, only with an explicit opt-in maximum, `increase_provider_budget`.
+//! Where one of them makes the PROGRAM move lamports, the recipient and the amount are what the chain recorded
+//! (the page's own refund destination, the close's recorded owner destination) or the sponsor's own free
+//! operations funds the operator capped; the worker never chooses a recipient and holds no filesystem,
+//! worktree or ledger deletion authority: "cleanup" means these on-chain instructions only.
+//!
 //! Layout:
 //! - [`rpc`]: the chain access traits, the `RpcClient` backend and the
 //!   scripted [`rpc::MockChain`] used by the tests (no network in tests).
