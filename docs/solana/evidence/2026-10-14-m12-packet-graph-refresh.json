@@ -1,0 +1,94 @@
+{
+ "recorded_at_utc": "2026-10-15T04:06:04.240219+00:00",
+ "card": "IMPL-46c/46d packet correction + IMPL-47b/47c (structural coverage)",
+ "milestone": "M11 packet correction and the two M12 halves — structural graph refresh receipt",
+ "head_at_graph_update": "5ade41e",
+ "branch": "codex/native-solana-production-core",
+ "before_graphify_update_accepted_state": {
+  "nodes": 18354,
+  "edges": 28446,
+  "hyperedges": 47,
+  "source": "docs/solana/evidence/2026-10-14-m11-graph-refresh.json after_merge (Codex-verified)"
+ },
+ "after_graphify_update": {
+  "nodes": 19960,
+  "edges": 30070,
+  "hyperedges": 47
+ },
+ "after_repair": {
+  "nodes": 19960,
+  "edges": 30087,
+  "hyperedges": 47
+ },
+ "disclosure": "graphify update ran WITHOUT a fresh pre-update backup of the accepted M11 graph (graphify-out/ is gitignored). The repair reference was reconstructed as scratchpad graph-backup-m11 (the pre-M11-update state, 17,042 / 25,745 / 46) + the accepted M11 fragment (2026-10-14-m11-graph-fragment.json nodes/edges/hyperedge) + its attribute_updates; the first repair apply restored 17 collapsed raw edges and 321 stripped node attributes (status 321, label 2, file_type 2, rationale 2, historical_source_sha256 2, source_location 1, norm_label 1, source_url 1, captured_at 1, author 1, contributor 1) and its post-check tripped on the reference node plan2026_10_13_m11_frontend_adapter still carrying the pre-M11 status; after applying the M11 attribute update to the reference the second apply restored nothing further and passed every assertion. The 17 restored edges belong to the 2026-10-12 model, 2026-10-13 planning/runtime and M7 fragments.",
+ "invariants": {
+  "every_backup_m11_node_id_preserved": true,
+  "every_node_of_all_21_committed_fragments_preserved": true,
+  "all_47_hyperedges_preserved": true,
+  "raw_edge_multiplicity_vs_reference_restored": true,
+  "duplicate_node_ids": 0,
+  "dangling_edges": 0,
+  "edge_direction_preserved": true
+ },
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log": "scratchpad/impl47/graphify-update-m11-packet.log",
+   "result": "18,354 / 28,446 / 47 (accepted) → 19,960 / 30,070 / 47 (AST re-extraction incl. native_sol_bridge/*.mo, shenanigans/NativeRewards.mo + glue, the P1/P2 panel files, the SIWS test)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <composite reference> m12-packet-repair-spec.json 1710 validate|apply",
+   "result": "first apply: restored_edges 17, attrs on 321 nodes, post-check AssertionError(status) on the stale reference; reference patched with the M11 attribute_updates; second apply: restored 0, APPLIED 19960 / 30087 / 47; repair fragment docs/solana/evidence/2026-10-14-m12-packet-graph-repair.json"
+  }
+ ],
+ "scope": {
+  "covered_files_sha256_at_head": {
+   "dfx.json": "1d0f3a606aa9b49b4b84ad16334a38cfe20ec6b77939efe3ebf86852d1413f48",
+   "frontend/src/components/GameTracking.tsx": "23994f0fbf8db3e5e3052471f30733e9635ed05a862c022da2e63237bce340a9",
+   "frontend/src/components/HouseDashboard.tsx": "fae76f14fc9fdc67441139348f3aa30f162d7be2c99e95ee9931e2c5dbfe040e",
+   "frontend/src/components/LegacyRail.test.tsx": "11987d46c2cf3efb885574aae68d04ba8c855dd412513382d68b996dd08461fa",
+   "frontend/src/components/NativePanels.test.tsx": "2cc014aafab7f68289bec642102845c3cb9c4ea4d8acbced79b8561f0c8658bc",
+   "frontend/src/components/SolBackerPanel.tsx": "16721799afb21e42f5a16f45ccf6dbd4d416075b6be48a1cd537eaf2179cbe11",
+   "frontend/src/components/SolInvestPanel.tsx": "3546013bbb475c1c6bc9882ff8f20b07e88e8b2459be351c4cc37f71deefd643",
+   "frontend/src/lib/siwsSigner.ts": "2a173db182d3e1662b2cbc7269fca26874b599c1c69086fc58779ec17a71a930",
+   "frontend/src/solana/native/localSiwsLogin.test.ts": "098cb7ee0c2bb750f4a30630441f79e3ca29e9dcb6f217978f0ba995a1b61243",
+   "frontend/src/solana/native/panelsCluster.ts": "4555b962396680edb00a0678425414ebc161e7ce04dd7a14497c755319cc19bd",
+   "frontend/src/solana/native/panelsQuote.test.ts": "c9cf7822a05693ce0675b1832ce4da513aca590a6f4e9967f9d34373a996fed7",
+   "frontend/src/solana/native/panelsQuote.ts": "3e2ed7440a7ae9d49dbfaadb322e10e61b27aab1bc6581654a78e758c1f89190",
+   "frontend/src/solana/native/panelsStatus.ts": "29ff6c4ab6dede192f33863df3769d86fede8743f7b31a8a40af23c5d1f42d99",
+   "frontend/src/solana/native/panelsStatusActions.test.ts": "a5a0d9ae76a14ae6b612051b916c4490c16f0c42229b7e1945679679b33eb1db",
+   "native_sol_bridge/Decode.mo": "b662afa4d16de727ff08f029e7b8fae48e99fb554e79e12207b095de988518f0",
+   "native_sol_bridge/Events.mo": "fc4613d1b791be95068c1456b3cd94ebf912191168a994da761ec33a3fbc9c44",
+   "native_sol_bridge/Outbox.mo": "dc3014ba905a44b095baf1c68828ed627992489d68a5e390aa6482f8d34b6620",
+   "native_sol_bridge/Rpc.mo": "3620712fae6b2645513bee382a3dae7a0418b17c1572f5f828145088f7c37a2b",
+   "native_sol_bridge/Verify.mo": "4fb64acd78c137e746445e80b511d07b87fc2e40eeb6a4bcfe5480ad911bc6b1",
+   "native_sol_bridge/main.mo": "414b49df01258002cf603f8f138021dbe51a1850078ecb65c23f02d6f57ff169",
+   "native_sol_bridge/test/decode.test.mo": "93943528a4f92f6a36c21e304dbed1a755d739a67ce1d5533d168e0acc237525",
+   "native_sol_bridge/test/fixtures.test.mo": "db9403d4d2a2154f397871423a8f472c32c6cf3e8a9a366b831322d6d5571b96",
+   "native_sol_bridge/test/outbox.test.mo": "e620ed2f64091cf6ca1f344eff092450d188b4ad5ff4c0b0ed3bf9c59d260acc",
+   "native_sol_bridge/test/verify.test.mo": "27f3d45d47484b5b603d6353a95f4538a9072907d84f60d2f2e08fed9835f4d0",
+   "shenanigans/NativeRewards.mo": "31cde07da4714815fda785ff787e46ad4118b333a28357345a13b2a685c4545d",
+   "shenanigans/main.mo": "7b07f233346e70ed6ea4a1eeb0dece16661b9f71b990e1f830ef02064773fa6b",
+   "shenanigans/test/legacy-untouched.test.sh": "2ca1779a12dd652376259fa4348fad68c858b144c09f9152e2364d12271ebed7",
+   "shenanigans/test/native-rewards-execute.test.mo": "d033b47f2ce83a3022a7f513f96264bc5b974d918ba317f9a345164367c98c53",
+   "shenanigans/test/native-rewards-observe-bind.test.mo": "1708c3a854cba55ef3a4ae39b71e9acf7e80fb77f91f89a404e5fd35d895b486",
+   "shenanigans/test/native-rewards-reconcile.test.mo": "7af9cce08116e0f056c19b4f54c123197759d28994039c61a333404e5b3cd559"
+  },
+  "semantic_coverage": "NOT refreshed for the new Motoko modules and the handoff correction (AST-only update); a semantic M12 fragment follows at the M12 close-out with the IMPL-47d receipt"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify query \"native_sol_bridge verifyAndForward …\"",
+   "result": "Traversal: BFS depth=2 | Start: ['native_sol_bridge', 'native_sol_bridge', 'native_sol_bridge'] | 26 nodes found\n\nNODE Internet Identity Auth [src=README.md loc=None community=2]\nNODE canisters [src=dfx.json loc=L2 community=19]\nNODE siws_provider [src=dfx.json loc=L27 community=19]\nNODE frontend [src=dfx.json loc=L33 community=19]\nNODE pp_ledger [src=dfx.json loc=L43 community=19]\nNODE ponzi_math [src=dfx.json loc=L7 community=19]\nNODE canister_ids.json [src=.dfx/local/canister_ids.json loc=L1 community=1696]\nNODE shenanigans [src=dfx.json loc=L15 community=19]\nNODE pp_assets [src=dfx.json lo"
+  },
+  {
+   "cmd": "graphify query \"shenanigans NativeRewards …\"",
+   "result": "Traversal: BFS depth=2 | Start: ['shenanigans', 'Shenanigans()', 'shenanigans'] | 123 nodes found\n\nNODE useQueries.ts [src=frontend/src/hooks/useQueries.ts loc=L1 community=1]\nNODE useWallet() [src=frontend/src/hooks/useWallet.tsx loc=L605 community=4]\nNODE GameTracking.tsx [src=frontend/src/components/GameTracking.tsx loc=L1 community=1138]\nNODE App.tsx [src=frontend/src/App.tsx loc=L1 community=2]\nNODE Shenanigans.tsx [src=frontend/src/components/Shenanigans.tsx loc=L1 community=881]\nNODE ShenanigansAdminPanel.tsx [src=frontend/src/components/ShenanigansAdminPanel.tsx loc=L1 community=1]\nNOD"
+  },
+  {
+   "cmd": "graphify query \"LegacyRailBanner NativeRailVerifying …\"",
+   "result": "Traversal: BFS depth=2 | Start: ['resendSameTx()', 'checkTxStatus()', 'railOf()'] | 131 nodes found\n\nNODE useWallet() [src=frontend/src/hooks/useWallet.tsx loc=L605 community=4]\nNODE client.ts [src=frontend/src/solana/native/client.ts loc=L1 community=234]\nNODE GameTracking.tsx [src=frontend/src/components/GameTracking.tsx loc=L1 community=1138]\nNODE SolInvestPanel.tsx [src=frontend/src/components/SolInvestPanel.tsx loc=L1 community=38]\nNODE accounts.ts [src=frontend/src/solana/native/accounts.ts loc=L1 community=234]\nNODE codecs.ts [src=frontend/src/solana/native/codecs.ts loc=L1 community=10"
+  }
+ ],
+ "note": "A graph relationship is navigation evidence only; financial and authority claims are verified against source and tests."
+}
