@@ -1,0 +1,107 @@
+{
+ "recorded_at_utc": "2026-10-15T04:47:14.784971+00:00",
+ "cards": [
+  "IMPL-48a",
+  "IMPL-48b",
+  "IMPL-48c"
+ ],
+ "milestone": "M13 keepers and monitoring (code only, nothing started)",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "keeper_worker": "a93d4d0",
+  "icp_watchdog_and_runbook": "58bd446"
+ },
+ "keeper_worker": {
+  "crate": "solana/keepers/worker",
+  "toolchain": "rust 1.92.0 (cargo +1.92.0), pins = the harness pins (solana-sdk/solana-rpc-client/solana-rpc-client-api =2.3.1, anchor-lang =0.32.1, program crate no-entrypoint)",
+  "red": {
+   "cmd": "cargo +1.92.0 test --locked --offline (phase-1 stubs, coordinator-run)",
+   "result": "0 passed; 3 failed — does_not_resubmit_after_unknown_outcome_until_status_read at src/journal.rs:161 \"phase 2: replay the lines\"; any_wallet_can_run_the_same_plan and prepares_one_row_fallback_when_simulation_exceeds_budget at src/plan.rs:186 \"phase 2: ticket phases, then the closing pipeline\"",
+   "log_sha256": "87bedd0ce210dcd2d7c5e8e2143df0593556fe6adb14ccf7177342fe7c79016f"
+  },
+  "green": {
+   "cmd": "cargo +1.92.0 test --locked --offline (phase-2, first execution)",
+   "result": "13 passed; 0 failed",
+   "tests": [
+    "prepares_one_row_fallback_when_simulation_exceeds_budget",
+    "does_not_resubmit_after_unknown_outcome_until_status_read",
+    "any_wallet_can_run_the_same_plan",
+    "prune_removes_a_captured_closed_row_by_swap_delete_and_keeps_open_rows",
+    "candidate_batches_never_cross_a_participant_or_candidate_page_edge",
+    "closing_pipeline_waits_expires_and_applies_in_the_reference_order",
+    "delivers_a_deferred_owner_refund_only_when_the_destination_can_take_it",
+    "observes_a_fulfilled_request_once",
+    "waits_for_pending_randomness_alerts_on_stale_progress_then_captures",
+    "deterministic_program_failures_block_and_page_failures_shrink",
+    "an_idle_pool_sends_nothing_and_never_alerts",
+    "alert_levels_follow_the_60_and_300_second_thresholds",
+    "journal_replays_the_last_line_of_each_signature"
+   ],
+   "log_sha256": "93c2cfbca556a93527ad3f327b60132b8da59680e532467c8f19c6c64344dfca"
+  },
+  "lint": "cargo fmt --check clean; cargo clippy --all-targets -D warnings clean after the coordinator fixed manual_contains, manual_is_multiple_of and one type_complexity in the tests; re-run: 13 passed",
+  "ci": "new job keeper-worker (fmt / test / clippy) in .github/workflows/native-solana-model.yml",
+  "fee_only_guard": "ComputeBudget + this program only; one of the 16 keeper discriminators; the fee payer the only signer in at most one writable slot; exactly one required signature; static IDL check: every signer of a keeper instruction is named payer",
+  "not_proven": [
+   "RpcClientBackend error classification and the 1.4M-CU measurement path (no live node)",
+   "idle refund/observe steps examine only the most recent finished close",
+   "page pre-provisioning not planned (possible opt-in later)"
+  ]
+ },
+ "icp_watchdog": {
+  "canister": "native_sol_keeper (dfx.json entry; built, never deployed)",
+  "tests_moc_1_5_1_and_0_16_2": {
+   "policy": 54,
+   "journal": 47,
+   "authority": 86,
+   "gate": 28,
+   "pda": 23,
+   "accounts": 42,
+   "tx": 34,
+   "planner": 78,
+   "result": "ALL PASS each, identical under both compilers (coordinator re-run with the pinned rig)"
+  },
+  "plan_test_names": [
+   "signs_only_after_stale_progress_threshold",
+   "rearms_timer_after_upgrade",
+   "fee_address_has_no_program_authority"
+  ],
+  "red": "M0009 import errors before the modules existed (worker-recorded)",
+  "type_check": "moc --check main.mo: 0 errors under 1.5.1 and 0.16.2 (14 M0155 guarded-subtraction warnings, identical); full wasm builds succeed",
+  "didc_check": "pinned sol_rpc_canister.did vs probe actor: exit 0, no warning; negative controls: Nat16→Nat fails; dropped variant tag / extra opt field only warn (acceptance = exit 0 AND no warning)",
+  "generators": "test/gen/authority_table.py --check and test/gen/fixtures.py --check both current (coordinator re-run)",
+  "signing_surface": "candid: arm, disarm, configTemplate, getConfig, getFeeAddress, getJournal, getStatus, setConfig, tickNow — no method takes bytes to sign; sign_with_schnorr reached only from tick → attempt → private signMessage",
+  "supported_steps": [
+   "discover_rows",
+   "apply_senior",
+   "seal_weights",
+   "allocate_rows",
+   "prune_rows",
+   "commit_ticket",
+   "expire_promotion",
+   "finalize_round"
+  ],
+  "blocked_unsupported": [
+   "provision_page",
+   "build_candidates",
+   "request_round_draw",
+   "capture_round_draw",
+   "apply_promotion"
+  ],
+  "decisions_for_review": [
+   "send JSON-RPC error → Failed (mirrors classifySendError), other post-send errors → Unknown",
+   "reads at finalized (≈40 s blockhash validity); confirmed option may follow M14 measurement",
+   "own landed steps do not reset the stale clock",
+   "pruneNewlyCapped default false vs worker --skip-newly-capped default off (both configurable)",
+   "idle polling adaptive up to 300 s",
+   "configTemplate Equality consensus on #Default(#Devnet); threshold 2-of-3 needs devnet evidence"
+  ],
+  "not_proven": [
+   "actor glue (tick, RPC awaits, timer, upgrade re-arm) type-checked and wasm-built only; replica plan test/replica/native-sol-keeper.md unrun",
+   "local threshold Ed25519 may not exist on the dfx replica",
+   "rpcCycles / signCycles placeholders"
+  ]
+ },
+ "operations_doc": "docs/solana/operations.md (roles, 60 s / 300 s meaning, escalation from any wallet, metrics fields of both keepers, fee floor and hourly budget, not-automated list, bring-up, no-credentials rule; pause conditions are a proposed policy)",
+ "limits": "No services started, nothing deployed, no live keys, no public network. M14 (devnet) remains an authorization gate."
+}
