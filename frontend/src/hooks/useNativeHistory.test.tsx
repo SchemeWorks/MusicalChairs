@@ -8,13 +8,25 @@ import type { Entry, Status } from '../declarations/native_sol_bridge/native_sol
 import { Actor } from '@dfinity/agent';
 
 import {
+  BridgeClusterError,
   NATIVE_HISTORY_PAGE_SIZE,
+  cachedBridgeDomain,
+  clusterDomainLabel,
+  expectedAppCluster,
+  type ExpectedCluster,
+  fetchGuardedPage,
   fetchHistoryPage,
+  judgeBridgeCluster,
   nextHistoryCursor,
+  resetBridgeConfigCacheForTests,
   resolveBridgeCanisterId,
   toNativeHistoryItems,
   useNativeHistory,
+  verifyBridgeCluster,
 } from './useNativeHistory';
+import { CLUSTER_DOMAINS, defaultClusterIdentity, type NativeClusterIdentity } from '../solana/native/cluster';
+import { bytesToHex } from '../solana/native/codecs';
+import { idl } from '../solana/native/codecs';
 
 const SIG = (n: number) => `${n}`.padStart(88, 'S'); // a distinct 88-char stand-in per fixture
 
@@ -202,5 +214,144 @@ describe('the hook', () => {
     expect(on.items).toEqual([]);
     expect(on.hasMore).toBe(false);
     expect(on.error).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cluster guard: the bridge's cluster_domain must be the app's, or nothing is listed
+// ---------------------------------------------------------------------------
+
+const identity = (name: 'localnet' | 'devnet' | 'mainnet-beta'): NativeClusterIdentity => ({
+  cluster: { expectedClusterDomain: name, programId: idl.address },
+  rpcEndpoint: 'http://127.0.0.1:8899',
+});
+const LOCAL = CLUSTER_DOMAINS.localnet;
+const DEVNET = CLUSTER_DOMAINS.devnet;
+
+describe('the app\'s expected cluster', () => {
+  it('is the adapter\'s expectedClusterDomain, labeled by name', () => {
+    const local = expectedAppCluster(identity('localnet'));
+    expect(local).toMatchObject({ ok: true, label: 'localnet' });
+    expect(local.ok && Array.from(local.domain)).toEqual(Array.from(LOCAL));
+    expect(expectedAppCluster(identity('devnet'))).toMatchObject({ ok: true, label: 'devnet' });
+    expect(expectedAppCluster(defaultClusterIdentity('https://api.devnet.solana.com'))).toMatchObject({ ok: true, label: 'devnet' });
+  });
+
+  it('is unresolved without an identity and for mainnet-beta (no cluster domain exists yet)', () => {
+    expect(expectedAppCluster(null)).toEqual({ ok: false });
+    expect(expectedAppCluster(identity('mainnet-beta'))).toEqual({ ok: false });
+  });
+
+  it('labels raw 32-byte domains by name, never by key', () => {
+    expect(clusterDomainLabel(LOCAL)).toBe('localnet');
+    expect(clusterDomainLabel(Array.from(DEVNET))).toBe('devnet');
+    expect(clusterDomainLabel(new Uint8Array(32).fill(7))).toBe('another deployment');
+    const custom = expectedAppCluster({ cluster: { expectedClusterDomain: new Uint8Array(32).fill(7), programId: idl.address }, rpcEndpoint: 'http://127.0.0.1:8899' });
+    expect(custom).toMatchObject({ ok: true, label: 'another deployment' });
+  });
+});
+
+describe('judgeBridgeCluster', () => {
+  const app = expectedAppCluster(identity('localnet'));
+
+  it('match: the bridge follows the app\'s cluster', () => {
+    expect(judgeBridgeCluster({ expected: app, bridge: { domain: Uint8Array.from(LOCAL) } })).toEqual({ state: 'ok' });
+    expect(judgeBridgeCluster({ expected: app, bridge: { domain: Array.from(LOCAL) } })).toEqual({ state: 'ok' }); // candid may hand back number[]
+  });
+
+  it('mismatch: disabled, naming BOTH clusters by label and neither by key', () => {
+    const v = judgeBridgeCluster({ expected: app, bridge: { domain: DEVNET } });
+    expect(v).toEqual({ state: 'disabled', reason: 'cluster-mismatch', appCluster: 'localnet', bridgeCluster: 'devnet' });
+    const unknown = judgeBridgeCluster({ expected: app, bridge: { domain: new Uint8Array(32).fill(9) } });
+    expect(unknown).toMatchObject({ reason: 'cluster-mismatch', bridgeCluster: 'another deployment' });
+    for (const verdict of [v, unknown]) {
+      const text = JSON.stringify(verdict);
+      expect(text).not.toContain(bytesToHex(LOCAL));
+      expect(text).not.toContain(bytesToHex(DEVNET));
+      expect(text).not.toMatch(/musical-chairs/);
+    }
+  });
+
+  it('unconfigured app cluster: disabled with a reason, before the bridge is even consulted', () => {
+    const unresolved = expectedAppCluster(identity('mainnet-beta'));
+    expect(judgeBridgeCluster({ expected: unresolved, bridge: { domain: Uint8Array.from(LOCAL) } })).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
+    expect(judgeBridgeCluster({ expected: unresolved, bridge: { loading: true } })).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
+  });
+
+  it('config read failure and an uninitialized bridge are disabled, not "ok"', () => {
+    expect(judgeBridgeCluster({ expected: app, bridge: { error: true } })).toEqual({ state: 'disabled', reason: 'config-unavailable', appCluster: 'localnet' });
+    expect(judgeBridgeCluster({ expected: app, bridge: { domain: null } })).toEqual({ state: 'disabled', reason: 'bridge-uninitialized', appCluster: 'localnet' });
+  });
+
+  it('while the config is loading the verdict is "checking" (not ok, not disabled)', () => {
+    expect(judgeBridgeCluster({ expected: app, bridge: { loading: true } })).toEqual({ state: 'checking' });
+  });
+});
+
+describe('verifyBridgeCluster and the config cache', () => {
+  const app = expectedAppCluster(identity('localnet'));
+
+  it('reads the config once per (host, canister id) and keeps a real domain', async () => {
+    resetBridgeConfigCacheForTests();
+    const load = vi.fn(async () => Uint8Array.from(LOCAL));
+    const key = 'https://icp0.io|ryjl3-tyaaa-aaaaa-aaaba-cai';
+    await Promise.all([cachedBridgeDomain(key, load), cachedBridgeDomain(key, load)]);
+    await cachedBridgeDomain(key, load);
+    expect(load).toHaveBeenCalledTimes(1);
+    await cachedBridgeDomain('http://localhost:4943|ryjl3-tyaaa-aaaaa-aaaba-cai', load); // another host: its own entry
+    await cachedBridgeDomain('https://icp0.io|rrkah-fqaaa-aaaaa-aaaaq-cai', load); // another canister: its own entry
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it('a failed read and an uninitialized bridge (null) are NOT cached: the next check asks again', async () => {
+    resetBridgeConfigCacheForTests();
+    const load = vi.fn().mockRejectedValueOnce(new Error('replica down')).mockResolvedValueOnce(null).mockResolvedValue(Uint8Array.from(LOCAL));
+    await expect(cachedBridgeDomain('k', load)).rejects.toThrow('replica down');
+    expect(await cachedBridgeDomain('k', load)).toBeNull();
+    expect(await cachedBridgeDomain('k', load)).toEqual(Uint8Array.from(LOCAL));
+    expect(await cachedBridgeDomain('k', load)).toEqual(Uint8Array.from(LOCAL));
+    expect(load).toHaveBeenCalledTimes(3);
+  });
+
+  it('turns a throwing config read into config-unavailable', async () => {
+    const verdict = await verifyBridgeCluster(app, async () => {
+      throw new Error('canister rejected the call');
+    });
+    expect(verdict).toEqual({ state: 'disabled', reason: 'config-unavailable', appCluster: 'localnet' });
+  });
+
+  it('does not read the bridge at all when the app\'s own cluster is unresolved', async () => {
+    const load = vi.fn(async () => Uint8Array.from(LOCAL));
+    expect(await verifyBridgeCluster(expectedAppCluster(identity('mainnet-beta')), load)).toEqual({ state: 'disabled', reason: 'cluster-unresolved' });
+    expect(load).not.toHaveBeenCalled();
+  });
+});
+
+describe('fetchGuardedPage lists nothing unless the clusters match', () => {
+  const forwardedStatus = (): Status => ({ Forwarded: { at: 1n, already_observed: false, obligation_id: 'o' } });
+  const quarantinedStatus = (): Status => ({ Quarantined: { at: 2n, reason: 'no' } });
+  const page = (): Entry[] => [entry(5, forwardedStatus()), entry(4, quarantinedStatus())];
+  const app = expectedAppCluster(identity('localnet'));
+  const actor = () => ({ getRecentEvents: vi.fn(async (_b: [] | [bigint], _l: bigint) => page()) });
+
+  it('match: the verified page is fetched and mapped', async () => {
+    const a = actor();
+    const out = await fetchGuardedPage(a, app, async () => Uint8Array.from(LOCAL), null, 20);
+    expect(a.getRecentEvents).toHaveBeenCalledTimes(1);
+    expect(out.items.map((i) => i.seq)).toEqual([5n, 4n]);
+  });
+
+  const refusals: Array<[string, ExpectedCluster, () => Promise<Uint8Array | null>, string]> = [
+    ['mismatch', app, async () => Uint8Array.from(DEVNET), 'cluster-mismatch'],
+    ['unconfigured app cluster', expectedAppCluster(identity('mainnet-beta')), async () => Uint8Array.from(LOCAL), 'cluster-unresolved'],
+    ['config read failure', app, async () => { throw new Error('boom'); }, 'config-unavailable'],
+    ['bridge without config', app, async () => null, 'bridge-uninitialized'],
+  ];
+  it.each(refusals)('%s: refused with a reason and getRecentEvents is never called', async (_name, expected, load, reason) => {
+    const a = actor();
+    const error = await fetchGuardedPage(a, expected, load, null, 20).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BridgeClusterError);
+    expect((error as BridgeClusterError).verdict.reason).toBe(reason);
+    expect(a.getRecentEvents).not.toHaveBeenCalled();
   });
 });

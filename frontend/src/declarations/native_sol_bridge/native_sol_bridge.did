@@ -224,6 +224,29 @@ type OtherEvent =
    schema_version: nat8;
  };
 type ObligationId = text;
+type LegStatus = 
+ variant {
+   Committed: record {block: nat;};
+   Pending;
+   Quarantined: record {
+                  reason: text;
+                  recoverable: bool;
+                };
+   Retryable: record {
+                attempts: nat;
+                reason: text;
+              };
+   SubmittedUnknown;
+ };
+type LegRecord = 
+ record {
+   calls: nat;
+   checked_at: nat64;
+   event_key: text;
+   index: nat;
+   last_error: opt text;
+   status: opt LegStatus;
+ };
 type Kind = 
  variant {
    PositionOpened;
@@ -234,6 +257,25 @@ type HttpHeader =
  record {
    name: text;
    value: text;
+ };
+type ExecuteResponse = 
+ variant {
+   err:
+    variant {
+      Anonymous;
+      BadLegIndex;
+      CallFailed: text;
+      Cooldown: nat64;
+      NotBound;
+      NotConfigured;
+      NotForwarded;
+      UnknownEvent;
+    };
+   ok: record {
+         from_record: bool;
+         leg: LegRecord;
+         status: LegStatus;
+       };
  };
 type EventId = 
  record {
@@ -315,16 +357,41 @@ type BackerClaimed =
    schema_version: nat8;
  };
 service : {
+  /// Execute ONE frozen leg of a Reserved obligation. Anyone may call it (the anonymous
+  /// principal is refused); the caller supplies no recipient, amount or bytes: the bridge
+  /// calls `shenanigans.executeNativeRewardLeg(event_id, leg_index)` as itself (it is on
+  /// Shenanigans' execute allowlist) and Shenanigans re-presents the fields it froze at bind.
+  /// Requires the outbox entry to be Forwarded AND bound. Idempotent: a Committed leg returns
+  /// the stored status with no call; Pending / SubmittedUnknown / Retryable / Quarantined legs
+  /// call again and Shenanigans' own idempotency (write-ahead SubmittedUnknown, identical
+  /// retry, ledger Duplicate, dedup-window quarantine) decides. Per-event cooldown applies.
+  /// The admin path on Shenanigans stays available as a fallback; the observation allowlist is
+  /// never touched here.
+  executeReservedLeg: (eventId: EventId, legIndex: nat) -> (ExecuteResponse);
   getConfig: () -> (opt PublicConfig) query;
   /// Every entry with seq <= cursor is durable-done (forwarded, quarantined
   /// or provably invalid). A gap (e.g. unsupported transaction version)
   /// holds it back.
   getCursor: () -> (nat) query;
   getEvent: (eventId: EventId) -> (opt Entry) query;
+  /// Operator/audit intake view, newest-first, the complement of `getRecentEvents`:
+  /// Pending, Unverified (including gaps), Verified-but-unacknowledged and Invalid.
+  /// `Invalid` is an intake/audit terminal state: the descriptor was proven false from an
+  /// agreed finalized observation, the cursor may pass it, and a corrected descriptor for the
+  /// same event id is admitted as a new entry. It is NOT verified delivery and never appears
+  /// in the public history.
+  getIntakeEvents: (before: opt nat, limit: nat) -> (vec Entry) query;
+  /// What the bridge has recorded from Shenanigans about this event's reward legs
+  /// (ascending leg index): the last status returned, the last call error, call count.
+  getLegStatuses: (eventId: EventId) -> (vec LegRecord) query;
   /// Open (cursor-blocking) entries with seq > `after`, oldest first; pass
   /// `getCursor()` to see exactly what holds the cursor back.
   getPending: (after: nat, limit: nat) -> (vec Entry) query;
-  /// Newest-first page of the verified-event store (`before`: seq bound).
+  /// PUBLIC verified history (DR-25, spec section 9): newest-first page of entries at the
+  /// verified-delivery checkpoint only: `Forwarded` (Shenanigans answered Observed or
+  /// AlreadyObserved) and `Quarantined` (a durable PERMANENT Shenanigans rejection, returned
+  /// with its status). `before`: only entries with seq < before. Pending, Unverified,
+  /// Verified-but-unacknowledged and Invalid entries are NOT here; see `getIntakeEvents`.
   getRecentEvents: (before: opt nat, limit: nat) -> (vec Entry) query;
   getRelayers: () -> (vec principal) query;
   /// Forwarded events whose beneficiary has no SIWS binding yet.

@@ -41,7 +41,7 @@ vi.mock('../hooks/useQueries', async (importOriginal) => {
   };
 });
 
-import NativeHistoryFeed, { NativeHistoryList } from './NativeHistoryFeed';
+import NativeHistoryFeed, { NativeHistoryList, disabledCopy } from './NativeHistoryFeed';
 import { HouseLedgerTab } from './HouseDashboard';
 import { toNativeHistoryItems, type NativeHistoryResult } from '../hooks/useNativeHistory';
 
@@ -171,6 +171,42 @@ describe('NativeHistoryList rows', () => {
     const items = toNativeHistoryItems([entry(3, intake[0]), entry(2, intake[1]), entry(1, intake[3])]);
     const html = render(<NativeHistoryList history={enabled({ items })} />);
     expect(html).toContain('No verified native activity yet.');
+    expect(html).not.toContain('data-testid="native-history-row"');
+  });
+});
+
+describe('cluster guard: the feed is off with a visible reason and lists nothing', () => {
+  const off = (over: Partial<Extract<NativeHistoryResult, { enabled: false }>>): NativeHistoryResult => ({ enabled: false, reason: 'cluster-mismatch', ...over });
+
+  it('a mismatch names BOTH clusters by label, shows no row, and no key or path', () => {
+    const html = render(<NativeHistoryList history={off({ appCluster: 'localnet', bridgeCluster: 'devnet' })} />);
+    expect(html).toContain('data-reason="cluster-mismatch"');
+    expect(html).toContain('the ICP bridge follows devnet, but this app is on localnet');
+    expect(html).toContain('Nothing from another cluster is listed.');
+    expect(html).not.toContain('data-testid="native-history-row"');
+    expect(html).not.toContain('Load more');
+    expect(html).not.toMatch(/musical-chairs|[1-9A-HJ-NP-Za-km-z]{32,}|https?:/);
+  });
+
+  it('every reason has its own visible sentence and lists nothing', () => {
+    const reasons = ['not-configured', 'invalid-canister-id', 'cluster-unresolved', 'cluster-mismatch', 'config-unavailable', 'bridge-uninitialized'] as const;
+    const texts = reasons.map((reason) => disabledCopy({ enabled: false, reason, appCluster: 'localnet', bridgeCluster: 'devnet' }));
+    expect(new Set(texts.filter((_, i) => i !== 1)).size).toBe(5); // invalid id reads like "not configured"
+    expect(disabledCopy({ enabled: false, reason: 'cluster-unresolved' })).toMatch(/cluster isn't set up for the native game/);
+    expect(disabledCopy({ enabled: false, reason: 'config-unavailable', appCluster: 'devnet' })).toMatch(/configuration couldn't be read.*follows devnet/);
+    expect(disabledCopy({ enabled: false, reason: 'bridge-uninitialized' })).toMatch(/isn't configured for any cluster yet/);
+    for (const reason of reasons) {
+      const html = render(<NativeHistoryList history={off({ reason })} />);
+      expect(html, reason).toContain('data-testid="native-history-disabled"');
+      expect(html, reason).not.toContain('data-testid="native-history-row"');
+    }
+  });
+
+  it('the ledger tab shows the reason beside the legacy ledger when the bridge is another cluster\'s', () => {
+    h.history = off({ appCluster: 'localnet', bridgeCluster: 'devnet' });
+    const html = render(<HouseLedgerTab isSol />);
+    expect(html).toContain('the ICP bridge follows devnet, but this app is on localnet');
+    expect(html).toContain('Legacy (Chain Fusion) activity');
     expect(html).not.toContain('data-testid="native-history-row"');
   });
 });

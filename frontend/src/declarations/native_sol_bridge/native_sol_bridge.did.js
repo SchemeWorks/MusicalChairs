@@ -1,11 +1,4 @@
 export const idlFactory = ({ IDL }) => {
-  const PublicConfig = IDL.Record({
-    'cluster_domain' : IDL.Vec(IDL.Nat8),
-    'shenanigans' : IDL.Principal,
-    'program_id' : IDL.Text,
-    'event_authority' : IDL.Text,
-    'supported_schema_versions' : IDL.Vec(IDL.Nat),
-  });
   const EventId = IDL.Record({
     'signature' : IDL.Text,
     'cluster_domain' : IDL.Vec(IDL.Nat8),
@@ -13,6 +6,48 @@ export const idlFactory = ({ IDL }) => {
     'event_schema_version' : IDL.Nat,
     'program_id' : IDL.Text,
     'instruction_index' : IDL.Nat,
+  });
+  const LegStatus = IDL.Variant({
+    'Committed' : IDL.Record({ 'block' : IDL.Nat }),
+    'Retryable' : IDL.Record({ 'attempts' : IDL.Nat, 'reason' : IDL.Text }),
+    'SubmittedUnknown' : IDL.Null,
+    'Quarantined' : IDL.Record({
+      'recoverable' : IDL.Bool,
+      'reason' : IDL.Text,
+    }),
+    'Pending' : IDL.Null,
+  });
+  const LegRecord = IDL.Record({
+    'event_key' : IDL.Text,
+    'last_error' : IDL.Opt(IDL.Text),
+    'status' : IDL.Opt(LegStatus),
+    'calls' : IDL.Nat,
+    'index' : IDL.Nat,
+    'checked_at' : IDL.Nat64,
+  });
+  const ExecuteResponse = IDL.Variant({
+    'ok' : IDL.Record({
+      'leg' : LegRecord,
+      'status' : LegStatus,
+      'from_record' : IDL.Bool,
+    }),
+    'err' : IDL.Variant({
+      'CallFailed' : IDL.Text,
+      'Anonymous' : IDL.Null,
+      'NotBound' : IDL.Null,
+      'UnknownEvent' : IDL.Null,
+      'BadLegIndex' : IDL.Null,
+      'NotConfigured' : IDL.Null,
+      'NotForwarded' : IDL.Null,
+      'Cooldown' : IDL.Nat64,
+    }),
+  });
+  const PublicConfig = IDL.Record({
+    'cluster_domain' : IDL.Vec(IDL.Nat8),
+    'shenanigans' : IDL.Principal,
+    'program_id' : IDL.Text,
+    'event_authority' : IDL.Text,
+    'supported_schema_versions' : IDL.Vec(IDL.Nat),
   });
   const RejectReason = IDL.Variant({
     'RoundMismatch' : IDL.Null,
@@ -269,9 +304,16 @@ export const idlFactory = ({ IDL }) => {
     'err' : CommonError,
   });
   return IDL.Service({
+    'executeReservedLeg' : IDL.Func([EventId, IDL.Nat], [ExecuteResponse], []),
     'getConfig' : IDL.Func([], [IDL.Opt(PublicConfig)], ['query']),
     'getCursor' : IDL.Func([], [IDL.Nat], ['query']),
     'getEvent' : IDL.Func([EventId], [IDL.Opt(Entry)], ['query']),
+    'getIntakeEvents' : IDL.Func(
+        [IDL.Opt(IDL.Nat), IDL.Nat],
+        [IDL.Vec(Entry)],
+        ['query'],
+      ),
+    'getLegStatuses' : IDL.Func([EventId], [IDL.Vec(LegRecord)], ['query']),
     'getPending' : IDL.Func([IDL.Nat, IDL.Nat], [IDL.Vec(Entry)], ['query']),
     'getRecentEvents' : IDL.Func(
         [IDL.Opt(IDL.Nat), IDL.Nat],

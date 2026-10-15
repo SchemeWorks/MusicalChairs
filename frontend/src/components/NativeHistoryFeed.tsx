@@ -70,6 +70,23 @@ function HistoryRow({ item }: { item: NativeHistoryItem }) {
   );
 }
 
+/** Why the feed is off, in words: clusters by label only (never a key, path or endpoint). */
+export function disabledCopy(history: Extract<NativeHistoryResult, { enabled: false }>): string {
+  const app = history.appCluster ?? 'this app';
+  switch (history.reason) {
+    case 'cluster-mismatch':
+      return `Native activity is hidden: the ICP bridge follows ${history.bridgeCluster ?? 'another cluster'}, but this app is on ${app}. Nothing from another cluster is listed.`;
+    case 'cluster-unresolved':
+      return "Native activity can't be listed yet: this build's Solana cluster isn't set up for the native game, so the ICP bridge's cluster can't be checked.";
+    case 'config-unavailable':
+      return `Native activity can't be listed right now: the ICP bridge's configuration couldn't be read to check that it follows ${app}.`;
+    case 'bridge-uninitialized':
+      return "The ICP bridge isn't configured for any cluster yet, so there is no verified native activity to list.";
+    default:
+      return "The ICP bridge isn't configured for this build, so verified native activity can't be listed here.";
+  }
+}
+
 /** The feed for a given history state (presentational: the static-render tests pass fixtures). */
 export function NativeHistoryList({ history }: { history: NativeHistoryResult }) {
   return (
@@ -81,8 +98,8 @@ export function NativeHistoryList({ history }: { history: NativeHistoryResult })
         </p>
       </div>
       {!history.enabled ? (
-        <p className="text-sm mc-text-dim text-center py-4" data-testid="native-history-disabled">
-          The ICP bridge isn't configured for this build, so verified native activity can't be listed here.
+        <p className="text-sm mc-text-dim text-center py-4" data-testid="native-history-disabled" data-reason={history.reason}>
+          {disabledCopy(history)}
         </p>
       ) : history.error ? (
         <div className="mc-status-red p-3 text-center text-sm" data-testid="native-history-error">

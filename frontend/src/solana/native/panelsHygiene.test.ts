@@ -146,12 +146,19 @@ describe('the ICP bridge has exactly one frontend consumer (IMPL-49c)', () => {
     expect(hook).not.toMatch(/getBalance|readPool|readPosition|listPositions|claimBacker/);
   });
 
-  it('the hook queries anonymously (no identity, no update calls) and is disabled without a canister id', () => {
+  it('the hook queries anonymously (no wallet identity, no update calls) and is disabled without a canister id', () => {
     const hook = read(path.join(srcRoot, 'hooks', 'useNativeHistory.ts')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
-    expect(hook).not.toMatch(/identity|useWallet\(\)|signTransaction/);
+    expect(hook).not.toMatch(/useWallet\(\)|signTransaction|AnonymousIdentity|new HttpAgent\(\{[^}]*identity/);
+    expect(hook).toMatch(/new HttpAgent\(\{ host \}\)/);
     expect(hook).toMatch(/enabled: canisterId !== null/);
-    expect(hook).toMatch(/getRecentEvents/);
-    // it asks only for the verified-history method, never the operator/intake ones
-    expect(hook).not.toMatch(/getPending|getUnbound|getEvent\b|getIntakeEvents|verifyAndForward|submitEventDescriptor/);
+  });
+
+  it('the hook calls exactly two bridge methods: getRecentEvents (the verified page) and getConfig (the cluster guard)', () => {
+    const hook = read(path.join(srcRoot, 'hooks', 'useNativeHistory.ts')).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    const called = new Set([...hook.matchAll(/\)\)?\.(get[A-Za-z]+|release[A-Za-z]+|execute[A-Za-z]+|submit[A-Za-z]+|verify[A-Za-z]+|set[A-Za-z]+)\(/g)].map((m) => m[1]));
+    const members = new Set([...hook.matchAll(/actor\.(get[A-Za-z]+|release[A-Za-z]+|execute[A-Za-z]+|submit[A-Za-z]+|verify[A-Za-z]+|set[A-Za-z]+)\(/g)].map((m) => m[1]));
+    expect([...new Set([...called, ...members])].sort()).toEqual(['getConfig', 'getRecentEvents']);
+    // never the operator / intake / leg methods, which the re-synced declarations now carry
+    expect(hook).not.toMatch(/getIntakeEvents|getLegStatuses|executeReservedLeg|getPending|getUnbound|getEvent\b|releasePending|verifyAndForward|submitEventDescriptor|setConfig|setRelayers/);
   });
 });

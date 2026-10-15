@@ -64,10 +64,36 @@ export interface EventId {
   'program_id' : string,
   'instruction_index' : bigint,
 }
+export type ExecuteResponse = {
+    'ok' : { 'leg' : LegRecord, 'status' : LegStatus, 'from_record' : boolean }
+  } |
+  {
+    'err' : { 'CallFailed' : string } |
+      { 'Anonymous' : null } |
+      { 'NotBound' : null } |
+      { 'UnknownEvent' : null } |
+      { 'BadLegIndex' : null } |
+      { 'NotConfigured' : null } |
+      { 'NotForwarded' : null } |
+      { 'Cooldown' : bigint }
+  };
 export interface HttpHeader { 'value' : string, 'name' : string }
 export type Kind = { 'PositionOpened' : null } |
   { 'PromotionApplied' : null } |
   { 'SeriesAFunded' : null };
+export interface LegRecord {
+  'event_key' : string,
+  'last_error' : [] | [string],
+  'status' : [] | [LegStatus],
+  'calls' : bigint,
+  'index' : bigint,
+  'checked_at' : bigint,
+}
+export type LegStatus = { 'Committed' : { 'block' : bigint } } |
+  { 'Retryable' : { 'attempts' : bigint, 'reason' : string } } |
+  { 'SubmittedUnknown' : null } |
+  { 'Quarantined' : { 'recoverable' : boolean, 'reason' : string } } |
+  { 'Pending' : null };
 export type ObligationId = string;
 export interface OtherEvent {
   'body' : Uint8Array | number[],
@@ -248,9 +274,12 @@ export interface Verified {
 export type VerifyForwardResponse = { 'ok' : Summary } |
   { 'err' : CommonError };
 export interface _SERVICE {
+  'executeReservedLeg' : ActorMethod<[EventId, bigint], ExecuteResponse>,
   'getConfig' : ActorMethod<[], [] | [PublicConfig]>,
   'getCursor' : ActorMethod<[], bigint>,
   'getEvent' : ActorMethod<[EventId], [] | [Entry]>,
+  'getIntakeEvents' : ActorMethod<[[] | [bigint], bigint], Array<Entry>>,
+  'getLegStatuses' : ActorMethod<[EventId], Array<LegRecord>>,
   'getPending' : ActorMethod<[bigint, bigint], Array<Entry>>,
   'getRecentEvents' : ActorMethod<[[] | [bigint], bigint], Array<Entry>>,
   'getRelayers' : ActorMethod<[], Array<Principal>>,
