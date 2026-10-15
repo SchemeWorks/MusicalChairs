@@ -413,7 +413,7 @@ export function NativeRailVerifying({ what }: { what: string }) {
     <div className="mc-card p-6 text-center space-y-2" data-testid="native-rail-verifying" data-rail="verifying">
       <Loader2 className="h-6 w-6 mc-text-gold mx-auto animate-spin" />
       <p className="text-sm mc-text-primary font-bold">Verifying the native program on this cluster…</p>
-      <p className="text-xs mc-text-dim">{what} appear once it is verified.</p>
+      <p className="text-xs mc-text-dim">{what} will appear once it is verified.</p>
     </div>
   );
 }

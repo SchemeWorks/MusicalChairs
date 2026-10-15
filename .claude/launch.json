@@ -4,8 +4,27 @@
     {
       "name": "dev",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "--port", "5180", "--strictPort"],
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5180",
+        "--strictPort"
+      ],
       "port": 5180,
+      "autoPort": true
+    },
+    {
+      "name": "dev-legacy",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "vite",
+        "--port",
+        "5181",
+        "--strictPort",
+        "--mode",
+        "legacy"
+      ],
+      "port": 5181,
       "autoPort": true
     }
   ]
