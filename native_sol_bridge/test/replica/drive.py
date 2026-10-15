@@ -294,6 +294,22 @@ def retry_cooldown(step, cid, method, arg, max_wait=150, identity=None):
         return rep, first
 
 
+# COOL-1 oracle. The IMPL-47d v1 / first v2 draft asserted the OLD behaviour (a bind straight after a
+# successful forward answered err Cooldown). ca00bbc made a successful forward clear Entry.next_attempt_at
+# and IMPL-49b made a successful bind clear it too, so the correct expectation is the opposite.
+COOL1_STALE_TEXT = "releasePending right after a forward is refused with Cooldown: the bind step reads the next_attempt_at that verifyAndForward set"
+COOL1_TEXT = ("releasePending immediately after a successful verifyAndForward is NOT throttled: a forward that lands in Forwarded clears "
+              "Entry.next_attempt_at (ca00bbc), so the bind answers ok with Shenanigans' own answer (Unbound for an unbound owner, "
+              "Reserved/AlreadyReserved for a bound one) and never err Cooldown")
+
+
+def cool1_ok(rc):
+    if not rc.ok:
+        return False
+    t, p = V(rc.val)
+    return t == "ok" and p["shenanigans"] in ([{"Unbound": None}], [{"Reserved": None}], [{"AlreadyReserved": None}])
+
+
 def exp_legs(basis, rate, gift_pp=None, bps=1000):
     base = basis * rate * 10**8 // 10**9
     cas = base * bps // 10000
@@ -496,8 +512,8 @@ def main():
     s = bridge_summary(rep)
     chk("FWD-E3", "E3 verified and forwarded (Observed under policy v2)", s[0] == "OK" and s[1] == "Forwarded", rep.val if rep.ok else rep.err)
     rc = call("releasePending E3 immediately after its verifyAndForward", BRIDGE, "releasePending", "(%s)" % eid_arg(E3))
-    chk("COOL-1", "releasePending right after a forward is refused with Cooldown: the bind step reads the next_attempt_at that verifyAndForward set", rc.ok and V(rc.val)[0] == "err" and "Cooldown" in V(rc.val)[1], rc.val if rc.ok else rc.err)
-    FINDINGS.append("releasePending is rate-limited by the SAME Entry.next_attempt_at that verifyAndForward set (Outbox.beginBind reads it): the first releasePending after a forward returns err Cooldown(ts) for up to 30 s, so a just-observed event cannot be bound for ~30 s. Nothing is wrong (the wait is bounded, no state changes); one-line fix if undesired: set next_attempt_at = 0 when applyForward lands in Forwarded. Not changed (instruction: no semantic changes).")
+    chk("COOL-1", COOL1_TEXT, cool1_ok(rc), rc.val if rc.ok else rc.err)
+    FINDINGS.append("RESOLVED (IMPL-47d finding 1): the bind step used to inherit verifyAndForward's 30 s attempt gate (Outbox.beginBind reads Entry.next_attempt_at), so a just-forwarded event answered err Cooldown for up to 30 s. ca00bbc clears the gate when a forward lands in Forwarded and IMPL-49b also clears it on a successful bind; COOL-1 asserts the immediate bind is not throttled.")
     cur = n(call("getCursor", BRIDGE, "getCursor").val)
     pend = call("getPending(after=cursor)", BRIDGE, "getPending", "(%d : nat, 10 : nat)" % cur).val
     chk("CUR-2", "cursor stays at 2: E4 (seq 3, Unverified) blocks it although seq 4 is Invalid and seq 5 is Forwarded", cur == 2 and [n(p["seq"]) for p in pend] == [3], {"cursor": cur, "pending": [n(p["seq"]) for p in pend]})
@@ -544,7 +560,7 @@ def main():
     UPGRADES.append({"point": "bridge: after round 1 (3 Forwarded, 1 Unverified gap, 1 Invalid)", "canister": "native_sol_bridge", "module_hash_before": h0, "module_hash_after": h1, "install_ok": ok, "state_identical": before == after, "compared": "getCursor, getRecentEvents(100), getPending(0), getConfig, getRelayers"})
     chk("UPG-bridge", "bridge upgrade (keep wasm memory) preserves outbox, cursor, config and relayers byte for byte", ok and before == after)
 
-    # ---- 4. E1: bind (Cooldown finding), pinned policy, idempotent binding -------------------
+    # ---- 4. E1: bind through the real siws_provider, pinned policy, idempotent binding ------------
     log("4. E1: releasePending -> bindAndReserve through the real siws_provider")
     rep, first = retry_cooldown("releasePending E1", BRIDGE, "releasePending", "(%s)" % eid_arg(E1))
 
@@ -564,6 +580,8 @@ def main():
     chk("BIND-E1-idem-shen", "direct second bindAndReserve -> AlreadyReserved", rep.val == {"AlreadyReserved": None}, rep.val)
     snapE1 = canon(o1["raw"])
     bal1 = snapshot_balances("E1", o1["legs"])
+    gr = call("getSignupGiftReservation(bound principal) after E1 bind (IMPL-49a)", SHEN, "getSignupGiftReservation", '(principal "%s")' % BOUND_PRINCIPAL).val
+    chk("GIFT-1", "the shared signup-gift reservation of the bound principal is Reserved by the native path (taken at bind, before any ledger await)", bool(gr) and gr[0]["owner"] == {"native": None} and gr[0]["state"] == {"Reserved": None}, gr)
     es = exec_summary(exec_leg(E1, 9, "executeReservedLeg E1 leg 9 (Shenanigans has only 4 legs)", wait=True))
     chk("NEG-8", "an index Shenanigans has no leg for: err CallFailed carrying Shenanigans' trap text ('unknown native reward leg'); the bridge records NO leg for it (garbage indices cannot grow the store)",
         es[0] == "err" and es[1] == "CallFailed" and "unknown native reward leg" in es[2] and leg_records(E1) == [], es)
@@ -575,7 +593,8 @@ def main():
                       "E3": call("c", SHEN, "getNativeObligation", "(%s)" % eid_arg(E3), record=False).val,
                       "obsE3": call("d", SHEN, "getNativeObservation", "(%s)" % eid_arg(E3), record=False).val,
                       "policy": call("e", SHEN, "getNativePolicyTable", record=False).val,
-                      "allow": call("f", SHEN, "getNativeBridgeAllowlist", record=False).val})
+                      "allow": call("f", SHEN, "getNativeBridgeAllowlist", record=False).val,
+                      "gift": call("g", SHEN, "getSignupGiftReservation", '(principal "%s")' % BOUND_PRINCIPAL, record=False).val})
     def upgrade_shen(point):
         before = shen_state(); h0 = module_hash(SHEN)
         ok, out = dfx_admin("upgrade shenanigans (%s)" % point, "canister", "install", "shenanigans", "--mode", "upgrade", "--wasm-memory-persistence", "keep")
@@ -583,7 +602,7 @@ def main():
         rs = call("shenanigans getObserverStatus after upgrade", SHEN, "getObserverStatus")
         call("shenanigans stopObserver (postupgrade re-arms the legacy timer)", SHEN, "stopObserver")
         UPGRADES.append({"point": point, "canister": "shenanigans", "module_hash_before": h0, "module_hash_after": h1, "install_ok": ok, "state_identical": before == after,
-                         "compared": "getNativeObligation E1/E2/E3, getNativeObservation E3, getNativePolicyTable, getNativeBridgeAllowlist",
+                         "compared": "getNativeObligation E1/E2/E3, getNativeObservation E3, getNativePolicyTable, getNativeBridgeAllowlist, getSignupGiftReservation(bound principal)",
                          "observer_running_right_after_upgrade": rs.val.get("running") if rs.ok else None})
         return ok and before == after
     chk("UPG-1", "upgrade between bind and execute: Reserved legs, Observed obligations, policy table and allowlist identical", upgrade_shen("shenanigans: E1 Reserved/Pending, E2 + E3 Observed"))
@@ -611,6 +630,8 @@ def main():
     chk("SU-4", "the bridge-driven retry commits the SubmittedUnknown leg with the identical memo and created_at_time (Shenanigans attempts = 2)", es[0] == "ok" and es[1] == "Committed" and es[3] is False and oR["legs"][0]["attempts"] == 2 and oR["legs"][0]["memo"] == leg0["memo"] and oR["legs"][0]["created_at_time"] == leg0["created_at_time"], rep.val if rep.ok else rep.err)
     blk0 = oR["legs"][0]["block"]
     chk("SU-5", "ledger block %s is an exact mint (kind, to, amount, memo, created_at_time) of leg 0" % blk0, mint_matches(oR["legs"][0], blk0))
+    gr = call("getSignupGiftReservation(bound principal) after the gift leg committed", SHEN, "getSignupGiftReservation", '(principal "%s")' % BOUND_PRINCIPAL).val
+    chk("GIFT-2", "the gift leg (leg 0) committed, so the shared reservation is now Committed (owner native)", bool(gr) and gr[0]["owner"] == {"native": None} and gr[0]["state"] == {"Committed": None}, gr)
     lr = leg_records(E1)
     chk("SU-6", "bridge record for leg 0 is now Committed{%s} with calls = 2" % blk0, len(lr) == 1 and opt(lr[0]["status"]) == {"Committed": {"block": str(blk0)}} and n(lr[0]["calls"]) == 2, lr)
 
@@ -1008,7 +1029,59 @@ NOT_PROVEN.extend([
     "Mainnet behaviour of any kind; the SOL RPC module/ledger/siws wasm are the local pins named in dfx.json, but nothing was run on a public network.",
 ])
 
+def supplement():
+    """Focused COOL-1 supplement: only the corrected scenario, against the replica state the v2 run left (nothing is reinstalled,
+    nothing is executed on the ledger). Writes receipt-2026-10-14-v2-cool1-supplement.json."""
+    path = os.path.join(HERE, "receipt-2026-10-14-v2-cool1-supplement.json")
+    v2 = os.path.join(HERE, "receipt-2026-10-14-v2.json")
+    out = {"receipt": "COOL-1 supplement to receipt-2026-10-14-v2.json (IMPL-49b)", "started": now_iso(), "network": "local dfx replica 127.0.0.1:4943; nothing public",
+           "why": "The v2 run's COOL-1 asserted the OLD post-forward bind cooldown and failed against the accepted repair (ca00bbc + bind clears the gate). This supplement runs only the corrected scenario.",
+           "v2_receipt": {"file": "receipt-2026-10-14-v2.json", "sha256": hashlib.sha256(open(v2, "rb").read()).hexdigest(), "left_unmodified": True},
+           "stale_assertion_in_v2_receipt": COOL1_STALE_TEXT, "corrected_assertion": COOL1_TEXT,
+           "other_cases": "The other 153 passing checks of the v2 run (154 total; 133 of them were in the first-phase checkpoint) are unaffected by this supplement and remain valid at their pins; nothing else was re-run.",
+           "operator_principal": ME, "nonadmin_identity": {"name": NONADMIN, "principal": NONADMIN_PRINCIPAL}}
+    out["canisters"] = {NAMES[c]: {"id": c, "module_hash": module_hash(c)} for c in (BRIDGE, SHEN, STUB)}
+    mode = call("stub getMode", STUB, "getMode").val
+    if mode != {"Agree": None}:
+        call("stub setMode Agree (setup)", STUB, "setMode", "(variant { Agree })")
+    out["stub_mode_before"] = mode
+    prev = os.path.join(HERE, "receipt-2026-10-14-v2-cool1-supplement-attempt1.json")
+    if os.path.exists(prev):
+        out["previous_attempt"] = {"file": "receipt-2026-10-14-v2-cool1-supplement-attempt1.json", "sha256": hashlib.sha256(open(prev, "rb").read()).hexdigest(),
+                                   "outcome": "2 checks, 2 failed: a bug in the supplement's own post-condition (it compared Shenanigans' one-element answer list to a list of bare variants). The raw replies in that file already showed the correct behaviour (Unbound/Unbound, Bound/Reserved, next_attempt_at 0, 3.4 s after the forward). Kept for honesty; this file is the corrected rerun with fresh synthetic events (tags 115/116, so the forwards and binds are genuinely new)."}
+    scen = []
+    for label, fixture, tagbyte, want in (("unbound owner (clone of flows-007, burner owner)", "flows-007", 115, [[{"Unbound": None}]]),
+                                          ("bound owner (clone of closing-012, Bow1CG...)", "closing-012", 116, [[{"Reserved": None}], [{"AlreadyReserved": None}]])):
+        base = fixture_event(fixture)
+        cl = call("stub cloneFixture(%s -> synthetic copy with another signature)" % fixture, STUB, "cloneFixture", '("%s", %d : nat8)' % (base["sig"], tagbyte))
+        newsig = opt(cl.val) if cl.ok else None
+        ev = dict(base)
+        ev["sig"], ev["fixture"] = newsig, "synthetic clone of %s (NOT a captured transaction)" % fixture
+        sub = call("submit %s" % label, BRIDGE, "submitEventDescriptor", "(%s)" % desc_arg(ev))
+        fw = call("verifyAndForward %s (non-admin)" % label, BRIDGE, "verifyAndForward", "(%s)" % eid_arg(ev), identity=NONADMIN)
+        t_fw = time.time()
+        fs = bridge_summary(fw)
+        entry = opt(call("bridge getEvent %s" % label, BRIDGE, "getEvent", "(%s)" % eid_arg(ev)).val)
+        gate = n(entry["next_attempt_at"]) if entry else None
+        rc = call("releasePending %s IMMEDIATELY after the forward (non-admin)" % label, BRIDGE, "releasePending", "(%s)" % eid_arg(ev), identity=NONADMIN)
+        gap = round(time.time() - t_fw, 2)
+        okc = cool1_ok(rc) and rc.val and V(rc.val)[1]["shenanigans"] in want
+        chk("COOL-1/" + fixture, COOL1_TEXT + " [%s; %.1f s after the forward]" % (label, gap), bool(newsig) and tag(V(sub.val)[1]) == "Submitted" and fs[0] == "OK" and fs[1] == "Forwarded" and gate == 0 and okc, rc.val if rc.ok else rc.err)
+        scen.append({"scenario": label, "synthetic_signature": newsig, "forward_status": fs[1] if fs[0] == "OK" else fs, "entry_next_attempt_at_after_forward": gate,
+                     "seconds_between_forward_reply_and_bind_call": gap, "releasePending_reply": rc.val if rc.ok else rc.err, "expected_shenanigans_answers": want})
+    out["scenarios"] = scen
+    out["left_behind"] = "Two synthetic bridge entries (Forwarded). The bound-owner one is Reserved in Shenanigans with two Pending legs (no gift: the shared reservation is held); no leg was executed and nothing was minted."
+    out.update({"finished": now_iso(), "result": {"checks": len(CHECKS), "passed": sum(1 for c in CHECKS if c["pass"]), "failed": [c["id"] for c in CHECKS if not c["pass"]]},
+                "checks": CHECKS, "calls": STEPS})
+    with open(path, "w") as f:
+        json.dump(out, f, indent=1)
+    log("supplement written: %s (%d checks, %d failed)" % (path, len(CHECKS), len(FAILED)))
+    return 1 if FAILED else 0
+
+
 if __name__ == "__main__":
+    if len(sys.argv) > 1 and sys.argv[1] == "--cool1-supplement":
+        sys.exit(supplement())
     try:
         rc = main()
     finally:
