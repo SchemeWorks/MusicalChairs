@@ -4,9 +4,9 @@ Branch `codex/native-solana-production-core`. Receipt: `docs/solana/evidence/202
 Reviews adopted as received: `docs/coordination/native-solana-codex-m12-m13-review-20261014.md` (sha256 b75c983f…2404f5c, in 1272b84) and
 `docs/coordination/native-solana-r1-r5-closure-review-20261015.md` (sha256 0b6d2284…2bc7b52, in 30e583f). Cards IMPL-49a–h on the
 canonical board. Everything is local: standalone `moc -r` suites under moc 1.5.1 and dfx's 0.16.2, MockChain keeper tests, static
-renders, the local dfx replica with an RPC stub, the real local PP ledger and the real local ic-siws provider. No public-network action,
-no deployment, no live keys, no merge. The only public-network touch was one anonymous read-only `icrc1_metadata` query of the mainnet
-PP ledger (see the finding). M14 remains the authorization gate.
+renders, the local dfx replica with an RPC stub, the real local PP ledger and the real local ic-siws provider. No public-network write,
+no deployment, no live keys, no signing, no funding, no merge. The only public-network contact was one anonymous read-only `icrc1_metadata`
+query of the mainnet PP ledger, reported by the coordinator for the legacy finding (Codex did not repeat it). M14 remains the authorization gate.
 
 ## Commits (oldest first)
 
@@ -32,9 +32,12 @@ PP ledger (see the finding). M14 remains the authorization gate.
 - **R4 — keeper operations.** PASS per the closure review (MockChain + green CI 38696249369 at 88f30d0).
 - **R5 — watchdog negative controls.** PASS per the closure review.
 
-## Finding disclosed (pre-existing legacy, not changed)
+## Finding disclosed (separate pre-existing legacy finding, not changed)
 
-The legacy mint path sends the event id as the memo unchanged. `signup-<principal>` is 70 bytes and `backer-<principal>-<amount>` is longer; the local PP ledger enforces `max_memo_length = 32` (IC0503 trap, observed for the gift in IMPL-49h), and an anonymous read-only `icrc1_metadata` query shows the MAINNET PP ledger advertises 32 as well. Game-deposit memos (`game-<id>`) are short. Consequence: on such a ledger legacy signup gifts and legacy backer mints cannot commit (the backer case is inferred from source, not observed). Recommended read-only follow-up for Rob/Codex: the mainnet Shenanigans missed-mint counters. Any legacy repair (for example a hashed 32-byte memo as the native path uses) is a separate authorized change.
+- **Observed locally:** the legacy mint path passes the event id unchanged as the memo; the tested principal's signup-gift memo (`signup-<principal>`, 70 bytes) is rejected by the real local PP ledger's 32-byte limit with IC0503 (IMPL-49h).
+- **Source inference, not executed:** legacy backer memos (`backer-<principal>-<amount>`) and cascade kickups that embed such ids also exceed 32 bytes per current legacy source.
+- **Reported, not independently verified:** the coordinator's anonymous read-only metadata query reported `max_memo_length = 32` on the mainnet PP ledger; Codex did not repeat it, and the deployed mainnet Shenanigans bytes were not compared with this source.
+- **Conclusion:** a local defect is observed; live production failures remain unverified. This is not a native acceptance blocker and carries no authority to repair or deploy; a legacy repair (for example a hashed 32-byte memo as the native path uses) is a separate decision for Rob. A read-only first check: the mainnet Shenanigans missed-mint counters.
 
 ## Open items
 
@@ -42,6 +45,10 @@ The legacy mint path sends the event id as the memo unchanged. `signup-<principa
 - The legacy memo finding above.
 - The replica keeps test artifacts (three stub canisters, synthetic entries); `run.sh` reinstalls the three M12 canisters at its next start.
 
+## Independent acceptance (2026-10-17)
+
+Codex's second closure review (`docs/coordination/native-solana-r1-r5-second-closure-review-20261017.md`, sha256 8a3fb695…3bdc079, candidate `c7ccc6e`): **R1, R2 and R3 PASS** at the documented local source/test/replica boundary; **R4 and R5** keep their 2026-10-15 PASS; **the M12/M13 local correction scope is independently accepted.** Codex verified the three runtime receipt hashes, all 59 scoped file pins, graph preservation (21,751 / 32,712 / 50 vs 20,696 / 31,163 / 49) and exact-head CI run 38705116196 (all four jobs green). The acceptance does not establish public-network or production operation. The documentation nits it named are applied in the receipt and in this handoff.
+
 ## Next
 
-Independent focused closure review of R1 (actor proof), R2 (replica proof), R3 (program-id guard) by Codex; R4/R5 preserved. Then the coherent graph close-out (done in the same evidence commit) and M12/M13 acceptance. Stop before M14.
+Nothing further in local scope. M14 devnet acceptance requires Rob's explicit authorization; the heartbeat stays paused.

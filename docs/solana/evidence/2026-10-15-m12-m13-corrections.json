@@ -33,7 +33,7 @@
   "disclosures": [
    "pre-existing legacy-to-legacy residual: a trap between the ledger commit and the mintedEventIds write in mintWithEffects (neither introduced nor closed)",
    "native events do not update lastQualifyingDeposit (eligibility unchanged)",
-   "replica scenarios G1–G6 written, unrun"
+   "SUPERSEDED: the earlier \"replica scenarios G1–G6 written, unrun\" note — G1–G6 were RUN in IMPL-49h (d20f1bb), 91/91, see actor_level_proof"
   ],
   "commit_actor_proof": "IMPL-49h commit (see git log: test(shenanigans): controlled actor-level signup-gift interleave proof)",
   "actor_level_proof": {
@@ -54,7 +54,8 @@
     "an upgrade to a different module version with an await in flight",
     "the 3,190 enumeration remains a pure model"
    ]
-  }
+  },
+  "codex_acceptance": "PASS — second closure review 2026-10-17 (local boundary)"
  },
  "R2_bridge_driven_execution": {
   "card": "IMPL-49b",
@@ -106,7 +107,8 @@
    "phase-2 concurrency still admin-driven on Shenanigans-only synthetic observations; interleaving unobservable",
    "bridge crash between reply and applyForward simulated only",
    "the v2 receipt's own COOL-1 text is the stale version"
-  ]
+  ],
+  "codex_acceptance": "PASS — second closure review 2026-10-17 (local boundary)"
  },
  "R3_verified_history": {
   "cards": [
@@ -123,7 +125,8 @@
   "frontend": "useNativeHistory (React Query infinite) calls exactly getConfig + getRecentEvents (hygiene-pinned); mapper keeps only Forwarded/Quarantined and drops every intake status defensively; feed beside the labeled Legacy (Chain Fusion) activity, never merged; financial reads stay on Solana; bridge cluster_domain guard against the adapter's expected domain with refusals cluster-unresolved / cluster-mismatch / config-unavailable / bridge-uninitialized naming clusters by label only; declarations generated from the committed candid (15 methods; index.ts untouched); tsc clean; vitest 504",
   "known_cosmetic": "commit message of f9cc51e lost one backtick-quoted word to shell substitution (\"paging by  counts\"); force-push is prohibited, so it stands",
   "commit_program_id_guard": "9f86ec5",
-  "program_id_guard": "getConfig().program_id compared with identity.cluster.programId after the domain check → program-mismatch fails closed (cluster label only); config check, history query key and cache scoped to (host, canister id, cluster domain, program id); record-level program mismatches dropped and counted; identity-switch regressions; 514 vitest"
+  "program_id_guard": "getConfig().program_id compared with identity.cluster.programId after the domain check → program-mismatch fails closed (cluster label only); config check, history query key and cache scoped to (host, canister id, cluster domain, program id); record-level program mismatches dropped and counted; identity-switch regressions; 514 vitest",
+  "codex_acceptance": "PASS — second closure review 2026-10-17 (local boundary)"
  },
  "R4_keeper_operations": {
   "card": "IMPL-49d",
@@ -145,7 +148,8 @@
   ],
   "fee_only": "allowed discriminators 16 → 20; none of the four has a signer; compiled message needs only the fee payer; any_wallet_can_run_the_same_plan extended to 18 scenarios",
   "lint": "fmt + clippy -D warnings clean",
-  "runbook": "docs/solana/operations.md updated (section 2 rows, not-automated list)"
+  "runbook": "docs/solana/operations.md updated (section 2 rows, not-automated list)",
+  "codex_acceptance": "PASS — first closure review 2026-10-15, retained 2026-10-17"
  },
  "R5_watchdog_negative_controls": {
   "card": "IMPL-49e",
@@ -164,7 +168,8 @@
    "WrongPlannerExtraSigner": 4,
    "WrongAuthorityTablePayerIsAuthority": 1
   },
-  "boundary": "pure modules only; actor await paths, runtime timer and threshold Ed25519 signing remain unproven; local threshold Ed25519 may be unavailable on the dfx replica"
+  "boundary": "pure modules only; actor await paths, runtime timer and threshold Ed25519 signing remain unproven; local threshold Ed25519 may be unavailable on the dfx replica",
+  "codex_acceptance": "PASS — first closure review 2026-10-15, retained 2026-10-17"
  },
  "adjudicated_choices_applied": [
   "Backer PP rate for the B-loss basis retained",
@@ -178,7 +183,7 @@
   "legacy signup-gift memo exceeds the ledger memo limit (disclosed; legacy repair not in scope)"
  ],
  "replica_rerun": "DONE: R2 non-admin execution (v2 + COOL-1 supplement) and R1 actor-level G1–G6",
- "limits": "All local: standalone moc -r suites, MockChain keeper tests, static renders, the local dfx replica with an RPC stub. No public network, no deployment, no live keys, no merge. M14 remains the authorization gate.",
+ "limits": "All local: standalone moc -r suites, MockChain keeper tests, static renders, the local dfx replica with an RPC stub, the real local PP ledger and the real local ic-siws provider. No public-network write, deployment, live key, signing, funding or merge. The only public-network contact was one anonymous read-only icrc1_metadata query of the mainnet PP ledger (5xv2o-iiaaa-aaaac-qeclq-cai) reported by the coordinator for the legacy memo finding; Codex did not independently repeat it. M14 remains the authorization gate.",
  "closure_review_1": {
   "doc": "docs/coordination/native-solana-r1-r5-closure-review-20261015.md",
   "sha256": "0b6d2284dd47e18bcae4e14082da5c3bd8b6c06fefde3bc7db5e924e92cb7c52",
@@ -187,13 +192,31 @@
   "adopted_in": "30e583f"
  },
  "FINDING_legacy_signup_gift_memo": {
-  "severity": "pre-existing legacy production defect, disclosed, NOT changed (outside the local correction scope)",
+  "severity": "separate pre-existing LEGACY finding; disclosed, not changed; not a native acceptance blocker and no authority to repair or deploy",
   "observation": "the legacy signup-gift memo \"signup-\"‖principal text is 70 bytes; the ledger enforces max_memo_length 32 → IC0503 trap; the legacy gift can never commit on such a ledger, retries trap again, and the native path takes over",
   "mainnet_check": "anonymous read-only icrc1_metadata query of the mainnet pp_ledger 5xv2o-iiaaa-aaaac-qeclq-cai: icrc1:max_memo_length = 32 (same as local) — not a local-fixture artifact",
   "consequence_in_this_evidence": "\"legacy retry wins\" and \"legacy commit\" demonstrated only on the latch stub; the native-side reservation/takeover is demonstrated on the real ledger",
   "for": "Codex/Rob — a legacy fix (e.g. a hashed 32-byte memo) is a separate decision",
   "scope_from_source": "shenanigans/main.mo mintInternal sends memo = Text.encodeUtf8(eventId) unchanged. Event ids: game deposits \"game-<id>\" / \"game-sol-<id>\" (short, within 32); signup gifts \"signup-<principal>\" / \"signup-sol-<principal>\" (70 / 74 bytes); backer mints \"backer-<principal>-<float>\" / \"backer-sol-…\" (> 75 bytes); cascade kickups \"kickup-A<rank>-<eventId>\" inherit the event id's length. So on a 32-byte-memo ledger the legacy signup-gift AND legacy backer mints (and their cascade legs) cannot commit; game deposit mints can.",
   "what_was_observed": "only the signup-gift trap was observed in IMPL-49h (70 bytes, IC0503); the backer-mint consequence is inferred from the source and the same limit, not observed",
-  "recommended_read_only_followup": "Rob/Codex: query the mainnet Shenanigans missed-mint counters (missedBackerMints / missedSolBackerMints / signup-gift failures in logs) to see whether this has been failing live; any legacy repair (e.g. a hashed 32-byte memo like the native path uses) is a separate authorized change"
+  "recommended_read_only_followup": "Rob/Codex: query the mainnet Shenanigans missed-mint counters (missedBackerMints / missedSolBackerMints / signup-gift failures in logs) to see whether this has been failing live; any legacy repair (e.g. a hashed 32-byte memo like the native path uses) is a separate authorized change",
+  "observed_vs_inferred": {
+   "observed_locally": "the tested principal's legacy signup-gift memo (\"signup-\"‖principal text, 70 bytes) is rejected by the REAL LOCAL PP ledger's 32-byte limit with IC0503 (IMPL-49h)",
+   "source_inference": "legacy backer memos (\"backer-<principal>-<amount>\") and the cascade kickups that embed such event ids exceed 32 bytes per current legacy source (mintInternal passes the event id unchanged); not executed as a regression",
+   "reported_not_independently_verified": "the coordinator's anonymous read-only metadata query reported icrc1:max_memo_length = 32 on the mainnet PP ledger; Codex did not independently query mainnet; the deployed mainnet Shenanigans bytes were not compared with this source",
+   "conclusion": "a local defect is observed; live production failures remain UNVERIFIED"
+  }
+ },
+ "second_closure_review": {
+  "doc": "docs/coordination/native-solana-r1-r5-second-closure-review-20261017.md",
+  "sha256": "8a3fb695445da929f572d150fad206693d1dd72e7d68fe419531d279a3bdc079",
+  "candidate": "c7ccc6e68a190dd1aeb45da8c39f145d628753de",
+  "verdict": "R1, R2 and R3 PASS at the documented local source/test/replica boundary; R4 and R5 prior PASS retained; M12/M13 local correction scope independently ACCEPTED (2026-10-17); does not establish public-network or production operation",
+  "codex_verified": "three runtime receipt hashes; all 59 scoped file pins; graph 21,751 / 32,712 / 50 preserving every prior node id, directed-edge identity/multiplicity and hyperedge vs the pre-correction 20,696 / 31,163 / 49; fragment sha256 a9113440…02ee79; exact-head CI run 38705116196 all four jobs green",
+  "documentation_nits_applied": [
+   "superseded G1–G6 unrun disclosure marked",
+   "\"No public network\" qualified with the one anonymous metadata read",
+   "legacy memo finding split into observed-local / source-inference / reported-not-verified"
+  ]
  }
 }
