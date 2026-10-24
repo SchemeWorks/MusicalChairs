@@ -4,7 +4,11 @@
 the Block A ceremony of the [M14 approval packet](../coordination/native-solana-m14-approval-packet-20261023.md)
 (A2 Squads, A3 deploy and authority transfer, A4 initialize and ORAO register via G, A6/A8 read-backs).
 **Local preparation only:** nothing here has touched a public cluster. Every write is a dry run unless `--execute` is
-given, and `--execute` is refused on anything but a loopback validator, or devnet with the approved packet's hash.
+given, and `--execute` is refused on anything but a loopback validator, or devnet with the **packet pin** (below).
+
+**The packet pin is not an approval.** `--packet-sha256` + `--packet-commit` only pin WHICH packet text was reviewed (an
+artifact-identity check). The authority to run anything on devnet is **Rob's explicit approval, given in chat**; no flag, hash or
+file stands in for it, and a hash that verifies proves nothing about whether anyone approved.
 
 ## Build and run
 
@@ -23,15 +27,22 @@ interlock, `4` a verification or read-back check did not hold (receipt still pri
 | interlock | behaviour |
 | --- | --- |
 | dry run | no `--execute` = nothing signed or sent; `--simulate` additionally simulates the independent steps (unsigned, sigVerify off) |
-| where `--execute` works | `--cluster local` (default): RPC host exactly `localhost`, `127.0.0.1` or `[::1]`. `--cluster devnet`: https URL and `--i-have-approval <sha256>` equal to the SHA-256 of the packet file on disk (`--packet` overrides the path), so editing the packet after approval invalidates it. Any other cluster name (mainnet-beta, testnet) is refused. Read-only commands take no `--execute` |
+| where `--execute` works | `--cluster local` (default): RPC host exactly `localhost`, `127.0.0.1` or `[::1]`. `--cluster devnet`: https URL, an RPC host on the allowlist (`api.devnet.solana.com`, or one host named with `--allow-rpc-host`), `--pending-file`, and the **packet pin** `--packet-sha256 <sha256> --packet-commit <40-hex commit>`: the SHA-256 of `git show <commit>:docs/coordination/native-solana-m14-approval-packet-20261023.md` (the frozen, committed blob) must equal `--packet-sha256`, and the working file must equal that blob byte for byte. The packet path is fixed: `--packet` is refused on every cluster. The old flag `--i-have-approval` is REMOVED (rejected with an explanation): it only ever pinned the text, and its name claimed more. Any other cluster name (mainnet-beta, testnet) is refused. Read-only commands take no `--execute` |
+| receipts | every executed output, flow receipt included, records `packet: {packet_path, packet_commit, packet_sha256}` (`null` on a loopback cluster); flow receipts are also stamped with the cluster (below) |
+| double-send safety | before a transaction is sent its signature, blockhash and `lastValidBlockHeight` are written to stderr and to `--pending-file` (default `<wallet-dir>/pending.jsonl` for `flow`; REQUIRED on devnet). An ambiguous send error (timeout, transport) is polled with `getSignatureStatuses` until confirmed, failed or the blockhash is invalid; nothing is rebuilt while it may still land (`--pending-wait-seconds`, default 90). Every run resolves unresolved pending records of this cluster FIRST. After a confirmed send, reads carry `minContextSlot` = the transaction's slot, and a one-transaction step stops after one confirmed send instead of looping on a read that may be stale |
 | genesis hash | checked before any command: devnet needs `EtWTRABZ...`; a loopback RPC that reports mainnet, testnet or devnet genesis (a tunnel) is refused |
 | packet size | every transaction is measured unsigned; over 1,232 bytes is refused before any signature exists. `vault_transaction_create` is always proposer = creator = rent payer = fee payer (one signature) |
 | simulate before send | `simulateTransaction` on the signed transaction before every send; an error refuses the send (client-API simulation has sigVerify off; the cluster verifies on send) |
 | time lock | `execute` reads the proposal's `Approved{timestamp}` and the cluster Clock and refuses before `timestamp + time_lock` (Squads 6021) |
 | pinned bytes | `deploy`/`verify-bytes` hash the ELF first; only `8f97e83d...` (`PINNED_PROGRAM_ELF_SHA256`, kept equal to `latest-build.json` by a test); `--expected-sha256` overrides on `local` only |
 | vote on what was shown | `approve`/`execute` rebuild the inner instruction from the flags and refuse unless the on-chain vault transaction stores exactly that message; `propose` refuses if the program's upgrade authority is not the G vault, the action is already done, or an identical live proposal exists (`--expect-tx-index N` is required to execute a propose) |
-| spend caps | `deploy` refuses a peak above 15 SOL (`--max-spend-lamports`) or an underfunded deployer; `fund-vault` is capped at 0.05 SOL |
-| keys | nothing is generated; only the files named on the command line sign; `~/.config/solana/id.json` is refused by path; the program keypair must be the compiled-in id (`--allow-program-id-mismatch` on `local` only, for tests) |
+| spend caps | `deploy` refuses a peak above 15 SOL or an underfunded deployer; on devnet `--max-spend-lamports` cannot exceed 15 SOL and `--max-data-len` (ProgramData padding is permanent rent) needs `--max-data-len-justification <text>`, which is recorded. `fund-vault` runs the full G profile check, refuses if the vault already holds the rent it needs, and caps the vault's TOTAL (not one transfer) at 0.05 SOL |
+| keys and files | nothing is generated; only the files named on the command line sign; `~/.config/solana/id.json` is refused by path for every file argument (`--elf`, `--program-so`, `--receipts`, `--pending-file`, key flags); files the tool appends to (`--receipts`, `--pending-file`) must be `.jsonl` and are refused if they look like a keypair; the program keypair must be the compiled-in id (`--allow-program-id-mismatch` on `local` only, for tests) |
+
+**Residual risk (F9).** The genesis hash is reported by whatever endpoint `--rpc` names; the tool checks it, but an endpoint that
+lies can report devnet's. The `--execute` host allowlist narrows that to the public devnet endpoint or one host you name, which
+catches a typo or a look-alike URL, not a malicious operator-chosen provider. Use `https://api.devnet.solana.com` or a provider you
+trust and have named explicitly.
 
 **Solana notes.** Deploy = buffer account (ELF written in ~1,000-byte transactions) + ProgramData (45-byte header, the ELF,
 zero padding to `max_data_len`, which is rent-paid and permanent) + the 36-byte Program account; "deployed equals reviewed" is
@@ -41,7 +52,7 @@ lock runs on the cluster's Clock sysvar, so it is read from the chain, never fro
 
 ## Commands
 
-Global: `--rpc`, `--cluster`, `--execute`, `--i-have-approval`, `--packet`, `--commitment confirmed|finalized`, `--simulate`.
+Global: `--rpc`, `--cluster`, `--execute`, `--packet-sha256`, `--packet-commit`, `--allow-rpc-host`, `--pending-file`, `--pending-wait-seconds`, `--commitment confirmed|finalized`, `--simulate`.
 A key flag takes a keypair JSON file, a file holding one base58 pubkey, or a bare pubkey (planning, read-backs and the pubkey-only
 roles). Members files list exactly three pubkeys, one per line.
 
@@ -51,7 +62,7 @@ roles). Members files list exactly three pubkeys, one per line.
 | `squads-create` | `--payer --g-create-key --p-create-key` (keypairs) `--g-members --p-members` | real `multisig_create_v2`: G 2-of-3, 172,800 s; P 2-of-3, 0 s; skips (and verifies) an existing identical multisig, refuses a different one |
 | `deploy` | `--elf --deployer --program-keypair --buffer-keypair` (keypairs) `--g-create-key --g-members` | resumable: create buffer, idempotent chunked writes, buffer byte check, `DeployWithMaxDataLen` (max_data_len = elf_len unless `--max-data-len`), A8 check BEFORE the authority moves, then SetAuthority to the G vault (only if G is in place) and read-back |
 | `verify-bytes` | `--elf` (`--program-id`, `--expect-authority g-vault\|none\|<key>`, `--g-create-key`) | read-only A8: header, `elf_len`, `data.len()`, slot, authority, ELF equality, zero padding |
-| `fund-vault` | `--payer --g-create-key --lamports` | system transfer so the G vault can pay the ORAO Client rent |
+| `fund-vault` | `--payer --g-create-key --g-members --lamports` | system transfer so the G vault can pay the ORAO Client rent; checks the full G profile and the vault's balance first, reads the balance back |
 | `propose initialize\|register` | `--member` (keypair) `--g-create-key --g-members`; `initialize` also `--p-create-key --sponsor --management-recipient` | `vault_transaction_create` + `proposal_create`; prints index, message sha256 and parameters |
 | `approve initialize\|register` | as propose plus `--tx-index` | `proposal_approve` by one member |
 | `execute initialize\|register` | as approve; `initialize` needs `--sponsor` as a keypair (it co-signs the outer transaction) | `vault_transaction_execute` after the lock |
@@ -64,7 +75,7 @@ headroom 2,500 bps, `--public-series-a-enabled true`, the devnet ORAO tuple); th
 `--provider-request-fee-lamports`, `--provider-fee-headroom-bps`, `--public-series-a-enabled` override them and must be identical at
 propose, approve and execute. Ceremony order: `squads-create` -> `deploy` -> `fund-vault` -> `propose` (initialize, register) ->
 2 x `approve` each -> wait 172,800 s on the cluster clock -> `execute initialize` -> `execute register` -> `readback` -> `verify-bytes`.
-Devnet runs need `--cluster devnet --rpc https://api.devnet.solana.com --i-have-approval $(shasum -a 256 <packet> | cut -d' ' -f1)`.
+Devnet runs need `--cluster devnet --rpc https://api.devnet.solana.com --pending-file <path.jsonl> --packet-sha256 <sha256> --packet-commit <commit>` AND Rob's explicit approval; the pin is taken from the frozen commit of the reviewed packet (`git show <commit>:<packet path> | shasum -a 256`), after the packet text is committed, and proves only which text was reviewed.
 A fresh program id (packet 5a) changes the compiled-in id and the pinned ELF hash: rebuild, re-pin, then use the tool.
 
 ## Flow runner (the M14 plan)
@@ -90,20 +101,26 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
   deadline, strict insolvency) still decide, and the runner pre-checks them with a plain-language refusal. `--genesis-unix N` overrides
   genesis on a loopback cluster only (a local validator cannot wait two days).
 * **What is done.** Every step has a state predicate judged from the cluster (a counter reached, an account exists, a draw state, `finalized`,
-  ...). A step is also done when any later step is. The refused-by-design step and the oracle observation also count a receipt line. `flow
+  ...). A step is also done when any later step is. A receipt line counts as evidence ONLY for the one step that leaves no on-chain trace
+  (the refused-by-design expiry) and only if it is stamped for THIS cluster; every other step is judged from the chain alone. `flow
   status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`.
 * **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; an actor wallet that does not match
   `wallets.json`; books that do not balance before the step; an economics oracle that disagrees with the plan (a payout the plan calls solvent
   that would be insolvent, or the reverse); a promotion deadline already passed for request or capture. Then it builds exactly that step's
   transaction(s) with the harness builders (see below), measures (1,232 B), simulates, and sends only under the standard interlocks (dry run by
-  default; `--execute` on loopback, or devnet with `--i-have-approval <packet sha256>` and the devnet genesis hash; never mainnet). Multi-transaction
+  default; `--execute` on loopback, or devnet with the packet pin, `--pending-file` and the devnet genesis hash; never mainnet). Multi-transaction
   steps (allocation ticket phases, candidate pages, the candidate build) rebuild each next transaction from the chain after the previous one, so a
-  step is resumable. A dry run prints the first transaction only.
+  step is resumable; a one-transaction step (every other step) stops after ONE confirmed send, so a read that is still pre-send can never cause a
+  second send of a deposit or a funding. A dry run prints the first transaction only.
 * **Receipts.** Each executed step appends one JSON line to `--receipts` (default `W/flow-receipts.jsonl`): signatures and slots, the account
   read-backs its `expect` names (Pool, Ops, Ticket, the position / Backers / CloseRecord it touched), the post-condition checks (the facts the
   rehearsal asserts from events, restated as state differences: pot, management, registry, tolls, the actor's lamport equation) and
   `conservation` (the vault identity `vault - rent == pot + seed + management + pending_toll + funded_claims + excess`, the OpsCash identity, and
-  `Ops.locked_remaining_total == sum of the CloseRecord partitions`, all computed from RPC). A failing check or identity makes the run exit 4: stop.
+  `Ops.locked_remaining_total == sum of the CloseRecord partitions`, all computed from RPC). A failing check or identity records
+  `result: "done_with_failed_checks"` (not `done`) and exits 4: STOP. The plan then refuses every further `flow next` until the receipt has been
+  examined and the step named with `--accept-failed-checks <step>[,<step>]`. Each receipt is stamped with the cluster it ran against (genesis hash,
+  program id, `ConfigVersion#1` activation stamp) and with the packet pin; `flow status` counts receipts of another cluster as `foreign_receipts`,
+  and `flow next` refuses a log that holds any (use a fresh `--receipts` file for a new cluster or a `--reset` ledger).
 * **How steps are built.** The harness builders read state from a LiteSVM. The runner copies every program account (`getProgramAccounts`) and the
   cluster's Rent sysvar and clock into a MIRROR `World` (`FinancialRuntime::mirror`, no program loaded, nothing executed), points its fee payer at the
   actor, and lets `World` / `close.rs` produce the instruction. The provider tuple of `request_round_draw` comes from the ConfigVersion (the pinned

@@ -15,18 +15,21 @@
 //! actor, and lets the builders produce the next transaction.  The transaction then goes through the
 //! same interlocks as every other `devnet_ops` write: measured and refused over 1,232 bytes before
 //! signing, simulated before sending, sent only with `--execute` on a loopback validator or on devnet
-//! with the approved packet's hash and the devnet genesis hash.  Multi-transaction steps (allocation
+//! with the packet pin (an artifact-identity check, not an approval), a write-ahead file and the devnet
+//! genesis hash.  Multi-transaction steps (allocation
 //! ticket phases, candidate pages, the candidate build) refresh the mirror after each transaction and
 //! build the next from the new chain state, so a step is resumable and idempotent.
 //!
 //! # What "done" means
 //!
 //! Every step has a state predicate over the cluster (a counter reached, an account exists, a flag is
-//! set).  A step is also done when any LATER step's predicate holds (state only moves forward), and
-//! the two steps that leave no durable trace (the claim-after-materialization checks and the
-//! deliberately refused early expiry) additionally count a receipt line.  The next step is the first
-//! one that is not done; `flow next` refuses any other step and any step before its earliest time
-//! (genesis + offset).
+//! set).  A step is also done when any LATER step's predicate holds (state only moves forward).  A
+//! receipt line counts as evidence for exactly ONE step, the deliberately refused early expiry, which
+//! leaves no on-chain trace, and only when the receipt is stamped for THIS cluster (genesis hash,
+//! program id, `ConfigVersion#1` activation).  The next step is the first one that is not done;
+//! `flow next` refuses any other step, any step before its earliest time (genesis + offset), a receipt
+//! log holding receipts of another cluster, and any step after a `done_with_failed_checks` receipt that
+//! has not been accepted with `--accept-failed-checks`.
 //!
 //! # Genesis
 //!
@@ -586,7 +589,7 @@ struct StepEval {
 
 /// Judge every step from the cluster (and the receipt log for the traceless ones); a step is done when
 /// its predicate or any later step's holds.
-fn evaluate(view: &View, wallets: &Wallets, receipts: &BTreeSet<String>) -> (Vec<StepEval>, Option<Who>) {
+fn evaluate(view: &View, wallets: &Wallets, receipts: &ReceiptLog) -> (Vec<StepEval>, Option<Who>) {
     let steps = m14_plan::plan();
     let winner = resolve_winner(view, wallets);
     let local: Vec<(bool, String)> = (0..steps.len())
@@ -594,8 +597,8 @@ fn evaluate(view: &View, wallets: &Wallets, receipts: &BTreeSet<String>) -> (Vec
             let (state_done, evidence) = done_by_state(view, wallets, &steps, index, winner);
             if state_done {
                 (true, evidence)
-            } else if receipts.contains(steps[index].id) {
-                (true, "a receipt line records it".to_string())
+            } else if traceless(steps[index].act) && receipts.has(steps[index].id) {
+                (true, "a receipt of this cluster records it (the step leaves no on-chain trace)".to_string())
             } else {
                 (false, evidence)
             }
@@ -629,20 +632,106 @@ fn evaluate(view: &View, wallets: &Wallets, receipts: &BTreeSet<String>) -> (Vec
     (evals, winner)
 }
 
-fn receipts_path(opts: &Opts, wallets: &Wallets) -> PathBuf {
-    opts.get("receipts")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| wallets.dir.join(RECEIPTS_FILE))
+/// `--receipts`, else `<wallet-dir>/flow-receipts.jsonl`; never the default wallet, a `.json` file or a
+/// keypair-shaped file.
+fn receipts_path(opts: &Opts, wallets: &Wallets) -> Result<PathBuf, OpsError> {
+    match opts.get("receipts") {
+        Some(spec) => guarded_output_path("receipts", spec),
+        None => guarded_output_path("receipts", &wallets.dir.join(RECEIPTS_FILE).display().to_string()),
+    }
 }
 
-/// Ids of the steps with a completed receipt line.
-fn read_receipts(path: &Path) -> BTreeSet<String> {
-    let Ok(text) = fs::read_to_string(path) else { return BTreeSet::new() };
-    text.lines()
-        .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-        .filter(|entry| matches!(entry["result"].as_str(), Some("done") | Some("refused_as_expected")))
-        .filter_map(|entry| entry["step"].as_str().map(str::to_string))
-        .collect()
+/// The steps that leave NO on-chain trace, so a receipt is their only evidence: the refused-by-design
+/// expiry.  (The oracle step is judged from the request account; its receipt only records the latency.)
+fn traceless(act: Act) -> bool {
+    matches!(act, Act::ExpireTooEarly { .. })
+}
+
+/// Steps of a single transaction: after ONE confirmed send they never loop on a possibly stale read.
+fn is_single_tx(act: Act) -> bool {
+    !matches!(
+        act,
+        Act::AdvanceTicket { .. } | Act::CandidatePages { .. } | Act::BuildCandidates { .. }
+    )
+}
+
+/// Which cluster a receipt belongs to: the genesis hash, the program id and the `ConfigVersion#1`
+/// activation stamp (a fresh `--reset` validator or another deployment has a different one).
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Stamp {
+    genesis_hash: String,
+    program_id: String,
+    activation_unix: u64,
+}
+
+impl Stamp {
+    fn to_json(&self) -> Value {
+        json!({
+            "genesis_hash": self.genesis_hash,
+            "program_id": self.program_id,
+            "configversion1_activated_at": self.activation_unix,
+        })
+    }
+}
+
+fn stamp_of(ctx: &Ctx<'_>, view: &View) -> Option<Stamp> {
+    let config = view.config(1)?;
+    let activation_unix = config.activated_at.unwrap_or(config.staged_at);
+    Some(Stamp {
+        genesis_hash: ctx.genesis.clone(),
+        program_id: ID.to_string(),
+        activation_unix,
+    })
+}
+
+/// The receipts of THIS cluster; receipts stamped for another cluster (or unstamped) are only counted.
+#[derive(Default)]
+struct ReceiptLog {
+    results: BTreeMap<String, String>,
+    foreign: usize,
+    failed_checks: Vec<String>,
+}
+
+impl ReceiptLog {
+    fn has(&self, step_id: &str) -> bool {
+        self.results.contains_key(step_id)
+    }
+}
+
+fn read_receipts(path: &Path, stamp: Option<&Stamp>) -> ReceiptLog {
+    let mut log = ReceiptLog::default();
+    let Ok(text) = fs::read_to_string(path) else { return log };
+    for entry in text.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()) {
+        let ours = stamp.is_some_and(|stamp| entry["stamp"] == stamp.to_json());
+        if !ours {
+            log.foreign += 1;
+            continue;
+        }
+        let (Some(step), Some(result)) = (entry["step"].as_str(), entry["result"].as_str()) else { continue };
+        if result == "done_with_failed_checks" {
+            log.failed_checks.push(step.to_string());
+        }
+        log.results.insert(step.to_string(), result.to_string());
+    }
+    log
+}
+
+/// `--accept-failed-checks a,b`: the steps whose failed-check receipts the operator has examined.
+fn accepted_failed_checks(opts: &Opts) -> Result<BTreeSet<String>, OpsError> {
+    let known: BTreeSet<&str> = m14_plan::plan().iter().map(|step| step.id).collect();
+    let mut accepted = BTreeSet::new();
+    for id in opts.get("accept-failed-checks").unwrap_or("").split(',').map(str::trim).filter(|id| !id.is_empty()) {
+        if !known.contains(id) {
+            return usage(format!("--accept-failed-checks: `{id}` is not a plan step"));
+        }
+        accepted.insert(id.to_string());
+    }
+    Ok(accepted)
+}
+
+/// The failed-check receipts nobody has accepted.
+fn unaccepted_failures<'a>(log: &'a ReceiptLog, accepted: &BTreeSet<String>) -> Vec<&'a String> {
+    log.failed_checks.iter().filter(|id| !accepted.contains(*id)).collect()
 }
 
 // ---------------------------------------------------------------------------
@@ -660,8 +749,12 @@ pub(super) fn cmd_flow(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
 
 fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
     let wallets = load_wallets(&wallet_dir(ctx.opts)?)?;
-    let receipts = read_receipts(&receipts_path(ctx.opts, &wallets));
+    let receipts_file = receipts_path(ctx.opts, &wallets)?;
     let view = load_view(ctx, None)?;
+    let stamp = stamp_of(ctx, &view);
+    let receipts = read_receipts(&receipts_file, stamp.as_ref());
+    let accepted = accepted_failed_checks(ctx.opts)?;
+    let unaccepted: Vec<String> = unaccepted_failures(&receipts, &accepted).into_iter().cloned().collect();
     let genesis = genesis_of(ctx, &view)?;
     let (evals, winner) = evaluate(&view, &wallets, &receipts);
     let completed = evals.iter().filter(|eval| eval.done).count();
@@ -680,7 +773,7 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
                 "earliest_unix": genesis.as_ref().map(|g| g.genesis_unix + eval.step.at as i64),
                 "done": eval.done,
                 "evidence": eval.evidence,
-                "receipt_recorded": receipts.contains(eval.step.id),
+                "receipt_recorded": receipts.has(eval.step.id),
             })
         })
         .collect();
@@ -722,7 +815,11 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         "next": next_json,
         "steps": steps,
         "conservation": books,
-        "all_ok": conservation_ok(&books) || view.pool().is_none(),
+        "stamp": stamp.as_ref().map(Stamp::to_json),
+        "foreign_receipts": receipts.foreign,
+        "failed_check_receipts": receipts.failed_checks,
+        "unaccepted_failed_check_receipts": unaccepted,
+        "all_ok": (conservation_ok(&books) || view.pool().is_none()) && unaccepted.is_empty(),
     }))
 }
 
@@ -1575,19 +1672,44 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         .position(|candidate| candidate.id == step_id)
         .ok_or_else(|| OpsError::Usage(format!("unknown step `{step_id}`; `flow status` lists the plan")))?;
     let step = steps[index];
-    let receipts_file = receipts_path(opts, &wallets);
-    let receipts = read_receipts(&receipts_file);
+    let receipts_file = receipts_path(opts, &wallets)?;
+    let accepted = accepted_failed_checks(opts)?;
 
     let view = load_view(ctx, None)?;
     let genesis = genesis_of(ctx, &view)?.ok_or_else(|| {
         OpsError::Refused("genesis is unknown: `initialize` has not run on this cluster (ConfigVersion#1 is not activated)".into())
     })?;
+    let stamp = stamp_of(ctx, &view).ok_or_else(|| {
+        OpsError::Refused("ConfigVersion#1 carries no activation stamp: `initialize` has not run on this cluster".into())
+    })?;
+    // Receipts are scoped to this cluster: a log carried over from another cluster (or an older
+    // `--reset` ledger of the same one) is refused, never silently reused.
+    let receipts = read_receipts(&receipts_file, Some(&stamp));
+    if receipts.foreign > 0 {
+        return refuse(format!(
+            "{} holds {} receipt(s) stamped for ANOTHER cluster or activation (this one is genesis {}, program {}, \
+             ConfigVersion#1 activated at {}); use a fresh --receipts file for this cluster",
+            receipts_file.display(),
+            receipts.foreign,
+            stamp.genesis_hash,
+            stamp.program_id,
+            stamp.activation_unix
+        ));
+    }
+    let blocking = unaccepted_failures(&receipts, &accepted);
+    if !blocking.is_empty() {
+        return refuse(format!(
+            "step(s) {blocking:?} were recorded with FAILED CHECKS (result `done_with_failed_checks`); the plan does not \
+             advance past them until the receipt has been examined: re-run with --accept-failed-checks {}",
+            blocking.iter().map(|id| id.as_str()).collect::<Vec<_>>().join(",")
+        ));
+    }
     let (evals, winner) = evaluate(&view, &wallets, &receipts);
     // The oracle step completes BETWEEN invocations (the real oracle fulfils on its own time), so its
     // latency record is written by a later `flow next` that merely observes the fulfilment.
     let observation_only = matches!(step.act, Act::Fulfil { .. })
         && evals[index].done
-        && !receipts.contains(step.id)
+        && !receipts.has(step.id)
         && done_by_state(&view, &wallets, &steps, index, winner).0;
     if evals[index].done && !observation_only {
         return refuse(format!("step `{}` is already complete ({})", step.id, evals[index].evidence));
@@ -1720,6 +1842,11 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
                     entry["slot"] = json!(ctx.cluster.signature_slot(&signature).ok().flatten());
                 }
                 txs.push(entry);
+                if ctx.executing() && is_single_tx(step.act) {
+                    // One confirmed send completes this step; never loop on a read that may still be
+                    // pre-send (a second send of a deposit or funding would be a real double spend).
+                    break;
+                }
                 if !ctx.executing() {
                     dry_run_preview = Some(json!({
                         "next_transaction": txs.pop(),
@@ -1769,10 +1896,17 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         _ => None,
     };
     let all_ok = checks_ok(&checks);
-    let result = if refused_as_expected.is_some() { "refused_as_expected" } else { "done" };
+    let result = if !all_ok {
+        "done_with_failed_checks"
+    } else if refused_as_expected.is_some() {
+        "refused_as_expected"
+    } else {
+        "done"
+    };
     let receipt = json!({
         "schema": 1, "plan": PLAN_NAME, "step": step.id, "index": index + 1, "flows": step.flows,
-        "result": result, "mode": ctx.mode(), "cluster": ctx.cluster_json(&ctx.cluster.genesis_hash().unwrap_or_default()),
+        "result": result, "mode": ctx.mode(), "cluster": ctx.cluster_json(&ctx.genesis),
+        "stamp": stamp.to_json(), "packet": ctx.packet_json(),
         "actor": actor.name(), "actor_pubkey": actor_key.to_string(), "winner": winner.map(|who| who.name()),
         "expect": step.expect, "offset_s": step.at, "earliest_unix": earliest,
         "cluster_unix_before": view.now, "cluster_unix_after": post.now, "slot_after": post.slot,
@@ -1788,12 +1922,5 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
 }
 
 fn append_receipt(path: &Path, receipt: &Value) -> Result<(), OpsError> {
-    use std::io::Write;
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|error| OpsError::Failed(format!("{}: {error}", path.display())))?;
-    writeln!(file, "{}", serde_json::to_string(receipt).expect("receipt JSON"))
-        .map_err(|error| OpsError::Failed(format!("{}: {error}", path.display())))
+    append_json_line(path, receipt)
 }

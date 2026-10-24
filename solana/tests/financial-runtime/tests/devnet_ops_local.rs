@@ -29,8 +29,8 @@ use litesvm::LiteSVM;
 use musical_chairs_financial_runtime::{
     devnet::{self, OraoProfile},
     devnet_ops::{
-        self as ops, Cluster, Gate, KeyFile, Opts, OpsError, ProposalStatus, SendOutcome, SimOutcome,
-        Step, Target,
+        self as ops, Cluster, Gate, KeyFile, Opts, OpsError, ProposalStatus, SendError, SendOutcome,
+        SigOutcome, SimOutcome, Step, Target,
     },
     runtime::{real_g_create_keypair, real_p_create_keypair},
     squads_real::{self as sq, RealSquadsWorld},
@@ -42,7 +42,7 @@ use solana_sdk::{
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
-    signature::{Keypair, Signer},
+    signature::{Keypair, Signature, Signer},
     transaction::Transaction,
 };
 
@@ -72,6 +72,9 @@ impl TempDir {
     fn file(&self, name: &str) -> String {
         self.0.join(name).display().to_string()
     }
+    fn dir(&self) -> String {
+        self.0.display().to_string()
+    }
 }
 
 impl Drop for TempDir {
@@ -94,6 +97,64 @@ fn write_members(path: &str, members: &[Pubkey]) {
     fs::write(path, text).expect("write members");
 }
 
+/// A throwaway git repository holding a "packet" at the tool's fixed packet path.
+struct PacketRepo {
+    dir: TempDir,
+    commit: String,
+    sha: String,
+}
+
+fn git(repo: &Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["-c", "user.name=packet-test", "-c", "user.email=packet@test.invalid", "-c", "commit.gpgsign=false"])
+        .args(args)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .expect("git is installed");
+    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+impl PacketRepo {
+    fn new(content: &str) -> PacketRepo {
+        let dir = TempDir::new("packet-repo");
+        git(Path::new(&dir.dir()), &["init", "-q"]);
+        let mut repo = PacketRepo { dir, commit: String::new(), sha: String::new() };
+        repo.commit_packet(content);
+        repo
+    }
+    fn root(&self) -> PathBuf {
+        PathBuf::from(self.dir.dir())
+    }
+    fn packet_file(&self) -> PathBuf {
+        self.root().join(ops::DEFAULT_PACKET_FILE)
+    }
+    /// Overwrite the working file WITHOUT committing.
+    fn edit_working_file(&self, content: &str) {
+        fs::create_dir_all(self.packet_file().parent().unwrap()).unwrap();
+        fs::write(self.packet_file(), content).unwrap();
+    }
+    /// Write, commit and pin the new text; returns the previous `(commit, sha)`.
+    fn commit_packet(&mut self, content: &str) -> (String, String) {
+        self.edit_working_file(content);
+        git(&self.root(), &["add", "-A"]);
+        git(&self.root(), &["commit", "-q", "-m", "packet"]);
+        let previous = (std::mem::take(&mut self.commit), std::mem::take(&mut self.sha));
+        self.commit = git(&self.root(), &["rev-parse", "HEAD"]);
+        self.sha = devnet::sha256_hex(content.as_bytes());
+        previous
+    }
+    /// The pin flags of a devnet `--execute`.
+    fn pin_flags(&self) -> Vec<String> {
+        vec!["--packet-sha256".into(), self.sha.clone(), "--packet-commit".into(), self.commit.clone()]
+    }
+}
+
 /// A [`Cluster`] over a LiteSVM instance.  Counts simulations and sends and records their order, so
 /// the tests can assert "no send without a preceding simulation" and "dry runs send nothing".
 struct SvmCluster<'a> {
@@ -104,6 +165,7 @@ struct SvmCluster<'a> {
     genesis_reads: Cell<usize>,
     fail_simulation: Cell<bool>,
     order: RefCell<Vec<&'static str>>,
+    landed: RefCell<std::collections::BTreeMap<Signature, u64>>,
 }
 
 impl<'a> SvmCluster<'a> {
@@ -116,6 +178,7 @@ impl<'a> SvmCluster<'a> {
             genesis_reads: Cell::new(0),
             fail_simulation: Cell::new(false),
             order: RefCell::new(Vec::new()),
+            landed: RefCell::new(std::collections::BTreeMap::new()),
         }
     }
 
@@ -195,16 +258,30 @@ impl Cluster for SvmCluster<'_> {
             }),
         }
     }
-    fn send(&self, tx: &Transaction) -> Result<SendOutcome, String> {
+    fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
         self.sends.set(self.sends.get() + 1);
         self.order.borrow_mut().push("send");
+        let slot = self.svm.borrow().get_sysvar::<Clock>().slot;
         match self.svm.borrow_mut().send_transaction(tx.clone()) {
-            Ok(meta) => Ok(SendOutcome {
-                signature: meta.signature,
-                units_consumed: Some(meta.compute_units_consumed),
-            }),
-            Err(failed) => Err(format!("{:?}\n{}", failed.err, failed.meta.pretty_logs())),
+            Ok(meta) => {
+                self.landed.borrow_mut().insert(meta.signature, slot);
+                Ok(SendOutcome {
+                    signature: meta.signature,
+                    units_consumed: Some(meta.compute_units_consumed),
+                })
+            }
+            Err(failed) => Err(SendError::Rejected(format!("{:?}\n{}", failed.err, failed.meta.pretty_logs()))),
         }
+    }
+    fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        Ok(self
+            .landed
+            .borrow()
+            .get(signature)
+            .map_or(SigOutcome::Unknown, |slot| SigOutcome::Confirmed { slot: *slot }))
+    }
+    fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
+        Ok(self.landed.borrow().get(signature).copied())
     }
 }
 
@@ -447,43 +524,90 @@ fn genesis_hash_gate_pins_devnet_and_refuses_public_clusters_on_loopback() {
 }
 
 #[test]
-fn execute_token_demands_the_packet_hash_on_devnet_and_nothing_on_a_loopback_validator() {
-    let dir = TempDir::new("packet");
-    let packet = dir.file("packet.md");
-    fs::write(&packet, "approved packet revision 1").unwrap();
-    let hash = devnet::sha256_hex(b"approved packet revision 1");
-    let base = ["fund-vault", "--rpc", DEVNET_URL, "--cluster", "devnet", "--execute", "--packet", packet.as_str()];
+fn the_packet_pin_hashes_the_committed_blob_not_the_working_file() {
+    let mut repo = PacketRepo::new("reviewed packet text v1");
+    let pin = ops::verify_packet_pin(&repo.root(), &repo.commit, &repo.sha).expect("the pin verifies");
+    assert_eq!(
+        (pin.packet_path.as_str(), pin.packet_commit.as_str(), pin.packet_sha256.as_str()),
+        (ops::DEFAULT_PACKET_FILE, repo.commit.as_str(), repo.sha.as_str())
+    );
+    assert!(ops::verify_packet_pin(&repo.root(), &repo.commit, &repo.sha.to_uppercase()).is_ok(), "hex case is irrelevant");
 
+    // The wrong hash, malformed or unknown commits.
+    let wrong = "0".repeat(64);
+    assert!(matches!(ops::verify_packet_pin(&repo.root(), &repo.commit, &wrong), Err(OpsError::Refused(m)) if m.contains("is not the SHA-256")));
+    for bad in ["abc", &repo.commit.to_uppercase(), &"0".repeat(40), &format!("{}x", &repo.commit[..39])] {
+        assert!(matches!(ops::verify_packet_pin(&repo.root(), bad, &repo.sha), Err(OpsError::Refused(_))), "commit `{bad}`");
+    }
+    // A tree id is not a commit.
+    let tree = git(&repo.root(), &["rev-parse", "HEAD^{tree}"]);
+    assert!(matches!(ops::verify_packet_pin(&repo.root(), &tree, &repo.sha), Err(OpsError::Refused(m)) if m.contains("not a commit")));
+
+    // An uncommitted edit of the working file: the blob still hashes, the working file no longer equals it.
+    repo.edit_working_file("reviewed packet text v1, EDITED after the commit");
+    assert!(matches!(ops::verify_packet_pin(&repo.root(), &repo.commit, &repo.sha), Err(OpsError::Refused(m)) if m.contains("differs from the blob")));
+
+    // A newer commit freezes the new text; the old pin no longer matches the working file.
+    let (old_commit, old_sha) = repo.commit_packet("reviewed packet text v2");
+    assert!(ops::verify_packet_pin(&repo.root(), &repo.commit, &repo.sha).is_ok());
+    assert!(matches!(ops::verify_packet_pin(&repo.root(), &old_commit, &old_sha), Err(OpsError::Refused(m)) if m.contains("differs from the blob")));
+    assert!(matches!(ops::verify_packet_pin(&repo.root(), &repo.commit, &old_sha), Err(OpsError::Refused(_))));
+}
+
+#[test]
+fn execute_token_demands_the_packet_pin_on_devnet_and_nothing_on_a_loopback_validator() {
+    let repo = PacketRepo::new("the reviewed M14 packet");
+    let base = ["fund-vault", "--rpc", DEVNET_URL, "--cluster", "devnet", "--execute"];
     let token = |extra: &[&str]| {
         let mut parts: Vec<&str> = base.to_vec();
         parts.extend_from_slice(extra);
         let o = opts(&parts);
-        Gate::from_opts(&o).and_then(|gate| gate.execute_token(&o))
+        Gate::from_opts(&o).and_then(|gate| gate.execute_token_in(&o, &repo.root()))
     };
-    assert!(matches!(token(&[]), Err(OpsError::Refused(m)) if m.contains("--i-have-approval")));
-    assert!(matches!(token(&["--i-have-approval", "deadbeef"]), Err(OpsError::Refused(_))));
-    assert!(matches!(token(&["--i-have-approval", &"0".repeat(64)]), Err(OpsError::Refused(_))));
-    assert!(matches!(token(&["--i-have-approval", &hash]), Ok(Some(_))));
-    assert!(matches!(token(&["--i-have-approval", &hash.to_uppercase()]), Ok(Some(_))), "hex case is irrelevant");
-    fs::write(&packet, "approved packet revision 2 (edited after approval)").unwrap();
-    assert!(
-        matches!(token(&["--i-have-approval", &hash]), Err(OpsError::Refused(m)) if m.contains("changed after")),
-        "an edit after approval invalidates the approval"
-    );
-    // A missing packet file cannot be hashed.
-    let missing = dir.file("absent.md");
-    let o = opts(&["fund-vault", "--rpc", DEVNET_URL, "--cluster", "devnet", "--execute", "--packet", &missing, "--i-have-approval", &hash]);
-    assert!(matches!(Gate::from_opts(&o).and_then(|g| g.execute_token(&o)), Err(OpsError::Refused(_))));
+    let (sha, commit) = (repo.sha.as_str(), repo.commit.as_str());
 
-    // Loopback: --execute needs no hash; without --execute there is no token at all.
+    // Both halves of the pin are required, and the message says what the pin is NOT.
+    assert!(matches!(token(&[]), Err(OpsError::Refused(m)) if m.contains("--packet-sha256") && m.contains("NOT an approval")));
+    assert!(matches!(token(&["--packet-sha256", sha]), Err(OpsError::Refused(m)) if m.contains("--packet-commit")));
+    assert!(matches!(token(&["--packet-commit", commit]), Err(OpsError::Refused(m)) if m.contains("--packet-sha256")));
+    assert!(matches!(token(&["--packet-sha256", sha, "--packet-commit", commit]), Ok(Some(_))));
+    assert!(matches!(token(&["--packet-sha256", "deadbeef", "--packet-commit", commit]), Err(OpsError::Refused(_))));
+
+    // The old flag name is rejected with an explanation; a --packet path override is refused.
+    assert!(matches!(
+        token(&["--i-have-approval", sha, "--packet-sha256", sha, "--packet-commit", commit]),
+        Err(OpsError::Usage(m)) if m.contains("not an approval") && m.contains("--packet-sha256")
+    ));
+    let other = repo.dir.file("other-packet.md");
+    fs::write(&other, "the reviewed M14 packet").unwrap();
+    assert!(matches!(
+        token(&["--packet", &other, "--packet-sha256", sha, "--packet-commit", commit]),
+        Err(OpsError::Refused(m)) if m.contains("--packet is refused")
+    ));
+
+    // The RPC host allowlist: the public devnet endpoint, a loopback tunnel, or one host named explicitly.
+    let hosted = |url: &str, extra: &[&str]| {
+        let mut parts = vec!["fund-vault", "--rpc", url, "--cluster", "devnet", "--execute", "--packet-sha256", sha, "--packet-commit", commit];
+        parts.extend_from_slice(extra);
+        let o = opts(&parts);
+        Gate::from_opts(&o).and_then(|gate| gate.execute_token_in(&o, &repo.root()))
+    };
+    assert!(matches!(hosted("https://rpc.example.com", &[]), Err(OpsError::Refused(m)) if m.contains("allowlist")));
+    assert!(matches!(hosted("https://rpc.example.com", &["--allow-rpc-host", "rpc.example.com"]), Ok(Some(_))));
+    assert!(matches!(hosted("https://rpc.example.com", &["--allow-rpc-host", "other.example.com"]), Err(OpsError::Refused(_))));
+    assert!(matches!(hosted("http://127.0.0.1:8899", &[]), Ok(Some(_))), "a loopback tunnel is the genesis check's business");
+
+    // Loopback: --execute needs no pin (and refuses one); without --execute there is no token at all.
     let local = opts(&["fund-vault", "--rpc", RPC, "--execute"]);
-    assert!(matches!(Gate::from_opts(&local).and_then(|g| g.execute_token(&local)), Ok(Some(_))));
+    assert!(matches!(Gate::from_opts(&local).and_then(|g| g.execute_token_in(&local, &repo.root())), Ok(Some(_))));
+    let pinned_local = opts(&["fund-vault", "--rpc", RPC, "--execute", "--packet-sha256", sha]);
+    assert!(matches!(Gate::from_opts(&pinned_local).and_then(|g| g.execute_token_in(&pinned_local, &repo.root())), Err(OpsError::Usage(_))));
     let dry = opts(&["fund-vault", "--rpc", RPC]);
-    assert!(matches!(Gate::from_opts(&dry).and_then(|g| g.execute_token(&dry)), Ok(None)));
+    assert!(matches!(Gate::from_opts(&dry).and_then(|g| g.execute_token_in(&dry, &repo.root())), Ok(None)));
     // Read-only commands take no --execute.
     for command in ["plan", "verify-bytes", "readback"] {
         let o = opts(&[command, "--rpc", RPC, "--execute"]);
-        assert!(matches!(Gate::from_opts(&o).and_then(|g| g.execute_token(&o)), Err(OpsError::Usage(_))), "{command}");
+        assert!(matches!(Gate::from_opts(&o).and_then(|g| g.execute_token_in(&o, &repo.root())), Err(OpsError::Usage(_))), "{command}");
     }
 }
 
@@ -816,52 +940,110 @@ fn a_simulation_error_refuses_the_send() {
 }
 
 #[test]
-fn execute_on_devnet_goes_through_the_approval_hash_and_the_devnet_genesis_only() {
+fn execute_on_devnet_goes_through_the_packet_pin_and_the_devnet_genesis_and_records_the_pin() {
     let mut world = world_with_orao();
     let payer = funded_payer(&mut world);
     let (g, p) = world.create_g_and_p();
     assert!(g.success && p.success);
     let files = Files::write(&world, &payer);
-    let dir = TempDir::new("approval");
-    let packet = dir.file("packet.md");
-    fs::write(&packet, "the approved M14 packet").unwrap();
-    let approval = devnet::sha256_hex(b"the approved M14 packet");
+    let repo = PacketRepo::new("the reviewed M14 packet");
+    let pending = files.dir.file("pending.jsonl");
     let cluster = SvmCluster::new(&mut world.rt.svm);
     cluster.set_genesis(ops::DEVNET_GENESIS_HASH);
 
-    let fund = |extra: &[&str]| {
+    let fund = |extra: &[String]| {
         let mut args: Vec<String> = [
             "fund-vault", "--rpc", DEVNET_URL, "--cluster", "devnet", "--payer", files.payer.as_str(),
-            "--g-create-key", files.g_create.as_str(), "--lamports", "5000000", "--execute", "--packet", packet.as_str(),
+            "--g-create-key", files.g_create.as_str(), "--g-members", files.g_members.as_str(),
+            "--lamports", "5000000", "--execute",
         ]
         .iter()
         .map(|part| part.to_string())
         .collect();
-        args.extend(extra.iter().map(|part| part.to_string()));
-        ops::run_with_cluster(&args, &cluster)
+        args.extend(extra.iter().cloned());
+        ops::run_with_cluster_in(&args, &cluster, &repo.root())
+    };
+    let pin = repo.pin_flags();
+    let with_pending = |mut flags: Vec<String>| {
+        flags.extend(["--pending-file".to_string(), pending.clone()]);
+        flags
     };
 
-    assert!(refused(fund(&[])).contains("--i-have-approval"));
-    assert!(refused(fund(&["--i-have-approval", &"ab".repeat(32)])).contains("not the SHA-256"));
-    assert_eq!(cluster.genesis_reads.get(), 0, "the approval gate fires before any RPC call");
+    // No pin, a half pin, the removed alias, a path override: refused before any RPC call.
+    assert!(refused(fund(&[])).contains("--packet-sha256"));
+    assert!(refused(fund(&pin[..2])).contains("--packet-commit"));
+    assert!(matches!(fund(&["--i-have-approval".into(), repo.sha.clone()]), Err(OpsError::Usage(_))));
+    let mut overridden = with_pending(pin.clone());
+    overridden.extend(["--packet".to_string(), repo.dir.file("elsewhere.md")]);
+    assert!(refused(fund(&overridden)).contains("--packet is refused"));
+    // The pin is fine but no write-ahead file was named: refused (still before any RPC call).
+    assert!(refused(fund(&pin)).contains("--pending-file"));
+    assert_eq!(cluster.genesis_reads.get(), 0, "the pin gate fires before any RPC call");
     assert_eq!(cluster.sends.get(), 0);
 
     // mainnet or any other genesis behind the devnet flag: refused, nothing sent.
     cluster.set_genesis(ops::MAINNET_GENESIS_HASH);
-    assert!(refused(fund(&["--i-have-approval", &approval])).contains("genesis"));
+    assert!(refused(fund(&with_pending(pin.clone()))).contains("genesis"));
     cluster.set_genesis(LITESVM_GENESIS);
-    assert!(refused(fund(&["--i-have-approval", &approval])).contains("genesis"));
+    assert!(refused(fund(&with_pending(pin.clone()))).contains("genesis"));
     assert_eq!(cluster.sends.get(), 0);
 
+    // The pin, the devnet genesis and a write-ahead file: executes, and the receipt records the pin.
     cluster.set_genesis(ops::DEVNET_GENESIS_HASH);
-    let receipt = ok(fund(&["--i-have-approval", &approval]));
+    let receipt = ok(fund(&with_pending(pin.clone())));
     assert_eq!(receipt["mode"], "execute");
     assert_eq!(receipt["cluster"]["target"], "devnet");
+    assert_eq!(receipt["all_ok"], true, "{receipt}");
+    assert_eq!(receipt["packet"]["packet_path"], ops::DEFAULT_PACKET_FILE);
+    assert_eq!(receipt["packet"]["packet_commit"].as_str(), Some(repo.commit.as_str()));
+    assert_eq!(receipt["packet"]["packet_sha256"].as_str(), Some(repo.sha.as_str()));
     assert_eq!(cluster.sends.get(), 1);
+    // The write-ahead record names the signature before the send and is resolved after it.
+    let lines: Vec<Value> = fs::read_to_string(&pending).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!((lines[0]["event"].as_str(), lines[1]["event"].as_str()), (Some("write_ahead"), Some("resolved")));
+    assert_eq!(lines[0]["signature"], lines[1]["signature"]);
+    assert_eq!(lines[1]["outcome"], "confirmed");
+    assert_eq!(lines[0]["genesis_hash"], ops::DEVNET_GENESIS_HASH);
 
-    fs::write(&packet, "the approved M14 packet, edited").unwrap();
-    assert!(refused(fund(&["--i-have-approval", &approval])).contains("changed after approval"));
+    // An edit of the working packet after the pin was taken closes the gate again.
+    repo.edit_working_file("the reviewed M14 packet, edited after review");
+    assert!(refused(fund(&with_pending(pin.clone()))).contains("differs from the blob"));
     assert_eq!(cluster.sends.get(), 1);
+}
+
+#[test]
+fn devnet_deploy_ceilings_cannot_be_raised_and_padding_needs_a_recorded_justification() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let repo = PacketRepo::new("the reviewed M14 packet");
+    let pending = files.dir.file("pending.jsonl");
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    cluster.set_genesis(ops::DEVNET_GENESIS_HASH);
+    let deploy = |extra: &[&str]| {
+        let mut args: Vec<String> = ["deploy", "--rpc", DEVNET_URL, "--cluster", "devnet", "--execute", "--pending-file", pending.as_str()]
+            .iter()
+            .map(|part| part.to_string())
+            .collect();
+        args.extend(repo.pin_flags());
+        args.extend(extra.iter().map(|part| part.to_string()));
+        ops::run_with_cluster_in(&args, &cluster, &repo.root())
+    };
+    let message = refused(deploy(&["--max-spend-lamports", "16000000000"]));
+    assert!(message.contains("15 SOL") && message.contains("cannot be raised"), "{message}");
+    let message = refused(deploy(&["--max-data-len", "1500000"]));
+    assert!(message.contains("--max-data-len-justification"), "{message}");
+    let message = refused(deploy(&["--max-data-len", "1500000", "--max-data-len-justification", "   "]));
+    assert!(message.contains("--max-data-len-justification"), "{message}");
+    // At or below the ceiling, and with a justification, the new checks pass (the run then stops at the
+    // next missing argument, which is a usage error, not one of these refusals).
+    assert!(matches!(deploy(&["--max-spend-lamports", "15000000000"]), Err(OpsError::Usage(_))));
+    assert!(matches!(
+        deploy(&["--max-data-len", "1500000", "--max-data-len-justification", "room for a v2 of the economics"]),
+        Err(OpsError::Usage(_))
+    ));
+    assert_eq!(cluster.sends.get(), 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -952,6 +1134,8 @@ fn initialize_and_orao_register_through_the_tool_end_to_end() {
     ));
     assert_eq!(first["after"]["status"], "Active");
     assert_eq!(first["after"]["approvals"], 1);
+    assert_eq!(first["all_ok"], true, "{first}");
+    assert_eq!(first["checks"].as_array().unwrap().len(), 2, "approve's all_ok is computed from read-backs");
     let message = refused(ops::run_with_cluster(
         &with(&["approve", "initialize", "--member", &files.g_member[0], "--tx-index", "1", "--execute"], init_flags(&files)),
         &cluster,
@@ -1147,6 +1331,118 @@ fn propose_refuses_when_the_program_authority_is_not_the_g_vault_and_resumes_a_h
 // ---------------------------------------------------------------------------
 
 #[test]
+fn fund_vault_checks_the_g_profile_the_vault_balance_and_reads_back() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    let fund = |extra: &[&str]| {
+        let mut parts = vec!["fund-vault", "--payer", files.payer.as_str(), "--lamports", "20000000", "--execute"];
+        parts.extend_from_slice(extra);
+        files.run(&cluster, &parts)
+    };
+
+    // No G multisig yet: the full profile check refuses (it used to accept any Squads-owned account).
+    assert!(refused(fund(&[])).contains("does not match the expected profile"));
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let sends_after_create = cluster.sends.get();
+
+    // The wrong member list is a profile mismatch, not a funding.
+    let other = files.dir.file("other-members.txt");
+    write_members(&other, &[Pubkey::new_unique(), Pubkey::new_unique(), Pubkey::new_unique()]);
+    let mut args = files.args(&["fund-vault", "--payer", &files.payer, "--lamports", "20000000", "--execute"]);
+    let position = args.iter().position(|a| a == "--g-members").unwrap();
+    args[position + 1] = other;
+    assert!(refused(ops::run_with_cluster(&args, &cluster)).contains("does not match the expected profile"));
+    assert_eq!(cluster.sends.get(), sends_after_create);
+
+    // The funding reads itself back.
+    let funded = ok(fund(&[]));
+    assert_eq!(funded["all_ok"], true, "{funded}");
+    assert_eq!(funded["vault_balance_before"], 0);
+    assert_eq!(funded["vault_balance_after"], 20_000_000);
+    assert_eq!(funded["checks"].as_array().unwrap().len(), 1);
+
+    // A transfer is not idempotent: a repeated run is refused by the balance guard.
+    let message = refused(fund(&[]));
+    assert!(message.contains("already holds") && message.contains("not funding it again"), "{message}");
+    assert_eq!(cluster.sends.get(), sends_after_create + 1);
+}
+
+#[test]
+fn fund_vault_caps_the_vaults_total_not_just_one_transfer() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let (g, p) = world.create_g_and_p();
+    assert!(g.success && p.success);
+    let vault = world.rt.g_vault();
+    world.rt.credit_lamports(vault, 1_000_000); // below the ~2.6 M the vault needs
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    let message = refused(files.run(&cluster, &["fund-vault", "--payer", &files.payer, "--lamports", "49500000", "--execute"]));
+    assert!(message.contains("TOTAL"), "{message}");
+    assert_eq!(cluster.sends.get(), 0);
+    let funded = ok(files.run(&cluster, &["fund-vault", "--payer", &files.payer, "--lamports", "40000000", "--execute"]));
+    assert_eq!(funded["vault_balance_after"], 41_000_000);
+    assert_eq!(funded["all_ok"], true);
+}
+
+#[test]
+fn file_arguments_never_reach_the_default_wallet_or_a_keypair_shaped_log() {
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/nobody".into());
+    let wallet = format!("{home}/.config/solana/id.json");
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+
+    // --elf and --program-so are refused by path, before any read.
+    assert!(refused(files.run(&cluster, &["verify-bytes", "--elf", &wallet])).contains("default wallet"));
+    let out = files.dir.file("fixtures-out");
+    let args: Vec<String> = ["validator-fixtures", out.as_str(), "--program-so", wallet.as_str(), "--g-create-key", files.g_create.as_str()]
+        .iter()
+        .map(|part| part.to_string())
+        .collect();
+    assert!(refused(ops::run_with_cluster(&args, &UnreachableCluster)).contains("default wallet"));
+
+    // The write-ahead file: never the default wallet, never `.json`, never keypair-shaped.
+    let attempt = |path: &str| files.run(&cluster, &["fund-vault", "--payer", &files.payer, "--lamports", "20000000", "--pending-file", path]);
+    assert!(refused(attempt(&wallet)).contains("default wallet"));
+    assert!(refused(attempt(&files.payer)).contains(".jsonl"), "payer.json is a keypair file");
+    let shaped = files.dir.file("shaped.jsonl");
+    fs::copy(&files.payer, &shaped).unwrap();
+    assert!(refused(attempt(&shaped)).contains("keypair-shaped"));
+    assert_eq!(cluster.sends.get(), 0);
+    // An ordinary new path is fine.
+    assert!(attempt(&files.dir.file("fine.jsonl")).is_err_and(|e| !matches!(e, OpsError::Refused(m) if m.contains("keypair") || m.contains("default wallet"))));
+}
+
+#[test]
+fn propose_scans_every_live_proposal_for_a_duplicate_not_only_the_newest() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let member = files.g_member[0].as_str();
+    let flags = ["--member", member, "--sponsor", files.sponsor.as_str(), "--management-recipient", files.management_pub.as_str()];
+    let mut initialize = vec!["propose", "initialize"];
+    initialize.extend(flags);
+    let mut first = initialize.clone();
+    first.extend(["--execute", "--expect-tx-index", "1"]);
+    ok(files.run(&cluster, &first));
+    // A DIFFERENT live proposal now sits at the newest index.
+    ok(files.run(&cluster, &["propose", "register", "--member", member, "--execute", "--expect-tx-index", "2"]));
+    let sends = cluster.sends.get();
+    // The identical initialize proposal at #1 is still live: refused although #2 is the newest.
+    let mut again = initialize.clone();
+    again.extend(["--execute", "--expect-tx-index", "3"]);
+    let message = refused(files.run(&cluster, &again));
+    assert!(message.contains("already exists at #1"), "{message}");
+    assert_eq!(cluster.sends.get(), sends);
+}
+
+#[test]
 fn plan_lists_every_step_with_accounts_signers_fee_payer_rent_and_packet_sizes() {
     let mut world = world_with_orao();
     let payer = funded_payer(&mut world);
@@ -1257,7 +1553,7 @@ impl Cluster for UnreachableCluster {
     fn unix_time(&self) -> Result<i64, String> { panic!("offline command touched the cluster") }
     fn slot(&self) -> Result<u64, String> { panic!("offline command touched the cluster") }
     fn simulate(&self, _: &Transaction, _: bool) -> Result<SimOutcome, String> { panic!("offline command touched the cluster") }
-    fn send(&self, _: &Transaction) -> Result<SendOutcome, String> { panic!("offline command touched the cluster") }
+    fn send(&self, _: &Transaction) -> Result<SendOutcome, SendError> { panic!("offline command touched the cluster") }
 }
 
 // ---------------------------------------------------------------------------
@@ -1308,6 +1604,7 @@ fn deploy_in_litesvm_writes_deploys_verifies_and_moves_the_authority_to_the_g_va
     assert_eq!(done["all_ok"], true, "{done}");
     assert_eq!(done["upgrade_authority_after"].as_str(), Some(g.vault.to_string().as_str()));
     assert_eq!(done["programdata"]["ok"], true);
+    assert!(done["deployer_balance_after_lamports"].as_u64().is_some(), "the deployer's post-deploy balance is recorded");
     let again = ok(ops::run_with_cluster(&deploy_args(&["--execute"]), &cluster));
     assert_eq!(again["all_ok"], true, "{again}");
 }

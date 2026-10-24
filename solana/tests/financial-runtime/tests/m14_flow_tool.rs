@@ -30,7 +30,7 @@ use std::{
 use musical_chairs_financial_runtime::{
     close as m7,
     devnet::{self, OraoProfile},
-    devnet_ops::{self as ops, AddressSignature, Cluster, OpsError, SendOutcome, SimOutcome},
+    devnet_ops::{self as ops, AddressSignature, Cluster, OpsError, SendError, SendOutcome, SigOutcome, SimOutcome},
     m14_plan::{self, Act, Who, ALL_WALLETS},
     runtime::{self, SignedTransaction},
     world::{World, START_TIME},
@@ -181,7 +181,7 @@ impl Cluster for WorldCluster<'_> {
             }),
         }
     }
-    fn send(&self, tx: &Transaction) -> Result<SendOutcome, String> {
+    fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
         self.sends.set(self.sends.get() + 1);
         let mut world = self.world.borrow_mut();
         let clock: Clock = world.rt.svm.get_sysvar();
@@ -198,8 +198,16 @@ impl Cluster for WorldCluster<'_> {
                 self.observations.borrow_mut().push(observation);
                 Ok(SendOutcome { signature: tx.signatures[0], units_consumed: units })
             }
-            Err(observation) => Err(format!("{:?}: {:?}", observation.error, observation.logs)),
+            Err(observation) => Err(SendError::Rejected(format!("{:?}: {:?}", observation.error, observation.logs))),
         }
+    }
+    fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        Ok(self
+            .sent
+            .borrow()
+            .iter()
+            .find(|sent| sent.signature == *signature)
+            .map_or(SigOutcome::Unknown, |sent| SigOutcome::Confirmed { slot: sent.slot }))
     }
     fn program_accounts(&self, program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
         let world = self.world.borrow();
@@ -230,6 +238,168 @@ impl Cluster for WorldCluster<'_> {
                 failed: false,
             })
             .collect())
+    }
+}
+
+/// A throwaway git repository holding a "packet" at the tool's fixed packet path.
+struct PacketRepo {
+    dir: TempDir,
+    commit: String,
+    sha: String,
+}
+
+fn git(repo: &std::path::Path, args: &[&str]) -> String {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(["-c", "user.name=packet-test", "-c", "user.email=packet@test.invalid", "-c", "commit.gpgsign=false"])
+        .args(args)
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .output()
+        .expect("git is installed");
+    assert!(output.status.success(), "git {args:?}: {}", String::from_utf8_lossy(&output.stderr));
+    String::from_utf8(output.stdout).unwrap().trim().to_string()
+}
+
+impl PacketRepo {
+    fn new(content: &str) -> PacketRepo {
+        let dir = TempDir::new("packet-repo");
+        let root = PathBuf::from(dir.dir());
+        git(&root, &["init", "-q"]);
+        let file = root.join(ops::DEFAULT_PACKET_FILE);
+        fs::create_dir_all(file.parent().unwrap()).unwrap();
+        fs::write(&file, content).unwrap();
+        git(&root, &["add", "-A"]);
+        git(&root, &["commit", "-q", "-m", "packet"]);
+        let commit = git(&root, &["rev-parse", "HEAD"]);
+        PacketRepo { dir, commit, sha: devnet::sha256_hex(content.as_bytes()) }
+    }
+    fn root(&self) -> PathBuf {
+        PathBuf::from(self.dir.dir())
+    }
+    fn pin_flags(&self) -> Vec<String> {
+        vec!["--packet-sha256".into(), self.sha.clone(), "--packet-commit".into(), self.commit.clone()]
+    }
+}
+
+/// A wrapper that misbehaves like a real RPC fleet: after a send the next `stale_budget` account /
+/// program-account reads answer from the PRE-SEND state (a load-balanced node that has not seen the
+/// transaction yet), and the next `ambiguous_sends` sends report an unknown outcome (a timeout) --
+/// landing the transaction anyway when `land_ambiguous` is set.
+struct Hooked<'a, 'b> {
+    inner: &'a WorldCluster<'b>,
+    stale_budget: Cell<usize>,
+    stale_reads: Cell<usize>,
+    snapshot: RefCell<BTreeMap<Pubkey, Account>>,
+    ambiguous_sends: Cell<usize>,
+    land_ambiguous: Cell<bool>,
+    blockhash_still_valid: Cell<bool>,
+    noted_slot: Cell<u64>,
+}
+
+impl<'a, 'b> Hooked<'a, 'b> {
+    fn new(inner: &'a WorldCluster<'b>) -> Self {
+        Hooked {
+            inner,
+            stale_budget: Cell::new(0),
+            stale_reads: Cell::new(0),
+            snapshot: RefCell::new(BTreeMap::new()),
+            ambiguous_sends: Cell::new(0),
+            land_ambiguous: Cell::new(false),
+            blockhash_still_valid: Cell::new(false),
+            noted_slot: Cell::new(0),
+        }
+    }
+    fn take_snapshot(&self) {
+        let world = self.inner.world.borrow();
+        *self.snapshot.borrow_mut() = world
+            .rt
+            .svm
+            .accounts_db()
+            .inner
+            .iter()
+            .filter(|(_, account)| account.lamports() > 0)
+            .map(|(key, account)| (*key, Account::from(account.clone())))
+            .collect();
+    }
+    fn stale(&self) -> bool {
+        let left = self.stale_reads.get();
+        if left == 0 {
+            return false;
+        }
+        self.stale_reads.set(left - 1);
+        true
+    }
+}
+
+impl Cluster for Hooked<'_, '_> {
+    fn genesis_hash(&self) -> Result<String, String> {
+        self.inner.genesis_hash()
+    }
+    fn blockhash(&self) -> Result<Hash, String> {
+        self.inner.blockhash()
+    }
+    fn blockhash_valid(&self, _hash: &Hash) -> Result<bool, String> {
+        Ok(self.blockhash_still_valid.get())
+    }
+    fn account(&self, key: &Pubkey) -> Result<Option<Account>, String> {
+        if self.stale() {
+            return Ok(self.snapshot.borrow().get(key).cloned());
+        }
+        self.inner.account(key)
+    }
+    fn rent_minimum(&self, data_len: usize) -> Result<u64, String> {
+        self.inner.rent_minimum(data_len)
+    }
+    fn unix_time(&self) -> Result<i64, String> {
+        self.inner.unix_time()
+    }
+    fn slot(&self) -> Result<u64, String> {
+        self.inner.slot()
+    }
+    fn simulate(&self, tx: &Transaction, sig_verify: bool) -> Result<SimOutcome, String> {
+        self.inner.simulate(tx, sig_verify)
+    }
+    fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
+        self.take_snapshot();
+        if self.ambiguous_sends.get() > 0 {
+            self.ambiguous_sends.set(self.ambiguous_sends.get() - 1);
+            if self.land_ambiguous.get() {
+                let _ = self.inner.send(tx);
+            }
+            self.stale_reads.set(self.stale_budget.get());
+            return Err(SendError::Unknown("simulated timeout".into()));
+        }
+        let outcome = self.inner.send(tx);
+        self.stale_reads.set(self.stale_budget.get());
+        outcome
+    }
+    fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        self.inner.signature_outcome(signature)
+    }
+    fn note_confirmed_slot(&self, slot: u64) {
+        self.noted_slot.set(self.noted_slot.get().max(slot));
+    }
+    fn program_accounts(&self, program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
+        if self.stale() {
+            return Ok(self
+                .snapshot
+                .borrow()
+                .iter()
+                .filter(|(_, account)| account.owner == *program)
+                .map(|(key, account)| (*key, account.clone()))
+                .collect());
+        }
+        self.inner.program_accounts(program)
+    }
+    fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
+        self.inner.signature_slot(signature)
+    }
+    fn signatures_for_address(&self, key: &Pubkey) -> Result<Vec<AddressSignature>, String> {
+        self.inner.signatures_for_address(key)
     }
 }
 
@@ -435,55 +605,70 @@ fn keypair_of_sponsor(cluster: &WorldCluster<'_>) -> Pubkey {
 }
 
 #[test]
-fn flow_on_devnet_needs_the_approval_hash_and_never_the_local_oracle() {
+fn flow_on_devnet_needs_the_packet_pin_records_it_and_never_the_local_oracle() {
     let (mut world, _keys, dir) = fixture();
     let cluster = WorldCluster::new(&mut world);
     init(&cluster, &dir);
     cluster.warp_to(START_TIME as u64 + m14_plan::T0);
-    let packet = dir.file("packet.md");
-    fs::write(&packet, "the approved M14 packet").unwrap();
-    let approval = devnet::sha256_hex(b"the approved M14 packet");
-    let run = |extra: &[&str]| {
-        let mut args = flow(
-            &["flow", "next", "--step", "fund_operations", "--execute", "--cluster", "devnet", "--packet", &packet],
-            &dir,
-        );
+    let repo = PacketRepo::new("the reviewed M14 packet");
+    let run = |extra: &[String]| {
+        let mut args = flow(&["flow", "next", "--step", "fund_operations", "--execute", "--cluster", "devnet"], &dir);
         let position = args.iter().position(|a| a == "--rpc").unwrap();
         args[position + 1] = DEVNET_URL.into();
-        args.extend(extra.iter().map(|part| part.to_string()));
-        ops::run_with_cluster(&args, &cluster)
+        args.extend(extra.iter().cloned());
+        ops::run_with_cluster_in(&args, &cluster, &repo.root())
     };
+    let strings = |parts: &[&str]| -> Vec<String> { parts.iter().map(|part| part.to_string()).collect() };
+    let pin = repo.pin_flags();
 
-    // No hash, wrong hash: refused before any RPC call.
-    assert!(refused(run(&[])).contains("--i-have-approval"));
-    assert!(refused(run(&["--i-have-approval", &"cd".repeat(32)])).contains("not the SHA-256"));
+    // No pin, half a pin, the removed alias, a --packet override: refused before any RPC call.
+    assert!(refused(run(&[])).contains("--packet-sha256"));
+    assert!(refused(run(&pin[..2])).contains("--packet-commit"));
+    assert!(matches!(run(&strings(&["--i-have-approval", &repo.sha])), Err(OpsError::Usage(_))));
+    let mut overridden = pin.clone();
+    overridden.extend(strings(&["--packet", "elsewhere.md"]));
+    assert!(refused(run(&overridden)).contains("--packet is refused"));
     assert_eq!(cluster.genesis_reads.get(), 0);
 
-    // The right hash but a cluster that is not devnet (mainnet, or the LiteSVM genesis): refused.
+    // The pin but a cluster that is not devnet (mainnet, or the LiteSVM genesis): refused.
     cluster.set_genesis(ops::MAINNET_GENESIS_HASH);
-    assert!(refused(run(&["--i-have-approval", &approval])).contains("genesis"));
+    assert!(refused(run(&pin)).contains("genesis"));
     cluster.set_genesis(LITESVM_GENESIS);
-    assert!(refused(run(&["--i-have-approval", &approval])).contains("genesis"));
+    assert!(refused(run(&pin)).contains("genesis"));
     assert_eq!(cluster.sends.get(), 0);
 
-    // Devnet genesis and the right hash: the gate opens, but the local oracle never does.
+    // Devnet genesis and the pin: the gate opens, but the local oracle never does.
     cluster.set_genesis(ops::DEVNET_GENESIS_HASH);
-    let message = refused(run(&["--i-have-approval", &approval, "--local-oracle"]));
+    let mut with_oracle = pin.clone();
+    with_oracle.push("--local-oracle".into());
+    let message = refused(run(&with_oracle));
     assert!(message.contains("--local-oracle is for a loopback validator only"), "{message}");
     assert_eq!(cluster.sends.get(), 0);
     // --genesis-unix is a loopback override only.
-    let message = refused(run(&["--i-have-approval", &approval, "--genesis-unix", "1"]));
-    assert!(message.contains("loopback"), "{message}");
+    let mut with_genesis = pin.clone();
+    with_genesis.extend(strings(&["--genesis-unix", "1"]));
+    assert!(refused(run(&with_genesis)).contains("loopback"));
 
-    let done = ok(run(&["--i-have-approval", &approval]));
+    let done = ok(run(&pin));
     assert_eq!(done["mode"], "execute");
     assert_eq!(done["cluster"]["target"], "devnet");
     assert_eq!(done["all_ok"], true, "{done}");
     assert_eq!(cluster.sends.get(), 1);
+    // Every executed receipt records the pin: the returned one and the appended line.
+    for receipt in [
+        done.clone(),
+        serde_json::from_str::<Value>(fs::read_to_string(dir.file("flow-receipts.jsonl")).unwrap().lines().next().unwrap()).unwrap(),
+    ] {
+        assert_eq!(receipt["packet"]["packet_path"], ops::DEFAULT_PACKET_FILE);
+        assert_eq!(receipt["packet"]["packet_commit"].as_str(), Some(repo.commit.as_str()));
+        assert_eq!(receipt["packet"]["packet_sha256"].as_str(), Some(repo.sha.as_str()));
+    }
+    // The write-ahead record of the flow sits next to the receipts.
+    assert_eq!(fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().count(), 2);
 
-    // An edit of the packet after approval closes the gate again.
-    fs::write(&packet, "the approved M14 packet, edited").unwrap();
-    assert!(refused(run(&["--i-have-approval", &approval])).contains("changed after approval"));
+    // An edit of the working packet after the pin was taken closes the gate again.
+    fs::write(repo.root().join(ops::DEFAULT_PACKET_FILE), "the reviewed M14 packet, edited").unwrap();
+    assert!(refused(run(&pin)).contains("differs from the blob"));
 }
 
 #[test]
@@ -497,6 +682,184 @@ fn flow_genesis_override_exists_on_loopback_only_and_moves_the_clock_gate() {
     let status = ok(ops::run_with_cluster(&args, &cluster));
     assert_eq!(status["genesis"]["genesis_unix"].as_u64(), Some(genesis));
     assert_eq!(status["next"]["ready"], true);
+}
+
+// ---------------------------------------------------------------------------
+// Double-send safety (F2, F3) and receipt semantics (F4)
+// ---------------------------------------------------------------------------
+
+#[test]
+fn a_stale_read_after_a_confirmed_send_never_causes_a_second_send_and_a_failed_check_blocks_the_next_step() {
+    let (mut world, _keys, dir) = fixture();
+    let inner = WorldCluster::new(&mut world);
+    init(&inner, &dir);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0);
+    let hooked = Hooked::new(&inner);
+    hooked.stale_budget.set(1_000); // every read after the send answers from the pre-send state
+    let args = |parts: &[&str]| flow(parts, &dir);
+
+    // FundOperations is not idempotent. A tool that looped on a stale `done_by_state` would fund twice.
+    let receipt = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", "fund_operations", "--execute"]), &hooked));
+    assert_eq!(inner.sends.get(), 1, "ONE confirmed send completes a one-transaction step");
+    assert_eq!(receipt["transactions"].as_array().unwrap().len(), 1);
+    // The post-step read-back was stale, so its checks fail: the receipt says so instead of "done".
+    assert_eq!(receipt["result"], "done_with_failed_checks", "{receipt}");
+    assert_eq!(receipt["all_ok"], false);
+    assert!(hooked.noted_slot.get() > 0, "the confirmed slot is handed to the cluster for minContextSlot reads");
+    let funded = inner.with_world(|w| w.ops().total_contributed);
+    assert_eq!(funded, u128::from(m14_plan::OPS_FUNDING), "the operations account was funded exactly once");
+
+    // With fresh reads again: the failed-check receipt BLOCKS the plan until it has been examined.
+    hooked.stale_reads.set(0);
+    hooked.stale_budget.set(0);
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &hooked));
+    assert_eq!(status["failed_check_receipts"][0], "fund_operations");
+    assert_eq!(status["all_ok"], false);
+    let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "provision_registry_0", "--execute"]), &hooked));
+    assert!(message.contains("FAILED CHECKS") && message.contains("--accept-failed-checks fund_operations"), "{message}");
+    assert!(matches!(
+        ops::run_with_cluster(&args(&["flow", "status", "--accept-failed-checks", "no_such_step"]), &hooked),
+        Err(OpsError::Usage(_))
+    ));
+    assert_eq!(inner.sends.get(), 1);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0 + 30); // step 2 is due
+    let accepted = ok(ops::run_with_cluster(
+        &args(&["flow", "next", "--step", "provision_registry_0", "--execute", "--accept-failed-checks", "fund_operations"]),
+        &hooked,
+    ));
+    assert_eq!(accepted["result"], "done", "{accepted}");
+    assert_eq!(inner.sends.get(), 2);
+}
+
+#[test]
+fn an_ambiguous_send_that_lands_anyway_is_resolved_not_rebuilt() {
+    let (mut world, _keys, dir) = fixture();
+    let inner = WorldCluster::new(&mut world);
+    init(&inner, &dir);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0);
+    let hooked = Hooked::new(&inner);
+    hooked.ambiguous_sends.set(1);
+    hooked.land_ambiguous.set(true);
+    let receipt = ok(ops::run_with_cluster(
+        &flow(&["flow", "next", "--step", "fund_operations", "--execute", "--pending-wait-seconds", "0"], &dir),
+        &hooked,
+    ));
+    // The send reported a timeout, the transaction had landed: the signature was polled to confirmed.
+    assert_eq!(receipt["result"], "done", "{receipt}");
+    assert_eq!(inner.sends.get(), 1, "the ambiguous send is never repeated");
+    assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+    let lines: Vec<Value> = fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().map(|l| serde_json::from_str(l).unwrap()).collect();
+    assert_eq!(lines.len(), 2);
+    assert_eq!(lines[0]["event"], "write_ahead");
+    assert!(lines[0]["blockhash"].is_string() && lines[0]["signature"].is_string());
+    assert_eq!(lines[1]["outcome"], "confirmed_after_ambiguous_send");
+}
+
+#[test]
+fn an_unresolved_write_ahead_record_blocks_every_rebuild_until_the_blockhash_expires() {
+    let (mut world, _keys, dir) = fixture();
+    let inner = WorldCluster::new(&mut world);
+    init(&inner, &dir);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0);
+    let hooked = Hooked::new(&inner);
+    // The send times out, never lands, and its blockhash is still valid: the outcome cannot be known.
+    hooked.ambiguous_sends.set(1);
+    hooked.land_ambiguous.set(false);
+    hooked.blockhash_still_valid.set(true);
+    let args = flow(&["flow", "next", "--step", "fund_operations", "--execute", "--pending-wait-seconds", "0"], &dir);
+    let message = match ops::run_with_cluster(&args, &hooked) {
+        Err(OpsError::Failed(message)) => message,
+        other => panic!("expected a failure, got {other:?}"),
+    };
+    assert!(message.contains("UNKNOWN") && message.contains("do NOT rebuild"), "{message}");
+    assert_eq!(inner.sends.get(), 0);
+    let written = fs::read_to_string(dir.file("pending.jsonl")).unwrap();
+    assert_eq!(written.lines().count(), 1, "the write-ahead record is there and unresolved");
+
+    // A rerun resolves the record FIRST; while it may still land nothing is rebuilt.
+    let message = refused(ops::run_with_cluster(&args, &hooked));
+    assert!(message.contains("MAY STILL LAND"), "{message}");
+    assert_eq!(inner.sends.get(), 0);
+    // Any other command that would send is blocked the same way.
+    let other = flow(&["flow", "next", "--step", "provision_registry_0", "--execute", "--pending-wait-seconds", "0"], &dir);
+    assert!(refused(ops::run_with_cluster(&other, &hooked)).contains("MAY STILL LAND"));
+
+    // Once the blockhash has expired without the signature appearing, the record is closed and the
+    // step is rebuilt and sent exactly once.
+    hooked.blockhash_still_valid.set(false);
+    let receipt = ok(ops::run_with_cluster(&args, &hooked));
+    assert_eq!(receipt["result"], "done", "{receipt}");
+    assert_eq!(receipt["pending_resolved"][0]["outcome"], "expired_never_landed");
+    assert_eq!(inner.sends.get(), 1);
+    assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+}
+
+#[test]
+fn receipts_of_another_cluster_are_refused_and_receipts_only_count_for_traceless_steps() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    cluster.warp_to(START_TIME as u64 + m14_plan::T0);
+    let args = |parts: &[&str]| flow(parts, &dir);
+    ok(ops::run_with_cluster(&args(&["flow", "next", "--step", "fund_operations", "--execute"]), &cluster));
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["foreign_receipts"], 0);
+    let stamp = status["stamp"].clone();
+    assert_eq!(stamp["genesis_hash"], LITESVM_GENESIS);
+    assert_eq!(stamp["program_id"].as_str(), Some(ID.to_string().as_str()));
+    let receipts_file = dir.file("flow-receipts.jsonl");
+    let appended: Value = serde_json::from_str(fs::read_to_string(&receipts_file).unwrap().lines().next().unwrap()).unwrap();
+    assert_eq!(appended["stamp"], stamp, "every receipt is stamped with the cluster it ran against");
+
+    // A receipt of THIS cluster claims a step the chain has not done: it counts for nothing.
+    let claim = serde_json::json!({ "schema": 1, "step": "provision_registry_0", "result": "done", "stamp": stamp });
+    fs::OpenOptions::new().append(true).open(&receipts_file).and_then(|mut f| { use std::io::Write; writeln!(f, "{claim}") }).unwrap();
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["next"]["id"], "provision_registry_0", "a receipt line does not make a stateful step done");
+    assert_eq!(status["completed"], 1);
+
+    // A receipt stamped for another cluster (a different genesis, or another activation) is counted as
+    // foreign: status reports it, `flow next` refuses to proceed with such a log.
+    let mut other_genesis = stamp.clone();
+    other_genesis["genesis_hash"] = Value::String(ops::DEVNET_GENESIS_HASH.into());
+    let mut other_activation = stamp.clone();
+    other_activation["configversion1_activated_at"] = serde_json::json!(1);
+    for foreign in [other_genesis, other_activation] {
+        let line = serde_json::json!({ "schema": 1, "step": "provision_registry_0", "result": "done", "stamp": foreign });
+        fs::OpenOptions::new().append(true).open(&receipts_file).and_then(|mut f| { use std::io::Write; writeln!(f, "{line}") }).unwrap();
+    }
+    fs::OpenOptions::new().append(true).open(&receipts_file).and_then(|mut f| { use std::io::Write; writeln!(f, "{{\"step\":\"x\",\"result\":\"done\"}}") }).unwrap();
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["foreign_receipts"], 3, "two foreign stamps and one unstamped receipt");
+    assert_eq!(status["next"]["id"], "provision_registry_0");
+    let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "provision_registry_0", "--execute"]), &cluster));
+    assert!(message.contains("ANOTHER cluster") && message.contains("fresh --receipts file"), "{message}");
+    assert_eq!(cluster.sends.get(), 1);
+    // A fresh receipts file runs (step 2 is due 30 s after step 1).
+    cluster.warp_to(START_TIME as u64 + m14_plan::T0 + 30);
+    let fresh = dir.file("fresh-receipts.jsonl");
+    let done = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", "provision_registry_0", "--execute", "--receipts", &fresh]), &cluster));
+    assert_eq!(done["result"], "done", "{done}");
+}
+
+#[test]
+fn the_receipts_file_is_never_a_keypair_a_json_file_or_the_default_wallet() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    cluster.warp_to(START_TIME as u64 + m14_plan::T0);
+    let status = |receipts: &str| ops::run_with_cluster(&flow(&["flow", "status", "--receipts", receipts], &dir), &cluster);
+    assert!(refused(status(&dir.file("A1.json"))).contains(".jsonl"), "A1.json is a keypair file");
+    assert!(refused(status(&dir.file("wallets.json"))).contains(".jsonl"));
+    let shaped = dir.file("shaped.jsonl");
+    fs::copy(dir.file("A1.json"), &shaped).unwrap();
+    assert!(refused(status(&shaped)).contains("keypair-shaped"));
+    let home = std::env::var("HOME").unwrap_or_else(|_| "/home/nobody".into());
+    assert!(refused(status(&format!("{home}/.config/solana/id.json"))).contains("default wallet"));
+    assert!(status(&dir.file("receipts-ok.jsonl")).is_ok());
+    // The same guard protects the write-ahead file.
+    let attempt = ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--pending-file", &dir.file("A1.json")], &dir), &cluster);
+    assert!(refused(attempt).contains(".jsonl"));
 }
 
 // ---------------------------------------------------------------------------
