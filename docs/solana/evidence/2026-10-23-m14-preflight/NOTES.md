@@ -1,0 +1,5 @@
+# M14 preflight evidence notes
+
+**Correction to commit 6fd55df's message.** That message says "fmt clean". This is accurate only for the four new files: `src/devnet.rs`, `src/squads_real.rs`, `tests/orao_devnet_compat.rs` and `tests/squads_devnet_compat.rs`, which `cargo fmt --check` leaves unchanged. The harness crate as a whole has never been rustfmt-clean: at the parent commit, `cargo fmt --check` already reports differences in 19 files, and CI does not format-check this crate. Commit 6fd55df added 3 unformatted hunks to `src/runtime.rs`, which already had 18, and none elsewhere. Reformatting the crate wholesale is deliberately not done here, because it would be unrelated churn. `cargo check`, `cargo clippy -- -D warnings` and every test result recorded in `test-summary.txt` stand as reported.
+
+**Scope.** These are local LiteSVM runs using the exact devnet ORAO and Squads v4 binaries, fetched read-only. They are optional preflight hardening; the required acceptance is the real devnet A4, A5 and A7. No public transaction was made.
