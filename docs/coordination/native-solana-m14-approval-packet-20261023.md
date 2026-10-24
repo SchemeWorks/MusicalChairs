@@ -14,14 +14,28 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 
 ## 0. Revision 5: status and the one recommended path (2026-10-24)
 
+**Revision 6 (2026-10-24): open blocker. NOT ready for a public execution request.**
+
+Codex's source review of `81841a4` found that one F3 unknown-outcome path was still open. After a blockhash expired, a missing recent-cache status or a status-lookup error was recorded as "never landed" and a rebuild was allowed. A funding transfer that had already landed could therefore be sent twice. The record is `docs/coordination/m14-codex-f3-unknown-outcome-adjudication-20261024.md`, and the fix card is M14-F3-HOLD.
+
+The required fix is narrow:
+- signature lookups search transaction history;
+- a missing status or an error is never proof of absence;
+- an expired-but-unresolved record stays held as UNKNOWN and blocks every execute;
+- only a later positive history result (confirmed or failed) clears it, and a confirmed result restores the once-only guard.
+
+The tool has no command to clear an unknown record. If a held record never resolves, it is an incident outside the ordinary Block A authority: any retry needs Rob's separate, exact approval of the signature, effect and retry, plus a review.
+
+The readiness evidence below is historical local evidence. It stands only for what it tested and is superseded for readiness until M14-F3-HOLD lands. This revision also clarifies that the 25 SOL total is a coordinator-kept process budget, not something the tool tracks.
+
 Revision 5 changes only the tool-readiness evidence in this section. Since revision 4, the operator tool passed an independent review, its fixes, a bounded re-check, and fixes for the re-check's findings. The recommendation and the decision below are unchanged.
 
-**Recommendation: one bounded, Solana-devnet-first path.** Approve **Block A only**: devnet, test keys, public-faucet SOL, at most 25 devnet SOL, using the mechanical defaults D1–D13. Run it as the committed Seq-B plan. Hold every ICP deployment and upgrade (B1–B4), every activation (C1, C2) and any real PP minting (C3) until they are approved separately.
+**Recommendation: one bounded, Solana-devnet-first path.** Approve **Block A only**: devnet, test keys, public-faucet SOL, at most 25 devnet SOL in total, using the mechanical defaults D1–D13. The 25 SOL total is a **process budget** that the coordinator keeps in a written ledger of faucet requests and spends; the tool does not add up a running total. The software enforces only per-command ceilings: the deploy's `--max-spend-lamports` is at most 15 SOL on devnet, and the `fund-vault` total is at most 0.05 SOL. Run it as the committed Seq-B plan. Hold every ICP deployment and upgrade (B1–B4), every activation (C1, C2) and any real PP minting (C3) until they are approved separately.
 
 **The smallest genuinely required authority decision:**
 1. **Approve Block A on devnet.** In order:
    - Fresh devnet keys, generated and held by the coordinator for test use only.
-   - Public-faucet devnet SOL, within the 25 SOL cap.
+   - Public-faucet devnet SOL, within the 25 SOL process budget (coordinator-kept, not tool-tracked).
    - Deploy the pinned ELF with the operator tool, then move the upgrade authority to the G vault.
    - Real Squads G (2-of-3, 172,800 s) and P (2-of-3, 0 s).
    - `initialize` and ORAO `register` through G.
@@ -66,7 +80,7 @@ For B3, the separate legacy memo card's conditions apply. **F-1:** after any She
 
 | id | yes / no | exactly what (and what it is not) | hard ceiling | depends on |
 | --- | --- | --- | --- | --- |
-| **A** | ____ | ONE Solana-devnet block A1-A9: fresh devnet keys and public-faucet SOL; deploy the hash-pinned ELF `8f97e83d...` (or the re-pinned ELF if the 5a fallback is taken); upgrade authority to G; two real Squads v4 multisigs (G 2-of-3 / 172,800 s, P 2-of-3 / 0 s); initialize and ORAO-register via G; test wallets; the plan flow list, deployed-byte proof, conservation reconciles. No ICP, no mainnet, no real funds | 25 devnet SOL total (deployer 15; any other transfer 2) | A0 items; MI-1, MI-2 |
+| **A** | ____ | ONE Solana-devnet block A1-A9: fresh devnet keys and public-faucet SOL; deploy the hash-pinned ELF `8f97e83d...` (or the re-pinned ELF if the 5a fallback is taken); upgrade authority to G; two real Squads v4 multisigs (G 2-of-3 / 172,800 s, P 2-of-3 / 0 s); initialize and ORAO-register via G; test wallets; the plan flow list, deployed-byte proof, conservation reconciles. No ICP, no mainnet, no real funds | 25 devnet SOL total as a coordinator-kept process budget (not tracked by the tool). Tool-enforced per command: deploy at most 15, `fund-vault` total at most 0.05. Any other transfer at most 2, fixed as plan constants | A0 items; MI-1, MI-2 |
 | B1 | ____ | Create and install `native_sol_bridge` on the IC (new canister), devnet config, no relayer | **2 T cycles** total incl. creation | A6 green; MI-3 |
 | B2 | ____ | Create and install `native_sol_keeper` (new canister), devnet config, **unarmed** | **3 T cycles** total incl. creation | A6 green; MI-3 |
 | B3 | ____ | Upgrade the LIVE Shenanigans `j56tm-...` to the native branch (R6 behind an empty allowlist): stop / snapshot / upgrade / start / state diff. Highest risk | at most 0.1 T consumed; 1 T headroom over the freezing threshold | A green; B1; MI-3, MI-4 |
@@ -198,7 +212,7 @@ Devnet rent today is **5,080 lamports x (bytes + 128)**, from 20 `getMinimumBala
 | Watchdog fee address (B2, C2) | floor 10,000,000 + 6 x 5,000 = 10,030,000 lamports (4f) | 0.02 SOL |
 | Test wallets | deposits at most **6.0 SOL** gross in total; Series A at most 0.5 SOL; 8 wallets x 0.05 SOL for rent and fees (User 1,076,960 + UserRound 1,102,360 + Position 1,457,960 each, so about 5.1M per wallet with two positions) | 7.0 SOL |
 | **Sum of buckets** | 15.0 + 0.5 + 1.0 + 0.02 + 0.1 + 0.02 + 7.0 | 23.64 SOL |
-| **Total hard cap** | the 1.36 SOL slack covers retries only; it never lifts a per-action cap | **25 SOL** |
+| **Total budget (process, not software)** | the 1.36 SOL slack covers retries only; it never lifts a per-action cap. `devnet_ops` does not accumulate a total; the coordinator's faucet/spend ledger enforces this line, and the per-command ceilings above are what the software enforces | **25 SOL** |
 
 Close arithmetic behind the 0.5 SOL operations figure ([M] formula, devnet rents): required close reserve at 8 or fewer participants and no Backers = 2 x R(331) 4,663,440 + registry extension R(321) 2,280,920 + winner B R(147) 1,397,000 + pending ORAO request R(759) 4,505,960 + fee cap 375,000 = **13,222,320**; at 16 participants 17,885,760. Retained per close: CloseRecord R(657) 3,987,800 + fulfilled request 1,397,000 + fee 300,000 + a B account 1,397,000 = 7,081,800. Two closes lock about 0.027 SOL (most of it refundable) and retain about 0.014 SOL, so 0.5 SOL is roughly ten times the need.
 

@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Claude coordinator / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Document: approval packet revision 5 is committed on the draft PR branch. It recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL, hard spend cap). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. Open decision for Rob: approve Block A, and say who (if anyone) holds the key for the planned program id; otherwise a fresh devnet program id is used. Approval: none given yet. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current readiness: NOT ready for any public execution request. Codex found an open unknown-outcome path in the operator tool (card M14-F3-HOLD), and it blocks devnet execution until fixed. The approval packet is committed on the draft PR branch and recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL; the total is a budget the coordinator keeps, while the tool enforces only per-command ceilings). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. The open decision for Rob is to approve Block A and to say who, if anyone, holds the key for the planned program id; otherwise a fresh devnet program id is used. No approval has been given; the packet's identity pin is not approval. Nothing has been executed on any public cluster.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -44,7 +44,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests",
       "scope": "Operator tool for the devnet deploy and governance steps (local preparation only).",
-      "evidenceText": "Local tests: 30/30 tool tests after two review-and-fix rounds. Real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries passes: deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run. Dry-run by default. Refuses mainnet by name and by genesis. On devnet it requires the committed packet's identity pin, which proves which packet text was used and is not approval. Not run on devnet.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding: 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -96,7 +96,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests",
       "scope": "Fix review findings F1 to F9.",
-      "evidenceText": "Source and local tests: all nine fixed. The fixes are: a packet identity pin bound to a committed file; fresh-state reads after sends; a write-ahead record before every send; cluster-scoped receipts; spend ceilings refused rather than clamped; and file-argument guards. Local suites and the real-node lifecycle pass.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding: the F1 to F9 fixes landed with passing local suites, but Codex later found that the F3 unknown-outcome path was not fully closed. The fixes landed were: a packet identity pin bound to a committed file, fresh-state reads after sends, a write-ahead record before every send, cluster-scoped receipts, spend ceilings refused rather than clamped, and file-argument guards.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -122,7 +122,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests and added one fix",
       "scope": "Fix the re-check's residual findings N1 to N4.",
-      "evidenceText": "Source and local tests: N1 to N4 fixed. Reads now run at confirmed commitment, with a fail-closed check. Funding transfers are enforced as once-only from the write-ahead file. The write-ahead and receipt files are durable and fail closed. The packet pin is recorded in write-ahead records. Tool tests 30/30, runner tests 12/12, full plan passes. The real-node lifecycle runs in 24 s, down from 120 s, which confirms the Medium fix. Verified by the coordinator, not independently re-reviewed a third time.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding. N1 to N4 were fixed: reads at confirmed commitment with a fail-closed check, durable and fail-closed write-ahead and receipt files, and the packet pin recorded in write-ahead records. The once-only funding guard it added counts only confirmed records. Codex found that a missing or failed lookup after blockhash expiry could still bypass it. Tool tests 30/30 and runner tests 12/12 passed; the full plan passed; the real-node lifecycle ran in 24 s, down from 120 s. Coordinator-verified.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -135,7 +135,7 @@
       "state": "In progress",
       "owner": "Sonnet worker; coordinator runs the tests",
       "scope": "Narrow fix: never treat a missing or failed signature lookup after blockhash expiry as proof that a transaction never landed.",
-      "evidenceText": "Codex source review (accepted by the coordinator after reading the source): after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, which could let a funding transfer that had landed be sent twice. Fix in progress: history-searching lookups; such records stay held as unknown and block execution; a later confirmed lookup restores the once-only guard; the only release is an audited operator decision. This blocks any public execution request until done. No approval implied.",
+      "evidenceText": "Codex source review, accepted by the coordinator after reading the source: after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed. That could let a funding transfer that had landed be sent twice. The fix, in progress, makes three changes. Lookups search transaction history. Such records stay held as unknown and block execution. Only a later positive history result (confirmed or failed) clears them, and a confirmed result restores the once-only guard. The tool has no command to clear an unknown record. Any retry of an unresolved one needs Rob's separate, exact approval and a review. This blocks any public execution request until done. No approval implied.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
