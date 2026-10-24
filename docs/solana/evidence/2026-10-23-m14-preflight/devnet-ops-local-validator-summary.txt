@@ -1,0 +1,35 @@
+test local_validator_deploy_authority_squads_and_proposal_lifecycle ... [devnet_ops] squads multisig_create_v2 G (2-of-3, time lock 172800 s) -> 2CYB7GR4MsKTuWVFWWsAg4rkCcvNN3CVHZvX6sA7YykQ3U6opySrhLJB6ZkzuckLfv5tnTeaf6vnDCoNFseNMrzn
+[devnet_ops] squads multisig_create_v2 P (2-of-3, time lock 0 s) -> 8y34Sj81xAem5zud9HQEvsVwwsP3DuiMSWpDE94zrQoBeVze2RSCRiHAgH3d8yX4LXftFyENZSCUtVHWUwBE63y
+[devnet_ops] loader-v3 create buffer (system create_account + InitializeBuffer) -> 5bcVvthcv7kKG2zw3b7begxwhBY8LDsh1F5RMLCZp2xypiJxjCbXkVHvf4oy7hbM4BozgKt93vBkazGBXuZYcMNE
+[devnet_ops] loader-v3 write 1009 bytes at offset 0 -> 3YidTgDkm57byFfCnxnypxizemQn46bGJXo5s8doTJsrcB61xDM3RfaZCd1gqARXQxj9VHazP5eB6rhBw4Znt2VB
+[devnet_ops] loader-v3 write 1009 bytes at offset 1009 -> 45DE6Emism97CtRTbc5iiZKhvCLZ5PXkYB6uMfWKNL2fRF1q1Z5AZbUPVEbLiPpxLrcyg51MGQDCgbtWuszqRDC2
+[devnet_ops] loader-v3 write 1009 bytes at offset 2018 -> 4HnHKFMoVxQk7SR6YvfUXLw4EAsJgEXiQUig5AJyyeWE5hJee2XzQsJqWTHwNqrooZHgMgkrb8geDsYipLB49YyF
+[devnet_ops] loader-v3 write 1009 bytes at offset 3027 -> 4GXpF2AT6uNQWmFYtMdfziTauTTrrrLraoLMCpBDgrmxYKGkQE3vrx5viP1krDcpQtZHX6edGrVWt9nQi4vZ3CyQ
+[devnet_ops] loader-v3 write 1009 bytes at offset 4036 -> 4m47vcxA3LCExWWA7MRhjRyHgtzyjSHAQGwDH6vUiud3oo94Ty1iWcTFSF29nAqvUg6T8BEVg8Jgqa9gLafWEnnb
+[devnet_ops] loader-v3 write 1009 bytes at offset 5045 -> i6M24RAKW1ZSZ2FxYciisA5jyf5nZMjzFfjs8kM61e6ZF13qNCPcMTz2EnvsrErmW6UqqSLSRgnuRfUB9AN3uR7
+[devnet_ops] loader-v3 write 1009 bytes at offset 6054 -> 2ND3nqaP2khu8yZtTvwXEqJwrNi3roDR1Gb6esv8ZdWXuENSeUsHoNBvbvP2aGsGCDWbLFhq3HENFc3qMZoDAc1r
+[devnet_ops] loader-v3 write 1009 bytes at offset 7063 -> 637QLEZnhdBxWTqToDVjQ1A58HGBJGx6C2CGZp6evWmPrHsbXyRT2oBB5RxpLk4XPDYuHvvYmogqMDTPu4qrbeCp
+[devnet_ops] loader-v3 write 1009 bytes at offset 8072 -> 989C2bVikFpDu6qiEWVU1JZ74oxQNR6hiGtfMncBhqNfH9KY6ujqDUneGYiPjUKsALbdBtYVRVGxAeXu1BxnafJ
+[devnet_ops] loader-v3 write 1009 bytes at offset 9081 -> f8CSPND1du6jKGbWwjbUfnCSJCef6z4sV9BQN3Xe1pzHFn4DszHFopvePA5RGXeYCbUh45MNdb3PDJmX6WqEhuu
+[devnet_ops] loader-v3 write 1009 bytes at offset 10090 -> caAfwDLt3HWzJke3ivSHL7GWEkvxo7YbMpuTbifYoTWKTnt8PYe3yL4aDLcwtywiUPvWZQiHAcEtygiXSRqVbjN
+[devnet_ops] loader-v3 write 1009 bytes at offset 11099 -> 3ZJ8yQLhiRfMxwregbMVneC82GfLGJ5tVi1rGLTSXUe1LjFuvvvtCQJE7BwVfSM8HTa3kYJdpTk4offdpoxDZFqK
+[devnet_ops] loader-v3 write 1009 bytes at offset 12108 -> 2XSYyuMTT3qe5YznW5Nr53oK1kh564G3PkM6vuJqrhFdvMzYHHKzDVqXbFNjXaiPJGMTyEjhMTfRQb2PkndZDWSd
+[devnet_ops] loader-v3 write 1009 bytes at offset 13117 -> 5uQsTXUZwMGnckdU8sP9YrT19oH9xoxb2ZLUWfjrMQw5QF1NkgYqFrpHjC4MmEhGijnSuDrQwLaVbRcKp6b3Qvg6
+[devnet_ops] loader-v3 write 1009 bytes at offset 14126 -> 29wWE6EvXJ6qGfbko69fjoQ3fp53gVfMRKDr7kheVfRv5QDexBYN59asCftZ1BH6v4bsVKVpJtDt6tPfYarsW9uR
+[devnet_ops] loader-v3 write 1009 bytes at offset 15135 -> 4NBdQUQQmqpA12iKQFjzPC2yn2XngT8Sddpp74jQbopa7Qk2LAkosg8RUWJZa71bman1iBf4qxz2nVtY64jDKxAp
+[devnet_ops] loader-v3 write 1009 bytes at offset 16144 -> 34LVzfVLPKnqmAuCHfP3deuVwsLJ1DVpPrK7Pd3J62T19yB1xquZy5Ct6cwsiboogd9fWPUmNZbLG3MfqugBbCrP
+[devnet_ops] loader-v3 write 1009 bytes at offset 17153 -> 28dgMRKA6GKxkJ9U2PL2bowknbhEopWBSRDNDGGWb7fpGLijFqvM1Tyxr8B7K4srMBZK4pF4dFFSNSFBafTVafRX
+[devnet_ops] loader-v3 write 1009 bytes at offset 18162 -> 3e9snEeEkicErkhXEV3NNcro6wRJxQQtJ1qvcppsLJ5CKGw1SHJPoCeb6ZFY9y9y83jgn26gdjXCCAhLMzNX1tMU
+[devnet_ops] loader-v3 write 1009 bytes at offset 19171 -> 2ghTrnSXi9z8F4XP3UcVX4N5HThSbPCmpaFNKQVQW1fU7nncfDtjLtTQQdAJ5fSMVoeRc3QAQcVCoRPPiPEctt3Y
+[devnet_ops] loader-v3 write 1009 bytes at offset 20180 -> uHkX3qzXf6U987ncFEhFHiAkLW1ToNuMk3RZwwun5LRgKm4JRGoskTTFoisu8roFEC18YG1F9bNUPCJoFSCrCTY
+[devnet_ops] loader-v3 write 1009 bytes at offset 21189 -> 5dnmRbGtXYwP5DovuMtzVNg3fbAGSx8dvj4ytHJS6mDpvYju2E1EzJM7MhKfMRgDFaDDDp5ahBvndSLUzvZBFz7K
+[devnet_ops] loader-v3 write 1009 bytes at offset 22198 -> 4QvEmWsgkoxzC9rgcodd5HQtTJLX8gJQ4vsZUtirdo26SVh9q5GWSTXtxRinPsDwQrCimmggb3qdL9YCr4n1XLQS
+[devnet_ops] loader-v3 write 1009 bytes at offset 23207 -> 5oSMM2ofy5qjYNUfar4GG81mKqWxygvzu81gNAyEn6JSyeqmV2EqCtxPSZ4ZekHMQtz25KwzcQphmj498FPg5tcX
+[devnet_ops] loader-v3 write 1009 bytes at offset 24216 -> 2KnV4SWdMRAcAQwfkhAzSWM3FKaCvKWxwELEkXPgmYTRdgutC8WuuzUv9Jt2Dy6qKL56Tmz2XyP6rNaomarU4upD
+[devnet_ops] loader-v3 write 1009 bytes at offset 25225 -> 3kazXXK1mBjxJJ3yFepHPJxzaySJaUn3UptVkPge8NtTSLf1VZYUXxnVBtA9EbP6grmDZpDav58KFbLX9oQuLfod
+[devnet_ops] loader-v3 write 1009 bytes at offset 26234 -> 2KsEzrr9Dz3exPe9bzYwCuiRfMvbWUYWEYumddb2Eh5fYuS89xUtjxoa6stFiiQTj2nS2mbJFVZUvtRsTUMQRF83
+[devnet_ops] loader-v3 write 1009 bytes at offset 27243 -> 5zBcF7ZrBvb3puLD1YmGDi3QhtQWG6bwvviRAUfvxVPEAWPRmsiNZYeakKt7WJN5fTkCTp8FMFENxdyh2hkNxALn
+[devnet_ops] loader-v3 write 772 bytes at offset 28252 -> 2byFZBXv92Zbe1HoYjimDBvnxB1gjRQmupfrdGrzbaxtZcpdA7AVHdewBsteiVpWRHVzvVRRseGHeLKMeY8n6EED
+[devnet_ops] loader-v3 DeployWithMaxDataLen (max_data_len 29024) -> d1esggpWjJJXo1BwVtMPaDySfv9rxmvkZrTNU8tn65fzC7KZUb5cwRd5hWpqMNA2vt6hBXF4MMQiSZhCmooAnYi
+[devnet_ops] loader-v3 SetAuthority: upgrade authority -> G vault (unchecked: a PDA cannot co-sign) -> 5Q6oRB5jik8WUT8Q45nktX8VY6Uv5ZjtPQVnUoUHYcBHhgtzhsmtRzbrE2D2dTAFHD6h3T5AZ2HMqRcgPaSu4uTz
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 19 filtered out; finished in 31.38s

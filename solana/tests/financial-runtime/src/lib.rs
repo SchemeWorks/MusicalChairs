@@ -50,6 +50,7 @@ pub mod allocation;
 pub mod close;
 pub mod controls;
 pub mod devnet;
+pub mod devnet_ops;
 pub mod financial;
 pub mod fuzz;
 pub mod measure;
