@@ -12,9 +12,38 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 
 **Revision 2 (M14-PKT-R, 2026-10-23)** applies Codex's four corrections. (1) Keeper durations are stated in nanoseconds, the C2 arming window is exact with hard caps (4f), and B1/B2/B4 carry single hard approval ceilings (4d). (2) RG-2 and RG-13 cite the accepted criterion (ELF hash equality, source-set equality, the accepted receipts) and call for a rebuild only on a concrete changed-source concern; the durable ELF copy is recorded. (3) RG-4/5/6 point at the owned local cards M14-PRE-ORAO and M14-PRE-SQUADS, separating optional preflight hardening from the required real devnet acceptance, and Block A is not gated on any ICP item. (4) Missing inputs are cut to four decisions plus defaults (9), the program-key wording is corrected with a fresh program-id envelope (5a), and the six-week calendar is validated from source with acceptance-preserving sequencing (6.4).
 
-## 0. Revision 5: status and the one recommended path (2026-10-24)
+## 0. Revision 7: status and the one recommended path (2026-10-24)
 
-**Revision 6 (2026-10-24): the F3 blocker was found and is now fixed locally. Codex's confirmation of the fix commit is requested; until it is given, this packet does not support a public execution request.**
+**Revision 7 (2026-10-24): status. Accepted locally; AWAITING Rob's explicit Block A authority.**
+
+Codex's bounded independent F3 closure review passed at frozen `877d7fa9d677848de1936e42ffb1bfe2bd053f63`. That pass covers the local source and test evidence only. What it covered:
+- **What Codex read.** The actual delta: the history-searching lookups, the held and non-closing journal parsing, the resume and in-process ambiguous-send paths, and the regression assertions (zero additional sends; a historical confirmation restores the repeat refusal; no release or clear command).
+- **What it verified.** The test summary's sha256 `edeb8b49…9dff28` matches the committed manifest.
+- **What it did not re-run.** No build, test or validator run was duplicated.
+- **Outcome.** No blocking finding remains in the scoped F3 delta.
+
+Codex also independently checked the graph. The graph hash equals the receipt, and the backup hash matches. Counts are 22,949 / 35,065 / 51, with zero prior nodes, raw directed links (verbatim, with multiplicities) or hyperedges missing, and zero duplicate ids. The receipt's freshness limits are retained (AST and semantics at 81841a4).
+
+This is local evidence only. **Approval for public operation, keys or funding is still ABSENT**, and the packet hash never grants it. Nothing runs on devnet until Rob says yes in chat. The earlier test counts in this section are historical local evidence, not public proof.
+
+### Block A recommendation (copy-ready; Solana devnet only)
+
+> **Approve Block A on Solana devnet only?** It covers exactly the following:
+> 1. **Keys.** Fresh devnet test keys, generated and held by the coordinator for this test only: never `~/.config/solana/id.json`, never a mainnet key.
+> 2. **Funds.** Public-faucet devnet SOL only, at most **25 SOL in total**. This is a process budget the coordinator keeps in a written ledger of every faucet request and spend. The tool enforces only its per-command ceilings: the deploy at most 15 SOL, and the `fund-vault` total at most 0.05 SOL.
+> 3. **Program id.** If nobody holds the key for program id `7tj9…`, use the section 5a fresh devnet program-id envelope. Change the program id, rebuild with the pinned toolchain, re-pin the source set, IDL and PDAs, and complete the normal local re-review, all BEFORE any public transaction.
+> 4. **Setup.** Deploy the pinned program (or the 5a re-pinned one) with `devnet_ops` and move its upgrade authority to the G vault. Create the real Squads multisigs G (2-of-3, 172,800 s time lock) and P (2-of-3, no time lock). Run `initialize` and the ORAO `register` through G.
+> 5. **Flow.** Run the committed Seq-B flow plan: 39 steps over about **41.463 days**, with the first draw request around day 11.45, plus the deployed-byte proof and the conservation reconciles.
+>
+> **Held: not part of this approval.**
+> - Every ICP deployment or upgrade (B1–B4), every activation (C1, C2) and any real PP minting (C3).
+> - Any retry of a held-unknown transaction.
+> - Anything on mainnet.
+> - Merging PR #125.
+
+The rest of section 0 below is the revision 4–6 record, kept as written.
+
+**Revision 6 (2026-10-24, historical): the F3 blocker was found and fixed locally in `877d7fa`. Codex accepted the closure locally in revision 7 above.**
 
 Codex's source review of `81841a4` found that one F3 unknown-outcome path was still open. After a blockhash expired, a missing recent-cache status or a status-lookup error was recorded as "never landed" and a rebuild was allowed. A funding transfer that had already landed could therefore be sent twice. The record is `docs/coordination/m14-codex-f3-unknown-outcome-adjudication-20261024.md`, and the fix card is M14-F3-HOLD.
 
@@ -36,7 +65,7 @@ Coordinator-run tests:
 - the full 39-step plan through the runner: PASS;
 - the real-node lifecycle with history-searching lookups: PASS, 34/34 records resolved, 0 held.
 
-This is coordinator-verified only; Codex's confirmation is requested. The earlier readiness evidence below is historical local evidence and stands only for what it tested. This revision also clarifies that the 25 SOL total is a coordinator-kept process budget, not something the tool tracks.
+This was coordinator-verified when written; Codex's bounded closure review later accepted it locally (revision 7). The earlier readiness evidence below is historical local evidence and stands only for what it tested. This revision also clarifies that the 25 SOL total is a coordinator-kept process budget, not something the tool tracks.
 
 Revision 5 changes only the tool-readiness evidence in this section. Since revision 4, the operator tool passed an independent review, its fixes, a bounded re-check, and fixes for the re-check's findings. The recommendation and the decision below are unchanged.
 
@@ -53,7 +82,7 @@ Revision 5 changes only the tool-readiness evidence in this section. Since revis
    - The deployed-byte proof and conservation reconciles.
 2. **Say whether anyone holds the key for program id `7tj9…`.** If nobody does, the fresh devnet program-id envelope (5a) is used. Its source/IDL/PDA re-pinning and the normal local re-review happen BEFORE any devnet transaction, and need no further approval.
 
-**Ready now (local evidence, no public action):**
+**Ready now (historical local evidence, no public action):**
 
 | item | status | evidence |
 | --- | --- | --- |
@@ -69,7 +98,7 @@ Revision 5 changes only the tool-readiness evidence in this section. Since revis
 - **Real ownership constraints.** The program's upgrade authority ends as the G vault. ORAO `Client.owner` is the G vault and `Client.state` is the RngAuthority PDA. `Admission.guardian_vault == Pool.guardian_vault == P vault`. All of these are read back by `devnet_ops readback`.
 - **Packet identity pin (NOT approval).** On devnet, `--execute` requires the sha256 of this packet as committed at a named commit, plus the devnet genesis hash; the tool never targets mainnet. That pin only proves WHICH packet text the operator ran against. It is not, and cannot be, evidence that Rob approved anything. **The authority is Rob's explicit approval in chat**, recorded by the coordinator before any devnet transaction. Per the independent tool review (F1), the flag is `--packet-sha256` together with `--packet-commit` (fixed in d2dffc9): it hashes the packet blob at that commit, refuses if the working file differs, and is recorded in every receipt and write-ahead record.
 
-**Calendar corrected by the simulation.** First draw request at day **11.45**: day 10.7 is not reachable once Series A and candidates exist, and 11.36 is the earliest with a deposit of at most 1 SOL. Total duration is **41.46 days**. Test wallets need about **2.12 SOL**, sponsor operations 0.5 SOL, and the deploy peak stays at about 14.2 SOL, all within the 25 SOL cap.
+**Calendar corrected by the simulation.** First draw request at day **11.45**: day 10.7 is not reachable once Series A and candidates exist, and 11.36 is the earliest with a deposit of at most 1 SOL. Total duration is **41.46 days**. Test wallets need about **2.12 SOL**, sponsor operations 0.5 SOL, and the deploy peak stays at about 14.2 SOL, all within the 25 SOL process budget.
 
 **Remaining local work (no approval needed; does not block approving Block A):**
 - **M14-RUN** (done locally): the `devnet_ops flow init|status|next` runner executes the committed plan step by step under the same interlocks. It enforces in-order steps, earliest-time and plan-wallet checks, balanced books before each step, size and simulation before send, and per-step JSON receipts with read-backs and conservation. On devnet it never fulfils the oracle itself; it waits for the real ORAO fulfilment and records latency (A7). The full 39-step plan passes through the runner in LiteSVM on the devnet ORAO binary, along with the refusal tests. The frozen tool and runner received an independent read-only review (M14-TOOL-REV) and, after the fixes, a bounded independent re-check (M14-TOOL-RECHECK). Its residual findings are fixed (M14-TOOL-FIX2). The tool now also:

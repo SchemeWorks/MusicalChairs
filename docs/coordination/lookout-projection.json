@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Claude coordinator / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current readiness: an open safety finding in the operator tool (card M14-F3-HOLD) is now fixed locally and verified by the coordinator. Codex's confirmation of the fix is requested, and until it is given the packet does not support a public execution request. The approval packet is committed on the draft PR branch and recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL; the total is a budget the coordinator keeps, while the tool enforces only per-command ceilings). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. The open decision for Rob is to approve Block A and to say who, if anyone, holds the key for the planned program id; otherwise a fresh devnet program id is used. No approval has been given; the packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current status: accepted locally, awaiting Rob's explicit Block A approval. Codex's bounded closure review accepted the operator-tool safety fix (local source and test evidence only), so no known blocker remains in the local preparation. Approval for any public operation, keys or funding is still absent, and the packet's identity pin never grants it. The packet carries one copy-ready recommendation: Block A on Solana devnet only, with fresh test keys and faucet-only devnet SOL within a coordinator-kept budget (written ledger; the tool enforces per-command ceilings). If the old program key is unavailable, a fresh devnet program id is re-pinned and re-reviewed locally before any public transaction. The committed flow plan then runs over about 41.5 days. Held separately: every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge. Nothing has been executed on any public cluster.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -44,7 +44,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests",
       "scope": "Operator tool for the devnet deploy and governance steps (local preparation only).",
-      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding: 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex: 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -96,7 +96,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests",
       "scope": "Fix review findings F1 to F9.",
-      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding: the F1 to F9 fixes landed with passing local suites, but Codex later found that the F3 unknown-outcome path was not fully closed. The fixes landed were: a packet identity pin bound to a committed file, fresh-state reads after sends, a write-ahead record before every send, cluster-scoped receipts, spend ceilings refused rather than clamped, and file-argument guards.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex: the F1 to F9 fixes landed with passing local suites, but Codex later found that the F3 unknown-outcome path was not fully closed. The fixes landed were: a packet identity pin bound to a committed file, fresh-state reads after sends, a write-ahead record before every send, cluster-scoped receipts, spend ceilings refused rather than clamped, and file-argument guards.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -122,7 +122,7 @@
       "state": "Done",
       "owner": "Sonnet worker; coordinator ran the tests and added one fix",
       "scope": "Fix the re-check's residual findings N1 to N4.",
-      "evidenceText": "Historical local evidence, superseded for readiness by the open M14-F3-HOLD finding. N1 to N4 were fixed: reads at confirmed commitment with a fail-closed check, durable and fail-closed write-ahead and receipt files, and the packet pin recorded in write-ahead records. The once-only funding guard it added counts only confirmed records. Codex found that a missing or failed lookup after blockhash expiry could still bypass it. Tool tests 30/30 and runner tests 12/12 passed; the full plan passed; the real-node lifecycle ran in 24 s, down from 120 s. Coordinator-verified.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex. N1 to N4 were fixed: reads at confirmed commitment with a fail-closed check, durable and fail-closed write-ahead and receipt files, and the packet pin recorded in write-ahead records. The once-only funding guard it added counts only confirmed records. Codex found that a missing or failed lookup after blockhash expiry could still bypass it. Tool tests 30/30 and runner tests 12/12 passed; the full plan passed; the real-node lifecycle ran in 24 s, down from 120 s. Coordinator-verified.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -132,13 +132,26 @@
     },
     {
       "id": "M14-F3-HOLD",
-      "state": "Done locally (Codex confirmation requested)",
+      "state": "Done (Codex accepted locally)",
       "owner": "Sonnet worker; coordinator runs the tests",
       "scope": "Narrow fix: never treat a missing or failed signature lookup after blockhash expiry as proof that a transaction never landed.",
-      "evidenceText": "Codex source review, accepted after reading the source: after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, so a landed funding transfer could have been sent twice. Fixed in source with local tests. Lookups now search transaction history. Such records stay held as unknown and block execution. Only a later positive history result clears them, and a confirmed result restores the once-only guard. The tool has no command to clear an unknown record; any retry of an unresolved one needs Rob's separate, exact approval and a review. Focused regressions show zero additional sends. Tool tests 33/33 and runner tests 14/14 pass, the full plan passes, and the real-node lifecycle passes. Coordinator-verified; Codex confirmation requested. No approval implied.",
+      "evidenceText": "Codex source review found that, after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, so a landed funding transfer could have been sent twice. Fixed: lookups search transaction history, such records stay held as unknown and block execution, and only a later positive history result clears them, with a confirmed result restoring the once-only guard. The tool has no command to clear an unknown record. Codex's bounded independent closure review: PASS, local source and test boundary only. It found no blocking issue, read the zero-additional-send regressions and matched the test-summary hash. Codex did not re-run the tests; the coordinator's local runs are the test evidence. No approval implied.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A-APPROVAL",
+      "state": "Waiting on Rob's explicit Block A approval",
+      "owner": "Rob (decision); coordinator executes only after a yes",
+      "scope": "Rob's yes or no on Block A: the Solana-devnet-only acceptance run.",
+      "evidenceText": "Not given. If approved: fresh devnet test keys; faucet-only devnet SOL within a coordinator-kept budget; a fresh program id re-pinned and re-reviewed locally first if the old key is unavailable; deploy and governance setup; then the committed flow plan over about 41.5 days. Every ICP action, real PP minting, any unknown-transaction retry, mainnet and the PR merge stay held separately. Nothing runs before a yes in chat.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (approval packet on the branch)",
           "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
         }
       ]
@@ -148,7 +161,7 @@
       "state": "Done",
       "owner": "Claude coordinator (sole graph writer) / Sonnet worker",
       "scope": "Refresh the repository knowledge graph for the M14 preparation work, with preservation checks.",
-      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
+      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Codex's independent check also passed: the graph and backup hashes match the receipt, and no prior nodes, links or hyperedges are missing. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
       "evidenceLinks": []
     },
     {

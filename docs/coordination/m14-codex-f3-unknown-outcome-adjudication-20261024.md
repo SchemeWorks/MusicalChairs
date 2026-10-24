@@ -42,7 +42,7 @@ The finding is valid and blocks any public execution request until it is fixed.
 - **Focused regression.** The test models a transaction that already landed, a lost response or process, an expired blockhash, and a missing or error status. It asserts zero additional sends and no never-landed claim. A recovered historical confirmation must restore the once-only guard.
 - **Budget wording.** Codex also asked for this. The 25 SOL total is a process budget that the coordinator keeps; `devnet_ops` does not track it. The packet now says so. Software enforces only the per-command ceilings: deploy at most 15 SOL on devnet, and a `fund-vault` total of at most 0.05 SOL.
 
-## Resolution (fixed locally in the commit that adds this section; Codex confirmation requested)
+## Resolution (fixed locally in `877d7fa`)
 
 All line numbers are in `solana/tests/financial-runtime/src/devnet_ops.rs`.
 
@@ -70,3 +70,30 @@ All line numbers are in `solana/tests/financial-runtime/src/devnet_ops.rs`.
 Summary: `docs/solana/evidence/2026-10-23-m14-preflight/m14-f3-hold-test-summary.txt`.
 
 No M14 approval is implied by this record or by the fix. The graph worker and the local Lookout metadata are untouched.
+
+
+## Codex bounded independent F3 closure review (2026-10-24): PASS (local boundary)
+
+**Target:** frozen `877d7fa9d677848de1936e42ffb1bfe2bd053f63`.
+
+**Scope:** LOCAL source and test evidence boundary only.
+
+**What Codex inspected:**
+- the actual delta and the history-searching `RpcCluster` requests;
+- the Held and non-closing journal parsing;
+- both the resume path and the in-process ambiguous-send path;
+- the regression assertions:
+  - expired plus missing, error or below-commitment stays held, with no rebuild;
+  - a historical confirmation restores the repeat refusal;
+  - no release or clear command exists;
+- the landed, process-loss and lagging-state tests, the zero-additional-send assertions, and the loopback JSON-RPC `searchTransactionHistory` check.
+
+The test summary's sha256 `edeb8b4909244230fb3334ecd170175d0e05a3eb6d30ea4a08dc2b505b9dff28` matches the committed manifest. The coordinator re-verified that hash against the working file, the manifest and the `877d7fa` blob. Codex did not duplicate a build, test or validator run. **No blocking finding remains in this scoped F3 delta.**
+
+**Graph (Codex independent check):**
+- The actual graph hash equals the receipt, and the backup hash matches.
+- Counts are 22,949 / 35,065 / 51.
+- Zero prior nodes, prior raw directed links (verbatim, with multiplicities) or prior hyperedges are missing, and there are zero duplicate ids.
+- The receipt's freshness limits (AST and semantics at 81841a4) are retained. No extra rebuild was done solely for this sign-off.
+
+**Authority:** approval for public operation, keys or funding is STILL ABSENT. The packet hash never grants it. Block A runs only after Rob's explicit approval in chat.
