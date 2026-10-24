@@ -32,8 +32,13 @@
 //!   spelling is rejected with an explanation.
 //! * **Double-send safety.** A signed transaction is written to a write-ahead record (stderr and the
 //!   `--pending-file`, one durable write + `sync_data`) before it is sent; an ambiguous send error
-//!   (timeout, transport) is polled to confirmed / failed / blockhash-expired before anything may be
-//!   rebuilt, and a rerun resolves any pending record first.  The file is read FAIL CLOSED (only a
+//!   (timeout, transport) is polled (status lookups search the transaction HISTORY, not only the node's
+//!   recent status cache) to confirmed / failed before anything may be rebuilt, and a rerun resolves any
+//!   pending record first.  An expired blockhash proves only that a transaction cannot land NOW, never
+//!   that it did not land earlier, so a missing status or a failed lookup after the blockhash expired
+//!   leaves the record HELD UNKNOWN: an incident that stays open, blocks every `--execute`, and is
+//!   cleared only by a later lookup that positively finds the transaction confirmed or failed (the tool
+//!   has no command that clears an unknown record).  The file is read FAIL CLOSED (only a
 //!   missing file is empty; an unreadable file or an unparsable line is a refusal naming the line), so
 //!   use the same `--pending-file` for every command against a cluster.  After a send, reads are served
 //!   at or above the transaction's slot (`minContextSlot`; seeded at startup from the file's confirmed
@@ -932,7 +937,10 @@ pub trait Cluster {
     fn blockhash_valid(&self, _hash: &Hash) -> Result<bool, String> {
         Ok(false)
     }
-    /// What the cluster says about `signature` right now.
+    /// What the cluster says about `signature` right now, HISTORY INCLUDED (`searchTransactionHistory`):
+    /// a plain `getSignatureStatuses` searches only the node's RECENT status cache, so a transaction that
+    /// landed long enough ago is simply absent from it.  [`SigOutcome::Unknown`] (no status) and an `Err`
+    /// are therefore NEVER proof that the transaction did not land.
     fn signature_outcome(&self, _signature: &Signature) -> Result<SigOutcome, String> {
         Ok(SigOutcome::Unknown)
     }
@@ -971,13 +979,15 @@ impl std::fmt::Display for SendError {
     }
 }
 
-/// What `getSignatureStatuses` says about a signature.
+/// What `getSignatureStatuses` (with `searchTransactionHistory`) says about a signature.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SigOutcome {
     Confirmed { slot: u64 },
     /// Landed and failed.
     Failed { slot: u64, error: String },
-    /// Not found, or not yet at the client's commitment.
+    /// A status WAS found, but it has not reached the client's commitment yet: the transaction exists.
+    BelowCommitment { slot: u64 },
+    /// The lookup succeeded and returned NO status.  This is not proof of absence.
     Unknown,
 }
 
@@ -1197,10 +1207,13 @@ impl Cluster for RpcCluster {
         }
     }
 
+    /// `getSignatureStatuses` with `searchTransactionHistory: true`.  The plain call searches only the
+    /// node's recent status cache; a transaction that landed and was evicted from it would read as
+    /// "no status", which must never be mistaken for proof of absence.
     fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
         let response = self
             .rpc
-            .get_signature_statuses(&[*signature])
+            .get_signature_statuses_with_history(&[*signature])
             .map_err(|error| error.to_string())?;
         Ok(match response.value.into_iter().next().flatten() {
             None => SigOutcome::Unknown,
@@ -1210,7 +1223,7 @@ impl Cluster for RpcCluster {
                 } else if status.satisfies_commitment(self.commitment) {
                     SigOutcome::Confirmed { slot: status.slot }
                 } else {
-                    SigOutcome::Unknown
+                    SigOutcome::BelowCommitment { slot: status.slot }
                 }
             }
         })
@@ -1237,7 +1250,7 @@ impl Cluster for RpcCluster {
 
     fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
         self.rpc
-            .get_signature_statuses(&[*signature])
+            .get_signature_statuses_with_history(&[*signature])
             .map(|response| response.value.into_iter().next().flatten().map(|status| status.slot))
             .map_err(|error| error.to_string())
     }
@@ -1836,8 +1849,12 @@ pub struct Ctx<'a> {
 enum Resolution {
     Landed(u64),
     FailedOnChain(String),
-    /// The blockhash expired and the signature never appeared: the transaction can no longer land.
-    Expired,
+    /// The blockhash is no longer valid, but the final lookup (history included) found NO status, found
+    /// one below the commitment, or failed.  That proves only that the transaction cannot land NOW, never
+    /// that it did not land earlier (a status cache evicts; a lookup can fail).  The record stays open, an
+    /// INCIDENT: nothing is rebuilt, and the tool has no command that clears it; only a later lookup that
+    /// positively finds the transaction (confirmed or failed) resolves it.
+    Held { why: String },
     StillUnknown,
 }
 
@@ -1870,6 +1887,8 @@ struct OpenRecord {
     signature: Signature,
     blockhash: Hash,
     step: String,
+    /// `why` of the newest NON-closing `held_unknown` line for this signature, if an earlier run held it.
+    held: Option<String>,
 }
 
 /// A write-ahead record whose resolution says the transaction CONFIRMED.
@@ -1916,6 +1935,7 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
     };
     let mut write_ahead: Vec<(Signature, Hash, String, bool)> = Vec::new();
     let mut resolved: BTreeMap<String, (String, Option<u64>)> = BTreeMap::new();
+    let mut held: BTreeMap<String, String> = BTreeMap::new();
     for (index, line) in text.lines().enumerate() {
         let number = index + 1;
         if line.trim().is_empty() {
@@ -1931,6 +1951,13 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
                     return bad(number, "a `resolved` record without a signature and an outcome");
                 };
                 resolved.insert(signature.to_string(), (outcome.to_string(), record["slot"].as_u64()));
+            }
+            // Informational and NON-closing: an earlier run found the blockhash expired and no status.
+            Some("held_unknown") => {
+                let Some(signature) = record["signature"].as_str() else {
+                    return bad(number, "a `held_unknown` record without a signature");
+                };
+                held.insert(signature.to_string(), record["why"].as_str().unwrap_or("(no reason recorded)").to_string());
             }
             Some("write_ahead") => {
                 let (Some(signature), Some(blockhash), Some(record_genesis)) = (
@@ -1952,7 +1979,10 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
             continue;
         }
         match resolved.get(&signature.to_string()) {
-            None => log.open.push(OpenRecord { signature, blockhash, step }),
+            None => {
+                let held = held.get(&signature.to_string()).cloned();
+                log.open.push(OpenRecord { signature, blockhash, step, held });
+            }
             Some((outcome, slot)) if outcome.starts_with("confirmed") => {
                 log.confirmed.push(ConfirmedRecord { signature: signature.to_string(), step, slot: *slot });
             }
@@ -2122,6 +2152,22 @@ impl<'a> Ctx<'a> {
         }
     }
 
+    /// Note, in the write-ahead file, that a record is HELD: its blockhash expired and the status lookup
+    /// found nothing (or failed).  Informational and NON-closing (`read_pending` leaves the record open):
+    /// the held state is re-derived from the chain by every run, so a failure to append is only reported.
+    fn mark_held(&self, signature: &Signature, step: &str, why: &str) {
+        progress(format!("HELD {signature} (step {step}): {why}"));
+        if let Some(path) = &self.pending_path {
+            let record = json!({
+                "schema": 1, "event": "held_unknown", "signature": signature.to_string(), "step": step,
+                "why": why, "genesis_hash": self.genesis, "at_unix": unix_wall_clock(),
+            });
+            if let Err(error) = append_json_line(path, &record) {
+                progress(format!("warning: could not append the held_unknown note: {error}"));
+            }
+        }
+    }
+
     /// The slot a CONFIRMED transaction landed in, so every later read can carry `minContextSlot`.
     /// Polls the signature status (a node that confirmed it may need a moment to report it), then falls
     /// back to the slot the cluster reports AFTER the confirmation (at the client's commitment, so it is
@@ -2166,6 +2212,15 @@ impl<'a> Ctx<'a> {
         }
         let Some(path) = &self.pending_path else { return Ok(()) };
         let log = read_pending(path, &self.genesis)?;
+        if let Some(record) = log.open.iter().find(|record| record.step == step_id) {
+            return refuse(format!(
+                "`{step_id}` has an OPEN write-ahead record (signature {}, recorded in {}): its outcome is not known, and it \
+                 moves funds and is not idempotent, so it is not sent again until that record is resolved (a re-run \
+                 re-queries it); the tool has no command to clear an unknown record",
+                record.signature,
+                path.display()
+            ));
+        }
         match log.confirmed.iter().find(|record| record.step == step_id) {
             Some(record) => refuse(format!(
                 "`{step_id}` already CONFIRMED on this cluster (signature {}, slot {}; recorded in {}): it moves funds and \
@@ -2192,22 +2247,40 @@ impl<'a> Ctx<'a> {
         Ok(())
     }
 
-    /// Poll a signature until it is confirmed, failed on chain, or its blockhash has expired
-    /// (so it can no longer land), for at most `--pending-wait-seconds`.
+    /// Poll a signature (history included) until it is confirmed, failed on chain, or its blockhash is
+    /// no longer valid, for at most `--pending-wait-seconds`.  An expired blockhash means the transaction
+    /// cannot land NOW; it is no evidence about an EARLIER landing, so a final lookup that finds no status (or
+    /// fails) is [`Resolution::Held`], never a closing resolution.
     fn wait_outcome(&self, signature: &Signature, blockhash: &Hash) -> Resolution {
         let started = std::time::Instant::now();
         loop {
             match self.cluster.signature_outcome(signature) {
                 Ok(SigOutcome::Confirmed { slot }) => return Resolution::Landed(slot),
                 Ok(SigOutcome::Failed { error, .. }) => return Resolution::FailedOnChain(error),
-                Ok(SigOutcome::Unknown) | Err(_) => {}
+                Ok(SigOutcome::BelowCommitment { .. } | SigOutcome::Unknown) | Err(_) => {}
             }
             if let Ok(false) = self.cluster.blockhash_valid(blockhash) {
-                // Expired: one last look before declaring that it can never land.
+                // No longer valid: one last look, and only a FOUND status closes the question.
                 return match self.cluster.signature_outcome(signature) {
                     Ok(SigOutcome::Confirmed { slot }) => Resolution::Landed(slot),
                     Ok(SigOutcome::Failed { error, .. }) => Resolution::FailedOnChain(error),
-                    _ => Resolution::Expired,
+                    Ok(SigOutcome::BelowCommitment { slot }) => Resolution::Held {
+                        why: format!(
+                            "its blockhash is no longer valid and a status was found in slot {slot}, but it has not reached the \
+                             client's commitment yet"
+                        ),
+                    },
+                    Ok(SigOutcome::Unknown) => Resolution::Held {
+                        why: "its blockhash is no longer valid and the status lookup (history included) returned NO status; a \
+                              missing status is not proof of absence"
+                            .into(),
+                    },
+                    Err(error) => Resolution::Held {
+                        why: format!(
+                            "its blockhash is no longer valid and the status lookup (history included) FAILED ({error}); a failed \
+                             lookup is not proof of absence"
+                        ),
+                    },
                 };
             }
             if started.elapsed().as_secs() >= self.pending_wait_seconds {
@@ -2220,11 +2293,18 @@ impl<'a> Ctx<'a> {
     /// Before ANYTHING is built, resolve every write-ahead record of this cluster that has no
     /// resolution: a transaction that may still land is never rebuilt.  A write-ahead file that cannot be
     /// read or parsed is a refusal ([`read_pending`]), never an empty log.
+    ///
+    /// A record whose blockhash is no longer valid but whose status lookup found nothing (or failed) is
+    /// HELD, not closed: the transaction cannot land now, but it may have landed before the node's status
+    /// cache evicted it.  Held records stay open, are re-queried by every run, and make this refuse every
+    /// time.  Only a later lookup that positively FINDS the transaction (confirmed or failed on chain)
+    /// resolves one.  There is no command to clear an unknown record.
     fn resolve_pending_all(&self) -> Result<Vec<Value>, OpsError> {
         let Some(path) = &self.pending_path else { return Ok(Vec::new()) };
         let open = read_pending(path, &self.genesis)?.open;
         let mut report = Vec::new();
-        for OpenRecord { signature, blockhash, step } in open {
+        let mut held: Vec<(Signature, String, String)> = Vec::new();
+        for OpenRecord { signature, blockhash, step, .. } in open {
             progress(format!("resolving the pending write-ahead record {signature} (step {step}) before anything else"));
             let outcome = match self.wait_outcome(&signature, &blockhash) {
                 Resolution::Landed(slot) => {
@@ -2237,9 +2317,10 @@ impl<'a> Ctx<'a> {
                     progress(format!("{signature} failed on chain: {error}"));
                     "failed_on_chain"
                 }
-                Resolution::Expired => {
-                    self.mark_resolved(&signature, "expired_never_landed", None, "");
-                    "expired_never_landed"
+                Resolution::Held { why } => {
+                    self.mark_held(&signature, &step, &why);
+                    held.push((signature, step, why));
+                    continue;
                 }
                 Resolution::StillUnknown => {
                     return refuse(format!(
@@ -2252,7 +2333,58 @@ impl<'a> Ctx<'a> {
             };
             report.push(json!({ "signature": signature.to_string(), "step": step, "outcome": outcome }));
         }
-        Ok(report)
+        if held.is_empty() {
+            return Ok(report);
+        }
+        let listed: String = held
+            .iter()
+            .map(|(signature, step, why)| format!("\n  - signature {signature} (step {step}): {why}"))
+            .collect();
+        refuse(format!(
+            "INCIDENT: {} write-ahead record(s) are HELD UNKNOWN and nothing is built or sent. The transaction's outcome is \
+             UNKNOWN: an expired blockhash proves only that it cannot land now; it says nothing about an earlier landing, and a missing or \
+             failed status lookup is not proof of absence.{listed}\n\
+             STOP. Report the signature and the step. Checking an explorer (or `solana confirm -v <signature>`) and the \
+             recipient's balance history is information gathering only; it does not authorize a retry. The tool will not \
+             rebuild or clear a held record and has NO command to clear an unknown record: it resolves only when a later \
+             run's history lookup positively finds the transaction confirmed or failed (re-run an --execute command to \
+             re-query). If that never happens, any retry needs a separate, exact approval from Rob (the signature, the \
+             effect and the retry) and a review. Record: {}",
+            held.len(),
+            path.display()
+        ))
+    }
+
+    /// For dry runs and read-only commands, which never resolve anything: the write-ahead records that are
+    /// still OPEN, as JSON, with a loud warning on stderr.  A held record blocks every `--execute`.
+    fn open_pending_notice(&self) -> Result<Vec<Value>, OpsError> {
+        let Some(path) = &self.pending_path else { return Ok(Vec::new()) };
+        let open = read_pending(path, &self.genesis)?.open;
+        if open.is_empty() {
+            return Ok(Vec::new());
+        }
+        progress(format!(
+            "WARNING: {} write-ahead record(s) in {} are OPEN (no resolution). This command does not resolve them; every --execute \
+             command resolves them first and REFUSES while any is HELD (its blockhash expired but no status was found: the \
+             outcome is UNKNOWN, it may have landed). Do not assume a funding step did not happen",
+            open.len(),
+            path.display()
+        ));
+        Ok(open
+            .iter()
+            .map(|record| {
+                progress(format!(
+                    "WARNING: {} (step {}) is {}",
+                    record.signature,
+                    record.step,
+                    record.held.as_deref().map_or("OPEN and unresolved".to_string(), |why| format!("HELD: {why}"))
+                ));
+                json!({
+                    "signature": record.signature.to_string(), "step": record.step,
+                    "held": record.held.is_some(), "held_why": record.held,
+                })
+            })
+            .collect())
     }
 
     /// Dry run: measure (and optionally simulate unsigned).  Execute: refuse oversize, sign,
@@ -2341,12 +2473,19 @@ impl<'a> Ctx<'a> {
                         self.mark_resolved(&signature, "failed_on_chain", None, "");
                         return fail(format!("{}: the transaction landed and failed: {error}", step.label));
                     }
-                    Resolution::Expired => {
-                        self.mark_resolved(&signature, "expired_never_landed", None, "");
+                    Resolution::Held { why } => {
+                        self.mark_held(&signature, &step.id, &why);
                         return fail(format!(
-                            "{}: the send outcome was ambiguous ({message}) and the blockhash has expired without the \
-                             signature appearing: it never landed and can safely be rebuilt by re-running",
-                            step.label
+                            "{}: INCIDENT, the send outcome is UNKNOWN ({message}) and signature {signature} is HELD{}: {why}. \
+                             It MAY HAVE LANDED: do NOT rebuild or re-send it. The record stays open and every --execute command \
+                             now refuses. STOP: report the signature and the step; an explorer or the recipient's balance history \
+                             is information gathering only and does not authorize a retry. The tool has no command to clear an \
+                             unknown record: a later run resolves it only when its history lookup positively finds the \
+                             transaction confirmed or failed; any other retry needs Rob's separate, exact approval.",
+                            step.label,
+                            self.pending_path
+                                .as_ref()
+                                .map_or(String::new(), |path| format!(" in {}", path.display()))
                         ));
                     }
                     Resolution::StillUnknown => {
@@ -4492,6 +4631,8 @@ pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Va
     // Every read from here on (the ones a decision is made from included) waits for the latest slot an
     // earlier invocation confirmed: a CLI run starts with no slot of its own.
     ctx.seed_confirmed_slot()?;
+    // Dry runs and read-only commands resolve nothing: say loudly which records are still open.
+    let open_pending = if ctx.executing() { Vec::new() } else { ctx.open_pending_notice()? };
     let mut value = match opts.command.as_str() {
         "plan" => cmd_plan(&ctx),
         "deploy" => cmd_deploy(&ctx),
@@ -4513,6 +4654,9 @@ pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Va
         if !pending_resolved.is_empty() {
             value["pending_resolved"] = json!(pending_resolved);
         }
+    }
+    if !open_pending.is_empty() {
+        value["open_pending_records"] = json!(open_pending);
     }
     Ok(value)
 }

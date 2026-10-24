@@ -297,6 +297,11 @@ struct Hooked<'a, 'b> {
     ambiguous_sends: Cell<usize>,
     land_ambiguous: Cell<bool>,
     blockhash_still_valid: Cell<bool>,
+    /// The status lookup finds NOTHING for a transaction that did land (the node's status cache evicted
+    /// it and its history does not answer): a missing status the tool must never read as "never landed".
+    hide_status: Cell<bool>,
+    /// The status lookup ERRORS (a transport or node failure) although the transaction landed.
+    fail_status: Cell<bool>,
     noted_slot: Cell<u64>,
     /// A node that honours `minContextSlot`: once the tool has handed it the slot of a confirmed
     /// transaction (`note_confirmed_slot`) it never answers from the pre-send snapshot again.  Off, it is
@@ -314,6 +319,8 @@ impl<'a, 'b> Hooked<'a, 'b> {
             ambiguous_sends: Cell::new(0),
             land_ambiguous: Cell::new(false),
             blockhash_still_valid: Cell::new(false),
+            hide_status: Cell::new(false),
+            fail_status: Cell::new(false),
             noted_slot: Cell::new(0),
             honour_min_slot: Cell::new(false),
         }
@@ -386,6 +393,12 @@ impl Cluster for Hooked<'_, '_> {
         outcome
     }
     fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        if self.fail_status.get() {
+            return Err("injected getSignatureStatuses failure".into());
+        }
+        if self.hide_status.get() {
+            return Ok(SigOutcome::Unknown);
+        }
         self.inner.signature_outcome(signature)
     }
     fn note_confirmed_slot(&self, slot: u64) {
@@ -770,7 +783,7 @@ fn an_ambiguous_send_that_lands_anyway_is_resolved_not_rebuilt() {
 }
 
 #[test]
-fn an_unresolved_write_ahead_record_blocks_every_rebuild_until_the_blockhash_expires() {
+fn an_unresolved_write_ahead_record_blocks_every_rebuild_while_valid_and_is_held_not_closed_once_expired() {
     let (mut world, _keys, dir) = fixture();
     let inner = WorldCluster::new(&mut world);
     init(&inner, &dir);
@@ -798,19 +811,148 @@ fn an_unresolved_write_ahead_record_blocks_every_rebuild_until_the_blockhash_exp
     let other = flow(&["flow", "next", "--step", "provision_registry_0", "--execute", "--pending-wait-seconds", "0"], &dir);
     assert!(refused(ops::run_with_cluster(&other, &hooked)).contains("MAY STILL LAND"));
 
-    // Once the blockhash has expired without the signature appearing, the record is closed and the
-    // step is rebuilt and sent exactly once.
+    // Once the blockhash has expired and the history lookup finds no status, the record is HELD: not
+    // closed as "never landed" (that used to rebuild and send the step), not rebuilt, whatever the run.
     hooked.blockhash_still_valid.set(false);
-    let receipt = ok(ops::run_with_cluster(&args, &hooked));
-    assert_eq!(receipt["result"], "done", "{receipt}");
-    assert_eq!(receipt["pending_resolved"][0]["outcome"], "expired_never_landed");
-    assert_eq!(inner.sends.get(), 1);
-    assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+    for command in [&args, &other] {
+        let message = refused(ops::run_with_cluster(command, &hooked));
+        assert!(message.contains("HELD UNKNOWN") && message.contains("fund_operations"), "{message}");
+        assert!(!message.contains("never landed"), "{message}");
+    }
+    assert_eq!(inner.sends.get(), 0);
+    assert_eq!(inner.with_world(|w| w.ops().total_contributed), 0, "nothing was funded or rebuilt");
+    let text = fs::read_to_string(dir.file("pending.jsonl")).unwrap();
+    assert!(!text.contains("never_landed") && !text.contains("never landed"), "{text}");
+    assert!(pending_records(&dir).iter().all(|record| record["event"] != "resolved"), "the record is still open");
 }
 
 /// The pending file's lines as JSON.
 fn pending_records(dir: &TempDir) -> Vec<Value> {
     fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect()
+}
+
+/// Simulate a process that died after the send landed and before its resolution record was written:
+/// keep every line except the closing `resolved` ones.
+fn drop_resolutions(dir: &TempDir) {
+    let kept: String = pending_records(dir)
+        .into_iter()
+        .filter(|record| record["event"] != "resolved")
+        .map(|record| format!("{record}\n"))
+        .collect();
+    fs::write(dir.file("pending.jsonl"), kept).unwrap();
+}
+
+#[test]
+fn a_landed_funding_with_no_resolution_a_dead_blockhash_and_a_missing_or_failing_status_is_held_and_never_sent_twice() {
+    let (mut world, _keys, dir) = fixture();
+    let inner = WorldCluster::new(&mut world);
+    init(&inner, &dir);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0);
+    let first = Hooked::new(&inner);
+    let fund = |cluster: &Hooked<'_, '_>| {
+        ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--execute"], &dir), cluster)
+    };
+    // FundOperations lands ...
+    let done = ok(fund(&first));
+    assert_eq!(done["result"], "done", "{done}");
+    assert_eq!(inner.sends.get(), 1);
+    let records = pending_records(&dir);
+    let (signature, slot) = (records[0]["signature"].as_str().unwrap().to_string(), records[1]["slot"].as_u64().unwrap());
+    // ... and the process dies before the resolution is written.  The resumed run talks to a lagging
+    // replica (it still shows the pre-send state), the blockhash is long dead (the double's default) and
+    // the status cache has evicted the signature.
+    drop_resolutions(&dir);
+    let resumed = Hooked::new(&inner);
+    *resumed.snapshot.borrow_mut() = first.snapshot.borrow().clone();
+    resumed.stale_reads.set(100_000);
+    let assert_held = |message: &str| {
+        assert!(message.contains("HELD UNKNOWN") && message.contains(&signature) && message.contains("fund_operations"), "{message}");
+        assert!(!message.contains("never landed") && !message.contains("never_landed"), "{message}");
+        assert_eq!(inner.sends.get(), 1, "ZERO additional sends");
+        let text = fs::read_to_string(dir.file("pending.jsonl")).unwrap();
+        assert!(!text.contains("never_landed") && !text.contains("never landed"), "{text}");
+        assert!(pending_records(&dir).iter().all(|record| record["event"] != "resolved"), "the record is still open");
+        assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING), "funded exactly once");
+    };
+
+    // (1) No status.  The step itself and any other --execute command are held.
+    resumed.hide_status.set(true);
+    assert_held(&refused(fund(&resumed)));
+    let other = flow(&["flow", "next", "--step", "provision_registry_0", "--execute", "--pending-wait-seconds", "0"], &dir);
+    assert_held(&refused(ops::run_with_cluster(&other, &resumed)));
+    // A read-only command still runs, and says the record is open and held.
+    let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &resumed));
+    assert_eq!(status["open_pending_records"][0]["signature"], signature.as_str(), "{status}");
+    assert_eq!(status["open_pending_records"][0]["held"], true);
+
+    // (2) An ERROR status response: held as well.
+    resumed.hide_status.set(false);
+    resumed.fail_status.set(true);
+    let message = refused(fund(&resumed));
+    assert!(message.contains("FAILED"), "{message}");
+    assert_held(&message);
+
+    // (3) History later finds it CONFIRMED: the record resolves `confirmed` with its slot, which restores
+    // the once-only guard, so the (still lagging) run is refused as a repeat and sends nothing.
+    resumed.fail_status.set(false);
+    let message = refused(fund(&resumed));
+    assert!(message.contains("already CONFIRMED") && message.contains(&signature), "{message}");
+    assert_eq!(inner.sends.get(), 1, "ZERO additional sends");
+    let records = pending_records(&dir);
+    let resolution = records.last().unwrap();
+    assert_eq!((resolution["event"].as_str(), resolution["outcome"].as_str()), (Some("resolved"), Some("confirmed")), "{records:?}");
+    assert_eq!((resolution["signature"].as_str(), resolution["slot"].as_u64()), (Some(signature.as_str()), Some(slot)));
+    let message = refused(fund(&resumed));
+    assert!(message.contains("already CONFIRMED"), "{message}");
+    assert_eq!(inner.sends.get(), 1);
+    assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+}
+
+#[test]
+fn an_ambiguous_send_whose_status_cannot_be_found_after_the_blockhash_dies_ends_held_and_is_never_rebuilt() {
+    // Both worlds: the transaction landed (the response was lost), and it truly did not.  The tool cannot
+    // tell them apart from a missing status, so both end the same way: HELD, no rebuild.
+    for landed in [true, false] {
+        let (mut world, _keys, dir) = fixture();
+        let inner = WorldCluster::new(&mut world);
+        init(&inner, &dir);
+        inner.warp_to(START_TIME as u64 + m14_plan::T0);
+        let hooked = Hooked::new(&inner);
+        hooked.ambiguous_sends.set(1);
+        hooked.land_ambiguous.set(landed);
+        hooked.hide_status.set(true);
+        let args = flow(&["flow", "next", "--step", "fund_operations", "--execute", "--pending-wait-seconds", "0"], &dir);
+        let message = match ops::run_with_cluster(&args, &hooked) {
+            Err(OpsError::Failed(message)) => message,
+            other => panic!("landed={landed}: expected a failure, got {other:?}"),
+        };
+        assert!(message.contains("UNKNOWN") && message.contains("HELD") && message.contains("do NOT rebuild"), "{message}");
+        assert!(message.contains("NO command") || message.contains("no command"), "{message}");
+        for forbidden in ["never landed", "never_landed", "safely"] {
+            assert!(!message.contains(forbidden), "landed={landed}: {message}");
+        }
+        assert_eq!(inner.sends.get(), usize::from(landed), "landed={landed}: the one send is never repeated");
+        let records = pending_records(&dir);
+        assert_eq!(records[0]["event"], "write_ahead");
+        assert!(records[1..].iter().all(|record| record["event"] == "held_unknown"), "{records:?}");
+        assert!(!fs::read_to_string(dir.file("pending.jsonl")).unwrap().contains("never_landed"));
+
+        // The rerun is refused as HELD too: zero rebuilds.
+        let message = refused(ops::run_with_cluster(&args, &hooked));
+        assert!(message.contains("HELD UNKNOWN"), "{message}");
+        assert_eq!(inner.sends.get(), usize::from(landed), "landed={landed}: still no rebuild");
+        // A found status resolves it: for a landed one, `confirmed`; the world was funded exactly once.
+        if landed {
+            hooked.hide_status.set(false);
+            let resumed = Hooked::new(&inner);
+            *resumed.snapshot.borrow_mut() = hooked.snapshot.borrow().clone();
+            resumed.stale_reads.set(100_000);
+            let message = refused(ops::run_with_cluster(&args, &resumed));
+            assert!(message.contains("already CONFIRMED"), "{message}");
+            assert_eq!(inner.sends.get(), 1);
+            assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+        }
+    }
 }
 
 #[test]

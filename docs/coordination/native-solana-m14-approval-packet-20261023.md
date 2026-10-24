@@ -14,7 +14,7 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 
 ## 0. Revision 5: status and the one recommended path (2026-10-24)
 
-**Revision 6 (2026-10-24): open blocker. NOT ready for a public execution request.**
+**Revision 6 (2026-10-24): the F3 blocker was found and is now fixed locally. Codex's confirmation of the fix commit is requested; until it is given, this packet does not support a public execution request.**
 
 Codex's source review of `81841a4` found that one F3 unknown-outcome path was still open. After a blockhash expired, a missing recent-cache status or a status-lookup error was recorded as "never landed" and a rebuild was allowed. A funding transfer that had already landed could therefore be sent twice. The record is `docs/coordination/m14-codex-f3-unknown-outcome-adjudication-20261024.md`, and the fix card is M14-F3-HOLD.
 
@@ -26,7 +26,17 @@ The required fix is narrow:
 
 The tool has no command to clear an unknown record. If a held record never resolves, it is an incident outside the ordinary Block A authority: any retry needs Rob's separate, exact approval of the signature, effect and retry, plus a review.
 
-The readiness evidence below is historical local evidence. It stands only for what it tested and is superseded for readiness until M14-F3-HOLD lands. This revision also clarifies that the 25 SOL total is a coordinator-kept process budget, not something the tool tracks.
+**Fix (M14-F3-HOLD, the commit that adds this text).** The source and test evidence is in `docs/solana/evidence/2026-10-23-m14-preflight/m14-f3-hold-test-summary.txt`:
+- `wait_outcome` maps an expired blockhash plus a missing, below-commitment or failed lookup to HELD, never to "never landed".
+- A held record stays open (a non-closing `held_unknown` line) and refuses every `--execute`. Read-only and dry-run commands still run and warn.
+- Every run re-queries history. A later confirmed result resolves `confirmed` and restores the once-only refusal; a later failed result resolves `failed_on_chain`.
+
+Coordinator-run tests:
+- tool tests 33/33 and runner tests 14/14, including the focused regressions: a landed transfer (fund-vault and FundOperations) with no resolution, a dead blockhash and a missing or failing status is held with ZERO additional sends and no never-landed text, and a later historical confirmation restores the once-only refusal;
+- the full 39-step plan through the runner: PASS;
+- the real-node lifecycle with history-searching lookups: PASS, 34/34 records resolved, 0 held.
+
+This is coordinator-verified only; Codex's confirmation is requested. The earlier readiness evidence below is historical local evidence and stands only for what it tested. This revision also clarifies that the 25 SOL total is a coordinator-kept process budget, not something the tool tracks.
 
 Revision 5 changes only the tool-readiness evidence in this section. Since revision 4, the operator tool passed an independent review, its fixes, a bounded re-check, and fixes for the re-check's findings. The recommendation and the decision below are unchanged.
 

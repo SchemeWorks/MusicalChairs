@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Claude coordinator / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current readiness: NOT ready for any public execution request. Codex found an open unknown-outcome path in the operator tool (card M14-F3-HOLD), and it blocks devnet execution until fixed. The approval packet is committed on the draft PR branch and recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL; the total is a budget the coordinator keeps, while the tool enforces only per-command ceilings). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. The open decision for Rob is to approve Block A and to say who, if anyone, holds the key for the planned program id; otherwise a fresh devnet program id is used. No approval has been given; the packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current readiness: an open safety finding in the operator tool (card M14-F3-HOLD) is now fixed locally and verified by the coordinator. Codex's confirmation of the fix is requested, and until it is given the packet does not support a public execution request. The approval packet is committed on the draft PR branch and recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL; the total is a budget the coordinator keeps, while the tool enforces only per-command ceilings). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. The open decision for Rob is to approve Block A and to say who, if anyone, holds the key for the planned program id; otherwise a fresh devnet program id is used. No approval has been given; the packet's identity pin is not approval. Nothing has been executed on any public cluster.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -132,10 +132,10 @@
     },
     {
       "id": "M14-F3-HOLD",
-      "state": "In progress",
+      "state": "Done locally (Codex confirmation requested)",
       "owner": "Sonnet worker; coordinator runs the tests",
       "scope": "Narrow fix: never treat a missing or failed signature lookup after blockhash expiry as proof that a transaction never landed.",
-      "evidenceText": "Codex source review, accepted by the coordinator after reading the source: after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed. That could let a funding transfer that had landed be sent twice. The fix, in progress, makes three changes. Lookups search transaction history. Such records stay held as unknown and block execution. Only a later positive history result (confirmed or failed) clears them, and a confirmed result restores the once-only guard. The tool has no command to clear an unknown record. Any retry of an unresolved one needs Rob's separate, exact approval and a review. This blocks any public execution request until done. No approval implied.",
+      "evidenceText": "Codex source review, accepted after reading the source: after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, so a landed funding transfer could have been sent twice. Fixed in source with local tests. Lookups now search transaction history. Such records stay held as unknown and block execution. Only a later positive history result clears them, and a confirmed result restores the once-only guard. The tool has no command to clear an unknown record; any retry of an unresolved one needs Rob's separate, exact approval and a review. Focused regressions show zero additional sends. Tool tests 33/33 and runner tests 14/14 pass, the full plan passes, and the real-node lifecycle passes. Coordinator-verified; Codex confirmation requested. No approval implied.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -145,10 +145,10 @@
     },
     {
       "id": "M14-GRAPH",
-      "state": "In progress",
+      "state": "Done",
       "owner": "Claude coordinator (sole graph writer) / Sonnet worker",
       "scope": "Refresh the repository knowledge graph for the M14 preparation work, with preservation checks.",
-      "evidenceText": "A durable backup of the accepted graph was taken and the structural update has run. The repair of collapsed edges and stripped attributes against the backup, and the merge of a small M14 fragment, are in progress. The graph is navigation evidence only, not runtime proof.",
+      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
       "evidenceLinks": []
     },
     {

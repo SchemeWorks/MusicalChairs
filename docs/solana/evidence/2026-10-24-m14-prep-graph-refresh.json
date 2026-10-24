@@ -1,0 +1,173 @@
+{
+ "recorded_at_utc": "2026-10-24T08:08:41.390750+00:00",
+ "cards": [
+  "M14-GRAPH"
+ ],
+ "milestone": "M14 local preparation (packet, devnet_ops tool + flow runner, preflights, reviews, legacy memo card): structural update + repair + semantic fragment",
+ "head_at_graph_update": "81841a47dd282143e53277a922b1a7bdf51474e6",
+ "branch": "codex/native-solana-production-core",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-15-m12-m13-corrections-graph-refresh.json"
+ ],
+ "pre_update_backup": {
+  "location": "~/.cache/mc-graph-backups/m14-pre-update-20261024/ (durable; outside the gitignored graphify-out/)",
+  "graph_sha256": "d38c5a77321b7edbdd423c80c12f598cbda1a640e7bff766b7dd0b69ce61057e",
+  "state": "the accepted 21,751 / 32,712 / 50 graph (2026-10-15 corrections receipt, Codex-verified)"
+ },
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "result": "21,751 / 32,712 / 50 -> 22,939 / 35,004 / 50 (AST re-extraction at 81841a4; output sha256 5edf45c744a7c910ddb669a4def62f85cc8c4e1d23316e43a42a30f32e7276e7)"
+  },
+  {
+   "cmd": "python3 -I docs/solana/evidence/graph-tools/graph_repair_merge.py <backup> <updated> docs/solana/evidence/2026-10-24-m14-prep-graph-fragment.json <out> --mode validate|apply --repo .",
+   "result": "repairs + fragment merged; every invariant gate passes; APPLIED 22,949 / 35,065 / 51"
+  }
+ ],
+ "repair_tool": {
+  "path": "docs/solana/evidence/graph-tools/graph_repair_merge.py",
+  "sha256": "343d56cfe3c1f92003163d0799292d7ccc369e31dd13397101a99c318b3d79db",
+  "note": "recreated 2026-10-24 by a Sonnet worker (the 2026-10-14/15 script was lost when /private/tmp was cleaned on reboot); standard library only; negative tests (8 deliberately broken inputs) behaved as intended in the worker's run; committed here so it is not lost again"
+ },
+ "before_graphify_update": {
+  "nodes": 21751,
+  "edges": 32712,
+  "hyperedges": 50
+ },
+ "after_graphify_update": {
+  "nodes": 22939,
+  "edges": 35004,
+  "hyperedges": 50
+ },
+ "repairs": {
+  "restored_backup_nodes": 0,
+  "attribute_restores": "321 nodes: status 321, rationale 2, historical_source_sha256 2, source_url 1, captured_at 1, author 1, contributor 1, label 2, file_type 2, source_location 1, norm_label 1 (the same recurring set as the 2026-10-15 receipt)",
+  "restored_raw_edges": 17,
+  "restored_hyperedges": 0,
+  "edge_identity": "unordered endpoint pair (directed false, multigraph false); all 32,712 backup links present verbatim in the output",
+  "curated_override_rule": "for committed-fragment (non-code) nodes the backup value wins for every key except community; code-node attribute changes from re-extraction are kept (community on 1,556 nodes, source_location on 627)"
+ },
+ "after_merge": {
+  "nodes": 22949,
+  "edges": 35065,
+  "hyperedges": 51
+ },
+ "merged_graph_sha256": "e3e727512527e520f0e5324a1f532bbda2a00adf84a4535231eec4f5be9202bd",
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-24-m14-prep-graph-fragment.json",
+  "sha256": "0ee92c42148bd5b6ff90423287257e0d6d35e449039886e3936c588aea8126c3",
+  "community": 1934,
+  "nodes": [
+   "impl2026_10_24_m14_approval_packet_rev5",
+   "impl2026_10_24_m14_packet_pin_not_approval",
+   "impl2026_10_24_m14_devnet_ops_tool",
+   "impl2026_10_24_m14_flow_runner",
+   "impl2026_10_24_m14_flow_plan_seq_b",
+   "impl2026_10_24_m14_preflight_orao_squads",
+   "review2026_10_23_m14_devnet_ops_independent_review",
+   "review2026_10_24_m14_devnet_ops_fix_recheck",
+   "impl2026_10_24_legacy_pp_memo_evidence_card",
+   "review2026_10_23_legacy_pp_memo_leg1_review"
+  ],
+  "edges": 44,
+  "edges_extracted": 33,
+  "edges_inferred": 11,
+  "calls_edges": 0,
+  "hyperedges": [
+   "m14_local_preparation_2026_10_24"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_m14_devnet_acceptance resolution (reviewed through 81841a4; F3 finding supersedes that readiness claim)"
+  ]
+ },
+ "invariants": {
+  "legitimate_code_removals": [],
+  "backup_node_ids_restored": 0,
+  "raw_edge_multiplicity_shortfalls": 0,
+  "relation_level_shortfalls_informational": 0,
+  "dangling_edges": 0,
+  "dangling_hyperedge_members": 0,
+  "backup_links_not_verbatim_in_final_informational": 0,
+  "backup_links_whose_direction_differs_from_every_final_link_on_the_pair_informational": 0,
+  "committed_fragment_files": 24,
+  "committed_fragment_node_ids": 1872,
+  "committed_fragment_nodes_missing": [],
+  "committed_fragment_hyperedges_missing": [],
+  "committed_fragment_edge_pairs_missing_in_final_and_already_absent_from_backup_informational": 250,
+  "committed_fragment_edge_pairs_lost_vs_backup": 0,
+  "curated_attribute_mismatches": 0,
+  "max_community_among_non_fragment_nodes": 1933,
+  "gate": {
+   "every_backup_node_id_preserved_or_listed_legitimate_removal": true,
+   "backup_raw_edge_multiplicity_preserved": true,
+   "backup_hyperedges_preserved": true,
+   "hyperedge_lists_in_sync_top_level_and_graph": true,
+   "duplicate_node_ids_0": true,
+   "dangling_edges_0": true,
+   "dangling_hyperedge_members_0": true,
+   "restored_edges_keep_backup_direction_and_attributes": true,
+   "no_committed_fragment_edge_altered_vs_backup": true,
+   "fragment_edges_keep_fragment_direction": true,
+   "all_committed_fragment_nodes_present": true,
+   "all_committed_fragment_hyperedges_present": true,
+   "all_committed_fragment_edge_pairs_present_that_the_backup_had": true,
+   "curated_semantic_node_attributes_identical_to_backup": true,
+   "no_node_that_had_a_status_lost_it": true,
+   "fragment_nodes_all_present": true,
+   "fragment_node_ids_unique_vs_backup": true,
+   "fragment_community_unused_by_other_nodes": true,
+   "fragment_attribute_updates_applied": true,
+   "graph_flags_unchanged": true
+  },
+  "all_pass": true
+ },
+ "independent_coordinator_check": "the coordinator re-verified with its own script: 0 duplicate ids, 0 backup ids missing, 0 dangling links or hyperedge members, 0 backup hyperedges missing, 0 backup links not present verbatim, 0 backup attribute keys missing, all 1,872 committed-fragment node ids present, 0 calls edges in the new fragment",
+ "scope": {
+  "head": "81841a47dd282143e53277a922b1a7bdf51474e6",
+  "branch": "codex/native-solana-production-core",
+  "covered_files_sha256_at_head": {
+   "docs/coordination/legacy-pp-ledger-memo-evidence-20261023.md": "afc018acd250d2724043f1938fddcc840295b8672b79cc02c3fb42f5f539e02e",
+   "docs/coordination/legacy-pp-memo-leg1-independent-review-20261023.md": "5f8f0305741b90c990ce64eb5e8aa8acf75d54eba7e06e792831b10cd552e968",
+   "docs/coordination/m14-devnet-ops-fix-recheck-20261024.md": "a3792249d5a54c3092c40305ded7a0a9451504cd1b08a9b5a873347a5b3418f8",
+   "docs/coordination/m14-devnet-ops-independent-review-20261023.md": "41c384d1ddaf8bcd2c0684530a7589cfe73e313604ec174b1c57e26e139e893b",
+   "docs/coordination/native-solana-m14-approval-packet-20261023.md": "1d95f6d3be33a8395bbadc3ec0066abc0ce473266ab581a082b31ff17f914dfc",
+   "docs/solana/devnet-ops.md": "56a7912610b42075b90a14f0be6785b3913598ebf907f419dcf3f57770785fad",
+   "docs/solana/evidence/2026-10-23-m14-preflight/NOTES.md": "8b2dece2a804dc575fb862418439c26503a45662ceaae9cf52df82ebafe68a83",
+   "docs/solana/m14-flow-plan.md": "1d6fef23586e9685a1cb5f51b49d206d4c2ba3a8a61cec5da5f7b60444bd6ece"
+  },
+  "working_files_differing_from_head_at_extraction_time": {
+   "docs/coordination/native-solana-m14-approval-packet-20261023.md": {
+    "working_tree_sha256": "4b184fe9b23776a977095e325954ad1331d04d3050ea05ed898b6eb277a5966f",
+    "head_blob_sha256": "1d95f6d3be33a8395bbadc3ec0066abc0ce473266ab581a082b31ff17f914dfc"
+   }
+  },
+  "linked_code_files_sha256_at_head": {
+   "solana/tests/financial-runtime/src/bin/devnet_ops.rs": "a06923a4da1e5a5c2421ac044caccf374f135330ee099c63a11145777ff1e730",
+   "solana/tests/financial-runtime/src/devnet_ops.rs": "51f302dfdb9a2a849403f004d984d517330525fdbd7bec04e4d77ee6f17bba6b",
+   "solana/tests/financial-runtime/src/devnet_ops/flow.rs": "451454feab7e9e52baaff35c7ec816bfee2cfe891fe1c57d86de786e6aa9b2d9",
+   "solana/tests/financial-runtime/src/m14_plan.rs": "a0d4549f4b3b53c5d71318df638ca6782a9b32c7306a8667b852f20de448f17f",
+   "solana/tests/financial-runtime/tests/m14_flow_plan.rs": "0b5ed30f54dad40aa9aca4376dd24a7bbcb78fa7caddc5339fbda1aff34c9d47"
+  },
+  "note": "semantic coverage = this fragment (worker-authored from the eight documents above); code coverage = AST nodes from graphify update at the same HEAD, linked here for navigation only. Edges marked INFERRED link a document to a symbol the document describes but does not name; no calls edges were written. Covers commit 81841a4 only: Codex's later F3 unknown-outcome finding (docs/coordination/m14-codex-f3-unknown-outcome-adjudication-20261024.md, commit 15df570, M14-F3-HOLD) is not extracted here and qualifies this fragment's once-only and fail-closed claims about devnet_ops until it is fixed. A graph relationship is navigation evidence only: financial and authority claims are verified against current source and tests, and nothing in these nodes shows that anything ran on a public cluster."
+ },
+ "stale_coverage": [
+  "code AST is at 81841a4: the F3 fix in the commit that adds this receipt changes solana/tests/financial-runtime/src/devnet_ops.rs, tests/devnet_ops_local.rs, tests/m14_flow_tool.rs and docs/solana/devnet-ops.md after the update (new functions such as mark_held and the held-unknown resolution are not in the AST graph)",
+  "not semantically extracted: docs/coordination/m14-codex-f3-unknown-outcome-adjudication-20261024.md, packet revision 6, kanban.md, lookout-projection.json, CLAUDE.md (Lookout section)",
+  "graphify-out/GRAPH_REPORT.md was regenerated by graphify update from the pre-repair structure; it was NOT regenerated after the merge (cluster-only would re-cluster and rewrite graph.json)"
+ ],
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_24_m14_devnet_ops_tool\"",
+   "result": "the tool node (community 1934, degree 13) with documents/references edges to devnet_ops.rs, devnet_ops_local.rs, read_pending() and the M14 plan gate; its once-only claim is qualified as historical (state at 81841a4, superseded by M14-F3-HOLD)"
+  },
+  {
+   "cmd": "graphify explain \"plan2026_10_13_m14_devnet_acceptance\"",
+   "result": "M14 Devnet acceptance (AUTHORIZATION GATE), degree 19 (fragment links added)"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_15_r1_actor_level_interleave_proof\"",
+   "result": "shows the inbound follows_up edge from the legacy PP-ledger memo-limit evidence card"
+  }
+ ],
+ "note": "A graph relationship is navigation evidence only; financial and authority claims are verified against current source and tests."
+}

@@ -173,6 +173,13 @@ struct SvmCluster<'a> {
     hide_slot: Cell<bool>,
     /// `slot()` fails (so neither the status nor the fallback can supply a slot).
     fail_slot: Cell<bool>,
+    /// The status lookup finds NOTHING for a transaction that did land (the node's status cache evicted
+    /// it and its history does not answer): a missing status the tool must never read as "never landed".
+    hide_status: Cell<bool>,
+    /// The status lookup ERRORS (a transport or node failure) although the transaction landed.
+    fail_status: Cell<bool>,
+    /// The status lookup FINDS every signature, as a transaction that landed and FAILED on chain.
+    status_failed: Cell<bool>,
     /// The highest slot the tool handed to `note_confirmed_slot` (what `minContextSlot` would carry).
     noted_slot: Cell<u64>,
 }
@@ -191,6 +198,9 @@ impl<'a> SvmCluster<'a> {
             blockhash_still_valid: Cell::new(false),
             hide_slot: Cell::new(false),
             fail_slot: Cell::new(false),
+            hide_status: Cell::new(false),
+            fail_status: Cell::new(false),
+            status_failed: Cell::new(false),
             noted_slot: Cell::new(0),
         }
     }
@@ -304,6 +314,15 @@ impl Cluster for SvmCluster<'_> {
         }
     }
     fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        if self.fail_status.get() {
+            return Err("injected getSignatureStatuses failure".into());
+        }
+        if self.hide_status.get() {
+            return Ok(SigOutcome::Unknown);
+        }
+        if self.status_failed.get() {
+            return Ok(SigOutcome::Failed { slot: 5, error: "injected on-chain failure".into() });
+        }
         Ok(self
             .landed
             .borrow()
@@ -1588,7 +1607,7 @@ fn an_unreadable_or_unparsable_write_ahead_file_refuses_every_command_instead_of
         "blockhash": Hash::new_unique().to_string(), "genesis_hash": LITESVM_GENESIS,
     });
     let resolved = serde_json::json!({
-        "schema": 1, "event": "resolved", "signature": good["signature"], "outcome": "expired_never_landed", "genesis_hash": LITESVM_GENESIS,
+        "schema": 1, "event": "resolved", "signature": good["signature"], "outcome": "rejected", "genesis_hash": LITESVM_GENESIS,
     });
 
     // A read error that is not "no such file" (here: the path is a directory) refuses.
@@ -1630,7 +1649,7 @@ fn an_unreadable_or_unparsable_write_ahead_file_refuses_every_command_instead_of
 }
 
 #[test]
-fn an_unresolved_write_ahead_record_blocks_fund_vault_too_until_its_blockhash_expires() {
+fn an_unresolved_write_ahead_record_blocks_fund_vault_while_valid_and_is_held_never_closed_once_expired() {
     let mut world = world_with_orao();
     let payer = funded_payer(&mut world);
     let files = Files::write(&world, &payer);
@@ -1652,13 +1671,228 @@ fn an_unresolved_write_ahead_record_blocks_fund_vault_too_until_its_blockhash_ex
     assert!(message.contains("MAY STILL LAND") && message.contains(&stray.to_string()), "{message}");
     assert_eq!(cluster.sends.get(), sends, "nothing is rebuilt while the pending transaction may still land");
 
-    // Once its blockhash has expired without the signature appearing, the record is closed and the
-    // transfer is built and sent exactly once.
+    // Its blockhash has expired and the history lookup finds no status.  That proves only that it cannot
+    // land NOW: the record is HELD (an incident), not closed, and the transfer is NOT rebuilt (this used to
+    // be recorded as `expired_never_landed` and sent).
     cluster.blockhash_still_valid.set(false);
+    for _ in 0..2 {
+        let message = refused(ops::run_with_cluster(&args, &cluster));
+        assert!(
+            message.contains("HELD UNKNOWN") && message.contains("UNKNOWN") && message.contains(&stray.to_string())
+                && message.contains("A5.fund_vault") && message.contains("NO command to clear"),
+            "{message}"
+        );
+        assert!(!message.contains("never landed") && !message.contains("never_landed"), "{message}");
+        assert_eq!(cluster.sends.get(), sends, "a held record builds and sends nothing");
+    }
+    let text = fs::read_to_string(&pending).unwrap();
+    assert!(!text.contains("never_landed") && !text.contains("never landed"), "{text}");
+    let lines = pending_lines(&pending);
+    assert_eq!(lines[0]["event"], "write_ahead");
+    assert!(lines[1..].iter().all(|line| line["event"] == "held_unknown" && line["signature"] == stray.to_string().as_str()), "{lines:?}");
+    assert!(lines.iter().all(|line| line["event"] != "resolved"), "the record is still open");
+
+    // A dry run and a read-only command still run, with the held record in the receipt and a warning.
+    let dry = ok(files.run(
+        &cluster,
+        &["fund-vault", "--payer", &files.payer, "--lamports", "20000000", "--pending-file", &pending],
+    ));
+    assert_eq!(dry["mode"], "dry-run", "{dry}");
+    assert_eq!(dry["open_pending_records"][0]["signature"], stray.to_string().as_str());
+    assert_eq!(dry["open_pending_records"][0]["held"], true);
+    assert!(dry["open_pending_records"][0]["held_why"].as_str().is_some_and(|why| why.contains("NO status")));
+    let readback = ok(files.run(&cluster, &["readback", "--sections", "squads", "--pending-file", &pending]));
+    assert_eq!(readback["open_pending_records"][0]["held"], true, "{readback}");
+    assert_eq!(cluster.sends.get(), sends);
+}
+
+/// Simulate a process that died after the send landed and before its resolution record was written:
+/// keep every line except the closing `resolved` ones.
+fn drop_resolutions(path: &str) {
+    let kept: String = pending_lines(path)
+        .into_iter()
+        .filter(|line| line["event"] != "resolved")
+        .map(|line| format!("{line}\n"))
+        .collect();
+    fs::write(path, kept).unwrap();
+}
+
+#[test]
+fn a_landed_transfer_with_no_resolution_a_dead_blockhash_and_a_missing_or_failing_status_is_held_and_never_sent_twice() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let g = ops::identity(real_g_create_keypair().pubkey());
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let sends_before = cluster.sends.get();
+    let pending = files.dir.file("pending.jsonl");
+
+    // The transfer lands ...
+    ok(ops::run_with_cluster(&fund_vault_args(&files, &pending, &[]), &cluster));
+    assert_eq!(cluster.sends.get(), sends_before + 1);
+    let landed = pending_lines(&pending);
+    let (signature, slot) = (landed[0]["signature"].as_str().unwrap().to_string(), landed[1]["slot"].as_u64().unwrap());
+    // ... and the process dies (or the response is lost) before the resolution is written.  The resumed
+    // node reports the vault unfunded (lagging), its status cache evicted the signature, and the blockhash
+    // is long dead (the double's default).
+    drop_resolutions(&pending);
+    cluster.set_lamports(&g.vault, 0);
+    let held_run = |cluster: &SvmCluster<'_>| ops::run_with_cluster(&fund_vault_args(&files, &pending, &[]), cluster);
+    let assert_held = |message: &str| {
+        assert!(message.contains("HELD UNKNOWN") && message.contains(&signature) && message.contains("A5.fund_vault"), "{message}");
+        assert!(!message.contains("never landed") && !message.contains("never_landed"), "{message}");
+        assert_eq!(cluster.sends.get(), sends_before + 1, "ZERO additional sends");
+        let text = fs::read_to_string(&pending).unwrap();
+        assert!(!text.contains("never_landed") && !text.contains("never landed"), "{text}");
+        let lines = pending_lines(&pending);
+        assert!(lines.iter().all(|line| line["event"] != "resolved"), "the record is still open: {lines:?}");
+    };
+
+    // (1) No status: HELD.  Any other --execute command is blocked the same way.
+    cluster.hide_status.set(true);
+    assert_held(&refused(held_run(&cluster)));
+    let other = files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute", "--pending-file", &pending]);
+    assert_held(&refused(other));
+
+    // (2) An ERROR status response: also HELD (an error is not proof of absence either).
+    cluster.hide_status.set(false);
+    cluster.fail_status.set(true);
+    let message = refused(held_run(&cluster));
+    assert!(message.contains("FAILED"), "{message}");
+    assert_held(&message);
+
+    // (3) History later finds the transaction CONFIRMED: the record resolves `confirmed` with its slot,
+    // which restores the once-only guard, so the repeat is refused and still nothing is sent.
+    cluster.fail_status.set(false);
+    let message = refused(held_run(&cluster));
+    assert!(message.contains("already CONFIRMED") && message.contains(&signature), "{message}");
+    assert_eq!(cluster.sends.get(), sends_before + 1, "zero additional sends");
+    let lines = pending_lines(&pending);
+    let resolution = lines.last().unwrap();
+    assert_eq!((resolution["event"].as_str(), resolution["outcome"].as_str()), (Some("resolved"), Some("confirmed")), "{lines:?}");
+    assert_eq!(resolution["signature"], signature.as_str());
+    assert_eq!(resolution["slot"].as_u64(), Some(slot));
+    assert_eq!(resolution["slot_source"], "signature_status");
+    // The guard now holds on its own: nothing about the node's balances can reopen the transfer.
+    let message = refused(held_run(&cluster));
+    assert!(message.contains("already CONFIRMED"), "{message}");
+    assert_eq!(cluster.sends.get(), sends_before + 1);
+}
+
+#[test]
+fn a_held_record_that_history_later_shows_failed_resolves_failed_on_chain() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let sends = cluster.sends.get();
+    let pending = files.dir.file("pending.jsonl");
+    let stray = Signature::new_unique();
+    let record = serde_json::json!({
+        "schema": 1, "event": "write_ahead", "step": "A5.fund_vault", "signature": stray.to_string(),
+        "blockhash": Hash::new_unique().to_string(), "genesis_hash": LITESVM_GENESIS,
+    });
+    fs::write(&pending, format!("{record}\n")).unwrap();
+    let args = fund_vault_args(&files, &pending, &[]);
+    assert!(refused(ops::run_with_cluster(&args, &cluster)).contains("HELD UNKNOWN"));
+    assert_eq!(cluster.sends.get(), sends);
+
+    // History finds it FAILED on chain: it did not move funds, so the record closes and the transfer runs once.
+    cluster.status_failed.set(true);
     let done = ok(ops::run_with_cluster(&args, &cluster));
+    assert_eq!(done["pending_resolved"][0]["outcome"], "failed_on_chain", "{done}");
     assert_eq!(done["all_ok"], true, "{done}");
-    assert_eq!(done["pending_resolved"][0]["outcome"], "expired_never_landed");
     assert_eq!(cluster.sends.get(), sends + 1);
+}
+
+/// A loopback JSON-RPC server: answers each request with `replies[i](request body)` (a JSON object merged
+/// with `jsonrpc`/`id`) and returns the request bodies.  Std only; one connection per request.
+fn serve_json_rpc(replies: Vec<Box<dyn Fn() -> Value + Send>>) -> (String, std::thread::JoinHandle<Vec<Value>>) {
+    use std::io::{Read, Write};
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind loopback");
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let handle = std::thread::spawn(move || {
+        let mut bodies = Vec::new();
+        for reply in replies {
+            let (mut stream, _) = listener.accept().expect("accept");
+            let mut raw = Vec::new();
+            let mut chunk = [0u8; 4_096];
+            let (header_end, length) = loop {
+                let read = stream.read(&mut chunk).expect("read");
+                assert!(read > 0, "the client closed before sending a request");
+                raw.extend_from_slice(&chunk[..read]);
+                if let Some(end) = raw.windows(4).position(|window| window == b"\r\n\r\n") {
+                    let head = String::from_utf8_lossy(&raw[..end]).to_ascii_lowercase();
+                    let length = head
+                        .lines()
+                        .find_map(|line| line.strip_prefix("content-length:").map(|value| value.trim().parse::<usize>().unwrap()))
+                        .expect("a content-length header");
+                    break (end + 4, length);
+                }
+            };
+            while raw.len() < header_end + length {
+                let read = stream.read(&mut chunk).expect("read body");
+                assert!(read > 0, "the client closed mid-body");
+                raw.extend_from_slice(&chunk[..read]);
+            }
+            let request: Value = serde_json::from_slice(&raw[header_end..header_end + length]).expect("a JSON request");
+            let mut body = reply();
+            body["jsonrpc"] = "2.0".into();
+            body["id"] = request["id"].clone();
+            let body = body.to_string();
+            write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            )
+            .expect("write the reply");
+            bodies.push(request);
+        }
+        bodies
+    });
+    (url, handle)
+}
+
+#[test]
+fn the_rpc_cluster_searches_transaction_history_and_tells_a_missing_status_from_a_found_one() {
+    let found = |slot: u64, err: Value, status: Value, confirmation: &str| {
+        serde_json::json!({ "result": { "context": { "slot": 100 }, "value": [
+            { "slot": slot, "confirmations": null, "err": err, "status": status, "confirmationStatus": confirmation }
+        ] } })
+    };
+    let replies: Vec<Box<dyn Fn() -> Value + Send>> = vec![
+        // no status at all
+        Box::new(|| serde_json::json!({ "result": { "context": { "slot": 100 }, "value": [null] } })),
+        // finalized, no error
+        Box::new(move || found(7, Value::Null, serde_json::json!({ "Ok": null }), "finalized")),
+        // processed only: below the client's `confirmed`
+        Box::new(move || found(9, Value::Null, serde_json::json!({ "Ok": null }), "processed")),
+        // landed and failed
+        Box::new(move || found(11, "AccountNotFound".into(), serde_json::json!({ "Err": "AccountNotFound" }), "confirmed")),
+        // the node answers with an error
+        Box::new(|| serde_json::json!({ "error": { "code": -32005, "message": "Node is unhealthy" } })),
+        // signature_slot reads the slot of a found status
+        Box::new(move || found(13, Value::Null, serde_json::json!({ "Ok": null }), "confirmed")),
+    ];
+    let (url, server) = serve_json_rpc(replies);
+    let cluster = RpcCluster::connect(&url, CommitmentConfig::confirmed());
+    let signature = Signature::new_unique();
+    assert_eq!(cluster.signature_outcome(&signature), Ok(SigOutcome::Unknown));
+    assert_eq!(cluster.signature_outcome(&signature), Ok(SigOutcome::Confirmed { slot: 7 }));
+    assert_eq!(cluster.signature_outcome(&signature), Ok(SigOutcome::BelowCommitment { slot: 9 }));
+    assert!(matches!(cluster.signature_outcome(&signature), Ok(SigOutcome::Failed { slot: 11, .. })));
+    assert!(cluster.signature_outcome(&signature).is_err(), "a node error is an Err, never 'no status'");
+    assert_eq!(cluster.signature_slot(&signature), Ok(Some(13)));
+    // EVERY lookup asked the node to search its transaction history, not only the recent status cache.
+    let requests = server.join().expect("the server saw every request");
+    assert_eq!(requests.len(), 6);
+    for request in &requests {
+        assert_eq!(request["method"], "getSignatureStatuses", "{request}");
+        assert_eq!(request["params"][0][0], signature.to_string().as_str(), "{request}");
+        assert_eq!(request["params"][1]["searchTransactionHistory"], true, "{request}");
+    }
 }
 
 #[test]

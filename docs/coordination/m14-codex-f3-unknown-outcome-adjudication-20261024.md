@@ -42,4 +42,31 @@ The finding is valid and blocks any public execution request until it is fixed.
 - **Focused regression.** The test models a transaction that already landed, a lost response or process, an expired blockhash, and a missing or error status. It asserts zero additional sends and no never-landed claim. A recovered historical confirmation must restore the once-only guard.
 - **Budget wording.** Codex also asked for this. The 25 SOL total is a process budget that the coordinator keeps; `devnet_ops` does not track it. The packet now says so. Software enforces only the per-command ceilings: deploy at most 15 SOL on devnet, and a `fund-vault` total of at most 0.05 SOL.
 
+## Resolution (fixed locally in the commit that adds this section; Codex confirmation requested)
+
+All line numbers are in `solana/tests/financial-runtime/src/devnet_ops.rs`.
+
+- **History lookups.** `RpcCluster::signature_outcome` (around 1213) and `signature_slot` (around 1251) call `get_signature_statuses_with_history`. `SigOutcome::Unknown` now means only "the lookup succeeded and found no status". A new `BelowCommitment` variant covers a status found below the client commitment.
+- **Expired is gone.** `Resolution::Expired` and `expired_never_landed` are removed from the crate, the tests and the runbook. After expiry, `wait_outcome` (around 2254) closes a record only on a FOUND confirmed or failed status. A missing status, a below-commitment status or a lookup error gives `Resolution::Held`.
+- **Held records stay open.** `mark_held` appends a non-closing `held_unknown` line. `read_pending` accepts it without closing or confirming the record.
+- **Execute is refused.** `resolve_pending_all` refuses every `--execute` with an INCIDENT message: no clear command; any retry needs Rob's separate exact approval. Read-only and dry-run commands still run and print a warning listing the open and held records.
+- **Ambiguous sends.** The in-process ambiguous-send path ends HELD with a `fail` and no rebuild.
+- **Extra guard.** `refuse_repeat_of_confirmed` also refuses while an open record exists for the same non-idempotent step.
+- **No release command.** There is no release or clear subcommand.
+
+**Tests (coordinator-run):**
+- `devnet_ops_local` 33/33 and `m14_flow_tool` 14/14. New and renamed tests:
+  - `a_landed_transfer_with_no_resolution_a_dead_blockhash_and_a_missing_or_failing_status_is_held_and_never_sent_twice` (fund-vault);
+  - `a_landed_funding_with_no_resolution_a_dead_blockhash_and_a_missing_or_failing_status_is_held_and_never_sent_twice` (FundOperations);
+  - `a_held_record_that_history_later_shows_failed_resolves_failed_on_chain`;
+  - `the_rpc_cluster_searches_transaction_history_and_tells_a_missing_status_from_a_found_one` (a loopback JSON-RPC server checks that every lookup sends `searchTransactionHistory: true`);
+  - `an_ambiguous_send_whose_status_cannot_be_found_after_the_blockhash_dies_ends_held_and_is_never_rebuilt`;
+  - two renamed tests that previously asserted `expired_never_landed` and now assert HELD with zero sends.
+- The full 39-step plan through the runner: PASS.
+- `m14_flow_plan`: 2/2.
+- The real-node lifecycle on a fresh local validator: PASS in 25.43 s, 34/34 write-ahead records resolved, 0 held.
+- check and clippy `-D warnings` are clean, and `Cargo.lock` is unchanged.
+
+Summary: `docs/solana/evidence/2026-10-23-m14-preflight/m14-f3-hold-test-summary.txt`.
+
 No M14 approval is implied by this record or by the fix. The graph worker and the local Lookout metadata are untouched.

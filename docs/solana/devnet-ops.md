@@ -29,7 +29,7 @@ interlock, `4` a verification or read-back check did not hold (receipt still pri
 | dry run | no `--execute` = nothing signed or sent; `--simulate` additionally simulates the independent steps (unsigned, sigVerify off) |
 | where `--execute` works | `--cluster local` (default): RPC host exactly `localhost`, `127.0.0.1` or `[::1]`. `--cluster devnet`: https URL, an RPC host on the allowlist (`api.devnet.solana.com`, or one host named with `--allow-rpc-host`), `--pending-file`, and the **packet pin** `--packet-sha256 <sha256> --packet-commit <40-hex commit>`: the SHA-256 of `git show <commit>:docs/coordination/native-solana-m14-approval-packet-20261023.md` (the frozen, committed blob) must equal `--packet-sha256`, and the working file must equal that blob byte for byte. The packet path is fixed: `--packet` is refused on every cluster. The old flag `--i-have-approval` is REMOVED (rejected with an explanation): it only ever pinned the text, and its name claimed more. Any other cluster name (mainnet-beta, testnet) is refused. Read-only commands take no `--execute` |
 | receipts | every executed output, flow receipt included, records `packet: {packet_path, packet_commit, packet_sha256}` (`null` on a loopback cluster); flow receipts are also stamped with the cluster (below) |
-| double-send safety | before a transaction is sent its signature, blockhash, `lastValidBlockHeight`, genesis hash, command and packet pin are written to stderr and to `--pending-file` (default `<wallet-dir>/pending.jsonl` for `flow`; REQUIRED on devnet), durably: one `write` of the whole line, then `fsync` (`sync_data`); a failed write stops the send. An ambiguous send error (timeout, transport) is polled with `getSignatureStatuses` until confirmed, failed or the blockhash is invalid; nothing is rebuilt while it may still land (`--pending-wait-seconds`, default 90). Every run resolves unresolved pending records of this cluster FIRST, and the file is read **fail-closed** (next section). After a confirmed send, reads carry `minContextSlot` = the transaction's slot, and a one-transaction step stops after one confirmed send instead of looping on a read that may be stale |
+| double-send safety | before a transaction is sent its signature, blockhash, `lastValidBlockHeight`, genesis hash, command and packet pin are written to stderr and to `--pending-file` (default `<wallet-dir>/pending.jsonl` for `flow`; REQUIRED on devnet), durably: one `write` of the whole line, then `fsync` (`sync_data`); a failed write stops the send. An ambiguous send error (timeout, transport) is polled with `getSignatureStatuses` **with `searchTransactionHistory`** (the plain call searches only the node's recent status cache, which evicts) until confirmed, failed or the blockhash is invalid; nothing is rebuilt while it may still land (`--pending-wait-seconds`, default 90). A blockhash that is no longer valid proves only that the transaction cannot land NOW, never that it did not land earlier: if the final lookup then finds no status, or errors, the record is **HELD UNKNOWN** (an incident, below), not closed. Every run resolves unresolved pending records of this cluster FIRST, and the file is read **fail-closed** (next section). After a confirmed send, reads carry `minContextSlot` = the transaction's slot, and a one-transaction step stops after one confirmed send instead of looping on a read that may be stale |
 | genesis hash | checked before any command: devnet needs `EtWTRABZ...`; a loopback RPC that reports mainnet, testnet or devnet genesis (a tunnel) is refused |
 | packet size | every transaction is measured unsigned; over 1,232 bytes is refused before any signature exists. `vault_transaction_create` is always proposer = creator = rent payer = fee payer (one signature) |
 | simulate before send | `simulateTransaction` on the signed transaction before every send; an error refuses the send (client-API simulation has sigVerify off; the cluster verifies on send) |
@@ -54,9 +54,25 @@ time, and read from a load-balanced node that has not yet seen the last transact
   polls, 500 ms apart), then falls back to the cluster slot read after the confirmation (recorded as `slot_source:
   get_slot_after_confirmation`); if neither works the step ends with an error that says the transaction CONFIRMED and names it, and no
   post-state read is made.
+* **Held unknown records: an INCIDENT.** When a write-ahead record has no resolution, its blockhash is no longer valid, and the final
+  history lookup returns **no status** or **an error**, the tool cannot know whether the transaction landed (the process may have died, or
+  the response been lost, after a transfer landed; the status cache then evicts it). That is no evidence of absence: the record stays
+  OPEN, a non-closing `held_unknown` line (signature, step, why, time) is appended, and **every `--execute` command refuses** before it
+  builds anything, naming the signature and step (exit 3; an in-process ambiguous send ends with exit 1 and the same words). Dry runs and
+  read-only commands still run, print a loud warning on stderr and list the open records in the receipt (`open_pending_records`; `held`
+  is true once an `--execute` run has held the record), because they resolve nothing. Every `--execute` run re-queries the history: a
+  record whose transaction is later **found confirmed** is resolved `confirmed` with its slot (which restores the once-only guard
+  below), and one **found failed** is resolved `failed_on_chain`. That is the only way a held record clears. **The tool has NO
+  command to clear an unknown record** and will not rebuild one. If a lookup never finds it, any retry needs a separate, exact
+  approval from Rob (the signature, the effect and the retry) and a review: it is not routine operator discretion.
+  **Operator procedure when a run refuses with `HELD UNKNOWN`:** STOP. Do not re-run the step, do not edit or delete lines of the
+  pending file, do not send anything by hand. Report the signature and the step to Rob. You may look the signature up on an explorer
+  (or `solana confirm -v <signature>`) and check the payer's and recipient's balance history around the send; that is information
+  gathering only and does **not** authorize a retry. Re-running any `--execute` command re-queries the history and resolves the record
+  if the lookup now finds it.
 * **Once-only transfers.** The plain funding transfers (`fund-vault`; the flow steps `fund_operations` and the `*_fund_series_a` steps) are not
   idempotent. If the file already holds a CONFIRMED record for the same step on this genesis, the tool refuses and prints the signature,
-  whatever the RPC node says about balances or counters.
+  whatever the RPC node says about balances or counters. An OPEN (unresolved or held) record for the same step also refuses it.
 * **Reads are typed.** The post-send `getAccountInfo` / `getProgramAccounts` configs are typed values checked before use (the commitment sits
   at the top level of the config; a dropped commitment would silently read at `finalized`).
 
