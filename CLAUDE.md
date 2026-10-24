@@ -64,6 +64,11 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   4. Append the backend revision and source revision to `docs/coordination/lookout-publication-log.md`.
 
   Use the same manifest and its scoped identity only. Never inspect or export secrets. Do not touch setup's `.local` seed. Recording a receipt in the log is not a material checkpoint, so do not republish for it. Any NEW tool or permission rejection is binding: never route around it with another executor, identity or tool. New sensitive content or new link hosts still need fresh approval.
+- **Plain-English status and glossary.** `docs/coordination/lookout-presentation.json` has the shape `{summary, glossary:[{term, definition, cardId?}]}` and is described under "Plain-English status and clickable explanations" in the lookout-kanban `outputs/PUBLISHING.md`. Update it alongside every material board checkpoint, in the same commit as the projection.
+  - Keep the summary brief (about 35–60 words) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
+  - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
+  - Never guess a meaning or reuse another project's shorthand. Apply the same sanitization as the projection. No new timer.
+  - Setup owns the manifest's `presentationPath`. Once setup confirms that cutover and backend readiness, the same publisher run publishes the presentation bound to the cards' exact source revision. Metadata-only changes still publish, and identical repeats are no-ops. Until then, do not publish presentation metadata or race setup's seeding.
 - **Boundaries.**
   - Never read or export keyring secrets.
   - Board-sync approval is not Block A approval. M14 execution still needs Rob's separate, explicit yes.
