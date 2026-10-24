@@ -503,7 +503,7 @@ pub(crate) fn partitions_total(w: &World) -> u64 {
 
 /// Both conservation identities plus the partition identity of spec 8.6:
 /// `ops.locked_remaining_total == sum of every close's remaining partitions`.
-pub(crate) fn assert_identities(w: &World) {
+pub fn assert_identities(w: &World) {
     w.assert_vault_identity();
     w.assert_ops_cash_identity();
     assert_eq!(
@@ -513,7 +513,7 @@ pub(crate) fn assert_identities(w: &World) {
     );
 }
 
-pub(crate) fn ok(w: &mut World, variant: &str, instructions: Vec<Instruction>, signers: &[&Keypair]) -> Observation {
+pub fn ok(w: &mut World, variant: &str, instructions: Vec<Instruction>, signers: &[&Keypair]) -> Observation {
     let observation = w
         .send(variant, instructions, signers)
         .unwrap_or_else(|failed| panic!("{} failed: {failed:?}", failed.label));
@@ -840,7 +840,7 @@ pub(crate) fn lbl(close_id: u64, base: &str) -> String {
 /// Provision exactly the candidate pages the host-derived lists need (page
 /// `ceil(count / 8)` of each non-empty set) from the locked reserve, sponsor
 /// partition first.  Returns `(preferred pages, fallback pages)`.
-pub(crate) fn provision_candidate_pages(w: &mut World, close_id: u64) -> (u64, u64) {
+pub fn provision_candidate_pages(w: &mut World, close_id: u64) -> (u64, u64) {
     let expected = expected_candidates(w, close_id);
     let (preferred, fallback) = (pages_of(expected.preferred.len()), pages_of(expected.fallback.len()));
     for index in 0..preferred {
@@ -893,7 +893,7 @@ pub(crate) fn capture_accounts(w: &World, close_id: u64) -> accounts::CaptureRou
     }
 }
 
-pub(crate) fn capture_ix(w: &World, close_id: u64) -> Instruction {
+pub fn capture_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(capture_accounts(w, close_id), instruction::CaptureRoundDraw)
 }
 
@@ -956,7 +956,7 @@ pub(crate) fn apply_ix_with(w: &World, close_id: u64, keys: ApplyKeys) -> Instru
     )
 }
 
-pub(crate) fn apply_ix(w: &World, close_id: u64) -> Instruction {
+pub fn apply_ix(w: &World, close_id: u64) -> Instruction {
     apply_ix_with(w, close_id, apply_keys(w, close_id))
 }
 
@@ -974,11 +974,11 @@ pub(crate) fn expire_accounts(w: &World, close_id: u64) -> accounts::ExpirePromo
     }
 }
 
-pub(crate) fn expire_ix(w: &World, close_id: u64) -> Instruction {
+pub fn expire_ix(w: &World, close_id: u64) -> Instruction {
     anchor_ix(expire_accounts(w, close_id), instruction::ExpirePromotion)
 }
 
-pub(crate) fn finalize_ix(w: &World, close_id: u64) -> Instruction {
+pub fn finalize_ix(w: &World, close_id: u64) -> Instruction {
     let rt = &w.rt;
     anchor_ix(
         accounts::FinalizeRound {
@@ -1325,7 +1325,7 @@ impl Scene {
 }
 
 /// [`seal`] with an explicit label for the final (sealing) batch.
-pub(crate) fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str) -> Vec<Observation> {
+pub fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str) -> Vec<Observation> {
     let mut observations = Vec::new();
     for call in 0.. {
         let close = w.close_record(close_id);
@@ -1348,7 +1348,7 @@ pub(crate) fn seal_labelled(w: &mut World, close_id: u64, batch: u8, last: &str)
 
 /// `request_round_draw` for `close_id`, watching the request PDA for the
 /// fee-only snapshots.
-pub(crate) fn do_request(w: &mut World, close_id: u64, variant: &str) -> Observation {
+pub fn do_request(w: &mut World, close_id: u64, variant: &str) -> Observation {
     let request = host_request(w, close_id).0;
     w.watch(request);
     let instruction = request_ix(w, close_id);
