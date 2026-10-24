@@ -5,7 +5,7 @@
  "by": "Silas (Claude coordinator): key generation, pinned SBF builds, suites, receipt; Sonnet workers: id replacement, fixture regeneration and re-capture",
  "program_id": {
   "old": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
-  "old_note": "exactly 32 bytes of 0x66: a synthetic placeholder for which no keypair can exist (MI-1 moot)",
+  "old_note": "exactly 32 bytes of 0x66: a synthetic placeholder with no known private key; it is a valid curve point (PublicKey.isOnCurve true, packet [L9]), so a key cannot be ruled out mathematically. The approved 5a path applies either way. (Corrected 2026-10-24 per Gideon's review.)",
   "new": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
   "new_key_custody": "generated 2026-10-24 by Silas with the pinned solana-keygen 3.1.0; 0700 directory outside every worktree, file 0600; never committed or printed; signs only the FIRST deploy at each cluster; intended for devnet and the later mainnet deploy (5a recommendation)"
  },
@@ -23,7 +23,8 @@
    "changed_files": [
     "solana/programs/musical_chairs/src/lib.rs (declare_id!)",
     "solana/programs/musical_chairs/src/sampling.rs (test constant PROGRAM_ID)"
-   ]
+   ],
+   "covers": "25 files (source-set-digest.sh --list; corrected from '19' per Gideon's review)"
   },
   "lock_sha256": {
    "unchanged": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f"
@@ -210,5 +211,6 @@
   "Gideon (Codex supervisor) acceptance of these pins in a receipt",
   "packet revision 8 (in the same commit) reviewed with the new pins"
  ],
- "nothing_public": "no public transaction of any kind; no key other than the program-id key was generated"
+ "nothing_public": "no public transaction of any kind; no key other than the program-id key was generated",
+ "gideon_review": "docs/coordination/m14-5a-gideon-review-20261024.md: source/artifact delta PASS at 1b95172; packet coherence fixes in revision 9"
 }

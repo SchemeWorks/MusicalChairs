@@ -10,7 +10,7 @@
 >
 > The confirmation does not change the gates. No public transaction, faucet requests included, happens before the 5a gates below are met: Gideon's acceptance of the new pins (gate 7) and the packet revision carrying them (gate 8).
 >
-> **MI-1 is moot.** The old id `7tj9…` is exactly 32 bytes of `0x66`, a synthetic placeholder for which no keypair can exist, so the fresh id (5a) was required in any case.
+> **MI-1.** The old id `7tj9…` is exactly 32 bytes of `0x66`, a synthetic placeholder with no known private key. It is a valid curve point, so a key cannot be ruled out mathematically. The approved 5a fresh id applies either way. *(Wording corrected per Gideon's review; an earlier version said "no keypair can exist", which is unsupported.)*
 
 ## The approval
 

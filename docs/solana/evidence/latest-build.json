@@ -11,7 +11,7 @@
   "size_note": "1,399,208 bytes vs 1,397,160 for the old id: .text grew by 0x610 bytes. The control rebuild of the OLD source set with the same restored toolchain and path reproduced 8f97e83d byte-for-byte, so the growth comes only from the program-id change (the old placeholder id was 32 identical bytes). No local or cargo-home path is embedded (the same 5 /Users/runner/work platform-tools std strings as before)."
  },
  "source_set_sha256": "e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d",
- "source_set_helper": "solana/tests/financial-runtime/scripts/source-set-digest.sh (19 files)",
+ "source_set_helper": "solana/tests/financial-runtime/scripts/source-set-digest.sh (25 files; '19' in earlier records was wrong — corrected 2026-10-24 per Gideon's review)",
  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
  "lock_path": "solana/programs/musical_chairs/Cargo.lock",
  "standin_artifact_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
@@ -48,7 +48,7 @@
  "previous": {
   "artifact_sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
   "source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
-  "note": "IMPL-39b/40a ELF under the synthetic placeholder program id 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 (32 bytes of 0x66; no keypair could exist); accepted M0–M13 and through M14 local preparation; superseded by the M14 5a fresh-program-id ELF. A 2026-10-24 control rebuild of this exact source set with the restored pinned toolchain at the same path reproduced it byte-for-byte."
+  "note": "IMPL-39b/40a ELF under the synthetic placeholder program id 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 (32 bytes of 0x66; a synthetic placeholder with no known private key, on curve); accepted M0–M13 and through M14 local preparation; superseded by the M14 5a fresh-program-id ELF. A 2026-10-24 control rebuild of this exact source set with the restored pinned toolchain at the same path reproduced it byte-for-byte."
  },
  "lineage": [
   {

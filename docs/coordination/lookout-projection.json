@@ -158,10 +158,10 @@
     },
     {
       "id": "M14-5A-REPIN",
-      "state": "Done locally (awaiting CI and Gideon's acceptance)",
+      "state": "Done locally (final acceptance awaits CI)",
       "owner": "Silas (Claude coordinator) / Sonnet workers; Gideon (Codex supervisor) accepts",
       "scope": "Rebuild and re-pin the program under a fresh program id before any public transaction.",
-      "evidenceText": "Local only. The program is rebuilt under its fresh program id. A control rebuild of the old code with the same restored toolchain reproduced the accepted build exactly, so the new build differs only by the id. The interface file check is clean, derived addresses and test fixtures are regenerated, and all local suites pass on the new build: 274 harness tests, the operator-tool and runner suites, the full flow plan, and a real-node deploy on an isolated local validator. Still required before any public transaction, including faucet requests: green CI and Gideon's acceptance of the new pins.",
+      "evidenceText": "Local only. The program is rebuilt under its fresh program id. A control rebuild of the old code reproduced the accepted build exactly, so the change is id-only. All local suites pass on the new build. Gideon's (Codex supervisor) independent review passed the source and build changes. The requested documentation fixes are applied, and final acceptance awaits CI at the exact commit. No public transaction, including faucet requests, happens before final acceptance.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
