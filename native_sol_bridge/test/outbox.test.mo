@@ -33,12 +33,12 @@ let relayer = Principal.fromText("aaaaa-aa");
 func idOf(name : Text, ixIndex : Nat, innerIndex : Nat) : Events.EventId {
   { cluster_domain = localDomain; program_id = Fx.PROGRAM; signature = Fx.get(name).json.signatures[0]; instruction_index = ixIndex; inner_instruction_index = innerIndex; event_schema_version = 1 };
 };
-let HIXC = "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG";
-let E3JU = "E3jUXb3RFs49VhzVqzjFpPDYQwF4evgc9buQXMN5yV2r";
+let DNUV = "DNuV1uXrmRQS9WWczAE4pr9H5GzsodZxb4rVp63FndK2";
+let CTAX = "CTaxKUuztykKqqjLD69FMgUkRXhwPrYtyGsFWWnnRHoL";
 let BOW1 = "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew";
 
-let openD : Events.Descriptor = { event_id = idOf("flows-007", 1, 4); source_round_id = 1; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = HIXC; basis_lamports = 1_000_000_000; plan = ?#Simple };
-let seriesAD : Events.Descriptor = { event_id = idOf("flows-009", 1, 3); source_round_id = 1; source_close_id = null; kind = #SeriesAFunded; beneficiary_pubkey = E3JU; basis_lamports = 50_000_000; plan = null };
+let openD : Events.Descriptor = { event_id = idOf("flows-007", 1, 4); source_round_id = 1; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = DNUV; basis_lamports = 1_000_000_000; plan = ?#Simple };
+let seriesAD : Events.Descriptor = { event_id = idOf("flows-009", 1, 3); source_round_id = 1; source_close_id = null; kind = #SeriesAFunded; beneficiary_pubkey = CTAX; basis_lamports = 50_000_000; plan = null };
 let promoD : Events.Descriptor = { event_id = idOf("closing-009", 1, 3); source_round_id = 1; source_close_id = ?1; kind = #PromotionApplied; beneficiary_pubkey = BOW1; basis_lamports = 907_500_000; plan = null };
 let open2D : Events.Descriptor = { event_id = idOf("closing-012", 1, 3); source_round_id = 2; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = BOW1; basis_lamports = 100_000_000; plan = ?#Simple };
 
@@ -77,7 +77,7 @@ do {
     case (#Duplicate({ seq = 1; same_descriptor = true })) { check(true, "re-submitting the same descriptor is a Duplicate of seq 1") };
     case (_) { check(false, "identical resubmission is a Duplicate") };
   };
-  let conflicting : Events.Descriptor = { openD with beneficiary_pubkey = E3JU; basis_lamports = 1 };
+  let conflicting : Events.Descriptor = { openD with beneficiary_pubkey = CTAX; basis_lamports = 1 };
   switch (Outbox.submit(s, relayer, conflicting, 12)) {
     case (#Duplicate({ seq = 1; same_descriptor = false })) { check(true, "same event id with different fields is a Duplicate that reports the conflict") };
     case (_) { check(false, "conflicting resubmission is a Duplicate") };
@@ -229,7 +229,7 @@ do {
 do {
   Debug.print("== missingSiwsBindingKeepsPubkeyPendingAndReleasesOnBind ==");
   let s = Outbox.empty();
-  // Two forwarded events share the beneficiary BOW1 (a promotion and an opening); one is for HIXC.
+  // Two forwarded events share the beneficiary BOW1 (a promotion and an opening); one is for DNUV.
   ignore submitOk(s, promoD, 1);
   ignore submitOk(s, open2D, 1);
   ignore submitOk(s, openD, 1);
@@ -237,7 +237,7 @@ do {
   check(Outbox.unboundFor(s, BOW1).size() == 0, "nothing is unbound before Shenanigans acknowledges");
   check(isApplied(Outbox.applyForward(s, key(promoD), #Observed("obl-p"), 3)) and isApplied(Outbox.applyForward(s, key(open2D), #Observed("obl-o"), 3)) and isApplied(Outbox.applyForward(s, key(openD), #Observed("obl-h"), 3)), "(setup) all three acknowledged #Observed");
   check(Outbox.cursor(s) == 3, "the cursor has passed all three: observation does not wait for a SIWS binding");
-  check(Outbox.unboundFor(s, BOW1).size() == 2 and Outbox.unboundFor(s, HIXC).size() == 1, "events with no binding are kept under their beneficiary pubkey (2 for Bow1, 1 for Hixc)");
+  check(Outbox.unboundFor(s, BOW1).size() == 2 and Outbox.unboundFor(s, DNUV).size() == 1, "events with no binding are kept under their beneficiary pubkey (2 for Bow1, 1 for DNuV)");
 
   // Shenanigans cannot resolve a principal yet: stays pubkey-keyed. Every non-bound answer leaves it so.
   for (r in [#Unbound, #UnknownEvent, #Rejected("not yet")].vals()) {
@@ -251,7 +251,7 @@ do {
   check(Outbox.unboundFor(s, BOW1).size() == 1, "released from the pubkey index");
   check(isApplied(Outbox.applyBind(s, key(open2D), #AlreadyReserved, 6)), "opening bound: #AlreadyReserved (another caller got there first)");
   check(Outbox.unboundFor(s, BOW1).size() == 0, "all of Bow1's events are released");
-  check(Outbox.unboundFor(s, HIXC).size() == 1, "an unrelated beneficiary is unaffected");
+  check(Outbox.unboundFor(s, DNUV).size() == 1, "an unrelated beneficiary is unaffected");
   switch (Outbox.get(s, key(promoD))) {
     case (?e) {
       let v = switch (e.verified) { case (?x) x; case (null) { Debug.trap("verified present") } };

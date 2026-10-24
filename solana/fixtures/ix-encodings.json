@@ -358,5 +358,5 @@
     }
   ],
   "note": "Anchor instruction data = sha256(\"global:<name>\")[..8] ++ Borsh(args); account orders come from the IDL",
-  "program": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7"
+  "program": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o"
 }

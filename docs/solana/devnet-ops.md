@@ -34,7 +34,7 @@ interlock, `4` a verification or read-back check did not hold (receipt still pri
 | packet size | every transaction is measured unsigned; over 1,232 bytes is refused before any signature exists. `vault_transaction_create` is always proposer = creator = rent payer = fee payer (one signature) |
 | simulate before send | `simulateTransaction` on the signed transaction before every send; an error refuses the send (client-API simulation has sigVerify off; the cluster verifies on send) |
 | time lock | `execute` reads the proposal's `Approved{timestamp}` and the cluster Clock and refuses before `timestamp + time_lock` (Squads 6021) |
-| pinned bytes | `deploy`/`verify-bytes` hash the ELF first; only `8f97e83d...` (`PINNED_PROGRAM_ELF_SHA256`, kept equal to `latest-build.json` by a test); `--expected-sha256` overrides on `local` only |
+| pinned bytes | `deploy`/`verify-bytes` hash the ELF first; only `0c88d4e7...` (`PINNED_PROGRAM_ELF_SHA256`, kept equal to `latest-build.json` by a test); `--expected-sha256` overrides on `local` only |
 | vote on what was shown | `approve`/`execute` rebuild the inner instruction from the flags and refuse unless the on-chain vault transaction stores exactly that message; `propose` refuses if the program's upgrade authority is not the G vault, the action is already done, or an identical live proposal exists (`--expect-tx-index N` is required to execute a propose) |
 | spend caps | `deploy` refuses a peak above 15 SOL or an underfunded deployer; on devnet `--max-spend-lamports` cannot exceed 15 SOL and `--max-data-len` (ProgramData padding is permanent rent) needs `--max-data-len-justification <text>`, which is recorded. `fund-vault` runs the full G profile check, refuses if the vault already holds the rent it needs, and caps the vault's TOTAL (not one transfer) at 0.05 SOL |
 | keys and files | nothing is generated; only the files named on the command line sign; `~/.config/solana/id.json` is refused by path for every file argument (`--elf`, `--program-so`, `--receipts`, `--pending-file`, key flags); files the tool appends to (`--receipts`, `--pending-file`) must be `.jsonl` and are refused if they look like a keypair; the program keypair must be the compiled-in id (`--allow-program-id-mismatch` on `local` only, for tests) |
@@ -202,7 +202,7 @@ $HOME/.cache/mc-solana-tools/agave/solana-release/bin/solana-test-validator --re
 ```
 
 To also rehearse propose/approve/execute on the validator, preload the pinned program with the G vault as authority: run
-`devnet_ops validator-fixtures $OUT --program-so ~/.cache/mc-solana-artifacts/8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826/musical_chairs_program.so --g-create-key <g-create keypair file>`
+`devnet_ops validator-fixtures $OUT --program-so ~/.cache/mc-solana-artifacts/0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef/musical_chairs_program.so --g-create-key <g-create keypair file>`
 and start the validator with the command it prints (it appends `--upgradeable-program 7tj9... <so> <G vault>`), then export `MC_LOCAL_PROGRAM_PRELOADED=1`.
 A validator clock cannot be warped, so the 48-hour execute is exercised in LiteSVM; on the validator the tool must refuse it (time lock).
 

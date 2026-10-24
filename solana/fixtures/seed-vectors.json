@@ -2,7 +2,7 @@
   "description": "Exact 32-byte protocol-seed vectors for the promotion draw (spec section 4), one per Pool.cluster_domain. The LiteSVM close suite (solana/tests/financial-runtime, row protocol_seed_differs_between_devnet_and_mainnet_cluster_domains_and_matches_host_vector) builds a real round whose sealed preferred set is exactly the four candidates below, runs request_round_draw on the compiled program under each domain, and asserts the on-chain CloseRecord.protocol_seed and the ORAO request PDA equal these vectors. The same bytes are pinned by the program's own unit test through solana/fixtures/sampling.json (protocol_seed.vectors); both files were also recomputed independently with Python hashlib. The second domain is the devnet fixture domain pinned by sampling.json; a mainnet genesis writes its own 32 bytes, so a mainnet vector exists only once that domain is chosen.",
   "rule": "SHA256(seed_domain || cluster_domain_32 || program_id_32 || round_id_le || close_id_le || set_tag_u8 || selected_count_le || sealed_digest_32)",
   "seed_domain": "SchemeWorks/MC/EEC/v1",
-  "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
   "round_id": 1,
   "close_id": 1,
   "set_tag": 0,
@@ -32,13 +32,13 @@
       "cluster": "litesvm-fixture",
       "cluster_domain": "musical-chairs-litesvm-fixture!!",
       "cluster_domain_hex": "6d75736963616c2d6368616972732d6c69746573766d2d666978747572652121",
-      "seed_hex": "3f41a9d04f8ffd4fc4a7bc85ad291020ee8205abf91ee79c8219a2fa98d43d27"
+      "seed_hex": "8db7e75d85d19ae2148f65c5edd8f9bcd3a0a08df0117341c3cec8801c39be8e"
     },
     {
       "cluster": "devnet",
       "cluster_domain": "musical-chairs-devnet-domain-v1!",
       "cluster_domain_hex": "6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121",
-      "seed_hex": "40d250b794794d18bb1fc39352159dcb598ae82ae125741d2d6801fe004e91fb"
+      "seed_hex": "6da6ab262fdcc0e6b910569c764cfcb86c18df17fcac97d332057e8768770b7d"
     }
   ]
 }

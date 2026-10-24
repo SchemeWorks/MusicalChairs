@@ -61,7 +61,7 @@ function entry(seq: number, status: Status, over: Partial<Entry['descriptor']> =
         cluster_domain: new Uint8Array(32),
         inner_instruction_index: 0n,
         event_schema_version: 1n,
-        program_id: '7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7',
+        program_id: '7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o',
         instruction_index: 2n,
       },
       ...over,

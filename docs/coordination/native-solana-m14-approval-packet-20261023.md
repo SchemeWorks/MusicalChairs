@@ -12,7 +12,30 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 
 **Revision 2 (M14-PKT-R, 2026-10-23)** applies Codex's four corrections. (1) Keeper durations are stated in nanoseconds, the C2 arming window is exact with hard caps (4f), and B1/B2/B4 carry single hard approval ceilings (4d). (2) RG-2 and RG-13 cite the accepted criterion (ELF hash equality, source-set equality, the accepted receipts) and call for a rebuild only on a concrete changed-source concern; the durable ELF copy is recorded. (3) RG-4/5/6 point at the owned local cards M14-PRE-ORAO and M14-PRE-SQUADS, separating optional preflight hardening from the required real devnet acceptance, and Block A is not gated on any ICP item. (4) Missing inputs are cut to four decisions plus defaults (9), the program-key wording is corrected with a fresh program-id envelope (5a), and the six-week calendar is validated from source with acceptance-preserving sequencing (6.4).
 
-## 0. Revision 7: status and the one recommended path (2026-10-24)
+## 0. Revision 8: status and the one recommended path (2026-10-24)
+
+**Revision 8 (2026-10-24): Block A CONFIRMED by Rob; 5a re-pin complete locally; awaiting CI and Gideon's acceptance of the new pins. No public transaction yet.**
+
+- **Approval.** Rob confirmed Block A, Solana devnet only (`docs/coordination/m14-block-a-approval-20261024.md`). The approved text is the copy-ready recommendation below, unchanged.
+- **Program id (5a taken).** The old id `7tj9…` was a placeholder: exactly 32 bytes of `0x66`, so no keypair could exist. The program now uses the fresh id **`7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o`**, whose key Silas holds under D1.
+  - Sections 2, 3a, 3c and 4b now carry the new pins: ELF `0c88d4e7…` (1,399,208 bytes), source set `e50e83df…`, IDL `d6370a73…`, the re-derived PDAs and ORAO Client, and the deploy peak of 14.2185 SOL (under the 15 SOL ceiling).
+  - The old/new record is `docs/solana/evidence/2026-10-24-m14-5a-repin.json`.
+- **Local re-review (5a gates 1–6): done.**
+  - A control build of the OLD source set with the restored pinned toolchain reproduced the accepted `8f97e83d…` byte for byte. The new ELF therefore differs only by the id.
+  - `check-idl.sh` is clean.
+  - LiteSVM full harness: 274 passed, 0 failed. The `devnet_ops` and runner suites pass, the full 39-step plan passes, and the real-node lifecycle deploys the new ELF (34/34 records resolved).
+  - The keeper and bridge `moc` suites pass, as do frontend `tsc` and `vitest`.
+  - The RPC fixtures were re-captured and are structurally identical to the old set.
+- **Still required before ANY public transaction, faucet included:**
+  - CI green at this head;
+  - Gideon's (Codex supervisor) acceptance of these pins (gate 7);
+  - Gideon's review of this revision (gate 8).
+- **Then A1.** Genesis check, fresh test keys under D1, and faucet requests, each written into the spend ledger within the 25 SOL process budget. The packet identity pin for `devnet_ops` will name this revision's commit and sha256 once accepted.
+- **Holds unchanged.** B1–B4, C1–C3, unknown retry, mainnet and the PR #125 merge stay held.
+
+The revision 7 text that follows is kept as the approved record. Its "AWAITING Rob's explicit Block A authority" status is superseded by the approval above.
+
+## (Revision 7 record) status and the one recommended path (2026-10-24)
 
 **Revision 7 (2026-10-24): status. Accepted locally; AWAITING Rob's explicit Block A authority.**
 
@@ -137,17 +160,17 @@ Everything in this table that is a hash was either re-computed read-only in this
 | item | value | how known |
 | --- | --- | --- |
 | Branch / head | `codex/native-solana-production-core` / `2f031cc` | [L1]; draft review PR #125 (kanban row PR-125) [C] |
-| `source_set_sha256` | `994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f` (19 files, helper `solana/tests/financial-runtime/scripts/source-set-digest.sh`) | pinned in [latest-build.json](../solana/evidence/latest-build.json); working tree recomputed equal [L4] |
+| `source_set_sha256` | revision 8: `e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d` (superseded `994a9ff4…`; 19 files, helper `solana/tests/financial-runtime/scripts/source-set-digest.sh`) | pinned in [latest-build.json](../solana/evidence/latest-build.json); working tree recomputed equal [L4] |
 | `lock_sha256` | `77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f` (`solana/programs/musical_chairs/Cargo.lock`) | pinned; matches the file hash in the [L4] listing |
-| **ELF to deploy** (reviewed macOS artifact) | sha256 `8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826`, 1,397,160 bytes (`elf_len`), file mtime 2026-10-14 10:49 | on disk at `solana/programs/musical_chairs/artifacts/musical_chairs_program.so` (gitignored) and in the durable copy `~/.cache/mc-solana-artifacts/8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826/musical_chairs_program.so` with `SHA256SUMS` and `PROVENANCE.txt`; both re-hashed now and `shasum -c` passes [L2, L14] |
+| **ELF to deploy** (revision 8: the 5a re-pinned macOS artifact; PENDING Gideon's acceptance) | sha256 `0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef`, 1,399,208 bytes (`elf_len`), built 2026-10-24. Superseded: `8f97e83d…` (1,397,160 bytes, placeholder id) | on disk at `solana/programs/musical_chairs/artifacts/musical_chairs_program.so` (gitignored) and in the durable copy `~/.cache/mc-solana-artifacts/8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826/musical_chairs_program.so` with `SHA256SUMS` and `PROVENANCE.txt`; both re-hashed now and `shasum -c` passes [L2, L14] |
 | ELF build conditions | macOS arm64, platform-tools v1.48 (rustc 1.84.1-dev), cargo-build-sbf 3.1.0-beta.0, built at path `/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs` | [latest-build.json](../solana/evidence/latest-build.json) |
 | Acceptance criterion (what "the reviewed ELF" means) | Hash equality of the ELF to be deployed with the pinned sha256, source-set equality with the pinned `source_set_sha256`, and the accepted receipts (M0 same-path reproducibility, M10 Linux CI cross-check, Codex acceptance). The scratch toolchain and replica state having disappeared does not invalidate them. A rebuild is called for only by a concrete changed-source or changed-artifact concern (for example 5a) | plan M14/C5; RG-2 |
 | Reproducibility caveat | Byte-identical only for a clean rebuild from the SAME path on the SAME platform tools (M0 receipt); another path or host gives different code bytes with the identical source set (M7 receipts). The cause is unverified. A byte search of the ELF finds only 12 `/Users/runner/work...` strings (the platform-tools std sources) and no worktree or cargo-home path [L7], so the dependence is not through embedded path strings | [C] for the receipts; [R] for the string check |
 | CI Linux artifact (cross-check only) | sha256 `a398d6f4b5fba0fe78c76cc5bcbe79bbbbc725bfd25451eeaab14bb9a161f297` from run 38614117412 on `f132fd4` (ubuntu-latest, pinned Linux tools); source set and lock asserted equal to the pins; **bytes differ from the macOS ELF by host and path, as the pin file says**; 210 harness tests and clippy passed on it | [2026-10-14-m10-fixes.json](../solana/evidence/2026-10-14-m10-fixes.json) `linux_ci`. Latest exact-head CI named by Codex: run 38705116196 at `c7ccc6e`, four jobs green [second closure review](native-solana-r1-r5-second-closure-review-20261017.md). CI at `2f031cc` was not read here |
 | Which one is deployed | Recommended: the macOS `8f97e83d...` (the artifact every receipt and local run used). The Linux ELF is a second valid build of the same source set but is not what was reviewed locally | recommendation [E]; default D5 |
-| Committed IDL | sha256 `11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597`, byte-identical copies at `solana/programs/musical_chairs/idl/musical_chairs.json` and `frontend/src/solana/native/idl/musical_chairs.json` | [L3]; CI step "Committed IDL matches a fresh generation" (`solana/scripts/check-idl.sh`) reported the same hash on run 38614117412. No on-chain IDL account is planned, so no IDL account hash |
+| Committed IDL | revision 8: sha256 `d6370a7319314d0386493661ce11c54168f8e65617b47ce285e8ac763db6e024` (superseded `11840ae0…`; only the `address` field changed; `check-idl.sh` clean), byte-identical copies at `solana/programs/musical_chairs/idl/musical_chairs.json` and `frontend/src/solana/native/idl/musical_chairs.json` | [L3]; CI step "Committed IDL matches a fresh generation" (`solana/scripts/check-idl.sh`) reported the same hash on run 38614117412. No on-chain IDL account is planned, so no IDL account hash |
 | Vault stand-in (localnet ONLY, never deployed to devnet) | `eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8` (macOS); CI Linux `955441aa488074c17af35e1cf191a564977f5a810da91a3622927ee8de0ee7ca` | [latest-build.json](../solana/evidence/latest-build.json), [m10-fixes](../solana/evidence/2026-10-14-m10-fixes.json). Devnet uses the real Squads v4 program |
-| Program id | `7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7` (`declare_id!`, [S] `lib.rs:27`); a valid ed25519 public key [L9]; no keypair file was found by filename search [L11], which does not show that nobody holds one; the build wrapper deletes the random keypair it generates unread [S] `build-sbf.sh:47-59` | MI-1 (who holds it, if anyone); fallback 5a |
+| Program id | revision 8: **`7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o`** (5a fresh id; key held by Silas under D1). Superseded placeholder `7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7` — exactly 32 bytes of 0x66, so no keypair could exist (`declare_id!`, [S] `lib.rs:27`); a valid ed25519 public key [L9]; no keypair file was found by filename search [L11], which does not show that nobody holds one; the build wrapper deletes the random keypair it generates unread [S] `build-sbf.sh:47-59` | MI-1 (who holds it, if anyone); fallback 5a |
 | Devnet cluster domain (32 bytes) | `musical-chairs-devnet-domain-v1!` = hex `6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121`; localnet is `musical-chairs-localnet-dev!!!!!` (do not reuse) | [S] `frontend/src/solana/native/cluster.ts:35-38`, `sampling.rs:106`; [L8] |
 | Devnet genesis hash pin | `EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG` | [S] `cluster.ts:46`; to be checked live at A1 (`getGenesisHash` was not in this packet's allowed method list) |
 | Toolchain archives | platform-tools-osx-aarch64 v1.48 `799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd` (422,197,780 B); agave v3.1.0-beta.0 macOS aarch64 `de9be527da14757854c47defffffeb0d17d1b7b6c0a4175f46f531aca262bad9` (77,248,568 B); Linux archives pinned for CI | [latest-build.json](../solana/evidence/latest-build.json), [m0-toolchain.json](../solana/evidence/2026-10-14-m0-toolchain.json) |
@@ -156,24 +179,24 @@ Everything in this table that is a hash was either re-computed read-only in this
 
 ## 3. Intended devnet targets and roles
 
-### 3a. Program and PDAs (derived locally; no key needed)
+### 3a. Program and PDAs (derived locally; no key needed) — revision 8: re-derived for the 5a fresh id
 
 If the fresh-id fallback (5a) is taken, every address in this table is re-derived; the ORAO and Squads program addresses do not change, the ORAO Client does. Derived by [L8] with `@solana/web3.js` from the repository's `node_modules`; four of these match [docs/solana/local-cluster.md](../solana/local-cluster.md) (Pool, ProgramData, ORAO client, RngAuthority), which validates the derivation. Devnet check [R6]: none exists today.
 
 | account | address | seeds / note |
 | --- | --- | --- |
-| Program | `7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7` | absent on devnet [R1] |
-| ProgramData | `9fbEej8qbMTZbWBgN19AME3WA6kRSWE3JmHM1hfX8Lup` | PDA of the loader; absent [R6] |
-| Pool | `AYEAZnLGHzjV95vMtRu4StknBBRtmZUGLwK297Na1jqK` | `[pool]`; absent [R6] |
-| Admission | `EMmmtPRp62FrxeGNwm2NWqvQvZ1xdJmqHSczL3RRh43A` | `[admission]` |
-| GameVault | `8Me6QeLPzYKzvSv1jsy6W8n6UYNHMN4MYe8jdUa3ZXwa` | `[game-vault]` |
-| Ops | `3aNRyVcEMQxXWqAxciDv77gKWMv8d7PRmfePJdjcriiv` | `[ops]` |
-| OpsCash | `4FSt2vmzZmniwMmT9LWBU9UvttLLkE1DPXNPsfKadqEc` | `[ops-cash]`, system-owned, data-less |
-| Ticket | `E6Kv9gFiA87x1vuAvagweYD9hV1cvEpv4sp5PKCy4t3M` | `[ticket]` |
-| RngAuthority | `6n6uusHJtZXSDSZec1Vt8T53hgLS6vp3iULH5ew1omm5` | `[rng-authority]` |
-| ConfigVersion 1 | `FxieAQkL3Ur1PKh8Gs3WvJ92hXyRVymbqxgVczdZ5uFU` | `[config, 1u32 le]` |
-| Event authority | `BuzaujH9dKaTPZGcLmRe3SA1DNvHJGN9GAGrGVAzwZd6` | `[__event_authority]`; the bridge `event_authority` config value |
-| First pages | Registry 0 `24ZGCA7ebUqsmNg3fSizAiifL8jtidEJccdqVJMhqri6`; Snapshot 0 `7tHni27iz5gJSFU7pc9tGEDrHDiYyk5zoxtcrDavukF9`; Participants round 1 page 0 `82Tyc7ytGNWDkqR5KxSr3E6tNU1oW6vNjMRJipiCgcfk` | provisioned at genesis in the local flow ([S] `local_cluster.rs:252-254`) |
+| Program | `7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o` | new 5a id (revision 8); the old placeholder id was absent on devnet [R1] |
+| ProgramData | `9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG` | PDA of the loader; absent [R6] |
+| Pool | `Au9fiQqP7nNVZBTv2ZUPadFoxLnU75Q3VSczKbwwJsyf` | `[pool]`; absent [R6] |
+| Admission | `78KcXtEQY1MRp1s9ZiaPCL7fQAMt2Rq1kL61H4M8Zvv3` | `[admission]` |
+| GameVault | `3HxUYzAzuwWTZn6vPQEVKDWpkTdDvYb8gBtqvFmXf5YK` | `[game-vault]` |
+| Ops | `8EnupQyZPgHG8NLTS1Wkh7WoQXrW2kKs9Vobu61UxnX3` | `[ops]` |
+| OpsCash | `D5M25eVkofDdfmNbriHAy7KwuvcZhR3hyN8WoJSoCDZ4` | `[ops-cash]`, system-owned, data-less |
+| Ticket | `5FBVTd9yRqn1ztJKSded45vW5xc2VBWn79aLVBfg2Dft` | `[ticket]` |
+| RngAuthority | `5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22` | `[rng-authority]` |
+| ConfigVersion 1 | `68HSPMQt3nxvjtRU4VYYVTpsXZwNBiHH4LLvxLNHTEHQ` | `[config, 1u32 le]` |
+| Event authority | `8c7gNtfPuYRUHtp97qpzLKsSLFgogKYC7ZjVcA8MEo8m` | `[__event_authority]`; the bridge `event_authority` config value |
+| First pages | Registry 0 `FDrspYpbAcLdzmiL87ABohKKHsg6ABfBx8AjVvduUekk`; Snapshot 0 `2hhnVhVq1tE9mYMVwmEyZ84VRakwcyrTUkqZZNhAJPke`; Participants round 1 page 0 `DaChvMiDA7ZoHf6EvuxLZxxWqDDF55hhwC42hWBLUAnX` | provisioned at genesis in the local flow ([S] `local_cluster.rs:252-254`) |
 
 **Solana note.** A PDA (program derived address) is an address with no private key, derived from seeds and a program id, closest to an EVM CREATE2 address or an ICP canister id you can compute in advance. That is why these addresses are known before anything is deployed, while the Squads G and P addresses below are not (they depend on a key chosen at creation).
 
@@ -200,7 +223,7 @@ Do **not** reuse the local-cluster fixture multisigs (`5ASstTEw...`, `HfbGhr2Y..
 | --- | --- | --- |
 | ORAO Callback program | `VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU` is deployed on devnet (executable, loader-v3), ProgramData `7mzfTTbQ4h7S9uNFdzbVUCs7srF6hiLa52y4eotkp1MD` (616,509 B), deployment slot 403,064,376, authority `9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR` | [R2, R3] |
 | NetworkState | `3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr`, owner is the ORAO program, 245 B; `request_fee = 300,000`, `callback_deadline = 9,000` slots, treasury and authority both `9ZTHWWZD...`, **four** fulfil authorities (`2VYNr8yM...`, `A9iZdgYa...`, `9ZTHWWZD...`, `HSCqQaDH...`), lifetime `num_requests = 44,183`, `num_registered = 509`, `num_terminated = 0` | [R3] decoded locally by [L12] |
-| Registered Client for us | `7b1ebeG8qgEtCB3ufPHcZLiUeFJ6cYMS9BeiTnSBJ6HT` (derived), absent today [R6]; after A5 it must read `Client.owner == G vault`, `Client.state == RngAuthority`, account owner == ORAO program | [S] spec / plan M14 readback line |
+| Registered Client for us | `9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3` (derived), absent today [R6]; after A5 it must read `Client.owner == G vault`, `Client.state == RngAuthority`, account owner == ORAO program | [S] spec / plan M14 readback line |
 | Registration payer | the **G vault** (the ORAO `Register` payer must be the program upgrade authority, per the Codex review packet's R5 row) [S] `local_cluster.rs:236-241`; the vault needs a small SOL balance first (D13) | local genesis flow |
 | Provider tuple for `initialize` | program `VRFCBeP...`, network state `3e483QYy...`, treasury `9ZTHWWZD...`, client `7b1ebeG8...`, `provider_request_fee_lamports = 300,000` (equals the live devnet fee), `provider_fee_headroom_bps = 2,500` (the local-genesis value; M9 reserve arithmetic used 2,000, so confirm) | [S] `local_cluster.rs:194-206`; [M] measurements section 4 |
 
@@ -243,7 +266,7 @@ Devnet rent today is **5,080 lamports x (bytes + 128)**, from 20 `getMinimumBala
 
 | bucket | computation | cap |
 | --- | --- | --- |
-| **Program deploy (D)** | upload buffer R(1,397,197) = 7,098,411,000; ProgramData R(1,397,205) = 7,098,451,640; Program R(36) = 833,120. **Peak = 14,197,695,760 lamports (14.1977 SOL)** while both exist; **net retained = 7,099,284,760 (7.0993 SOL)** after the buffer's lamports are returned. Write transactions at about 1,000 B each: roughly 1,400-1,700 x 5,000 = 0.007-0.009 SOL [E]. `max_len` = `elf_len`, so zero allocation padding (any headroom doubles ProgramData rent; D5) | 15.0 SOL |
+| **Program deploy (D)** | revision 8 (new ELF, 1,399,208 bytes): upload buffer R(1,399,245) = 7,108,814,840; ProgramData R(1,399,253) = 7,108,855,480; Program R(36) = 833,120. **Peak = 14,218,503,440 lamports (14.2185 SOL)** while both exist; **net retained = 7,109,688,600 (7.1097 SOL)** (old ELF: peak 14,197,695,760, net 7,099,284,760) after the buffer's lamports are returned. Write transactions at about 1,000 B each: roughly 1,400-1,700 x 5,000 = 0.007-0.009 SOL [E]. `max_len` = `elf_len`, so zero allocation padding (any headroom doubles ProgramData rent; D5) | 15.0 SOL |
 | Squads | two 231-byte multisigs R(231) = 1,823,720 each = 3,647,440 (creation fee 0 [R3]); proposals and vault-transaction accounts about 0.1 SOL for about 6 proposals [E]; six voter wallets x 0.05 SOL fees | 0.5 SOL |
 | Sponsor S | initialize accounts: Pool 2,550,160 + Admission 904,240 + GameVault 695,960 + Ops 1,630,680 + Ticket 1,874,520 + RngAuthority 858,520 + ConfigVersion 2,057,400 + OpsCash R(0) 650,240 = **11,221,720**; first pages 2,326,640 + 2,280,920 + 3,337,560 = **7,945,120**; extra pages about 0.02 SOL; **operations funding 0.5 SOL** (covers two closes below); ORAO client funding 0.05 SOL (local genesis used 50,000,000); fees | 1.0 SOL |
 | G vault | ORAO Client R(123) = 1,275,080 paid at registration | 0.02 SOL |
@@ -328,7 +351,7 @@ Classes: **A0** = required before Block A starts; **OPT** = optional preflight h
 | RG-12 | B/C | **ICP calibrations are placeholders.** Bridge `RPC_CYCLES` 25 B (a single-provider read costs about 4.1 B), keeper `rpcCycles` 10 B and `signCycles` 30 B, watchdog `Equality` consensus on `#Default(#Devnet)` without devnet evidence | [S] `native_sol_bridge/main.mo`, `native_sol_keeper/main.mo:237-238`; [R11] | Set from the 4d/4f numbers when B1/B2 are configured; record the devnet consensus behavior | none |
 | RG-13 | B/C | **Local replica scratch state gone** (reboot) [C]. The accepted M12/M13 receipts remain valid; this alone is not a reason to rerun anything | [C] | Rerun a replica driver ONLY if a B-row canister's source or build artifact differs from what the accepted receipts cover (for example the keeper's regenerated `AuthorityTable.mo` under 5a). B-row builds (dfx 0.29.2, moc 0.16.2) are prerequisites of those rows, recorded as wasm hashes, not an A0 item | none |
 
-### 5a. Fresh devnet program-id envelope (the recommended fallback for MI-1)
+### 5a. Fresh devnet program-id envelope (the recommended fallback for MI-1) — TAKEN in revision 8 (receipt `docs/solana/evidence/2026-10-24-m14-5a-repin.json`)
 
 Used only if nobody holds the key for `7tj9...` or it will not be provided. **No key is created or accessed by this packet**; the new id would come from a fresh keypair generated at that time under the custody rule D1, needed once to sign the first deploy.
 

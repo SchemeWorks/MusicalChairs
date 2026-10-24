@@ -72,7 +72,7 @@ pub const THRESHOLD: u16 = 2;
 /// The packet's devnet ORAO treasury (also the ORAO network authority).
 pub const DEVNET_ORAO_TREASURY: &str = "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR";
 /// The packet's registered-client address for this program (entry 3c).
-pub const PACKET_ORAO_CLIENT: &str = "7b1ebeG8qgEtCB3ufPHcZLiUeFJ6cYMS9BeiTnSBJ6HT";
+pub const PACKET_ORAO_CLIENT: &str = "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3";
 /// The packet's devnet ORAO NetworkState PDA.
 pub const PACKET_ORAO_NETWORK_STATE: &str = "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr";
 /// The packet's Squads ProgramConfig PDA.

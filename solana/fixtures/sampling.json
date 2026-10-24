@@ -111,15 +111,15 @@
   },
   "protocol_seed": {
     "rule": "SHA256(seed_domain || cluster_domain_32 || program_id_32 || round_le || close_le || set_tag || selected_count_le || sealed_digest_32)",
-    "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+    "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
     "round_id": 1,
     "close_id": 1,
     "set_tag": 0,
     "selected_count": 4,
     "sealed_digest_hex": "4c78a8fbc5f854512359f7bceba26c0ef8ec4e5c33f4990720a15e5a09285902",
     "vectors": [
-      { "cluster": "litesvm-fixture", "cluster_domain": "musical-chairs-litesvm-fixture!!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6c69746573766d2d666978747572652121", "seed_hex": "3f41a9d04f8ffd4fc4a7bc85ad291020ee8205abf91ee79c8219a2fa98d43d27" },
-      { "cluster": "devnet", "cluster_domain": "musical-chairs-devnet-domain-v1!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121", "seed_hex": "40d250b794794d18bb1fc39352159dcb598ae82ae125741d2d6801fe004e91fb" }
+      { "cluster": "litesvm-fixture", "cluster_domain": "musical-chairs-litesvm-fixture!!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6c69746573766d2d666978747572652121", "seed_hex": "8db7e75d85d19ae2148f65c5edd8f9bcd3a0a08df0117341c3cec8801c39be8e" },
+      { "cluster": "devnet", "cluster_domain": "musical-chairs-devnet-domain-v1!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121", "seed_hex": "6da6ab262fdcc0e6b910569c764cfcb86c18df17fcac97d332057e8768770b7d" }
     ]
   }
 }

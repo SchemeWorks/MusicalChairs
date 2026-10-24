@@ -7,14 +7,14 @@ runtime (the real account is `header ++ ELF`), so the ELF is not committed here.
 
 | file | content | bytes | sha256 |
 |------|---------|-------|--------|
-| `program.bin` | `UpgradeableLoaderState::Program { programdata_address }`: variant `2` (u32 LE) + 32-byte address | 36 bytes | `d5c51489d02b2eccfa8f6166d767f772400e7f2f23297de866065e7860f6e030` |
+| `program.bin` | `UpgradeableLoaderState::Program { programdata_address }`: variant `2` (u32 LE) + 32-byte address | 36 bytes | `288e21312b3558e46742f9285abcd29d5987fa7b393f7356b1e872aa6544c72c` |
 | `programdata.bin` | `UpgradeableLoaderState::ProgramData { slot: 1, upgrade_authority_address: Some(G vault) }`: variant `3` (u32 LE) + slot (u64 LE) + `Some` tag `1` + 32-byte authority | 45 bytes | `c3432f47b2770180e3e78989e4fe0d2c3d909a90d9f8d1f155729e69050a3479` |
 
-- Main program id: `7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7`. `program.bin` depends on it (through the
+- Main program id: `7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o`. `program.bin` depends on it (through the
   ProgramData address); a changed program id makes `committed_loader_fixtures_equal_the_generator_output` fail
   until the file is regenerated.
 - ProgramData address: `find_program_address([program id], BPFLoaderUpgradeab1e11111111111111111111111)` =
-  `9fbEej8qbMTZbWBgN19AME3WA6kRSWE3JmHM1hfX8Lup`.
+  `9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG`.
 - Authority: the G vault `nVdpWArd89aMWgicLSvLQZGo7kXf8soRZrJfzuZycz9` (see `fixtures/squads/README.md`).
   An immutable (`None`) program serializes to a zero tag byte followed by 32 zero bytes (still 45 bytes);
   the suite builds that and an authority-mismatch variant in memory.

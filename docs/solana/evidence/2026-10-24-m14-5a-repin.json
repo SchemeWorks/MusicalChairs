@@ -1,0 +1,214 @@
+{
+ "recorded_at_utc": "2026-10-24T18:15:49.691196+00:00",
+ "card": "M14-5A-REPIN",
+ "what": "Packet section 5a fresh program-id envelope: the program moves from the placeholder id 7tj9… to a fresh id; LOCAL ONLY (no public transaction). Block A confirmed by Rob 2026-10-24 (docs/coordination/m14-block-a-approval-20261024.md); the 5a re-pin and local re-review need no further approval, and Gideon's (Codex supervisor) acceptance of these pins is required before any public transaction.",
+ "by": "Silas (Claude coordinator): key generation, pinned SBF builds, suites, receipt; Sonnet workers: id replacement, fixture regeneration and re-capture",
+ "program_id": {
+  "old": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+  "old_note": "exactly 32 bytes of 0x66: a synthetic placeholder for which no keypair can exist (MI-1 moot)",
+  "new": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+  "new_key_custody": "generated 2026-10-24 by Silas with the pinned solana-keygen 3.1.0; 0700 directory outside every worktree, file 0600; never committed or printed; signs only the FIRST deploy at each cluster; intended for devnet and the later mainnet deploy (5a recommendation)"
+ },
+ "pins": {
+  "elf": {
+   "old_sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+   "old_bytes": 1397160,
+   "new_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+   "new_bytes": 1399208,
+   "durable_copy": "~/.cache/mc-solana-artifacts/0c88d4e7…/ (SHA256SUMS + PROVENANCE.txt)"
+  },
+  "source_set_sha256": {
+   "old": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+   "new": "e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d",
+   "changed_files": [
+    "solana/programs/musical_chairs/src/lib.rs (declare_id!)",
+    "solana/programs/musical_chairs/src/sampling.rs (test constant PROGRAM_ID)"
+   ]
+  },
+  "lock_sha256": {
+   "unchanged": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f"
+  },
+  "idl_sha256": {
+   "old": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+   "new": "d6370a7319314d0386493661ce11c54168f8e65617b47ce285e8ac763db6e024",
+   "check_idl": "idl_check=clean (fresh generation with the pinned idl-build tool equals the committed IDL); frontend copy byte-identical; only the address field changed"
+  },
+  "keeper_authority_table": "regenerated (authority_table.py); --check: current; PROGRAM_ID and IDL_SHA256 updated"
+ },
+ "build": {
+  "tool": "solana/tests/financial-runtime/scripts/build-sbf.sh with the provenance guard (source set equal before and after)",
+  "toolchain": "cargo-build-sbf 3.1.0-beta.0 (Agave 3.1.0-beta.0 release, durable at ~/.cache/mc-solana-tools/agave); platform-tools v1.48 osx-aarch64 restored 2026-10-24, archive sha256 799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd verified, rustc 1.84.1-dev; CARGO_HOME ~/.cargo; same absolute build path as every accepted build",
+  "stack_offset_warnings": 0,
+  "control_build": {
+   "what": "the OLD source set (994a9ff4…, old id restored temporarily in lib.rs and sampling.rs) rebuilt with the same restored toolchain and path into a separate output dir",
+   "result": "byte-identical (cmp) to the accepted 8f97e83d… ELF",
+   "meaning": "the restored toolchain is equivalent to the one every accepted receipt used, so the new ELF differs from the accepted one ONLY by the program-id change; the id lines were then restored and the source set recomputed to e50e83df…"
+  },
+  "size_note": ".text grew by 0x610 bytes (1,399,208 vs 1,397,160); explained by the control build; no local or cargo-home path is embedded (the same 5 /Users/runner/work platform-tools std strings as before)"
+ },
+ "derived_addresses": {
+  "method": "@solana/web3.js PublicKey.findProgramAddressSync, offline; seeds read from solana/programs/musical_chairs/src/state.rs, provider.rs and local_cluster.rs; ORAO client seeds from solana/probes/provider-resources/vendor/orao-solana-vrf-cb (CB_CLIENT_ACCOUNT_SEED = OraoVrfCbClient)",
+  "method_validated": "every OLD address re-derived from the OLD id equals the value recorded in packet 3a / local-cluster.md (all_old_reproduced true); the keeper's own pda_vectors.cjs independently gives the same new addresses and bumps for the 10 accounts it covers",
+  "rows": [
+   {
+    "account": "programdata",
+    "seeds": "loader v3: [program id] under BPFLoaderUpgradeab1e...",
+    "old": "9fbEej8qbMTZbWBgN19AME3WA6kRSWE3JmHM1hfX8Lup",
+    "new": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+    "old_bump": 255,
+    "new_bump": 254
+   },
+   {
+    "account": "pool",
+    "seeds": "[pool]",
+    "old": "AYEAZnLGHzjV95vMtRu4StknBBRtmZUGLwK297Na1jqK",
+    "new": "Au9fiQqP7nNVZBTv2ZUPadFoxLnU75Q3VSczKbwwJsyf",
+    "old_bump": 254,
+    "new_bump": 254
+   },
+   {
+    "account": "admission",
+    "seeds": "[admission]",
+    "old": "EMmmtPRp62FrxeGNwm2NWqvQvZ1xdJmqHSczL3RRh43A",
+    "new": "78KcXtEQY1MRp1s9ZiaPCL7fQAMt2Rq1kL61H4M8Zvv3",
+    "old_bump": 254,
+    "new_bump": 255
+   },
+   {
+    "account": "game_vault",
+    "seeds": "[game-vault]",
+    "old": "8Me6QeLPzYKzvSv1jsy6W8n6UYNHMN4MYe8jdUa3ZXwa",
+    "new": "3HxUYzAzuwWTZn6vPQEVKDWpkTdDvYb8gBtqvFmXf5YK",
+    "old_bump": 255,
+    "new_bump": 254
+   },
+   {
+    "account": "ops",
+    "seeds": "[ops]",
+    "old": "3aNRyVcEMQxXWqAxciDv77gKWMv8d7PRmfePJdjcriiv",
+    "new": "8EnupQyZPgHG8NLTS1Wkh7WoQXrW2kKs9Vobu61UxnX3",
+    "old_bump": 253,
+    "new_bump": 253
+   },
+   {
+    "account": "ops_cash",
+    "seeds": "[ops-cash]",
+    "old": "4FSt2vmzZmniwMmT9LWBU9UvttLLkE1DPXNPsfKadqEc",
+    "new": "D5M25eVkofDdfmNbriHAy7KwuvcZhR3hyN8WoJSoCDZ4",
+    "old_bump": 255,
+    "new_bump": 254
+   },
+   {
+    "account": "ticket",
+    "seeds": "[ticket]",
+    "old": "E6Kv9gFiA87x1vuAvagweYD9hV1cvEpv4sp5PKCy4t3M",
+    "new": "5FBVTd9yRqn1ztJKSded45vW5xc2VBWn79aLVBfg2Dft",
+    "old_bump": 254,
+    "new_bump": 253
+   },
+   {
+    "account": "rng_authority",
+    "seeds": "[rng-authority]",
+    "old": "6n6uusHJtZXSDSZec1Vt8T53hgLS6vp3iULH5ew1omm5",
+    "new": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22",
+    "old_bump": 254,
+    "new_bump": 253
+   },
+   {
+    "account": "config_v1",
+    "seeds": "[config, 1u32 le]",
+    "old": "FxieAQkL3Ur1PKh8Gs3WvJ92hXyRVymbqxgVczdZ5uFU",
+    "new": "68HSPMQt3nxvjtRU4VYYVTpsXZwNBiHH4LLvxLNHTEHQ",
+    "old_bump": 254,
+    "new_bump": 255
+   },
+   {
+    "account": "event_authority",
+    "seeds": "[__event_authority]",
+    "old": "BuzaujH9dKaTPZGcLmRe3SA1DNvHJGN9GAGrGVAzwZd6",
+    "new": "8c7gNtfPuYRUHtp97qpzLKsSLFgogKYC7ZjVcA8MEo8m",
+    "old_bump": 255,
+    "new_bump": 254
+   },
+   {
+    "account": "registry_0",
+    "seeds": "[registry, 0u64 le]",
+    "old": "24ZGCA7ebUqsmNg3fSizAiifL8jtidEJccdqVJMhqri6",
+    "new": "FDrspYpbAcLdzmiL87ABohKKHsg6ABfBx8AjVvduUekk",
+    "old_bump": 254,
+    "new_bump": 255
+   },
+   {
+    "account": "snapshot_0",
+    "seeds": "[snapshot, 0u64 le]",
+    "old": "7tHni27iz5gJSFU7pc9tGEDrHDiYyk5zoxtcrDavukF9",
+    "new": "2hhnVhVq1tE9mYMVwmEyZ84VRakwcyrTUkqZZNhAJPke",
+    "old_bump": 255,
+    "new_bump": 254
+   },
+   {
+    "account": "participants_r1_p0",
+    "seeds": "[participants, round 1u64 le, page 0u64 le]",
+    "old": "82Tyc7ytGNWDkqR5KxSr3E6tNU1oW6vNjMRJipiCgcfk",
+    "new": "DaChvMiDA7ZoHf6EvuxLZxxWqDDF55hhwC42hWBLUAnX",
+    "old_bump": 254,
+    "new_bump": 254
+   },
+   {
+    "account": "orao_client",
+    "seeds": "ORAO VRFCBe...: [OraoVrfCbClient, program id, rng_authority]",
+    "old": "7b1ebeG8qgEtCB3ufPHcZLiUeFJ6cYMS9BeiTnSBJ6HT",
+    "new": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+    "old_bump": 253,
+    "new_bump": 253
+   }
+  ]
+ },
+ "fixtures": {
+  "regenerated_without_elf": [
+   "solana/fixtures/sampling.json (Rust generator; matches an independent Python hashlib recompute)",
+   "solana/fixtures/seed-vectors.json (Python recompute that first reproduced the old seeds)",
+   "solana/fixtures/ix-encodings.json (Rust generator; only the program line changed)",
+   "solana/tests/financial-runtime/fixtures/loader/program.bin + README (method reproduced the old file first; new sha256 288e2131…c72c)",
+   "frontend accounts.test.ts golden PDAs (13; old literals reproduced first)",
+   "native_sol_keeper/AuthorityTable.mo"
+  ],
+  "recaptured_rpc": {
+   "files": "solana/fixtures/rpc/{flows-001..017,closing-001..012}.json + manifest.json",
+   "how": "fresh loopback solana-test-validator 3.1.0 with the NEW ELF; localCluster.test.ts (flows, 2/2) and localClusterClosing.test.ts (closing, 1/1); getSignaturesForAddress on the program id, then getTransaction (json, maxSupportedTransactionVersion 0, finalized); the manifest builder reproduces the OLD manifest byte-for-byte from the old files",
+   "structural_equivalence": "29 transactions (17 + 12) old and new; per file top_level_program_ix_discriminators, events, err and version identical in all 29; 14 files carry event-CPI events (15 events) as before; instruction/inner-instruction structure identical after mapping account keys to roles (key order differs because Solana sorts keys and the PDAs changed); instruction data differs only in the open_position nonce; no old id or old PDA in the new captures",
+   "compute_units": "computeUnitsConsumed differs in 28 of 29 transactions, mostly +1.5k to +15k (deltas are multiples of about 1,490 CU, consistent with extra find_program_address bump iterations for the new id's lower bumps; inference, untested); the largest delta +14,934 is far below the 1.4M limit; every suite, the full plan and the real-node lifecycle pass on the new ELF"
+  },
+  "regenerated_from_captures": [
+   "native_sol_bridge/test/fixtures.test.mo (genfix.py, 29 fixtures)",
+   "native_sol_keeper/test/fixtures.mo (fixtures.py; --check current)"
+  ],
+  "bridge_test_constants_updated": "decode/execute/outbox/verify .test.mo hard-coded per-run values of the old captures: flows-007 and flows-009 owners (fresh keypairs of the run), the flows-007 open_position nonce (still above 2^62, u64 coverage intent kept) and the flows-008 payout gross/toll/net (time-dependent accrual): 7638/916/6722 -> 6365/763/5602; values read back through the bridge's own decoder"
+ },
+ "tests_on_new_elf": {
+  "litesvm_full_harness": "cargo test --locked -- --test-threads=1 with MC_FINANCIAL_SBF = the new ELF (the CI-equivalent run): 274 passed, 0 failed, 14 ignored by design across 16 test binaries",
+  "after_pin_constant_update": "devnet_ops_local 33/33 (2 ignored), m14_flow_tool 14/14 (1 ignored), full 39-step plan through the runner on the devnet ORAO binary PASS, m14_flow_plan 2/2, plan rehearsal PASS (first draw request still day 11.454), harness clippy -D warnings clean",
+  "real_node_lifecycle": "fresh loopback solana-test-validator with the real Squads v4 and devnet ORAO binaries: real loader-v3 deploy of the NEW ELF, SetAuthority to the G vault, verify-bytes, idempotent re-run: PASS in 29.56 s, 34/34 write-ahead records resolved; validator stopped, ledger removed",
+  "program_crate": "cargo test --lib 264/264; clippy --all-targets -D warnings clean",
+  "keeper_moc": "moc 0.16.2 (dfx-bundled) all 8 suites ALL PASS (accounts 42, authority 86, gate 28, journal 47, pda 23, planner 78, policy 54, tx 34); negative.py check clean; negative control fails exactly as recorded",
+  "bridge_moc": "moc 1.5.1 + base 0.16.0 (what the suite headers specify): decode 53, execute 69, outbox 113, verify 94, ALL PASS; under moc 0.16.2 only execute compiles (decode/outbox/verify fail with M0096 record spread on a pristine HEAD copy too: pre-existing, unrelated); PASS counts for all 12 keeper+bridge suites on 1.5.1 equal a pristine HEAD run",
+  "frontend": "tsc --noEmit clean; vitest native + history: 27 files passed, 2 skipped (local-cluster), 428 tests passed, 3 skipped",
+  "not_rerun": "native_sol_bridge/test/replica/run.sh (B-row item, RG-13)"
+ },
+ "deploy_budget_delta": {
+  "rent_rate_lamports_per_byte": 5080,
+  "old_peak_lamports": 14197695760,
+  "new_peak_lamports": 14218503440,
+  "new_peak_sol": "14.2185 (within the 15.0 deploy ceiling)",
+  "new_net_retained_lamports": 7109688600
+ },
+ "pinned_hash_in_tool": "devnet_ops PINNED_PROGRAM_ELF_SHA256 updated to 0c88d4e7… (a test keeps it equal to latest-build.json artifact.sha256); runbook references updated",
+ "grep_classification": "the old id now appears ONLY in historical files: docs/solana/evidence/* receipts (incl. 2026-10-23-m14-preflight/*.json and latest-build.json's superseded note), native_sol_bridge/test/replica/receipt-*.json, docs/coordination/* (incl. the packet's history); old PDAs, base64 ZmZmZmZm and Motoko \\66 encodings likewise only in historical files",
+ "historical_records": "M0–M13 receipts, the 2026-10-23 preflight evidence and bridge replica receipts are NOT edited; this receipt records old -> new",
+ "gates_remaining_before_any_public_transaction": [
+  "CI green at the re-pin head",
+  "Gideon (Codex supervisor) acceptance of these pins in a receipt",
+  "packet revision 8 (in the same commit) reviewed with the new pins"
+ ],
+ "nothing_public": "no public transaction of any kind; no key other than the program-id key was generated"
+}

@@ -384,7 +384,7 @@ fn export_closing_fixture(out: &Path, keys_dir: &Path) {
         ("orao_network_state", pk.network_state), ("orao_client", pk.client), ("orao_treasury", pk.treasury),
         ("multisig_g", rt.g_multisig()), ("multisig_p", rt.p_multisig()), ("g_vault", rt.g_vault()),
     ];
-    let mut args = String::from("--reset --quiet --rpc-port 8899 --faucet-port 9900 \\\n  --upgradeable-program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 <PROGRAM_SO> ");
+    let mut args = format!("--reset --quiet --rpc-port 8899 --faucet-port 9900 \\\n  --upgradeable-program {ID} <PROGRAM_SO> ");
     args.push_str(&format!("{} \\\n  --bpf-program {SQUADS_PROGRAM_ID} <STANDIN_SO> \\\n  --bpf-program {} <ORAO_SO>", rt.g_vault(), orao::id()));
     let mut manifest = Vec::new();
     for (name, key) in named {

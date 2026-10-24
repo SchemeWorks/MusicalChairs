@@ -101,7 +101,7 @@ mod tests {
     use std::fmt::Write as _;
 
     const FIXTURE_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../fixtures/sampling.json");
-    const PROGRAM_ID: &str = "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7";
+    const PROGRAM_ID: &str = "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o";
     const LITESVM_DOMAIN: [u8; 32] = *b"musical-chairs-litesvm-fixture!!";
     const DEVNET_DOMAIN: [u8; 32] = *b"musical-chairs-devnet-domain-v1!";
 

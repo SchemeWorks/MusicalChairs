@@ -38,8 +38,8 @@ let COOLDOWN : Nat64 = 10;
 func idOf(name : Text, ixIndex : Nat, innerIndex : Nat) : Events.EventId {
   { cluster_domain = localDomain; program_id = Fx.PROGRAM; signature = Fx.get(name).json.signatures[0]; instruction_index = ixIndex; inner_instruction_index = innerIndex; event_schema_version = 1 };
 };
-let openD : Events.Descriptor = { event_id = idOf("flows-007", 1, 4); source_round_id = 1; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG"; basis_lamports = 1_000_000_000; plan = ?#Simple };
-let seriesAD : Events.Descriptor = { event_id = idOf("flows-009", 1, 3); source_round_id = 1; source_close_id = null; kind = #SeriesAFunded; beneficiary_pubkey = "E3jUXb3RFs49VhzVqzjFpPDYQwF4evgc9buQXMN5yV2r"; basis_lamports = 50_000_000; plan = null };
+let openD : Events.Descriptor = { event_id = idOf("flows-007", 1, 4); source_round_id = 1; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = "DNuV1uXrmRQS9WWczAE4pr9H5GzsodZxb4rVp63FndK2"; basis_lamports = 1_000_000_000; plan = ?#Simple };
+let seriesAD : Events.Descriptor = { event_id = idOf("flows-009", 1, 3); source_round_id = 1; source_close_id = null; kind = #SeriesAFunded; beneficiary_pubkey = "CTaxKUuztykKqqjLD69FMgUkRXhwPrYtyGsFWWnnRHoL"; basis_lamports = 50_000_000; plan = null };
 let promoD : Events.Descriptor = { event_id = idOf("closing-009", 1, 3); source_round_id = 1; source_close_id = ?1; kind = #PromotionApplied; beneficiary_pubkey = "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"; basis_lamports = 907_500_000; plan = null };
 let open2D : Events.Descriptor = { event_id = idOf("closing-012", 1, 3); source_round_id = 2; source_close_id = null; kind = #PositionOpened; beneficiary_pubkey = "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew"; basis_lamports = 100_000_000; plan = ?#Simple };
 

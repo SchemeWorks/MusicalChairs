@@ -41,23 +41,23 @@ const u32 = (n: number | bigint) => new BorshWriter().u32(n).toBytes();
 
 describe('PDA derivations', () => {
   it('program id is the IDL address', () => {
-    expect(PROGRAM_ID.toBase58()).toBe('7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7');
+    expect(PROGRAM_ID.toBase58()).toBe('7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o');
   });
 
   it('matches independently computed golden addresses (seeds from state.rs)', () => {
-    expect(poolAddress().toBase58()).toBe('AYEAZnLGHzjV95vMtRu4StknBBRtmZUGLwK297Na1jqK');
-    expect(opsCashAddress().toBase58()).toBe('4FSt2vmzZmniwMmT9LWBU9UvttLLkE1DPXNPsfKadqEc');
-    expect(userAddress(OWNER).toBase58()).toBe('Akahwp2ViGWwao37gpAwYpRiFsPt9YvyyGFunaeSJQ3X');
-    expect(userRoundAddress(3n, OWNER).toBase58()).toBe('GxAY5z97rFmejHYcGcRuBiCwvEcXTfqfZb8tWnnr7Fi6');
-    expect(positionAddress(OWNER, 77n).toBase58()).toBe('6Ni7hMFyJ1ShELbA3YiK1wVdtv6fQ642A25amA7tf7pF');
-    expect(backerAddress(0, OWNER).toBase58()).toBe('HYmJaT5ayFoifUu42HgyWw8P2GcwdqRTVRBghK1eH4EF');
-    expect(backerAddress(1, OWNER).toBase58()).toBe('RYMPPTKyDjudALBJPEjSdE9nvwFsuzEXq6yGGkE13NW');
-    expect(registryAddress(3n).toBase58()).toBe('HNSq22Mj9LsGRbjah1V5CNJv751rTrq7XZUJK11JRCj4');
-    expect(snapshotAddress(3n).toBase58()).toBe('EN8j5vZ8RsCXmuHwAPX94B1iqb1XsELbdT3pNMxrhW5w');
-    expect(participantAddress(5n, 2n).toBase58()).toBe('C5Xg8ivGZ4RzWmd4tsNsTujJRd7EJ1HuHZRjnjnoCvqS');
-    expect(candidateAddress(7n, 1, 2n).toBase58()).toBe('BZMhyStcWi2GsdK1nPrvRfdp6hDSrvGZqBFM4oHKV7oH');
-    expect(closeRecordAddress(9n).toBase58()).toBe('ARdMbsJgn9tMuHVJA1vrVdYSW4fkGDntiR6YsCzhgdsg');
-    expect(configAddress(2).toBase58()).toBe('4qNFvZ1pQ218nhpx6EthL4bZDTFvKTnx4nHH87R6yWza');
+    expect(poolAddress().toBase58()).toBe('Au9fiQqP7nNVZBTv2ZUPadFoxLnU75Q3VSczKbwwJsyf');
+    expect(opsCashAddress().toBase58()).toBe('D5M25eVkofDdfmNbriHAy7KwuvcZhR3hyN8WoJSoCDZ4');
+    expect(userAddress(OWNER).toBase58()).toBe('FTNsKFKXZpMnGLP5eWWLgx3xiAsLoaDfdmZWdffTR1gP');
+    expect(userRoundAddress(3n, OWNER).toBase58()).toBe('7uHCck8KKH8awdugWUnveavnwT2a2Z6vDBHP1UPDsXpq');
+    expect(positionAddress(OWNER, 77n).toBase58()).toBe('GrkJDoNtNhzN2T358rhCj64NYrDzXWxQWn9Dbs3wmZLZ');
+    expect(backerAddress(0, OWNER).toBase58()).toBe('3mzrozHJmT66m1Um5VefHt6ypSTutQxXXYLWvXo9r8kS');
+    expect(backerAddress(1, OWNER).toBase58()).toBe('A2XsAxw8dHRodow6GM64PxuzUEyW1jFkkeMGF8rSRD6Z');
+    expect(registryAddress(3n).toBase58()).toBe('3S5SJGqSMSvi7oAyzgS995XULffzjd19oW1DMQfeFctR');
+    expect(snapshotAddress(3n).toBase58()).toBe('CohVtnXABPjKFx3CTTabLAXo1BHYpiYxfj4X14xKjezJ');
+    expect(participantAddress(5n, 2n).toBase58()).toBe('GwGUKNraxPWEGCRfEHiQAUsi57u4G7iYzzdXoo5JN8uM');
+    expect(candidateAddress(7n, 1, 2n).toBase58()).toBe('8fA56hvewtFdsjv7i8oQ5dsUbF4dhD3VEvnn44Js3jhd');
+    expect(closeRecordAddress(9n).toBase58()).toBe('G1CXAYF3eNehkSmZGw1waQPydQiH44ou2r7EeF83PJ87');
+    expect(configAddress(2).toBase58()).toBe('ykB8P2HmQL3pXjbFF4Vks9UGncVzfPfGAYHRNV4zsMf');
     expect(oraoRequestAddress(CLIENT, Uint8Array.from({ length: 32 }, (_, i) => i), ORAO).toBase58()).toBe(
       'CaukssTx6BYTy3RbiX4e9iUfoZSfjcXm2iwyJSFwMB1w',
     );

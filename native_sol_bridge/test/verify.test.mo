@@ -71,15 +71,15 @@ func idOf(name : Text, ixIndex : Nat, innerIndex : Nat) : Events.EventId {
   };
 };
 
-let HIXC = "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG";
-let E3JU = "E3jUXb3RFs49VhzVqzjFpPDYQwF4evgc9buQXMN5yV2r";
+let DNUV = "DNuV1uXrmRQS9WWczAE4pr9H5GzsodZxb4rVp63FndK2";
+let CTAX = "CTaxKUuztykKqqjLD69FMgUkRXhwPrYtyGsFWWnnRHoL";
 let BOW1 = "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew";
 let OTHER = "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR";
 
 let openD : Events.Descriptor = {
   event_id = idOf("flows-007", 1, 4);
   source_round_id = 1; source_close_id = null; kind = #PositionOpened;
-  beneficiary_pubkey = HIXC; basis_lamports = 1_000_000_000; plan = ?#Simple;
+  beneficiary_pubkey = DNUV; basis_lamports = 1_000_000_000; plan = ?#Simple;
 };
 let open2D : Events.Descriptor = {
   event_id = idOf("closing-012", 1, 3);
@@ -89,7 +89,7 @@ let open2D : Events.Descriptor = {
 let seriesAD : Events.Descriptor = {
   event_id = idOf("flows-009", 1, 3);
   source_round_id = 1; source_close_id = null; kind = #SeriesAFunded;
-  beneficiary_pubkey = E3JU; basis_lamports = 50_000_000; plan = null;
+  beneficiary_pubkey = CTAX; basis_lamports = 50_000_000; plan = null;
 };
 let promoD : Events.Descriptor = {
   event_id = idOf("closing-009", 1, 3);
@@ -432,13 +432,13 @@ do {
 do {
   Debug.print("== ownerEventRequiresOwnerAmongSigners ==");
   let o = txOf("flows-007");
-  check(signers(o)[0] == HIXC, "(fixture) the owner is the fee payer / sole signer");
+  check(signers(o)[0] == DNUV, "(fixture) the owner is the fee payer / sole signer");
   // Someone else signs; the owner key is still present in the account list but only as a non-signer.
-  let moved = setKey(setKey(o, 0, OTHER), o.accountKeys.size() - 1, HIXC);
+  let moved = setKey(setKey(o, 0, OTHER), o.accountKeys.size() - 1, DNUV);
   check(isInvalid(verifyTx(openD, moved), #OwnerNotSigner), "PositionOpened whose owner appears in the account list only as a non-signer: OwnerNotSigner");
   check(isInvalid(verifyTx(openD, setKey(o, 0, OTHER)), #OwnerNotSigner), "PositionOpened signed by someone else (owner absent): OwnerNotSigner");
   // Positive controls: the owner as the second of two signers is fine.
-  let twoSigners = setKey({ o with numRequiredSignatures = 2 }, 1, HIXC);
+  let twoSigners = setKey({ o with numRequiredSignatures = 2 }, 1, DNUV);
   check(isVerified(verifyTx(openD, twoSigners)), "owner among two signers (not first) verifies");
   let s = txOf("flows-009");
   check(isInvalid(verifyTx(seriesAD, setKey(s, 0, OTHER)), #OwnerNotSigner), "SeriesAFunded signed by someone else: OwnerNotSigner");

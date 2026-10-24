@@ -24,7 +24,7 @@ use allocation::*;
 use claims::*;
 use close::*;
 pub use state::*;
-declare_id!("7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7");
+declare_id!("7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o");
 
 pub fn checked_add(a: u64, b: u64) -> Result<u64> {
     a.checked_add(b).ok_or_else(|| error!(ErrorCode::Overflow))

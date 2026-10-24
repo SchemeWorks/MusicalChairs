@@ -164,7 +164,7 @@ func only(name : Text) : Events.Event {
 do {
   switch (only("flows-007")) {
     case (#PositionOpened(p)) {
-      check(p.owner == "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG" and p.nonce == 4895690605773200396 and p.round_id == 1 and p.close_id == null and p.plan == 0 and p.gross == 1_000_000_000 and p.load == 40_000_000 and p.config_version == 1,
+      check(p.owner == "DNuV1uXrmRQS9WWczAE4pr9H5GzsodZxb4rVp63FndK2" and p.nonce == 5594255255064001687 and p.round_id == 1 and p.close_id == null and p.plan == 0 and p.gross == 1_000_000_000 and p.load == 40_000_000 and p.config_version == 1,
         "PositionOpened body decodes (owner, u64 nonce above 2^62, round 1, close None, plan 0, gross 1 SOL, load, config 1)");
     };
     case (_) { check(false, "flows-007 is a PositionOpened") };
@@ -175,7 +175,7 @@ do {
   };
   switch (only("flows-009")) {
     case (#SeriesAFunded(s)) {
-      check(s.owner == "E3jUXb3RFs49VhzVqzjFpPDYQwF4evgc9buQXMN5yV2r" and s.round_id == 1 and s.close_id == null and s.gross == 50_000_000 and s.entitlement_after == 62_000_000, "SeriesAFunded body decodes (u128 entitlement_after)");
+      check(s.owner == "CTaxKUuztykKqqjLD69FMgUkRXhwPrYtyGsFWWnnRHoL" and s.round_id == 1 and s.close_id == null and s.gross == 50_000_000 and s.entitlement_after == 62_000_000, "SeriesAFunded body decodes (u128 entitlement_after)");
     };
     case (_) { check(false, "flows-009 is a SeriesAFunded") };
   };
@@ -187,7 +187,7 @@ do {
   };
   switch (only("flows-008")) {
     case (#PayoutPaid(p)) {
-      check(p.gross_paid == 7638 and p.toll == 916 and p.net == 6722 and not p.closing and p.close_id == null and p.ticket_id == 0 and p.destination == p.owner, "PayoutPaid (open round) decodes");
+      check(p.gross_paid == 6365 and p.toll == 763 and p.net == 5602 and not p.closing and p.close_id == null and p.ticket_id == 0 and p.destination == p.owner, "PayoutPaid (open round) decodes");
     };
     case (_) { check(false, "flows-008 is a PayoutPaid") };
   };

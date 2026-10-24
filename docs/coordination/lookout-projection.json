@@ -3,9 +3,9 @@
     {
       "id": "M14-PKT-R",
       "state": "Done",
-      "owner": "Claude coordinator / Sonnet document worker",
+      "owner": "Silas (Claude coordinator) / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial, and the approved scope is unchanged. The local rebuild under a fresh program id is in progress, and the supervisor must accept the new pins before any public transaction. The packet will then be revised with those pins. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial. The packet is revised with the fresh program id's new pins, and the approved scope is unchanged. Before any public transaction: green CI and Gideon's (Codex supervisor) acceptance of the new pins. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -16,7 +16,7 @@
     {
       "id": "M14-PRE-ORAO",
       "state": "Done",
-      "owner": "Sonnet harness worker; coordinator ran the tests",
+      "owner": "Sonnet harness worker; Silas (coordinator) ran the tests",
       "scope": "Local compatibility check of the exact devnet ORAO VRF program binary.",
       "evidenceText": "Local test (LiteSVM): 10/10 close-suite flows pass on the exact devnet oracle binary. This is optional preflight hardening; the required acceptance is the real devnet run. No public transaction.",
       "evidenceLinks": [
@@ -29,7 +29,7 @@
     {
       "id": "M14-PRE-SQUADS",
       "state": "Done",
-      "owner": "Sonnet harness worker; coordinator ran the tests",
+      "owner": "Sonnet harness worker; Silas (coordinator) ran the tests",
       "scope": "Local compatibility check of the real Squads v4 multisig program binary.",
       "evidenceText": "Local test (LiteSVM): 12/12 pass with the real Squads v4 binary. Real Squads forwards the external sponsor signer, so program initialization can run through a real multisig vault transaction. A proposal fits the 1,232-byte transaction limit (1,140 bytes) only when the proposer also pays the fee; the operator tool enforces that. No public transaction.",
       "evidenceLinks": [
@@ -42,9 +42,9 @@
     {
       "id": "M14-TOOL",
       "state": "Done",
-      "owner": "Sonnet worker; coordinator ran the tests",
+      "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Operator tool for the devnet deploy and governance steps (local preparation only).",
-      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex: 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Gideon (Codex supervisor): 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -55,7 +55,7 @@
     {
       "id": "M14-SIM",
       "state": "Done",
-      "owner": "Sonnet worker; coordinator ran the tests",
+      "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Simulate the Seq-B devnet flow plan before any real days are spent.",
       "evidenceText": "Local simulation (clock-warped LiteSVM, production program binary and devnet oracle binary): all 39 steps and all 15 flow codes reached, with conservation checked after every step. About 41.5 days in total; the first draw request lands on day 11.45. This is a simulation, not a devnet result.",
       "evidenceLinks": [
@@ -68,7 +68,7 @@
     {
       "id": "M14-RUN",
       "state": "Done",
-      "owner": "Sonnet worker; coordinator ran the tests",
+      "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Step-by-step runner that executes the committed flow plan under the tool's safety interlocks.",
       "evidenceText": "Local test: the full 39-step plan passes through the runner; runner tests 12/12 after the fixes. On devnet it would wait for real oracle fulfilment and record latency. It has not run on devnet.",
       "evidenceLinks": [
@@ -94,9 +94,9 @@
     {
       "id": "M14-TOOL-FIX",
       "state": "Done",
-      "owner": "Sonnet worker; coordinator ran the tests",
+      "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Fix review findings F1 to F9.",
-      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex: the F1 to F9 fixes landed with passing local suites, but Codex later found that the F3 unknown-outcome path was not fully closed. The fixes landed were: a packet identity pin bound to a committed file, fresh-state reads after sends, a write-ahead record before every send, cluster-scoped receipts, spend ceilings refused rather than clamped, and file-argument guards.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Gideon (Codex supervisor): the F1 to F9 fixes landed with passing local suites, but Gideon (Codex supervisor) later found that the F3 unknown-outcome path was not fully closed. The fixes landed were: a packet identity pin bound to a committed file, fresh-state reads after sends, a write-ahead record before every send, cluster-scoped receipts, spend ceilings refused rather than clamped, and file-argument guards.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -120,9 +120,9 @@
     {
       "id": "M14-TOOL-FIX2",
       "state": "Done",
-      "owner": "Sonnet worker; coordinator ran the tests and added one fix",
+      "owner": "Sonnet worker; Silas (coordinator) ran the tests and added one fix",
       "scope": "Fix the re-check's residual findings N1 to N4.",
-      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Codex. N1 to N4 were fixed: reads at confirmed commitment with a fail-closed check, durable and fail-closed write-ahead and receipt files, and the packet pin recorded in write-ahead records. The once-only funding guard it added counts only confirmed records. Codex found that a missing or failed lookup after blockhash expiry could still bypass it. Tool tests 30/30 and runner tests 12/12 passed; the full plan passed; the real-node lifecycle ran in 24 s, down from 120 s. Coordinator-verified.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Gideon (Codex supervisor). N1 to N4 were fixed: reads at confirmed commitment with a fail-closed check, durable and fail-closed write-ahead and receipt files, and the packet pin recorded in write-ahead records. The once-only funding guard it added counts only confirmed records. Gideon (Codex supervisor) found that a missing or failed lookup after blockhash expiry could still bypass it. Tool tests 30/30 and runner tests 12/12 passed; the full plan passed; the real-node lifecycle ran in 24 s, down from 120 s. Coordinator-verified.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -133,9 +133,9 @@
     {
       "id": "M14-F3-HOLD",
       "state": "Done (Codex accepted locally)",
-      "owner": "Sonnet worker; coordinator runs the tests",
+      "owner": "Sonnet worker; Silas (coordinator) runs the tests",
       "scope": "Narrow fix: never treat a missing or failed signature lookup after blockhash expiry as proof that a transaction never landed.",
-      "evidenceText": "Codex source review found that, after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, so a landed funding transfer could have been sent twice. Fixed: lookups search transaction history, such records stay held as unknown and block execution, and only a later positive history result clears them, with a confirmed result restoring the once-only guard. The tool has no command to clear an unknown record. Codex's bounded independent closure review: PASS, local source and test boundary only. It found no blocking issue, read the zero-additional-send regressions and matched the test-summary hash. Codex did not re-run the tests; the coordinator's local runs are the test evidence. No approval implied.",
+      "evidenceText": "Gideon (Codex supervisor) source review found that, after a blockhash expired, a missing recent-cache status or a lookup error was recorded as never landed, so a landed funding transfer could have been sent twice. Fixed: lookups search transaction history, such records stay held as unknown and block execution, and only a later positive history result clears them, with a confirmed result restoring the once-only guard. The tool has no command to clear an unknown record. Gideon's (Codex supervisor) bounded independent closure review: PASS, local source and test boundary only. It found no blocking issue, read the zero-additional-send regressions and matched the test-summary hash. Gideon (Codex supervisor) did not re-run the tests; the coordinator's local runs are the test evidence. No approval implied.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -146,9 +146,9 @@
     {
       "id": "M14-A-APPROVAL",
       "state": "Approved by Rob (Block A, devnet only)",
-      "owner": "Rob (decision); coordinator executes",
+      "owner": "Rob (decision); Silas (coordinator) executes",
       "scope": "Rob's approval of Block A: the Solana-devnet-only acceptance run.",
-      "evidenceText": "Rob confirmed Block A, the Solana-devnet-only trial, in the coordinator chat, which resolves the supervisor's question about his earlier one-word reply. Covered: fresh devnet test keys, faucet-only devnet SOL within a coordinator-kept budget, deploy and governance setup, then the committed flow plan over about 41.5 days. Before any public transaction, including faucet requests, the program is rebuilt under a fresh program id and the supervisor must accept the new build. Still held: every ICP action, real PP minting, any unknown-transaction retry, mainnet and the PR merge.",
+      "evidenceText": "Rob confirmed Block A, the Solana-devnet-only trial, in the coordinator chat, which resolves Gideon (Codex supervisor)'s question about his earlier one-word reply. Covered: fresh devnet test keys, faucet-only devnet SOL within a coordinator-kept budget, deploy and governance setup, then the committed flow plan over about 41.5 days. Before any public transaction, including faucet requests, the program is rebuilt under a fresh program id and Gideon (Codex supervisor) must accept the new build. Still held: every ICP action, real PP minting, any unknown-transaction retry, mainnet and the PR merge.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (approval packet on the branch)",
@@ -158,10 +158,10 @@
     },
     {
       "id": "M14-5A-REPIN",
-      "state": "In progress",
-      "owner": "Claude coordinator / Sonnet worker; Codex accepts",
+      "state": "Done locally (awaiting CI and Gideon's acceptance)",
+      "owner": "Silas (Claude coordinator) / Sonnet workers; Gideon (Codex supervisor) accepts",
       "scope": "Rebuild and re-pin the program under a fresh program id before any public transaction.",
-      "evidenceText": "Local only; this needs no further approval. The fresh program id is generated and its key is held by the coordinator. Next steps: change the compiled-in id; rebuild with the pinned toolchain; regenerate the interface file, derived addresses and test fixtures; re-run the local suites on the new build. Codex must accept the new pins before the first public transaction, and faucet requests count as public transactions. Historical evidence is left unedited.",
+      "evidenceText": "Local only. The program is rebuilt under its fresh program id. A control rebuild of the old code with the same restored toolchain reproduced the accepted build exactly, so the new build differs only by the id. The interface file check is clean, derived addresses and test fixtures are regenerated, and all local suites pass on the new build: 274 harness tests, the operator-tool and runner suites, the full flow plan, and a real-node deploy on an isolated local validator. Still required before any public transaction, including faucet requests: green CI and Gideon's acceptance of the new pins.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -172,15 +172,15 @@
     {
       "id": "M14-GRAPH",
       "state": "Done",
-      "owner": "Claude coordinator (sole graph writer) / Sonnet worker",
+      "owner": "Silas (Claude coordinator) (sole graph writer) / Sonnet worker",
       "scope": "Refresh the repository knowledge graph for the M14 preparation work, with preservation checks.",
-      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Codex's independent check also passed: the graph and backup hashes match the receipt, and no prior nodes, links or hyperedges are missing. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
+      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Gideon's (Codex supervisor) independent check also passed: the graph and backup hashes match the receipt, and no prior nodes, links or hyperedges are missing. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
       "evidenceLinks": []
     },
     {
       "id": "LOOKOUT-PROJ",
       "state": "Done",
-      "owner": "Claude coordinator",
+      "owner": "Silas (Claude coordinator)",
       "scope": "Sanitized derived mirror of the native board, kept in sync with the private Lookout board.",
       "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval.",
       "evidenceLinks": []
@@ -188,7 +188,7 @@
     {
       "id": "PR-125",
       "state": "Done",
-      "owner": "Claude coordinator",
+      "owner": "Silas (Claude coordinator)",
       "scope": "Draft review PR for the accepted native Solana branch.",
       "evidenceText": "The draft PR is open and not merged; a merge is not authorized. It states the local proof boundary and the M14 and live boundaries. CI runs on every push; see the PR for the current status.",
       "evidenceLinks": [
@@ -201,7 +201,7 @@
     {
       "id": "LEG-1",
       "state": "Done locally (not deployed)",
-      "owner": "Claude coordinator / Sonnet Motoko worker",
+      "owner": "Silas (Claude coordinator) / Sonnet Motoko worker",
       "scope": "Local fix for the legacy Shenanigans PP-ledger memo-length bug (separate from M14).",
       "evidenceText": "Live evidence (read-only queries): the bug is confirmed, with two failed backer mints recorded. Source and local tests on a separate branch: hashed 32-byte memos at all seven ledger calls; unit test 145/145; static check; stable-compatible with the live interface; local replica rehearsal 29/29. Not deployed. Any mainnet upgrade needs its own approval and a pinned rebuild. Deploying the fix would start paying previously failed gifts on each player's next game.",
       "evidenceLinks": []
@@ -211,7 +211,7 @@
       "state": "Done",
       "owner": "Fresh Sonnet reviewer (read-only, not the implementer)",
       "scope": "Independent read-only review of the LEG-1 memo fix.",
-      "evidenceText": "Independent review: PASS with findings, none blocking. Deploying the fix alone pays lost gifts on each player's next game. Any recovery must reuse the original event ids, or it double-pays. The deploy candidate must be rebuilt and pinned first. Not Codex acceptance and not deploy approval.",
+      "evidenceText": "Independent review: PASS with findings, none blocking. Deploying the fix alone pays lost gifts on each player's next game. Any recovery must reuse the original event ids, or it double-pays. The deploy candidate must be rebuilt and pinned first. Not Gideon (Codex supervisor) acceptance and not deploy approval.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (review record on the branch)",

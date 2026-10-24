@@ -43,9 +43,9 @@ import Rpc "../Rpc";
 ///          (the generator verified every signature over those exact bytes with
 ///          ed25519, so these are the real transactions' bytes), plus the typed meta.
 module {
-    public let PROGRAM : Text = "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7";
-    /// findProgramAddress(["__event_authority"], PROGRAM): bump 255.
-    public let EVENT_AUTHORITY : Text = "BuzaujH9dKaTPZGcLmRe3SA1DNvHJGN9GAGrGVAzwZd6";
+    public let PROGRAM : Text = "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o";
+    /// findProgramAddress(["__event_authority"], PROGRAM): bump 254.
+    public let EVENT_AUTHORITY : Text = "8c7gNtfPuYRUHtp97qpzLKsSLFgogKYC7ZjVcA8MEo8m";
     /// Cluster domain of the local validator runs (32 bytes).
     public let LOCALNET_DOMAIN_TEXT : Text = "musical-chairs-localnet-dev!!!!!";
 

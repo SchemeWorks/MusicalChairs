@@ -30,7 +30,7 @@ accounts); the validator applies all of them, which is why the browser flows run
 local_cluster fixtures /private/tmp/mc-solana-runtime-tools-20261013/local-cluster/fixtures
 # 2. validator (keep running): paste the printed args, filling the three <*_SO> paths, e.g.
 solana-test-validator --reset --quiet --rpc-port 8899 --faucet-port 9900 --ledger <dir> --limit-ledger-size 10000 \
-  --upgradeable-program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 <PROGRAM_SO> nVdpWArd89aMWgicLSvLQZGo7kXf8soRZrJfzuZycz9 \
+  --upgradeable-program 7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o <PROGRAM_SO> nVdpWArd89aMWgicLSvLQZGo7kXf8soRZrJfzuZycz9 \
   --bpf-program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf <STANDIN_SO> \
   --bpf-program VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU <ORAO_SO> \
   --account 5ASstTEwct76TEqMsKw4c9tZcKckyJK7j5doXeY1UPDn <fixtures>/multisig_g.json \
@@ -46,9 +46,9 @@ local_cluster status http://127.0.0.1:8899
 
 Genesis facts (deterministic from the fixture seeds): G multisig `5ASstTEwct76TEqMsKw4c9tZcKckyJK7j5doXeY1UPDn`,
 G vault `nVdpWArd89aMWgicLSvLQZGo7kXf8soRZrJfzuZycz9`, P multisig `HfbGhr2YTRhaU8BNLHoPb17P3AGRfGVzV2xnYQQ89QR5`,
-P vault `ATE3hTDdzc8KjFJfRzs7QCyaaez7ydM9HzrVaxgtSxS`, ProgramData `9fbEej8qbMTZbWBgN19AME3WA6kRSWE3JmHM1hfX8Lup`,
-pool `AYEAZnLGHzjV95vMtRu4StknBBRtmZUGLwK297Na1jqK`, ORAO client `7b1ebeG8qgEtCB3ufPHcZLiUeFJ6cYMS9BeiTnSBJ6HT`,
-RngAuthority `6n6uusHJtZXSDSZec1Vt8T53hgLS6vp3iULH5ew1omm5`. Cluster domain `musical-chairs-localnet-dev!!!!!`
+P vault `ATE3hTDdzc8KjFJfRzs7QCyaaez7ydM9HzrVaxgtSxS`, ProgramData `9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG`,
+pool `Au9fiQqP7nNVZBTv2ZUPadFoxLnU75Q3VSczKbwwJsyf`, ORAO client `9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3`,
+RngAuthority `5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22`. Cluster domain `musical-chairs-localnet-dev!!!!!`
 (dev only; mainnet/devnet domains are the production constants). `public_series_a_enabled = true` so the
 Series A panel can be exercised; the payer is sponsor and management recipient (dev only).
 

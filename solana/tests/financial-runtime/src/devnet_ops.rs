@@ -140,7 +140,7 @@ pub const TESTNET_GENESIS_HASH: &str = "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2
 /// SHA-256 of the reviewed program ELF (`docs/solana/evidence/latest-build.json`,
 /// `artifact.sha256`; a test keeps the two in step).
 pub const PINNED_PROGRAM_ELF_SHA256: &str =
-    "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826";
+    "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef";
 /// `Pool.cluster_domain` of the devnet acceptance run (packet section 2; NOT the LiteSVM fixture
 /// domain `controls::DEVNET_DOMAIN`, and not the localnet dev domain).
 pub const DEVNET_CLUSTER_DOMAIN: [u8; 32] = *b"musical-chairs-devnet-domain-v1!";

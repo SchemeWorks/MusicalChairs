@@ -1,6 +1,6 @@
 # Musical Chairs native Solana program — threat model (M10, 2026-10-14)
 
-Program `7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7` (Anchor 0.32.1), reviewed at commit
+Program `7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o` (Anchor 0.32.1), reviewed at commit
 `3c3003c`/`37185ea` by two read-only personas
 ([security review](evidence/2026-10-14-m10-security-review.md),
 [economy audit](evidence/2026-10-14-m10-economy-audit.md)); repairs, accepted items and the

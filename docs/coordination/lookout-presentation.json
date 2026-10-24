@@ -1,5 +1,5 @@
 {
-  "summary": "Rob approved the Solana test-network trial (Block A). Before anything is sent, the program is being rebuilt locally under a fresh address, and the supervisor must accept the new build. The roughly six-week trial follows; nothing has been deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
+  "summary": "Rob approved the Solana test-network trial (Block A). The program is rebuilt under a fresh address and passes all local tests; Gideon, the supervisor, must accept the new build before anything is sent. The roughly six-week trial follows; nothing deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
   "glossary": [
     {
       "term": "M14",
@@ -143,7 +143,7 @@
     },
     {
       "term": "independent closure review",
-      "definition": "A reviewer other than the implementer inspected the scoped repair and its evidence. Codex inspected the source and regression assertions without rerunning the coordinator’s tests.",
+      "definition": "A reviewer other than the implementer inspected the scoped repair and its evidence. Gideon (the Codex supervisor) inspected the source and regression assertions without rerunning the coordinator’s tests.",
       "cardId": "M14-F3-HOLD"
     },
     {
@@ -274,6 +274,14 @@
       "term": "re-pin",
       "definition": "Record again the exact changed source, compiled program, interface and derived addresses, so reviewers can identify exactly what would be deployed.",
       "cardId": "M14-5A-REPIN"
+    },
+    {
+      "term": "Silas",
+      "definition": "The Claude coordinator agent for this project: it builds, runs the local tests and keeps the board. It cannot approve its own public actions."
+    },
+    {
+      "term": "Gideon",
+      "definition": "The Codex supervisor agent for this project: it reviews and accepts evidence. Its acceptance is not Rob's approval."
     }
   ]
 }

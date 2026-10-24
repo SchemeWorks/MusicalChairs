@@ -43,6 +43,10 @@ Rules:
 - After changing the native-Solana spec, plan or economic/recovery contract, semantically extract the changed documents with the Graphify skill and merge into the existing repository graph. Preserve unrelated nodes, edge direction and hyperedges; record per-file hashes and scoped freshness. Follow [the graph maintenance workflow](docs/coordination/native-solana-knowledge-graph.md).
 - Each implementation handoff records graph maintenance performed, covered files, query checks and any stale coverage. A graph relationship is navigation evidence; verify financial/authority claims against current source and tests.
 
+## Agent names
+
+On the native Solana work, the Claude coordinator is **Silas** and the Codex supervisor and reviewer is **Gideon**. Rob's rule: never reuse an agent first name across projects or chats, and check existing names before assigning one. **Miles** is already the Rumi Base bridge supervisor. A name changes no role, execution or approval scope.
+
 ## Native Solana explanations
 
 Rob's background is extensive ICP development with Solidity coursework and DeFi analysis. When a Solana-specific choice affects implementation or behavior, briefly explain the concept, its closest ICP/EVM comparison and its concrete effect on Musical Chairs. Cover concepts when they arise, such as separate code/data accounts, PDAs versus signing keys, transaction account/compute bounds, rent, cross-program calls, asynchronous randomness and finalized observations. Keep this explanation alongside the relevant decision; distinguish proposed behavior from tested facts.

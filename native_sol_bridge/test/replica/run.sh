@@ -102,9 +102,9 @@ dfx canister call "$STUB" loadBuiltinFixtures '()' --network local
 dfx canister call "$STUB" setMode '(variant { Agree })' --network local
 dfx canister call "$STUB" clearCallLog '()' --network local
 dfx canister call "$BRIDGE" setConfig "(record {
-  program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\";
+  program_id = \"7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o\";
   cluster_domain = blob \"musical-chairs-localnet-dev!!!!!\";
-  event_authority = \"BuzaujH9dKaTPZGcLmRe3SA1DNvHJGN9GAGrGVAzwZd6\";
+  event_authority = \"8c7gNtfPuYRUHtp97qpzLKsSLFgogKYC7ZjVcA8MEo8m\";
   supported_schema_versions = vec { 1 : nat };
   rpc_a = variant { Custom = vec { variant { Custom = record { url = \"http://stub-a.invalid\"; headers = null } } } };
   rpc_b = variant { Custom = vec { variant { Custom = record { url = \"http://stub-b.invalid\"; headers = null } } } };

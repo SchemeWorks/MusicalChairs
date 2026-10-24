@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const { PublicKey } = require('@solana/web3.js');
 
-const PROGRAM = '7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7';
+const PROGRAM = '7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o';
 const hex = (b) => Buffer.from(b).toString('hex');
 const u64 = (n) => { const b = Buffer.alloc(8); b.writeBigUInt64LE(BigInt(n)); return b; };
 const u32 = (n) => { const b = Buffer.alloc(4); b.writeUInt32LE(n); return b; };
