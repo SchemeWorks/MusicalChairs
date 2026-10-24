@@ -1,5 +1,5 @@
 {
-  "summary": "Rob approved the Solana test-network trial (Block A). Before anything is sent, the program is being rebuilt under a fresh program address and re-reviewed locally, and Codex must accept the new build. The roughly six-week trial follows; nothing has been deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
+  "summary": "The Solana version passed local tests and reviews. Rob replied \"approved\", and the supervisor is confirming that this means the test-network trial (Block A); nothing public happens until he confirms. Meanwhile the program is being rebuilt locally under a fresh address. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
   "glossary": [
     {
       "term": "M14",
@@ -7,7 +7,7 @@
     },
     {
       "term": "Block A",
-      "definition": "The approved Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code.",
+      "definition": "The proposed Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. Rob's approval is pending a scope clarification. It excludes Internet Computer changes, real reward issuance, the main network and merging the code.",
       "cardId": "M14-A-APPROVAL"
     },
     {
@@ -21,10 +21,6 @@
     {
       "term": "program id",
       "definition": "The address identifying the Solana program. Using a fresh address changes related derived addresses and requires updated build references and local review."
-    },
-    {
-      "term": "re-pinned",
-      "definition": "The exact changed source, compiled program, interface and derived addresses are recorded again so reviewers can identify what would be used."
     },
     {
       "term": "identity pin",
