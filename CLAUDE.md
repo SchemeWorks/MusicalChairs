@@ -46,3 +46,24 @@ Rules:
 ## Native Solana explanations
 
 Rob's background is extensive ICP development with Solidity coursework and DeFi analysis. When a Solana-specific choice affects implementation or behavior, briefly explain the concept, its closest ICP/EVM comparison and its concrete effect on Musical Chairs. Cover concepts when they arise, such as separate code/data accounts, PDAs versus signing keys, transaction account/compute bounds, rent, cross-program calls, asynchronous randomness and finalized observations. Keep this explanation alongside the relevant decision; distinguish proposed behavior from tested facts.
+
+## Lookout board mirror
+
+`docs/coordination/kanban.md` is the sole authority for the native board. `docs/coordination/lookout-projection.json` is a **sanitized, derived** mirror of the current material cards in its "Local implementation pass" section, for Rob's private Lookout board. The mirror's shape is `{cards:[{id,state,owner,scope,evidenceText,evidenceLinks:[{title,url}]}]}`, and the publisher rejects any other field. The Lookout setup chat owns the publisher configuration and the manifest.
+
+- **When to update.** After every material board checkpoint, update the projection in the same commit as the kanban change. A material checkpoint is a card being added, a card changing state, or a card's evidence changing materially. Include new material cards honestly, and keep state wording consistent with the kanban.
+- **Sanitation.**
+  - Write fresh summaries; never copy raw board cells.
+  - Exclude keys and credentials, wallet or program addresses, balances, transaction payloads or signatures, private logs and local user paths.
+  - `evidenceLinks` may contain only approved public HTTPS links, currently draft PR #125. New hosts or new sensitive content need fresh approval.
+  - Keep source, test, local, independent-review and approval evidence distinct. Never imply approval, deployment, or public execution that has not happened.
+- **Publishing** happens only after setup's verified manifest cutover to this file. Until then, do not publish, and do not touch setup's frozen `.local` seed or the manifest. After cutover, run these from the lookout-kanban checkout:
+  1. `node scripts/publisher.mjs --config scripts/musicalchairs.mainnet.json --dry-run`
+  2. `--publish` only if the dry run shows a change and publishing is authorized.
+  3. `--dry-run` again, which must report no change (the readback).
+  4. Record the backend revision and source revision in the handoff.
+- **Boundaries.**
+  - Never read or export keyring secrets.
+  - Add no new timer: the existing 30-minute supervision check covers mirror freshness.
+  - A publication failure is a visibility issue only. It never justifies bypassing an authority boundary.
+  - Board-metadata authority grants nothing for Solana keys, faucets, signing or deploys, or for any ICP upgrade, mint, activation or merge.

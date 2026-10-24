@@ -1,0 +1,156 @@
+{
+  "cards": [
+    {
+      "id": "M14-PKT-R",
+      "state": "Done",
+      "owner": "Claude coordinator / Sonnet document worker",
+      "scope": "Prepare the M14 devnet acceptance approval packet.",
+      "evidenceText": "Document: approval packet revision 5 is committed on the draft PR branch. It recommends one devnet-first path: approve Block A only (devnet, test keys, public-faucet SOL, hard spend cap). Every ICP deploy or upgrade, every activation and any real PP minting stays held for separate approval. Open decision for Rob: approve Block A, and say who (if anyone) holds the key for the planned program id; otherwise a fresh devnet program id is used. Approval: none given yet. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125 (packet and evidence on the branch)", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-PRE-ORAO",
+      "state": "Done",
+      "owner": "Sonnet harness worker; coordinator ran the tests",
+      "scope": "Local compatibility check of the exact devnet ORAO VRF program binary.",
+      "evidenceText": "Local test (LiteSVM): 10/10 close-suite flows pass on the exact devnet oracle binary. This is optional preflight hardening; the required acceptance is the real devnet run. No public transaction.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-PRE-SQUADS",
+      "state": "Done",
+      "owner": "Sonnet harness worker; coordinator ran the tests",
+      "scope": "Local compatibility check of the real Squads v4 multisig program binary.",
+      "evidenceText": "Local test (LiteSVM): 12/12 pass with the real Squads v4 binary. Real Squads forwards the external sponsor signer, so program initialization can run through a real multisig vault transaction. A proposal fits the 1,232-byte transaction limit (1,140 bytes) only when the proposer also pays the fee; the operator tool enforces that. No public transaction.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-TOOL",
+      "state": "Done",
+      "owner": "Sonnet worker; coordinator ran the tests",
+      "scope": "Operator tool for the devnet deploy and governance steps (local preparation only).",
+      "evidenceText": "Local tests: 30/30 tool tests after two review-and-fix rounds. Real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries passes: deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run. Dry-run by default. Refuses mainnet by name and by genesis. On devnet it requires the committed packet's identity pin, which proves which packet text was used and is not approval. Not run on devnet.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-SIM",
+      "state": "Done",
+      "owner": "Sonnet worker; coordinator ran the tests",
+      "scope": "Simulate the Seq-B devnet flow plan before any real days are spent.",
+      "evidenceText": "Local simulation (clock-warped LiteSVM, production program binary and devnet oracle binary): all 39 steps and all 15 flow codes reached, with conservation checked after every step. About 41.5 days in total; the first draw request lands on day 11.45. This is a simulation, not a devnet result.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-RUN",
+      "state": "Done",
+      "owner": "Sonnet worker; coordinator ran the tests",
+      "scope": "Step-by-step runner that executes the committed flow plan under the tool's safety interlocks.",
+      "evidenceText": "Local test: the full 39-step plan passes through the runner; runner tests 12/12 after the fixes. On devnet it would wait for real oracle fulfilment and record latency. It has not run on devnet.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-TOOL-REV",
+      "state": "Done",
+      "owner": "Fresh Sonnet reviewer (read-only, not the author)",
+      "scope": "Independent read-only review of the frozen operator tool and runner before any public execution request.",
+      "evidenceText": "Independent review: PASS with findings F1 to F9. F1 to F4 (approval wording, two double-send paths, receipt semantics) had to be fixed before any devnet execution. A review is not approval.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125 (review record on the branch)", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-TOOL-FIX",
+      "state": "Done",
+      "owner": "Sonnet worker; coordinator ran the tests",
+      "scope": "Fix review findings F1 to F9.",
+      "evidenceText": "Source and local tests: all nine fixed. The fixes are: a packet identity pin bound to a committed file; fresh-state reads after sends; a write-ahead record before every send; cluster-scoped receipts; spend ceilings refused rather than clamped; and file-argument guards. Local suites and the real-node lifecycle pass.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-TOOL-RECHECK",
+      "state": "Done",
+      "owner": "Second fresh Sonnet reviewer (read-only, not the author)",
+      "scope": "Bounded independent re-check of the F1 to F9 fixes.",
+      "evidenceText": "Independent re-check: PASS with residual findings. F1 and F4 closed, F2 and F3 partial, no regressions. One new Medium: reads after a send silently ran at finalized commitment. The coordinator confirmed it from source. It failed safe: no double send and no fund loss.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125 (re-check record on the branch)", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-TOOL-FIX2",
+      "state": "Done",
+      "owner": "Sonnet worker; coordinator ran the tests and added one fix",
+      "scope": "Fix the re-check's residual findings N1 to N4.",
+      "evidenceText": "Source and local tests: N1 to N4 fixed. Reads now run at confirmed commitment, with a fail-closed check. Funding transfers are enforced as once-only from the write-ahead file. The write-ahead and receipt files are durable and fail closed. The packet pin is recorded in write-ahead records. Tool tests 30/30, runner tests 12/12, full plan passes. The real-node lifecycle runs in 24 s, down from 120 s, which confirms the Medium fix. Verified by the coordinator, not independently re-reviewed a third time.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "M14-GRAPH",
+      "state": "In progress",
+      "owner": "Claude coordinator (sole graph writer) / Sonnet worker",
+      "scope": "Refresh the repository knowledge graph for the M14 preparation work, with preservation checks.",
+      "evidenceText": "A durable backup of the accepted graph was taken and the structural update has run. The repair of collapsed edges and stripped attributes against the backup, and the merge of a small M14 fragment, are in progress. The graph is navigation evidence only, not runtime proof.",
+      "evidenceLinks": []
+    },
+    {
+      "id": "LOOKOUT-PROJ",
+      "state": "Done",
+      "owner": "Claude coordinator",
+      "scope": "Sanitized derived mirror of the native board for the private Lookout board.",
+      "evidenceText": "This projection file and its update rule exist. The repository board stays the sole authority. Publication waits for setup's verified manifest cutover.",
+      "evidenceLinks": []
+    },
+    {
+      "id": "PR-125",
+      "state": "Done",
+      "owner": "Claude coordinator",
+      "scope": "Draft review PR for the accepted native Solana branch.",
+      "evidenceText": "The draft PR is open and not merged; a merge is not authorized. It states the local proof boundary and the M14 and live boundaries. CI runs on every push; see the PR for the current status.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "LEG-1",
+      "state": "Done locally (not deployed)",
+      "owner": "Claude coordinator / Sonnet Motoko worker",
+      "scope": "Local fix for the legacy Shenanigans PP-ledger memo-length bug (separate from M14).",
+      "evidenceText": "Live evidence (read-only queries): the bug is confirmed, with two failed backer mints recorded. Source and local tests on a separate branch: hashed 32-byte memos at all seven ledger calls; unit test 145/145; static check; stable-compatible with the live interface; local replica rehearsal 29/29. Not deployed. Any mainnet upgrade needs its own approval and a pinned rebuild. Deploying the fix would start paying previously failed gifts on each player's next game.",
+      "evidenceLinks": []
+    },
+    {
+      "id": "LEG-1-REV",
+      "state": "Done",
+      "owner": "Fresh Sonnet reviewer (read-only, not the implementer)",
+      "scope": "Independent read-only review of the LEG-1 memo fix.",
+      "evidenceText": "Independent review: PASS with findings, none blocking. Deploying the fix alone pays lost gifts on each player's next game. Any recovery must reuse the original event ids, or it double-pays. The deploy candidate must be rebuilt and pinned first. Not Codex acceptance and not deploy approval.",
+      "evidenceLinks": [
+        { "title": "Draft PR #125 (review record on the branch)", "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125" }
+      ]
+    },
+    {
+      "id": "LEG-2",
+      "state": "Blocked (needs a separate recovery decision)",
+      "owner": "Unassigned",
+      "scope": "Recovery for failed legacy PP mints.",
+      "evidenceText": "Blocked on a separate decision. Two failed backer mints are recorded live. Signup-gift and cascade losses are inferred from source; their coverage is unknown. Claimant coverage, retry semantics and duplicate prevention must be evidenced first. No compensation, ledger write or mainnet action is authorized.",
+      "evidenceLinks": []
+    }
+  ]
+}
