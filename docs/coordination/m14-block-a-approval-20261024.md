@@ -1,16 +1,16 @@
 # M14 Block A: Rob's approval record (2026-10-24)
 
-> **Status: PENDING SCOPE CLARIFICATION. This is not yet adjudicated Block A authority.**
+> **Status: CONFIRMED. Rob approved Block A (Solana devnet only).**
 >
-> Gideon, the Codex supervisor, independently read Rob's message "approved". The message immediately before it was the coordinator's reply finishing the Lookout presentation-metadata task. That reply ended "Block A and every Solana, ICP, retry, mainnet and merge action remain held for your separate yes", but it did not itself ask the Block A question. The copy-ready "Approve Block A on Solana devnet only?" question was in an EARLIER reply, the F3 close-out. So reading "approved" as a Block A yes is the coordinator's inference.
+> **Clarification (2026-10-24).** Rob replied in the coordinator chat to Silas's question "did 'approved' mean yes to Block A, the Solana-devnet-only trial?", which his reply quoted. The reply came through with every character doubled; it is recorded here verbatim:
 >
-> Gideon has asked Rob one narrow clarification. Until Rob confirms:
-> - no public transaction is sent, faucet requests included;
-> - silence is not approval;
-> - only the local 5a re-pin, build and tests continue (the packet's 5a re-pinning and local re-review need no further approval);
-> - the fresh program-id key, generated locally, stays unused. If Block A is not confirmed it is simply never used.
+> `yyeess,,  aapppprroovveedd  bblloocckk  aa`
 >
-> No accepted implementation or F3 work reopens.
+> It reads "yes, approved block a". This resolves the ambiguity Gideon (Codex supervisor) raised about the earlier one-word "approved", which came straight after an unrelated Lookout-metadata reply.
+>
+> The confirmation does not change the gates. No public transaction, faucet requests included, happens before the 5a gates below are met: Gideon's acceptance of the new pins (gate 7) and the packet revision carrying them (gate 8).
+>
+> **MI-1 is moot.** The old id `7tj9…` is exactly 32 bytes of `0x66`, a synthetic placeholder for which no keypair can exist, so the fresh id (5a) was required in any case.
 
 ## The approval
 
@@ -18,7 +18,7 @@
 - **Context (corrected):** the message immediately before "approved" was the coordinator's Lookout presentation-metadata reply, ending "Block A and every Solana, ICP, retry, mainnet and merge action remain held for your separate yes." The copy-ready question "Approve Block A on Solana devnet only?" (packet section 0, revision 7) was asked in the earlier F3 close-out reply.
 - **Approved text:** `docs/coordination/native-solana-m14-approval-packet-20261023.md`, committed at `db401a6`, sha256 `63e7187d9c99130d36a2c70361dd227b7489e9cede4f8b5376dbe957bbdff1a4`. It was unchanged at `45825c5`, the head when the approval arrived.
 
-Once Rob's clarification confirms the scope, this chat message is the authority. The packet identity pin that `devnet_ops` requires is only an artifact-identity check, not approval.
+Rob's confirming reply above, together with "approved", is the authority. The packet identity pin that `devnet_ops` requires is only an artifact-identity check, not approval.
 
 ## Scope, as the coordinator interprets it (Rob may correct any line)
 

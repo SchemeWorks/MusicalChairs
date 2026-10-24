@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Claude coordinator / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current status: preparation is accepted locally. Rob's one-word \"approved\" is pending a scope clarification, so no public transaction happens until he confirms that it means Block A. Meanwhile the program is being rebuilt locally under a fresh program id and re-reviewed; Codex must accept the new pins before any public transaction. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial, and the approved scope is unchanged. The local rebuild under a fresh program id is in progress, and the supervisor must accept the new pins before any public transaction. The packet will then be revised with those pins. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -145,10 +145,10 @@
     },
     {
       "id": "M14-A-APPROVAL",
-      "state": "Waiting on Rob's confirmation (scope clarification)",
+      "state": "Approved by Rob (Block A, devnet only)",
       "owner": "Rob (decision); coordinator executes",
       "scope": "Rob's approval of Block A: the Solana-devnet-only acceptance run.",
-      "evidenceText": "Rob wrote \"approved\". The message just before it was a board-metadata update, and the specific Block A question had been asked earlier, so the supervisor asked Rob to confirm that it means Block A. Until Rob confirms, nothing is sent to a public network, including faucet requests, and silence is not approval. Only the local rebuild under a fresh program id continues. If confirmed, Block A means: fresh devnet test keys, faucet-only devnet SOL within a coordinator-kept budget, deploy and governance setup, then the committed flow plan over about 41.5 days. Every ICP action, real PP minting, any unknown-transaction retry, mainnet and the PR merge stay held.",
+      "evidenceText": "Rob confirmed Block A, the Solana-devnet-only trial, in the coordinator chat, which resolves the supervisor's question about his earlier one-word reply. Covered: fresh devnet test keys, faucet-only devnet SOL within a coordinator-kept budget, deploy and governance setup, then the committed flow plan over about 41.5 days. Before any public transaction, including faucet requests, the program is rebuilt under a fresh program id and the supervisor must accept the new build. Still held: every ICP action, real PP minting, any unknown-transaction retry, mainnet and the PR merge.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (approval packet on the branch)",
@@ -161,7 +161,7 @@
       "state": "In progress",
       "owner": "Claude coordinator / Sonnet worker; Codex accepts",
       "scope": "Rebuild and re-pin the program under a fresh program id before any public transaction.",
-      "evidenceText": "Local only; this needs no further approval and continues while the Block A scope is clarified. The fresh program id is generated and its key is held by the coordinator. Next steps: change the compiled-in id; rebuild with the pinned toolchain; regenerate the interface file, derived addresses and test fixtures; re-run the local suites on the new build. Codex must accept the new pins before the first public transaction, and faucet requests count as public transactions. Historical evidence is left unedited.",
+      "evidenceText": "Local only; this needs no further approval. The fresh program id is generated and its key is held by the coordinator. Next steps: change the compiled-in id; rebuild with the pinned toolchain; regenerate the interface file, derived addresses and test fixtures; re-run the local suites on the new build. Codex must accept the new pins before the first public transaction, and faucet requests count as public transactions. Historical evidence is left unedited.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
