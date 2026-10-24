@@ -57,6 +57,7 @@ roles). Members files list exactly three pubkeys, one per line.
 | `execute initialize\|register` | as approve; `initialize` needs `--sponsor` as a keypair (it co-signs the outer transaction) | `vault_transaction_execute` after the lock |
 | `readback` | `--g-create-key --p-create-key --g-members --p-members` (`--sections squads,program,initialize,orao`, `--sponsor`, `--management-recipient`, `--elf`) | packet A6: profiles, vault index 0, `Admission.guardian_vault == Pool.guardian_vault == P vault`, ORAO `Client.owner == G vault`, `Client.state == RngAuthority`, Client account owner == ORAO program |
 | `validator-fixtures <out_dir>` | optional `--program-so --g-create-key` | offline: writes the validator account files and prints the exact local validator command |
+| `flow init\|status\|next` | `--wallet-dir` (see [Flow runner](#flow-runner-the-m14-plan)) | runs the 39-step M14 flow plan against a cluster, one interlocked step at a time |
 
 `initialize` parameters default to the packet (devnet cluster domain `musical-chairs-devnet-domain-v1!`, request fee 300,000,
 headroom 2,500 bps, `--public-series-a-enabled true`, the devnet ORAO tuple); the flags `--cluster-domain`,
@@ -65,6 +66,58 @@ propose, approve and execute. Ceremony order: `squads-create` -> `deploy` -> `fu
 2 x `approve` each -> wait 172,800 s on the cluster clock -> `execute initialize` -> `execute register` -> `readback` -> `verify-bytes`.
 Devnet runs need `--cluster devnet --rpc https://api.devnet.solana.com --i-have-approval $(shasum -a 256 <packet> | cut -d' ' -f1)`.
 A fresh program id (packet 5a) changes the compiled-in id and the pinned ELF hash: rebuild, re-pin, then use the tool.
+
+## Flow runner (the M14 plan)
+
+`devnet_ops flow` executes the [M14 flow plan](m14-flow-plan.md) (39 steps, Seq-B, 41.46 days) against a cluster. The plan is
+DATA in the library (`src/m14_plan.rs`: who acts, which instruction, the amount, the offset from genesis, the expected outcome),
+shared with the clock-warped LiteSVM rehearsal `tests/m14_flow_plan.rs`, so the rehearsed plan and the run plan cannot drift.
+
+```bash
+devnet_ops flow init   --wallet-dir W                                  # offline: record the wallets' PUBLIC keys in W/wallets.json
+devnet_ops flow status --wallet-dir W --rpc URL [--cluster devnet]     # read-only: done / next / earliest time / both identities
+devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-oracle] [--wait-seconds N] [--receipts FILE]
+```
+
+* **Wallets.** `W` holds one Solana-CLI keypair file per plan actor, created by the operator (the tool generates nothing):
+  `S` (sponsor), `K` (keeper), `A1`, `A2`, `P1`..`P5`, `W` (the plain wallet), plus `ORACLE.json` for a loopback synthetic oracle.
+  `flow init` writes `W/wallets.json` (`{"schema":1,"plan":...,"program_id":...,"wallets":{"A1":"<pubkey>",...}}`, public keys only) and
+  refuses to overwrite a `wallets.json` that records different keys. `flow next` loads the actor's file only after its pubkey equals the
+  recorded one (the promotion "Winner" resolves to P4 or P5 from `CloseRecord(1)`); any mismatch is refused before anything is signed.
+* **Genesis and "earliest time".** Plan offsets count from the G approvals. `initialize` runs no earlier than 172,800 s later and stamps
+  `ConfigVersion#1.activated_at`, so genesis = that stamp minus 172,800 s and step 1 is due at the stamp. `earliest = genesis + offset`, judged
+  against the CLUSTER clock (Clock sysvar). Real runs drift later than the offsets; the program's own gates (maturity, the 600 s promotion
+  deadline, strict insolvency) still decide, and the runner pre-checks them with a plain-language refusal. `--genesis-unix N` overrides
+  genesis on a loopback cluster only (a local validator cannot wait two days).
+* **What is done.** Every step has a state predicate judged from the cluster (a counter reached, an account exists, a draw state, `finalized`,
+  ...). A step is also done when any later step is. The refused-by-design step and the oracle observation also count a receipt line. `flow
+  status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`.
+* **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; an actor wallet that does not match
+  `wallets.json`; books that do not balance before the step; an economics oracle that disagrees with the plan (a payout the plan calls solvent
+  that would be insolvent, or the reverse); a promotion deadline already passed for request or capture. Then it builds exactly that step's
+  transaction(s) with the harness builders (see below), measures (1,232 B), simulates, and sends only under the standard interlocks (dry run by
+  default; `--execute` on loopback, or devnet with `--i-have-approval <packet sha256>` and the devnet genesis hash; never mainnet). Multi-transaction
+  steps (allocation ticket phases, candidate pages, the candidate build) rebuild each next transaction from the chain after the previous one, so a
+  step is resumable. A dry run prints the first transaction only.
+* **Receipts.** Each executed step appends one JSON line to `--receipts` (default `W/flow-receipts.jsonl`): signatures and slots, the account
+  read-backs its `expect` names (Pool, Ops, Ticket, the position / Backers / CloseRecord it touched), the post-condition checks (the facts the
+  rehearsal asserts from events, restated as state differences: pot, management, registry, tolls, the actor's lamport equation) and
+  `conservation` (the vault identity `vault - rent == pot + seed + management + pending_toll + funded_claims + excess`, the OpsCash identity, and
+  `Ops.locked_remaining_total == sum of the CloseRecord partitions`, all computed from RPC). A failing check or identity makes the run exit 4: stop.
+* **How steps are built.** The harness builders read state from a LiteSVM. The runner copies every program account (`getProgramAccounts`) and the
+  cluster's Rent sysvar and clock into a MIRROR `World` (`FinancialRuntime::mirror`, no program loaded, nothing executed), points its fee payer at the
+  actor, and lets `World` / `close.rs` produce the instruction. The provider tuple of `request_round_draw` comes from the ConfigVersion (the pinned
+  treasury), not the rehearsal's synthetic one.
+* **The oracle (packet A7).** `fulfil_*` never fulfils on devnet. `flow next --step fulfil_1 --execute --wait-seconds 600` polls the request
+  account until the real ORAO oracle fulfils it (no transaction is sent; without a fulfilment it exits 4 with `"result":"pending"`), then records
+  request -> fulfilment latency from the request account's own history (`getSignaturesForAddress`): slots and seconds from block times, and the margin
+  to the promotion deadline. If the oracle fulfils between invocations, `flow next --step fulfil_1` observes it and writes the receipt. Only on a
+  loopback cluster, `--local-oracle` signs the fulfilment with `W/ORACLE.json` (the synthetic authority the local ORAO network is configured with).
+* **`expire_at_deadline`** is meant to be REFUSED (`DeadlineNotReached`, expiry on the deadline). The runner builds, signs and simulates it, requires
+  exactly that error in the logs, records `refused_as_expected` and sends nothing (a known-failing transaction would only burn a fee; the simulation
+  is the evidence). It must run while the cluster clock is at or before the deadline; after that the step counts as passed.
+* **Local use.** On a loopback validator the clock is real time, so only the first steps (setup and round 1 deposits, offsets up to 173,160 s)
+  are runnable in one sitting, with `--genesis-unix <now - 172800>`; the whole plan runs in LiteSVM (`tests/m14_flow_tool.rs`).
 
 ## Local rehearsal
 
@@ -104,6 +157,9 @@ A validator clock cannot be warped, so the 48-hour execute is exercised in LiteS
 ```bash
 cd solana/tests/financial-runtime
 cargo +1.92.0 test --locked --test devnet_ops_local -- --test-threads=1 --nocapture      # LiteSVM + gates; 2 tests ignored
+cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals; 1 test ignored
+MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`
+cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic (the rehearsal itself is --ignored)
 MC_LOCAL_RPC=http://127.0.0.1:8899 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored --test-threads=1 --nocapture \
   local_validator_deploy_authority_squads_and_proposal_lifecycle     # fresh --reset validator per run
 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored deploy_in_litesvm   # probe: LiteSVM loader-v3 deploy support unverified

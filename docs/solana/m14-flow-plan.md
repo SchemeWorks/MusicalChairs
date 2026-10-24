@@ -1,15 +1,14 @@
 # M14 flow plan (packet RG-7): the devnet acceptance flows with concrete amounts
 
-Status (2026-10-23): **designed and compile-checked, not yet executed.** The plan is code
-(`solana/tests/financial-runtime/tests/m14_flow_plan.rs`) and this document is its human form. Every
-number marked (model) was derived from the host economics oracles (`musical-chairs-economics`: `fees`,
-`earnings`, and the `Book` allocation oracle the program is differential-tested against) and re-derived
-in an independent script; the LiteSVM run prints the chain's own values next to them and fails on any
-disagreement it can decide (section 10). Replace the (model) values with the recorded ones after the
-first run (`MC_M14_FLOW_REPORT=<path>` writes them as JSON).
+Status (2026-10-23): **executed locally — PASS.** The coordinator ran the plan (commit 9b19045): the two pure tests passed, and the LiteSVM run on the production SBF ELF with the DEVNET ORAO binary (`MC_ORAO_PROFILE=devnet`) reached all 15 flow codes. Conservation was checked after every step. The total duration is 41.463 days and the first draw request is at day 11.454. The recorded per-step values, first-success offsets and per-wallet spend are in `docs/solana/evidence/2026-10-23-m14-preflight/m14-flow-report.json`. Values below still marked (model) were derived from the host economics oracles (`musical-chairs-economics`: `fees`, `earnings` and the `Book` allocation oracle) and re-derived in an independent script; the LiteSVM run compares the chain's own values with them and fails on any disagreement it can decide (section 10), so the PASS confirms them within those checks. This is a LOCAL result only: LiteSVM slots and rent are not cluster-realistic, ORAO fulfilment is synthetic and Squads is the stand-in.
 
 Nothing here touches a network, a real key or a deployed program: LiteSVM only, the production SBF ELF
 and the DEVNET ORAO binary (`MC_ORAO_PROFILE=devnet`), in-test keypairs.
+
+The plan data (`Who`, `Act`, `Step`, the schedule, the amounts, `plan()` and the pure `arithmetic()`) lives in the library module
+`solana/tests/financial-runtime/src/m14_plan.rs`; `tests/m14_flow_plan.rs` rehearses it with the harness helpers and the operator tool's
+`devnet_ops flow` runs the same data against a cluster one interlocked step at a time (see [devnet-ops.md](devnet-ops.md); its LiteSVM test,
+`tests/m14_flow_tool.rs`, drives all 39 steps through `flow next`).
 
 ## 1. Result in one table
 

@@ -192,6 +192,24 @@ impl World {
         }
     }
 
+    /// A World over a [`FinancialRuntime::mirror`] at `now` / `slot`: only the instruction builders and
+    /// state readers are meant to be used on it.
+    pub fn mirror(mut rt: FinancialRuntime, now: i64, slot: u64) -> Self {
+        rt.set_clock(now, slot);
+        Self {
+            rt,
+            dest: Pubkey::new_from_array([0xDE; 32]),
+            scope: "flow.mirror".into(),
+            log: Vec::new(),
+            last: None,
+            now,
+            slot,
+            watch: BTreeSet::new(),
+            drive_counts: BTreeMap::new(),
+            fixture_backers: BTreeSet::new(),
+        }
+    }
+
     /// Genesis plus one REAL `open_position` (owner, nonce 1) of `plan`.
     pub fn genesis_with_position(plan: PlanKindArg, gross: u64) -> Self {
         let mut world = Self::genesis();

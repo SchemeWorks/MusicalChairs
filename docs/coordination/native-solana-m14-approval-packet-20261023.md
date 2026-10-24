@@ -46,7 +46,7 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 **Calendar corrected by the simulation.** First draw request at day **11.45**: day 10.7 is not reachable once Series A and candidates exist, and 11.36 is the earliest with a deposit of at most 1 SOL. Total duration is **41.46 days**. Test wallets need about **2.12 SOL**, sponsor operations 0.5 SOL, and the deploy peak stays at about 14.2 SOL, all within the 25 SOL cap.
 
 **Remaining local work (no approval needed; does not block approving Block A):**
-- **M14-RUN** (in progress): the `devnet_ops flow` runner that executes the committed plan step by step under the same interlocks. On devnet it waits for real ORAO fulfilment and records latency (A7).
+- **M14-RUN** (done locally): the `devnet_ops flow init|status|next` runner executes the committed plan step by step under the same interlocks. It enforces in-order steps, earliest-time and plan-wallet checks, balanced books before each step, size and simulation before send, and per-step JSON receipts with read-backs and conservation. On devnet it never fulfils the oracle itself; it waits for the real ORAO fulfilment and records latency (A7). The full 39-step plan passes through the runner in LiteSVM on the devnet ORAO binary, along with the refusal tests. **Before any public execution request, the frozen tool and runner get an independent read-only review** (card M14-TOOL-REV).
 - **Only if MI-1 resolves to the fresh id:** change `declare_id!`, rebuild with the pinned platform-tools, and re-pin and re-review per 5a.
 
 **Held, each needing its own approval later:** B1 bridge, B2 keeper (unarmed), B3 live Shenanigans upgrade, B4 devnet frontend canister, C1 activation, C2 keeper arming, C3 real PP mints.
@@ -55,7 +55,7 @@ For B3, the separate legacy memo card's conditions apply. **F-1:** after any She
 
 ## 1. Smallest combined approval request
 
-Recommended: answer **A, B1, B2 as "yes, go when the coordinator reports the A0 items of section 5 closed"**, and hold **B3, B4, C1, C2, C3** until the evidence named in section 6 exists. **Block A is not gated on any ICP build, cycles calibration or B/C row.** Each row is one independent yes/no.
+**Superseded by section 0 (revision 4).** The current recommendation is to approve **Block A ONLY**. B1, B2, B3, B4, C1, C2 and C3 are HELD and are not part of the recommended approval. The table below is the menu of SEPARATE approvals for later; a yes on A does not approve any B or C row. (Earlier revisions recommended A + B1 + B2; that recommendation is withdrawn.) Each row is one independent yes/no.
 
 | id | yes / no | exactly what (and what it is not) | hard ceiling | depends on |
 | --- | --- | --- | --- | --- |

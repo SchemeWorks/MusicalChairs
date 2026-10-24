@@ -53,6 +53,7 @@ pub mod devnet;
 pub mod devnet_ops;
 pub mod financial;
 pub mod fuzz;
+pub mod m14_plan;
 pub mod measure;
 pub mod positions_suite;
 pub mod provisioning;

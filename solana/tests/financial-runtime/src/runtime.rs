@@ -147,6 +147,16 @@ impl SignedTransaction {
     pub fn signature(&self) -> String {
         self.transaction.signatures[0].to_string()
     }
+
+    /// Wrap a transaction that was signed elsewhere (the `devnet_ops flow` runner signs with the
+    /// operator's wallet files) so [`FinancialRuntime::submit`] can run it and record an
+    /// [`Observation`].
+    pub fn from_signed(transaction: Transaction) -> Self {
+        Self {
+            transaction,
+            signing_error: None,
+        }
+    }
 }
 
 /// The data of every `emit_cpi!` self-invocation in `meta`, in emission order:
@@ -392,6 +402,31 @@ impl FinancialRuntime {
                 );
             }
         }
+        runtime.set_clock(0, 1);
+        runtime
+    }
+
+    /// A MIRROR runtime: an empty LiteSVM with NO program loaded and NO fixture account, clock zero.
+    /// `devnet_ops flow` copies a remote cluster's program accounts into it and uses the harness
+    /// instruction builders (which only READ state) to build the next transaction; nothing is ever
+    /// executed in a mirror.
+    pub fn mirror(g_create_key: Pubkey, p_create_key: Pubkey) -> Self {
+        let mut runtime = Self {
+            // No builtins, no default programs, no precompiles: it only stores accounts and sysvars.
+            svm: LiteSVM::default().with_sysvars(),
+            payer: Keypair::new_from_array(PAYER_SEED),
+            owner: Keypair::new_from_array(OWNER_SEED),
+            attacker: Keypair::new_from_array(ATTACKER_SEED),
+            sponsor: Keypair::new_from_array(SPONSOR_SEED),
+            management: Keypair::new_from_array(MANAGEMENT_SEED),
+            artifact_sha256: String::new(),
+            elf: Vec::new(),
+            standin_sha256: None,
+            provider_sha256: None,
+            g_create_key,
+            p_create_key,
+            real_squads_sha256: None,
+        };
         runtime.set_clock(0, 1);
         runtime
     }

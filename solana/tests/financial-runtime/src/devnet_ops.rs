@@ -103,6 +103,8 @@ use crate::{
     squads_real as sq,
 };
 
+mod flow;
+
 // ---------------------------------------------------------------------------
 // Constants and pins
 // ---------------------------------------------------------------------------
@@ -246,9 +248,20 @@ const VALUE_FLAGS: &[&str] = &[
     "sections",
     "program-so",
     "out-dir",
+    "step",
+    "wallet-dir",
+    "receipts",
+    "genesis-unix",
+    "wait-seconds",
 ];
 /// Flags without a value.
-const SWITCH_FLAGS: &[&str] = &["execute", "simulate", "allow-program-id-mismatch", "help"];
+const SWITCH_FLAGS: &[&str] = &[
+    "execute",
+    "simulate",
+    "allow-program-id-mismatch",
+    "local-oracle",
+    "help",
+];
 /// Subcommands that never write (they refuse `--execute`).
 const READ_ONLY_COMMANDS: &[&str] = &["plan", "verify-bytes", "readback"];
 const COMMANDS: &[&str] = &[
@@ -262,6 +275,7 @@ const COMMANDS: &[&str] = &[
     "execute",
     "readback",
     "validator-fixtures",
+    "flow",
 ];
 
 /// A parsed command line: `devnet_ops <command> [positional] [--flag value] [--switch]`.
@@ -366,7 +380,8 @@ impl Opts {
 pub fn help_text() -> String {
     "usage: devnet_ops <command> [action] --rpc <url> [--cluster local|devnet] [--execute] [flags]\n\
      commands: plan | deploy | verify-bytes | squads-create | fund-vault | propose <initialize|register> |\n\
-     approve <initialize|register> | execute <initialize|register> | readback | validator-fixtures <out_dir>\n\
+     approve <initialize|register> | execute <initialize|register> | readback | validator-fixtures <out_dir> |\n\
+     flow init|status|next (the M14 flow plan; see docs/solana/devnet-ops.md)\n\
      Every write is a DRY RUN unless --execute is given. --execute is refused unless the RPC URL is\n\
      loopback, or --cluster devnet is given together with --i-have-approval <sha256 of the approval\n\
      packet file>. The tool never targets mainnet. See docs/solana/devnet-ops.md."
@@ -514,7 +529,9 @@ impl Gate {
         if !self.execute {
             return Ok(None);
         }
-        if READ_ONLY_COMMANDS.contains(&opts.command.as_str()) {
+        let flow_read_only = opts.command == "flow"
+            && opts.positional.first().is_none_or(|action| action != "next");
+        if READ_ONLY_COMMANDS.contains(&opts.command.as_str()) || flow_read_only {
             return usage(format!("`{}` is read-only and takes no --execute", opts.command));
         }
         if self.target == Target::Devnet {
@@ -746,6 +763,27 @@ pub trait Cluster {
     fn simulate(&self, tx: &Transaction, sig_verify: bool) -> Result<SimOutcome, String>;
     /// Send and wait for confirmation; an error means the transaction did not succeed.
     fn send(&self, tx: &Transaction) -> Result<SendOutcome, String>;
+    /// Every account owned by `program` (`getProgramAccounts`).  Only the `flow` runner needs it.
+    fn program_accounts(&self, _program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
+        Err("this cluster cannot list program accounts".into())
+    }
+    /// The slot in which `signature` was processed, when known.
+    fn signature_slot(&self, _signature: &Signature) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+    /// The signatures that touched `key`, newest first (`getSignaturesForAddress`).
+    fn signatures_for_address(&self, _key: &Pubkey) -> Result<Vec<AddressSignature>, String> {
+        Err("this cluster cannot list the signatures of an address".into())
+    }
+}
+
+/// One entry of `getSignaturesForAddress`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AddressSignature {
+    pub signature: String,
+    pub slot: u64,
+    pub block_time: Option<i64>,
+    pub failed: bool,
 }
 
 /// Decode the `unix_timestamp` of a serialized Clock sysvar (bincode: slot u64, epoch_start
@@ -843,6 +881,36 @@ impl Cluster for RpcCluster {
             signature,
             units_consumed: None,
         })
+    }
+
+    fn program_accounts(&self, program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
+        self.rpc
+            .get_program_accounts(program)
+            .map_err(|error| error.to_string())
+    }
+
+    fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
+        self.rpc
+            .get_signature_statuses(&[*signature])
+            .map(|response| response.value.into_iter().next().flatten().map(|status| status.slot))
+            .map_err(|error| error.to_string())
+    }
+
+    fn signatures_for_address(&self, key: &Pubkey) -> Result<Vec<AddressSignature>, String> {
+        self.rpc
+            .get_signatures_for_address(key)
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(|entry| AddressSignature {
+                        signature: entry.signature,
+                        slot: entry.slot,
+                        block_time: entry.block_time,
+                        failed: entry.err.is_some(),
+                    })
+                    .collect()
+            })
+            .map_err(|error| error.to_string())
     }
 }
 
@@ -3523,6 +3591,9 @@ pub fn run_opts(opts: &Opts, cluster: &dyn Cluster) -> Result<Value, OpsError> {
     if opts.command == "validator-fixtures" {
         return cmd_validator_fixtures(opts);
     }
+    if opts.command == "flow" && opts.positional.first().map(String::as_str) == Some("init") {
+        return flow::cmd_flow_init(opts);
+    }
     if opts.command == "help" {
         return Ok(json!({ "help": help_text() }));
     }
@@ -3548,6 +3619,7 @@ pub fn run_opts(opts: &Opts, cluster: &dyn Cluster) -> Result<Value, OpsError> {
         "approve" => cmd_approve(&ctx),
         "execute" => cmd_execute(&ctx),
         "readback" => cmd_readback(&ctx),
+        "flow" => flow::cmd_flow(&ctx),
         other => usage(format!("unknown command `{other}`")),
     }?;
     if value.get("cluster").is_none() {
@@ -3565,7 +3637,8 @@ pub fn run_with_cluster(args: &[String], cluster: &dyn Cluster) -> Result<Value,
 /// returns the process exit code (see [`exit_code`]; 4 when a verification check did not hold).
 pub fn run_cli(args: &[String]) -> i32 {
     let outcome = Opts::parse(args).and_then(|opts| {
-        if opts.command == "validator-fixtures" || opts.command == "help" {
+        let flow_init = opts.command == "flow" && opts.positional.first().map(String::as_str) == Some("init");
+        if opts.command == "validator-fixtures" || opts.command == "help" || flow_init {
             return run_opts(&opts, &OfflineCluster);
         }
         let gate = Gate::from_opts(&opts)?;
