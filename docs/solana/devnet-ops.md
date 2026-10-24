@@ -29,7 +29,7 @@ interlock, `4` a verification or read-back check did not hold (receipt still pri
 | dry run | no `--execute` = nothing signed or sent; `--simulate` additionally simulates the independent steps (unsigned, sigVerify off) |
 | where `--execute` works | `--cluster local` (default): RPC host exactly `localhost`, `127.0.0.1` or `[::1]`. `--cluster devnet`: https URL, an RPC host on the allowlist (`api.devnet.solana.com`, or one host named with `--allow-rpc-host`), `--pending-file`, and the **packet pin** `--packet-sha256 <sha256> --packet-commit <40-hex commit>`: the SHA-256 of `git show <commit>:docs/coordination/native-solana-m14-approval-packet-20261023.md` (the frozen, committed blob) must equal `--packet-sha256`, and the working file must equal that blob byte for byte. The packet path is fixed: `--packet` is refused on every cluster. The old flag `--i-have-approval` is REMOVED (rejected with an explanation): it only ever pinned the text, and its name claimed more. Any other cluster name (mainnet-beta, testnet) is refused. Read-only commands take no `--execute` |
 | receipts | every executed output, flow receipt included, records `packet: {packet_path, packet_commit, packet_sha256}` (`null` on a loopback cluster); flow receipts are also stamped with the cluster (below) |
-| double-send safety | before a transaction is sent its signature, blockhash and `lastValidBlockHeight` are written to stderr and to `--pending-file` (default `<wallet-dir>/pending.jsonl` for `flow`; REQUIRED on devnet). An ambiguous send error (timeout, transport) is polled with `getSignatureStatuses` until confirmed, failed or the blockhash is invalid; nothing is rebuilt while it may still land (`--pending-wait-seconds`, default 90). Every run resolves unresolved pending records of this cluster FIRST. After a confirmed send, reads carry `minContextSlot` = the transaction's slot, and a one-transaction step stops after one confirmed send instead of looping on a read that may be stale |
+| double-send safety | before a transaction is sent its signature, blockhash, `lastValidBlockHeight`, genesis hash, command and packet pin are written to stderr and to `--pending-file` (default `<wallet-dir>/pending.jsonl` for `flow`; REQUIRED on devnet), durably: one `write` of the whole line, then `fsync` (`sync_data`); a failed write stops the send. An ambiguous send error (timeout, transport) is polled with `getSignatureStatuses` until confirmed, failed or the blockhash is invalid; nothing is rebuilt while it may still land (`--pending-wait-seconds`, default 90). Every run resolves unresolved pending records of this cluster FIRST, and the file is read **fail-closed** (next section). After a confirmed send, reads carry `minContextSlot` = the transaction's slot, and a one-transaction step stops after one confirmed send instead of looping on a read that may be stale |
 | genesis hash | checked before any command: devnet needs `EtWTRABZ...`; a loopback RPC that reports mainnet, testnet or devnet genesis (a tunnel) is refused |
 | packet size | every transaction is measured unsigned; over 1,232 bytes is refused before any signature exists. `vault_transaction_create` is always proposer = creator = rent payer = fee payer (one signature) |
 | simulate before send | `simulateTransaction` on the signed transaction before every send; an error refuses the send (client-API simulation has sigVerify off; the cluster verifies on send) |
@@ -38,6 +38,27 @@ interlock, `4` a verification or read-back check did not hold (receipt still pri
 | vote on what was shown | `approve`/`execute` rebuild the inner instruction from the flags and refuse unless the on-chain vault transaction stores exactly that message; `propose` refuses if the program's upgrade authority is not the G vault, the action is already done, or an identical live proposal exists (`--expect-tx-index N` is required to execute a propose) |
 | spend caps | `deploy` refuses a peak above 15 SOL or an underfunded deployer; on devnet `--max-spend-lamports` cannot exceed 15 SOL and `--max-data-len` (ProgramData padding is permanent rent) needs `--max-data-len-justification <text>`, which is recorded. `fund-vault` runs the full G profile check, refuses if the vault already holds the rent it needs, and caps the vault's TOTAL (not one transfer) at 0.05 SOL |
 | keys and files | nothing is generated; only the files named on the command line sign; `~/.config/solana/id.json` is refused by path for every file argument (`--elf`, `--program-so`, `--receipts`, `--pending-file`, key flags); files the tool appends to (`--receipts`, `--pending-file`) must be `.jsonl` and are refused if they look like a keypair; the program keypair must be the compiled-in id (`--allow-program-id-mismatch` on `local` only, for tests) |
+
+**The write-ahead file (`--pending-file`) is the tool's memory of what it sent. Use the SAME file for every command against a cluster.**
+The tool has no other record: a command run with a different (or no) `--pending-file` cannot see an unresolved send, a confirmed
+transfer, or the slot a transaction landed in, so it could rebuild a transaction that may still land, send a funding transfer a second
+time, and read from a load-balanced node that has not yet seen the last transaction. (`flow` defaults to `<wallet-dir>/pending.jsonl`; give
+`fund-vault`, `deploy`, `propose`, `approve` and `execute` the same explicit path, and keep it with the receipts.) What the file does:
+
+* **Fail closed.** Only a file that does not exist is empty. A read error, a line that is not a JSON record this tool wrote (a torn last line
+  after a crash included), or a record missing its signature, blockhash or genesis hash makes EVERY command that was given the file refuse,
+  naming the line number. Inspect the file; do not delete lines. A resolution record that could not be appended leaves the write-ahead record
+  open, and the next run resolves it again from the chain.
+* **Slot seed.** At startup each run hands the highest slot among the confirmed records of this cluster to the RPC client, so even the first
+  read of a new run carries `minContextSlot` (the read-only commands too). A confirmed send's slot is polled for (`--slot-polls`, default 20
+  polls, 500 ms apart), then falls back to the cluster slot read after the confirmation (recorded as `slot_source:
+  get_slot_after_confirmation`); if neither works the step ends with an error that says the transaction CONFIRMED and names it, and no
+  post-state read is made.
+* **Once-only transfers.** The plain funding transfers (`fund-vault`; the flow steps `fund_operations` and the `*_fund_series_a` steps) are not
+  idempotent. If the file already holds a CONFIRMED record for the same step on this genesis, the tool refuses and prints the signature,
+  whatever the RPC node says about balances or counters.
+* **Reads are typed.** The post-send `getAccountInfo` / `getProgramAccounts` configs are typed values checked before use (the commitment sits
+  at the top level of the config; a dropped commitment would silently read at `finalized`).
 
 **Residual risk (F9).** The genesis hash is reported by whatever endpoint `--rpc` names; the tool checks it, but an endpoint that
 lies can report devnet's. The `--execute` host allowlist narrows that to the public devnet endpoint or one host you name, which
@@ -52,7 +73,7 @@ lock runs on the cluster's Clock sysvar, so it is read from the chain, never fro
 
 ## Commands
 
-Global: `--rpc`, `--cluster`, `--execute`, `--packet-sha256`, `--packet-commit`, `--allow-rpc-host`, `--pending-file`, `--pending-wait-seconds`, `--commitment confirmed|finalized`, `--simulate`.
+Global: `--rpc`, `--cluster`, `--execute`, `--packet-sha256`, `--packet-commit`, `--allow-rpc-host`, `--pending-file`, `--pending-wait-seconds`, `--slot-polls`, `--commitment confirmed|finalized`, `--simulate`.
 A key flag takes a keypair JSON file, a file holding one base58 pubkey, or a bare pubkey (planning, read-backs and the pubkey-only
 roles). Members files list exactly three pubkeys, one per line.
 
@@ -102,7 +123,7 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
   genesis on a loopback cluster only (a local validator cannot wait two days).
 * **What is done.** Every step has a state predicate judged from the cluster (a counter reached, an account exists, a draw state, `finalized`,
   ...). A step is also done when any later step is. A receipt line counts as evidence ONLY for the one step that leaves no on-chain trace
-  (the refused-by-design expiry) and only if it is stamped for THIS cluster; every other step is judged from the chain alone. `flow
+  (the refused-by-design expiry), only if the receipt is stamped for THIS cluster and says `refused_as_expected` (any other result, a failed-check one included, leaves the step to be simulated again); every other step is judged from the chain alone. `flow
   status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`.
 * **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; an actor wallet that does not match
   `wallets.json`; books that do not balance before the step; an economics oracle that disagrees with the plan (a payout the plan calls solvent

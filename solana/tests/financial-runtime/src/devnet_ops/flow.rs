@@ -25,8 +25,8 @@
 //! Every step has a state predicate over the cluster (a counter reached, an account exists, a flag is
 //! set).  A step is also done when any LATER step's predicate holds (state only moves forward).  A
 //! receipt line counts as evidence for exactly ONE step, the deliberately refused early expiry, which
-//! leaves no on-chain trace, and only when the receipt is stamped for THIS cluster (genesis hash,
-//! program id, `ConfigVersion#1` activation).  The next step is the first one that is not done;
+//! leaves no on-chain trace, and only when the receipt says `refused_as_expected` and is stamped for THIS
+//! cluster (genesis hash, program id, `ConfigVersion#1` activation).  The next step is the first one that is not done;
 //! `flow next` refuses any other step, any step before its earliest time (genesis + offset), a receipt
 //! log holding receipts of another cluster, and any step after a `done_with_failed_checks` receipt that
 //! has not been accepted with `--accept-failed-checks`.
@@ -597,7 +597,7 @@ fn evaluate(view: &View, wallets: &Wallets, receipts: &ReceiptLog) -> (Vec<StepE
             let (state_done, evidence) = done_by_state(view, wallets, &steps, index, winner);
             if state_done {
                 (true, evidence)
-            } else if traceless(steps[index].act) && receipts.has(steps[index].id) {
+            } else if traceless(steps[index].act) && receipts.traceless_done(steps[index].id) {
                 (true, "a receipt of this cluster records it (the step leaves no on-chain trace)".to_string())
             } else {
                 (false, evidence)
@@ -692,16 +692,45 @@ struct ReceiptLog {
     failed_checks: Vec<String>,
 }
 
+/// The `result` a receipt records for a step that was REFUSED BY THE PROGRAM as designed (the traceless
+/// `expire_at_deadline`): the only receipt that can stand in for on-chain evidence.
+const RESULT_REFUSED_AS_EXPECTED: &str = "refused_as_expected";
+
 impl ReceiptLog {
+    /// Any receipt of this cluster exists for the step (whatever its result).
     fn has(&self, step_id: &str) -> bool {
         self.results.contains_key(step_id)
     }
+
+    /// A traceless step is done from its receipt only when the receipt says the program refused it as
+    /// designed.  A `done_with_failed_checks` (or any other) result is NOT evidence that it was refused
+    /// for the right reason, so the step is simulated again instead of being skipped.
+    fn traceless_done(&self, step_id: &str) -> bool {
+        self.results.get(step_id).is_some_and(|result| result == RESULT_REFUSED_AS_EXPECTED)
+    }
 }
 
-fn read_receipts(path: &Path, stamp: Option<&Stamp>) -> ReceiptLog {
+/// FAIL CLOSED: only a missing file is an empty log; any other read error, or a non-blank line that is
+/// not JSON, refuses (a torn `done_with_failed_checks` receipt must not silently drop out and unblock
+/// the next step).
+fn read_receipts(path: &Path, stamp: Option<&Stamp>) -> Result<ReceiptLog, OpsError> {
     let mut log = ReceiptLog::default();
-    let Ok(text) = fs::read_to_string(path) else { return log };
-    for entry in text.lines().filter_map(|line| serde_json::from_str::<Value>(line).ok()) {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(log),
+        Err(error) => return refuse(format!("cannot read the receipts file {} ({error})", path.display())),
+    };
+    for (index, line) in text.lines().enumerate() {
+        if line.trim().is_empty() {
+            continue;
+        }
+        let Ok(entry) = serde_json::from_str::<Value>(line) else {
+            return refuse(format!(
+                "{} line {}: not a JSON receipt; the receipts file must be intact (inspect it, do not delete lines)",
+                path.display(),
+                index + 1
+            ));
+        };
         let ours = stamp.is_some_and(|stamp| entry["stamp"] == stamp.to_json());
         if !ours {
             log.foreign += 1;
@@ -713,7 +742,7 @@ fn read_receipts(path: &Path, stamp: Option<&Stamp>) -> ReceiptLog {
         }
         log.results.insert(step.to_string(), result.to_string());
     }
-    log
+    Ok(log)
 }
 
 /// `--accept-failed-checks a,b`: the steps whose failed-check receipts the operator has examined.
@@ -752,7 +781,7 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
     let receipts_file = receipts_path(ctx.opts, &wallets)?;
     let view = load_view(ctx, None)?;
     let stamp = stamp_of(ctx, &view);
-    let receipts = read_receipts(&receipts_file, stamp.as_ref());
+    let receipts = read_receipts(&receipts_file, stamp.as_ref())?;
     let accepted = accepted_failed_checks(ctx.opts)?;
     let unaccepted: Vec<String> = unaccepted_failures(&receipts, &accepted).into_iter().cloned().collect();
     let genesis = genesis_of(ctx, &view)?;
@@ -1684,7 +1713,7 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
     })?;
     // Receipts are scoped to this cluster: a log carried over from another cluster (or an older
     // `--reset` ledger of the same one) is refused, never silently reused.
-    let receipts = read_receipts(&receipts_file, Some(&stamp));
+    let receipts = read_receipts(&receipts_file, Some(&stamp))?;
     if receipts.foreign > 0 {
         return refuse(format!(
             "{} holds {} receipt(s) stamped for ANOTHER cluster or activation (this one is genesis {}, program {}, \
@@ -1725,6 +1754,13 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
             next.index + 1,
             next.evidence
         ));
+    }
+    // The plain funding transfers are NOT idempotent (a second one adds again).  When the cluster's own
+    // state already says "done" the refusal above fires; this is the guard for a node that does NOT say it
+    // (a lagging replica): the write-ahead file's CONFIRMED record for the step stops the second transfer
+    // whatever any RPC node answers.
+    if matches!(step.act, Act::FundOperations | Act::FundSeriesA) {
+        ctx.refuse_repeat_of_confirmed(step.id)?;
     }
     let earliest = genesis.genesis_unix + step.at as i64;
     if !observation_only && view.now < earliest {
@@ -1837,11 +1873,8 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
                 }
                 let result = ctx.run_step(&tx_step, &[actor_kp])?;
                 sent += 1;
-                let mut entry = result.to_json();
-                if let Some(signature) = result.signature {
-                    entry["slot"] = json!(ctx.cluster.signature_slot(&signature).ok().flatten());
-                }
-                txs.push(entry);
+                // `to_json` carries the signature and the slot `run_step` learned (never silently absent).
+                txs.push(result.to_json());
                 if ctx.executing() && is_single_tx(step.act) {
                     // One confirmed send completes this step; never loop on a read that may still be
                     // pre-send (a second send of a deposit or funding would be a real double spend).
@@ -1899,7 +1932,7 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
     let result = if !all_ok {
         "done_with_failed_checks"
     } else if refused_as_expected.is_some() {
-        "refused_as_expected"
+        RESULT_REFUSED_AS_EXPECTED
     } else {
         "done"
     };

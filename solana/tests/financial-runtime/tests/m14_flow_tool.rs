@@ -10,8 +10,8 @@
 //!
 //! * `the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries` is `#[ignore]` and needs
 //!   `MC_ORAO_PROFILE=devnet` (like `m14_flow_plan`).
-//! * The gate and refusal tests (out of order, too early, wrong wallet, devnet without the approval
-//!   hash, `--local-oracle` off loopback, the unfulfilled oracle) run in a plain `cargo test`.
+//! * The gate and refusal tests (out of order, too early, wrong wallet, devnet without the packet
+//!   identity pin, `--local-oracle` off loopback, the unfulfilled oracle) run in a plain `cargo test`.
 //!
 //! ```text
 //! MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --nocapture
@@ -298,6 +298,10 @@ struct Hooked<'a, 'b> {
     land_ambiguous: Cell<bool>,
     blockhash_still_valid: Cell<bool>,
     noted_slot: Cell<u64>,
+    /// A node that honours `minContextSlot`: once the tool has handed it the slot of a confirmed
+    /// transaction (`note_confirmed_slot`) it never answers from the pre-send snapshot again.  Off, it is
+    /// the lagging replica that ignores the floor.
+    honour_min_slot: Cell<bool>,
 }
 
 impl<'a, 'b> Hooked<'a, 'b> {
@@ -311,6 +315,7 @@ impl<'a, 'b> Hooked<'a, 'b> {
             land_ambiguous: Cell::new(false),
             blockhash_still_valid: Cell::new(false),
             noted_slot: Cell::new(0),
+            honour_min_slot: Cell::new(false),
         }
     }
     fn take_snapshot(&self) {
@@ -326,6 +331,9 @@ impl<'a, 'b> Hooked<'a, 'b> {
             .collect();
     }
     fn stale(&self) -> bool {
+        if self.honour_min_slot.get() && self.noted_slot.get() > 0 {
+            return false;
+        }
         let left = self.stale_reads.get();
         if left == 0 {
             return false;
@@ -665,6 +673,12 @@ fn flow_on_devnet_needs_the_packet_pin_records_it_and_never_the_local_oracle() {
     }
     // The write-ahead record of the flow sits next to the receipts.
     assert_eq!(fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().count(), 2);
+    // N4: it names the verified packet pin of the run, the cluster and the step.
+    let record: Value = serde_json::from_str(fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().next().unwrap()).unwrap();
+    assert_eq!(record["packet"]["packet_commit"].as_str(), Some(repo.commit.as_str()));
+    assert_eq!(record["packet"]["packet_sha256"].as_str(), Some(repo.sha.as_str()));
+    assert_eq!(record["genesis_hash"], ops::DEVNET_GENESIS_HASH);
+    assert_eq!((record["command"].as_str(), record["step"].as_str()), (Some("flow"), Some("fund_operations")));
 
     // An edit of the working packet after the pin was taken closes the gate again.
     fs::write(repo.root().join(ops::DEFAULT_PACKET_FILE), "the reviewed M14 packet, edited").unwrap();
@@ -792,6 +806,112 @@ fn an_unresolved_write_ahead_record_blocks_every_rebuild_until_the_blockhash_exp
     assert_eq!(receipt["pending_resolved"][0]["outcome"], "expired_never_landed");
     assert_eq!(inner.sends.get(), 1);
     assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING));
+}
+
+/// The pending file's lines as JSON.
+fn pending_records(dir: &TempDir) -> Vec<Value> {
+    fs::read_to_string(dir.file("pending.jsonl")).unwrap().lines().map(|line| serde_json::from_str(line).unwrap()).collect()
+}
+
+#[test]
+fn a_second_funding_is_refused_from_the_write_ahead_file_even_when_a_lagging_node_reports_it_undone() {
+    let (mut world, _keys, dir) = fixture();
+    let inner = WorldCluster::new(&mut world);
+    init(&inner, &dir);
+    inner.warp_to(START_TIME as u64 + m14_plan::T0);
+    let first = Hooked::new(&inner);
+    let fund = |cluster: &Hooked<'_, '_>| {
+        ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--execute"], &dir), cluster)
+    };
+    let done = ok(fund(&first));
+    assert_eq!(done["result"], "done", "{done}");
+    assert_eq!(inner.sends.get(), 1);
+    let records = pending_records(&dir);
+    let (signature, slot) = (records[0]["signature"].as_str().unwrap().to_string(), records[1]["slot"].as_u64().expect("slot"));
+    assert_eq!((records[1]["outcome"].as_str(), records[1]["slot_source"].as_str()), (Some("confirmed"), Some("signature_status")));
+    assert!(done["transactions"][0]["slot"].as_u64() == Some(slot));
+
+    // A NEW invocation (the CLI starts with no slot of its own) against a replica that has not seen the
+    // transaction and ignores minContextSlot: it reports the plan untouched ...
+    let lagging = Hooked::new(&inner);
+    *lagging.snapshot.borrow_mut() = first.snapshot.borrow().clone();
+    lagging.stale_reads.set(100_000);
+    let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &lagging));
+    assert_eq!(status["next"]["id"], "fund_operations", "the lagging node claims the funding was never made: {status}");
+    assert_eq!(lagging.noted_slot.get(), slot, "min slot is seeded from the confirmed record before the first read");
+    // ... and the funding transfer, which is NOT idempotent, is refused on the strength of the pending file.
+    let message = refused(fund(&lagging));
+    assert!(message.contains("already CONFIRMED") && message.contains(&signature), "{message}");
+    assert_eq!(inner.sends.get(), 1, "no second transfer");
+    assert_eq!(inner.with_world(|w| w.ops().total_contributed), u128::from(m14_plan::OPS_FUNDING), "funded exactly once");
+
+    // The same invocation against a node that honours the floor sees the funding and moves on.
+    let honest = Hooked::new(&inner);
+    *honest.snapshot.borrow_mut() = first.snapshot.borrow().clone();
+    honest.stale_reads.set(100_000);
+    honest.honour_min_slot.set(true);
+    let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &honest));
+    assert_eq!(honest.noted_slot.get(), slot);
+    assert_eq!(status["next"]["id"], "provision_registry_0", "reads were served at or above the confirmed slot: {status}");
+    assert_eq!(status["completed"], 1);
+}
+
+#[test]
+fn an_unparsable_write_ahead_line_refuses_flow_status_and_flow_next_with_its_line_number() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    cluster.warp_to(START_TIME as u64 + m14_plan::T0);
+    // A torn record: the process died halfway through writing the last line.
+    fs::write(dir.file("pending.jsonl"), "{\"schema\":1,\"event\":\"write_ahead\",\"step\":\"fund_operations\",\"sign").unwrap();
+    let message = refused(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &cluster));
+    assert!(message.contains("line 1") && message.contains("not valid JSON"), "{message}");
+    let message = refused(ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--execute"], &dir), &cluster));
+    assert!(message.contains("line 1") && message.contains("write-ahead file"), "{message}");
+    assert_eq!(cluster.sends.get(), 0, "nothing is sent while the write-ahead file is unreadable");
+    // Restored, the very same command runs.
+    fs::remove_file(dir.file("pending.jsonl")).unwrap();
+    let done = ok(ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--execute"], &dir), &cluster));
+    assert_eq!(done["result"], "done", "{done}");
+}
+
+#[test]
+fn a_torn_receipt_line_refuses_instead_of_silently_dropping_a_failed_check() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    cluster.warp_to(START_TIME as u64 + m14_plan::T0);
+    // A torn `done_with_failed_checks` receipt: dropping it would unblock the next step.
+    fs::write(dir.file("flow-receipts.jsonl"), "{\"schema\":1,\"step\":\"fund_operations\",\"result\":\"done_with_failed_ch").unwrap();
+    let message = refused(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &cluster));
+    assert!(message.contains("line 1") && message.contains("not a JSON receipt"), "{message}");
+    let message = refused(ops::run_with_cluster(&flow(&["flow", "next", "--step", "fund_operations", "--execute"], &dir), &cluster));
+    assert!(message.contains("line 1") && message.contains("receipts file"), "{message}");
+    assert_eq!(cluster.sends.get(), 0, "nothing is sent while the receipts file is torn");
+}
+
+#[test]
+fn only_a_refused_as_expected_receipt_makes_the_traceless_step_done() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &cluster));
+    let stamp = status["stamp"].clone();
+    let receipts = dir.file("flow-receipts.jsonl");
+    let step_done = |status: &Value| -> bool {
+        status["steps"].as_array().unwrap().iter().find(|step| step["id"] == "expire_at_deadline").unwrap()["done"].as_bool().unwrap()
+    };
+    assert!(!step_done(&status), "no receipt, not done");
+    for (result, done) in [("done", false), ("done_with_failed_checks", false), ("pending", false), ("refused_as_expected", true)] {
+        let line = serde_json::json!({ "schema": 1, "step": "expire_at_deadline", "result": result, "stamp": stamp });
+        fs::write(&receipts, format!("{line}\n")).unwrap();
+        let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &cluster));
+        assert_eq!(step_done(&status), done, "a `{result}` receipt: {status}");
+        if done {
+            let evidence = status["steps"].as_array().unwrap().iter().find(|step| step["id"] == "expire_at_deadline").unwrap()["evidence"].as_str().unwrap().to_string();
+            assert!(evidence.contains("receipt of this cluster"), "{evidence}");
+        }
+    }
 }
 
 #[test]

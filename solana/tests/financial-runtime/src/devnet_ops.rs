@@ -31,11 +31,16 @@
 //!   receipt records `{packet_path, packet_commit, packet_sha256}`.  The old `--i-have-approval`
 //!   spelling is rejected with an explanation.
 //! * **Double-send safety.** A signed transaction is written to a write-ahead record (stderr and the
-//!   `--pending-file`) before it is sent; an ambiguous send error (timeout, transport) is polled to
-//!   confirmed / failed / blockhash-expired before anything may be rebuilt, and a rerun resolves any
-//!   pending record first.  After a send, reads are served at or above the transaction's slot
-//!   (`minContextSlot`), and a step that is one transaction long never loops on a possibly stale
-//!   read.
+//!   `--pending-file`, one durable write + `sync_data`) before it is sent; an ambiguous send error
+//!   (timeout, transport) is polled to confirmed / failed / blockhash-expired before anything may be
+//!   rebuilt, and a rerun resolves any pending record first.  The file is read FAIL CLOSED (only a
+//!   missing file is empty; an unreadable file or an unparsable line is a refusal naming the line), so
+//!   use the same `--pending-file` for every command against a cluster.  After a send, reads are served
+//!   at or above the transaction's slot (`minContextSlot`; seeded at startup from the file's confirmed
+//!   records, so a new run's first read is covered too), and a step that is one transaction long never
+//!   loops on a possibly stale read.  The plain funding transfers (`fund-vault`, the flow's
+//!   `fund_operations` / `*_fund_series_a`) are refused when the file already holds a CONFIRMED record
+//!   for them, whatever a lagging node reports.
 //! * **Genesis hash.** Before anything else, `getGenesisHash` must be devnet's
 //!   (`EtWTRABZ...`) for `--cluster devnet`, or NOT a known public cluster (mainnet-beta, testnet,
 //!   devnet) for `local` (a loopback tunnel to a public cluster is refused).
@@ -236,6 +241,7 @@ const VALUE_FLAGS: &[&str] = &[
     "allow-rpc-host",
     "pending-file",
     "pending-wait-seconds",
+    "slot-polls",
     "accept-failed-checks",
     "max-data-len-justification",
     "commitment",
@@ -404,7 +410,8 @@ pub fn help_text() -> String {
      Every write is a DRY RUN unless --execute is given. --execute is refused unless the RPC URL is\n\
      loopback, or --cluster devnet is given with --packet-sha256 <sha256> --packet-commit <40-hex>\n\
      (an artifact-identity pin of the reviewed packet text; it is NOT an approval: Rob's explicit\n\
-     approval is the authority) and --pending-file <path>. The tool never targets mainnet.\n\
+     approval is the authority) and --pending-file <path>: use the SAME --pending-file for every command\n\
+     against a cluster (it is the record of what was sent). The tool never targets mainnet.\n\
      See docs/solana/devnet-ops.md."
         .to_string()
 }
@@ -604,6 +611,26 @@ pub fn verify_packet_pin(repo: &Path, commit: &str, claimed_sha256: &str) -> Res
     })
 }
 
+/// The flags that were removed because they named something they were not: refused on EVERY command
+/// (also the offline ones, which never build a [`Gate`]).
+fn reject_removed_flags(opts: &Opts) -> Result<(), OpsError> {
+    if opts.get("i-have-approval").is_some() {
+        return usage(
+            "--i-have-approval was REMOVED: the flag only ever pinned which packet text was reviewed, it is not an \
+             approval, and its name said otherwise. Rob's explicit approval (given in chat) is the authority to \
+             execute on devnet. Use --packet-sha256 <sha256> --packet-commit <40-hex commit> (artifact-identity pin).",
+        );
+    }
+    if opts.get("packet").is_some() {
+        return refuse(
+            "--packet is refused: the packet is always the committed default path \
+             (docs/coordination/native-solana-m14-approval-packet-20261023.md) at --packet-commit; a path override \
+             would let any file stand in for the reviewed text",
+        );
+    }
+    Ok(())
+}
+
 impl Gate {
     /// Static checks that need no network: cluster name, URL shape, loopback rule.  Applies to every
     /// subcommand, read-only ones included (`local` reads only loopback; `--cluster devnet` reads
@@ -619,20 +646,7 @@ impl Gate {
                 ))
             }
         };
-        if opts.get("i-have-approval").is_some() {
-            return usage(
-                "--i-have-approval was REMOVED: the flag only ever pinned which packet text was reviewed, it is not an \
-                 approval, and its name said otherwise. Rob's explicit approval (given in chat) is the authority to \
-                 execute on devnet. Use --packet-sha256 <sha256> --packet-commit <40-hex commit> (artifact-identity pin).",
-            );
-        }
-        if opts.get("packet").is_some() {
-            return refuse(
-                "--packet is refused: the packet is always the committed default path \
-                 (docs/coordination/native-solana-m14-approval-packet-20261023.md) at --packet-commit; a path override \
-                 would let any file stand in for the reviewed text",
-            );
-        }
+        reject_removed_flags(opts)?;
         let rpc_url = opts.require("rpc")?.to_string();
         let (scheme, host, _port) = parse_rpc_url(&rpc_url).map_err(OpsError::Refused)?;
         let loopback = is_loopback_host(&host);
@@ -1028,14 +1042,60 @@ impl RpcCluster {
         }
     }
 
-    /// The JSON of an account-info config (`encoding` base64, this client's commitment and, after a
-    /// send, `minContextSlot`); deserialized into the RPC client's own config type at the call site.
+    /// The JSON of an account-info config: `encoding` base64, this client's commitment and, after a
+    /// send, `minContextSlot`.  `RpcAccountInfoConfig` FLATTENS its commitment, so the commitment sits at
+    /// the TOP level (`{"commitment":"confirmed"}`); nesting `serde_json::to_value(CommitmentConfig)` under
+    /// a `commitment` key fails the flatten silently and the node answers at *finalized*.
     fn config_json(&self) -> Value {
-        json!({
-            "encoding": "base64",
-            "commitment": serde_json::to_value(self.commitment).expect("commitment json"),
-            "minContextSlot": (self.min_slot() > 0).then(|| self.min_slot()),
-        })
+        let mut config = serde_json::Map::new();
+        config.insert("encoding".into(), json!("base64"));
+        match serde_json::to_value(self.commitment) {
+            Ok(Value::Object(commitment)) => config.extend(commitment),
+            other => unreachable!("CommitmentConfig serializes to an object, got {other:?}"),
+        }
+        if self.min_slot() > 0 {
+            config.insert("minContextSlot".into(), json!(self.min_slot()));
+        }
+        Value::Object(config)
+    }
+
+    /// The typed RPC config the client method `_method` takes (`RpcAccountInfoConfig` for
+    /// `get_account_with_config`, `RpcProgramAccountsConfig` for `get_program_accounts_with_config`),
+    /// built from [`RpcCluster::config_json`].  The config types live in a crate this one does not depend
+    /// on directly (a new dependency would change `Cargo.lock`), so the method's signature names the
+    /// type.  FAIL CLOSED: the typed value is serialized again and every key asked for (`encoding`,
+    /// `commitment`, `minContextSlot`) must come back unchanged, because serde silently drops a key it
+    /// does not understand and a dropped `commitment` means the node answers at *finalized*.
+    fn typed_config<C, R>(
+        &self,
+        _method: impl Fn(&RpcClient, &Pubkey, C) -> R,
+    ) -> Result<C, String>
+    where
+        C: serde::de::DeserializeOwned + serde::Serialize,
+    {
+        let wanted = self.config_json();
+        let config: C = serde_json::from_value(wanted.clone()).map_err(|error| error.to_string())?;
+        let sent = serde_json::to_value(&config).map_err(|error| error.to_string())?;
+        for (key, value) in wanted.as_object().into_iter().flatten() {
+            if sent.get(key) != Some(value) {
+                return Err(format!(
+                    "internal error: the RPC config dropped `{key}` (wanted {value}, serialized {:?}); refusing to read at an unintended commitment",
+                    sent.get(key)
+                ));
+            }
+        }
+        Ok(config)
+    }
+
+    /// The two read configs EXACTLY as they go on the wire (typed, then serialized): `(account info,
+    /// program accounts)`.  A test hook for the regression where the commitment was silently dropped.
+    pub fn request_configs(&self) -> Result<(Value, Value), String> {
+        let account = self.typed_config(RpcClient::get_account_with_config)?;
+        let program_accounts = self.typed_config(RpcClient::get_program_accounts_with_config)?;
+        Ok((
+            serde_json::to_value(&account).map_err(|error| error.to_string())?,
+            serde_json::to_value(&program_accounts).map_err(|error| error.to_string())?,
+        ))
     }
 }
 
@@ -1073,7 +1133,7 @@ impl Cluster for RpcCluster {
                 .map_err(|error| error.to_string());
         }
         self.catching_up(|| {
-            let config = serde_json::from_value(self.config_json()).map_err(|error| error.to_string())?;
+            let config = self.typed_config(RpcClient::get_account_with_config)?;
             self.rpc
                 .get_account_with_config(key, config)
                 .map(|response| response.value)
@@ -1117,15 +1177,13 @@ impl Cluster for RpcCluster {
 
     fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
         match self.rpc.send_and_confirm_transaction(tx) {
-            Ok(signature) => {
-                if let Ok(Some(slot)) = self.signature_slot(&signature) {
-                    self.note_confirmed_slot(slot);
-                }
-                Ok(SendOutcome {
-                    signature,
-                    units_consumed: None,
-                })
-            }
+            // The confirmed transaction's slot is NOT learned here: `Ctx::run_step` polls for it (and
+            // falls back to the slot read after confirmation) so a failure to learn it is an error that
+            // says the transaction CONFIRMED, never a silently un-advanced `minContextSlot`.
+            Ok(signature) => Ok(SendOutcome {
+                signature,
+                units_consumed: None,
+            }),
             Err(error) => {
                 // A preflight or execution failure carries a TransactionError: definitely not a success.
                 // Anything else (timeout, transport) is ambiguous: the transaction may still land.
@@ -1170,7 +1228,7 @@ impl Cluster for RpcCluster {
                 .map_err(|error| error.to_string());
         }
         self.catching_up(|| {
-            let config = serde_json::from_value(self.config_json()).map_err(|error| error.to_string())?;
+            let config = self.typed_config(RpcClient::get_program_accounts_with_config)?;
             self.rpc
                 .get_program_accounts_with_config(program, config)
                 .map_err(|error| error.to_string())
@@ -1720,6 +1778,9 @@ pub struct StepResult {
     pub depends_on_previous: bool,
     pub executed: bool,
     pub signature: Option<Signature>,
+    /// The slot a confirmed send landed in (or, when its status never reported one, the cluster slot read
+    /// after the confirmation: see `Ctx::confirmed_slot`).
+    pub slot: Option<u64>,
     pub simulation: Option<SimOutcome>,
 }
 
@@ -1736,6 +1797,7 @@ impl StepResult {
             "depends_on_previous": self.depends_on_previous,
             "executed": self.executed,
             "signature": self.signature.map(|signature| signature.to_string()),
+            "slot": self.slot,
             "simulation": self.simulation.as_ref().map(|sim| json!({
                 "error": sim.error,
                 "units_consumed": sim.units_consumed,
@@ -1748,6 +1810,15 @@ impl StepResult {
 // Context: the one place that can send
 // ---------------------------------------------------------------------------
 
+/// The write-ahead identity of the `fund-vault` transfer (a plain system transfer: not idempotent).
+const FUND_VAULT_STEP_ID: &str = "A5.fund_vault";
+
+/// Polls for the slot of a just-confirmed transaction (`--slot-polls`, default 20) and the pause between
+/// them: 10 s in all by default.
+const DEFAULT_SLOT_POLLS: u64 = 20;
+const MAX_SLOT_POLLS: u64 = 60;
+const SLOT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
 pub struct Ctx<'a> {
     pub opts: &'a Opts,
     pub gate: &'a Gate,
@@ -1758,6 +1829,7 @@ pub struct Ctx<'a> {
     /// Where every signed transaction is recorded BEFORE it is sent.
     pending_path: Option<PathBuf>,
     pending_wait_seconds: u64,
+    slot_polls: usize,
 }
 
 /// How an unresolved send ended.
@@ -1769,16 +1841,125 @@ enum Resolution {
     StillUnknown,
 }
 
-/// Append one JSON line to `path` (created if absent).
+/// Append one JSON line to `path` (created if absent), durably: the whole line (newline included) is
+/// built in ONE buffer, handed to the file in ONE `write_all` (an `O_APPEND` write, so it cannot be
+/// interleaved with or torn into a second `write(2)` by this process), then `sync_data()` flushes it to
+/// the disk before this returns.  Any failure is returned; callers that guard a send treat it as fatal.
 fn append_json_line(path: &Path, value: &Value) -> Result<(), OpsError> {
     use std::io::Write;
-    let mut file = fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(path)
-        .map_err(|error| OpsError::Failed(format!("{}: {error}", path.display())))?;
-    writeln!(file, "{}", serde_json::to_string(value).expect("json line"))
-        .map_err(|error| OpsError::Failed(format!("{}: {error}", path.display())))
+    let io = |error: std::io::Error| OpsError::Failed(format!("{}: {error}", path.display()));
+    let mut line = serde_json::to_string(value).expect("json line");
+    line.push('\n');
+    let existed = path.exists();
+    let mut file = fs::OpenOptions::new().create(true).append(true).open(path).map_err(io)?;
+    file.write_all(line.as_bytes()).map_err(io)?;
+    file.sync_data().map_err(io)?;
+    if !existed {
+        // A new file's directory entry is durable only once its directory is synced.  Best effort: not
+        // every filesystem lets a directory be fsynced, and the record itself is already on disk.
+        #[cfg(unix)]
+        if let Ok(directory) = fs::File::open(path.parent().filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(Path::new("."))) {
+            let _ = directory.sync_all();
+        }
+    }
+    Ok(())
+}
+
+/// A write-ahead record that no resolution record closes yet.
+struct OpenRecord {
+    signature: Signature,
+    blockhash: Hash,
+    step: String,
+}
+
+/// A write-ahead record whose resolution says the transaction CONFIRMED.
+struct ConfirmedRecord {
+    signature: String,
+    step: String,
+    slot: Option<u64>,
+}
+
+/// What the write-ahead file says about THIS cluster (records of another genesis are skipped).
+#[derive(Default)]
+struct PendingLog {
+    open: Vec<OpenRecord>,
+    confirmed: Vec<ConfirmedRecord>,
+}
+
+impl PendingLog {
+    /// The highest slot among the confirmed records: reads must reflect at least this slot.
+    fn max_confirmed_slot(&self) -> Option<u64> {
+        self.confirmed.iter().filter_map(|record| record.slot).max()
+    }
+}
+
+/// Parse the write-ahead file, FAIL CLOSED.  Only a file that does not exist is an empty log.  Any other
+/// read error, any non-blank line that is not a JSON record this tool wrote, any record without the
+/// fields it must carry, is a refusal naming the line: skipping a line could hide a transaction that
+/// may still land, or a confirmed one that must not be repeated.
+fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(PendingLog::default()),
+        Err(error) => {
+            return refuse(format!(
+                "cannot read the write-ahead file {} ({error}); refusing to continue without knowing what was already sent",
+                path.display()
+            ))
+        }
+    };
+    let bad = |number: usize, why: &str| {
+        refuse::<PendingLog>(format!(
+            "{} line {number}: {why}; the write-ahead file must be intact before anything is sent (inspect it, do not delete lines)",
+            path.display()
+        ))
+    };
+    let mut write_ahead: Vec<(Signature, Hash, String, bool)> = Vec::new();
+    let mut resolved: BTreeMap<String, (String, Option<u64>)> = BTreeMap::new();
+    for (index, line) in text.lines().enumerate() {
+        let number = index + 1;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let record: Value = match serde_json::from_str(line) {
+            Ok(record) => record,
+            Err(error) => return bad(number, &format!("is not valid JSON ({error})")),
+        };
+        match record["event"].as_str() {
+            Some("resolved") => {
+                let (Some(signature), Some(outcome)) = (record["signature"].as_str(), record["outcome"].as_str()) else {
+                    return bad(number, "a `resolved` record without a signature and an outcome");
+                };
+                resolved.insert(signature.to_string(), (outcome.to_string(), record["slot"].as_u64()));
+            }
+            Some("write_ahead") => {
+                let (Some(signature), Some(blockhash), Some(record_genesis)) = (
+                    record["signature"].as_str().and_then(|text| Signature::from_str(text).ok()),
+                    record["blockhash"].as_str().and_then(|text| Hash::from_str(text).ok()),
+                    record["genesis_hash"].as_str(),
+                ) else {
+                    return bad(number, "a `write_ahead` record without a valid signature, blockhash and genesis_hash");
+                };
+                write_ahead.push((signature, blockhash, record["step"].as_str().unwrap_or("?").to_string(), record_genesis == genesis));
+            }
+            other => return bad(number, &format!("has an unknown event {other:?}")),
+        }
+    }
+    let mut log = PendingLog::default();
+    for (signature, blockhash, step, ours) in write_ahead {
+        if !ours {
+            progress(format!("ignoring a write-ahead record of another cluster ({signature})"));
+            continue;
+        }
+        match resolved.get(&signature.to_string()) {
+            None => log.open.push(OpenRecord { signature, blockhash, step }),
+            Some((outcome, slot)) if outcome.starts_with("confirmed") => {
+                log.confirmed.push(ConfirmedRecord { signature: signature.to_string(), step, slot: *slot });
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(log)
 }
 
 fn unix_wall_clock() -> u64 {
@@ -1816,6 +1997,15 @@ fn guarded_output_path(flag: &str, spec: &str) -> Result<PathBuf, OpsError> {
         }
     }
     Ok(path)
+}
+
+/// `--slot-polls N` (1..=60, default 20): how often a confirmed transaction's slot is polled for.
+fn slot_polls(opts: &Opts) -> Result<usize, OpsError> {
+    let polls = opts.u64_flag("slot-polls")?.unwrap_or(DEFAULT_SLOT_POLLS);
+    if !(1..=MAX_SLOT_POLLS).contains(&polls) {
+        return usage(format!("--slot-polls must be between 1 and {MAX_SLOT_POLLS}"));
+    }
+    Ok(polls as usize)
 }
 
 /// The write-ahead file: `--pending-file`, else `<wallet-dir>/pending.jsonl` for `flow`.  Required for
@@ -1884,7 +2074,10 @@ impl<'a> Ctx<'a> {
     }
 
     /// Persist (stderr and the pending file) the signature, blockhash and `lastValidBlockHeight` of a
-    /// transaction BEFORE it is sent.  A failure to persist stops the send.
+    /// transaction BEFORE it is sent, durably ([`append_json_line`]: one write, then `sync_data`).  A
+    /// failure to persist stops the send.  The record names the cluster (genesis hash), the command and the
+    /// verified packet pin (`null` on a loopback run), so the file says on its own which deployment,
+    /// which reviewed text and which command each transaction belongs to.
     fn write_ahead(
         &self,
         step: &Step,
@@ -1894,10 +2087,10 @@ impl<'a> Ctx<'a> {
     ) -> Result<(), OpsError> {
         let signature = tx.signatures[0];
         let record = json!({
-            "schema": 1, "event": "write_ahead", "step": step.id, "label": step.label,
+            "schema": 1, "event": "write_ahead", "command": self.opts.command, "step": step.id, "label": step.label,
             "signature": signature.to_string(), "blockhash": blockhash.to_string(),
             "last_valid_block_height": last_valid_block_height, "fee_payer": step.payer.to_string(),
-            "genesis_hash": self.genesis, "at_unix": unix_wall_clock(),
+            "genesis_hash": self.genesis, "packet": self.packet_json(), "at_unix": unix_wall_clock(),
         });
         progress(format!(
             "WRITE-AHEAD {} signature {signature} blockhash {blockhash} last_valid_block_height {last_valid_block_height:?}",
@@ -1911,17 +2104,92 @@ impl<'a> Ctx<'a> {
         Ok(())
     }
 
-    fn mark_resolved(&self, signature: &Signature, outcome: &str, slot: Option<u64>) {
+    /// Close a write-ahead record.  A confirmed one carries the slot it landed in (and where that slot
+    /// came from), so a later invocation can seed `minContextSlot` from it.  The resolution append is
+    /// durable like the record itself; if it cannot be written the write-ahead record stays open and the
+    /// next invocation resolves it again from the chain (so the failure is reported, not fatal).
+    fn mark_resolved(&self, signature: &Signature, outcome: &str, slot: Option<u64>, slot_source: &str) {
         progress(format!("RESOLVED {signature}: {outcome}"));
         if let Some(path) = &self.pending_path {
             let record = json!({
                 "schema": 1, "event": "resolved", "signature": signature.to_string(), "outcome": outcome,
-                "slot": slot, "genesis_hash": self.genesis, "at_unix": unix_wall_clock(),
+                "slot": slot, "slot_source": slot.map(|_| slot_source), "genesis_hash": self.genesis,
+                "at_unix": unix_wall_clock(),
             });
             if let Err(error) = append_json_line(path, &record) {
                 progress(format!("warning: could not append the resolution record: {error}"));
             }
         }
+    }
+
+    /// The slot a CONFIRMED transaction landed in, so every later read can carry `minContextSlot`.
+    /// Polls the signature status (a node that confirmed it may need a moment to report it), then falls
+    /// back to the slot the cluster reports AFTER the confirmation (at the client's commitment, so it is
+    /// at or above the transaction's slot; a conservative floor).  If neither works this is an error that
+    /// says the transaction CONFIRMED: never continue with a stale `minContextSlot` of 0.
+    fn confirmed_slot(&self, label: &str, signature: &Signature) -> Result<(u64, &'static str), OpsError> {
+        let polls = self.slot_polls;
+        for attempt in 0..polls {
+            if let Ok(Some(slot)) = self.cluster.signature_slot(signature) {
+                return Ok((slot, "signature_status"));
+            }
+            if attempt + 1 < polls {
+                std::thread::sleep(SLOT_POLL_INTERVAL);
+            }
+        }
+        match self.cluster.slot() {
+            Ok(slot) => {
+                progress(format!(
+                    "note: the slot of {signature} could not be read from its status after {polls} polls; \
+                     reads use the cluster slot {slot} observed after the confirmation instead"
+                ));
+                Ok((slot, "get_slot_after_confirmation"))
+            }
+            Err(error) => {
+                self.mark_resolved(signature, "confirmed", None, "unknown");
+                fail(format!(
+                    "{label}: the transaction {signature} CONFIRMED, but its slot could not be learned (status polls found none; \
+                     getSlot failed: {error}), so no post-state read can be trusted and none was made. Do NOT re-send it: \
+                     look {signature} up on an explorer, then re-run `flow status` / `readback` (the write-ahead record is in \
+                     the pending file)"
+                ))
+            }
+        }
+    }
+
+    /// Refuse a NON-IDEMPOTENT act (a plain transfer that would repeat) when the write-ahead file already
+    /// holds a CONFIRMED record for it on this cluster.  This guard does not depend on what the RPC node
+    /// answers: a lagging node that still reports the old balance cannot make the tool pay twice.
+    fn refuse_repeat_of_confirmed(&self, step_id: &str) -> Result<(), OpsError> {
+        if !self.executing() {
+            return Ok(());
+        }
+        let Some(path) = &self.pending_path else { return Ok(()) };
+        let log = read_pending(path, &self.genesis)?;
+        match log.confirmed.iter().find(|record| record.step == step_id) {
+            Some(record) => refuse(format!(
+                "`{step_id}` already CONFIRMED on this cluster (signature {}, slot {}; recorded in {}): it moves funds and \
+                 is not idempotent, so it is never sent twice whatever a node reports. Look the signature up; if a second \
+                 transfer is genuinely intended it is outside this tool",
+                record.signature,
+                record.slot.map_or("unknown".to_string(), |slot| slot.to_string()),
+                path.display()
+            )),
+            None => Ok(()),
+        }
+    }
+
+    /// Hand the highest confirmed slot in the write-ahead file to the cluster (`minContextSlot` of every
+    /// later read): each CLI run starts with no slot of its own, and a load-balanced RPC node may still be
+    /// behind a transaction an EARLIER run confirmed.  Read-only commands do it too: their answers are
+    /// what the operator decides from.
+    fn seed_confirmed_slot(&self) -> Result<(), OpsError> {
+        let Some(path) = &self.pending_path else { return Ok(()) };
+        if let Some(slot) = read_pending(path, &self.genesis)?.max_confirmed_slot() {
+            progress(format!("reads on this cluster wait for slot {slot} (the latest confirmed record in {})", path.display()));
+            self.cluster.note_confirmed_slot(slot);
+        }
+        Ok(())
     }
 
     /// Poll a signature until it is confirmed, failed on chain, or its blockhash has expired
@@ -1950,55 +2218,27 @@ impl<'a> Ctx<'a> {
     }
 
     /// Before ANYTHING is built, resolve every write-ahead record of this cluster that has no
-    /// resolution: a transaction that may still land is never rebuilt.
+    /// resolution: a transaction that may still land is never rebuilt.  A write-ahead file that cannot be
+    /// read or parsed is a refusal ([`read_pending`]), never an empty log.
     fn resolve_pending_all(&self) -> Result<Vec<Value>, OpsError> {
         let Some(path) = &self.pending_path else { return Ok(Vec::new()) };
-        let Ok(text) = fs::read_to_string(path) else { return Ok(Vec::new()) };
-        let mut open: Vec<(Signature, Hash, String)> = Vec::new();
-        let mut resolved: BTreeSet<String> = BTreeSet::new();
-        for line in text.lines() {
-            let Ok(record) = serde_json::from_str::<Value>(line) else { continue };
-            match record["event"].as_str() {
-                Some("resolved") => {
-                    if let Some(signature) = record["signature"].as_str() {
-                        resolved.insert(signature.to_string());
-                    }
-                }
-                Some("write_ahead") => {
-                    if record["genesis_hash"].as_str() != Some(self.genesis.as_str()) {
-                        progress(format!("ignoring a write-ahead record of another cluster ({})", record["signature"]));
-                        continue;
-                    }
-                    let (Some(signature), Some(blockhash)) = (
-                        record["signature"].as_str().and_then(|text| Signature::from_str(text).ok()),
-                        record["blockhash"].as_str().and_then(|text| Hash::from_str(text).ok()),
-                    ) else {
-                        return refuse(format!("{} holds an unreadable write-ahead record: {line}", path.display()));
-                    };
-                    open.push((signature, blockhash, record["step"].as_str().unwrap_or("?").to_string()));
-                }
-                _ => {}
-            }
-        }
+        let open = read_pending(path, &self.genesis)?.open;
         let mut report = Vec::new();
-        for (signature, blockhash, step) in open {
-            if resolved.contains(&signature.to_string()) {
-                continue;
-            }
+        for OpenRecord { signature, blockhash, step } in open {
             progress(format!("resolving the pending write-ahead record {signature} (step {step}) before anything else"));
             let outcome = match self.wait_outcome(&signature, &blockhash) {
                 Resolution::Landed(slot) => {
                     self.cluster.note_confirmed_slot(slot);
-                    self.mark_resolved(&signature, "confirmed", Some(slot));
+                    self.mark_resolved(&signature, "confirmed", Some(slot), "signature_status");
                     "confirmed"
                 }
                 Resolution::FailedOnChain(error) => {
-                    self.mark_resolved(&signature, "failed_on_chain", None);
+                    self.mark_resolved(&signature, "failed_on_chain", None, "");
                     progress(format!("{signature} failed on chain: {error}"));
                     "failed_on_chain"
                 }
                 Resolution::Expired => {
-                    self.mark_resolved(&signature, "expired_never_landed", None);
+                    self.mark_resolved(&signature, "expired_never_landed", None, "");
                     "expired_never_landed"
                 }
                 Resolution::StillUnknown => {
@@ -2029,6 +2269,7 @@ impl<'a> Ctx<'a> {
             depends_on_previous: step.depends_on_previous,
             executed: false,
             signature: None,
+            slot: None,
             simulation: None,
         };
         if !built.fits() {
@@ -2074,18 +2315,18 @@ impl<'a> Ctx<'a> {
         result.simulation = Some(simulation);
         let signature = tx.signatures[0];
         self.write_ahead(step, &tx, blockhash, last_valid_block_height)?;
-        let sent = match self.send_signed(&tx) {
+        let (sent, slot) = match self.send_signed(&tx) {
             Ok(sent) => {
-                // Reads from here on must reflect at least this transaction's slot.
-                let slot = self.cluster.signature_slot(&signature).ok().flatten();
-                if let Some(slot) = slot {
-                    self.cluster.note_confirmed_slot(slot);
-                }
-                self.mark_resolved(&signature, "confirmed", slot);
-                sent
+                // Reads from here on must reflect at least this transaction's slot.  The record says the
+                // transaction CONFIRMED before anything else can go wrong; if its slot cannot be learned
+                // the step ends here with an error that says so.
+                let (slot, source) = self.confirmed_slot(&step.label, &signature)?;
+                self.cluster.note_confirmed_slot(slot);
+                self.mark_resolved(&signature, "confirmed", Some(slot), source);
+                (sent, slot)
             }
             Err(SendError::Rejected(message)) => {
-                self.mark_resolved(&signature, "rejected", None);
+                self.mark_resolved(&signature, "rejected", None, "");
                 return fail(format!("{}: transaction failed: {message}", step.label));
             }
             Err(SendError::Unknown(message)) => {
@@ -2093,15 +2334,15 @@ impl<'a> Ctx<'a> {
                 match self.wait_outcome(&signature, &blockhash) {
                     Resolution::Landed(slot) => {
                         self.cluster.note_confirmed_slot(slot);
-                        self.mark_resolved(&signature, "confirmed_after_ambiguous_send", Some(slot));
-                        SendOutcome { signature, units_consumed: None }
+                        self.mark_resolved(&signature, "confirmed_after_ambiguous_send", Some(slot), "signature_status");
+                        (SendOutcome { signature, units_consumed: None }, slot)
                     }
                     Resolution::FailedOnChain(error) => {
-                        self.mark_resolved(&signature, "failed_on_chain", None);
+                        self.mark_resolved(&signature, "failed_on_chain", None, "");
                         return fail(format!("{}: the transaction landed and failed: {error}", step.label));
                     }
                     Resolution::Expired => {
-                        self.mark_resolved(&signature, "expired_never_landed", None);
+                        self.mark_resolved(&signature, "expired_never_landed", None, "");
                         return fail(format!(
                             "{}: the send outcome was ambiguous ({message}) and the blockhash has expired without the \
                              signature appearing: it never landed and can safely be rebuilt by re-running",
@@ -2123,6 +2364,7 @@ impl<'a> Ctx<'a> {
         };
         result.executed = true;
         result.signature = Some(sent.signature);
+        result.slot = Some(slot);
         progress(format!("{} -> {}", step.label, sent.signature));
         Ok(result)
     }
@@ -2350,7 +2592,7 @@ fn step_set_authority(program: Pubkey, deployer: Pubkey, new_authority: Pubkey) 
 
 fn step_transfer(payer: Pubkey, to: Pubkey, lamports: u64) -> Step {
     Step {
-        id: "A5.fund_vault".into(),
+        id: FUND_VAULT_STEP_ID.into(),
         label: format!("system transfer {lamports} lamports to the G vault"),
         instructions: vec![system_instruction::transfer(&payer, &to, lamports)],
         payer,
@@ -2843,6 +3085,9 @@ fn cmd_fund_vault(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
             "--lamports {lamports} is outside 1..={VAULT_FUNDING_CAP_LAMPORTS} (packet 4b: the vault needs about 0.02 SOL)"
         ));
     }
+    // A transfer is not idempotent. Whatever the RPC node reports about the vault's balance, a transfer the
+    // write-ahead file already holds as CONFIRMED is never repeated.
+    ctx.refuse_repeat_of_confirmed(FUND_VAULT_STEP_ID)?;
     // The full G profile (members, 2-of-3, 172,800 s, autonomous), not just "a Squads-owned account".
     require_g_profile(ctx, &g, &members)?;
     // A balance guard: a transfer is not idempotent, so a repeated or resumed run must not pay twice.
@@ -4215,9 +4460,11 @@ pub fn run_opts(opts: &Opts, cluster: &dyn Cluster) -> Result<Value, OpsError> {
 /// [`run_opts`] with the repository the devnet packet pin is verified in (tests pin a throwaway repo).
 pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Value, OpsError> {
     if opts.command == "validator-fixtures" {
+        reject_removed_flags(opts)?;
         return cmd_validator_fixtures(opts);
     }
     if opts.command == "flow" && opts.positional.first().map(String::as_str) == Some("init") {
+        reject_removed_flags(opts)?;
         return flow::cmd_flow_init(opts);
     }
     if opts.command == "help" {
@@ -4238,9 +4485,13 @@ pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Va
         genesis: genesis.clone(),
         pending_path,
         pending_wait_seconds: opts.u64_flag("pending-wait-seconds")?.unwrap_or(90),
+        slot_polls: slot_polls(opts)?,
     };
     // A signed transaction that may still land is resolved before ANY command can build another.
     let pending_resolved = if ctx.executing() { ctx.resolve_pending_all()? } else { Vec::new() };
+    // Every read from here on (the ones a decision is made from included) waits for the latest slot an
+    // earlier invocation confirmed: a CLI run starts with no slot of its own.
+    ctx.seed_confirmed_slot()?;
     let mut value = match opts.command.as_str() {
         "plan" => cmd_plan(&ctx),
         "deploy" => cmd_deploy(&ctx),

@@ -5,7 +5,7 @@
 //!   that wraps the harness' real-Squads world (the actual Squads v4 devnet binary, the devnet ORAO
 //!   binary, the program ELF under a loader-shaped ProgramData whose authority is the G vault).  The
 //!   double counts simulations and sends and records their order.
-//! * The safety interlocks (loopback / devnet + approval hash / genesis hash, packet size, default
+//! * The safety interlocks (loopback / devnet + packet identity pin / genesis hash, packet size, default
 //!   wallet refusal, pins that must not drift) are tested without any cluster.
 //! * ONE `#[ignore]` test runs the real loader-v3 deploy, SetAuthority, verify-bytes and the Squads
 //!   proposal lifecycle against a local `solana-test-validator` (`MC_LOCAL_RPC`, loopback only);
@@ -29,8 +29,8 @@ use litesvm::LiteSVM;
 use musical_chairs_financial_runtime::{
     devnet::{self, OraoProfile},
     devnet_ops::{
-        self as ops, Cluster, Gate, KeyFile, Opts, OpsError, ProposalStatus, SendError, SendOutcome,
-        SigOutcome, SimOutcome, Step, Target,
+        self as ops, Cluster, Gate, KeyFile, Opts, OpsError, ProposalStatus, RpcCluster, SendError,
+        SendOutcome, SigOutcome, SimOutcome, Step, Target,
     },
     runtime::{real_g_create_keypair, real_p_create_keypair},
     squads_real::{self as sq, RealSquadsWorld},
@@ -39,6 +39,7 @@ use serde_json::Value;
 use solana_sdk::{
     account::Account,
     clock::Clock,
+    commitment_config::CommitmentConfig,
     hash::Hash,
     instruction::Instruction,
     pubkey::Pubkey,
@@ -166,6 +167,14 @@ struct SvmCluster<'a> {
     fail_simulation: Cell<bool>,
     order: RefCell<Vec<&'static str>>,
     landed: RefCell<std::collections::BTreeMap<Signature, u64>>,
+    /// `blockhash_valid` answer: an unresolved write-ahead record is only resolvable once this is false.
+    blockhash_still_valid: Cell<bool>,
+    /// The node never reports a landed transaction's slot (`signature_slot` finds nothing).
+    hide_slot: Cell<bool>,
+    /// `slot()` fails (so neither the status nor the fallback can supply a slot).
+    fail_slot: Cell<bool>,
+    /// The highest slot the tool handed to `note_confirmed_slot` (what `minContextSlot` would carry).
+    noted_slot: Cell<u64>,
 }
 
 impl<'a> SvmCluster<'a> {
@@ -179,7 +188,19 @@ impl<'a> SvmCluster<'a> {
             fail_simulation: Cell::new(false),
             order: RefCell::new(Vec::new()),
             landed: RefCell::new(std::collections::BTreeMap::new()),
+            blockhash_still_valid: Cell::new(false),
+            hide_slot: Cell::new(false),
+            fail_slot: Cell::new(false),
+            noted_slot: Cell::new(0),
         }
+    }
+
+    /// Overwrite an account's balance (a node that has not seen a transfer yet reports the old one).
+    fn set_lamports(&self, key: &Pubkey, lamports: u64) {
+        let mut svm = self.svm.borrow_mut();
+        let mut account = svm.get_account(key).unwrap_or_default();
+        account.lamports = lamports;
+        svm.set_account(*key, account).expect("set account");
     }
 
     fn set_genesis(&self, genesis: &str) {
@@ -230,7 +251,16 @@ impl Cluster for SvmCluster<'_> {
         Ok(self.now())
     }
     fn slot(&self) -> Result<u64, String> {
+        if self.fail_slot.get() {
+            return Err("injected getSlot failure".into());
+        }
         Ok(self.svm.borrow().get_sysvar::<Clock>().slot)
+    }
+    fn blockhash_valid(&self, _hash: &Hash) -> Result<bool, String> {
+        Ok(self.blockhash_still_valid.get())
+    }
+    fn note_confirmed_slot(&self, slot: u64) {
+        self.noted_slot.set(self.noted_slot.get().max(slot));
     }
     fn simulate(&self, tx: &Transaction, sig_verify: bool) -> Result<SimOutcome, String> {
         if !sig_verify {
@@ -281,6 +311,9 @@ impl Cluster for SvmCluster<'_> {
             .map_or(SigOutcome::Unknown, |slot| SigOutcome::Confirmed { slot: *slot }))
     }
     fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
+        if self.hide_slot.get() {
+            return Ok(None);
+        }
         Ok(self.landed.borrow().get(signature).copied())
     }
 }
@@ -436,7 +469,7 @@ fn pins_match_the_recorded_build_the_frontend_and_the_packet() {
 }
 
 // ---------------------------------------------------------------------------
-// The gate: URL, cluster name, approval hash, genesis hash
+// The gate: URL, cluster name, packet identity pin, genesis hash
 // ---------------------------------------------------------------------------
 
 fn opts(parts: &[&str]) -> Opts {
@@ -1005,6 +1038,12 @@ fn execute_on_devnet_goes_through_the_packet_pin_and_the_devnet_genesis_and_reco
     assert_eq!(lines[0]["signature"], lines[1]["signature"]);
     assert_eq!(lines[1]["outcome"], "confirmed");
     assert_eq!(lines[0]["genesis_hash"], ops::DEVNET_GENESIS_HASH);
+    // N4: the write-ahead record names the verified packet pin of the run it belongs to.
+    assert_eq!(lines[0]["packet"]["packet_path"], ops::DEFAULT_PACKET_FILE);
+    assert_eq!(lines[0]["packet"]["packet_commit"].as_str(), Some(repo.commit.as_str()));
+    assert_eq!(lines[0]["packet"]["packet_sha256"].as_str(), Some(repo.sha.as_str()));
+    assert_eq!(lines[0]["command"], "fund-vault");
+    assert_eq!(lines[1]["slot_source"], "signature_status");
 
     // An edit of the working packet after the pin was taken closes the gate again.
     repo.edit_working_file("the reviewed M14 packet, edited after review");
@@ -1385,6 +1424,262 @@ fn fund_vault_caps_the_vaults_total_not_just_one_transfer() {
     let funded = ok(files.run(&cluster, &["fund-vault", "--payer", &files.payer, "--lamports", "40000000", "--execute"]));
     assert_eq!(funded["vault_balance_after"], 41_000_000);
     assert_eq!(funded["all_ok"], true);
+}
+
+// ---------------------------------------------------------------------------
+// M14-TOOL-FIX2: read configs (N1), minContextSlot (N2), write-ahead durability (N3, N4)
+// ---------------------------------------------------------------------------
+
+/// The write-ahead file's lines as JSON.
+fn pending_lines(path: &str) -> Vec<Value> {
+    fs::read_to_string(path)
+        .unwrap()
+        .lines()
+        .map(|line| serde_json::from_str(line).expect("every pending line is JSON"))
+        .collect()
+}
+
+/// A world with the G and P multisigs created (through the tool, with no write-ahead file) and a
+/// `fund-vault` command line that records to `pending`.
+fn fund_vault_args(files: &Files, pending: &str, extra: &[&str]) -> Vec<String> {
+    let mut parts =
+        vec!["fund-vault", "--payer", files.payer.as_str(), "--lamports", "20000000", "--execute", "--pending-file", pending];
+    parts.extend_from_slice(extra);
+    files.args(&parts)
+}
+
+#[test]
+fn rpc_read_configs_carry_the_commitment_at_the_top_level_and_min_context_slot_only_after_a_send() {
+    // The regression: the commitment was nested as {"commitment":{"commitment":"confirmed"}}, which the
+    // client's flattened config type silently turned into "no commitment" (the node then answers at
+    // FINALIZED).  These are the configs exactly as they go on the wire.
+    for (commitment, name) in [(CommitmentConfig::confirmed(), "confirmed"), (CommitmentConfig::finalized(), "finalized")] {
+        let cluster = RpcCluster::connect("http://127.0.0.1:9", commitment);
+        let (account, program_accounts) = cluster.request_configs().expect("configs");
+        for (what, config) in [("account info", &account), ("program accounts", &program_accounts)] {
+            assert_eq!(config["commitment"], name, "{what}: the commitment is a STRING at the top level: {config}");
+            assert_eq!(config["encoding"], "base64", "{what}: {config}");
+            assert!(config["minContextSlot"].is_null(), "{what}: no minContextSlot before any send: {config}");
+        }
+        // After a confirmed send every read carries the floor, and the commitment survives it.
+        cluster.note_confirmed_slot(1_234);
+        cluster.note_confirmed_slot(7); // a lower slot never lowers the floor
+        let (account, program_accounts) = cluster.request_configs().expect("configs");
+        for (what, config) in [("account info", &account), ("program accounts", &program_accounts)] {
+            assert_eq!(config["minContextSlot"], 1_234, "{what}: {config}");
+            assert_eq!(config["commitment"], name, "{what}: {config}");
+            assert_eq!(config["encoding"], "base64", "{what}: {config}");
+        }
+    }
+}
+
+#[test]
+fn a_confirmed_transfer_is_never_repeated_even_when_a_lagging_node_reports_it_unpaid() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let g = ops::identity(real_g_create_keypair().pubkey());
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    let pending = files.dir.file("pending.jsonl");
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let sends_before = cluster.sends.get();
+
+    let first = ok(ops::run_with_cluster(&fund_vault_args(&files, &pending, &[]), &cluster));
+    assert_eq!(first["all_ok"], true, "{first}");
+    assert_eq!(cluster.sends.get(), sends_before + 1);
+    let lines = pending_lines(&pending);
+    assert_eq!((lines[0]["event"].as_str(), lines[1]["event"].as_str()), (Some("write_ahead"), Some("resolved")));
+    let signature = lines[0]["signature"].as_str().unwrap().to_string();
+    let slot = lines[1]["slot"].as_u64().expect("the confirmed record carries its slot");
+    assert_eq!(lines[1]["slot_source"], "signature_status");
+    assert_eq!(first["steps"][0]["slot"].as_u64(), Some(slot));
+    assert_eq!(lines[0]["step"], "A5.fund_vault");
+    assert_eq!(lines[0]["command"], "fund-vault");
+    // N4: a loopback run has no packet pin, and the record says so explicitly.
+    assert!(lines[0]["packet"].is_null(), "{}", lines[0]);
+
+    // A lagging node: the vault looks unfunded again, so the balance guard alone would pay a second time.
+    cluster.set_lamports(&g.vault, 0);
+    // A new invocation starts with no slot of its own ...
+    cluster.noted_slot.set(0);
+    let message = refused(ops::run_with_cluster(&fund_vault_args(&files, &pending, &[]), &cluster));
+    assert!(
+        message.contains("already CONFIRMED") && message.contains(&signature) && message.contains("never sent twice"),
+        "{message}"
+    );
+    assert_eq!(cluster.sends.get(), sends_before + 1, "the second transfer was never sent");
+    // ... and seeds it from the confirmed record BEFORE any read it decides from.
+    assert_eq!(cluster.noted_slot.get(), slot, "min slot is seeded from the write-ahead file at startup");
+
+    // A confirmed record of ANOTHER cluster counts for nothing: neither guard nor slot seed.
+    let foreign_signature = Signature::new_unique().to_string();
+    let foreign = [
+        serde_json::json!({ "schema": 1, "event": "write_ahead", "step": "A5.fund_vault", "signature": foreign_signature,
+            "blockhash": Hash::new_unique().to_string(), "genesis_hash": ops::MAINNET_GENESIS_HASH }),
+        serde_json::json!({ "schema": 1, "event": "resolved", "signature": foreign_signature, "outcome": "confirmed",
+            "slot": 999_999_999u64, "genesis_hash": ops::MAINNET_GENESIS_HASH }),
+    ];
+    let other_file = files.dir.file("other-cluster.jsonl");
+    fs::write(&other_file, foreign.iter().map(|record| format!("{record}\n")).collect::<String>()).unwrap();
+    cluster.noted_slot.set(0);
+    let funded = ok(ops::run_with_cluster(&fund_vault_args(&files, &other_file, &[]), &cluster));
+    assert_eq!(funded["all_ok"], true, "{funded}");
+    assert!(cluster.noted_slot.get() < 999_999_999, "a foreign record never seeds the floor: {}", cluster.noted_slot.get());
+    assert_eq!(cluster.sends.get(), sends_before + 2);
+}
+
+#[test]
+fn a_confirmed_send_whose_slot_is_not_reported_falls_back_to_the_cluster_slot_and_fails_loudly_without_one() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let g = ops::identity(real_g_create_keypair().pubkey());
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+
+    // (a) The node confirms the transfer but its status never reports a slot: after the polls the tool
+    // reads the cluster slot (observed AFTER the confirmation), uses it as the floor, and records its source.
+    cluster.hide_slot.set(true);
+    let pending = files.dir.file("pending-fallback.jsonl");
+    let done = ok(ops::run_with_cluster(&fund_vault_args(&files, &pending, &["--slot-polls", "2"]), &cluster));
+    assert_eq!(done["all_ok"], true, "{done}");
+    let lines = pending_lines(&pending);
+    assert_eq!(lines[1]["outcome"], "confirmed");
+    assert_eq!(lines[1]["slot_source"], "get_slot_after_confirmation");
+    let slot = lines[1]["slot"].as_u64().expect("a fallback slot is recorded");
+    assert!(slot > 0 && cluster.noted_slot.get() == slot, "the floor is advanced to the fallback slot");
+
+    // (b) Neither the status nor getSlot works: the step ENDS with an error that says the transaction
+    // CONFIRMED (and names the signature); it never carries on with a floor of 0.
+    cluster.set_lamports(&g.vault, 0);
+    cluster.fail_slot.set(true);
+    cluster.noted_slot.set(0);
+    let sends = cluster.sends.get();
+    let pending_b = files.dir.file("pending-no-slot.jsonl");
+    let message = match ops::run_with_cluster(&fund_vault_args(&files, &pending_b, &["--slot-polls", "1"]), &cluster) {
+        Err(OpsError::Failed(message)) => message,
+        other => panic!("expected a failure that says the transaction confirmed, got {other:?}"),
+    };
+    assert_eq!(cluster.sends.get(), sends + 1, "the transaction did land");
+    let lines = pending_lines(&pending_b);
+    let signature = lines[0]["signature"].as_str().unwrap();
+    assert!(message.contains("CONFIRMED") && message.contains(signature) && message.contains("Do NOT re-send"), "{message}");
+    assert_eq!((lines[1]["event"].as_str(), lines[1]["outcome"].as_str()), (Some("resolved"), Some("confirmed")));
+    assert!(lines[1]["slot"].is_null());
+    // A confirmed record without a slot still blocks the repeat.
+    let again = refused(ops::run_with_cluster(&fund_vault_args(&files, &pending_b, &["--slot-polls", "1"]), &cluster));
+    assert!(again.contains("already CONFIRMED") && again.contains(signature), "{again}");
+    assert_eq!(cluster.sends.get(), sends + 1);
+    assert!(matches!(
+        ops::run_with_cluster(&fund_vault_args(&files, &pending_b, &["--slot-polls", "0"]), &cluster),
+        Err(OpsError::Usage(_))
+    ));
+}
+
+#[test]
+fn an_unreadable_or_unparsable_write_ahead_file_refuses_every_command_instead_of_being_skipped() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    let run = |pending: &str| ops::run_with_cluster(&fund_vault_args(&files, pending, &[]), &cluster);
+    let good = serde_json::json!({
+        "schema": 1, "event": "write_ahead", "step": "x", "signature": Signature::new_unique().to_string(),
+        "blockhash": Hash::new_unique().to_string(), "genesis_hash": LITESVM_GENESIS,
+    });
+    let resolved = serde_json::json!({
+        "schema": 1, "event": "resolved", "signature": good["signature"], "outcome": "expired_never_landed", "genesis_hash": LITESVM_GENESIS,
+    });
+
+    // A read error that is not "no such file" (here: the path is a directory) refuses.
+    let directory = files.dir.file("a-directory.jsonl");
+    fs::create_dir_all(&directory).unwrap();
+    let message = refused(run(&directory));
+    assert!(message.contains("cannot read the write-ahead file"), "{message}");
+
+    // A torn last line (half a record, no newline) refuses with its line number; so does every other
+    // line the tool did not write.  Blank lines are only blank.
+    let bad_lines: [(&str, String, &str); 6] = [
+        ("truncated", format!("{good}\n{{\"schema\":1,\"event\":\"resolved\",\"signa"), "line 2"),
+        ("not json", format!("{good}\n{resolved}\nthis is not json\n"), "line 3"),
+        ("unknown event", format!("{good}\n{{\"event\":\"something_else\"}}\n"), "line 2"),
+        ("no genesis", format!("{{\"event\":\"write_ahead\",\"signature\":{},\"blockhash\":{}}}\n", good["signature"], good["blockhash"]), "line 1"),
+        ("bad blockhash", format!("{{\"event\":\"write_ahead\",\"signature\":{},\"blockhash\":\"nope\",\"genesis_hash\":\"g\"}}\n", good["signature"]), "line 1"),
+        ("resolution without outcome", "{\"event\":\"resolved\",\"signature\":\"abc\"}\n".to_string(), "line 1"),
+    ];
+    for (name, content, line) in bad_lines {
+        let path = files.dir.file(&format!("bad-{}.jsonl", name.replace(' ', "-")));
+        fs::write(&path, content).unwrap();
+        let message = refused(run(&path));
+        assert!(message.contains(line) && message.contains("write-ahead"), "{name}: {message}");
+        assert_eq!(cluster.sends.get(), 0, "{name}: nothing is sent past an unreadable record");
+    }
+    // The same file also stops a READ-ONLY command that was given it (its answers seed the read floor).
+    let broken = files.dir.file("bad-not-json.jsonl");
+    let message = refused(files.run(&cluster, &["plan", "--pending-file", &broken]));
+    assert!(message.contains("line 3"), "{message}");
+
+    // A file that is only good records, with blank lines between, is read.
+    let fine = files.dir.file("fine-with-blanks.jsonl");
+    fs::write(&fine, format!("{good}\n\n{resolved}\n   \n")).unwrap();
+    let message = match run(&fine) {
+        Err(error) => error.to_string(),
+        Ok(_) => String::new(),
+    };
+    assert!(!message.contains("write-ahead file"), "a well-formed file is not a pending-file refusal: {message}");
+}
+
+#[test]
+fn an_unresolved_write_ahead_record_blocks_fund_vault_too_until_its_blockhash_expires() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    ok(files.run(&cluster, &["squads-create", "--payer", &files.payer, "--execute"]));
+    let sends = cluster.sends.get();
+    let pending = files.dir.file("pending.jsonl");
+    // A send that timed out in an earlier run: recorded before the send, never resolved.
+    let stray = Signature::new_unique();
+    let record = serde_json::json!({
+        "schema": 1, "event": "write_ahead", "step": "A5.fund_vault", "signature": stray.to_string(),
+        "blockhash": Hash::new_unique().to_string(), "genesis_hash": LITESVM_GENESIS,
+    });
+    fs::write(&pending, format!("{record}\n")).unwrap();
+
+    cluster.blockhash_still_valid.set(true);
+    let args = fund_vault_args(&files, &pending, &["--pending-wait-seconds", "0"]);
+    let message = refused(ops::run_with_cluster(&args, &cluster));
+    assert!(message.contains("MAY STILL LAND") && message.contains(&stray.to_string()), "{message}");
+    assert_eq!(cluster.sends.get(), sends, "nothing is rebuilt while the pending transaction may still land");
+
+    // Once its blockhash has expired without the signature appearing, the record is closed and the
+    // transfer is built and sent exactly once.
+    cluster.blockhash_still_valid.set(false);
+    let done = ok(ops::run_with_cluster(&args, &cluster));
+    assert_eq!(done["all_ok"], true, "{done}");
+    assert_eq!(done["pending_resolved"][0]["outcome"], "expired_never_landed");
+    assert_eq!(cluster.sends.get(), sends + 1);
+}
+
+#[test]
+fn the_removed_flags_are_refused_by_the_offline_commands_too() {
+    let dir = TempDir::new("removed-flags");
+    let strings = |parts: &[&str]| -> Vec<String> { parts.iter().map(|part| part.to_string()).collect() };
+    let out = dir.file("fixtures-out");
+    for (args, usage_error) in [
+        (strings(&["validator-fixtures", &out, "--i-have-approval", "abc"]), true),
+        (strings(&["validator-fixtures", &out, "--packet", "elsewhere.md"]), false),
+        (strings(&["flow", "init", "--wallet-dir", &dir.dir(), "--i-have-approval", "abc"]), true),
+        (strings(&["flow", "init", "--wallet-dir", &dir.dir(), "--packet", "elsewhere.md"]), false),
+    ] {
+        let result = ops::run_with_cluster(&args, &UnreachableCluster);
+        match (result, usage_error) {
+            (Err(OpsError::Usage(message)), true) => assert!(message.contains("REMOVED"), "{message}"),
+            (Err(OpsError::Refused(message)), false) => assert!(message.contains("--packet is refused"), "{message}"),
+            (other, _) => panic!("{args:?}: expected the removed-flag refusal, got {other:?}"),
+        }
+    }
+    assert!(!std::path::Path::new(&out).exists(), "nothing was written before the refusal");
 }
 
 #[test]
