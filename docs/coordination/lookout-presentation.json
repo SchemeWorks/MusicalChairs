@@ -1,5 +1,5 @@
 {
-  "summary": "The Solana version is built and has passed local tests and independent reviews. It is waiting for your approval to start a roughly six-week trial on Solana’s public test network; nothing has been deployed there. A separate fix for the existing rewards system is tested locally, but live changes and repayments remain held.",
+  "summary": "Rob approved the Solana test-network trial (Block A). Before anything is sent, the program is being rebuilt under a fresh program address and re-reviewed locally, and Codex must accept the new build. The roughly six-week trial follows; nothing has been deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
   "glossary": [
     {
       "term": "M14",
@@ -7,7 +7,7 @@
     },
     {
       "term": "Block A",
-      "definition": "The proposed Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code.",
+      "definition": "The approved Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code.",
       "cardId": "M14-A-APPROVAL"
     },
     {
@@ -273,6 +273,11 @@
       "term": "29/29",
       "definition": "All 29 checks passed in the legacy repair’s local upgrade rehearsal; no live update is implied.",
       "cardId": "LEG-1"
+    },
+    {
+      "term": "re-pin",
+      "definition": "Record again the exact changed source, compiled program, interface and derived addresses, so reviewers can identify exactly what would be deployed.",
+      "cardId": "M14-5A-REPIN"
     }
   ]
 }
