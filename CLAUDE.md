@@ -72,7 +72,7 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Keep the summary brief (about 35–60 words) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
   - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
   - Never guess a meaning or reuse another project's shorthand. Apply the same sanitization as the projection. No new timer.
-  - Setup owns the manifest's `presentationPath`. Once setup confirms that cutover and backend readiness, the same publisher run publishes the presentation bound to the cards' exact source revision. Metadata-only changes still publish, and identical repeats are no-ops. Until then, do not publish presentation metadata or race setup's seeding.
+  - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the summary and glossary to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops.
 - **Boundaries.**
   - Never read or export keyring secrets.
   - Board-sync approval is not Block A approval. M14 execution still needs Rob's separate, explicit yes.

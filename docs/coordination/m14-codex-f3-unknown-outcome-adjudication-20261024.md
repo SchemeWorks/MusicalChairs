@@ -1,6 +1,6 @@
 # M14 operator tool: Codex F3 unknown-outcome finding and adjudication (2026-10-24)
 
-**Source:** Codex's bounded independent source review of frozen commit `81841a47dd282143e53277a922b1a7bdf51474e6`. Rob pasted it into the coordinator's chat. Codex did not duplicate any build or test.
+**Source:** Codex's bounded independent source review of frozen commit `81841a47dd282143e53277a922b1a7bdf51474e6`. Gideon delivered it to the coordinator's chat through the supported UI. Codex did not duplicate any build or test.
 
 **Codex confirmed present:**
 - the N1 serialization guard;

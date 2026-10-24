@@ -1,5 +1,5 @@
 {
-  "summary": "Rob approved the Solana test-network trial (Block A). The program is rebuilt under a fresh address and passes all local tests; Gideon, the supervisor, must accept the new build before anything is sent. The roughly six-week trial follows; nothing deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
+  "summary": "Rob approved the Solana test-network trial (Block A), and Gideon, the supervisor, accepted the rebuilt program. The first public step is starting: confirm the test network, create test keys, and request free test tokens. Nothing is deployed yet. Internet Computer changes, real rewards, mainnet and the code merge stay held.",
   "glossary": [
     {
       "term": "M14",

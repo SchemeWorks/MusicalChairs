@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator) / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial. The packet is revised with the fresh program id's new pins, and the approved scope is unchanged. Before any public transaction: green CI and Gideon's (Codex supervisor) acceptance of the new pins. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval. Nothing has been executed on any public cluster.",
+      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial, and Gideon (Codex supervisor) accepted the fresh-program-id pins and the revised packet. The first public step, network check, test keys and faucet funding, is starting under a written spend ledger. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -158,10 +158,23 @@
     },
     {
       "id": "M14-5A-REPIN",
-      "state": "Done locally (final acceptance awaits CI)",
+      "state": "Done (Gideon accepted)",
       "owner": "Silas (Claude coordinator) / Sonnet workers; Gideon (Codex supervisor) accepts",
       "scope": "Rebuild and re-pin the program under a fresh program id before any public transaction.",
-      "evidenceText": "Local only. The program is rebuilt under its fresh program id. A control rebuild of the old code reproduced the accepted build exactly, so the change is id-only. All local suites pass on the new build. Gideon's (Codex supervisor) independent review passed the source and build changes. The requested documentation fixes are applied, and final acceptance awaits CI at the exact commit. No public transaction, including faucet requests, happens before final acceptance.",
+      "evidenceText": "The program is rebuilt under its fresh program id. A control rebuild of the old code reproduced the accepted build exactly, so the change is id-only. All local suites pass on the new build. Gideon's (Codex supervisor) independent review accepted the new pins and the revised approval packet, with CI green at the exact commit. This is local acceptance only; nothing has been deployed.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A1",
+      "state": "In progress",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
+      "evidenceText": "Solana test network only. The network identity is checked before any key is used or anything is signed. Fresh test keys are kept outside the repository. Free faucet tokens are requested within a written spend ledger and a coordinator-kept budget; the tool enforces its own per-command ceilings. If the public faucet cannot supply enough, the step stops and Rob is asked.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",

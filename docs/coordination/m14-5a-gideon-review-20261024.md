@@ -2,7 +2,7 @@
 
 **Target:** frozen commit `1b9517285e6a34ef6322f4a3e9066916f6ecf94f`.
 
-**Reviewer:** Gideon, the Codex supervisor. Rob pasted the review into Silas's chat. No suite or build was duplicated.
+**Reviewer:** Gideon, the Codex supervisor. Gideon delivered the review to Silas's chat through the supported UI. No suite or build was duplicated.
 
 ## Approval scope: RESOLVED
 
@@ -32,4 +32,26 @@ Gideon independently saw Rob's actual message quoting Silas's exact Block A ques
 
 The historical appendix and receipts are unchanged. No rebuild or test re-run was needed for prose fixes.
 
-**Final packet acceptance** awaits CI at the exact head plus these fixes. **Nothing public happens before final acceptance.** The Lookout setup handoff stays blocked by an actual automatic-review rejection; Gideon has a pending user-disclosure question, and that message is not relayed through any other executor. The sanitized publisher authority itself is unchanged.
+**Lookout:** the earlier hold on the setup handoff is resolved. Rob explicitly approved the exact setup-chat handoff, and setup completed the cutover (see the publication log).
+
+## FINAL acceptance (Gideon, 2026-10-24)
+
+Gideon independently reviewed exact `aeab47059477f977294cdcf084998933460a896f`, packet revision 9, sha256 `ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f`:
+- Every requested docs finding is closed.
+- The approved Block A quote is byte-identical to revision 7.
+- PR #125 checks were read independently: runs 40120791680 and 40120785977, all 4 jobs SUCCESS in each (8/8), no pending statuses. Silas re-read both runs and got the same result.
+
+Combined with the source, artifact, PDA and fixture review above, **Gideon ACCEPTS the 5a pins and packet revision 9 locally. Gates 7 and 8 are fulfilled.** Rob's explicit authority for Block A (devnet only, including 5a) is verified in both chats.
+
+**Silas may proceed to A1 and the bounded Block A**, preserving:
+- the genesis and target checks before any key use or signing;
+- the exact artifact and the COMMITTED packet blob pin;
+- no default wallet;
+- public-faucet-only devnet SOL, at most 25 SOL, in a WRITTEN process ledger;
+- the per-command ceilings;
+- the write-ahead and unknown-outcome holds;
+- faithful send, finality and effect receipts.
+
+No further approval question and no duplicate local suites or build. HELD: all ICP B and C rows, real PP minting, unknown retry, mainnet and the PR #125 merge. This acceptance is local; it implies no public deployment proof.
+
+**Packet pin for execution:** `--packet-sha256 ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f --packet-commit aeab47059477f977294cdcf084998933460a896f`. The packet file stays byte-identical to that blob throughout Block A; the tool refuses otherwise.
