@@ -22,6 +22,7 @@ import CycleManager "../observatory/types";
 import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
+import LedgerMemo "LedgerMemo";
 import Icrc21 "icrc21";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
@@ -1757,7 +1758,7 @@ persistent actor Self {
                 };
                 amount = amountUnits;
                 fee = ?0;
-                memo = ?Text.encodeUtf8("chip-deposit");
+                memo = ?LedgerMemo.ledgerMemo("chip-deposit");
                 created_at_time = ?nowNat64();
             });
             switch (res) {
@@ -1878,7 +1879,7 @@ persistent actor Self {
                 to = { owner = caller; subaccount = null };
                 amount = payable;
                 fee = ?0;
-                memo = ?Text.encodeUtf8("cash-out-" # Nat.toText(id));
+                memo = ?LedgerMemo.ledgerMemo("cash-out-" # Nat.toText(id));
                 created_at_time = ?nowNat64();
             });
             switch (res) {
@@ -2014,7 +2015,6 @@ persistent actor Self {
     /// Returns #Ok(blockIndex) or #Err(text).
     func mintInternal(player : Principal, amount : Nat, memoText : Text) : async { #Ok : Nat; #Err : Text } {
         if (amount == 0) { return #Ok(0) };
-        let memo = ?Text.encodeUtf8(memoText);
         try {
             let res = await ppLedger.icrc1_transfer({
                 from_subaccount = null;
@@ -2024,7 +2024,7 @@ persistent actor Self {
                 };
                 amount;
                 fee = null;
-                memo;
+                memo = ?LedgerMemo.ledgerMemo(memoText);
                 created_at_time = ?nowNat64();
             });
             switch (res) {
@@ -2073,7 +2073,7 @@ persistent actor Self {
                 to = { owner = Principal.fromActor(Self); subaccount = null };
                 amount = units;
                 fee = null;
-                memo = ?Text.encodeUtf8(memoText);
+                memo = ?LedgerMemo.ledgerMemo(memoText);
                 created_at_time = ?nowNat64();
             });
             switch (res) {
@@ -2097,7 +2097,7 @@ persistent actor Self {
                 };
                 amount = units;
                 fee = ?0;
-                memo = ?Text.encodeUtf8(memoText);
+                memo = ?LedgerMemo.ledgerMemo(memoText);
                 created_at_time = ?nowNat64();
             });
             switch (res) {
@@ -2232,7 +2232,7 @@ persistent actor Self {
                     };
                     amount = payout;
                     fee = ?0;
-                    memo = ?Text.encodeUtf8("kickup-A" # Nat.toText(activeRank) # "-" # eventId);
+                    memo = ?LedgerMemo.ledgerMemo("kickup-A" # Nat.toText(activeRank) # "-" # eventId);
                     created_at_time = ?nowNat64();
                 });
                 switch (res) {
@@ -2266,7 +2266,7 @@ persistent actor Self {
                     };
                     amount = remaining;
                     fee = ?0;
-                    memo = ?Text.encodeUtf8("kickup-residual-" # eventId);
+                    memo = ?LedgerMemo.ledgerMemo("kickup-residual-" # eventId);
                     created_at_time = ?nowNat64();
                 });
             } catch (_) {

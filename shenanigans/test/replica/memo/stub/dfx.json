@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "canisters": {
+    "memo_games_stub": {
+      "type": "motoko",
+      "main": "main.mo"
+    }
+  }
+}

@@ -1,0 +1,1354 @@
+{
+ "title": "PP-ledger 32-byte memo fix - local replica rehearsal",
+ "generated": "2026-10-24T04:35:11Z",
+ "network": "local (127.0.0.1:4943), dfx 0.29.2 pocket-ic",
+ "salt": "1792816227",
+ "canisters": {
+  "pp_ledger": "5xv2o-iiaaa-aaaac-qeclq-cai",
+  "shenanigans": "j56tm-oaaaa-aaaac-qf34q-cai",
+  "memo_games_stub": "vpyes-67777-77774-qaaeq-cai",
+  "admin_principal": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe"
+ },
+ "wasm": {
+  "prefix_sha256": "76a33c090ee5cd5920b8337dd6b37f1381782de7cfd0a3b6f726ffffb6e66da4",
+  "fixed_sha256": "6e8484963449612da6d57bc9472a682de8797a7058310561dc4838f5a119f7bb"
+ },
+ "event_ids": {
+  "gift_pre_fail": "signup-i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe",
+  "backer_pre_fail_79B": "backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-2.345678",
+  "backer_pre_fail_80B": "backer-fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe-12.345678",
+  "gift_post_ok": "signup-fsty4-yxarr-uiz34-aoi7g-66s2i-4mmjs-2igna-dhrai-dd3qu-lvzcy-uqe",
+  "backer_post_ok": "backer-q6lme-cj6wo-xurem-mrr53-vc3nr-2hp6w-j7w4h-44njd-6hwb5-ubl3f-yae-3.456789",
+  "phase4_p1_gift_commits_under": "signup-i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe",
+  "phase4_b1_topup": "backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-5.000000"
+ },
+ "principals": {
+  "P1_pre_gift_player": "i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe",
+  "B1_pre_backer_8char": "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+  "B2_pre_backer_9char": "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+  "P2_post_gift_player": "fsty4-yxarr-uiz34-aoi7g-66s2i-4mmjs-2igna-dhrai-dd3qu-lvzcy-uqe",
+  "B3_post_backer": "q6lme-cj6wo-xurem-mrr53-vc3nr-2hp6w-j7w4h-44njd-6hwb5-ubl3f-yae",
+  "PS_short": "xargz-gysks-zraou-s3yt5-jkcaj-zqgq2-y7yql-spgwu-upvh4-vmmqt-zae"
+ },
+ "balances_chip_units": {
+  "after_pre_fix": {
+   "P1_gift_player": 90000000000,
+   "B1": 0,
+   "B2": 0,
+   "PS_short": 100000000
+  },
+  "after_upgrade": {
+   "P1_gift_player": 90000000000,
+   "B1": 0,
+   "B2": 0,
+   "PS_short": 100000000
+  },
+  "after_fixed": {
+   "P1_gift_player": 90000000000,
+   "B1": 0,
+   "B2": 0,
+   "P2_gift_player": 135000000000,
+   "B3": 1244444040000,
+   "PS_short": 200000000
+  },
+  "after_phase4_observation": {
+   "P1_gift_player": 225000000000,
+   "B1": 955555920000,
+   "B2": 0
+  }
+ },
+ "ledger_blocks": {
+  "pre_fix_phase": [
+   {
+    "block": 109,
+    "op": "mint",
+    "amount": 100000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "1254b3103a92de27d4a8404e60686b1fc417279ad4a3ea7e558c84f202000000"
+    },
+    "from": null,
+    "memo_len": 10,
+    "memo_hex": "61646d696e2d6d696e74",
+    "memo_text": "admin-mint"
+   },
+   {
+    "block": 110,
+    "op": "mint",
+    "amount": 90000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "3666c5d873d3716aa27d6b501961f7d3d19e8d8352f80ef029c575af02000000"
+    },
+    "from": null,
+    "memo_len": 6,
+    "memo_hex": "67616d652d30",
+    "memo_text": "game-0"
+   },
+   {
+    "block": 111,
+    "op": "mint",
+    "amount": 10000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 23,
+    "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+    "memo_text": "cascade-residual-game-0"
+   }
+  ],
+  "fixed_phase": [
+   {
+    "block": 112,
+    "op": "mint",
+    "amount": 100000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "1254b3103a92de27d4a8404e60686b1fc417279ad4a3ea7e558c84f202000000"
+    },
+    "from": null,
+    "memo_len": 10,
+    "memo_hex": "61646d696e2d6d696e74",
+    "memo_text": "admin-mint"
+   },
+   {
+    "block": 113,
+    "op": "mint",
+    "amount": 45000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "e08c688cef80723e6f7a5a4718c4cb48334033c40818f70a2eb9162902000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "b7719ad9ac4a44b87c120387d92903ae0686db91daadcb9283e199f5259f9f5f",
+    "memo_text": null
+   },
+   {
+    "block": 114,
+    "op": "mint",
+    "amount": 5000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "fa814dd2cf6b68afadaeacbce9f438f62f4c6fb1659c102b808ed52d61ac96ab",
+    "memo_text": null
+   },
+   {
+    "block": 115,
+    "op": "mint",
+    "amount": 90000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "e08c688cef80723e6f7a5a4718c4cb48334033c40818f70a2eb9162902000000"
+    },
+    "from": null,
+    "memo_len": 6,
+    "memo_hex": "67616d652d31",
+    "memo_text": "game-1"
+   },
+   {
+    "block": 116,
+    "op": "mint",
+    "amount": 10000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 23,
+    "memo_hex": "636173636164652d726573696475616c2d67616d652d31",
+    "memo_text": "cascade-residual-game-1"
+   },
+   {
+    "block": 117,
+    "op": "mint",
+    "amount": 1244444040000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "3eb3af48918c8c7bba8b6d8e8eff593fb70fce3523f1ec1ed02bd97002000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "63380087651519f1501d65cd17a31069c9d16a820b605d6a70dc3596a92e9822",
+    "memo_text": null
+   },
+   {
+    "block": 118,
+    "op": "mint",
+    "amount": 138271560000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "73668f0c752d4dc76426a6634cdc373312134953098d0f6a4f2787a51c69247f",
+    "memo_text": null
+   }
+  ],
+  "phase4_observation": [
+   {
+    "block": 119,
+    "op": "mint",
+    "amount": 45000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "3666c5d873d3716aa27d6b501961f7d3d19e8d8352f80ef029c575af02000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "b25a3ec4a018cf0423992de503c20ab43571e9bb544a3a25917932ae3d889ac4",
+    "memo_text": null
+   },
+   {
+    "block": 120,
+    "op": "mint",
+    "amount": 5000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "2b4475d633e80369f5c2c08a3d285a81a3ab94a636ec176014c246c7aea94d2e",
+    "memo_text": null
+   },
+   {
+    "block": 121,
+    "op": "mint",
+    "amount": 90000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "3666c5d873d3716aa27d6b501961f7d3d19e8d8352f80ef029c575af02000000"
+    },
+    "from": null,
+    "memo_len": 6,
+    "memo_hex": "67616d652d32",
+    "memo_text": "game-2"
+   },
+   {
+    "block": 122,
+    "op": "mint",
+    "amount": 10000000000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 23,
+    "memo_hex": "636173636164652d726573696475616c2d67616d652d32",
+    "memo_text": "cascade-residual-game-2"
+   },
+   {
+    "block": 123,
+    "op": "mint",
+    "amount": 955555920000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "c6e50f69c8953d4bf11c963a4287e832663a097389eb67f84c4d373102000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "2f112112589d4e9223b0053db03247ceb437865d476cfce4c77d34295c7cca2b",
+    "memo_text": null
+   },
+   {
+    "block": 124,
+    "op": "mint",
+    "amount": 106172880000,
+    "to": {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000"
+    },
+    "from": null,
+    "memo_len": 32,
+    "memo_hex": "cb2d26a12d131a02a39f0f53fd7aac68b82bbc7b52aebda12716408bb1fcbfef",
+    "memo_text": null
+   }
+  ]
+ },
+ "observations": [
+  {
+   "id": "OBS-env",
+   "observed": "replica state at start",
+   "data": {
+    "pp_ledger_status": "Running",
+    "pp_ledger_module_hash": "0x24e6b0b09ba44b1123453877994bb59ce75555c2e33f19f58163a3e0c6e62bd1",
+    "ledger_chain_length": 109,
+    "admin_principal": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+    "total_supply": "154_303_560_000_000"
+   }
+  },
+  {
+   "id": "OBS-wasm",
+   "observed": "wasm artifacts",
+   "data": {
+    "prefix_wasm": "shenanigans/test/replica/memo/artifacts/shenanigans-prefix-main-ee9a402.wasm",
+    "prefix_sha256": "76a33c090ee5cd5920b8337dd6b37f1381782de7cfd0a3b6f726ffffb6e66da4",
+    "fixed_wasm": "shenanigans/test/replica/memo/artifacts/shenanigans-fixed.wasm",
+    "fixed_sha256": "6e8484963449612da6d57bc9472a682de8797a7058310561dc4838f5a119f7bb"
+   }
+  },
+  {
+   "id": "OBS-stub",
+   "observed": "ponzi_math stand-in canister",
+   "data": {
+    "id": "vpyes-67777-77774-qaaeq-cai"
+   }
+  },
+  {
+   "id": "OBS-pre-logs-tick1",
+   "observed": "canister log lines after tick 1 (Debug.print is the only record of a failed signup gift)",
+   "data": [
+    "[93. 2026-10-24T04:32:26.713936Z]: Signup-gift mint failed for signup-i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 70 bytes is above the allowed limit of 32 bytes'.",
+    "[94. 2026-10-24T04:32:28.422612Z]: Backer mint attempt 1/10 failed for backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-2.345678: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.",
+    "[95. 2026-10-24T04:32:28.422612Z]: Backer mint attempt 1/10 failed for backer-fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe-12.345678: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'."
+   ]
+  },
+  {
+   "id": "OBS-pre-missed",
+   "observed": "missedBackerMints (owner, error text)",
+   "data": [
+    [
+     "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ],
+    [
+     "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ]
+   ]
+  },
+  {
+   "id": "OBS-post-status",
+   "observed": "observer status after phase 3",
+   "data": {
+    "backerSeenCount": "3",
+    "gameIdCursor": "2",
+    "intervalSeconds": "10",
+    "missedBackerMintsCount": "2",
+    "missedGameMintsCount": "0",
+    "ponziMathSolPrincipal": [],
+    "running": false,
+    "solBackerSeenCount": "0",
+    "solGameIdCursor": "0"
+   }
+  },
+  {
+   "id": "OBS-phase4",
+   "observed": "unchanged-observer behaviour after the fix",
+   "data": {
+    "p1_gift_event_id": "signup-i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe",
+    "b1_topup_event_id": "backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-5.000000",
+    "balances": {
+     "P1_gift_player": 225000000000,
+     "B1": 955555920000,
+     "B2": 0
+    }
+   }
+  }
+ ],
+ "checks": [
+  {
+   "id": "PRE-1",
+   "check": "real pp_ledger advertises icrc1:max_memo_length = 32",
+   "pass": true,
+   "detail": 32
+  },
+  {
+   "id": "PRE-2",
+   "check": "pp_ledger minting account is the Shenanigans canister id (every shenanigans transfer from null subaccount is a mint)",
+   "pass": true,
+   "detail": [
+    {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": []
+    }
+   ]
+  },
+  {
+   "id": "PRE-3",
+   "check": "pre-fix and fixed wasm differ",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "PRE-4",
+   "check": "test principals are 63 chars",
+   "pass": true,
+   "detail": [
+    63,
+    63,
+    63,
+    63,
+    63,
+    63
+   ]
+  },
+  {
+   "id": "P1-0",
+   "check": "installed module hash == sha256(pre-fix wasm)",
+   "pass": true,
+   "detail": [
+    "0x76a33c090ee5cd5920b8337dd6b37f1381782de7cfd0a3b6f726ffffb6e66da4",
+    "76a33c090ee5cd5920b8337dd6b37f1381782de7cfd0a3b6f726ffffb6e66da4"
+   ]
+  },
+  {
+   "id": "P1-1",
+   "check": "pre-fix event-id lengths reproduce the live shapes (gift 70 B; backers 79 / 80 B)",
+   "pass": true,
+   "detail": [
+    70,
+    79,
+    80
+   ]
+  },
+  {
+   "id": "P1-2",
+   "check": "pre-fix: signup-gift mint failed with the ledger's memo trap (IC0503 / 32-byte limit)",
+   "pass": true,
+   "detail": [
+    "[93. 2026-10-24T04:32:26.713936Z]: Signup-gift mint failed for signup-i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 70 bytes is above the allowed limit of 32 bytes'.",
+    "[94. 2026-10-24T04:32:28.422612Z]: Backer mint attempt 1/10 failed for backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-2.345678: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.",
+    "[95. 2026-10-24T04:32:28.422612Z]: Backer mint attempt 1/10 failed for backer-fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe-12.345678: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'."
+   ]
+  },
+  {
+   "id": "P1-3",
+   "check": "pre-fix: after 10 ticks both backers are in missedBackerMints with the IC0503 memo-size error",
+   "pass": true,
+   "detail": [
+    [
+     "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ],
+    [
+     "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ]
+   ]
+  },
+  {
+   "id": "P1-4",
+   "check": "pre-fix: P1 holds only its game mint (no 500 PP gift), B1/B2 hold nothing",
+   "pass": true,
+   "detail": {
+    "P1_gift_player": 90000000000,
+    "B1": 0,
+    "B2": 0,
+    "PS_short": 100000000
+   }
+  },
+  {
+   "id": "P1-5",
+   "check": "pre-fix: no ledger block carries a signup-/backer-/cascade-*signup/backer memo (nothing committed for the long ids)",
+   "pass": true,
+   "detail": [
+    "admin-mint",
+    "game-0",
+    "cascade-residual-game-0"
+   ]
+  },
+  {
+   "id": "P1-6",
+   "check": "pre-fix: short memos commit as raw UTF-8 (admin-mint, game-0, cascade-residual-game-0)",
+   "pass": true,
+   "detail": [
+    "admin-mint",
+    "game-0",
+    "cascade-residual-game-0"
+   ]
+  },
+  {
+   "id": "P2-1",
+   "check": "installed module hash == sha256(fixed wasm) and the canister is running",
+   "pass": true,
+   "detail": [
+    "Running",
+    "0x6e8484963449612da6d57bc9472a682de8797a7058310561dc4838f5a119f7bb"
+   ]
+  },
+  {
+   "id": "P2-2",
+   "check": "stuck state survived the upgrade: same missedBackerMints entries, cursors and seen-count",
+   "pass": true,
+   "detail": [
+    [
+     "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ],
+    [
+     "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ]
+   ]
+  },
+  {
+   "id": "P2-3",
+   "check": "Candid service interface is unchanged by the fix",
+   "pass": true,
+   "detail": [
+    16920,
+    16920
+   ]
+  },
+  {
+   "id": "P2-4",
+   "check": "balances unchanged across the upgrade",
+   "pass": true,
+   "detail": {
+    "P1_gift_player": 90000000000,
+    "B1": 0,
+    "B2": 0,
+    "PS_short": 100000000
+   }
+  },
+  {
+   "id": "P3-1",
+   "check": "NEW signup gift committed on the first try: 1 mint, 45_000_000_000 units to chip(P2), 32-byte memo == sha256('signup-'+P2)",
+   "pass": true,
+   "detail": [
+    {
+     "block": 113,
+     "op": "mint",
+     "amount": 45000000000,
+     "to": {
+      "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+      "subaccount": "e08c688cef80723e6f7a5a4718c4cb48334033c40818f70a2eb9162902000000"
+     },
+     "from": null,
+     "memo_len": 32,
+     "memo_hex": "b7719ad9ac4a44b87c120387d92903ae0686db91daadcb9283e199f5259f9f5f",
+     "memo_text": null
+    }
+   ]
+  },
+  {
+   "id": "P3-2",
+   "check": "NEW backer mint committed on the first try: 1 mint of the net delta to chip(B3), 32-byte memo == sha256(backer event id)",
+   "pass": true,
+   "detail": [
+    "backer-q6lme-cj6wo-xurem-mrr53-vc3nr-2hp6w-j7w4h-44njd-6hwb5-ubl3f-yae-3.456789",
+    [
+     {
+      "block": 117,
+      "op": "mint",
+      "amount": 1244444040000,
+      "to": {
+       "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+       "subaccount": "3eb3af48918c8c7bba8b6d8e8eff593fb70fce3523f1ec1ed02bd97002000000"
+      },
+      "from": null,
+      "memo_len": 32,
+      "memo_hex": "63380087651519f1501d65cd17a31069c9d16a820b605d6a70dc3596a92e9822",
+      "memo_text": null
+     }
+    ],
+    1244444040000
+   ]
+  },
+  {
+   "id": "P3-3",
+   "check": "cascade legs commit too: cascade-residual-signup-P2 and cascade-residual-backer-... (both > 32 B -> hashed 32 B) and cascade-residual-game-1 (short, raw)",
+   "pass": true,
+   "detail": {
+    "cascade-residual-signup-fsty4-yxarr-uiz34-aoi7g-": {
+     "event_id_bytes": 87,
+     "block": 114,
+     "memo_len": 32,
+     "amount": 5000000000
+    },
+    "cascade-residual-game-1": {
+     "event_id_bytes": 23,
+     "block": 116,
+     "memo_len": 23,
+     "amount": 10000000000
+    },
+    "cascade-residual-backer-q6lme-cj6wo-xurem-mrr53-": {
+     "event_id_bytes": 96,
+     "block": 118,
+     "memo_len": 32,
+     "amount": 138271560000
+    }
+   }
+  },
+  {
+   "id": "P3-4",
+   "check": "game mint memo is unchanged raw UTF-8 'game-1'",
+   "pass": true,
+   "detail": [
+    {
+     "block": 115,
+     "op": "mint",
+     "amount": 90000000000,
+     "to": {
+      "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+      "subaccount": "e08c688cef80723e6f7a5a4718c4cb48334033c40818f70a2eb9162902000000"
+     },
+     "from": null,
+     "memo_len": 6,
+     "memo_hex": "67616d652d31",
+     "memo_text": "game-1"
+    }
+   ]
+  },
+  {
+   "id": "P3-5",
+   "check": "admin-mint memo bytes identical before and after the fix",
+   "pass": true,
+   "detail": [
+    [
+     {
+      "block": 109,
+      "op": "mint",
+      "amount": 100000000,
+      "to": {
+       "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+       "subaccount": "1254b3103a92de27d4a8404e60686b1fc417279ad4a3ea7e558c84f202000000"
+      },
+      "from": null,
+      "memo_len": 10,
+      "memo_hex": "61646d696e2d6d696e74",
+      "memo_text": "admin-mint"
+     }
+    ],
+    [
+     {
+      "block": 112,
+      "op": "mint",
+      "amount": 100000000,
+      "to": {
+       "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+       "subaccount": "1254b3103a92de27d4a8404e60686b1fc417279ad4a3ea7e558c84f202000000"
+      },
+      "from": null,
+      "memo_len": 10,
+      "memo_hex": "61646d696e2d6d696e74",
+      "memo_text": "admin-mint"
+     }
+    ]
+   ]
+  },
+  {
+   "id": "P3-6",
+   "check": "no block committed by the fixed build has a memo above 32 bytes",
+   "pass": true,
+   "detail": [
+    10,
+    32,
+    32,
+    6,
+    23,
+    32,
+    32
+   ]
+  },
+  {
+   "id": "P3-7",
+   "check": "the earlier failed entries remain recorded exactly as they were (this change does not re-credit them)",
+   "pass": true,
+   "detail": [
+    [
+     "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ],
+    [
+     "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ]
+   ]
+  },
+  {
+   "id": "P3-8",
+   "check": "balances: P2 = gift + game net; B3 = backer net; P1/B1/B2 unchanged (still no gift / backer PP)",
+   "pass": true,
+   "detail": {
+    "P1_gift_player": 90000000000,
+    "B1": 0,
+    "B2": 0,
+    "P2_gift_player": 135000000000,
+    "B3": 1244444040000,
+    "PS_short": 200000000
+   }
+  },
+  {
+   "id": "P3-9",
+   "check": "a second observer tick adds no ledger block (mintedEventIds / cursors / backerSeen hold)",
+   "pass": true,
+   "detail": [
+    119,
+    119
+   ]
+  },
+  {
+   "id": "P3-10",
+   "check": "no 'failed' log line for the new gift or the new backer",
+   "pass": true,
+   "detail": []
+  },
+  {
+   "id": "P4-1",
+   "check": "OBSERVED: the unchanged observer commits P1's lost gift at P1's NEXT qualifying game, under the ORIGINAL event id 'signup-'+P1 (32-byte memo)",
+   "pass": true,
+   "detail": [
+    {
+     "block": 119,
+     "op": "mint",
+     "amount": 45000000000,
+     "to": {
+      "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+      "subaccount": "3666c5d873d3716aa27d6b501961f7d3d19e8d8352f80ef029c575af02000000"
+     },
+     "from": null,
+     "memo_len": 32,
+     "memo_hex": "b25a3ec4a018cf0423992de503c20ab43571e9bb544a3a25917932ae3d889ac4",
+     "memo_text": null
+    }
+   ]
+  },
+  {
+   "id": "P4-2",
+   "check": "OBSERVED: B1's top-up mints ONLY the new delta (5.0 - 2.345678) under a NEW event id; the lost 2.345678 is not re-presented",
+   "pass": true,
+   "detail": [
+    "backer-k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe-5.000000",
+    [
+     {
+      "block": 123,
+      "op": "mint",
+      "amount": 955555920000,
+      "to": {
+       "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+       "subaccount": "c6e50f69c8953d4bf11c963a4287e832663a097389eb67f84c4d373102000000"
+      },
+      "from": null,
+      "memo_len": 32,
+      "memo_hex": "2f112112589d4e9223b0053db03247ceb437865d476cfce4c77d34295c7cca2b",
+      "memo_text": null
+     }
+    ],
+    955555920000
+   ]
+  },
+  {
+   "id": "P4-3",
+   "check": "OBSERVED: missedBackerMints still lists B1 and B2 unchanged (entries are never cleared or retried by the observer)",
+   "pass": true,
+   "detail": [
+    [
+     "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ],
+    [
+     "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    ]
+   ]
+  },
+  {
+   "id": "P4-4",
+   "check": "OBSERVED: B2 (no top-up) is still at zero; P1 now holds game-0 + gift + game-2",
+   "pass": true,
+   "detail": {
+    "P1_gift_player": 225000000000,
+    "B1": 955555920000,
+    "B2": 0
+   }
+  }
+ ],
+ "failed": [],
+ "steps": [
+  {
+   "step": "pp_ledger.icrc1_metadata",
+   "canister": "5xv2o-iiaaa-aaaac-qeclq-cai",
+   "method": "icrc1_metadata",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "0": "icrc1:decimals",
+     "1": {
+      "Nat": "8"
+     }
+    },
+    {
+     "0": "icrc1:name",
+     "1": {
+      "Text": "Ponzi Points"
+     }
+    },
+    {
+     "0": "icrc1:symbol",
+     "1": {
+      "Text": "PP"
+     }
+    },
+    {
+     "0": "icrc1:fee",
+     "1": {
+      "Nat": "0"
+     }
+    },
+    {
+     "0": "icrc1:max_memo_length",
+     "1": {
+      "Nat": "32"
+     }
+    },
+    {
+     "0": "icrc103:public_allowances",
+     "1": {
+      "Text": "true"
+     }
+    },
+    {
+     "0": "icrc103:max_take_value",
+     "1": {
+      "Nat": "500"
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.88,
+   "n": 1,
+   "t": "2026-10-24T04:30:32Z"
+  },
+  {
+   "step": "pp_ledger.icrc1_minting_account",
+   "canister": "5xv2o-iiaaa-aaaac-qeclq-cai",
+   "method": "icrc1_minting_account",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": []
+    }
+   ],
+   "error": null,
+   "seconds": 2.03,
+   "n": 2,
+   "t": "2026-10-24T04:30:34Z"
+  },
+  {
+   "step": "pp_ledger.icrc1_total_supply",
+   "canister": "5xv2o-iiaaa-aaaac-qeclq-cai",
+   "method": "icrc1_total_supply",
+   "arg": "()",
+   "ok": true,
+   "reply": "154_303_560_000_000",
+   "error": null,
+   "seconds": 1.13,
+   "n": 3,
+   "t": "2026-10-24T04:30:38Z"
+  },
+  {
+   "step": "dfx build shenanigans (fixed)",
+   "dfx": "build shenanigans",
+   "cwd": "/Users/robertripley/.codex/worktrees/pp-memo-hotfix",
+   "ok": true,
+   "output": "Building canister 'shenanigans'.\nWARN: /Users/robertripley/.codex/worktrees/pp-memo-hotfix/shenanigans/main.mo:3438.46-3438.59: warning [M0155], operator may trap for inferred type\n  Nat\n/Users/robertripley/.codex/worktrees/pp-memo-hotfix/shenanigans/main.mo:3920.34-3920.54: warning [M0155], operator may trap for inferred type\n  Nat\n\nFinished building canisters.",
+   "seconds": 66.51,
+   "n": 4,
+   "t": "2026-10-24T04:31:45Z"
+  },
+  {
+   "step": "deploy memo_games_stub",
+   "dfx": "deploy memo_games_stub",
+   "cwd": "/Users/robertripley/.codex/worktrees/pp-memo-hotfix/shenanigans/test/replica/memo/stub",
+   "ok": true,
+   "output": "Deploying: memo_games_stub\nAll canisters have already been created.\nBuilding canister 'memo_games_stub'.\nModule hash 80d35d9be0f6316c48d385f404c4eb180808d5e0aa45973ee65ef33024fae2cf is already installed.\nUpgraded code for canister memo_games_stub, with canister ID vpyes-67777-77774-qaaeq-cai\nDeployed canisters.\nURLs:\n  Backend canister via Candid interface:\n    memo_games_stub: http://127.0.0.1:4943/?canisterId=vg3po-ix777-77774-qaafa-cai&id=vpyes-67777-77774-qaaeq-cai",
+   "seconds": 13.8,
+   "n": 5,
+   "t": "2026-10-24T04:31:59Z"
+  },
+  {
+   "step": "install pre-fix (reinstall)",
+   "dfx": "canister install j56tm-oaaaa-aaaac-qf34q-cai --mode reinstall --yes --wasm /Users/robertripley/.codex/worktrees/pp-memo-hotfix/shenanigans/test/replica/memo/artifacts/shenanigans-prefix-main-ee9a402.wasm",
+   "cwd": "/Users/robertripley/.codex/worktrees/pp-memo-hotfix",
+   "ok": true,
+   "output": "Reinstalled code for canister j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.08,
+   "n": 6,
+   "t": "2026-10-24T04:32:01Z"
+  },
+  {
+   "step": "PRE-FIX initialize",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "initialize",
+   "arg": "(principal \"vpyes-67777-77774-qaaeq-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.52,
+   "n": 7,
+   "t": "2026-10-24T04:32:06Z"
+  },
+  {
+   "step": "PRE-FIX seedMigrationV2",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "seedMigrationV2",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.14,
+   "n": 8,
+   "t": "2026-10-24T04:32:10Z"
+  },
+  {
+   "step": "PRE-FIX stopObserver",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.92,
+   "n": 9,
+   "t": "2026-10-24T04:32:12Z"
+  },
+  {
+   "step": "PRE-FIX adminMint(short memo site)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "adminMint",
+   "arg": "(principal \"xargz-gysks-zraou-s3yt5-jkcaj-zqgq2-y7yql-spgwu-upvh4-vmmqt-zae\", 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Ok": "109"
+   },
+   "error": null,
+   "seconds": 2.9,
+   "n": 10,
+   "t": "2026-10-24T04:32:17Z"
+  },
+  {
+   "step": "stub.setGames",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setGames",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 0 : int; isCompounding = false; isActive = true; lastUpdateTime = 0 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.38,
+   "n": 11,
+   "t": "2026-10-24T04:32:20Z"
+  },
+  {
+   "step": "stub.setBackers",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setBackers",
+   "arg": "(vec { record { owner = principal \"k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe\"; amount = 2.345678 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null }; record { owner = principal \"fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe\"; amount = 12.345678 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.6,
+   "n": 12,
+   "t": "2026-10-24T04:32:23Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 1",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.81,
+   "n": 13,
+   "t": "2026-10-24T04:32:29Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 2",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.55,
+   "n": 14,
+   "t": "2026-10-24T04:32:35Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 3",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.07,
+   "n": 15,
+   "t": "2026-10-24T04:32:39Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 4",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.66,
+   "n": 16,
+   "t": "2026-10-24T04:32:43Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 5",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.17,
+   "n": 17,
+   "t": "2026-10-24T04:32:47Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 6",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.26,
+   "n": 18,
+   "t": "2026-10-24T04:32:51Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 7",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.01,
+   "n": 19,
+   "t": "2026-10-24T04:32:56Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 8",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.74,
+   "n": 20,
+   "t": "2026-10-24T04:33:02Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 9",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.28,
+   "n": 21,
+   "t": "2026-10-24T04:33:06Z"
+  },
+  {
+   "step": "PRE-FIX observer tick 10",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.23,
+   "n": 22,
+   "t": "2026-10-24T04:33:11Z"
+  },
+  {
+   "step": "getMissedBackerMints",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getMissedBackerMints",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "0": "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    },
+    {
+     "0": "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    }
+   ],
+   "error": null,
+   "seconds": 1.9,
+   "n": 23,
+   "t": "2026-10-24T04:33:13Z"
+  },
+  {
+   "step": "getObserverStatus",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getObserverStatus",
+   "arg": "()",
+   "ok": true,
+   "reply": {
+    "backerSeenCount": "2",
+    "gameIdCursor": "1",
+    "intervalSeconds": "10",
+    "missedBackerMintsCount": "2",
+    "missedGameMintsCount": "0",
+    "ponziMathSolPrincipal": [],
+    "running": false,
+    "solBackerSeenCount": "0",
+    "solGameIdCursor": "0"
+   },
+   "error": null,
+   "seconds": 1.95,
+   "n": 24,
+   "t": "2026-10-24T04:33:15Z"
+  },
+  {
+   "step": "install fixed (upgrade, keep)",
+   "dfx": "canister install j56tm-oaaaa-aaaac-qf34q-cai --mode upgrade --wasm-memory-persistence keep --yes --wasm /Users/robertripley/.codex/worktrees/pp-memo-hotfix/shenanigans/test/replica/memo/artifacts/shenanigans-fixed.wasm",
+   "cwd": "/Users/robertripley/.codex/worktrees/pp-memo-hotfix",
+   "ok": true,
+   "output": "Upgraded code for canister j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 5.45,
+   "n": 25,
+   "t": "2026-10-24T04:33:36Z"
+  },
+  {
+   "step": "getMissedBackerMints",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getMissedBackerMints",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "0": "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    },
+    {
+     "0": "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    }
+   ],
+   "error": null,
+   "seconds": 2.5,
+   "n": 26,
+   "t": "2026-10-24T04:33:42Z"
+  },
+  {
+   "step": "getObserverStatus",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getObserverStatus",
+   "arg": "()",
+   "ok": true,
+   "reply": {
+    "backerSeenCount": "2",
+    "gameIdCursor": "1",
+    "intervalSeconds": "10",
+    "missedBackerMintsCount": "2",
+    "missedGameMintsCount": "0",
+    "ponziMathSolPrincipal": [],
+    "running": true,
+    "solBackerSeenCount": "0",
+    "solGameIdCursor": "0"
+   },
+   "error": null,
+   "seconds": 3.26,
+   "n": 27,
+   "t": "2026-10-24T04:33:45Z"
+  },
+  {
+   "step": "FIXED stopObserver (no timer survives an upgrade; belt and braces)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.64,
+   "n": 28,
+   "t": "2026-10-24T04:33:50Z"
+  },
+  {
+   "step": "FIXED adminMint(short memo site)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "adminMint",
+   "arg": "(principal \"xargz-gysks-zraou-s3yt5-jkcaj-zqgq2-y7yql-spgwu-upvh4-vmmqt-zae\", 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Ok": "112"
+   },
+   "error": null,
+   "seconds": 2.92,
+   "n": 29,
+   "t": "2026-10-24T04:34:04Z"
+  },
+  {
+   "step": "stub.setGames",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setGames",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 0 : int; isCompounding = false; isActive = true; lastUpdateTime = 0 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 }; record { id = 1 : nat; player = principal \"fsty4-yxarr-uiz34-aoi7g-66s2i-4mmjs-2igna-dhrai-dd3qu-lvzcy-uqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 0 : int; isCompounding = false; isActive = true; lastUpdateTime = 0 : int; accumulatedEarning...(654 chars)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.77,
+   "n": 30,
+   "t": "2026-10-24T04:34:07Z"
+  },
+  {
+   "step": "stub.setBackers",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setBackers",
+   "arg": "(vec { record { owner = principal \"k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe\"; amount = 2.345678 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null }; record { owner = principal \"fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe\"; amount = 12.345678 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null }; record { owner = principal \"q6lme-cj6wo-xurem-mrr53-vc3nr-2hp6w-j7w4h-44njd-6hwb5-ubl3f-ya...(762 chars)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.66,
+   "n": 31,
+   "t": "2026-10-24T04:34:10Z"
+  },
+  {
+   "step": "FIXED observer tick 1 (new gift for P2, new backer B3; P1/B1/B2 have no new event)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.65,
+   "n": 32,
+   "t": "2026-10-24T04:34:14Z"
+  },
+  {
+   "step": "getMissedBackerMints",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getMissedBackerMints",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "0": "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    },
+    {
+     "0": "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    }
+   ],
+   "error": null,
+   "seconds": 1.44,
+   "n": 33,
+   "t": "2026-10-24T04:34:21Z"
+  },
+  {
+   "step": "FIXED observer tick 2 (nothing new -> nothing minted)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.08,
+   "n": 34,
+   "t": "2026-10-24T04:34:42Z"
+  },
+  {
+   "step": "getObserverStatus",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getObserverStatus",
+   "arg": "()",
+   "ok": true,
+   "reply": {
+    "backerSeenCount": "3",
+    "gameIdCursor": "2",
+    "intervalSeconds": "10",
+    "missedBackerMintsCount": "2",
+    "missedGameMintsCount": "0",
+    "ponziMathSolPrincipal": [],
+    "running": false,
+    "solBackerSeenCount": "0",
+    "solGameIdCursor": "0"
+   },
+   "error": null,
+   "seconds": 1.38,
+   "n": 35,
+   "t": "2026-10-24T04:34:47Z"
+  },
+  {
+   "step": "stub.setGames",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setGames",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"i2oqn-bzwm3-c5q46-tofvk-e7llk-amwd5-6t2gp-i3a2s-7ahpa-kofow-xqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 0 : int; isCompounding = false; isActive = true; lastUpdateTime = 0 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 }; record { id = 1 : nat; player = principal \"fsty4-yxarr-uiz34-aoi7g-66s2i-4mmjs-2igna-dhrai-dd3qu-lvzcy-uqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 0 : int; isCompounding = false; isActive = true; lastUpdateTime = 0 : int; accumulatedEarning...(977 chars)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.93,
+   "n": 36,
+   "t": "2026-10-24T04:34:52Z"
+  },
+  {
+   "step": "stub.setBackers",
+   "canister": "vpyes-67777-77774-qaaeq-cai",
+   "method": "setBackers",
+   "arg": "(vec { record { owner = principal \"k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe\"; amount = 5.0 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null }; record { owner = principal \"fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe\"; amount = 12.345678 : float64; entitlement = 0.0 : float64; startTime = 0 : int; isActive = true; backerType = variant { seriesA }; firstDepositDate = null }; record { owner = principal \"q6lme-cj6wo-xurem-mrr53-vc3nr-2hp6w-j7w4h-44njd-6hwb5-ubl3f-yae\"; a...(757 chars)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.37,
+   "n": 37,
+   "t": "2026-10-24T04:34:55Z"
+  },
+  {
+   "step": "FIXED observer tick 3 (P1 plays again; B1 tops up 2.345678 -> 5.0)",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.4,
+   "n": 38,
+   "t": "2026-10-24T04:34:59Z"
+  },
+  {
+   "step": "getMissedBackerMints",
+   "canister": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getMissedBackerMints",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "0": "fq2p4-zqydr-xb2wh-j2vry-wfsr5-w2ota-uezku-imlwr-r7m5w-pr6c4-lqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 80 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    },
+    {
+     "0": "k272j-uog4u-hwtse-vhvf7-chewh-jbip2-bsmy5-as44j-5nt7q-tcng4-yqe",
+     "1": "ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 79 bytes is above the allowed limit of 32 bytes'.\nConsider gracefully handling failures from this canister or altering the canister to handle exceptions. See documentation: https://internetcomputer.org/docs/current/references/execution-errors#trapped-explicitly"
+    }
+   ],
+   "error": null,
+   "seconds": 2.14,
+   "n": 39,
+   "t": "2026-10-24T04:35:06Z"
+  }
+ ],
+ "not_proven": [
+  "Mainnet behaviour (no mainnet call was made; the local pp_ledger is the same release but not the mainnet instance).",
+  "Short-memo call sites other than admin-mint / game-N / cascade-residual-game-N were not exercised live (chip-deposit, cash-out-N, spell-N, backfire-N, cast-N, karma-*, kickup-A<rank>-chipdep-N, siphon-*): covered by memo-static.test.sh (every site routed through ledgerMemo) and ledger-memo.test.mo (byte-identical for <= 32 B).",
+  "An upline-ranked cascade leg (cascade-A<rank>-signup-...) was not exercised: the rehearsal upline is the inactive house, so the leg is cascade-residual-...; same code path (mintWithEffects -> mintInternal -> ledgerMemo).",
+  "No recovery of earlier failures is performed or proven (scope: fix only). P1's lost gift and B1/B2's lost backer mints stay recorded as before."
+ ],
+ "all_passed": true
+}
