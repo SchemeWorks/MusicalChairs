@@ -12,6 +12,47 @@ Date 2026-10-23. Branch `codex/native-solana-production-core`, head `2f031cc`; r
 
 **Revision 2 (M14-PKT-R, 2026-10-23)** applies Codex's four corrections. (1) Keeper durations are stated in nanoseconds, the C2 arming window is exact with hard caps (4f), and B1/B2/B4 carry single hard approval ceilings (4d). (2) RG-2 and RG-13 cite the accepted criterion (ELF hash equality, source-set equality, the accepted receipts) and call for a rebuild only on a concrete changed-source concern; the durable ELF copy is recorded. (3) RG-4/5/6 point at the owned local cards M14-PRE-ORAO and M14-PRE-SQUADS, separating optional preflight hardening from the required real devnet acceptance, and Block A is not gated on any ICP item. (4) Missing inputs are cut to four decisions plus defaults (9), the program-key wording is corrected with a fresh program-id envelope (5a), and the six-week calendar is validated from source with acceptance-preserving sequencing (6.4).
 
+## 0. Revision 4: status and the one recommended path (2026-10-23)
+
+**Recommendation: one bounded, Solana-devnet-first path.** Approve **Block A only**: devnet, test keys, public-faucet SOL, at most 25 devnet SOL, using the mechanical defaults D1–D13. Run it as the committed Seq-B plan. Hold every ICP deployment and upgrade (B1–B4), every activation (C1, C2) and any real PP minting (C3) until they are approved separately.
+
+**The smallest genuinely required authority decision:**
+1. **Approve Block A on devnet.** In order:
+   - Fresh devnet keys, generated and held by the coordinator for test use only.
+   - Public-faucet devnet SOL, within the 25 SOL cap.
+   - Deploy the pinned ELF with the operator tool, then move the upgrade authority to the G vault.
+   - Real Squads G (2-of-3, 172,800 s) and P (2-of-3, 0 s).
+   - `initialize` and ORAO `register` through G.
+   - The 41.5-day Seq-B flow plan.
+   - The deployed-byte proof and conservation reconciles.
+2. **Say whether anyone holds the key for program id `7tj9…`.** If nobody does, the fresh devnet program-id envelope (5a) is used. Its source/IDL/PDA re-pinning and the normal local re-review happen BEFORE any devnet transaction, and need no further approval.
+
+**Ready now (local evidence, no public action):**
+
+| item | status | evidence |
+| --- | --- | --- |
+| Candidate pins | ELF `8f97e83d…` and source set `994a9ff4…` still equal the accepted pins; a durable ELF copy is verified | 5 (RG-2), `~/.cache/mc-solana-artifacts/` |
+| RG-5 devnet ORAO binary | PASS, 10/10 close-suite flows on the exact devnet binary (LiteSVM) | `docs/solana/evidence/2026-10-23-m14-preflight/` |
+| RG-6 real Squads v4 | PASS, 12/12; real Squads forwards the external sponsor signer, so `initialize` runs through a real vault transaction | same |
+| RG-4 operator tool `devnet_ops` | PASS. LiteSVM, gate and pin tests: 18/18. Loopback-validator lifecycle with the real Squads and devnet ORAO binaries: real `multisig_create_v2`, real loader-v3 deploy, SetAuthority to the G vault, `verify-bytes`, idempotent re-run | `docs/solana/devnet-ops.md`; same evidence dir |
+| RG-7 flow plan | PASS. The 39-step Seq-B plan reached all 15 flow codes in clock-warped LiteSVM on the devnet ORAO binary, with conservation checked after every step | `docs/solana/m14-flow-plan.md`; `m14-flow-report.json` |
+| Agave validator (for local checks only) | re-provisioned to `~/.cache/mc-solana-tools/agave/`, sha256 `de9be527…` OK | evidence NOTES.md |
+
+**Conditions carried into execution (enforced by the tool, not by hand):**
+- **Packet size.** `vault_transaction_create` fits the 1,232-byte packet only when the proposer is also the fee payer: measured 1,140 bytes, with execute at 878 bytes. `devnet_ops` always builds it that way, refuses any transaction over 1,232 bytes before signing, simulates before every send, and refuses execute before `approved_at + time_lock`.
+- **Real ownership constraints.** The program's upgrade authority ends as the G vault. ORAO `Client.owner` is the G vault and `Client.state` is the RngAuthority PDA. `Admission.guardian_vault == Pool.guardian_vault == P vault`. All of these are read back by `devnet_ops readback`.
+- **Approval binding.** Devnet `--execute` requires `--i-have-approval <sha256 of this packet file>` and the devnet genesis hash. The tool never targets mainnet.
+
+**Calendar corrected by the simulation.** First draw request at day **11.45**: day 10.7 is not reachable once Series A and candidates exist, and 11.36 is the earliest with a deposit of at most 1 SOL. Total duration is **41.46 days**. Test wallets need about **2.12 SOL**, sponsor operations 0.5 SOL, and the deploy peak stays at about 14.2 SOL, all within the 25 SOL cap.
+
+**Remaining local work (no approval needed; does not block approving Block A):**
+- **M14-RUN** (in progress): the `devnet_ops flow` runner that executes the committed plan step by step under the same interlocks. On devnet it waits for real ORAO fulfilment and records latency (A7).
+- **Only if MI-1 resolves to the fresh id:** change `declare_id!`, rebuild with the pinned platform-tools, and re-pin and re-review per 5a.
+
+**Held, each needing its own approval later:** B1 bridge, B2 keeper (unarmed), B3 live Shenanigans upgrade, B4 devnet frontend canister, C1 activation, C2 keeper arming, C3 real PP mints.
+
+For B3, the separate legacy memo card's conditions apply. **F-1:** after any Shenanigans deploy containing the memo fix, the ordinary observer retries begin paying previously failed signup gifts and in-flight backer attempts at the current configuration. "No recovery code" does not mean "no payouts". **F-4:** the exact deploy candidate's build, module hash and stable signature must be pinned before any upgrade request. The old local rehearsal is not proof of deployed bytes. LEG-2 recovery stays separate.
+
 ## 1. Smallest combined approval request
 
 Recommended: answer **A, B1, B2 as "yes, go when the coordinator reports the A0 items of section 5 closed"**, and hold **B3, B4, C1, C2, C3** until the evidence named in section 6 exists. **Block A is not gated on any ICP build, cycles calibration or B/C row.** Each row is one independent yes/no.
