@@ -40,10 +40,19 @@
   "members_files": "g-members.txt / p-members.txt (three pubkeys each, one per line)"
  },
  "funding": {
-  "ledger": "docs/solana/evidence/devnet-sol-ledger.jsonl (append-only, write-ahead; requester re-checks genesis, refuses past the 25 SOL process budget, counts unknown outcomes as spent)",
+  "ledger": "docs/solana/evidence/devnet-sol-ledger.jsonl: append-only and write-ahead. The requester re-checks genesis, refuses past the 25 SOL PROCESS budget, and keeps every non-429 outcome reserved. This is the coordinator's process ledger; devnet_ops itself enforces only its per-command ceilings.",
   "plan": "direct public-faucet airdrops per recipient (no signed transfers outside the tool): D 15, S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30 (A1 1.1, A2 0.06, P1 0.21, P2 0.11, P3 0.03, P4 0.08, P5 0.08, W 0.63) = 18.91 SOL",
-  "result": "STOPPED (packet MI-5): requestAirdrop 5 SOL -> JSON-RPC -32603 Internal error (rejected); 2 SOL -> HTTP 429 'reached your airdrop limit today or the airdrop faucet has run dry; visit faucet.solana.com'. 0 SOL received; budget used 0.",
-  "next": "Rob decides MI-5: recommended \u2014 Rob requests test SOL himself at the official public web faucet faucet.solana.com (GitHub sign-in; a CAPTCHA the coordinator must not complete) to the deployer address, up to 15 SOL; it stays public-faucet devnet SOL, recorded in the ledger by balance observation. Alternative: retry the RPC faucet after its daily reset (slow for 15 SOL). Never mainnet funds."
+  "result": "STOPPED (packet MI-5). requestAirdrop 5 SOL to D returned JSON-RPC -32603 'Internal error' with no signature. 2 SOL returned an explicit HTTP 429: 'reached your airdrop limit today or the airdrop faucet has run dry; visit faucet.solana.com'.",
+  "next": "MI-5, the human step: Gideon notifies Rob once. Rob uses the official web faucet faucet.solana.com himself; its page says AI agents must not use the web interface, so there is no agent GitHub or CAPTCHA automation and no other faucet source. The funds go to the deployer, up to 15 SOL, and are recorded in the ledger by balance observation. Never mainnet funds.",
+  "reconciliation": {
+   "when": "2026-10-24T19:53:20Z (about 24 min after the requests); read-only and genesis-pinned at finalized commitment",
+   "observed_balance": "D getBalance = 0 lamports (context slot 514,719,983); getAccountInfo = null (account does not exist, slot 514,719,985); getSignaturesForAddress = [] (no transaction has ever touched D)",
+   "received_faucet_sol": "0 (observed)",
+   "possible_outstanding_request": "the 5 SOL request returned no signature, so it cannot be looked up by signature. A faucet transaction built then would have expired within minutes; that is an INFERENCE, since the faucet's internals are unobserved",
+   "written_budget_reserve": "5 SOL reserved in the process ledger for the -32603 request: a generic internal error does not prove the faucet had no effect, and absence is not treated as proof (Gideon, 2026-10-24); released only with Gideon's agreement. The 429 request is a confirmed rate-limit refusal with no reserve",
+   "process_ledger_committed": "5.0 of 25 SOL; the 18.91 SOL funding plan still fits (23.91 with the reserve)",
+   "correction": "the first version of this receipt said 'budget used 0' and the ledger labelled the -32603 request 'rejected'; both are superseded by this reconciliation"
+  }
  },
  "nothing_else": "no transaction was signed or sent by the coordinator; no deploy, no Squads, no program interaction"
 }

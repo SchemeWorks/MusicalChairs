@@ -174,7 +174,7 @@
       "state": "Blocked: waiting on Rob for test tokens",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "Solana test network only. The network identity was confirmed before any key was used, and fresh test keys were created and kept outside the repository. The public faucet's direct request route refused: today's limit is reached or it has run dry, and it points to the official web faucet. No tokens were received and the spend ledger shows nothing used. The web faucet needs Rob's own sign-in, so the run is paused for his decision. Nothing else was sent.",
+      "evidenceText": "Solana test network only. The network identity was confirmed before any key was used, and fresh test keys were created and kept outside the repository. The public faucet's direct request route refused. A read-only check found the funding account still empty with no transactions, so no tokens were received. One refusal was a generic error, so its amount stays reserved in the coordinator's written spend ledger rather than being assumed zero. The official web faucet needs Rob himself; agents may not use it. The run is paused for that step. Nothing else was sent.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
