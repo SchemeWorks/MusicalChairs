@@ -182,6 +182,31 @@ pub struct FinancialRuntime {
     /// SHA-256 of the captured ORAO VRF-with-callback ELF when it is loaded
     /// (the close suite; see [`FinancialRuntime::new_governed_with_provider`]).
     provider_sha256: Option<String>,
+    /// `create_key` of the G and P multisigs.  The stand-in fixtures use the
+    /// synthetic byte patterns [`G_CREATE_KEY`] / [`P_CREATE_KEY`] (not
+    /// keypairs); the real-Squads runtime uses the public keys of real
+    /// keypairs, because `multisig_create_v2` requires `create_key` to sign.
+    g_create_key: Pubkey,
+    p_create_key: Pubkey,
+    /// SHA-256 of the REAL Squads v4 devnet ELF when it is loaded
+    /// ([`FinancialRuntime::new_uninitialized_real_squads`]).
+    real_squads_sha256: Option<String>,
+}
+
+/// Seed of the real G `create_key` keypair of the real-Squads runtime.
+pub const REAL_G_CREATE_SEED: [u8; 32] = [0x47; 32];
+/// Seed of the real P `create_key` keypair of the real-Squads runtime.
+pub const REAL_P_CREATE_SEED: [u8; 32] = [0x50; 32];
+
+/// The G `create_key` keypair of the real-Squads runtime (a fresh, in-test
+/// Ed25519 key; `multisig_create_v2` needs it as a signer).
+pub fn real_g_create_keypair() -> Keypair {
+    Keypair::new_from_array(REAL_G_CREATE_SEED)
+}
+
+/// The P `create_key` keypair of the real-Squads runtime.
+pub fn real_p_create_keypair() -> Keypair {
+    Keypair::new_from_array(REAL_P_CREATE_SEED)
 }
 
 impl FinancialRuntime {
@@ -223,6 +248,27 @@ impl FinancialRuntime {
         Self::governed_on(Self::bootstrap(true, true))
     }
 
+    /// The M14-PRE-SQUADS fixture: like [`FinancialRuntime::new_uninitialized`],
+    /// except that the REAL Squads v4 devnet executable (`squads-devnet.so`) is
+    /// loaded at the Squads id instead of the stand-in, the real devnet
+    /// `ProgramConfig` and treasury accounts are installed, and NO `Multisig`
+    /// account exists: the G and P multisigs must be created by real
+    /// `multisig_create_v2` transactions (see [`crate::squads_real`]).  The G
+    /// and P `create_key`s are the public halves of [`real_g_create_keypair`] /
+    /// [`real_p_create_keypair`], so the G vault (and with it the `ProgramData`
+    /// authority) is known before the multisigs exist.  The clock starts at 0.
+    pub fn new_uninitialized_real_squads() -> Self {
+        Self::bootstrap_with(true, None, true)
+    }
+
+    /// [`FinancialRuntime::new_uninitialized_real_squads`] plus the ORAO
+    /// executable of `profile`, loaded at its program id (no provider state
+    /// exists yet).  The profile is explicit here, not read from
+    /// `MC_ORAO_PROFILE`, so a test can pin the devnet binary.
+    pub fn new_uninitialized_real_squads_with_provider(profile: crate::devnet::OraoProfile) -> Self {
+        Self::bootstrap_with(true, Some(profile), true)
+    }
+
     fn governed_on(mut runtime: Self) -> Self {
         runtime.inject_canonical_fixture();
         let governance = runtime.g_vault();
@@ -238,6 +284,14 @@ impl FinancialRuntime {
     }
 
     fn bootstrap(m3: bool, provider: bool) -> Self {
+        Self::bootstrap_with(m3, provider.then(crate::devnet::orao_profile), false)
+    }
+
+    /// `real_squads` replaces the stand-in and the committed G/P `Multisig`
+    /// fixtures by the real Squads v4 devnet program and its `ProgramConfig`
+    /// (it implies `m3`).
+    fn bootstrap_with(m3: bool, provider: Option<crate::devnet::OraoProfile>, real_squads: bool) -> Self {
+        assert!(m3 || !real_squads, "the real Squads program needs the M3 shape");
         let mut svm = LiteSVM::new();
         let payer = Keypair::new_from_array(PAYER_SEED);
         let owner = Keypair::new_from_array(OWNER_SEED);
@@ -253,7 +307,7 @@ impl FinancialRuntime {
         let artifact_sha256 = hex_sha256(&elf);
         svm.add_program(ID, &elf)
             .expect("actual Musical Chairs financial ELF must load into LiteSVM");
-        let standin_sha256 = if m3 {
+        let standin_sha256 = if m3 && !real_squads {
             let standin = read_standin_elf();
             svm.add_program(SQUADS_PROGRAM_ID, &standin)
                 .expect("actual Squads vault stand-in ELF must load into LiteSVM");
@@ -261,9 +315,17 @@ impl FinancialRuntime {
         } else {
             None
         };
+        let real_squads_sha256 = if real_squads {
+            let squads = crate::devnet::read_squads_devnet_elf();
+            svm.add_program(SQUADS_PROGRAM_ID, &squads)
+                .expect("real Squads v4 devnet ELF must load into LiteSVM");
+            Some(hex_sha256(&squads))
+        } else {
+            None
+        };
 
-        let provider_sha256 = if provider {
-            let orao_elf = read_provider_elf();
+        let provider_sha256 = if let Some(profile) = provider {
+            let orao_elf = read_provider_elf_for(profile);
             svm.add_program(orao::id(), &orao_elf)
                 .expect("captured ORAO ELF must load into LiteSVM");
             Some(hex_sha256(&orao_elf))
@@ -282,6 +344,17 @@ impl FinancialRuntime {
             elf,
             standin_sha256,
             provider_sha256,
+            g_create_key: if real_squads {
+                real_g_create_keypair().pubkey()
+            } else {
+                Pubkey::new_from_array(G_CREATE_KEY)
+            },
+            p_create_key: if real_squads {
+                real_p_create_keypair().pubkey()
+            } else {
+                Pubkey::new_from_array(P_CREATE_KEY)
+            },
+            real_squads_sha256,
         };
         if m3 {
             // Installed while the clock is still at its default, exactly like
@@ -289,21 +362,44 @@ impl FinancialRuntime {
             // after the slot moves.
             let governance = runtime.g_vault();
             runtime.install_loader_fixture(Some(governance));
-            let g_multisig = runtime.g_multisig();
-            runtime.install_squads_account(
-                g_multisig,
-                SQUADS_PROGRAM_ID,
-                fixtures::squads::committed_governance(),
-            );
-            let p_multisig = runtime.p_multisig();
-            runtime.install_squads_account(
-                p_multisig,
-                SQUADS_PROGRAM_ID,
-                fixtures::squads::committed_guardian(),
-            );
+            if real_squads {
+                // The real program owns and validates these: install the exact
+                // devnet snapshots, and create the multisigs with real
+                // transactions.
+                for account in crate::devnet::load_accounts(
+                    crate::devnet::SQUADS_DEVNET_ACCOUNTS_FILE,
+                )
+                .into_values()
+                .filter(|account| !account.executable)
+                {
+                    runtime
+                        .svm
+                        .set_account(account.address, account.to_account())
+                        .expect("real Squads devnet account snapshot");
+                }
+            } else {
+                let g_multisig = runtime.g_multisig();
+                runtime.install_squads_account(
+                    g_multisig,
+                    SQUADS_PROGRAM_ID,
+                    fixtures::squads::committed_governance(),
+                );
+                let p_multisig = runtime.p_multisig();
+                runtime.install_squads_account(
+                    p_multisig,
+                    SQUADS_PROGRAM_ID,
+                    fixtures::squads::committed_guardian(),
+                );
+            }
         }
         runtime.set_clock(0, 1);
         runtime
+    }
+
+    /// SHA-256 of the REAL Squads devnet ELF, when this runtime loaded it
+    /// (`new_uninitialized_real_squads`).
+    pub fn real_squads_artifact_sha256(&self) -> Option<&str> {
+        self.real_squads_sha256.as_deref()
     }
 
     /// SHA-256 of the loaded Squads vault stand-in ELF, when this runtime
@@ -330,7 +426,7 @@ impl FinancialRuntime {
 
     /// The G (governance) Squads `Multisig` PDA.
     pub fn g_multisig(&self) -> Pubkey {
-        fixtures::squads::multisig_address(&Pubkey::new_from_array(G_CREATE_KEY)).0
+        fixtures::squads::multisig_address(&self.g_create_key).0
     }
     /// The G Vault PDA (vault index 0) that must sign governance instructions.
     pub fn g_vault(&self) -> Pubkey {
@@ -338,7 +434,7 @@ impl FinancialRuntime {
     }
     /// The P (pause guardian) Squads `Multisig` PDA.
     pub fn p_multisig(&self) -> Pubkey {
-        fixtures::squads::multisig_address(&Pubkey::new_from_array(P_CREATE_KEY)).0
+        fixtures::squads::multisig_address(&self.p_create_key).0
     }
     /// The P Vault PDA (vault index 0) that must sign `set_pause`.
     pub fn p_vault(&self) -> Pubkey {
@@ -1677,9 +1773,26 @@ fn orao_fixture_dir() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../probes/runtime/fixtures")
 }
 
-/// The captured ORAO ELF (`MC_ORAO_SBF` overrides the committed path), checked
-/// against the pinned SHA-256 and against `orao-provenance.json`.
+/// The ORAO ELF the provider-bearing runtimes load, selected by
+/// `MC_ORAO_PROFILE` (see [`crate::devnet::OraoProfile`]).  Unset (or
+/// `mainnet`) is the captured mainnet ELF under its original pin, exactly as
+/// before; `devnet` loads `solana/fixtures/devnet/orao-devnet.so` under its own
+/// pins.  Neither profile can load the other's bytes: each holds `MC_ORAO_SBF`
+/// to its own SHA-256.
 fn read_provider_elf() -> Vec<u8> {
+    read_provider_elf_for(crate::devnet::orao_profile())
+}
+
+fn read_provider_elf_for(profile: crate::devnet::OraoProfile) -> Vec<u8> {
+    match profile {
+        crate::devnet::OraoProfile::Mainnet => read_mainnet_provider_elf(),
+        crate::devnet::OraoProfile::Devnet => crate::devnet::read_orao_devnet_provider_elf(),
+    }
+}
+
+/// The captured mainnet ORAO ELF (`MC_ORAO_SBF` overrides the committed path),
+/// checked against the pinned SHA-256 and against `orao-provenance.json`.
+fn read_mainnet_provider_elf() -> Vec<u8> {
     let path = env::var_os("MC_ORAO_SBF")
         .map(PathBuf::from)
         .unwrap_or_else(|| orao_fixture_dir().join("orao-callback-mainnet-finalized.so"));

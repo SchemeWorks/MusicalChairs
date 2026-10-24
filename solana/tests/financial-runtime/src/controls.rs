@@ -578,7 +578,7 @@ fn initialize_accounts(rt: &FinancialRuntime) -> accounts::Initialize {
     }
 }
 
-fn initialize_ix(rt: &FinancialRuntime, args: InitializeArgs) -> Instruction {
+pub(crate) fn initialize_ix(rt: &FinancialRuntime, args: InitializeArgs) -> Instruction {
     anchor_ix(initialize_accounts(rt), instruction::Initialize { args })
 }
 
@@ -730,7 +730,15 @@ fn terms(effective_round_id: u64) -> ConfigTerms {
 
 /// Every account `initialize` creates exists at its declared size, owned by
 /// the program, rent exempt, bound to the G and P vaults and the args.
-fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
+pub(crate) fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
+    assert_genesis_accounts_at(rt, args, 0);
+}
+
+/// [`assert_genesis_accounts`] for a genesis that ran at unix time `now`:
+/// `initialize` stamps `ConfigVersion#1` with the clock (`staged_at` and
+/// `activated_at`).  The stand-in rows run at clock 0; the real-Squads rows run
+/// after a 48-hour wait.
+pub(crate) fn assert_genesis_accounts_at(rt: &FinancialRuntime, args: &InitializeArgs, now: u64) {
     for (name, address, space) in [
         ("pool", rt.pool_address(), state::Pool::SPACE),
         ("admission", rt.admission_address(), state::Admission::SPACE),
@@ -834,8 +842,8 @@ fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
     let config: state::ConfigVersion = rt.deserialize(rt.config_address(1));
     let mut expected = state::ConfigVersion::default_v1();
     expected.bump = pda(&[state::CONFIG_SEED, &1u32.to_le_bytes()]).1;
-    expected.staged_at = 0;
-    expected.activated_at = Some(0);
+    expected.staged_at = now;
+    expected.activated_at = Some(now);
     expected.provider_request_fee_lamports = args.provider_request_fee_lamports;
     expected.provider_fee_headroom_bps = args.provider_fee_headroom_bps;
     expected.provider_program = args.provider_program;
@@ -850,7 +858,7 @@ fn assert_genesis_accounts(rt: &FinancialRuntime, args: &InitializeArgs) {
 }
 
 /// The genesis counters: no money, round 1, first close id 1, nothing open.
-fn assert_genesis_counters(pool: &state::Pool, game_vault_rent: u64) {
+pub(crate) fn assert_genesis_counters(pool: &state::Pool, game_vault_rent: u64) {
     assert_eq!(pool.pot, 0, "pot");
     assert_eq!(pool.seed, 0, "seed");
     assert_eq!(pool.management, 0, "management");

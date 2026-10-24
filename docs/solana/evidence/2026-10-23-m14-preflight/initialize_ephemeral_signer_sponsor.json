@@ -1,0 +1,133 @@
+{
+  "ephemeral_signer": "7zvw3ja5Kh95eHnpFBdwLa4upSwyg6spSukTLc2MfzXa",
+  "note": "an external keypair cannot be an ephemeral signer: it is a PDA nobody holds a key for",
+  "run": {
+    "first_failure": null,
+    "succeeded": true,
+    "transaction_index": 1,
+    "transactions": [
+      {
+        "compute_units": 38319,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.ephemeral_sponsor.vault_transaction_create",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: VaultTransactionCreate",
+          "Program 11111111111111111111111111111111 invoke [2]",
+          "Program 11111111111111111111111111111111 success",
+          "Program log: transaction index: 1",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 38169 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 6,
+        "packet_bytes": 1140,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 3
+      },
+      {
+        "compute_units": 13383,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.ephemeral_sponsor.proposal_create",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalCreate",
+          "Program 11111111111111111111111111111111 invoke [2]",
+          "Program 11111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 13233 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 6,
+        "packet_bytes": 327,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 8772,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.ephemeral_sponsor.proposal_approve.1",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalApprove",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 8622 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 5,
+        "packet_bytes": 285,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 9594,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.ephemeral_sponsor.proposal_approve.2",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalApprove",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 9444 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 5,
+        "packet_bytes": 285,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 145355,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.ephemeral_sponsor.vault_transaction_execute",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: VaultTransactionExecute",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+          "Program log: Instruction: Initialize",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 94442 of 1350816 compute units",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 145205 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 21,
+        "packet_bytes": 814,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 11
+      }
+    ],
+    "vault": "37Eb1JQ6svsCfvVZFUKfYCDWrY8NVcYgrtjwRVw36TfK"
+  },
+  "seed_derivation": "[\"multisig\", transaction, \"ephemeral_signer\", [index]] under the Squads program (from the Squads source; a mismatch would show as InvalidAccount)"
+}

@@ -20,6 +20,13 @@
 //! randomness: see `close.rs` for the places a `CloseRecord` is rewritten
 //! (labelled `synthetic`).
 //!
+//! The OPTIONAL M14 preflight checks (`devnet`, `squads_real`) load the exact program
+//! bytes that run on Solana devnet from `solana/fixtures/devnet/`: the ORAO VRF-with-
+//! callback executable (selected by `MC_ORAO_PROFILE=devnet`; the default stays the
+//! pinned mainnet ELF) and the real Squads v4 program (`FinancialRuntime::
+//! new_uninitialized_real_squads`).  See `tests/orao_devnet_compat.rs` and
+//! `tests/squads_devnet_compat.rs`.
+//!
 //! The M9 measurement matrix (`measure`) runs the same compiled program (and,
 //! for the full close path, the same ORAO executable and stand-in) over chunk
 //! populations, churn, dust claims, a 100-participant close, an inline-allocation
@@ -42,6 +49,7 @@
 pub mod allocation;
 pub mod close;
 pub mod controls;
+pub mod devnet;
 pub mod financial;
 pub mod fuzz;
 pub mod measure;
@@ -50,6 +58,7 @@ pub mod provisioning;
 pub mod reserve;
 pub mod review_gaps;
 pub mod runtime;
+pub mod squads_real;
 pub mod world;
 
 pub use allocation::run_allocation_suite;

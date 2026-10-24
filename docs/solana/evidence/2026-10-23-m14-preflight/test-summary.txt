@@ -1,0 +1,47 @@
+=== 1 squads ===
+exit 0
+test initialize_rejects_a_governance_signer_that_is_not_vault_index_zero ... ok
+test guardian_pause_through_the_real_p_multisig_needs_no_time_lock ... ok
+test initialize_rejects_a_wrong_guardian_profile_built_by_real_squads ... ok
+test initialize_through_real_squads_with_the_g_vault_as_sponsor_runs_the_full_governance_path ... ok
+test initialize_through_real_squads_with_the_sponsor_signing_the_outer_transaction_records_the_outcome ... ok
+test initialize_with_a_squads_ephemeral_signer_as_sponsor_records_the_outcome ... ok
+test initialize_rejects_wrong_governance_profiles_built_by_real_squads ... ok
+test real_squads_creates_g_and_p_exactly_as_the_stand_in_fixtures_describe_them ... ok
+test orao_registration_through_a_real_g_vault_transaction_against_the_devnet_binary ... ok
+test real_squads_threshold_two_is_enforced_one_approval_cannot_execute ... ok
+test squads_devnet_fixture_is_pinned_and_the_hand_built_instructions_match_the_idl ... ok
+test real_squads_time_lock_blocks_early_execution_and_releases_after_it ... ok
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.43s
+=== 2 orao fixtures ===
+exit 0
+test apply_promotion_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test capture_round_draw_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test client_register_via_the_g_vault_path ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test expire_path_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test fulfil_with_the_ed25519_authority_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test observe_request_fulfilled_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test provider_return_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test provider_side_rejections_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test request_round_draw_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test whole_close_suite_against_the_devnet_binary ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)
+test devnet_orao_network_state_snapshot_decodes_with_the_vendored_sdk_and_matches_the_packet ... ok
+test devnet_orao_elf_fixture_is_the_pinned_binary_and_explains_the_packet_hash ... ok
+test result: ok. 2 passed; 0 failed; 10 ignored; 0 measured; 0 filtered out; finished in 0.15s
+=== 3 orao flows (devnet binary) ===
+exit 0
+test capture_round_draw_against_the_devnet_binary ... ok
+test apply_promotion_against_the_devnet_binary ... ok
+test client_register_via_the_g_vault_path ... ok
+test fulfil_with_the_ed25519_authority_against_the_devnet_binary ... ok
+test observe_request_fulfilled_against_the_devnet_binary ... ok
+test expire_path_against_the_devnet_binary ... ok
+test provider_return_against_the_devnet_binary ... ok
+test provider_side_rejections_against_the_devnet_binary ... ok
+test request_round_draw_against_the_devnet_binary ... ok
+test whole_close_suite_against_the_devnet_binary ... ok
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 83.26s
+=== 4 default-profile regression ===
+exit 0
+test close_tests::provider_setup_registers_a_g_owned_client_against_the_pinned_orao_elf ... ok
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 186 filtered out; finished in 0.66s

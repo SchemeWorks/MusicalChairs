@@ -88,6 +88,18 @@ fn main() {
             "pinned_by": "solana/probes/runtime/fixtures/orao-provenance.json (program_binary.elf_sha256)",
             "scope": "captured mainnet ORAO VRF-with-callback ELF loaded at its mainnet id; one synthetic fulfill authority; no cluster latency; the Squads program is the test-only stand-in"
         });
+        if musical_chairs_financial_runtime::devnet::orao_profile()
+            == musical_chairs_financial_runtime::devnet::OraoProfile::Devnet
+        {
+            // MC_ORAO_PROFILE=devnet (M14 preflight): say which binary this really was.
+            report["provider"]["profile"] = serde_json::json!("devnet");
+            report["provider"]["pinned_by"] = serde_json::json!(
+                "solana/fixtures/devnet/orao-devnet-provenance.json (elf.sha256)"
+            );
+            report["provider"]["scope"] = serde_json::json!(
+                "the ORAO VRF-with-callback ELF deployed on devnet (NOT the mainnet build) loaded at the common program id; one synthetic fulfill authority; no cluster latency; the Squads program is the test-only stand-in"
+            );
+        }
     }
     let text = serde_json::to_string_pretty(&report).expect("financial report JSON");
     println!("{text}");

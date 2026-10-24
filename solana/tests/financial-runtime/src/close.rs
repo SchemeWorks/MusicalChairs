@@ -1420,7 +1420,13 @@ pub fn provider_setup_row() -> Vec<Observation> {
         .provider_artifact_sha256()
         .expect("the ORAO ELF is loaded")
         .to_string();
-    assert_eq!(elf, crate::runtime::ORAO_ELF_SHA256, "the pinned mainnet ELF");
+    // Default profile: the pinned mainnet ELF (unchanged).  `MC_ORAO_PROFILE=devnet`
+    // runs the same row against the devnet ELF, held to its own pin.
+    assert_eq!(
+        elf,
+        crate::devnet::active_orao_elf_sha256(),
+        "the ELF pinned by the active MC_ORAO_PROFILE"
+    );
 
     let network: orao::state::network_state::NetworkState = w.rt.deserialize(keys.network_state);
     assert_eq!(network.config.request_fee, REQUEST_FEE);
@@ -1479,7 +1485,10 @@ pub fn provider_setup_row() -> Vec<Observation> {
     let note = serde_json::json!({
         "orao_program": orao::id().to_string(),
         "orao_elf_sha256": elf,
-        "pinned_by": "solana/probes/runtime/fixtures/orao-provenance.json program_binary.elf_sha256",
+        "pinned_by": match crate::devnet::orao_profile() {
+            crate::devnet::OraoProfile::Mainnet => "solana/probes/runtime/fixtures/orao-provenance.json program_binary.elf_sha256",
+            crate::devnet::OraoProfile::Devnet => "solana/fixtures/devnet/orao-devnet-provenance.json elf.sha256 (MC_ORAO_PROFILE=devnet)",
+        },
         "env_override": "MC_ORAO_SBF (still checked against the pinned hash)",
         "synthetic_fulfill_authority": fulfill_authority().pubkey().to_string(),
         "request_fee_lamports": REQUEST_FEE,
