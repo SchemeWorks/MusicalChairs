@@ -168,8 +168,8 @@
       "id": "LOOKOUT-PROJ",
       "state": "Done",
       "owner": "Claude coordinator",
-      "scope": "Sanitized derived mirror of the native board for the private Lookout board.",
-      "evidenceText": "This projection file and its update rule exist. The repository board stays the sole authority. Publication waits for setup's verified manifest cutover.",
+      "scope": "Sanitized derived mirror of the native board, kept in sync with the private Lookout board.",
+      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval.",
       "evidenceLinks": []
     },
     {

@@ -57,13 +57,16 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Exclude keys and credentials, wallet or program addresses, balances, transaction payloads or signatures, private logs and local user paths.
   - `evidenceLinks` may contain only approved public HTTPS links, currently draft PR #125. New hosts or new sensitive content need fresh approval.
   - Keep source, test, local, independent-review and approval evidence distinct. Never imply approval, deployment, or public execution that has not happened.
-- **Publishing** happens only after setup's verified manifest cutover to this file. Until then, do not publish, and do not touch setup's frozen `.local` seed or the manifest. After cutover, run these from the lookout-kanban checkout:
+- **Publishing (standing authority).** Setup's manifest cutover is complete: `scripts/musicalchairs.mainnet.json` (`source.kind` `curated-json`) reads this worktree's projection. The first publication was verified at backend revision 2. Rob approved future sanitized board updates without being asked each time ("Keep all connected boards synced without asking me each time"). After every material checkpoint, update the projection and commit it, then run these from the lookout-kanban checkout:
   1. `node scripts/publisher.mjs --config scripts/musicalchairs.mainnet.json --dry-run`
-  2. `--publish` only if the dry run shows a change and publishing is authorized.
+  2. `--publish` only if the dry run shows a change.
   3. `--dry-run` again, which must report no change (the readback).
-  4. Record the backend revision and source revision in the handoff.
+  4. Append the backend revision and source revision to `docs/coordination/lookout-publication-log.md`.
+
+  Use the same manifest and its scoped identity only. Never inspect or export secrets. Do not touch setup's `.local` seed. Recording a receipt in the log is not a material checkpoint, so do not republish for it. Any NEW tool or permission rejection is binding: never route around it with another executor, identity or tool. New sensitive content or new link hosts still need fresh approval.
 - **Boundaries.**
   - Never read or export keyring secrets.
+  - Board-sync approval is not Block A approval. M14 execution still needs Rob's separate, explicit yes.
   - Add no new timer: the existing 30-minute supervision check covers mirror freshness.
   - A publication failure is a visibility issue only. It never justifies bypassing an authority boundary.
   - Board-metadata authority grants nothing for Solana keys, faucets, signing or deploys, or for any ICP upgrade, mint, activation or merge.
