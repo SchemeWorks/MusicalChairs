@@ -28,8 +28,8 @@ the gift and the game, and in `processBackerDeltas`). The long-id primaries (`si
 returned `#Ok`, so their `cascade-A<rank>-<id>` and `cascade-residual-<id>` legs were never started. Nothing was
 minted for the gift or backer **including the 10 % cascade share** (gift at the default `signupGiftPp = 500`: 450 PP
 net to the player and 50 PP to the cascade; the whole 500 PP is unminted). The chips-deposit kickups
-(`kickup-A<rank>-chipdep-<idx>`, `kickup-residual-chipdep-<idx>`) use the short ledger index and stay under 32
-bytes until `idx` has 8+ digits. The only other long-id derivatives are the `cascade-*` and `siphon-*` memos of
+(`kickup-A<rank>-chipdep-<idx>`, `kickup-residual-chipdep-<idx>`) use the short ledger index: `kickup-residual-chipdep-` is 24 bytes, so an index of up to 8 digits stays within 32
+bytes and the first overflow is at 9 digits (15+ digits for the 18-byte `kickup-A<rank>-chipdep-` prefix). The only other long-id derivatives are the `cascade-*` and `siphon-*` memos of
 gift/backer events, which exist only after a primary success. The reconstruction the brief warns against is not
 needed and is not attempted.
 

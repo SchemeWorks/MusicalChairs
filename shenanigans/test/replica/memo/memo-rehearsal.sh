@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # PP-ledger memo fix: local-replica rehearsal (see memo_rehearsal.py for the full description).
 #
-# LOOPBACK ONLY: every dfx call carries `--network local` (127.0.0.1:4943). Refuses any other network.
+# LOOPBACK ONLY: every dfx call carries `--network local`. The script refuses DFX_NETWORK values other than
+# `local` and pings it first; it does not itself verify that `local` resolves to 127.0.0.1 — check
+# ~/.config/dfx/networks.json (here: 127.0.0.1:4943) before running it elsewhere.
 # Needs: dfx 0.29.x, python3 (stdlib only), a running local replica with the real pp_ledger at
 # 5xv2o-iiaaa-aaaac-qeclq-cai (icrc1:max_memo_length = 32, minting account = j56tm-...), and the pre-fix wasm
 # at artifacts/shenanigans-prefix-main-ee9a402.wasm (built from the unedited main@ee9a402 source;
