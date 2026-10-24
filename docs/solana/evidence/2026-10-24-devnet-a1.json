@@ -1,0 +1,49 @@
+{
+ "recorded_at_utc": "2026-10-24T19:30:27+00:00",
+ "step": "A1 (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval (docs/coordination/m14-block-a-approval-20261024.md) + Gideon's final 5a acceptance (docs/coordination/m14-5a-gideon-review-20261024.md)",
+ "genesis_check": {
+  "rpc": "https://api.devnet.solana.com",
+  "getGenesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "pin": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "match": true,
+  "getVersion": "solana-core 4.4.0-beta.1, feature-set 3993424257",
+  "order": "checked BEFORE any key was generated or used"
+ },
+ "keys": {
+  "generator": "solana-keygen 3.1.0 (pinned Agave 3.1.0-beta.0)",
+  "custody": "D1: 0700 directory outside every git worktree, files 0600, never committed/printed/pasted; never ~/.config/solana/id.json",
+  "public_keys": {
+   "program_id (5a)": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+   "deployer D": "6wMkX8FsrqRQPsLngBNQbDgA4VCFU4LmCpUtPhykPq7k",
+   "buffer": "ikaXpGYBjAB4bE9zWGtBLNM9hVu52HaaQYYLgkFpHV2",
+   "squads create key G": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "squads create key P": "FdiAHJg4EVTfGNYhbLRMNFKA4Qf56Jhv1NJSPX1WaKGi",
+   "G voter 1": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "G voter 2": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+   "G voter 3": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+   "P voter 1": "GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR",
+   "P voter 2": "5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k",
+   "P voter 3": "4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC",
+   "management recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+   "plan wallet S": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+   "plan wallet K": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+   "plan wallet A1": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+   "plan wallet A2": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+   "plan wallet P1": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+   "plan wallet P2": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+   "plan wallet P3": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+   "plan wallet P4": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+   "plan wallet P5": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+   "plan wallet W": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J"
+  },
+  "members_files": "g-members.txt / p-members.txt (three pubkeys each, one per line)"
+ },
+ "funding": {
+  "ledger": "docs/solana/evidence/devnet-sol-ledger.jsonl (append-only, write-ahead; requester re-checks genesis, refuses past the 25 SOL process budget, counts unknown outcomes as spent)",
+  "plan": "direct public-faucet airdrops per recipient (no signed transfers outside the tool): D 15, S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30 (A1 1.1, A2 0.06, P1 0.21, P2 0.11, P3 0.03, P4 0.08, P5 0.08, W 0.63) = 18.91 SOL",
+  "result": "STOPPED (packet MI-5): requestAirdrop 5 SOL -> JSON-RPC -32603 Internal error (rejected); 2 SOL -> HTTP 429 'reached your airdrop limit today or the airdrop faucet has run dry; visit faucet.solana.com'. 0 SOL received; budget used 0.",
+  "next": "Rob decides MI-5: recommended \u2014 Rob requests test SOL himself at the official public web faucet faucet.solana.com (GitHub sign-in; a CAPTCHA the coordinator must not complete) to the deployer address, up to 15 SOL; it stays public-faucet devnet SOL, recorded in the ledger by balance observation. Alternative: retry the RPC faucet after its daily reset (slow for 15 SOL). Never mainnet funds."
+ },
+ "nothing_else": "no transaction was signed or sent by the coordinator; no deploy, no Squads, no program interaction"
+}

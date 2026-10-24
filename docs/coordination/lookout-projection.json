@@ -171,10 +171,10 @@
     },
     {
       "id": "M14-A1",
-      "state": "In progress",
+      "state": "Blocked: waiting on Rob for test tokens",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "Solana test network only. The network identity is checked before any key is used or anything is signed. Fresh test keys are kept outside the repository. Free faucet tokens are requested within a written spend ledger and a coordinator-kept budget; the tool enforces its own per-command ceilings. If the public faucet cannot supply enough, the step stops and Rob is asked.",
+      "evidenceText": "Solana test network only. The network identity was confirmed before any key was used, and fresh test keys were created and kept outside the repository. The public faucet's direct request route refused: today's limit is reached or it has run dry, and it points to the official web faucet. No tokens were received and the spend ledger shows nothing used. The web faucet needs Rob's own sign-in, so the run is paused for his decision. Nothing else was sent.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
