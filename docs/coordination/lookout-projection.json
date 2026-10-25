@@ -174,7 +174,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "State detail: In progress (deployer partly funded). Solana test network only. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens twice from the official web faucet, and both transfers were verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The funding target is a ceiling, not a minimum, so governance setup went ahead. The deployer still needs a little more before the program deploy, and the other test wallets are funded later.",
+      "evidenceText": "State detail: in progress; the deployer is funded. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens three times from the official web faucet, and every transfer was verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The remaining wallets are funded from the deployer through the guarded funding path, not from the faucet.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -210,10 +210,10 @@
     },
     {
       "id": "M14-FUND-TOOL",
-      "state": "Review",
+      "state": "In progress",
       "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) adjudicates",
       "scope": "A guarded way to fund the voter, sponsor, keeper and test wallets from the deployer's remainder.",
-      "evidenceText": "State detail: Proposed (awaiting Gideon). The operator tool's only transfer pays the governance vault. A small guarded funding command is proposed: top-up to a target, once-only per wallet, per-transfer and per-bucket caps refused rather than clamped, and the same write-ahead and uncertain-outcome protections. It needs Gideon's adjudication, tests and a bounded review before any use. No new faucet tokens are needed.",
+      "evidenceText": "State detail: local implementation approved by Gideon, then his bounded review before any test-network use. A small guarded funding command for the voter, sponsor, keeper and test wallets, drawing on the deployer's remainder. It funds each recipient only once, with per-transfer and per-bucket caps that are refused rather than clamped, and the same write-ahead and uncertain-outcome protections. The funding plan is pinned to the recorded test-key inventory. Internal transfers are not new faucet tokens, so no faucet top-up is needed.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
