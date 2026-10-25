@@ -1,0 +1,81 @@
+{
+ "recorded_at_utc": "2026-10-25T07:56:04+00:00",
+ "step": "A2 Squads governance (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval + Gideon's final 5a acceptance; Gideon (2026-10-25) re-evaluated the funding wait: A1's gate is 'genesis matches; balances within caps', not a 15 SOL minimum, so A2 proceeds",
+ "tool": {
+  "binary": "devnet_ops (harness-target/debug), built from the accepted source at HEAD f34b007 (working tree differs only by the SOL ledger append)",
+  "binary_sha256": "f8d908437a1a27d4d5d9df1e8afab03c870582a4c83c363fa90021b3c90530f2",
+  "packet_pin": {
+   "sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+   "commit": "aeab47059477f977294cdcf084998933460a896f"
+  },
+  "flags": "--cluster devnet --rpc https://api.devnet.solana.com --pending-file <the single write-ahead file, outside the repo> --execute"
+ },
+ "prerequisites_checked": [
+  "payer = deployer (funded: 10.0 SOL verified)",
+  "G and P create keys differ",
+  "members files: three pubkeys each; no G/P member overlap",
+  "Squads ProgramConfig present on devnet, owned by Squads; creation fee 0 (<= --max-creation-fee 0)",
+  "dry run first: both transactions 559 bytes (fit 1,232), signers = payer + the create key"
+ ],
+ "result": {
+  "mode": "execute",
+  "all_ok": true,
+  "squads_creation_fee_lamports": 0,
+  "multisigs": [
+   {
+    "name": "G",
+    "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+    "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+    "created_by_this_run": true
+   },
+   {
+    "name": "P",
+    "multisig": "HKgM5ctbkZ5k4P5LXfTr4A4ZXYm4uPo9SbJbFGvxZaRg",
+    "vault_0": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+    "created_by_this_run": true
+   }
+  ],
+  "transactions": [
+   {
+    "label": "squads multisig_create_v2 G (2-of-3, time lock 172800 s)",
+    "signature": "njGaXGK7W443jUxaAMEb2HpzbYfxxc9pX9nsYBKtsFjLBVjcEZc9hDpv461Eh82pzHxrQp4ziAVxJ93JdSgappA",
+    "slot": 514901371
+   },
+   {
+    "label": "squads multisig_create_v2 P (2-of-3, time lock 0 s)",
+    "signature": "46aYpeXfLrYegP2Mnb9o4sb5YqKNbdyGm45UkBtsHPGA3kUo57ZJ8BrkD64T8xQTwQe8CZQLYQCJc6Q7M9mnfexY",
+    "slot": 514901389
+   }
+  ],
+  "write_ahead": "each transaction recorded before send and RESOLVED confirmed (no held or unknown records)",
+  "profile_checks": "every check true right after creation (tool read-back)"
+ },
+ "independent_readback": {
+  "command": "devnet_ops readback --sections squads",
+  "all_ok": true,
+  "false_checks": 0
+ },
+ "spend": {
+  "deployer_balance_before": 10000000000,
+  "deployer_balance_after_finalized": 9996332560,
+  "spent_lamports": 3667440,
+  "breakdown": "2 x multisig rent 1,823,720 = 3,647,440 + fees 20,000 (2 transactions x 2 signatures)"
+ },
+ "a3_quote": {
+  "source": "read-only getMinimumBalanceForRentExemption on devnet + devnet_ops plan (identical values)",
+  "elf_len": 1399208,
+  "buffer_rent": 7108814840,
+  "programdata_rent": 7108855480,
+  "program_rent": 833120,
+  "peak": 14218503440,
+  "fees_upper_estimate": 14030000,
+  "transactions_total": 1403,
+  "deploy_needs_lamports_about": 14232533440,
+  "deployer_balance_now": 9996332560,
+  "deploy_gap_lamports_about": 4236200880,
+  "gap_including_fund_vault_0_02": 4256200880,
+  "conclusion": "about 4.24 SOL more lets A3 run (4.26 with the later 0.02 SOL vault top-up); the earlier 15 SOL figure was an upper target, not a minimum. A3 is NOT started: loader-v3 needs the buffer and ProgramData rent at once, and a partially written buffer would be stranded (Gideon)"
+ },
+ "next": "one more human web-faucet request (Rob) to the deployer closes the A3 gap; then A3 deploy -> SetAuthority to the G vault -> verify-bytes, then fund-vault and the A4 proposals (needs the voters funded for fees) -> 48 h time lock"
+}

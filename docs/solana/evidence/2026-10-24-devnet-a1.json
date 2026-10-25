@@ -61,6 +61,12 @@
    "process_ledger": "received 5.0 + reserved 5.0 = committed 10.0 of 25 SOL; remaining 15.0 SOL (process ledger only; devnet_ops enforces only its per-command ceilings)",
    "remaining_gap": "deployer target 15.0 SOL leaves a gap of 10.0 SOL; the bare minimum (deploy peak 14.2185 + Squads rent about 0.0036 + fees + fund-vault 0.02) is about 14.26, a gap of about 9.26. Other recipients still need 3.91 SOL (S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30). Total to finish funding: about 13.91 SOL, within the 15.0 remaining",
    "faucet_limit_guidance_evidenced": "only Rob's report that 5 SOL was the web faucet's maximum, and the RPC route's HTTP 429 text 'reached your airdrop limit today' (a daily limit on that route). The web faucet's exact limit and reset period are not evidenced in these records"
+  },
+  "human_faucet_receipt_2026_10_25_second": {
+   "reported": "Rob (relayed by Gideon): \"okay i did one more and got another 5\"",
+   "verified": "read-only, genesis-pinned, finalized at 07:53:36Z: deployer balance 10,000,000,000 (slot 514,901,077); new transaction 43FX19i3zCkknYK9CVVpGrFhSsBjrmHRKgYpg54EPWEAkxoV2xtfGGZ413nGpZszcEV8ok5Hae3Ymr6UTPV7kfod (slot 514,899,694, 07:48:06Z), a system transfer of 5,000,000,000 from dev2JBjyB5CshoGsiJCwzdmJYiEUwAXMdqDR7txoFBJ",
+   "process_ledger": "received 10.0 + reserved 5.0 (the earlier -32603 request, unchanged) = 15.0 of 25 committed; 10.0 remaining",
+   "gate_reevaluated": "A1's gate is genesis match + balances within caps (not a 15 SOL minimum); A2 ran next (see 2026-10-25-devnet-a2-squads.json); A3 needs about 4.24 SOL more on the deployer"
   }
  },
  "nothing_else": "no transaction was signed or sent by the coordinator; no deploy, no Squads, no program interaction"

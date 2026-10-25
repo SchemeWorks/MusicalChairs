@@ -171,10 +171,36 @@
     },
     {
       "id": "M14-A1",
-      "state": "Blocked: partly funded, waiting on more test tokens",
+      "state": "In progress (deployer partly funded)",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "Solana test network only. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. The faucet's direct route refused. Rob obtained part of the needed test tokens from the official web faucet, and a read-only check verified the transfer on chain, matching his report. The earlier uncertain request stays reserved in the written spend ledger. More test tokens are needed before the deploy can start; agents may not use the web faucet, so this is Rob's step. Nothing has been signed or sent by the coordinator.",
+      "evidenceText": "Solana test network only. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens twice from the official web faucet, and both transfers were verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The funding target is a ceiling, not a minimum, so governance setup went ahead. The deployer still needs a little more before the program deploy, and the other test wallets are funded later.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A2",
+      "state": "Done",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Create the real governance and guardian multisignature accounts on the Solana test network.",
+      "evidenceText": "Done on the test network with the real Squads v4 program: a governance account (two of three members, two-day waiting period, no configuration authority) and a guardian account (two of three, no waiting period). A dry run came first, then each transaction was recorded before sending, and both confirmed. Read-back checks of both accounts all pass.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A3",
+      "state": "Blocked: waiting on a little more test tokens",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Deploy the accepted program build to the Solana test network and hand its upgrade control to the governance account.",
+      "evidenceText": "Not started. A fresh read-only cost quote shows the deploy needs somewhat more than the deployer holds, because the upload buffer and the program data must both be paid for at once. Starting underfunded could strand a half-written buffer, so it waits for one more faucet top-up from Rob.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",

@@ -1,5 +1,5 @@
 {
-  "summary": "Rob approved the Solana test-network trial, and Gideon, the supervisor, accepted the rebuilt program. Rob got part of the needed free test tokens; it is verified on chain, but more are needed before the deploy. Nothing deployed yet; Internet Computer changes, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A is under way on the Solana test network. The governance multisig accounts are created and verified. The program deploy waits for one more free test-token top-up from Rob, since it must pay for upload and program storage at once. Internet Computer changes, real rewards, mainnet and the merge stay held.",
   "glossary": [
     {
       "term": "M14",
