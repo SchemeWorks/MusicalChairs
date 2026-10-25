@@ -52,6 +52,15 @@
    "written_budget_reserve": "5 SOL reserved in the process ledger for the -32603 request: a generic internal error does not prove the faucet had no effect, and absence is not treated as proof (Gideon, 2026-10-24); released only with Gideon's agreement. The 429 request is a confirmed rate-limit refusal with no reserve",
    "process_ledger_committed": "5.0 of 25 SOL; the 18.91 SOL funding plan still fits (23.91 with the reserve)",
    "correction": "the first version of this receipt said 'budget used 0' and the ledger labelled the -32603 request 'rejected'; both are superseded by this reconciliation"
+  },
+  "human_faucet_receipt_2026_10_25": {
+   "reported": "Rob, relayed by Gideon: \"i got us 5 sol which was the max\" (the official web faucet, the human MI-5 step)",
+   "verified": "read-only, genesis-pinned, finalized at 2026-10-25T02:46:16Z. Deployer balance 5,000,000,000 lamports (slot 514,823,809). Exactly one finalized transaction: 5zxiWk1Dxg1nHi2zseGY4V9737vjVp6focFMDfzjzAqckN7uRp2Mg76B5hv1VmGMu9DTvx3ztEMuGgbyP3un2Nzp (slot 514,823,085, 02:43:24Z), a successful system transfer of 5,000,000,000 lamports from dev2JBjyB5CshoGsiJCwzdmJYiEUwAXMdqDR7txoFBJ",
+   "attribution": "received equals reported (5.0 SOL). Consistent with Rob's web-faucet request by amount and timing. That the source account is the official faucet's wallet is not independently verified",
+   "reserve": "the earlier 5 SOL reserve for the 2026-10-24 RPC -32603 request is UNCHANGED: it is a separate request, 7+ hours earlier, and is neither conflated with this receipt nor released",
+   "process_ledger": "received 5.0 + reserved 5.0 = committed 10.0 of 25 SOL; remaining 15.0 SOL (process ledger only; devnet_ops enforces only its per-command ceilings)",
+   "remaining_gap": "deployer target 15.0 SOL leaves a gap of 10.0 SOL; the bare minimum (deploy peak 14.2185 + Squads rent about 0.0036 + fees + fund-vault 0.02) is about 14.26, a gap of about 9.26. Other recipients still need 3.91 SOL (S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30). Total to finish funding: about 13.91 SOL, within the 15.0 remaining",
+   "faucet_limit_guidance_evidenced": "only Rob's report that 5 SOL was the web faucet's maximum, and the RPC route's HTTP 429 text 'reached your airdrop limit today' (a daily limit on that route). The web faucet's exact limit and reset period are not evidenced in these records"
   }
  },
  "nothing_else": "no transaction was signed or sent by the coordinator; no deploy, no Squads, no program interaction"
