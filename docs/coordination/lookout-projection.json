@@ -174,7 +174,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "State detail: in progress; the deployer is funded. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens three times from the official web faucet, and every transfer was verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The remaining wallets are funded from the deployer through the guarded funding path, not from the faucet.",
+      "evidenceText": "State detail: in progress; the deployer is funded. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens three times from the official web faucet, and every transfer was verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The remaining wallets are not funded yet. They will be funded from the deployer through the guarded funding path once its review closes, not from the faucet.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -213,7 +213,7 @@
       "state": "Review",
       "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) adjudicates",
       "scope": "A guarded way to fund the voter, sponsor, keeper and test wallets from the deployer's remainder.",
-      "evidenceText": "State detail: built and tested locally, awaiting Gideon's bounded review; not used on the test network. The guarded funding command checks the whole pinned plan before sending anything, funds each wallet at most once even if a node lags or the plan is edited, and stops on any uncertain send. The dedicated tests and the existing operator-tool and flow-runner suites pass. The new code also reads the existing transaction journal correctly.",
+      "evidenceText": "State detail: built and tested locally; Gideon's review found one issue, which is now fixed; awaiting his closeout. Not used on the test network. The guarded funding command checks the whole pinned plan before sending anything and funds each wallet at most once, even if a node lags or the plan is edited. It stops on any uncertain send, and now also stops if a confirmed transfer's read-back does not show the expected balance. The dedicated tests and the existing operator-tool and flow-runner suites pass.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",

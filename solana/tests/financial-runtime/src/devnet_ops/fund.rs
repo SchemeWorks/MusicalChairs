@@ -33,7 +33,10 @@
 //! `noop_already_at_target` (the balance is never the only duplicate protection: the record check runs first).
 //! Every send is one `Ctx::run_step` (size check, simulate, write-ahead BEFORE send, history-searching
 //! unknown-outcome handling).  A held or rejected send stops the batch; a held record clears only when a later
-//! run's history lookup finds the transaction (this tool has no command that clears one).
+//! run's history lookup finds the transaction (this tool has no command that clears one).  After a CONFIRMED
+//! transfer the recipient is read back: a balance below its target (or an absent, no longer plain, or unreadable
+//! wallet) stops the batch at once with the role, recipient, step, signature, slot, expected and observed values;
+//! the write-ahead record stays CONFIRMED, so a re-run never resends that transfer.
 //!
 //! # Solana notes (closest ICP / EVM comparisons)
 //!
@@ -885,7 +888,69 @@ fn run_batch(
                 row["top_up_lamports"] = json!(top_up);
                 if result.executed {
                     *used = next;
-                    let after = ctx.balance(&target.pubkey)?;
+                    report.funded += 1;
+                    report.lamports_sent = report.lamports_sent.saturating_add(top_up);
+                    // The read-back must show the expected effect: a plain system wallet holding at least its target.
+                    // Anything else (below the target, absent, no longer a plain wallet, or an unreadable answer) STOPS
+                    // the batch here: later recipients are not paid on top of an effect that contradicts the record.
+                    // The write-ahead resolution is NOT touched: the transfer stays CONFIRMED, so a re-run reports this
+                    // target as already_funded_by_record and never sends it again.
+                    let observed = ctx.account(&target.pubkey);
+                    let contradiction: Option<(&str, Option<u64>)> = match &observed {
+                        Err(_) => Some(("the read-back failed", None)),
+                        Ok(None) => Some(("the recipient is absent after a confirmed transfer", Some(0))),
+                        Ok(Some(account)) if account.owner != system_program::ID || !account.data.is_empty() || account.executable => {
+                            Some(("the recipient is no longer a plain system wallet", Some(account.lamports)))
+                        }
+                        Ok(Some(account)) if account.lamports < target.target => {
+                            Some(("the recipient's balance is below its target", Some(account.lamports)))
+                        }
+                        Ok(Some(_)) => None,
+                    };
+                    if let Some((reason, observed_lamports)) = contradiction {
+                        let signature = result.signature.map(|signature| signature.to_string());
+                        let observed_error = observed.as_ref().err().map(ToString::to_string);
+                        let cluster_slot = ctx.cluster.slot().ok();
+                        // The Cluster interface returns accounts without the response's context slot; the read carried
+                        // minContextSlot >= the transfer's confirmed slot, and the cluster slot is read right after.
+                        let discrepancy = json!({
+                            "reason": reason, "role": target.role, "recipient": target.pubkey.to_string(),
+                            "step": target.step, "signature": signature, "confirmed_slot": result.slot,
+                            "expected_minimum_lamports": target.target, "observed_lamports": observed_lamports,
+                            "observed_error": observed_error, "read_min_context_slot": result.slot,
+                            "cluster_slot_after_read": cluster_slot,
+                        });
+                        row["outcome"] = json!("sent_confirmed");
+                        row["signature"] = json!(signature);
+                        row["slot"] = json!(result.slot);
+                        row["discrepancy"] = discrepancy.clone();
+                        report.rows.push(row);
+                        report.steps.push(result.to_json());
+                        return fail(format!(
+                            "{}: INCIDENT, the transfer CONFIRMED but its read-back contradicts it: {reason}. role `{}`, recipient {}, \
+                             step {}, signature {}, confirmed slot {}, expected a balance of at least {} lamports, observed {}, \
+                             read context: minContextSlot >= {} (the response's own context slot is not exposed to the tool), \
+                             cluster slot after the read {}. The transfer stays CONFIRMED in the write-ahead file{}: a re-run reports \
+                             it as already_funded_by_record and never sends it again, and NO later target was sent. STOP: do not \
+                             retry by hand; look the signature up and the recipient's balance history first. Discrepancy: {discrepancy}",
+                            step.label,
+                            target.role,
+                            target.pubkey,
+                            target.step,
+                            signature.as_deref().unwrap_or("?"),
+                            result.slot.map_or("?".to_string(), |slot| slot.to_string()),
+                            target.target,
+                            match (&observed_error, observed_lamports) {
+                                (Some(error), _) => format!("nothing (the read failed: {error})"),
+                                (None, Some(lamports)) => format!("{lamports} lamports"),
+                                (None, None) => "nothing".to_string(),
+                            },
+                            result.slot.map_or("?".to_string(), |slot| slot.to_string()),
+                            cluster_slot.map_or("unknown".to_string(), |slot| slot.to_string()),
+                            ctx.pending_path.as_ref().map_or(String::new(), |path| format!(" ({})", path.display())),
+                        ));
+                    }
+                    let after = observed.map_or(0, |account| account.map_or(0, |account| account.lamports));
                     report.checks.push(check(
                         format!("{} balance after >= target", target.role),
                         after >= target.target,
@@ -894,8 +959,6 @@ fn run_batch(
                     ));
                     row["outcome"] = json!("funded");
                     row["balance_after"] = json!(after);
-                    report.funded += 1;
-                    report.lamports_sent = report.lamports_sent.saturating_add(top_up);
                 } else {
                     row["outcome"] = json!("would_fund");
                     report.would_fund += 1;

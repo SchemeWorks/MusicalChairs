@@ -152,7 +152,10 @@ are fixed in the code, a plan can claim less and is refused when it claims more.
   history-searching unknown-outcome handling). A confirmed earlier target is skipped on resume. A held or ambiguous send ends the command at once
   with zero further sends (exit 1, `INCIDENT`; every later `--execute` refuses with `HELD UNKNOWN` until a lookup finds the transaction; then
   a re-run skips everything confirmed, the held transfer included, and sends only what is left). A definite on-chain rejection stops the batch too;
-  it moved nothing, so the retry may send that target. The stderr of a stopped run lists the targets handled so far. The receipt (stdout)
+  it moved nothing, so the retry may send that target. After a CONFIRMED transfer the recipient is read back; a balance below the target (or an
+  absent, no-longer-plain or unreadable wallet) is an `INCIDENT` that stops the batch at once, naming the role, recipient, step, signature,
+  confirmed slot, expected minimum and observed balance. The write-ahead record is left CONFIRMED (never recast as rejected or held), so a re-run
+  reports that target as `already_funded_by_record` and does not resend it. The stderr of a stopped run lists the targets handled so far. The receipt (stdout)
   reports each target's outcome (`funded`, `already_funded_by_record`, `noop_already_at_target`, or `would_fund` in a dry run), the totals, the
   bucket arithmetic and the payer's balance before and after; a funded wallet that does not read back at its target makes `all_ok` false (exit 4).
 * **Order.** One command pays every target in plan order, which is the operator order the envelope calls for: the A4 participants first (the G and P

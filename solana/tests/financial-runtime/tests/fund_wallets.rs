@@ -145,8 +145,22 @@ fn pending_lines(path: &str) -> Vec<Value> {
     }
 }
 
+/// How many write-ahead records the file holds for one step id.
+fn write_aheads_of(path: &str, step: &str) -> usize {
+    write_aheads(path).iter().filter(|line| line["step"] == step).count()
+}
+
 fn write_aheads(path: &str) -> Vec<Value> {
     pending_lines(path).into_iter().filter(|line| line["event"] == "write_ahead").collect()
+}
+
+/// What a read of one key answers once the injected number of sends has happened.
+#[derive(Clone, Copy)]
+enum Readback {
+    /// A plain wallet holding this many lamports (whatever the chain says).
+    Balance(u64),
+    /// The read fails.
+    Error,
 }
 
 /// A [`Cluster`] over a LiteSVM instance.  Counts simulations and sends; the hooks make it misbehave.
@@ -167,6 +181,9 @@ struct Fund<'a> {
     /// The status lookup finds nothing for a transaction that did land.
     hide_status: Cell<bool>,
     noted_slot: Cell<u64>,
+    /// After the n-th send (counted over the cluster's life) a read of the key answers as injected: the
+    /// post-send read-back of a transfer that really landed.
+    readback: RefCell<Option<(usize, Pubkey, Readback)>>,
 }
 
 impl<'a> Fund<'a> {
@@ -183,6 +200,7 @@ impl<'a> Fund<'a> {
             reject_at: Cell::new(0),
             hide_status: Cell::new(false),
             noted_slot: Cell::new(0),
+            readback: RefCell::new(None),
         }
     }
     fn set_lamports(&self, key: &Pubkey, lamports: u64) {
@@ -209,6 +227,16 @@ impl Cluster for Fund<'_> {
     fn account(&self, key: &Pubkey) -> Result<Option<Account>, String> {
         if self.lagging.borrow().contains(key) {
             return Ok(None);
+        }
+        if let Some((after_sends, injected, answer)) = *self.readback.borrow() {
+            if injected == *key && self.sends.get() >= after_sends {
+                return match answer {
+                    Readback::Balance(lamports) => {
+                        Ok(Some(Account { lamports, data: Vec::new(), owner: Pubkey::default(), executable: false, rent_epoch: 0 }))
+                    }
+                    Readback::Error => Err("injected getAccountInfo failure".into()),
+                };
+            }
         }
         Ok(self.svm.borrow().get_account(key).filter(|account| account.lamports > 0))
     }
@@ -1225,6 +1253,92 @@ fn a_rejected_send_stops_the_batch_and_a_closed_rejection_does_not_block_the_ret
     assert_eq!(receipt["targets"][0]["outcome"], "already_funded_by_record");
     for row in &fx.spec.rows {
         assert_eq!(cluster.balance(&row.pubkey), row.target);
+    }
+}
+
+#[test]
+fn a_confirmed_transfer_whose_read_back_is_below_target_stops_the_batch_and_is_never_resent() {
+    let fx = Fx::new(Net::Local);
+    fx.commit();
+    let mut svm = LiteSVM::new();
+    let cluster = fx.cluster_for(&mut svm);
+    let first = fx.recipient("G voter 1");
+    let target = 20_000_000u64;
+    // The first transfer really lands; the read-back that follows it answers BELOW the target (a stale or wrong node).
+    *cluster.readback.borrow_mut() = Some((1, first, Readback::Balance(7_000_000)));
+
+    let message = failed(fx.run(&cluster, true, None, &[]));
+    let lines = pending_lines(&fx.pending);
+    let signature = lines[0]["signature"].as_str().unwrap().to_string();
+    let slot = lines[1]["slot"].as_u64().expect("the confirmed record carries its slot");
+    // The command stopped with the precise discrepancy: role, recipient, step, signature, slot, expected, observed, context.
+    assert!(message.contains("INCIDENT") && message.contains("CONFIRMED") && message.contains("below its target"), "{message}");
+    assert!(message.contains("role `G voter 1`") && message.contains(&format!("recipient {first}")), "{message}");
+    assert!(message.contains("step A1.fund.g-voter-1") && message.contains(&format!("signature {signature}")), "{message}");
+    assert!(message.contains(&format!("confirmed slot {slot}")), "{message}");
+    assert!(message.contains(&format!("at least {target} lamports")) && message.contains("observed 7000000 lamports"), "{message}");
+    assert!(message.contains(&format!("minContextSlot >= {slot}")) && message.contains("cluster slot after the read"), "{message}");
+    assert!(message.contains("already_funded_by_record") && message.contains("NO later target was sent"), "{message}");
+    assert!(message.contains("\"observed_lamports\":7000000"), "the structured discrepancy is in the error: {message}");
+
+    // Exactly ONE send; the later recipients are untouched and have no write-ahead record.
+    assert_eq!(cluster.sends.get(), 1);
+    assert_eq!(cluster.balance(&first), target, "the transfer really landed");
+    for row in &fx.spec.rows[1..] {
+        assert_eq!(cluster.balance(&row.pubkey), 0, "{}", row.role);
+    }
+    let write_aheads = write_aheads(&fx.pending);
+    assert_eq!(write_aheads.len(), 1, "no write-ahead record for any later recipient: {lines:?}");
+    // The original record stays CONFIRMED (not rejected, not held, not rewritten).
+    assert_eq!(lines.len(), 2, "{lines:?}");
+    assert_eq!(write_aheads[0]["step"], "A1.fund.g-voter-1");
+    assert_eq!(write_aheads[0]["fund"]["recipient"], first.to_string().as_str());
+    assert_eq!((lines[1]["event"].as_str(), lines[1]["outcome"].as_str()), (Some("resolved"), Some("confirmed")));
+    assert_eq!(lines[1]["signature"], signature.as_str());
+    assert!(lines.iter().all(|line| line["event"] != "held_unknown"));
+
+    // A re-run with honest reads never resends the first recipient (the confirmed record blocks it) ...
+    *cluster.readback.borrow_mut() = None;
+    let receipt = ok(fx.run(&cluster, true, None, &[]));
+    assert_eq!(receipt["targets"][0]["outcome"], "already_funded_by_record");
+    assert_eq!(receipt["targets"][0]["record"]["signature"], signature.as_str());
+    assert_eq!(receipt["targets"][0]["record"]["matched_by_role"], true);
+    assert_eq!(
+        write_aheads_of(&fx.pending, "A1.fund.g-voter-1"),
+        1,
+        "the first recipient has exactly one transfer on record"
+    );
+    assert_eq!(cluster.balance(&first), target, "and was paid exactly once");
+    // ... and the normal flow then funds the remaining four, once each.
+    assert_eq!(cluster.sends.get(), 5);
+    for row in &fx.spec.rows {
+        assert_eq!(cluster.balance(&row.pubkey), row.target, "{}", row.role);
+    }
+}
+
+#[test]
+fn a_confirmed_transfer_whose_read_back_fails_or_shows_no_wallet_also_stops_the_batch() {
+    for (answer, expect) in [
+        (Readback::Error, "the read-back failed"),
+        (Readback::Balance(0), "below its target"),
+    ] {
+        let fx = Fx::new(Net::Local);
+        fx.commit();
+        let mut svm = LiteSVM::new();
+        let cluster = fx.cluster_for(&mut svm);
+        // The SECOND transfer's read-back is bad: the first is fine and stays funded.
+        *cluster.readback.borrow_mut() = Some((2, fx.recipient("plan wallet S"), answer));
+        let message = failed(fx.run(&cluster, true, None, &[]));
+        assert!(message.contains(expect) && message.contains("role `plan wallet S`") && message.contains("NO later target was sent"), "{message}");
+        assert_eq!(cluster.sends.get(), 2, "nothing after the contradicted transfer was sent");
+        let lines = pending_lines(&fx.pending);
+        assert_eq!(write_aheads(&fx.pending).len(), 2);
+        assert_eq!(lines.iter().filter(|l| l["event"] == "resolved" && l["outcome"] == "confirmed").count(), 2, "{lines:?}");
+        assert_eq!(cluster.balance(&fx.recipient("plan wallet K")), 0);
+        *cluster.readback.borrow_mut() = None;
+        let receipt = ok(fx.run(&cluster, true, None, &[]));
+        assert_eq!(receipt["targets"][1]["outcome"], "already_funded_by_record");
+        assert_eq!(cluster.balance(&fx.recipient("plan wallet S")), 50_000_000, "paid exactly once");
     }
 }
 
