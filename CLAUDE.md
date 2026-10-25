@@ -55,6 +55,7 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
 
 `docs/coordination/kanban.md` is the sole authority for the native board. `docs/coordination/lookout-projection.json` is a **sanitized, derived** mirror of the current material cards in its "Local implementation pass" section, for Rob's private Lookout board. The mirror's shape is `{cards:[{id,state,owner,scope,evidenceText,evidenceLinks:[{title,url}]}]}`, and the publisher rejects any other field. The Lookout setup chat owns the publisher configuration and the manifest.
 
+- **States.** Use only the publisher's standard column states: `Backlog`, `Ready`, `In progress`, `Review`, `Done`, `Blocked`, `Cancelled`. The board allows at most 12 columns, and each distinct state is a column. Put any qualifier, such as "done locally, not deployed" or "awaiting Gideon", at the start of `evidenceText` as `State detail: …`.
 - **When to update.** After every material board checkpoint, update the projection in the same commit as the kanban change. A material checkpoint is a card being added, a card changing state, or a card's evidence changing materially. Include new material cards honestly, and keep state wording consistent with the kanban.
 - **Sanitation.**
   - Write fresh summaries; never copy raw board cells.

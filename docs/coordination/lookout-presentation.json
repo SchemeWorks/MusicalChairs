@@ -1,5 +1,5 @@
 {
-  "summary": "Block A is under way on the Solana test network. The governance multisig accounts are created and verified. The program deploy waits for one more free test-token top-up from Rob, since it must pay for upload and program storage at once. Internet Computer changes, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A is under way on the Solana test network. The program is deployed, its bytes match the accepted build, and the governance account controls upgrades. Next: a guarded way to fund the voter wallets, then the governance proposals and a two-day wait. Internet Computer changes, real rewards, mainnet and the merge stay held.",
   "glossary": [
     {
       "term": "M14",

@@ -1,0 +1,112 @@
+{
+ "recorded_at_utc": "2026-10-25T13:14:55+00:00",
+ "step": "A3 deploy + authority transfer (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval; Gideon's final 5a acceptance; Rob's 2026-10-25 'continue with the devnet deployment'",
+ "prechecks": {
+  "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG (match)",
+  "a0_pins_immediately_before": {
+   "elf_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef (durable and in-tree copies)",
+   "source_set_sha256": "e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d",
+   "idl_sha256": "d6370a7319314d0386493661ce11c54168f8e65617b47ce285e8ac763db6e024 (both copies)",
+   "packet": "working file == aeab470 blob, sha256 ae8a6a0e\u2026"
+  },
+  "funds": "deployer 14,996,332,560 >= tool's funds_needed (it refuses underfunded deploys so no buffer is stranded)",
+  "dry_run": "all_ok, no notes"
+ },
+ "tool": {
+  "binary_sha256": "f8d908437a1a27d4d5d9df1e8afab03c870582a4c83c363fa90021b3c90530f2",
+  "flags": "deploy --execute --cluster devnet --rpc https://api.devnet.solana.com --pending-file <single write-ahead file> --packet-sha256 ae8a6a0e\u2026 --packet-commit aeab470; max_data_len = elf_len (no flag)",
+  "started_utc": "2026-10-25T11:25:42Z",
+  "finished_utc": "2026-10-25T13:13:14Z"
+ },
+ "result": {
+  "mode": "execute",
+  "all_ok": true,
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+  "programdata_address": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+  "g_vault": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+  "upgrade_authority_after": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+  "writes": {
+   "chunk_bytes": 1009,
+   "executed": true,
+   "first_signature": "3P2iDV51Fff63P66RWGbPU8Js4tWkHZXwWo5kJTRy67ECdx5VHqEwCgUJbVsMA7Qxo44QooAuSFXoV2LjCjsen4d",
+   "last_signature": "42LQ3NCiHkLsWqUyzjo5F68QmKZ3w138GDLNNXBeE1gB53B6BGkm4RkhY2RJkd9ppg8t2fmFrSUsjiuhc32zWbRP",
+   "max_packet_bytes": 1229,
+   "skipped_identical": 0,
+   "to_write": 1387,
+   "total_chunks": 1387
+  },
+  "steps": [
+   {
+    "label": "loader-v3 create buffer (system create_account + InitializeBuffer)",
+    "signature": "4oUmeZKan5D2XTpoLN5XYQDRJF2E2q8yYBT4h1APxHBDy3dThfqnkuyoitJA16Me76H5LNYZonJ7ricpn2KJ6HNm",
+    "slot": 514954455,
+    "executed": true
+   },
+   {
+    "label": "loader-v3 DeployWithMaxDataLen (max_data_len 1399208)",
+    "signature": "5sePm7BTxbjiNvU6ZWGuf5YqcH8dizRf9aYN5RCjmX1MjyME11DfwVRUQE5XAJw5AXYM1iYXKNUzC87bwuAg7KRL",
+    "slot": 514981407,
+    "executed": true
+   },
+   {
+    "label": "loader-v3 SetAuthority: upgrade authority -> G vault (unchecked: a PDA cannot co-sign)",
+    "signature": "2JsRBBdkwLAJwyXaehj8fQuL7Qv6cnDj8TVeKRyum7t2n5h9iYMYA7XgVtmVNKV8bUFunUYahV93WhUvUiH3tTjC",
+    "slot": 514981415,
+    "executed": true
+   }
+  ],
+  "write_ahead": "1,390 records, 1,390 RESOLVED confirmed, 0 held/unknown",
+  "checks": [
+   {
+    "actual": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "expected": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "name": "program.owner_is_loader_v3",
+    "ok": true
+   },
+   {
+    "actual": "true",
+    "expected": "true",
+    "name": "program.executable",
+    "ok": true
+   },
+   {
+    "actual": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+    "expected": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+    "name": "program.points_at_derived_programdata",
+    "ok": true
+   },
+   {
+    "actual": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "expected": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "name": "programdata.owner_is_loader_v3",
+    "ok": true
+   },
+   {
+    "actual": "None",
+    "expected": "equal",
+    "name": "programdata.elf_bytes_equal_pinned_elf",
+    "ok": true
+   },
+   {
+    "actual": "0",
+    "expected": "all zero",
+    "name": "programdata.padding_all_zero",
+    "ok": true
+   },
+   {
+    "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+    "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+    "name": "programdata.upgrade_authority_is_g_vault",
+    "ok": true
+   }
+  ]
+ },
+ "order": "deploy -> deployed-byte check (A8 first pass, authority still the deployer: programdata.upgrade_authority 6wMkX8Fs\u2026 at check time) -> SetAuthority to the G vault (unchecked: a PDA cannot co-sign) -> read-back (authority = G vault)",
+ "spend": {
+  "deployer_before": 14996332560,
+  "deployer_after_finalized": 7879683960,
+  "spent": 7116648600,
+  "breakdown": "ProgramData rent 7,108,855,480 + Program rent 833,120 = 7,109,688,600 retained; fees 6,960,000 (1,392 signatures x 5,000: buffer create 2 + 1,387 writes + deploy 2 + set authority 1); buffer rent 7,108,814,840 refunded when the buffer closed"
+ }
+}
