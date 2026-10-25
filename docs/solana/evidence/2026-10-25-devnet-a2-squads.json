@@ -77,5 +77,6 @@
   "gap_including_fund_vault_0_02": 4256200880,
   "conclusion": "about 4.24 SOL more lets A3 run (4.26 with the later 0.02 SOL vault top-up); the earlier 15 SOL figure was an upper target, not a minimum. A3 is NOT started: loader-v3 needs the buffer and ProgramData rent at once, and a partially written buffer would be stranded (Gideon)"
  },
- "next": "one more human web-faucet request (Rob) to the deployer closes the A3 gap; then A3 deploy -> SetAuthority to the G vault -> verify-bytes, then fund-vault and the A4 proposals (needs the voters funded for fees) -> 48 h time lock"
+ "next": "one more human web-faucet request (Rob) to the deployer closes the A3 gap. Then A3 runs in the order the frozen packet requires: deploy (buffer + DeployWithMaxDataLen, max_len = elf_len) -> verify the deployed bytes (A8 first pass: 45-byte header, elf_len equality, zero padding) BEFORE the authority moves -> SetAuthority to the G vault -> read-back. All of it uses the current artifact 0c88d4e7\u2026, genesis check, packet pin ae8a6a0e\u2026/aeab470 and the write-ahead/unknown guards. After that: fund-vault, fund the voters, and the A4 proposals, then the 48 h time lock.",
+ "next_correction": "2026-10-25: an earlier version of this field listed 'deploy -> SetAuthority -> verify-bytes', which is the wrong order. The deployed bytes are verified BEFORE SetAuthority (packet 6.1 A3; devnet_ops deploy runs the A8 check before moving the authority). Corrected per Gideon's checkpoint read."
 }
