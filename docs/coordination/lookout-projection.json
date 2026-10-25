@@ -210,10 +210,10 @@
     },
     {
       "id": "M14-FUND-TOOL",
-      "state": "In progress",
+      "state": "Review",
       "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) adjudicates",
       "scope": "A guarded way to fund the voter, sponsor, keeper and test wallets from the deployer's remainder.",
-      "evidenceText": "State detail: local implementation approved by Gideon, then his bounded review before any test-network use. A small guarded funding command for the voter, sponsor, keeper and test wallets, drawing on the deployer's remainder. It funds each recipient only once, with per-transfer and per-bucket caps that are refused rather than clamped, and the same write-ahead and uncertain-outcome protections. The funding plan is pinned to the recorded test-key inventory. Internal transfers are not new faucet tokens, so no faucet top-up is needed.",
+      "evidenceText": "State detail: built and tested locally, awaiting Gideon's bounded review; not used on the test network. The guarded funding command checks the whole pinned plan before sending anything, funds each wallet at most once even if a node lags or the plan is edited, and stops on any uncertain send. The dedicated tests and the existing operator-tool and flow-runner suites pass. The new code also reads the existing transaction journal correctly.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
