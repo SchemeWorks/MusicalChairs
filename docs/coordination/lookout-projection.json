@@ -171,10 +171,10 @@
     },
     {
       "id": "M14-A1",
-      "state": "In progress",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "First public step of Block A: confirm the test network, create test keys and get free test tokens.",
-      "evidenceText": "State detail: in progress; the deployer is funded. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens three times from the official web faucet, and every transfer was verified on chain. The earlier uncertain request stays reserved in the written spend ledger. The remaining wallets are not funded yet. They will be funded from the deployer through the guarded funding path once its review closes, not from the faucet.",
+      "evidenceText": "State detail: done. The network identity was confirmed before any key was used, and fresh test keys are kept outside the repository. Rob obtained test tokens three times from the official web faucet, each verified on chain, and the earlier uncertain request stays reserved in the written ledger. All seventeen plan wallets were then funded once through the guarded funding command. Every wallet's final balance matches its target exactly, and none of the transfers was uncertain.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -210,10 +210,10 @@
     },
     {
       "id": "M14-FUND-TOOL",
-      "state": "Review",
+      "state": "Done",
       "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) adjudicates",
       "scope": "A guarded way to fund the voter, sponsor, keeper and test wallets from the deployer's remainder.",
-      "evidenceText": "State detail: built and tested locally; Gideon's review found one issue, which is now fixed; awaiting his closeout. Not used on the test network. The guarded funding command checks the whole pinned plan before sending anything and funds each wallet at most once, even if a node lags or the plan is edited. It stops on any uncertain send, and now also stops if a confirmed transfer's read-back does not show the expected balance. The dedicated tests and the existing operator-tool and flow-runner suites pass.",
+      "evidenceText": "State detail: done; Gideon accepted it after one review fix. The guarded funding command checks the whole pinned plan before sending, funds each wallet at most once, and stops on any uncertain send or contradicting read-back. It was used once on the test network and funded all seventeen plan wallets exactly.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -223,10 +223,10 @@
     },
     {
       "id": "M14-A4",
-      "state": "Blocked",
+      "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Propose program initialization and oracle registration through the governance account, then the two-day waiting period.",
-      "evidenceText": "State detail: Blocked: waiting on guarded wallet funding. Next after the deploy. The governance voters and the sponsor need test tokens for fees first, through the guarded funding path. The real two-of-three governance rules and the two-day waiting period are kept, with no shortcut.",
+      "evidenceText": "State detail: waiting for the two-day governance time lock. The governance vault was topped up for the oracle registration. Both governance proposals, program initialization and oracle registration, were created and approved by two of the three members in one sitting, with the stored transaction re-checked at each approval. The earliest execution is 2026-10-27 at 15:05 UTC, judged on the network's own clock with no shortcut. Initialization runs first, then registration.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
