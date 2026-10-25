@@ -72,7 +72,8 @@ time, and read from a load-balanced node that has not yet seen the last transact
   if the lookup now finds it.
 * **Once-only transfers.** The plain funding transfers (`fund-vault`; the flow steps `fund_operations` and the `*_fund_series_a` steps) are not
   idempotent. If the file already holds a CONFIRMED record for the same step on this genesis, the tool refuses and prints the signature,
-  whatever the RPC node says about balances or counters. An OPEN (unresolved or held) record for the same step also refuses it.
+  whatever the RPC node says about balances or counters. An OPEN (unresolved or held) record for the same step also refuses it. `fund-wallets`
+  applies the same rule per recipient (its step id is `A1.fund.<role-slug>`, and its write-ahead record also names the recipient), see below.
 * **Reads are typed.** The post-send `getAccountInfo` / `getProgramAccounts` configs are typed values checked before use (the commitment sits
   at the top level of the config; a dropped commitment would silently read at `finalized`).
 
@@ -100,6 +101,7 @@ roles). Members files list exactly three pubkeys, one per line.
 | `deploy` | `--elf --deployer --program-keypair --buffer-keypair` (keypairs) `--g-create-key --g-members` | resumable: create buffer, idempotent chunked writes, buffer byte check, `DeployWithMaxDataLen` (max_data_len = elf_len unless `--max-data-len`), A8 check BEFORE the authority moves, then SetAuthority to the G vault (only if G is in place) and read-back |
 | `verify-bytes` | `--elf` (`--program-id`, `--expect-authority g-vault\|none\|<key>`, `--g-create-key`) | read-only A8: header, `elf_len`, `data.len()`, slot, authority, ELF equality, zero padding |
 | `fund-vault` | `--payer --g-create-key --g-members --lamports` | system transfer so the G vault can pay the ORAO Client rent; checks the full G profile and the vault's balance first, reads the balance back |
+| `fund-wallets` | `--payer` (keypair) `--plan <plan.json>` and, on devnet `--execute`, `--plan-commit <40-hex>` | tops up the 17 plan wallets (voters, sponsor, management recipient, keeper, test wallets) from the deployer, each ONCE, under the packet envelope; see [Funding the plan wallets](#funding-the-plan-wallets-fund-wallets). `fund-vault` stays separate |
 | `propose initialize\|register` | `--member` (keypair) `--g-create-key --g-members`; `initialize` also `--p-create-key --sponsor --management-recipient` | `vault_transaction_create` + `proposal_create`; prints index, message sha256 and parameters |
 | `approve initialize\|register` | as propose plus `--tx-index` | `proposal_approve` by one member |
 | `execute initialize\|register` | as approve; `initialize` needs `--sponsor` as a keypair (it co-signs the outer transaction) | `vault_transaction_execute` after the lock |
@@ -114,6 +116,60 @@ propose, approve and execute. Ceremony order: `squads-create` -> `deploy` -> `fu
 2 x `approve` each -> wait 172,800 s on the cluster clock -> `execute initialize` -> `execute register` -> `readback` -> `verify-bytes`.
 Devnet runs need `--cluster devnet --rpc https://api.devnet.solana.com --pending-file <path.jsonl> --packet-sha256 <sha256> --packet-commit <commit>` AND Rob's explicit approval; the pin is taken from the frozen commit of the reviewed packet (`git show <commit>:<packet path> | shasum -a 256`), after the packet text is committed, and proves only which text was reviewed.
 A fresh program id (packet 5a) changes the compiled-in id and the pinned ELF hash: rebuild, re-pin, then use the tool.
+
+## Funding the plan wallets (`fund-wallets`)
+
+`devnet_ops fund-wallets --payer <deployer keypair file> --plan docs/solana/devnet-funding-plan.json --plan-commit <40-hex commit> --execute ...`
+(plus the usual devnet flags: `--cluster devnet --rpc ... --pending-file <the SAME file> --packet-sha256 ... --packet-commit ...`) pays the 17
+recipients of the committed funding plan from the deployer's remainder, each once. These are internal transfers between devnet keys, not
+faucet intake. Source: the M14 wallet-funding envelope (`docs/coordination/m14-wallet-funding-envelope-20261025.md`); the cap numbers below
+are fixed in the code, a plan can claim less and is refused when it claims more.
+
+* **Plan binding.** On devnet `--execute`, `--plan-commit` is required: the plan file AND the inventory file the plan names (its `inventory`
+  path, a plain repository-relative path) must each equal their blob at that commit (`git cat-file blob <commit>:<path>`, working file
+  byte-equal, no symlink in the path). The path, commit and SHA-256 of both files go into the receipt and into every write-ahead record. Like the
+  packet pin this proves WHICH TEXT was reviewed; it is not an approval (Rob's explicit approval in chat is). `--plan` is relative to the repository
+  root (or an absolute path inside it). A loopback run may omit `--plan-commit` (a given one is still verified).
+* **Whole-plan validation, before the first send (any failure refuses the command with zero sends, in a dry run too).** Schema 1 and no key the
+  tool does not know; `network` matches the target; `genesis` equals the cluster's; `payer.pubkey` equals `--payer` and the inventory's `deployer D`;
+  duplicate JSON keys refused; every role is one of the 17 allowlisted names and appears once; every pubkey appears once, is not the payer, and
+  equals the inventory's pubkey for that role (no aliases); each role is charged to its own bucket; `0 < target <= 2,000,000,000` (the per-transfer
+  cap must be exactly 2 SOL) and `target >=` the rent floor of an empty wallet (890,880); each bucket's `already_spent + sum of targets + n x 5,000 fee`
+  is within its cap (Squads 0.5 SOL, Sponsor 1.0, Keeper 0.1, test wallets 7.0; a plan claiming a larger cap is refused, never clamped), the
+  command total is within the sum of the four caps, and every sum is overflow-checked. Each recipient must be a plain system wallet (no data, not
+  program-owned). The payer's balance (fresh read at the seeded `minContextSlot`) must cover every top-up and fee AND leave the rent floor (a wallet
+  left between 0 and the floor is rejected by the runtime, which would fail the LAST transfers after the first were sent).
+* **Once per recipient.** Each target has the step id `A1.fund.<role-slug>` (`G voter 1` becomes `g-voter-1`) and a semantic intent
+  `sha256(role | recipient | target_lamports | payer | genesis)`, recorded in the write-ahead record. Before anything is sent for a target the tool
+  reads the write-ahead file: **a CONFIRMED record for that role OR for that recipient pubkey (under any role or intent) means
+  `already_funded_by_record`: nothing is sent**, whatever a lagging node reports about balances, and even if the plan's target or the role's pubkey
+  changed since (the receipt says whether the recorded intent equals the planned one). An **OPEN or HELD record** for the role or the recipient
+  stops the whole command before any further send; nothing clears it except a later run's history lookup finding the transaction. Only then is
+  `top_up = target - balance` computed from a fresh read; a balance already at the target is `noop_already_at_target` (the balance is never the
+  only duplicate protection: the record check runs first). The command needs `--pending-file` on every cluster for this reason. Run ONE
+  `devnet_ops` command at a time against a pending file (two processes would each read the file before the other writes).
+* **Batch semantics.** Targets are processed in plan order, each sent through `Ctx::run_step` (size check, simulate, write-ahead BEFORE send,
+  history-searching unknown-outcome handling). A confirmed earlier target is skipped on resume. A held or ambiguous send ends the command at once
+  with zero further sends (exit 1, `INCIDENT`; every later `--execute` refuses with `HELD UNKNOWN` until a lookup finds the transaction; then
+  a re-run skips everything confirmed, the held transfer included, and sends only what is left). A definite on-chain rejection stops the batch too;
+  it moved nothing, so the retry may send that target. The stderr of a stopped run lists the targets handled so far. The receipt (stdout)
+  reports each target's outcome (`funded`, `already_funded_by_record`, `noop_already_at_target`, or `would_fund` in a dry run), the totals, the
+  bucket arithmetic and the payer's balance before and after; a funded wallet that does not read back at its target makes `all_ok` false (exit 4).
+* **Order.** One command pays every target in plan order, which is the operator order the envelope calls for: the A4 participants first (the G and P
+  voters, then sponsor `S` and the management recipient), then the keeper `K` and the eight test wallets, all before flow step 1. `fund-vault`
+  (the G vault, 15,000,000 lamports) stays a separate guarded command. A run that must pay only some of the wallets first needs its own committed
+  plan (a new review), because the plan, not a flag, decides what is paid.
+
+```bash
+devnet_ops fund-wallets --payer <deployer keypair> --plan docs/solana/devnet-funding-plan.json --cluster devnet --rpc https://api.devnet.solana.com   # dry run: nothing is sent
+devnet_ops fund-wallets --payer <deployer keypair> --plan docs/solana/devnet-funding-plan.json --plan-commit <40-hex> --execute --cluster devnet \
+  --rpc https://api.devnet.solana.com --pending-file <the shared pending.jsonl> --packet-sha256 <sha256> --packet-commit <40-hex>
+```
+
+**Solana notes.** An account with no data exists only while it holds the rent-exempt minimum (890,880 lamports for 0 bytes), which is why a
+target below it can never be created and the payer must keep the floor itself (EVM has no such floor; the ICP analogue is a canister's freezing
+threshold). The fee is per signature (5,000 lamports), added to each transfer in the bucket arithmetic so the plan total is what actually leaves the
+deployer. A recipient needs no key to receive: the inventory pin is what makes sure the address belongs to the intended key holder.
 
 ## Flow runner (the M14 plan)
 
@@ -214,6 +270,7 @@ cargo +1.92.0 test --locked --test devnet_ops_local -- --test-threads=1 --nocapt
 cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals; 1 test ignored
 MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`
 cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic (the rehearsal itself is --ignored)
+cargo +1.92.0 test --locked --test fund_wallets -- --test-threads=1                        # fund-wallets: plan validation, pin, once-per-recipient, held/resume
 MC_LOCAL_RPC=http://127.0.0.1:8899 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored --test-threads=1 --nocapture \
   local_validator_deploy_authority_squads_and_proposal_lifecycle     # fresh --reset validator per run
 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored deploy_in_litesvm   # probe: LiteSVM loader-v3 deploy support unverified

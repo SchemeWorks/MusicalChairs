@@ -10,6 +10,7 @@
 //! devnet_ops verify-bytes     # packet A8: ProgramData header, ELF equality, zero padding (read-only)
 //! devnet_ops squads-create    # G (2-of-3, 172,800 s) and P (2-of-3, 0 s) via real multisig_create_v2
 //! devnet_ops fund-vault       # small system transfer so the G vault can pay the ORAO Client rent
+//! devnet_ops fund-wallets     # M14-FUND-TOOL: top up the plan wallets from the pinned funding plan (once each)
 //! devnet_ops propose <action> # vault_transaction_create + proposal_create (initialize | register)
 //! devnet_ops approve <action> # proposal_approve by one member, after re-checking the stored message
 //! devnet_ops execute <action> # vault_transaction_execute after the time lock (sponsor co-signs initialize)
@@ -45,7 +46,9 @@
 //!   records, so a new run's first read is covered too), and a step that is one transaction long never
 //!   loops on a possibly stale read.  The plain funding transfers (`fund-vault`, the flow's
 //!   `fund_operations` / `*_fund_series_a`) are refused when the file already holds a CONFIRMED record
-//!   for them, whatever a lagging node reports.
+//!   for them, whatever a lagging node reports.  `fund-wallets` does the same per RECIPIENT: a confirmed
+//!   record for the role's step id (`A1.fund.<role>`) or for the recipient pubkey, under any role or
+//!   intent, means it is never sent again (see `fund.rs`).
 //! * **Genesis hash.** Before anything else, `getGenesisHash` must be devnet's
 //!   (`EtWTRABZ...`) for `--cluster devnet`, or NOT a known public cluster (mainnet-beta, testnet,
 //!   devnet) for `local` (a loopback tunnel to a public cluster is refused).
@@ -125,6 +128,9 @@ use crate::{
 };
 
 mod flow;
+mod fund;
+
+pub use fund::{FUND_BUCKET_CAPS, FUND_PER_TRANSFER_CAP_LAMPORTS, FUND_ROLES};
 
 // ---------------------------------------------------------------------------
 // Constants and pins
@@ -243,6 +249,8 @@ const VALUE_FLAGS: &[&str] = &[
     "packet",
     "packet-sha256",
     "packet-commit",
+    "plan",
+    "plan-commit",
     "allow-rpc-host",
     "pending-file",
     "pending-wait-seconds",
@@ -300,6 +308,7 @@ const COMMANDS: &[&str] = &[
     "verify-bytes",
     "squads-create",
     "fund-vault",
+    "fund-wallets",
     "propose",
     "approve",
     "execute",
@@ -409,7 +418,7 @@ impl Opts {
 
 pub fn help_text() -> String {
     "usage: devnet_ops <command> [action] --rpc <url> [--cluster local|devnet] [--execute] [flags]\n\
-     commands: plan | deploy | verify-bytes | squads-create | fund-vault | propose <initialize|register> |\n\
+     commands: plan | deploy | verify-bytes | squads-create | fund-vault | fund-wallets | propose <initialize|register> |\n\
      approve <initialize|register> | execute <initialize|register> | readback | validator-fixtures <out_dir> |\n\
      flow init|status|next (the M14 flow plan; see docs/solana/devnet-ops.md)\n\
      Every write is a DRY RUN unless --execute is given. --execute is refused unless the RPC URL is\n\
@@ -1889,6 +1898,8 @@ struct OpenRecord {
     step: String,
     /// `why` of the newest NON-closing `held_unknown` line for this signature, if an earlier run held it.
     held: Option<String>,
+    /// The recipient a `fund-wallets` transfer pays (its `fund.recipient` annotation); `None` for every other step.
+    recipient: Option<String>,
 }
 
 /// A write-ahead record whose resolution says the transaction CONFIRMED.
@@ -1896,6 +1907,20 @@ struct ConfirmedRecord {
     signature: String,
     step: String,
     slot: Option<u64>,
+    /// The recipient a `fund-wallets` transfer paid; `None` for every other step.
+    recipient: Option<String>,
+    /// The semantic intent hash a `fund-wallets` transfer recorded; `None` for every other step.
+    intent: Option<String>,
+}
+
+/// One `write_ahead` line, before it is matched with its resolution.
+struct WriteAheadLine {
+    signature: Signature,
+    blockhash: Hash,
+    step: String,
+    ours: bool,
+    recipient: Option<String>,
+    intent: Option<String>,
 }
 
 /// What the write-ahead file says about THIS cluster (records of another genesis are skipped).
@@ -1933,7 +1958,7 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
             path.display()
         ))
     };
-    let mut write_ahead: Vec<(Signature, Hash, String, bool)> = Vec::new();
+    let mut write_ahead: Vec<WriteAheadLine> = Vec::new();
     let mut resolved: BTreeMap<String, (String, Option<u64>)> = BTreeMap::new();
     let mut held: BTreeMap<String, String> = BTreeMap::new();
     for (index, line) in text.lines().enumerate() {
@@ -1967,13 +1992,31 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
                 ) else {
                     return bad(number, "a `write_ahead` record without a valid signature, blockhash and genesis_hash");
                 };
-                write_ahead.push((signature, blockhash, record["step"].as_str().unwrap_or("?").to_string(), record_genesis == genesis));
+                // A `fund-wallets` transfer carries a `fund` annotation naming its recipient: fail closed on a
+                // malformed one, because the once-per-recipient guard reads it.
+                let (recipient, intent) = match record.get("fund") {
+                    None | Some(Value::Null) => (None, None),
+                    Some(fund) => {
+                        let Some(recipient) = fund["recipient"].as_str().filter(|text| Pubkey::from_str(text).is_ok()) else {
+                            return bad(number, "a `write_ahead` record whose `fund` annotation lacks a valid `recipient` pubkey");
+                        };
+                        (Some(recipient.to_string()), fund["intent_sha256"].as_str().map(str::to_string))
+                    }
+                };
+                write_ahead.push(WriteAheadLine {
+                    signature,
+                    blockhash,
+                    step: record["step"].as_str().unwrap_or("?").to_string(),
+                    ours: record_genesis == genesis,
+                    recipient,
+                    intent,
+                });
             }
             other => return bad(number, &format!("has an unknown event {other:?}")),
         }
     }
     let mut log = PendingLog::default();
-    for (signature, blockhash, step, ours) in write_ahead {
+    for WriteAheadLine { signature, blockhash, step, ours, recipient, intent } in write_ahead {
         if !ours {
             progress(format!("ignoring a write-ahead record of another cluster ({signature})"));
             continue;
@@ -1981,10 +2024,10 @@ fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
         match resolved.get(&signature.to_string()) {
             None => {
                 let held = held.get(&signature.to_string()).cloned();
-                log.open.push(OpenRecord { signature, blockhash, step, held });
+                log.open.push(OpenRecord { signature, blockhash, step, held, recipient });
             }
             Some((outcome, slot)) if outcome.starts_with("confirmed") => {
-                log.confirmed.push(ConfirmedRecord { signature: signature.to_string(), step, slot: *slot });
+                log.confirmed.push(ConfirmedRecord { signature: signature.to_string(), step, slot: *slot, recipient, intent });
             }
             Some(_) => {}
         }
@@ -2114,14 +2157,20 @@ impl<'a> Ctx<'a> {
         tx: &Transaction,
         blockhash: Hash,
         last_valid_block_height: Option<u64>,
+        fund: Option<&Value>,
     ) -> Result<(), OpsError> {
         let signature = tx.signatures[0];
-        let record = json!({
+        let mut record = json!({
             "schema": 1, "event": "write_ahead", "command": self.opts.command, "step": step.id, "label": step.label,
             "signature": signature.to_string(), "blockhash": blockhash.to_string(),
             "last_valid_block_height": last_valid_block_height, "fee_payer": step.payer.to_string(),
             "genesis_hash": self.genesis, "packet": self.packet_json(), "at_unix": unix_wall_clock(),
         });
+        // `fund-wallets` only: the recipient, the semantic intent and the plan pins, so the once-per-recipient
+        // guard can find the transfer by recipient as well as by step and the file says which plan it paid.
+        if let Some(fund) = fund {
+            record["fund"] = fund.clone();
+        }
         progress(format!(
             "WRITE-AHEAD {} signature {signature} blockhash {blockhash} last_valid_block_height {last_valid_block_height:?}",
             step.id
@@ -2390,6 +2439,12 @@ impl<'a> Ctx<'a> {
     /// Dry run: measure (and optionally simulate unsigned).  Execute: refuse oversize, sign,
     /// simulate (refuse on error), write ahead, send, and resolve an ambiguous outcome.
     pub fn run_step(&self, step: &Step, signers: &[&Keypair]) -> Result<StepResult, OpsError> {
+        self.run_step_annotated(step, signers, None)
+    }
+
+    /// [`Ctx::run_step`] with an optional `fund` annotation written into the step's write-ahead record
+    /// (`fund-wallets`: recipient, intent, plan pins).
+    fn run_step_annotated(&self, step: &Step, signers: &[&Keypair], fund: Option<&Value>) -> Result<StepResult, OpsError> {
         let built = build_step(step);
         let mut result = StepResult {
             step_id: step.id.clone(),
@@ -2446,7 +2501,7 @@ impl<'a> Ctx<'a> {
         }
         result.simulation = Some(simulation);
         let signature = tx.signatures[0];
-        self.write_ahead(step, &tx, blockhash, last_valid_block_height)?;
+        self.write_ahead(step, &tx, blockhash, last_valid_block_height, fund)?;
         let (sent, slot) = match self.send_signed(&tx) {
             Ok(sent) => {
                 // Reads from here on must reflect at least this transaction's slot.  The record says the
@@ -4598,6 +4653,9 @@ pub fn run_opts(opts: &Opts, cluster: &dyn Cluster) -> Result<Value, OpsError> {
 
 /// [`run_opts`] with the repository the devnet packet pin is verified in (tests pin a throwaway repo).
 pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Value, OpsError> {
+    if opts.command != "fund-wallets" && (opts.get("plan").is_some() || opts.get("plan-commit").is_some()) {
+        return usage("--plan / --plan-commit belong to `fund-wallets` only (the funding plan and its commit pin)");
+    }
     if opts.command == "validator-fixtures" {
         reject_removed_flags(opts)?;
         return cmd_validator_fixtures(opts);
@@ -4639,6 +4697,7 @@ pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Va
         "verify-bytes" => cmd_verify_bytes(&ctx),
         "squads-create" => cmd_squads_create(&ctx),
         "fund-vault" => cmd_fund_vault(&ctx),
+        "fund-wallets" => fund::cmd_fund_wallets(&ctx, repo),
         "propose" => cmd_propose(&ctx),
         "approve" => cmd_approve(&ctx),
         "execute" => cmd_execute(&ctx),
