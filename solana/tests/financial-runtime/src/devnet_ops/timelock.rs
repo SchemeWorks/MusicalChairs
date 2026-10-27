@@ -35,6 +35,11 @@
 //! `approve` and `execute` vote on, and run, only a config transaction whose stored actions are EXACTLY
 //! `[SetTimeLock { target }]`; `execute` also refuses, in plain words and before any send, until the cluster
 //! clock reaches `approved_at + the CURRENT time lock` (Squads error 6021 otherwise, after a paid fee).
+//! `execute` ALSO re-proves "no other live G transaction" at the moment the config would run
+//! ([`require_no_other_live`], F11-R1): the executed config must be the LATEST G transaction and every other
+//! transaction above the stale index must have a terminal proposal (an orphan, a missing or undecodable account
+//! and an over-large range all refuse), before any signing, simulation or send.  A stale, already-Approved VAULT
+//! transaction can still run after a config executes, so `propose`'s earlier refusal is not enough.
 //!
 //! # Solana notes (closest ICP / EVM comparisons)
 //!
@@ -842,6 +847,108 @@ fn scan_live(
         }
     }
     Ok(scan)
+}
+
+/// The EXECUTE-time guard (F11-R1): executing a config transaction makes every earlier unexecuted G transaction
+/// stale, and an already-Approved stale VAULT transaction can still run afterwards (the real binary does that).
+/// So "no other live G transaction" is enforced where it matters, at the moment the config would run, for
+/// `reduce` and `restore` alike, in a dry run as well as with `--execute`.  A G transaction can appear during
+/// the 48-hour wait, or a config can be hand-made; `propose` having refused earlier proves nothing about now.
+///
+/// 1. EXACT INDEX: the executed config must be the LATEST G transaction (`index == transaction_index`).
+/// 2. FULL BOUNDED SCAN of `(stale_transaction_index, transaction_index]`.  Only `index` itself is excluded, and
+///    only because `load_checked_config` has already proven it is exactly our `[SetTimeLock { target }]` config
+///    with its proposal.  Every OTHER index must hold a transaction whose proposal is terminal (Executed,
+///    Rejected or Cancelled).  A live proposal (Draft, Active, Approved, Executing), a transaction with NO
+///    proposal (an orphan: there is NO exception for an identical config), a missing account, an account that
+///    cannot be decoded, or a range above [`LIVE_SCAN_CAP`] is a REFUSAL.  Read errors propagate as failures
+///    (`load_g_tx` returns them); nothing is ever treated as absent.
+///
+/// Returns one entry per other index (index, kind, terminal status) for the receipt.  Call it BEFORE
+/// `Ctx::run_step`, so a refusal precedes any signing, signed simulation or send.
+fn require_no_other_live(
+    ctx: &Ctx<'_>,
+    g: &Identity,
+    view: &sq::MultisigView,
+    index: u64,
+) -> Result<Vec<Value>, OpsError> {
+    if index != view.transaction_index {
+        return refuse(format!(
+            "config transaction #{index} is not the LATEST G transaction (transaction_index is {}): executing it would stale \
+             every other unexecuted G transaction as well, and the exact-index contract is that the executed config is the \
+             newest one (re-confirm the index with a dry run); nothing was sent",
+            view.transaction_index
+        ));
+    }
+    let first = view.stale_transaction_index.saturating_add(1);
+    let last = view.transaction_index;
+    if first > last || index < first {
+        // Unreachable after `require_not_stale`, but a guard that cannot place the executing index in its own
+        // range proves nothing: fail closed.
+        return refuse(format!(
+            "config transaction #{index} is not inside (stale_transaction_index {}, transaction_index {last}]; nothing was sent",
+            view.stale_transaction_index
+        ));
+    }
+    let span = last - first + 1;
+    if span > LIVE_SCAN_CAP {
+        return refuse(format!(
+            "G has {span} transactions above its stale index {}; the tool scans at most {LIVE_SCAN_CAP} and will not claim \
+             that none is live from a partial scan; nothing was sent",
+            view.stale_transaction_index
+        ));
+    }
+    let mut checked = Vec::new();
+    for other in first..=last {
+        if other == index {
+            continue;
+        }
+        let tx = load_g_tx(ctx, g, other)?;
+        if tx.kind == "missing" {
+            return refuse(format!(
+                "G transaction #{other} has no transaction account (missing), so it cannot be proven terminal; refusing to \
+                 execute config #{index}; nothing was sent"
+            ));
+        }
+        if tx.kind == "other" {
+            return refuse(format!(
+                "G transaction #{other} is an account of an unrecognized type, so it cannot be proven terminal; refusing to \
+                 execute config #{index}; nothing was sent"
+            ));
+        }
+        if let Some(Err(error)) = &tx.config {
+            return refuse(format!(
+                "G config transaction #{other} cannot be decoded ({error}), so it cannot be proven terminal; refusing to \
+                 execute config #{index}; nothing was sent"
+            ));
+        }
+        let Some(proposal) = &tx.proposal else {
+            return refuse(format!(
+                "G transaction #{other} ({}) has NO proposal: an orphan can still be given one, and an approved one would run \
+                 after this config (a stale, already-approved vault transaction still executes); refusing to execute config \
+                 #{index}; nothing was sent",
+                tx.kind
+            ));
+        };
+        if !matches!(
+            proposal.status,
+            ProposalStatus::Executed(_) | ProposalStatus::Rejected(_) | ProposalStatus::Cancelled(_)
+        ) {
+            return refuse(format!(
+                "G transaction #{other} ({}) has a LIVE proposal ({}): executing config #{index} would stale it, and a stale \
+                 transaction that is already Approved can still execute; refusing; nothing was sent",
+                tx.kind,
+                proposal.status.name()
+            ));
+        }
+        checked.push(json!({
+            "index": other,
+            "kind": tx.kind,
+            "proposal_status": proposal.status.name(),
+            "status_timestamp": proposal.status.timestamp(),
+        }));
+    }
+    Ok(checked)
 }
 
 fn pending_check(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
@@ -1705,6 +1812,16 @@ fn cmd_execute_tl(
     }
     let (config, proposal) = load_checked_config(ctx, g, index, direction)?;
     require_not_stale(&view, index)?;
+    // F11-R1: the config must be the latest G transaction and every OTHER G transaction above the stale index
+    // must be terminal.  Before the time-lock check and long before `run_step`: a refusal here is before any
+    // signing, signed simulation or send, in a dry run and with `--execute` alike.
+    let other_transactions = require_no_other_live(ctx, g, &view, index)?;
+    preconditions.push(check(
+        "g.executing_config_is_the_latest_and_every_other_transaction_above_stale_is_terminal",
+        true,
+        format!("config #{index} == transaction_index {}; every other index in (stale, transaction_index] terminal", view.transaction_index),
+        format!("{} other transaction(s) checked, all terminal", other_transactions.len()),
+    ));
     let approved_at = match proposal.status {
         ProposalStatus::Approved(timestamp) => timestamp,
         other => {
@@ -1766,6 +1883,7 @@ fn cmd_execute_tl(
         "time_lock_releases_at": releases_at,
         "cluster_clock": now,
         "preconditions": preconditions,
+        "other_g_transactions_checked": other_transactions,
         "steps": [result.to_json()],
         "checks": checks,
         "all_ok": checks_ok(&checks),

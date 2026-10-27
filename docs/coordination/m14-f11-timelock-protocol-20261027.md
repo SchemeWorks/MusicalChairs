@@ -2,6 +2,8 @@
 
 **Status.** PREPARATION ONLY.
 
+**Revision note (2026-10-27).** Gideon's bounded review of candidate `5aa64e1` raised ONE blocking correction, **F11-R1**. `execute` must enforce the no-other-live-G-transaction rule and the exact latest index itself, before any signing or send. A manual `status` check before execute is not an enforced guard. R4 and S3 below now say so. The receipt is in `m14-f11-tool-delta-20261027.md`.
+
 **Scope.** F11 is part of the approved Block A flow list:
 - packet section 6.5, line 490: "G reduces its own time lock; document; restore";
 - D12, line 561: "proposed after A6, executed at day 4, restored at once";
@@ -70,6 +72,12 @@ ANY refusal, failed check, simulation error or held-unknown result is a STOP: no
 
 **R4. Execute reduce.**
 - **Command:** `g-timelock execute reduce --tx-index 3` (voter 1).
+- **Enforced guard (F11-R1, before any signing, signed simulation or send, in dry runs too):**
+  - The executing index must equal G's LATEST `transaction_index` (3).
+  - A full bounded scan of `(stale_transaction_index, transaction_index]` must find every OTHER index terminal: Executed, Rejected or Cancelled.
+  - Any of these refuses: a live proposal, an orphan transaction without a proposal (identical configs included), a missing or undecodable account, a read error, or a range above the scan cap.
+  - The only exclusion is this exact `[SetTimeLock{0}]` config with its Approved proposal.
+  - Why: a transaction created during the 48 h wait would otherwise be silently staled, and an already-approved stale vault transaction can still execute on the real binary.
 - **Transaction:** `config_transaction_execute`, with the optional rent payer and system program passed as None. `SetTimeLock` does not reallocate.
 - **Checks after:**
   - the proposal is Executed;
@@ -99,6 +107,7 @@ ANY refusal, failed check, simulation error or held-unknown result is a STOP: no
 
 **S3. Execute restore.**
 - **Command:** `g-timelock execute restore --tx-index 4`, allowed at once because `now ≥ t_S + 0`.
+- **Enforced guard (F11-R1):** the same as R4. Index 4 must be the latest, and every other index above stale index 3 must be terminal, all before any signing, simulation or send.
 - **Checks after:** `time_lock == 172,800`; everything else unchanged; `stale_transaction_index == 4`.
 
 **S4. Final read-back.**

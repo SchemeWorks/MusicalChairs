@@ -525,9 +525,16 @@ fn proposal_status(cluster: &SvmCluster<'_>, g: &ops::Identity, index: u64) -> S
     ops::decode_proposal(&account.data).expect("proposal decodes").status.name().to_string()
 }
 
-/// A hand-made vault transaction `index` (a lamport transfer out of the G vault) with its proposal and the
-/// approvals of `approvers` (member ordinals).
-fn foreign_vault_proposal(cluster: &SvmCluster<'_>, g: &ops::Identity, index: u64, destination: Pubkey, approvers: &[u8]) -> Instruction {
+/// A hand-made vault transaction `index` (a lamport transfer out of the G vault).  `proposal` is `None` for an
+/// ORPHAN (the transaction with no proposal) or the approvals (member ordinals) of its proposal.  Returns the
+/// instruction that would execute it.
+fn foreign_vault(
+    cluster: &SvmCluster<'_>,
+    g: &ops::Identity,
+    index: u64,
+    destination: Pubkey,
+    proposal: Option<&[u8]>,
+) -> Instruction {
     let inner = solana_system_interface::instruction::transfer(&g.vault, &destination, 1_000);
     let compiled = sq::compile_vault_message(&inner);
     let proposer = member_keypair(0);
@@ -537,16 +544,23 @@ fn foreign_vault_proposal(cluster: &SvmCluster<'_>, g: &ops::Identity, index: u6
             &[sq::vault_transaction_create_ix(g.multisig, index, proposer.pubkey(), proposer.pubkey(), 0, 0, &compiled.bytes)],
         )
         .expect("vault_transaction_create");
-    cluster
-        .send_direct(&proposer, &[sq::proposal_create_ix(g.multisig, index, proposer.pubkey(), proposer.pubkey(), false)])
-        .expect("proposal_create");
-    for ordinal in approvers {
-        let approver = member_keypair(*ordinal);
+    if let Some(approvers) = proposal {
         cluster
-            .send_direct(&approver, &[sq::proposal_approve_ix(g.multisig, index, approver.pubkey())])
-            .expect("proposal_approve");
+            .send_direct(&proposer, &[sq::proposal_create_ix(g.multisig, index, proposer.pubkey(), proposer.pubkey(), false)])
+            .expect("proposal_create");
+        for ordinal in approvers {
+            let approver = member_keypair(*ordinal);
+            cluster
+                .send_direct(&approver, &[sq::proposal_approve_ix(g.multisig, index, approver.pubkey())])
+                .expect("proposal_approve");
+        }
     }
     sq::vault_transaction_execute_ix(g.multisig, index, proposer.pubkey(), compiled.remaining_accounts(&g.vault, &[]))
+}
+
+/// A hand-made vault transaction `index` with its proposal and the approvals of `approvers` (member ordinals).
+fn foreign_vault_proposal(cluster: &SvmCluster<'_>, g: &ops::Identity, index: u64, destination: Pubkey, approvers: &[u8]) -> Instruction {
+    foreign_vault(cluster, g, index, destination, Some(approvers))
 }
 
 /// A hand-made CONFIG transaction `index` storing `actions`, with its proposal (no votes).
@@ -745,6 +759,17 @@ fn reduce_then_restore_through_the_real_squads_binary() {
     let executed = ok(files.tl(&cluster, &["execute", "reduce", "--member", files.m(0), "--tx-index", "3", "--execute"]));
     assert_eq!(executed["all_ok"], true, "{executed}");
     assert_eq!(cluster.sends.get(), sends + 1);
+    // F11-R1: the execute-time guard passed and recorded its scan: the two genesis vault transactions, both Executed.
+    let scanned = executed["other_g_transactions_checked"].as_array().expect("the scan is in the receipt");
+    assert_eq!(scanned.len(), 2, "{executed}");
+    for (entry, index) in scanned.iter().zip([1, 2]) {
+        assert_eq!((&entry["index"], &entry["kind"], &entry["proposal_status"]), (&json!(index), &json!("vault"), &json!("Executed")));
+    }
+    assert!(
+        check_names(&executed, "preconditions")
+            .contains(&"g.executing_config_is_the_latest_and_every_other_transaction_above_stale_is_terminal".to_string()),
+        "{executed}"
+    );
     let names = check_names(&executed, "checks");
     for expected in [
         "proposal.is_executed",
@@ -840,6 +865,8 @@ fn reduce_then_restore_through_the_real_squads_binary() {
     assert_eq!(restored["all_ok"], true, "{restored}");
     assert_eq!(cluster.sends.get(), restore_sends + 1, "no warp, one send");
     assert_eq!(restored["approved_at"], restored["time_lock_releases_at"], "released at once: the lock was 0 s");
+    // F11-R1: the restore is the only transaction above the stale index (#3), so there is nothing else to scan.
+    assert_eq!(restored["other_g_transactions_checked"], json!([]), "{restored}");
 
     // ---- S4: the final read-back --------------------------------------------------------------------------
     let final_view = read_multisig(&cluster, &g);
@@ -1421,8 +1448,252 @@ fn the_probe_reads_a_program_error_in_both_spellings_and_names_it_from_the_ancho
 }
 
 // ---------------------------------------------------------------------------
-// 6. Stale: the executed reduce stales an earlier unexecuted vault transaction
+// 6. F11-R1: the execute-time guard (the config is the latest transaction and no other G transaction is live),
+//    and what the raw Squads binary does with the transactions it stales
 // ---------------------------------------------------------------------------
+
+/// Everything a refused execute must leave exactly as it found it.
+struct Frozen {
+    /// `(signed simulations, unsigned simulations, sends)` of the cluster double.
+    counters: (usize, usize, usize),
+    pending: Option<String>,
+    time_lock: u32,
+    stale: u64,
+    transaction_index: u64,
+}
+
+fn freeze(cluster: &SvmCluster<'_>, files: &Files, g: &ops::Identity) -> Frozen {
+    let view = read_multisig(cluster, g);
+    Frozen {
+        counters: cluster.sims_and_sends(),
+        pending: fs::read_to_string(&files.pending).ok(),
+        time_lock: view.time_lock,
+        stale: view.stale_transaction_index,
+        transaction_index: view.transaction_index,
+    }
+}
+
+/// `g-timelock execute <direction> --tx-index <index>` as a DRY RUN and with `--execute`: both are REFUSED with
+/// every one of `fragments` in the message, and each leaves the world untouched: ZERO signed simulations, zero
+/// unsigned simulations, ZERO sends, nothing written to the pending file, G's time lock, stale index and
+/// transaction index unchanged, and the intended proposal still Approved.
+fn assert_execute_refused(
+    files: &Files,
+    cluster: &SvmCluster<'_>,
+    g: &ops::Identity,
+    direction: Direction,
+    index: u64,
+    fragments: &[String],
+) {
+    let before = freeze(cluster, files, g);
+    let index_text = index.to_string();
+    for execute in [false, true] {
+        let mut parts = vec!["execute", direction.name(), "--member", files.m(0), "--tx-index", index_text.as_str()];
+        if execute {
+            parts.push("--execute");
+        }
+        let message = refused(files.tl(cluster, &parts));
+        for fragment in fragments {
+            assert!(
+                message.contains(fragment.as_str()),
+                "{} {} (execute: {execute}) must be refused with `{fragment}`: {message}",
+                direction.name(),
+                index
+            );
+        }
+        let after = freeze(cluster, files, g);
+        assert_eq!(after.counters, before.counters, "ZERO signed simulations, unsigned simulations and sends (execute: {execute})");
+        assert_eq!(after.pending, before.pending, "nothing was written to the pending file (execute: {execute})");
+        assert_eq!(
+            (after.time_lock, after.stale, after.transaction_index),
+            (before.time_lock, before.stale, before.transaction_index),
+            "G is unchanged (execute: {execute})"
+        );
+        assert_eq!(proposal_status(cluster, g, index), "Approved", "the intended proposal is still Approved (execute: {execute})");
+    }
+}
+
+/// The foreign transactions a hostile or careless actor can leave next to the intended config.
+#[derive(Clone, Copy, Debug)]
+enum Foreign {
+    /// A vault transaction with an Active proposal (one approval).
+    VaultActive,
+    /// A vault transaction with an Approved proposal (two approvals): it can still run after a config executes.
+    VaultApproved,
+    /// A vault transaction with NO proposal.
+    VaultOrphan,
+    /// A config transaction identical to the intended one, with NO proposal (no exception for an identical foreign config).
+    ConfigOrphan,
+}
+
+impl Foreign {
+    const ALL: [Foreign; 4] = [Foreign::VaultActive, Foreign::VaultApproved, Foreign::VaultOrphan, Foreign::ConfigOrphan];
+
+    /// Create it as G transaction `index`; the vault variants return the instruction that would execute them.
+    fn create(self, cluster: &SvmCluster<'_>, g: &ops::Identity, index: u64, direction: Direction) -> Option<Instruction> {
+        let destination = Pubkey::new_from_array([0xF0 + (index % 8) as u8; 32]);
+        match self {
+            Foreign::VaultActive => Some(foreign_vault(cluster, g, index, destination, Some(&[0]))),
+            Foreign::VaultApproved => Some(foreign_vault(cluster, g, index, destination, Some(&[0, 1]))),
+            Foreign::VaultOrphan => Some(foreign_vault(cluster, g, index, destination, None)),
+            Foreign::ConfigOrphan => {
+                foreign_config_transaction(cluster, g, index, &direction.actions(), false);
+                None
+            }
+        }
+    }
+
+    /// What the scan names when this transaction sits at `index` below the executing config.
+    fn scan_message(self, index: u64) -> String {
+        match self {
+            Foreign::VaultActive => format!("G transaction #{index} (vault) has a LIVE proposal (Active)"),
+            Foreign::VaultApproved => format!("G transaction #{index} (vault) has a LIVE proposal (Approved)"),
+            Foreign::VaultOrphan => format!("G transaction #{index} (vault) has NO proposal"),
+            Foreign::ConfigOrphan => format!("G transaction #{index} (config) has NO proposal"),
+        }
+    }
+}
+
+/// The tool's own reduce, start to finish (#3): G ends at 0 s with stale index 3.
+fn tool_reduce(files: &Files, cluster: &SvmCluster<'_>) {
+    ok(files.tl(cluster, &["propose", "reduce", "--member", files.m(0), "--execute", "--expect-tx-index", "3"]));
+    for ordinal in [0, 1] {
+        ok(files.tl(cluster, &["approve", "reduce", "--member", files.m(ordinal), "--tx-index", "3", "--execute"]));
+    }
+    cluster.advance(TWO_DAYS);
+    let executed = ok(files.tl(cluster, &["execute", "reduce", "--member", files.m(0), "--tx-index", "3", "--execute"]));
+    assert_eq!(executed["all_ok"], true, "{executed}");
+}
+
+#[test]
+fn execute_refuses_when_a_foreign_transaction_appears_after_the_approval_for_reduce_and_restore() {
+    for direction in [Direction::Reduce, Direction::Restore] {
+        let mut world = world_with_orao();
+        let payer = funded_payer(&mut world);
+        let files = Files::write(&world, &payer);
+        let g = g_identity();
+        // The intended config is proposed and approved twice through the tool; restore starts from a G the tool
+        // really reduced (0 s, stale index 3).
+        let intended = {
+            let cluster = SvmCluster::new(&mut world.rt.svm);
+            genesis(&files, &cluster);
+            if direction == Direction::Restore {
+                tool_reduce(&files, &cluster);
+            }
+            let intended = if direction == Direction::Restore { 4 } else { 3 };
+            let index_text = intended.to_string();
+            ok(files.tl(&cluster, &["propose", direction.name(), "--member", files.m(0), "--execute", "--expect-tx-index", &index_text]));
+            for ordinal in [0, 1] {
+                ok(files.tl(&cluster, &["approve", direction.name(), "--member", files.m(ordinal), "--tx-index", &index_text, "--execute"]));
+            }
+            intended
+        };
+        let base = world.rt.svm.clone();
+        for foreign in Foreign::ALL {
+            let mut svm = base.clone();
+            let cluster = SvmCluster::new(&mut svm);
+            // AFTER the approval a foreign transaction appears (during the wait, in real life) ...
+            let foreign_index = intended + 1;
+            foreign.create(&cluster, &g, foreign_index, direction);
+            if direction == Direction::Reduce {
+                cluster.advance(TWO_DAYS + 1); // ... and the 172,800 s lock passes (restore has a 0 s lock).
+            }
+            assert_eq!(read_multisig(&cluster, &g).transaction_index, foreign_index);
+            // The intended config is no longer the latest G transaction: the exact-index rule refuses it.
+            assert_execute_refused(
+                &files,
+                &cluster,
+                &g,
+                direction,
+                intended,
+                &["is not the LATEST G transaction".to_string(), format!("transaction_index is {foreign_index}")],
+            );
+        }
+    }
+}
+
+#[test]
+fn execute_refuses_a_live_or_orphan_foreign_transaction_below_the_executing_config_for_reduce_and_restore() {
+    for direction in [Direction::Reduce, Direction::Restore] {
+        let mut world = world_with_orao();
+        let payer = funded_payer(&mut world);
+        let files = Files::write(&world, &payer);
+        let g = g_identity();
+        let first_free = {
+            let cluster = SvmCluster::new(&mut world.rt.svm);
+            genesis(&files, &cluster);
+            if direction == Direction::Restore {
+                tool_reduce(&files, &cluster);
+                4
+            } else {
+                3
+            }
+        };
+        let base = world.rt.svm.clone();
+        for foreign in Foreign::ALL {
+            let mut svm = base.clone();
+            let cluster = SvmCluster::new(&mut svm);
+            // A foreign transaction BELOW the intended config, which is hand-made at the latest index (the tool's
+            // `propose` would have refused to stack on it) and approved twice by the tool (`approve` does not scan).
+            let execute_foreign = foreign.create(&cluster, &g, first_free, direction);
+            let intended = first_free + 1;
+            foreign_config_transaction(&cluster, &g, intended, &direction.actions(), true);
+            let index_text = intended.to_string();
+            for ordinal in [0, 1] {
+                ok(files.tl(&cluster, &["approve", direction.name(), "--member", files.m(ordinal), "--tx-index", &index_text, "--execute"]));
+            }
+            if direction == Direction::Reduce {
+                cluster.advance(TWO_DAYS + 1);
+            }
+            assert_eq!(read_multisig(&cluster, &g).transaction_index, intended, "the config IS the latest transaction");
+            // The exact-index rule passes; the full scan of (stale, transaction_index] names the foreign one.
+            assert_execute_refused(&files, &cluster, &g, direction, intended, &[foreign.scan_message(first_free)]);
+
+            // Positive control (the guard does not over-block): once the Approved foreign vault transaction has run
+            // for real it is terminal (Executed), and the very same execute goes through, recording that scan.
+            if let (Foreign::VaultApproved, Some(execute_foreign)) = (foreign, execute_foreign) {
+                cluster
+                    .send_direct(&member_keypair(0), &[execute_foreign])
+                    .expect("the approved foreign vault transaction executes once its lock has passed");
+                assert_eq!(proposal_status(&cluster, &g, first_free), "Executed");
+                let executed = ok(files.tl(&cluster, &["execute", direction.name(), "--member", files.m(0), "--tx-index", &index_text, "--execute"]));
+                assert_eq!(executed["all_ok"], true, "{executed}");
+                let scanned = executed["other_g_transactions_checked"].as_array().unwrap();
+                assert_eq!(scanned.last().map(|entry| (&entry["index"], &entry["proposal_status"])), Some((&json!(first_free), &json!("Executed"))), "{executed}");
+                assert_eq!(read_multisig(&cluster, &g).time_lock, direction.target_lock());
+            }
+        }
+    }
+}
+
+#[test]
+fn execute_refuses_a_range_above_the_scan_cap_instead_of_scanning_part_of_it() {
+    let mut world = world_with_orao();
+    let payer = funded_payer(&mut world);
+    let files = Files::write(&world, &payer);
+    let g = g_identity();
+    let cluster = SvmCluster::new(&mut world.rt.svm);
+    genesis(&files, &cluster);
+    // The intended config is the latest transaction, but more than LIVE_SCAN_CAP transactions sit above stale index 0.
+    let intended = timelock::LIVE_SCAN_CAP + 1;
+    for index in 3..intended {
+        foreign_config_transaction(&cluster, &g, index, &Direction::Reduce.actions(), false);
+    }
+    foreign_config_transaction(&cluster, &g, intended, &Direction::Reduce.actions(), true);
+    let index_text = intended.to_string();
+    for ordinal in [0, 1] {
+        ok(files.tl(&cluster, &["approve", "reduce", "--member", files.m(ordinal), "--tx-index", &index_text, "--execute"]));
+    }
+    cluster.advance(TWO_DAYS + 1);
+    assert_execute_refused(
+        &files,
+        &cluster,
+        &g,
+        Direction::Reduce,
+        intended,
+        &[format!("scans at most {}", timelock::LIVE_SCAN_CAP), "partial scan".to_string()],
+    );
+}
 
 #[test]
 fn the_executed_reduce_makes_an_earlier_unexecuted_vault_transaction_stale() {
@@ -1442,17 +1713,33 @@ fn the_executed_reduce_makes_an_earlier_unexecuted_vault_transaction_stale() {
     assert_eq!((proposal_status(&cluster, &g, 3), proposal_status(&cluster, &g, 4)), ("Active".to_string(), "Approved".to_string()));
     // The tool will not propose a reduce on top of them ...
     assert!(refused(files.tl(&cluster, &["propose", "reduce", "--member", member])).contains("g.no_live_transaction_above_stale_index"));
-    // ... so the reduce is made by hand (a config transaction #5), voted on and executed by the tool: the
-    // approve and execute commands do not depend on the propose-time check.
+    // ... so the reduce is made by hand (a config transaction #5) and voted on by the tool (`approve` does not scan).
     foreign_config_transaction(&cluster, &g, 5, &Direction::Reduce.actions(), true);
     for ordinal in [0, 1] {
         ok(files.tl(&cluster, &["approve", "reduce", "--member", files.m(ordinal), "--tx-index", "5", "--execute"]));
     }
     cluster.advance(TWO_DAYS + 1);
-    let executed = ok(files.tl(&cluster, &["execute", "reduce", "--member", member, "--tx-index", "5", "--execute"]));
-    assert_eq!(executed["all_ok"], true, "{executed}");
+
+    // F11-R1: the GUARDED CLI refuses to execute that very state, in a dry run and with --execute, with zero sends:
+    // it would stale #3 and #4, and the Approved #4 would still run afterwards.
+    assert_execute_refused(
+        &files,
+        &cluster,
+        &g,
+        Direction::Reduce,
+        5,
+        &["G transaction #3 (vault) has a LIVE proposal (Active)".to_string(), "nothing was sent".to_string()],
+    );
+
+    // The raw-Squads experiment, preserved: the same unsafe config executed DIRECTLY through the fixture (a raw
+    // config_transaction_execute signed by a member, not through the tool).
+    let executor = member_keypair(0);
+    cluster
+        .send_direct(&executor, &[timelock::config_transaction_execute_ix(g.multisig, 5, executor.pubkey())])
+        .expect("the raw config_transaction_execute");
     let view = read_multisig(&cluster, &g);
     assert_eq!((view.time_lock, view.transaction_index, view.stale_transaction_index), (0, 5, 5));
+    assert_eq!(proposal_status(&cluster, &g, 5), "Executed");
 
     // What the REAL binary does with the stale proposals (recorded).
     assert_eq!(proposal_status(&cluster, &g, 3), "Active", "the stale proposal's own status does not change");
@@ -1462,7 +1749,6 @@ fn the_executed_reduce_makes_an_earlier_unexecuted_vault_transaction_stale() {
         Ok(()) => json!({ "succeeded": true }),
         Err(text) => json!({ "succeeded": false, "error": text.lines().next().unwrap_or("") }),
     };
-    let executor = member_keypair(0);
     let run_stale_approved = cluster.send_direct(&executor, &[execute_approved]);
     let execute_outcome = match &run_stale_approved {
         Ok(()) => json!({ "succeeded": true }),
@@ -1477,7 +1763,8 @@ fn the_executed_reduce_makes_an_earlier_unexecuted_vault_transaction_stale() {
         }),
     );
     // Squads refuses a NEW vote on a stale proposal (StaleProposal).  Executing a vault proposal that was already
-    // approved is deliberately not asserted: the finding above is the record of what the binary does.
+    // approved is deliberately not asserted: the finding above is the record of what the binary does, and it is why
+    // the guarded execute refuses to stale an Approved transaction.
     let refusal = vote.expect_err("a vote on a stale proposal must be refused");
     assert!(refusal.contains(&format!("Custom({SQUADS_STALE_PROPOSAL})")), "{refusal}");
     assert_eq!(sq::idl_error_code(&sq::idl(), "StaleProposal"), SQUADS_STALE_PROPOSAL);
