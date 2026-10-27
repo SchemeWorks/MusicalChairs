@@ -156,16 +156,6 @@
       "cardId": "M14-GRAPH"
     },
     {
-      "term": "nodes",
-      "definition": "Individual entries in the knowledge map, such as files or concepts.",
-      "cardId": "M14-GRAPH"
-    },
-    {
-      "term": "hyperedges",
-      "definition": "Connections grouping several related knowledge-map entries together.",
-      "cardId": "M14-GRAPH"
-    },
-    {
       "term": "hash",
       "definition": "A digital fingerprint identifying exact file contents. Matching a hash identifies bytes, not approval, deployment or successful operation."
     },

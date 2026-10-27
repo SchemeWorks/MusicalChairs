@@ -304,7 +304,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator) (sole graph writer) / Sonnet worker",
       "scope": "Refresh the repository knowledge graph for the M14 preparation work, with preservation checks.",
-      "evidenceText": "The repository knowledge graph was refreshed from a durable backup: a structural update, then repair of collapsed edges and stripped attributes, then a small M14 fragment. Every preservation check passed, and the coordinator re-verified independently. Gideon's (Codex supervisor) independent check also passed: the graph and backup hashes match the receipt, and no prior nodes, links or hyperedges are missing. Code coverage is as of the commit before the F3 fix. The graph is navigation evidence only, not runtime proof.",
+      "evidenceText": "Refreshed again on 2026-10-27 at the accepted rehearsal-tool milestone: a backup first, then a structural update covering the code added since the last refresh, then a repair that restored the links and curated details the update drops, plus a small hand-written summary of the test-network execution and the rehearsal. Every preservation check passed. The record states which documents have only structural coverage. The earlier refresh, from a durable backup with the same repair, stays in the history.",
       "evidenceLinks": []
     },
     {
