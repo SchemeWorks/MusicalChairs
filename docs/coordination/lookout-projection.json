@@ -312,7 +312,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Sanitized derived mirror of the native board, kept in sync with the private Lookout board.",
-      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval.",
+      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval. Since 2026-10-27, at Rob's request, the board is updated whenever a task moves: its status, progress, blockers or next step. Each priority also lists its cards explicitly, completed ones included, so a card can show its priority number; three cards shared between priorities stay unlinked.",
       "evidenceLinks": []
     },
     {

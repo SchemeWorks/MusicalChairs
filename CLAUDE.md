@@ -56,7 +56,14 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
 `docs/coordination/kanban.md` is the sole authority for the native board. `docs/coordination/lookout-projection.json` is a **sanitized, derived** mirror of the current material cards in its "Local implementation pass" section, for Rob's private Lookout board. The mirror's shape is `{cards:[{id,state,owner,scope,evidenceText,evidenceLinks:[{title,url}]}]}`, and the publisher rejects any other field. The Lookout setup chat owns the publisher configuration and the manifest.
 
 - **States.** Use only the publisher's standard column states: `Backlog`, `Ready`, `In progress`, `Review`, `Done`, `Blocked`, `Cancelled`. The board allows at most 12 columns, and each distinct state is a column. Put any qualifier, such as "done locally, not deployed" or "awaiting Gideon", at the start of `evidenceText` as `State detail: …`.
-- **When to update.** After every material board checkpoint, update the projection in the same commit as the kanban change. A material checkpoint is a card being added, a card changing state, or a card's evidence changing materially. Include new material cards honestly, and keep state wording consistent with the kanban.
+- **When to update (ongoing duty).** Rob asked on 2026-10-27, in Alden's Lookout chat as relayed by Gideon, that boards on the live site stay current whenever a task moves.
+  - While working, update the kanban promptly whenever a task moves: a card is added, or its status, progress or evidence, blockers or next step change. That is a material checkpoint.
+  - In the same commit, update the projection, the summary and glossary, and the priorities, including each priority's explicit `cardIds`.
+  - Then publish promptly (see Publishing below).
+  - This applies while working. It is not a claim of autonomous updates while idle.
+  - Unchanged content stays a no-op.
+  - It needs no new timer, worker, build, test, graph refresh or live Solana/ICP action.
+  - Include new material cards honestly, and keep state wording consistent with the kanban.
 - **Sanitation.**
   - Write fresh summaries; never copy raw board cells.
   - Exclude keys and credentials, wallet or program addresses, balances, transaction payloads or signatures, private logs and local user paths.
@@ -69,6 +76,14 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   4. Append the backend revision and source revision to `docs/coordination/lookout-publication-log.md`.
 
   Use the same manifest and its scoped identity only. Never inspect or export secrets. Do not touch setup's `.local` seed. Recording a receipt in the log is not a material checkpoint, so do not republish for it. Any NEW tool or permission rejection is binding: never route around it with another executor, identity or tool. New sensitive content or new link hosts still need fresh approval.
+
+  If a real publication hold or an auto-review denial prevents a live update:
+  - Preserve it as reported.
+  - Record the exact visibility blocker in the kanban and the publication log.
+  - Tell Gideon and Rob.
+  - Never retry or bypass it through another identity, tool or executor.
+
+  The old denial of a root publisher attempt (`.lock`) stays binding for root. Silas's normal publisher run with this manifest is the authorized path, not a substitute executor.
 - **Plain-English status and glossary.** `docs/coordination/lookout-presentation.json` has the shape `{summary, glossary:[{term, definition, cardId?}]}` and is described under "Plain-English status and clickable explanations" in the lookout-kanban `outputs/PUBLISHING.md`. Update it alongside every material board checkpoint, in the same commit as the projection.
   - Keep the summary brief (about 35–60 words) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
   - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
@@ -76,6 +91,12 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the summary and glossary to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops.
 - **Priorities (ordered sub-projects).** `docs/coordination/lookout-priorities.json` has the shape `{items:[{id,title,status,blockedReason,nextAction,cardIds}]}`; the canonical copy of the ranking is the "Native board priorities" section of the kanban. Gideon (supervisor) chooses the ranking; Silas maintains the file and the board.
   - **Format.** Status is one of `ready`, `in_progress`, `blocked`, `paused`, `done`. `blocked` and `paused` need the reason and what clears it; `ready` and `in_progress` need the next action. Keep the rank when a status changes.
+  - **Card links.** Lookout shows each linked card's priority number, with the sub-project name on hover or focus. This is Alden's card badge, live since 2026-10-27.
+    - Each priority's `cardIds` lists the projected cards whose canonical board scope belongs to that sub-project alone, in projection order, completed cards included.
+    - Choose them from the scope, never by id prefix or keyword.
+    - A card whose scope spans several sub-projects stays unlinked, and no card sits under two ranks.
+    - Keep the links current at every checkpoint.
+    - The rule and the current mapping are in the kanban "Native board priorities" section and `docs/coordination/lookout-priority-links-20261027.md`.
   - **Choosing work.** At every checkpoint, worker completion, blocker-clear event and existing supervision wake, pick the highest-ranked authorized `ready` or `in_progress` item. When it blocks, record the block and what clears it, then move straight to the next ready item. Return to the higher item at its next safe checkpoint.
   - **Limits.** Never interrupt irreversible work or duplicate an owner, and keep useful approved independent workers running. If nothing is available, record the exact blockers and rely on the existing monitoring. Never manufacture optional gates or authority. No new timer.
   - **Publishing.** Alden's initial `priorityPath` cutover is complete: confirmed live 2026-10-26, and the manifest points at this file with the same scoped identity. From now on, every material checkpoint publishes the priorities together with the cards, summary and glossary, through the same manifest and identity: dry-run, then `--publish` only if something changed, then a no-op readback. Same sanitization.

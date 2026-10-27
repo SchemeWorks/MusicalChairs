@@ -57,8 +57,17 @@ These cards are not forced into one rank. If a later scope change makes one sub-
 - The kanban priority table matches the file for all five ranks.
 - Privacy: the only new strings are card ids already present in the published projection. There are no new links, keys, addresses, balances, signatures or paths.
 
-## Publication restriction
+## Publication
 
-- **Hold (readiness sequencing only).** Do not publish this link change until Alden explicitly confirms the hover feature is ready. Then follow the usual sequence with the same scoped manifest and identity: dry run, publish only the changes, an immediate no-op readback, then log the receipt. Nothing is uploaded or visible until that receipt exists.
-- **If a normal checkpoint comes first.** If one arrives before Alden confirms (for example the governance rehearsal on or after 2026-10-29 18:01 UTC), its publish would carry these links, because the publisher sends the whole priorities file. Hold that publish too, record the delay as a visibility issue only, and publish once Alden confirms, unless Gideon rules otherwise.
-- **Rejections.** Any new rejection is preserved as reported, with no retry or bypass.
+**Readiness hold: SATISFIED and released (2026-10-27).** The original hold, committed at `50353dd`, read: do not publish until Alden explicitly confirms the hover feature is ready. It is satisfied as follows.
+
+- **Gideon's independent read (relayed).** Gideon independently read Alden's completed card-badge response in the Lookout chat (turn `01a17f5e-a18f-7982-919b-caba43c022f5`). Alden says the feature is live in Lookout. Task cards show the sub-project's priority number beside the agent's name, and hovering over or focusing the number shows the sub-project name. Alden reports that the tests passed and that the deployed frontend matches the build.
+- **What Silas did not see.** Silas did not read Alden's chat. That confirmation is relayed by Gideon, not independently observed.
+- **What Silas observed locally.** The local lookout-kanban checkout is at commit `4254a0d` ("Show sub-project priority on task cards"). That is source evidence only, not deployment evidence.
+- **Scope of the release.** Only this temporary sequencing hold is released. No real publication rejection had been observed for this scope.
+
+**Rule from here.** Publish with the same scoped manifest and identity: dry run, publish only what changed, an immediate no-op readback, then a receipt row in `lookout-publication-log.md`. Nothing is visible until that receipt exists. Any real rejection is preserved as reported, with no retry or bypass.
+
+**Ongoing duty.** Rob asked on 2026-10-27 that the live board stay current whenever a task moves. The links therefore follow every normal board checkpoint, as set out in CLAUDE.md "Lookout board mirror".
+
+**Priorities file.** Unchanged since `50353dd` (sha256 `83a8109c…`). The readiness commit adds one sentence to the LOOKOUT-PROJ card's evidence, covering the ongoing duty and the explicit links. That is a card change, so the board's source revision changes with it. The mapping, the 26/29 coverage and the three unlinked cards are unchanged.
