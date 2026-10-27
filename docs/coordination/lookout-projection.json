@@ -288,10 +288,10 @@
     },
     {
       "id": "M14-F11-TOOL",
-      "state": "In progress",
+      "state": "Review",
       "owner": "Sonnet worker (implementation); Silas (Claude coordinator) tests and verifies; Gideon (Codex supervisor) reviews",
       "scope": "Add a guarded operator command for the governance waiting-period rehearsal, prepared offline.",
-      "evidenceText": "State detail: in progress, offline only. One worker is writing the command in a new module with minimal wiring; Silas runs every test and builds the final operator binary. The command can only set the waiting period to zero or back to two days, refuses any other governance change, and reuses the existing safety checks, records and uncertain-outcome handling. The accepted program build and the frozen packet are not touched. Gideon reviews the change before any public use.",
+      "evidenceText": "State detail: awaiting Gideon's review; offline only, nothing sent. The guarded command is written and all eleven of its new tests pass against the real multisig program and the accepted program build. They confirm that a reduced waiting period makes the program refuse its own governance instructions, as designed. The existing tool test suites all still pass, and the accepted program build and frozen packet are unchanged. One process slip was caught and fixed: a test build replaced the working copy of the accepted operator tool; it was rebuilt identically from the accepted source, and live steps now run only from saved, verified copies.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",

@@ -1,5 +1,5 @@
 {
-  "summary": "Block A on the Solana test network: Gideon accepted the governance stage, the 44 read-back checks and the first 9 of 39 flow steps. While the flow waits for its November 3 step, the governance waiting-period rehearsal is being prepared offline for Gideon's review. Internet Computer changes, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A on the Solana test network: Gideon accepted the governance stage, the 44 read-back checks and the first 9 of 39 flow steps. The governance waiting-period rehearsal tool is built and tested offline and now awaits Gideon's review, while the flow waits for its November 3 step. Internet Computer changes, real rewards, mainnet and the merge stay held.",
   "glossary": [
     {
       "term": "M14",

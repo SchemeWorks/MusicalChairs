@@ -3,9 +3,9 @@
     {
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
-      "status": "in_progress",
-      "blockedReason": "",
-      "nextAction": "Prepare the governance waiting-period rehearsal offline now: finish the guarded command, run its tests, record the new operator binary, then stop for Gideon's review before any public step. The main 39-step flow waits for step 10, the first player withdrawal, which must run on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC on the network's clock (the first-week Carried Interest rate). No activation of Internet Computer services or real rewards is part of this work.",
+      "status": "blocked",
+      "blockedReason": "Two waits. First, Gideon's review of the new guarded command for the governance waiting-period rehearsal; no public step of that rehearsal happens before it. Second, the main 39-step flow waits for step 10, the first player withdrawal, which must run on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC on the network's clock (the first-week Carried Interest rate). This clears when Gideon accepts the command and when that window opens. No activation of Internet Computer services or real rewards is part of this work.",
+      "nextAction": "After Gideon's acceptance: run the rehearsal's read-only checks, then propose the reduction. In the November 3 window: run step 10, then steps 11 and 12.",
       "cardIds": [
         "M14-A4",
         "M14-A5",
