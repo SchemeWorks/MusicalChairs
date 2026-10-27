@@ -1,5 +1,5 @@
 {
-  "summary": "Block A on the Solana test network passed its governance stage: program initialization and oracle registration executed after the two-day wait, and all 44 read-back checks pass. The acceptance flow is 9 of 39 steps in, with money accounting balanced after each. The next step is due November 3. Internet Computer changes, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A on the Solana test network: Gideon accepted the governance stage, the 44 read-back checks and the first 9 of 39 flow steps. While the flow waits for its November 3 step, the governance waiting-period rehearsal is being prepared offline for Gideon's review. Internet Computer changes, real rewards, mainnet and the merge stay held.",
   "glossary": [
     {
       "term": "M14",

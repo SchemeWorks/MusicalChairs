@@ -3,15 +3,16 @@
     {
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
-      "status": "blocked",
-      "blockedReason": "Waiting for the next market-clock step. Program initialization and oracle registration executed on 2026-10-27, all read-back checks pass, and 9 of the 39 flow steps are done with the accounting balanced. Step 10, the first player withdrawal, can run no earlier than 2026-11-03 13:11 UTC and must run before 15:37 UTC that day on the network's own clock, because the plan expects the first-week Carried Interest rate. This clears when that window opens. No activation of Internet Computer services or real rewards is part of this work.",
-      "nextAction": "In the window: run step 10, then the keeper's fee-ticket steps and the backer's first claim (steps 11 and 12). Gideon decides two open items: the optional oracle-client top-up and the governance waiting-period rehearsal.",
+      "status": "in_progress",
+      "blockedReason": "",
+      "nextAction": "Prepare the governance waiting-period rehearsal offline now: finish the guarded command, run its tests, record the new operator binary, then stop for Gideon's review before any public step. The main 39-step flow waits for step 10, the first player withdrawal, which must run on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC on the network's clock (the first-week Carried Interest rate). No activation of Internet Computer services or real rewards is part of this work.",
       "cardIds": [
         "M14-A4",
         "M14-A5",
         "M14-A6",
         "M14-A7",
-        "M14-F11"
+        "M14-F11",
+        "M14-F11-TOOL"
       ]
     },
     {
