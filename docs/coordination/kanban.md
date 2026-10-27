@@ -171,11 +171,13 @@ The ordered sub-projects, mirrored as `docs/coordination/lookout-priorities.json
 
 | rank | id | status | blocked by / next action | cards |
 | --- | --- | --- | --- | --- |
-| 1 | native-solana-devnet-acceptance | blocked | (a) the F11 reduce #3 governance deadline: execute no earlier than 2026-10-29T18:01:21Z (cluster clock), then document and restore #4 in the same sitting; (b) the main 39-step flow (9/39) waits for step 10: 2026-11-03T13:11:35Z ≤ cluster clock < 15:37:47Z (12% tier), with the accepted binary d3c66966…. Clears when each time arrives (existing monitor). No ICP or production activation | M14-A4, M14-A5, M14-A6, M14-A7, M14-F11, M14-F11-TOOL |
+| 1 | native-solana-devnet-acceptance | blocked | (a) the F11 reduce #3 governance deadline: execute no earlier than 2026-10-29T18:01:21Z (cluster clock), then document and restore #4 in the same sitting; (b) the main 39-step flow (9/39) waits for step 10: 2026-11-03T13:11:35Z ≤ cluster clock < 15:37:47Z (12% tier), with the accepted binary d3c66966…. Clears when each time arrives (existing monitor). No ICP or production activation | M14-PRE-ORAO, M14-PRE-SQUADS, M14-TOOL, M14-SIM, M14-RUN, M14-TOOL-REV, M14-TOOL-FIX, M14-TOOL-RECHECK, M14-TOOL-FIX2, M14-F3-HOLD, M14-A-APPROVAL, M14-5A-REPIN, M14-A1, M14-A2, M14-A3, M14-FUND-TOOL, M14-A4, M14-A5, M14-A6, M14-A7, M14-F11, M14-F11-TOOL |
 | 2 | private-board-visibility | done | Alden's priorities cutover is live (confirmed 2026-10-26); later updates event-driven, together with cards, summary and glossary | LOOKOUT-PROJ |
 | 3 | legacy-memo-repair-delivery | paused | needs Gideon's final deploy-candidate acceptance plus Rob's separate mainnet-upgrade approval; no product work until then | LEG-1, LEG-1-REV |
 | 4 | legacy-failed-mint-recovery | blocked | needs a decision on coverage, original events and duplicate prevention, plus separate recovery authority | LEG-2 |
 | 5 | icp-integration-production-activation | paused | B/C rows, real PP, mainnet and the PR merge are held; each needs its own approval | none |
+
+**Card links (rule, 2026-10-27).** A priority's cards are the projected cards whose canonical scope belongs to that sub-project alone, listed in projection order, including completed cards. Choose them from each card's actual board scope, never by id prefix or keyword. A card whose scope spans several sub-projects stays unlinked rather than being forced into one rank; no card is linked under two ranks. Currently M14-PKT-R (the packet also carries the held B/C rows), M14-GRAPH (M14 preparation and legacy-card graph work) and PR-125 (the branch-wide review) stay unlinked. Update the links at each normal board checkpoint, in the same commit as the card change. Mapping, coverage and source: [priority-links receipt](lookout-priority-links-20261027.md).
 
 ## Local implementation pass — 2026-10-14 (Codex go-ahead; M0–M13 local only)
 
