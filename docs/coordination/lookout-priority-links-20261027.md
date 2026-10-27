@@ -68,6 +68,8 @@ These cards are not forced into one rank. If a later scope change makes one sub-
 
 **Rule from here.** Publish with the same scoped manifest and identity: dry run, publish only what changed, an immediate no-op readback, then a receipt row in `lookout-publication-log.md`. Nothing is visible until that receipt exists. Any real rejection is preserved as reported, with no retry or bypass.
 
+**Publication receipt.** Published 2026-10-27T22:15Z from `4d880fb` through the same manifest: board backend revision 21, source revision `c7f49347…3be0`; presentation and priorities bound to that revision; the immediate readback reported board, presentation and priorities unchanged. Row in `lookout-publication-log.md`.
+
 **Ongoing duty.** Rob asked on 2026-10-27 that the live board stay current whenever a task moves. The links therefore follow every normal board checkpoint, as set out in CLAUDE.md "Lookout board mirror".
 
 **Priorities file.** Unchanged since `50353dd` (sha256 `83a8109c…`). The readiness commit adds one sentence to the LOOKOUT-PROJ card's evidence, covering the ongoing duty and the explicit links. That is a card change, so the board's source revision changes with it. The mapping, the 26/29 coverage and the three unlinked cards are unchanged.
