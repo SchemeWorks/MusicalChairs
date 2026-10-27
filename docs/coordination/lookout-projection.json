@@ -223,10 +223,62 @@
     },
     {
       "id": "M14-A4",
-      "state": "In progress",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Propose program initialization and oracle registration through the governance account, then the two-day waiting period.",
-      "evidenceText": "State detail: waiting for the two-day governance time lock. The governance vault was topped up for the oracle registration. Both governance proposals, program initialization and oracle registration, were created and approved by two of the three members in one sitting, with the stored transaction re-checked at each approval. The earliest execution is 2026-10-27 at 15:05 UTC, judged on the network's own clock with no shortcut. Initialization runs first, then registration.",
+      "evidenceText": "Both approved governance proposals executed once each after their two-day waiting periods ended on the network's own clock: program initialization first, with the sponsor co-signing, then oracle registration. Before anything was sent, a fresh check confirmed the network identity, the network clock, that no earlier send was uncertain, every pinned artifact, the stored proposal contents and approval times, and the payer balances. Both transactions reached the network's final confirmation level with no error, and both proposals read as executed.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A5",
+      "state": "Done",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Oracle registration, then operations funding and the first shared pages.",
+      "evidenceText": "State detail: done; one open decision for Gideon. The oracle client is registered and owned by the governance account. The sponsor funded the operations account, and the keeper created the first four shared pages from it at exactly the planned cost. A separate oracle-client top-up listed in the approval packet was not sent: the program tops the client up on each draw request, the accepted local rehearsal passed without it, and no guarded command exists for it. Gideon is asked to confirm leaving it out; nothing needs it before the first draw.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A6",
+      "state": "Done",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Read back every configured account on the Solana test network.",
+      "evidenceText": "Read-only checks at the network's final confirmation level: 44/44 pass. They cover both multisig accounts, the program and its upgrade control, the deployed bytes against the accepted build, the game settings and guardian, and the oracle client's owner, state and program.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7",
+      "state": "In progress",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
+      "evidenceText": "State detail: in progress; 9/39 steps done. The plan's clock starts from the program's actual activation time, read from the network. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. Each was simulated first, sent once and confirmed, and passed all its checks; the conservation checks and every wallet's balance equation held after each step. Next: step 10, the first player withdrawal, no earlier than 2026-11-03 13:11 UTC and before 15:37 UTC on the network's clock, because the plan expects the first-week Carried Interest rate.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-F11",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) decides",
+      "scope": "Rehearse the governance account lowering and then restoring its own waiting period, an optional parallel item in the approved flow list.",
+      "evidenceText": "State detail: blocked; needs Gideon's decision. The reviewed operator tool has no guarded command for this governance change, and the local plan never simulated it, so it was not run. The options are a small guarded tool addition with a review, or an explicit deferral. It does not block the main flow.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",

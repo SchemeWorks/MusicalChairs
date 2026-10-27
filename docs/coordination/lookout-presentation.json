@@ -1,5 +1,5 @@
 {
-  "summary": "Block A is under way on the Solana test network. The program is deployed and verified, the test wallets are funded, and both governance proposals are approved. They can execute after the two-day waiting period ends on October 27 at 15:05 UTC. Internet Computer changes, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A on the Solana test network passed its governance stage: program initialization and oracle registration executed after the two-day wait, and all 44 read-back checks pass. The acceptance flow is 9 of 39 steps in, with money accounting balanced after each. The next step is due November 3. Internet Computer changes, real rewards, mainnet and the merge stay held.",
   "glossary": [
     {
       "term": "M14",
@@ -282,6 +282,26 @@
     {
       "term": "Gideon",
       "definition": "The Codex supervisor agent for this project: it reviews and accepts evidence. Its acceptance is not Rob's approval."
+    },
+    {
+      "term": "44/44",
+      "definition": "All 44 read-only checks of the configured accounts on the Solana test network matched the expected values.",
+      "cardId": "M14-A6"
+    },
+    {
+      "term": "9/39",
+      "definition": "Nine of the thirty-nine steps of the acceptance flow plan have run on the Solana test network.",
+      "cardId": "M14-A7"
+    },
+    {
+      "term": "Carried Interest",
+      "definition": "The game's fee on a Simple position's withdrawal: 12% in the first week after the deposit, 7.5% in the second week and 3% after that.",
+      "cardId": "M14-A7"
+    },
+    {
+      "term": "backer",
+      "definition": "An account that adds money to the game's pot and is repaid, up to a cap, from a share of later withdrawal fees.",
+      "cardId": "M14-A7"
     }
   ]
 }
