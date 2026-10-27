@@ -74,6 +74,11 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
   - Never guess a meaning or reuse another project's shorthand. Apply the same sanitization as the projection. No new timer.
   - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the summary and glossary to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops.
+- **Priorities (ordered sub-projects).** `docs/coordination/lookout-priorities.json` has the shape `{items:[{id,title,status,blockedReason,nextAction,cardIds}]}`; the canonical copy of the ranking is the "Native board priorities" section of the kanban. Gideon (supervisor) chooses the ranking; Silas maintains the file and the board.
+  - **Format.** Status is one of `ready`, `in_progress`, `blocked`, `paused`, `done`. `blocked` and `paused` need the reason and what clears it; `ready` and `in_progress` need the next action. Keep the rank when a status changes.
+  - **Choosing work.** At every checkpoint, worker completion, blocker-clear event and existing supervision wake, pick the highest-ranked authorized `ready` or `in_progress` item. When it blocks, record the block and what clears it, then move straight to the next ready item. Return to the higher item at its next safe checkpoint.
+  - **Limits.** Never interrupt irreversible work or duplicate an owner, and keep useful approved independent workers running. If nothing is available, record the exact blockers and rely on the existing monitoring. Never manufacture optional gates or authority. No new timer.
+  - **Publishing.** The file is published in the same checkpoint flow as the cards, summary and glossary, using the same sanitization. Alden owns the initial `priorityPath` cutover; until Alden confirms readiness, do not publish it or call the priorities API.
 - **Boundaries.**
   - Never read or export keyring secrets.
   - Board-sync approval is not Block A approval. M14 execution still needs Rob's separate, explicit yes.

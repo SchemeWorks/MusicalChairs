@@ -165,6 +165,18 @@ User authorizes production accounts and payout/allocation source plus local test
 
 Scope includes production account source and the admission/payout/allocation tranche. Production provider/candidate/promotion integration, GUI, ICP bridge, actual Squads execution/loader deployment and launch funding remain later roadmap work; no claim that this tranche alone is a launchable whole game. Source-close barriers must preserve all financial state and remain compatible with the accepted fixed-deadline recovery contract. Optional modernization or economic redesign does not become a required gate.
 
+## Native board priorities (ranked by Gideon; maintained by Silas)
+
+The ordered sub-projects, mirrored as `docs/coordination/lookout-priorities.json`. Keep each rank when its status changes. Work selection follows the CLAUDE.md "Priorities" rule: highest-ranked authorized ready or in-progress item first; record a block and what clears it, then move to the next; no manufactured gates or authority.
+
+| rank | id | status | blocked by / next action | cards |
+| --- | --- | --- | --- | --- |
+| 1 | native-solana-devnet-acceptance | blocked | the governance time lock: initialize no earlier than 2026-10-27T15:05:04Z, ORAO register no earlier than 15:05:22Z (cluster clock). Then execute both, read back, and start the flow plan. No activation | M14-A4 |
+| 2 | private-board-visibility | done | durable priorities handoff ready for Alden's cutover; later updates event-driven, together with cards, summary and glossary | LOOKOUT-PROJ |
+| 3 | legacy-memo-repair-delivery | paused | needs Gideon's final deploy-candidate acceptance plus Rob's separate mainnet-upgrade approval; no product work until then | LEG-1, LEG-1-REV |
+| 4 | legacy-failed-mint-recovery | blocked | needs a decision on coverage, original events and duplicate prevention, plus separate recovery authority | LEG-2 |
+| 5 | icp-integration-production-activation | paused | B/C rows, real PP, mainnet and the PR merge are held; each needs its own approval | none |
+
 ## Local implementation pass — 2026-10-14 (Codex go-ahead; M0–M13 local only)
 
 **Names (2026-10-24, Rob's naming rule):** the coordinator is **Silas** (this Claude session) and the supervisor/reviewer is **Gideon** (the Codex supervisor). Earlier rows say "coordinator" and "Codex" for the same roles and are left as written. Miles is a different project's supervisor.
