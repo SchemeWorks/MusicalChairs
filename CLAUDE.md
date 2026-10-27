@@ -81,7 +81,7 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - **Publishing.** The file is published in the same checkpoint flow as the cards, summary and glossary, using the same sanitization. Alden owns the initial `priorityPath` cutover; until Alden confirms readiness, do not publish it or call the priorities API.
 - **Boundaries.**
   - Never read or export keyring secrets.
-  - Board-sync approval is not Block A approval. M14 execution still needs Rob's separate, explicit yes.
+  - Board-sync approval grants nothing beyond board updates. Block A on devnet, including the section 5a fresh program id, is already explicitly approved by Rob: never ask for Block A approval again. The B/C rows (ICP), real PP minting, unknown-outcome retries, mainnet and the PR #125 merge each remain separately held.
   - Add no new timer: the existing 30-minute supervision check covers mirror freshness.
   - A publication failure is a visibility issue only. It never justifies bypassing an authority boundary.
   - Board-metadata authority grants nothing for Solana keys, faucets, signing or deploys, or for any ICP upgrade, mint, activation or merge.

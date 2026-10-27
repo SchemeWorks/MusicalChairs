@@ -171,7 +171,7 @@ The ordered sub-projects, mirrored as `docs/coordination/lookout-priorities.json
 
 | rank | id | status | blocked by / next action | cards |
 | --- | --- | --- | --- | --- |
-| 1 | native-solana-devnet-acceptance | blocked | the governance time lock: initialize no earlier than 2026-10-27T15:05:04Z, ORAO register no earlier than 15:05:22Z (cluster clock). Then execute both, read back, and start the flow plan. No activation | M14-A4 |
+| 1 | native-solana-devnet-acceptance | blocked | the governance time lock: initialize no earlier than 2026-10-27T15:05:04Z, ORAO register no earlier than 15:05:22Z (cluster clock). Then execute both, read back, and start the flow plan. No ICP or production activation | M14-A4 |
 | 2 | private-board-visibility | done | durable priorities handoff ready for Alden's cutover; later updates event-driven, together with cards, summary and glossary | LOOKOUT-PROJ |
 | 3 | legacy-memo-repair-delivery | paused | needs Gideon's final deploy-candidate acceptance plus Rob's separate mainnet-upgrade approval; no product work until then | LEG-1, LEG-1-REV |
 | 4 | legacy-failed-mint-recovery | blocked | needs a decision on coverage, original events and duplicate prevention, plus separate recovery authority | LEG-2 |
