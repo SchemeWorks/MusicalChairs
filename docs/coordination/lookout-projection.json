@@ -291,7 +291,7 @@
       "state": "Review",
       "owner": "Sonnet worker (implementation); Silas (Claude coordinator) tests and verifies; Gideon (Codex supervisor) reviews",
       "scope": "Add a guarded operator command for the governance waiting-period rehearsal, prepared offline.",
-      "evidenceText": "State detail: awaiting Gideon's review; offline only, nothing sent. The guarded command is written and all eleven of its new tests pass against the real multisig program and the accepted program build. They confirm that a reduced waiting period makes the program refuse its own governance instructions, as designed. The existing tool test suites all still pass, and the accepted program build and frozen packet are unchanged. One process slip was caught and fixed: a test build replaced the working copy of the accepted operator tool; it was rebuilt identically from the accepted source, and live steps now run only from saved, verified copies.",
+      "evidenceText": "State detail: awaiting Gideon's re-review after one required correction; offline only, nothing sent. Gideon's first review found one blocking gap: the final step did not re-check, right before running, that no other governance transaction was still pending, so one created during the two-day wait could have been silently invalidated. The command now refuses in that case before signing or sending anything, and three new tests cover it in both directions; all fourteen of its tests pass. The accepted program build and frozen packet are unchanged, and live steps keep using the saved, accepted copy of the operator tool.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
