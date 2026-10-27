@@ -16,6 +16,7 @@
 //! devnet_ops execute <action> # vault_transaction_execute after the time lock (sponsor co-signs initialize)
 //! devnet_ops readback         # packet A6 receipt (JSON): profiles, vaults, Pool/Admission, ORAO Client
 //! devnet_ops validator-fixtures <out_dir>   # offline: account JSONs + the exact local validator command
+//! devnet_ops g-timelock       # packet F11: G reduces its own Squads time lock and restores it (see `timelock`)
 //! ```
 //!
 //! # Safety interlocks (all enforced in code, all covered by tests)
@@ -129,6 +130,7 @@ use crate::{
 
 mod flow;
 mod fund;
+pub mod timelock;
 
 pub use fund::{FUND_BUCKET_CAPS, FUND_PER_TRANSFER_CAP_LAMPORTS, FUND_ROLES};
 
@@ -315,6 +317,7 @@ const COMMANDS: &[&str] = &[
     "readback",
     "validator-fixtures",
     "flow",
+    "g-timelock",
 ];
 
 /// A parsed command line: `devnet_ops <command> [positional] [--flag value] [--switch]`.
@@ -420,7 +423,8 @@ pub fn help_text() -> String {
     "usage: devnet_ops <command> [action] --rpc <url> [--cluster local|devnet] [--execute] [flags]\n\
      commands: plan | deploy | verify-bytes | squads-create | fund-vault | fund-wallets | propose <initialize|register> |\n\
      approve <initialize|register> | execute <initialize|register> | readback | validator-fixtures <out_dir> |\n\
-     flow init|status|next (the M14 flow plan; see docs/solana/devnet-ops.md)\n\
+     flow init|status|next (the M14 flow plan; see docs/solana/devnet-ops.md) |\n\
+     g-timelock status|probe (read-only) | g-timelock propose|approve|execute reduce|restore (packet F11)\n\
      Every write is a DRY RUN unless --execute is given. --execute is refused unless the RPC URL is\n\
      loopback, or --cluster devnet is given with --packet-sha256 <sha256> --packet-commit <40-hex>\n\
      (an artifact-identity pin of the reviewed packet text; it is NOT an approval: Rob's explicit\n\
@@ -700,7 +704,7 @@ impl Gate {
         }
         let flow_read_only = opts.command == "flow"
             && opts.positional.first().is_none_or(|action| action != "next");
-        if READ_ONLY_COMMANDS.contains(&opts.command.as_str()) || flow_read_only {
+        if READ_ONLY_COMMANDS.contains(&opts.command.as_str()) || flow_read_only || timelock::is_read_only(opts) {
             return usage(format!("`{}` is read-only and takes no --execute", opts.command));
         }
         if self.target == Target::Local {
@@ -4703,6 +4707,7 @@ pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Va
         "execute" => cmd_execute(&ctx),
         "readback" => cmd_readback(&ctx),
         "flow" => flow::cmd_flow(&ctx),
+        "g-timelock" => timelock::cmd_g_timelock(&ctx),
         other => usage(format!("unknown command `{other}`")),
     }?;
     if value.get("cluster").is_none() {

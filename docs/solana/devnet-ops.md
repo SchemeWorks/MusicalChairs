@@ -108,6 +108,7 @@ roles). Members files list exactly three pubkeys, one per line.
 | `readback` | `--g-create-key --p-create-key --g-members --p-members` (`--sections squads,program,initialize,orao`, `--sponsor`, `--management-recipient`, `--elf`) | packet A6: profiles, vault index 0, `Admission.guardian_vault == Pool.guardian_vault == P vault`, ORAO `Client.owner == G vault`, `Client.state == RngAuthority`, Client account owner == ORAO program |
 | `validator-fixtures <out_dir>` | optional `--program-so --g-create-key` | offline: writes the validator account files and prints the exact local validator command |
 | `flow init\|status\|next` | `--wallet-dir` (see [Flow runner](#flow-runner-the-m14-plan)) | runs the 39-step M14 flow plan against a cluster, one interlocked step at a time |
+| `g-timelock status\|probe` / `g-timelock propose\|approve\|execute reduce\|restore` | `--g-create-key --g-members` and, for `probe` and every write, `--member` (a keypair for writes); `--tx-index` for approve / execute, `--expect-tx-index` for `propose --execute` | packet F11, see [G time-lock rehearsal](#g-time-lock-rehearsal-g-timelock-packet-f11): G reduces its own time lock (172,800 s -> 0 s) and restores it; `status` and `probe` are read-only |
 
 `initialize` parameters default to the packet (devnet cluster domain `musical-chairs-devnet-domain-v1!`, request fee 300,000,
 headroom 2,500 bps, `--public-series-a-enabled true`, the devnet ORAO tuple); the flags `--cluster-domain`,
@@ -231,6 +232,87 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
   is the evidence). It must run while the cluster clock is at or before the deadline; after that the step counts as passed.
 * **Local use.** On a loopback validator the clock is real time, so only the first steps (setup and round 1 deposits, offsets up to 173,160 s)
   are runnable in one sitting, with `--genesis-unix <now - 172800>`; the whole plan runs in LiteSVM (`tests/m14_flow_tool.rs`).
+
+## G time-lock rehearsal (`g-timelock`, packet F11)
+
+`devnet_ops g-timelock` (`src/devnet_ops/timelock.rs`, tests `tests/g_timelock.rs`) carries out packet F11: G changes its OWN Squads
+time lock with a Squads **config transaction**, the consequence is documented, and G restores it. The contract, the exact protocol
+(R0 to S4) and the receipt fields are in [the F11 protocol](../coordination/m14-f11-timelock-protocol-20261027.md); this section
+is the operator's view. **Nothing here has touched a public cluster**, and no public F11 transaction may be proposed before Gideon
+accepts the tool (the operator-binary delta and the R0/S0 preconditions). F11 itself is inside Rob's existing Block A approval
+(packet 6.5 and D12); no new approval is asked.
+
+```bash
+devnet_ops g-timelock status                    --g-create-key G --g-members GM --rpc URL [--cluster devnet] [--pending-file P]   # read-only
+devnet_ops g-timelock probe   --member PUBKEY   --g-create-key G --g-members GM --rpc URL [...]                                   # read-only, simulation only
+devnet_ops g-timelock propose reduce --member KEYPAIR ... [--execute --expect-tx-index N]                                         # dry run by default
+devnet_ops g-timelock approve reduce --member KEYPAIR --tx-index N ... [--execute]
+devnet_ops g-timelock execute reduce --member KEYPAIR --tx-index N ... [--execute]                                               # refuses until the lock has passed
+devnet_ops g-timelock propose|approve|execute restore ...                                                                         # same, 0 s -> 172,800 s
+```
+
+* **Two actions, two constants.** `reduce` is 172,800 -> 0 and `restore` is 0 -> 172,800; both numbers are code constants
+  (`timelock::T_NORMAL`, `T_REDUCED`). Any other action, and any value, time-lock, threshold, member, spending-limit, rent-collector or
+  memo flag, is a **usage error** (the flags do not exist); `--p-create-key` / `--p-members` are refused (G only); `--tx-index`
+  belongs to approve / execute and `--expect-tx-index` to propose. `status` and `probe` refuse `--execute`.
+* **Same interlocks as every other command** (gate, packet pin, host allowlist, required `--pending-file` on devnet, genesis check,
+  `resolve_pending_all`, `Ctx::run_step`: packet size, simulate before send, write-ahead before send, F3 held-unknown). There is no
+  retry logic, no release command and no way to clear a held record here. Step ids: `F11.<reduce|restore>.config_transaction_create`,
+  `.proposal_create`, `.proposal_approve`, `.config_transaction_execute`. Proposer = creator = rent payer = fee payer = one signature.
+* **`propose` refuses** (dry run too) unless: the G profile is exact at the action's FROM lock (`reduce`: 172,800 s; `restore`: 0 s;
+  "reduce while at 0" / "restore while at 172,800" get their own plain refusal); the write-ahead file holds no open or held record; and
+  no G transaction in `(stale_transaction_index, transaction_index]` is live (a proposal that is not Executed, Rejected or Cancelled,
+  or a transaction with no proposal, unless it is exactly our resumable config transaction; more than 64 transactions above the stale
+  index is refused rather than half-scanned). `reduce` also needs the upgrade authority = the G vault, an initialized Pool with
+  ConfigVersion#1 active, the ORAO Client registered (owner G vault, state RngAuthority) and a baseline probe that succeeds. `restore`
+  depends on none of that, and it is deliberately NOT gated on having seen a recorded reduce (a G stuck at 0 s must stay restorable;
+  `status` reports the phase). A config transaction that exists without a proposal is resumed (`proposal_create` only); an identical
+  live proposal is refused; `--expect-tx-index N` is required with `--execute`.
+* **`approve` / `execute` act only on a config transaction whose stored actions are EXACTLY `[SetTimeLock { target }]`**, decoded in
+  full from the account (exact discriminator, Squads-owned, this multisig and index, nothing but zero padding after the actions),
+  with a proposal that is not stale. `approve` needs Active and a member who has not voted; `execute` needs Approved and refuses, in
+  plain words and before any send, until the cluster clock reaches `approved_at + the CURRENT time lock` (Squads error 6021 otherwise,
+  after a paid fee). After an executed run the receipt carries one `check` each for: proposal Executed; time lock at the target;
+  threshold, members and permissions, config authority, rent collector, create key, bump and vault 0 unchanged; transaction index
+  unchanged; stale index covers the executed index and equals the transaction index; and the whole G profile (the `readback` checks)
+  at the target lock.
+* **`status`** prints the G profile, the transaction and stale indexes, the phase (`normal`, `reduce_proposed`, `reduce_approved`,
+  `reduced`, `restore_proposed`, `restore_approved`, `restored`, ...), the newest transactions, the earliest execution time on the
+  cluster clock, and the program-side R0 checks.
+* **`probe`** is the RG-8 consequence: it SIMULATES (never sends) `rotate_recipient(kind 0, new_recipient = the current
+  Pool.management_recipient)`, a no-op, with the G multisig as `governance_multisig` and the G vault (index 0) as a signer FLAG in an
+  unsigned message (signature verification off; fee payer = `--member`, a pubkey is enough). The receipt records `simulated_only: true`,
+  `sent: false`, the instruction, the error code and name, `wrong_governance_profile`, and `expected`; with G at 172,800 s the no-op must
+  succeed, at any other time lock it must fail with exactly `WrongGovernanceProfile` (6031), and any other result fails the check
+  (a probe that errors for another reason would make "not WrongGovernanceProfile" a vacuous baseline). It cannot send: no key can sign
+  for the vault PDA, and the function has no keypair parameter and never touches the send path.
+* **Exit codes** are the tool's: 0 ok, 1 failure (an ambiguous send ends here with `INCIDENT`), 2 usage, 3 refused, 4 a check did not
+  hold (the receipt is still printed).
+
+**Solana notes.** A config transaction is the multisig acting on ITS OWN account (members, threshold, time lock), executed by Squads
+itself rather than through a vault-PDA CPI; the EVM analogue is a Safe calling itself (`changeThreshold`, `addOwnerWithThreshold`), the ICP
+analogue an SNS parameter-change proposal. Executing one sets `stale_transaction_index` to the latest transaction index, so every
+earlier unexecuted G transaction becomes stale. Measured on the real binary (`tests/g_timelock.rs`): a vote on a stale Active
+proposal fails with 6007, but a vault proposal APPROVED before it went stale still executes. Per the Squads source a stale CONFIG
+transaction cannot execute; the tool refuses that case itself (not measured). That is why `propose` refuses while anything else is live. Anchor 0.29 spells an unused OPTIONAL account (`rent_payer`,
+`system_program` of `config_transaction_execute`) as the program id in its slot, read-only and not a signer; a `SetTimeLock` never
+reallocates the multisig, so both are `None`. While G is reduced the program refuses EVERY G governance instruction
+(`require_governance` demands exactly 172,800), so the reduced window is a weakened Squads delay (any two voters could execute without
+waiting) AND a program that ignores G; the restore is immediate because the lock it waits on is 0 s. The 48-hour wait runs on the
+CLUSTER Clock sysvar, never this machine's clock.
+
+**Tests** (coordinator; LiteSVM with the real Squads v4 devnet binary, the devnet ORAO binary and the production ELF, genesis run
+through G exactly as the operator does):
+
+```bash
+cd solana/tests/financial-runtime
+cargo +1.92.0 test --locked --test g_timelock -- --test-threads=1 --nocapture
+```
+
+They cover the whole reduce / wait / execute / probe / restore / read-back sitting; a real G vault transaction failing with
+`WrongGovernanceProfile` while G is reduced and succeeding before; every refusal (usage, non-member, wrong state, a stored action that
+differs, a live vault or config transaction, an index mismatch); the F3 held-unknown semantics on an execute whose response is lost;
+the encodings against the committed IDL; the stale behaviour of the real binary (recorded as `FINDING` lines); and the devnet gate.
 
 ## Local rehearsal
 
