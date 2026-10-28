@@ -58,7 +58,7 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
 - **States.** Use only the publisher's standard column states: `Backlog`, `Ready`, `In progress`, `Review`, `Done`, `Blocked`, `Cancelled`. The board allows at most 12 columns, and each distinct state is a column. Put any qualifier, such as "done locally, not deployed" or "awaiting Gideon", at the start of `evidenceText` as `State detail: …`.
 - **When to update (ongoing duty).** Rob asked on 2026-10-27, in Alden's Lookout chat as relayed by Gideon, that boards on the live site stay current whenever a task moves.
   - While working, update the kanban promptly whenever a task moves: a card is added, or its status, progress or evidence, blockers or next step change. That is a material checkpoint.
-  - In the same commit, update the projection, the summary and glossary, and the priorities, including each priority's explicit `cardIds`.
+  - In the same commit, update the projection, BOTH summaries (technical `summary` and `plainSummary`), the affected glossary entries, and the priorities, including each priority's explicit `cardIds`. Both summaries bind to the exact board source revision.
   - Then publish promptly (see Publishing below).
   - This applies while working. It is not a claim of autonomous updates while idle.
   - Unchanged content stays a no-op.
@@ -84,11 +84,18 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Never retry or bypass it through another identity, tool or executor.
 
   The old denial of a root publisher attempt (`.lock`) stays binding for root. Silas's normal publisher run with this manifest is the authorized path, not a substitute executor.
-- **Plain-English status and glossary.** `docs/coordination/lookout-presentation.json` has the shape `{summary, glossary:[{term, definition, cardId?}]}` and is described under "Plain-English status and clickable explanations" in the lookout-kanban `outputs/PUBLISHING.md`. Update it alongside every material board checkpoint, in the same commit as the projection.
-  - Keep the summary brief (about 35–60 words) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
+- **Status summaries and glossary.** `docs/coordination/lookout-presentation.json` has the shape `{summary, plainSummary, glossary:[{term, definition, cardId?}]}`. The current reference is the lookout-kanban `docs/PUBLISHING.md`, section "Summary, definitions, and priorities". Update it alongside every material board checkpoint, in the same commit as the projection.
+  - **Technical `summary`.** Keep it brief (about 35–60 words, under 600 codepoints) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
+  - **`plainSummary`** (Rob's request, 2026-10-27; Lookout shows it by default, with a toggle to the technical view).
+    - Write 2–3 short sentences in ordinary language for a general reader, under 600 Unicode codepoints.
+    - Cover overall progress, what is done and works, what blocks it, and what happens next.
+    - No unexplained acronyms, hashes or internal labels.
+    - Report only verified facts. A finished software task does not mean deployment, signing, money movement or readiness.
+    - Whenever the meaningful status changes, update both summaries together.
+    - If `plainSummary` were omitted, the publisher would leave the old plain summary in place, so never drop it to skip an update.
   - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
   - Never guess a meaning or reuse another project's shorthand. Apply the same sanitization as the projection. No new timer.
-  - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the summary and glossary to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops.
+  - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the technical summary, the glossary and the plain summary (published separately) to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops. The publisher's dry run reports the plain summary separately; the readback must show it unchanged too.
 - **Priorities (ordered sub-projects).** `docs/coordination/lookout-priorities.json` has the shape `{items:[{id,title,status,blockedReason,nextAction,cardIds}]}`; the canonical copy of the ranking is the "Native board priorities" section of the kanban. Gideon (supervisor) chooses the ranking; Silas maintains the file and the board.
   - **Format.** Status is one of `ready`, `in_progress`, `blocked`, `paused`, `done`. `blocked` and `paused` need the reason and what clears it; `ready` and `in_progress` need the next action. Keep the rank when a status changes.
   - **Card links.** Lookout shows each linked card's priority number, with the sub-project name on hover or focus. This is Alden's card badge, live since 2026-10-27.
