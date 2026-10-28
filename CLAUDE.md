@@ -86,13 +86,16 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   The old denial of a root publisher attempt (`.lock`) stays binding for root. Silas's normal publisher run with this manifest is the authorized path, not a substitute executor.
 - **Status summaries and glossary.** `docs/coordination/lookout-presentation.json` has the shape `{summary, plainSummary, glossary:[{term, definition, cardId?}]}`. The current reference is the lookout-kanban `docs/PUBLISHING.md`, section "Summary, definitions, and priorities". Update it alongside every material board checkpoint, in the same commit as the projection.
   - **Technical `summary`.** Keep it brief (about 35–60 words, under 600 codepoints) and current. State the local acceptance and the held public approval plainly, with no hashes, internal review ids or undefined abbreviations.
-  - **`plainSummary`** (Rob's request, 2026-10-27; Lookout shows it by default, with a toggle to the technical view).
-    - Write 2–3 short sentences in ordinary language for a general reader, under 600 Unicode codepoints.
-    - Cover overall progress, what is done and works, what blocks it, and what happens next.
-    - No unexplained acronyms, hashes or internal labels.
+  - **`plainSummary`** (Rob's request, 2026-10-27; strengthened 2026-10-28 by Rob's writing correction, relayed by Alden and Gideon). Lookout shows it by default, with a toggle to the technical view.
+    - Write 2–3 short sentences, normally 35–60 words and at most 600 Unicode codepoints, for a friend outside the project.
+    - Say three things: (1) what someone can actually do today, or how far along the useful result is; (2) the main thing preventing the next useful result; (3) what happens next, and whether Rob needs to act.
+    - No hashes, PR numbers, counts of checks, acronyms, task labels, release codes or lists of technical caveats.
+    - Translate engineering facts into ordinary words; don't just spell out the jargon. Read it aloud and rewrite anything that would need explaining.
+    - Detailed evidence belongs in the technical view and on the cards, not here.
     - Report only verified facts. A finished software task does not mean deployment, signing, money movement or readiness.
-    - Whenever the meaningful status changes, update both summaries together.
+    - Whenever the meaningful status changes, update both summaries together, bound to the exact source revision, with the same sanitization.
     - If `plainSummary` were omitted, the publisher would leave the old plain summary in place, so never drop it to skip an update.
+    - The coordinator applies this rule to future worker handoffs that touch the board. Idle workers are not woken just for this.
   - Glossary terms are literal, case-sensitive words that appear on the cards. Scope any term whose meaning differs by card with its exact `cardId`, including review labels, flow or version labels, and numeric counts such as `12/12`. Remove entries whose term no longer appears.
   - Never guess a meaning or reuse another project's shorthand. Apply the same sanitization as the projection. No new timer.
   - Setup's `presentationPath` cutover is complete: the manifest points at this file. Each publisher run publishes the cards first and then binds the technical summary, the glossary and the plain summary (published separately) to their exact source revision. Metadata-only changes still publish, and identical repeats are no-ops. The publisher's dry run reports the plain summary separately; the readback must show it unchanged too.
