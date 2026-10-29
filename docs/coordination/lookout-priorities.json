@@ -28,7 +28,20 @@
         "M14-A6",
         "M14-A7",
         "M14-F11",
-        "M14-F11-TOOL"
+        "M14-F11-TOOL",
+        "M14-A7-WD1",
+        "M14-A7-CLAIM1",
+        "M14-A7-CLOSE1",
+        "M14-A7-DRAW1",
+        "M14-A7-PROMO",
+        "M14-A7-REOPEN",
+        "M14-A7-R2SETUP",
+        "M14-A7-C15",
+        "M14-A7-CAP",
+        "M14-A7-CLOSE2",
+        "M14-A7-EXPIRE",
+        "M14-A-ACCEPT",
+        "M14-F12-OPT"
       ]
     },
     {
@@ -49,7 +62,8 @@
       "nextAction": "",
       "cardIds": [
         "LEG-1",
-        "LEG-1-REV"
+        "LEG-1-REV",
+        "LEG-1-SHIP"
       ]
     },
     {
@@ -68,7 +82,13 @@
       "status": "paused",
       "blockedReason": "All Internet Computer deployments and upgrades, activation, real reward minting, mainnet and the code merge are held. Each needs its own separate approval, considered after the test-network acceptance.",
       "nextAction": "",
-      "cardIds": []
+      "cardIds": [
+        "M14-B1B2",
+        "M14-B3",
+        "M14-B4",
+        "M14-C2",
+        "M14-C1C3"
+      ]
     }
   ]
 }

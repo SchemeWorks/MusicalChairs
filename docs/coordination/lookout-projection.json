@@ -5,7 +5,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator) / Sonnet document worker",
       "scope": "Prepare the M14 devnet acceptance approval packet.",
-      "evidenceText": "Current status: Rob approved Block A, the Solana-devnet-only trial, and Gideon (Codex supervisor) accepted the fresh-program-id pins and the revised packet. The first public step, network check, test keys and faucet funding, is starting under a written spend ledger. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval.",
+      "evidenceText": "Historical packet milestone: Rob approved Block A, the Solana-devnet-only trial, and Gideon (Codex supervisor) accepted the fresh-program-id pins and the revised packet. When this card was last updated, the first public step (network check, test keys and faucet funding) was starting under a written spend ledger. Execution has since moved on; current execution is tracked on M14-A7 and M14-F11. Every ICP deploy or upgrade, every activation, any real PP minting, any retry of an unknown transaction, mainnet and the PR merge stay held for separate approval. The packet's identity pin is not approval.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (packet and evidence on the branch)",
@@ -44,7 +44,7 @@
       "state": "Done",
       "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Operator tool for the devnet deploy and governance steps (local preparation only).",
-      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Gideon (Codex supervisor): 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. The tool has not run on devnet.",
+      "evidenceText": "Historical local evidence, superseded for readiness by the M14-F3-HOLD finding, which is now fixed and accepted locally by Gideon (Codex supervisor): 30/30 tool tests after two review-and-fix rounds, and a passing real-node lifecycle on a local validator with the real Squads and devnet ORAO binaries (deploy, upgrade authority moved to the governance vault, deployed-byte check, idempotent re-run). The tool is dry-run by default, refuses mainnet by name and by genesis, and requires the committed packet's identity pin on devnet. That pin is not approval. At that milestone the tool had not run on the test network. It has since carried out the approved test-network steps; current execution is tracked on M14-A7 and M14-F11.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -70,7 +70,7 @@
       "state": "Done",
       "owner": "Sonnet worker; Silas (coordinator) ran the tests",
       "scope": "Step-by-step runner that executes the committed flow plan under the tool's safety interlocks.",
-      "evidenceText": "Local test: the full 39-step plan passes through the runner; runner tests 12/12 after the fixes. On devnet it would wait for real oracle fulfilment and record latency. It has not run on devnet.",
+      "evidenceText": "Local test: the full 39-step plan passes through the runner; runner tests 12/12 after the fixes. On devnet it would wait for real oracle fulfilment and record latency. At that milestone it had not run on the test network. It has since run the first nine plan steps there; current execution is tracked on M14-A7.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -161,7 +161,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator) / Sonnet workers; Gideon (Codex supervisor) accepts",
       "scope": "Rebuild and re-pin the program under a fresh program id before any public transaction.",
-      "evidenceText": "State detail: Done (Gideon accepted). The program is rebuilt under its fresh program id. A control rebuild of the old code reproduced the accepted build exactly, so the change is id-only. All local suites pass on the new build. Gideon's (Codex supervisor) independent review accepted the new pins and the revised approval packet, with CI green at the exact commit. This is local acceptance only; nothing has been deployed.",
+      "evidenceText": "State detail: Done (Gideon accepted). The program is rebuilt under its fresh program id. A control rebuild of the old code reproduced the accepted build exactly, so the change is id-only. All local suites pass on the new build. Gideon's (Codex supervisor) independent review accepted the new pins and the revised approval packet, with CI green at the exact commit. This was local acceptance only; at that point nothing had been deployed. The deploy followed in M14-A3.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -200,7 +200,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Deploy the accepted program build to the Solana test network and hand its upgrade control to the governance account.",
-      "evidenceText": "The accepted program build is deployed on the Solana test network. Its bytes were checked against the accepted build before upgrade control moved, and upgrade control then passed to the governance account. Two independent read-only checks confirm the deployed bytes equal the accepted build and that the governance account holds upgrade control. Every transaction was recorded before sending, and all confirmed with none uncertain. Program initialization has not happened yet; it needs the governance waiting period.",
+      "evidenceText": "The accepted program build is deployed on the Solana test network. Its bytes were checked against the accepted build before upgrade control moved, and upgrade control then passed to the governance account. Two independent read-only checks confirm the deployed bytes equal the accepted build and that the governance account holds upgrade control. Every transaction was recorded before sending, and all confirmed with none uncertain. At that point program initialization had not happened; it ran after the governance waiting period (M14-A4).",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -265,7 +265,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 9/39 steps done, and Gideon accepted those nine from the raw receipts. The plan's clock starts from the program's actual activation time, read from the network. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. Each was simulated first, sent once and confirmed, and passed all its checks; the conservation checks and every wallet's balance equation held after each step. Next: step 10, the first player withdrawal, no earlier than 2026-11-03 13:11 UTC and before 15:37 UTC on the network's clock, because the plan expects the first-week Carried Interest rate.",
+      "evidenceText": "State detail: in progress; 9/39 steps done, and Gideon accepted those nine from the raw receipts. The plan's clock starts from the program's actual activation time, read from the network. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. Each was simulated first, sent once and confirmed, and passed all its checks; the conservation checks and every wallet's balance equation held after each step. The remaining steps are queued as child cards, M14-A7-WD1 to M14-A7-EXPIRE; each child owns its own steps, and this card tracks the total. Next: step 10, the first player withdrawal, no earlier than 2026-11-03 13:11 UTC and before 15:37 UTC on the network's clock, because the plan expects the first-week Carried Interest rate.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -278,7 +278,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator) operates after review; Gideon (Codex supervisor) reviews",
       "scope": "Rehearse the governance account lowering its own two-day waiting period to zero and then restoring it, part of the approved test-network flow list.",
-      "evidenceText": "State detail: in progress; waiting for the two-day governance waiting period. The read-only checks passed first, including a simulated, never-sent check that governance instructions currently work. The reduction proposal was then created once, storing exactly one change (waiting period to zero), and two of the three governance members approved it, with the stored change re-checked at each approval. It can execute no earlier than 2026-10-29 at 18:01 UTC on the network's own clock. After it executes, the reduced state is recorded and the waiting period is restored in the same sitting.",
+      "evidenceText": "State detail: in progress; waiting for the two-day governance waiting period. The read-only checks passed first, including a simulated, never-sent check that governance instructions currently work. The reduction proposal was then created once, storing exactly one change (waiting period to zero), and two of the three governance members approved it, with the stored change re-checked at each approval. It can execute no earlier than 2026-10-29 at 18:01 UTC on the network's own clock. After it executes, the reduced state is recorded and the waiting period is restored in the same sitting. This stays one card on purpose: the reduction, its checks and the restore are never scheduled separately.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -300,6 +300,240 @@
       ]
     },
     {
+      "id": "M14-A7-WD1",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "First player withdrawal and the backer's share of its fee (flow steps 10 and 11).",
+      "evidenceText": "State detail: blocked by the clock; part of M14-A7. The withdrawal may run only on 2026-11-03 from 13:11:35 until before 15:37:47 UTC on the network's clock. The start comes from the plan's timing, counted from the program's actual activation; the end is when that deposit's first-week 12% Carried Interest rate expires. The keeper then splits the fee: half to the backer, half carried into the next round. Each step is simulated first, sent once and must pass every money-accounting check. Missing the window means stop and report to Gideon, because later plan steps rely on this fee.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-CLAIM1",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "First backer claim, before any draw (flow step 12).",
+      "evidenceText": "State detail: blocked until steps 10 and 11 finish; part of M14-A7. It runs straight after them in the same sitting, planned for about 13:13 UTC on 2026-11-03 if they run on time. The backer claims the share credited from the first withdrawal fee. No draw has happened yet, so this shows a backer can claim before any promotion. Simulated first, sent once, and every money-accounting check must pass.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-CLOSE1",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Close round 1 and line up the draw candidates (flow steps 13 to 16).",
+      "evidenceText": "State detail: blocked by the game's clock; part of M14-A7. After steps 10 to 12, the plan's earliest time, counted from the program's actual activation, is 2026-11-06 at 02:23:35 UTC. By then the pot is expected to be unable to pay the largest player in full, which is what ends a round. The closing withdrawal takes what the pot holds, then the keeper settles the fee, prepares the candidate lists and seals the candidates. This runs in the same sitting as the first live draw, which has a 600-second deadline from the close.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-DRAW1",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "First live draw: request it, wait for the real oracle's answer, capture the result (flow steps 17 to 19).",
+      "evidenceText": "State detail: blocked until round 1 closes, in the same sitting; part of M14-A7. The keeper asks the ORAO oracle for a random number. On the test network, step 18 sends nothing: the tool only watches for the oracle's real answer for up to 600 seconds and records how long it took. The local simulation used a stand-in answer, so the real answer time is still unknown. The result must be captured inside the 600-second deadline. If the oracle misses it, the round ends without a winner, which is an allowed and recorded outcome. The plan's later winner steps then cannot run as written, so the run stops and goes to Gideon, with no retry and no second draw.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-PROMO",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Promote the draw winner (flow step 20).",
+      "evidenceText": "State detail: blocked until the first draw is captured in time; part of M14-A7. The keeper applies the result: one of the two smallest round 1 players becomes a backer with a claim worth 116% of their loss. This step may run after the 600-second deadline, as long as the capture landed inside it.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-REOPEN",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Finish round 1 and open round 2 in one transaction from an ordinary wallet (flow step 21).",
+      "evidenceText": "State detail: blocked until the promotion is applied; part of M14-A7. A plain player wallet sends one transaction that finalizes round 1, prepares round 2 and opens its own 30-day compounding deposit. The money carried forward from round 1 seeds round 2. This deposit's time starts the 30-day clock for the end of round 2.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-R2SETUP",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Round 2 deposits and new backer funding (flow steps 22 to 27).",
+      "evidenceText": "State detail: blocked until round 2 opens; part of M14-A7. It runs right after. A 15-day compounding deposit and two small regular deposits open, and a second backer and the draw winner add backer funding, so the winner holds both an ordinary backer share and its winner's share. The record for round 2's close is prepared. The 15-day deposit's time starts the clock for M14-A7-C15.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-C15",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "First compounding payout: the 15-day deposit settles with money to spare (flow step 28).",
+      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 15-day deposit can settle no earlier than 15 days after it opens. The plan's earliest time, counted from the actual activation, is 2026-11-21 at 02:28:35 UTC. That holds only if round 2 opens on schedule; any delay moves it later by the same amount. The pot should cover the payout in full, with the 9% Jackpot Fee going to backers and the next round.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-CAP",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "A backer reaches its repayment cap; combined backer claims (flow steps 29 to 31).",
+      "evidenceText": "State detail: blocked until the 15-day payout; part of M14-A7. The keeper settles that payout's fee, and the first backer reaches its 124% cap and leaves the backer list. The draw winner then claims both its shares in one instruction, and the capped backer can still claim what it was already credited.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-CLOSE2",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Close round 2 with the 30-day payout and request a second draw (flow steps 32 to 36).",
+      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 30-day deposit settles no earlier than 30 days after it opened in M14-A7-REOPEN. The plan's earliest time, counted from the actual activation, is 2026-12-06 at 02:27:35 UTC, later if round 2 opened late. By design the pot cannot pay in full, so this payout ends round 2. The keeper then settles the fee, prepares and seals the candidates and requests a second draw. The plan deliberately never captures this draw, even if the oracle answers, to test the deadline path.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A7-EXPIRE",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Let the second draw expire and finalize round 2 (flow steps 37 to 39).",
+      "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7. At the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second later the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-A-ACCEPT",
+      "state": "Blocked",
+      "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) accepts",
+      "scope": "Block A wrap-up: final evidence and Gideon's acceptance.",
+      "evidenceText": "State detail: blocked until the flow plan (M14-A7) and the waiting-period rehearsal (M14-F11) are both complete. Then the deployed program bytes are checked again against the accepted build and the full readback runs again. The flow, draw-timing and money-accounting evidence is collected, and test-token spending is reconciled against the approved budget. Gideon then decides whether to accept Block A. That acceptance would not approve any Internet Computer step, real rewards, mainnet or the merge.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-F12-OPT",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Optional: rehearse a guardian pause and unpause on the test network.",
+      "evidenceText": "State detail: optional and deferred; not scheduled and not needed for Block A acceptance. The approval packet lists it as an optional extra: the guardian account pauses the game, shows that players can still withdraw, then unpauses. The accepted flow plan has no step for it and the operator tool has no command for it, so running it would first need a reviewed command, as the waiting-period rehearsal did, and a decision to use it.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-B1B2",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Install the Solana event bridge and the keeper on the Internet Computer, with test settings and both inactive.",
+      "evidenceText": "State detail: held; not started. Each install is its own separate approval from Rob, and neither has been requested. Rob also chooses which identity pays for and controls the new canisters and which account may pass events in. The bridge would start with no one allowed to pass events in, and the keeper would be installed but switched off. Done means each installed program matches a build from the committed source, the settings read back as intended, and costs stay inside fixed ceilings.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-B3",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Upgrade the live Shenanigans canister to the version ready for Solana, with Solana rewards still switched off.",
+      "evidenceText": "State detail: held; not started; the approval packet rates this the highest-risk item. It needs Rob's separate approval, the bridge install and a finished Block A. It also needs Rob's identity choices and his decision on ordering against the legacy memo fix. The upgrade would follow the snapshot-protected routine: stop, snapshot, upgrade, start, compare state with the saved baseline, and restore the snapshot on any difference.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-B4",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "A test version of the website on a new canister, pointed at the Solana test network.",
+      "evidenceText": "State detail: held; not started. It needs Rob's separate approval, the bridge install and his identity choices. It would be built for the test network and placed on a brand-new website canister, never the live site. Done means the served files match the build, the version marker matches, and screenshots show the Solana panels working against the test network.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-C2",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "One supervised keeper window during round 2's close.",
+      "evidenceText": "State detail: held; not started. It needs Rob's separate approval, the keeper install, and the flow reaching round 2's close (M14-A7-CLOSE2, 2026-12-06 at the earliest). The keeper's watchdog would be switched on exactly once, after round 2's closing payout and while the main keeper is not running, to finish that close itself: it records that the draw expired and finalizes the round. It is switched off at the first of: the round finalized, three of its own signed transactions recorded, 45 minutes passed, or any error or unexpected condition. Its software limit of six transactions an hour is only a backstop. How it fits with the flow's own last steps must be settled with Gideon before it is ever switched on; the flow does not depend on it.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
+      "id": "M14-C1C3",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Switch on the Solana reward path and prove it with real PP for one deposit and one promotion.",
+      "evidenceText": "State detail: held; not started. It needs two separate approvals from Rob: first connecting the bridge to Shenanigans with one reward policy, then the proof run. Both need the bridge install and the Shenanigans upgrade first. The proof would mint real PP on the live reward ledger from test-network play, which cannot be undone. It is capped at 5,000 PP and passes only if each reward is issued once and never duplicated.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
       "id": "M14-GRAPH",
       "state": "Done",
       "owner": "Silas (Claude coordinator) (sole graph writer) / Sonnet worker",
@@ -312,7 +546,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Sanitized derived mirror of the native board, kept in sync with the private Lookout board.",
-      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval. Since 2026-10-27, at Rob's request, the board is updated whenever a task moves: its status, progress, blockers or next step. Each priority also lists its cards explicitly, completed ones included, so a card can show its priority number; three cards shared between priorities stay unlinked.",
+      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval. Since 2026-10-27, at Rob's request, the board is updated whenever a task moves: its status, progress, blockers or next step. Each priority also lists its cards explicitly, completed ones included, so a card can show its priority number; three cards shared between priorities stay unlinked. On 2026-10-28, at Rob's request, the remaining roadmap was queued as cards: the rest of the test-network flow, the Block A wrap-up, an optional pause rehearsal, and the held Internet Computer and legacy delivery items.",
       "evidenceLinks": []
     },
     {
@@ -355,6 +589,14 @@
       "owner": "Unassigned",
       "scope": "Recovery for failed legacy PP mints.",
       "evidenceText": "State detail: Blocked (needs a separate recovery decision). Blocked on a separate decision. Two failed backer mints are recorded live. Signup-gift and cascade losses are inferred from source; their coverage is unknown. Claimant coverage, retry semantics and duplicate prevention must be evidenced first. No compensation, ledger write or mainnet action is authorized.",
+      "evidenceLinks": []
+    },
+    {
+      "id": "LEG-1-SHIP",
+      "state": "Backlog",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Ship the legacy memo fix to the live Shenanigans canister.",
+      "evidenceText": "State detail: held; not started, under the paused third priority. The fix is done and reviewed locally (LEG-1, LEG-1-REV). Shipping needs a rebuilt and pinned candidate, Gideon's acceptance of that candidate and Rob's separate approval of the live upgrade. Its order against the Shenanigans upgrade is Rob's decision. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2).",
       "evidenceLinks": []
     }
   ]

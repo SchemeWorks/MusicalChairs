@@ -1,15 +1,14 @@
 {
-  "summary": "Block A on the Solana test network: Gideon accepted the governance stage, the 44 read-back checks, the first 9 of 39 flow steps and the waiting-period rehearsal tool. The rehearsal's reduction is approved and can execute on October 29; the flow's next step is November 3. Internet Computer changes, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, with setup and the first checks complete. The next checks must wait until October 29 and November 3. We’ll test the safety controls and player withdrawals then; Rob does not need to do anything.",
+  "summary": "Block A on the Solana test network: Gideon accepted setup, the 44 read-back checks and flow steps 1 to 9. The waiting-period rehearsal can execute on October 29 and flow step 10 on November 3; the remaining 30 steps are queued as cards, the last no earlier than December 6. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, with setup and the first checks complete. The next checks wait for set dates: safety controls on October 29 and player withdrawals on November 3, with the rest of the testing planned through early December. Rob does not need to do anything.",
   "glossary": [
     {
       "term": "M14",
-      "definition": "Milestone 14: the planned trial on Solana’s public test network. Earlier milestones established local implementation and test evidence; this trial has not started."
+      "definition": "Milestone 14: the trial on Solana’s public test network. Earlier milestones established local implementation and test evidence; this trial is under way."
     },
     {
       "term": "Block A",
-      "definition": "The approved Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code.",
-      "cardId": "M14-A-APPROVAL"
+      "definition": "The approved Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code."
     },
     {
       "term": "devnet",
@@ -198,8 +197,7 @@
     },
     {
       "term": "Shenanigans",
-      "definition": "The existing reward service containing the separately scoped ledger-memo repair.",
-      "cardId": "LEG-1"
+      "definition": "The existing Internet Computer reward service that issues PP to players."
     },
     {
       "term": "ledger memo",
@@ -233,7 +231,7 @@
     },
     {
       "term": "12/12",
-      "definition": "Twelve local flow-runner checks passed out of twelve after the review fixes; the runner has not run on the public test network.",
+      "definition": "Twelve local flow-runner checks passed out of twelve after the review fixes; a historical local result. The runner has since run the first nine plan steps on the test network.",
       "cardId": "M14-RUN"
     },
     {
@@ -286,13 +284,43 @@
     },
     {
       "term": "Carried Interest",
-      "definition": "The game's fee on a Simple position's withdrawal: 12% in the first week after the deposit, 7.5% in the second week and 3% after that.",
-      "cardId": "M14-A7"
+      "definition": "The game's fee on a Simple position's withdrawal: 12% in the first week after the deposit, 7.5% in the second week and 3% after that."
     },
     {
       "term": "backer",
-      "definition": "An account that adds money to the game's pot and is repaid, up to a cap, from a share of later withdrawal fees.",
-      "cardId": "M14-A7"
+      "definition": "An account that adds money to the game's pot and is repaid, up to a cap, from a share of later withdrawal fees."
+    },
+    {
+      "term": "keeper",
+      "definition": "A helper that runs routine game steps anyone may run, such as settling fees, preparing draws and ending expired draws. On the test network it is a plain account paying only network fees; the held Internet Computer version would be a canister."
+    },
+    {
+      "term": "oracle",
+      "definition": "The outside service that supplies a draw's random number; here ORAO on the Solana test network."
+    },
+    {
+      "term": "promotion",
+      "definition": "The draw's reward: one losing player chosen at random from the round's candidates becomes a backer with a claim worth 116% of their loss."
+    },
+    {
+      "term": "pot",
+      "definition": "The round's shared pool of money that pays players' withdrawals. When it cannot pay a player in full, that payout ends the round."
+    },
+    {
+      "term": "candidates",
+      "definition": "The round's losing players who are eligible for its draw."
+    },
+    {
+      "term": "Jackpot Fee",
+      "definition": "The game's fee on a compounding deposit's payout; the 15-day plan's fee is 9%."
+    },
+    {
+      "term": "canister",
+      "definition": "A program running on the Internet Computer, such as a service or a website."
+    },
+    {
+      "term": "snapshot",
+      "definition": "A saved copy of a canister's state, taken before an upgrade so it can be restored if anything differs afterwards."
     }
   ]
 }
