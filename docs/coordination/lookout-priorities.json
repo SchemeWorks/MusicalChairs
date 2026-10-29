@@ -4,8 +4,8 @@
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
       "status": "blocked",
-      "blockedReason": "Two network-clock waits. First, the approved governance waiting-period reduction can execute no earlier than 2026-10-29 18:01 UTC; it is then recorded and restored in the same sitting. Second, the main 39-step flow (9 done) waits for step 10, the first player withdrawal, on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC (the first-week Carried Interest rate). Each clears when its time arrives. No activation of Internet Computer services or real rewards is part of this work.",
-      "nextAction": "On 2026-10-29 after 18:01 UTC: re-check, execute the reduction once, record it, restore at once, and confirm all read-back checks. In the November 3 window: run steps 10 to 12.",
+      "blockedReason": "Two blockers. The governance waiting-period rehearsal's earliest time (2026-10-29 18:01 UTC) has passed, but an automatic review stopped the instruction to run it before delivery because the earlier human approval could not be verified; nothing has run, no restoration is claimed, and it waits for a direct human authorization. The main 39-step flow (9 done) waits for step 10, the first player withdrawal, on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC. No Internet Computer activation or real rewards are part of this work.",
+      "nextAction": "Rehearsal: only after a verified direct human authorization, re-check, then reduce, record and restore in one sitting with all read-back checks. In the November 3 window: run steps 10 to 12.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
