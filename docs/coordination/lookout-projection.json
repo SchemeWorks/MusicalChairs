@@ -469,6 +469,14 @@
       ]
     },
     {
+      "id": "DEMO-LOCAL",
+      "state": "Ready",
+      "owner": "Silas (Claude coordinator)",
+      "scope": "Make the existing local click-through of the new Solana screens start with one command, so Rob can try it himself.",
+      "evidenceText": "State detail: ready; an optional demo improvement, not part of acceptance. Queued 2026-10-30. A check found that the click-through already exists from the earlier local browser testing. Deposit, the position card, withdrawal, backer funding and claim, round closing, the draw and the second round all work on a local test chain, and everything it needs is still installed. The one real gap is starting it: the instructions point at a temporary folder that no longer exists and take five manual steps. The fix is a launcher, a stop command and a short walkthrough, with no product changes. This is a local demonstration only, not test-network evidence. It is done when one command starts it and a browser pass shows each screen.",
+      "evidenceLinks": []
+    },
+    {
       "id": "M14-B1B2",
       "state": "Backlog",
       "owner": "Silas (Claude coordinator)",
@@ -596,7 +604,7 @@
       "state": "Backlog",
       "owner": "Silas (Claude coordinator)",
       "scope": "Ship the legacy memo fix to the live Shenanigans canister.",
-      "evidenceText": "State detail: held; not started, under the paused third priority. The fix is done and reviewed locally (LEG-1, LEG-1-REV). Shipping needs a rebuilt and pinned candidate, Gideon's acceptance of that candidate and Rob's separate approval of the live upgrade. Its order against the Shenanigans upgrade is Rob's decision. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2).",
+      "evidenceText": "State detail: held; not started, under the paused third priority. The fix is done and reviewed locally (LEG-1, LEG-1-REV). Shipping needs a rebuilt and pinned candidate, Gideon's acceptance of that candidate and Rob's separate approval of the live upgrade. Its order against the Shenanigans upgrade is Rob's decision. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2). A proposed restart scope is recorded but not started: rebuild and pin the update locally, and show it differs from the live version only by the fix. The live upgrade stays separate.",
       "evidenceLinks": []
     }
   ]
