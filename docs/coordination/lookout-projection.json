@@ -275,10 +275,10 @@
     },
     {
       "id": "M14-F11",
-      "state": "Blocked",
+      "state": "Done",
       "owner": "Silas (Claude coordinator) operates after review; Gideon (Codex supervisor) reviews",
       "scope": "Rehearse the governance account lowering its own two-day waiting period to zero and then restoring it, part of the approved test-network flow list.",
-      "evidenceText": "State detail: blocked; an automatic review stopped the instruction to run it. The rehearsal's earliest time, 2026-10-29 at 18:01 UTC, has passed by the clock. But on October 29 an automatic review stopped Gideon's instruction to run it before it was delivered, because the earlier human approval could not be verified. The instruction was never sent, and that review stays binding. Nothing has been executed or restored, and the waiting period is not claimed to be reduced. It can resume only with a direct human go-ahead for this step; then the reduction, its checks and the restore happen in one sitting. Earlier: the read-only checks passed, the reduction proposal was created once with exactly one change (waiting period to zero), and two of the three governance members approved it, with the stored change re-checked at each approval. This stays one card on purpose.",
+      "evidenceText": "State detail: done on 2026-10-30; Gideon's review of the receipt is pending. Rob gave a direct go-ahead for exactly this test-network rehearsal. A fresh check first confirmed that nothing had changed since October 27 and that the earliest time had passed. Then, in one sitting of about three minutes: the governance account's waiting period was lowered from two days to zero, sent once and confirmed; the readback showed that only the waiting period differed; a simulation that sends nothing confirmed that the program then refuses governance actions; and a restore proposal was created, approved by the same two members and carried out at once. The waiting period is back at two days, all 44 readback checks pass, and every transaction is final with no error. The reduced state lasted 99 seconds. This stays one card on purpose.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -447,7 +447,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) accepts",
       "scope": "Block A wrap-up: final evidence and Gideon's acceptance.",
-      "evidenceText": "State detail: blocked until the flow plan (M14-A7) and the waiting-period rehearsal (M14-F11) are both complete. Then the deployed program bytes are checked again against the accepted build and the full readback runs again. The flow, draw-timing and money-accounting evidence is collected, and test-token spending is reconciled against the approved budget. Gideon then decides whether to accept Block A. That acceptance would not approve any Internet Computer step, real rewards, mainnet or the merge.",
+      "evidenceText": "State detail: blocked until the flow plan (M14-A7) is complete; the waiting-period rehearsal (M14-F11) finished on 2026-10-30. Then the deployed program bytes are checked again against the accepted build and the full readback runs again. The flow, draw-timing and money-accounting evidence is collected, and test-token spending is reconciled against the approved budget. Gideon then decides whether to accept Block A. That acceptance would not approve any Internet Computer step, real rewards, mainnet or the merge.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",

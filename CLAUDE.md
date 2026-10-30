@@ -116,7 +116,6 @@ Rob's background is extensive ICP development with Solidity coursework and DeFi 
   - Add no new timer: the existing 30-minute supervision check covers mirror freshness.
   - A publication failure is a visibility issue only. It never justifies bypassing an authority boundary.
   - Board-metadata authority grants nothing for Solana keys, faucets, signing or deploys, or for any ICP upgrade, mint, activation or merge.
-  - **F11 is blocked (2026-10-29).** The automatic review rejected Gideon's F11 execution directive before delivery, because historical human approval was not verified. That rejection is binding and unresolved.
-    - Do not execute, propose, approve, simulate or send any governance transaction for F11 because its clock time has passed.
-    - It resumes only after a direct human authorization for that separate action, verified by Gideon.
+  - **F11 is complete (2026-10-30).** The 2026-10-29 automatic-review hold ended only when Rob directly approved that exact rehearsal (Gideon verified it). It ran once in one sitting and G is restored; the receipt is `docs/solana/evidence/2026-10-30-devnet-governance.json`.
+    - Run no further F11 or other G time-lock transaction. Any new one needs its own direct human authorization, verified by Gideon.
     - Lookout authorization never substitutes for it.
