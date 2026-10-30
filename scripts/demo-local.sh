@@ -125,7 +125,7 @@ start() {
     tail -20 "$RUN/fixture.log" >&2; die "fixture export failed"
   fi
 
-  echo "[2/4] Starting the local validator (loopback only, capped ledger in $RUN/ledger)…"
+  echo "[2/4] Starting the local validator (the app uses 127.0.0.1:8899; validator 3.1.0 has no RPC/faucet bind option, so 8899/9900 listen on all interfaces; capped ledger in $RUN/ledger)…"
   local args
   args=$(sed -e "s#<PROGRAM_SO>#$PROGRAM_SO#" -e "s#<STANDIN_SO>#$STANDIN_SO#" -e "s#<ORAO_SO>#$ORAO_SO#" \
     "$RUN/fixture/validator-args.txt" | tr -d '\\' | tr '\n' ' ')
