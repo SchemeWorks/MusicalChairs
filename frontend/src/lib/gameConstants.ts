@@ -39,9 +39,13 @@ export const JACKPOT_FEE_RATE_30D = 0.13;       // 13 % (30-day plan)
 // ── Fee Distribution ────────────────────────────────────────────────
 export const FEE_POT_SHARE = 0.5;               // 50 % to AUM
 export const FEE_BACKER_SHARE = 0.5;            // 50 % to backers
-export const BACKER_OLDEST_UPSTREAM_SHARE = 0.35;   // 35 % of backer half
-export const BACKER_OTHER_UPSTREAM_SHARE = 0.25;    // 25 % of backer half
-export const BACKER_ALL_SHARE = 0.40;               // 40 % of backer half
+// Backer-half split (native Solana program, docs/solana/backer-allocation.md): after the
+// 50/50 fee split, the backer half of every Carried Interest toll goes 35 % to the oldest
+// open Series A backer (senior), 45 % pro rata across open Series A backers by remaining
+// entitlement, and 20 % split equally across open Series B backers.
+export const BACKER_SENIOR_SHARE = 0.35;            // 35 % of backer half (oldest Series A)
+export const BACKER_PROPORTIONAL_A_SHARE = 0.45;    // 45 % of backer half (pro rata across Series A)
+export const BACKER_EQUAL_B_SHARE = 0.20;           // 20 % of backer half (equal across Series B)
 
 // ── Backer (Seed Round) Bonuses ─────────────────────────────────────
 export const UPSTREAM_BACKER_BONUS = 0.24;      // 24 % (Series A)

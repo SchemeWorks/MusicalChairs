@@ -1,0 +1,26 @@
+[package]
+name = "squads-vault-standin"
+version = "0.1.0"
+edition = "2021"
+# platform-tools v1.48 ships cargo 1.84; keep the lock resolvable by it.
+rust-version = "1.84"
+publish = false
+
+[workspace]
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+no-entrypoint = []
+# Declared empty so solana_program::entrypoint! cfg checks do not warn.
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+solana-program = "=2.3.0"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1

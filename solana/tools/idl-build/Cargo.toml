@@ -1,0 +1,13 @@
+[package]
+name = "musical-chairs-idl-build"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# Standalone: this tool is not a member of the solana/ workspace.
+[workspace]
+
+[dependencies]
+anchor-lang-idl = { version = "=0.1.2", features = ["build"] }
+serde_json = "=1.0.149"
+anyhow = "=1.0.100"

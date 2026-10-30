@@ -1,0 +1,326 @@
+{
+  "summary": "Block A on the Solana test network: setup, flow steps 1 to 9 and the governance waiting-period rehearsal are complete and Gideon-accepted. Flow step 10 is November 3 on the network's real clock. A one-command local demo starting from a pre-aged practice game now works end to end. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed. A practice version that skips the waiting now works on Rob’s computer, from first deposit to a new round. The real test-network checks continue on November 3; Rob doesn’t need to do anything.",
+  "glossary": [
+    {
+      "term": "M14",
+      "definition": "Milestone 14: the trial on Solana’s public test network. Earlier milestones established local implementation and test evidence; this trial is under way."
+    },
+    {
+      "term": "Block A",
+      "definition": "The approved Solana test-network work: fresh test keys, free test tokens, program and governance setup, then the scheduled acceptance tests. It excludes Internet Computer changes, real reward issuance, the main network and merging the code."
+    },
+    {
+      "term": "devnet",
+      "definition": "Solana’s public network for testing. Its test tokens come from a faucet and are not real main-network funds."
+    },
+    {
+      "term": "faucet",
+      "definition": "A service that gives out free test-network tokens for the planned trial."
+    },
+    {
+      "term": "program id",
+      "definition": "The address identifying the Solana program. Using a fresh address changes related derived addresses and requires updated build references and local review."
+    },
+    {
+      "term": "identity pin",
+      "definition": "A recorded fingerprint and code revision identifying exact approval-packet bytes. It proves which document was used, not that Rob approved it."
+    },
+    {
+      "term": "LiteSVM",
+      "definition": "The local Solana execution environment used to run the compiled program in tests without publishing it to a public network."
+    },
+    {
+      "term": "ORAO",
+      "definition": "The external randomness provider selected for the game’s draws. Local tests used its actual program with simulated conditions; real public-network fulfilment remains untested."
+    },
+    {
+      "term": "VRF",
+      "definition": "Verifiable random function: the randomness mechanism used by the selected provider for game draws."
+    },
+    {
+      "term": "Squads v4",
+      "definition": "Version 4 of the Solana multisignature program used for shared governance. Local compatibility tests ran its actual compiled program."
+    },
+    {
+      "term": "multisig",
+      "definition": "An account requiring multiple designated approvals before it can carry out a governed action."
+    },
+    {
+      "term": "sponsor signer",
+      "definition": "The separate test account whose signature and funding are required for program initialization; tests checked that its signature survives the governance execution path."
+    },
+    {
+      "term": "Seq-B",
+      "definition": "The chosen order and timing of the acceptance tests. The local time-advanced simulation reached all 39 steps; running the same schedule normally takes about six weeks.",
+      "cardId": "M14-SIM"
+    },
+    {
+      "term": "clock-warped",
+      "definition": "The local test clock was advanced artificially so time-dependent scenarios could be tested without waiting six actual weeks.",
+      "cardId": "M14-SIM"
+    },
+    {
+      "term": "conservation",
+      "definition": "Checks that the program’s money-accounting totals still balance after each tested step."
+    },
+    {
+      "term": "flow codes",
+      "definition": "Labels for the acceptance scenarios the plan requires. Reaching all of them in a local simulation does not prove a public-network run.",
+      "cardId": "M14-SIM"
+    },
+    {
+      "term": "dry-run",
+      "definition": "Inspect or simulate a proposed action without sending its transaction. For board publication, compare the local projection with the saved board without uploading an update."
+    },
+    {
+      "term": "validator",
+      "definition": "A Solana node. The reported real-node tests used an isolated local node, not the public test network."
+    },
+    {
+      "term": "idempotent",
+      "definition": "Repeating an operation produces no extra effect. The reviewed funding guards also prevent another payment after an earlier payment is confirmed."
+    },
+    {
+      "term": "genesis",
+      "definition": "The network’s starting identifier, checked to help ensure the tool targets the intended Solana network."
+    },
+    {
+      "term": "mainnet",
+      "definition": "The production network where real activity and funds exist; the proposed test-network approval does not include it."
+    },
+    {
+      "term": "PASS with findings",
+      "definition": "The reviewer completed the stated review and found issues. This label alone does not mean the issues are fixed or execution is approved."
+    },
+    {
+      "term": "F1 to F9",
+      "definition": "The numbered findings from the first operator-tool review. These are review issue labels, not releases or acceptance-flow numbers.",
+      "cardId": "M14-TOOL-REV"
+    },
+    {
+      "term": "F3",
+      "definition": "In this operator-tool review, the unknown-transaction-outcome problem: a missing lookup after expiry could allow a transfer that already happened to be repeated. The narrow repair is accepted locally.",
+      "cardId": "M14-F3-HOLD"
+    },
+    {
+      "term": "N1 to N4",
+      "definition": "The four residual findings from the second operator-tool review: read commitment, safe resume, durable journal handling and recording the packet fingerprint.",
+      "cardId": "M14-TOOL-FIX2"
+    },
+    {
+      "term": "Medium",
+      "definition": "The reviewer’s severity label for the misconfigured post-send reads. It describes that specific review finding, not the project’s overall readiness.",
+      "cardId": "M14-TOOL-RECHECK"
+    },
+    {
+      "term": "confirmed commitment",
+      "definition": "The Solana confirmation level requested when reading state. The repair prevents those reads silently using a different level.",
+      "cardId": "M14-TOOL-FIX2"
+    },
+    {
+      "term": "finalized commitment",
+      "definition": "A stronger Solana confirmation level. The earlier configuration error caused reads to wait for this level unintentionally.",
+      "cardId": "M14-TOOL-RECHECK"
+    },
+    {
+      "term": "blockhash expiry",
+      "definition": "The transaction’s recent-network reference has become too old for new processing. This does not establish whether the transaction already succeeded earlier.",
+      "cardId": "M14-F3-HOLD"
+    },
+    {
+      "term": "write-ahead",
+      "definition": "The tool saves a durable transaction record before sending, so a restart cannot silently forget that it may already have acted."
+    },
+    {
+      "term": "held as unknown",
+      "definition": "The tool cannot establish whether a transaction happened. It blocks execution and keeps the original transaction record; it does not assume failure or automatically retry.",
+      "cardId": "M14-F3-HOLD"
+    },
+    {
+      "term": "once-only guard",
+      "definition": "A check using recorded transaction outcomes to stop another funding transfer after one is confirmed. Unresolved transactions remain held."
+    },
+    {
+      "term": "independent closure review",
+      "definition": "A reviewer other than the implementer inspected the scoped repair and its evidence. Gideon (the Codex supervisor) inspected the source and regression assertions without rerunning the coordinator’s tests.",
+      "cardId": "M14-F3-HOLD"
+    },
+    {
+      "term": "regression",
+      "definition": "A test designed to catch an earlier bug returning. Here, the tests assert that lost responses and missing status information cause no additional payment."
+    },
+    {
+      "term": "knowledge graph",
+      "definition": "A searchable map connecting source files, concepts and documents. It helps navigation; it does not prove the program ran correctly.",
+      "cardId": "M14-GRAPH"
+    },
+    {
+      "term": "hash",
+      "definition": "A digital fingerprint identifying exact file contents. Matching a hash identifies bytes, not approval, deployment or successful operation."
+    },
+    {
+      "term": "receipt",
+      "definition": "A saved record of what was observed or completed. Its meaning depends on the operation: a board-publication receipt is not evidence of a game transaction."
+    },
+    {
+      "term": "readback",
+      "definition": "Read the saved result again and compare it with the expected version."
+    },
+    {
+      "term": "mirror",
+      "definition": "A sanitized copy of selected canonical-board information for display in Lookout. The repository board remains authoritative.",
+      "cardId": "LOOKOUT-PROJ"
+    },
+    {
+      "term": "cutover",
+      "definition": "The publisher was switched to read the durable project-owned projection file instead of the initial temporary copy.",
+      "cardId": "LOOKOUT-PROJ"
+    },
+    {
+      "term": "PR",
+      "definition": "Pull request: a proposed set of code changes for review. An open draft is not a merge or a deployment.",
+      "cardId": "PR-125"
+    },
+    {
+      "term": "CI",
+      "definition": "Continuous integration: automated build and test checks run by the code-hosting service. Their result must be checked for the exact code revision.",
+      "cardId": "PR-125"
+    },
+    {
+      "term": "ICP",
+      "definition": "Internet Computer, the network hosting the existing application and reward services. Its deployment approvals remain separate from the Solana trial."
+    },
+    {
+      "term": "PP",
+      "definition": "The existing project reward token or points. Issuing real rewards is separate from the Solana test-network work."
+    },
+    {
+      "term": "Shenanigans",
+      "definition": "The existing Internet Computer reward service that issues PP to players."
+    },
+    {
+      "term": "ledger memo",
+      "definition": "An extra note attached to a token-ledger operation. The existing ledger limits its length; this repair preserves short notes and fingerprints longer ones.",
+      "cardId": "LEG-1"
+    },
+    {
+      "term": "stable-compatible",
+      "definition": "The local compatibility check says the proposed service update can preserve the existing stored-state format. It does not prove a live upgrade occurred.",
+      "cardId": "LEG-1"
+    },
+    {
+      "term": "replica rehearsal",
+      "definition": "A test on a local Internet Computer environment that reproduced the old failure, applied the update and checked subsequent operations.",
+      "cardId": "LEG-1"
+    },
+    {
+      "term": "LEG-2",
+      "definition": "The separate question of recovering missed historical rewards. Claim coverage and duplicate prevention must be established before any repayment decision.",
+      "cardId": "LEG-2"
+    },
+    {
+      "term": "10/10",
+      "definition": "Ten checks passed out of ten in the named local oracle-compatibility suite; this is not ten public-network transactions.",
+      "cardId": "M14-PRE-ORAO"
+    },
+    {
+      "term": "12/12",
+      "definition": "Twelve checks passed out of twelve in the local compatibility suite that ran the actual Squads v4 program; these are not public-network transactions.",
+      "cardId": "M14-PRE-SQUADS"
+    },
+    {
+      "term": "12/12",
+      "definition": "Twelve local flow-runner checks passed out of twelve after the review fixes; a historical local result. The runner has since run the first nine plan steps on the test network.",
+      "cardId": "M14-RUN"
+    },
+    {
+      "term": "12/12",
+      "definition": "Twelve local flow-runner checks passed out of twelve at that earlier repair stage; a historical local result.",
+      "cardId": "M14-TOOL-FIX2"
+    },
+    {
+      "term": "30/30",
+      "definition": "Thirty local tool checks passed at an earlier repair stage. Those historical results were later qualified by the additional unknown-outcome finding.",
+      "cardId": "M14-TOOL-FIX2"
+    },
+    {
+      "term": "30/30",
+      "definition": "Thirty local tool checks passed at an earlier repair stage. Those historical results were later qualified by the additional unknown-outcome finding, which has since been repaired and accepted locally.",
+      "cardId": "M14-TOOL"
+    },
+    {
+      "term": "145/145",
+      "definition": "All 145 local unit checks passed for the separate legacy memo repair.",
+      "cardId": "LEG-1"
+    },
+    {
+      "term": "29/29",
+      "definition": "All 29 checks passed in the legacy repair’s local upgrade rehearsal; no live update is implied.",
+      "cardId": "LEG-1"
+    },
+    {
+      "term": "re-pin",
+      "definition": "Record again the exact changed source, compiled program, interface and derived addresses, so reviewers can identify exactly what would be deployed.",
+      "cardId": "M14-5A-REPIN"
+    },
+    {
+      "term": "Silas",
+      "definition": "The Claude coordinator agent for this project: it builds, runs the local tests and keeps the board. It cannot approve its own public actions."
+    },
+    {
+      "term": "Gideon",
+      "definition": "The Codex supervisor agent for this project: it reviews and accepts evidence. Its acceptance is not Rob's approval."
+    },
+    {
+      "term": "44/44",
+      "definition": "All 44 read-only checks of the configured accounts on the Solana test network matched the expected values.",
+      "cardId": "M14-A6"
+    },
+    {
+      "term": "9/39",
+      "definition": "Nine of the thirty-nine steps of the acceptance flow plan have run on the Solana test network.",
+      "cardId": "M14-A7"
+    },
+    {
+      "term": "Carried Interest",
+      "definition": "The game's fee on a Simple position's withdrawal: 12% in the first week after the deposit, 7.5% in the second week and 3% after that."
+    },
+    {
+      "term": "backer",
+      "definition": "An account that adds money to the game's pot and is repaid, up to a cap, from a share of later withdrawal fees."
+    },
+    {
+      "term": "keeper",
+      "definition": "A helper that runs routine game steps anyone may run, such as settling fees, preparing draws and ending expired draws. On the test network it is a plain account paying only network fees; the held Internet Computer version would be a canister."
+    },
+    {
+      "term": "oracle",
+      "definition": "The outside service that supplies a draw's random number; here ORAO on the Solana test network."
+    },
+    {
+      "term": "promotion",
+      "definition": "The draw's reward: one losing player chosen at random from the round's candidates becomes a backer with a claim worth 116% of their loss."
+    },
+    {
+      "term": "pot",
+      "definition": "The round's shared pool of money that pays players' withdrawals. When it cannot pay a player in full, that payout ends the round."
+    },
+    {
+      "term": "candidates",
+      "definition": "The round's losing players who are eligible for its draw."
+    },
+    {
+      "term": "Jackpot Fee",
+      "definition": "The game's fee on a compounding deposit's payout; the 15-day plan's fee is 9%."
+    },
+    {
+      "term": "canister",
+      "definition": "A program running on the Internet Computer, such as a service or a website."
+    },
+    {
+      "term": "snapshot",
+      "definition": "A saved copy of a canister's state, taken before an upgrade so it can be restored if anything differs afterwards."
+    }
+  ]
+}

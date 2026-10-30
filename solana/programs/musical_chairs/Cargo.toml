@@ -1,0 +1,38 @@
+[package]
+name = "musical-chairs-program"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+resolver = "2"
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+default = []
+no-entrypoint = []
+cpi = ["no-entrypoint"]
+no-idl = []
+no-log-ix-name = []
+anchor-debug = []
+custom-heap = []
+custom-panic = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = { version = "=0.32.1", features = ["init-if-needed", "event-cpi"] }
+ethnum = "=1.5.2"
+musical-chairs-economics = { path = "../../crates/economics" }
+orao-solana-vrf-cb = { version = "=0.4.0", default-features = false, features = ["cpi"] }
+# SHA-256 for the sampling module: the sha256 syscall on SBF, sha2 on the host, one code path (already in the lock via anchor-lang).
+solana-sha256-hasher = "=2.3.0"
+
+[dev-dependencies]
+sha2 = "=0.10.9"

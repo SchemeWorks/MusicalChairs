@@ -1,0 +1,310 @@
+{
+  "date": "2026-10-12",
+  "date_timezone": "America/Los_Angeles",
+  "recorded_at_utc": "2026-10-13 02:14:23 UTC",
+  "purpose": "read-only public cost research; no user wallet or native-program transaction",
+  "primary_rent_endpoint": "https://api.mainnet-beta.solana.com",
+  "independent_rent_and_provider_endpoint": "https://solana-rpc.publicnode.com",
+  "primary_rent_rpc": [
+    {
+      "jsonrpc": "2.0",
+      "result": 650240,
+      "id": "rent-0"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": 1950720,
+      "id": "rent-256"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": 21457920,
+      "id": "rent-4096"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": 333573120,
+      "id": "rent-65536"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": {
+        "feature-set": 3383571666,
+        "solana-core": "4.3.0"
+      },
+      "id": "version"
+    }
+  ],
+  "independent_rent_rpc": [
+    {
+      "jsonrpc": "2.0",
+      "result": 1950720,
+      "id": "rent-256-second"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": 21457920,
+      "id": "rent-4096-second"
+    }
+  ],
+  "public_accounts_rpc": [
+    {
+      "jsonrpc": "2.0",
+      "result": {
+        "context": {
+          "apiVersion": "4.3.0",
+          "slot": 456271210
+        },
+        "value": {
+          "data": [
+            "1O2UOGH1M6n/fy3NKqQlokq/DY/hK2Cqj0doNw0P2Zxziu/m8hUPA7h/Lc0qpCWiSr8Nj+ErYKqPR2g3DQ/ZnHOK7+byFQ8DuOCTBAAAAAAAKCMAAAAAAAADAAAAFittY5eLE+81Y3vJ2VLwkwKWixB7mIUmoSztz4wAMpmH9NLmGHmMwL+s/rBkJHF5wewSN2T2x4aFmiyeBv+Usn8tzSqkJaJKvw2P4Stgqo9HaDcND9mcc4rv5vIVDwO4RTkAAAAAAAAaAAAAAAAAAAAAAAAAAAAA",
+            "base64"
+          ],
+          "executable": false,
+          "lamports": 2373360,
+          "owner": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+          "rentEpoch": 18446744073709552000,
+          "space": 213
+        }
+      },
+      "id": "orao-network"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": {
+        "context": {
+          "apiVersion": "4.3.0",
+          "slot": 456271210
+        },
+        "value": {
+          "data": [
+            "xNJa55CVjD92Raz2HiWPdZHPcd7iP2i7V0ot8H6/wFdsT5Tc2zbKegAAAAAAAAAAPpPXMsRIJCeQ0tu1MaQKvRnxbFXjEyz/UnetydaTq1oAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+            "base64"
+          ],
+          "executable": false,
+          "lamports": 1893120,
+          "owner": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+          "rentEpoch": 18446744073709552000,
+          "space": 144
+        }
+      },
+      "id": "squads-config"
+    },
+    {
+      "jsonrpc": "2.0",
+      "result": 2664261880,
+      "id": "rent-program-512KiB"
+    }
+  ],
+  "validation": {
+    "orao_expected_pda": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+    "orao_owner_and_discriminator_validated": true,
+    "request_fee_offset": 73,
+    "request_fee_lamports": 300000,
+    "callback_deadline_slots": 9000,
+    "fulfill_authorities": 3,
+    "squads_expected_config_pda": "BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr",
+    "squads_owner_and_discriminator_validated": true,
+    "creation_fee_offset": 40,
+    "multisig_creation_fee_lamports": 0
+  },
+  "limits": [
+    "Unsigned RPC snapshots, not a consensus proof",
+    "Account layouts and transaction counts for Musical Chairs are estimates",
+    "Official endpoint rate-limited larger batch; independent fallback succeeded",
+    "Recheck provider configuration/rent before funding or deployment"
+  ],
+  "replay_requests": {
+    "note": "Explicit equivalent replay envelopes for the saved observations; original transport bodies were not archived. Finalized commitment is specified for reproducibility; observations remain unsigned snapshots.",
+    "primary": [
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-0",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          0,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-256",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          256,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-4096",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          4096,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-65536",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          65536,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "version",
+        "method": "getVersion",
+        "params": []
+      }
+    ],
+    "independent": [
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-256-second",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          256,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-4096-second",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          4096,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      }
+    ],
+    "public_accounts": [
+      {
+        "jsonrpc": "2.0",
+        "id": "orao-network",
+        "method": "getAccountInfo",
+        "params": [
+          "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+          {
+            "encoding": "base64",
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "squads-config",
+        "method": "getAccountInfo",
+        "params": [
+          "BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr",
+          {
+            "encoding": "base64",
+            "commitment": "finalized"
+          }
+        ]
+      },
+      {
+        "jsonrpc": "2.0",
+        "id": "rent-program-512KiB",
+        "method": "getMinimumBalanceForRentExemption",
+        "params": [
+          524333,
+          {
+            "commitment": "finalized"
+          }
+        ]
+      }
+    ]
+  },
+  "decoded_account_validation": [
+    {
+      "account_name": "NetworkState",
+      "queried_address": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+      "expected_owner": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "seeds_utf8": [
+        "OraoVrfCbConfig"
+      ],
+      "derived_pda": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+      "derived_bump": 255,
+      "derivation": "PublicKey.findProgramAddressSync, existing @solana/web3.js",
+      "discriminator_rule": "first 8 bytes SHA256(account:NetworkState)",
+      "expected_discriminator_hex": "d4ed943861f533a9",
+      "observed_discriminator_hex": "d4ed943861f533a9",
+      "decoded_size": 213,
+      "fee_offset": 73,
+      "fee_type": "u64 little endian",
+      "fee_lamports": 300000,
+      "observed_bump": 255,
+      "callback_deadline_offset": 81,
+      "callback_deadline_slots": 9000,
+      "authority_count_offset": 89,
+      "fulfillment_authorities": 3
+    },
+    {
+      "account_name": "ProgramConfig",
+      "queried_address": "BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr",
+      "expected_owner": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "seeds_utf8": [
+        "multisig",
+        "program_config"
+      ],
+      "derived_pda": "BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr",
+      "derived_bump": 255,
+      "derivation": "PublicKey.findProgramAddressSync, existing @solana/web3.js",
+      "discriminator_rule": "first 8 bytes SHA256(account:ProgramConfig)",
+      "expected_discriminator_hex": "c4d25ae790958c3f",
+      "observed_discriminator_hex": "c4d25ae790958c3f",
+      "decoded_size": 144,
+      "fee_offset": 40,
+      "fee_type": "u64 little endian",
+      "fee_lamports": 0
+    }
+  ],
+  "planning_inputs_not_observed_receipts": {
+    "base_fee_lamports_per_signature": 5000,
+    "base_fee_source": "https://solana.com/docs/core/fees",
+    "average_priority_lamports_per_transaction": [
+      0,
+      5000,
+      20000,
+      50000
+    ],
+    "extra_fee_paying_attempt_multiplier": 1.25,
+    "extra_attempt_note": "Distinct fee-paying attempts only; resending identical transaction bytes is not a new fee receipt. Does not multiply unique oracle requests/rent.",
+    "pilot": {
+      "active_tier_records": 100,
+      "distinct_round_participants": 100,
+      "payouts_monthly": 1000,
+      "closes_monthly": 10,
+      "rows_per_progress_transaction": 8,
+      "signatures_per_keeper_transaction": 1
+    },
+    "keeper_count_formula": "P*(3*ceil(N/b)+3)+C*(ceil(M/b)+4)",
+    "keeper_transactions_monthly": 42170,
+    "rent_fit_lamports": "5080*(bytes+128)",
+    "binary_sizes_bytes": [
+      262144,
+      524288,
+      1048576
+    ],
+    "loader3_metadata_bytes": {
+      "ProgramData": 45,
+      "Buffer": 37,
+      "Program": 36
+    }
+  }
+}

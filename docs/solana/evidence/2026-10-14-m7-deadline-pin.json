@@ -1,0 +1,138 @@
+{
+ "recorded_at_utc": "2026-10-14T13:05:53.734576+00:00",
+ "branch": "codex/native-solana-production-core",
+ "base_commit": "8fdade5",
+ "worktree": "scratchpad/wt-impl42 (detached at 8fdade5; same program source as ELF 27de0cfc…)",
+ "patch_sha256": "98f978b52c395278a6f495f8a8fdd14f07ee77fbbd82522eef42b269d01b5251",
+ "elf": {
+  "old": {
+   "sha256": "27de0cfc75ec61372a650f21990462b99863a505fabe89103535e93f7bf91633",
+   "source_set_sha256": "4e50a6a905846e6d8b1d0500eabac0402d24f52fd951169e4a2cba56e260d215"
+  },
+  "new": {
+   "sha256": "4f77706c40398ef2a4dc783c2527e51c6d4cd8d0f4c437d286b877f718128f90",
+   "bytes": 1363760,
+   "source_set_sha256": "e7e2ffcbac842aed4ee47e89baf58e9697d9a3881eceb2569c1b7c8b391166aa",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "9fc9c4a45df306090bf9426197210b61cbf9e50ff4d8e76ef1a6533120ecf005",
+   "guard": "source set identical before and after the build"
+  },
+  "main_tree_rebuild": {
+   "sha256": "fc2c794058867a6c99df919e364dc2328da38669bc9da12194a968366960c6dd",
+   "source_set_sha256": "e7e2ffcbac842aed4ee47e89baf58e9697d9a3881eceb2569c1b7c8b391166aa",
+   "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+   "build_log_sha256": "fd4dbe0b155a70a1b19f8a43b0569beb084eb7ed9fdba860688cd65f0a7bdbf0",
+   "note": "same 19-file source set as the worktree build (identical source_set_sha256) but NOT byte-identical: same size (1,363,760 B), identical string tables (no embedded paths, no differing hash tokens), 29,957 differing bytes scattered through code/data from offset 2,290. Cause not pinned down; HYPOTHESIS: cargo derives -C metadata for a path dependency from its on-disk path, which seeds symbol hashing and codegen-unit ordering, so a build from scratchpad/wt-impl42 and one from the main tree lay out functions differently while compiling the same source. Cross-path reproducibility is therefore neither expected nor relied on; same-path clean-rebuild reproducibility was shown at M0. The main-tree ELF fc2c7940… is the artifact under test from here on; the worktree ELF 4f77706c… proved the patch in isolation (all tests green on both)."
+  }
+ },
+ "idl": {
+  "sha256_worktree": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "instructions": 36,
+  "events": 20,
+  "errors": 52,
+  "check_idl_exit": 0,
+  "sha256_main_tree": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "event_fixture_sha256": "b2041b53ac68ca629cd2742e39078724dfd607a56c36bee5c9c6d3883a5c369f"
+ },
+ "program_unit_tests": {
+  "count": 244,
+  "result": [
+   "ok. 244 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+  ],
+  "log_sha256": "7301917c4404f9486a24aefc1d9f6ed4a15c3e38fe63821b64008ad418eff715",
+  "main_tree": {
+   "result": [
+    "ok. 244 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.53s"
+   ],
+   "log_sha256": "6db18549a286afcb7f6d5e3598fca1318999698f98bf3f503de4e34d951e6afb"
+  }
+ },
+ "full_harness_on_new_elf": {
+  "results": [
+   "ok. 94 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 51.25s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.98s",
+   "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.08s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 44.70s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "ff9f1640a3e1a174d72b249121c179bf5c02284482329968a93a66d9ec5dc42b",
+  "cli_all_exit": 0,
+  "cli_json_sha256": "3290d8dceb07072362fd29a52d113111667e17936ccb122fda559f7b05db9ed4",
+  "cli_outcome_comparison_vs_old_elf": {
+   "old_elf": "27de0cfc75ec61372a650f21990462b99863a505fabe89103535e93f7bf91633",
+   "new_elf": "4f77706c40398ef2a4dc783c2527e51c6d4cd8d0f4c437d286b877f718128f90",
+   "old_observations": 1044,
+   "new_observations": 1046,
+   "labels_only_in_new": [
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_long",
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_short"
+   ],
+   "labels_only_in_old": [],
+   "outcome_changes_on_shared_labels": [],
+   "new_label_outcomes": {
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_long": {
+     "success": false,
+     "error": "InstructionError(1, Custom(6001))"
+    },
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_short": {
+     "success": false,
+     "error": "InstructionError(1, Custom(6001))"
+    }
+   }
+  }
+ },
+ "scope_note": "Local only; nothing deployed, funded, registered, activated or merged. Main-tree reproduction (unit tests, IDL, byte-identical ELF, harness) recorded in the commit that lands these changes.",
+ "card": "IMPL-42",
+ "title": "deadline_seconds pinned to the frozen 600 s promotion window (Codex M7 static review item 1)",
+ "contract": "spec section 4 (L220): promotion_deadline = close_started_at + 600, pinned once at the closing payout, never reset; plan L15",
+ "defect": "ConfigTerms::validate only required deadline_seconds > 0 while the closing payout copies the staged value verbatim, so a staged 1 would re-time every close to a one-second window",
+ "fix": {
+  "program": "state.rs PROMOTION_DEADLINE_SECS = 600; controls.rs validate requires u64::from(deadline_seconds) == PROMOTION_DEADLINE_SECS (InvalidState)",
+  "unit_tests": "config_terms_reject_each_bound_once gains \"deadline one second short\" (599) and \"deadline one second long\" (601); 43 cases",
+  "harness": "controls suite stage_config_requires_g_and_future_round gains G-signed staging variants noncanonical_deadline_short / noncanonical_deadline_long (InvalidState, fee-only rollback); positions suite closing rows assert promotion_deadline == close_started_at + 600 exactly (positions_suite.rs L439 and every IMPL-33 closing row)"
+ },
+ "red": {
+  "unit": {
+   "log_sha256": "641252258819d425c90b1c04fc01421dc7923f03fc23b9157d338a50bea81447",
+   "excerpt": [
+    "test controls::tests::config_terms_reject_each_bound_once ... FAILED",
+    "---- controls::tests::config_terms_reject_each_bound_once stdout ----",
+    "thread 'controls::tests::config_terms_reject_each_bound_once' (33069699) panicked at src/controls.rs:2188:18:"
+   ],
+   "method": "the validate require removed on a temporary copy of controls.rs (RED DEMO marker), test run, source restored byte-identical"
+  },
+  "staging_on_old_elf": {
+   "log_sha256": "bf2d9532684608f5698ee3bdd8742e1a6f67ae95cb7edbc7120d67a004286d3e",
+   "excerpt": [
+    "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadline_short unexpectedly succeeded: Observation { label: \"financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_deadlin",
+    "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 93 filtered out; finished in 0.26s"
+   ],
+   "meaning": "the old validator accepted deadline_seconds = 599 at staging (ConfigStaged emitted)"
+  }
+ },
+ "green": {
+  "unit": {
+   "log_sha256": "3466db1e012191b14e2206fbf66f891f16100d279843250f0754e1f47d382c48",
+   "result": [
+    "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 242 filtered out; finished in 0.00s"
+   ]
+  },
+  "staging_on_new_elf": "both variants rejected with Custom(6001) InvalidState and fee-only rollback inside the full harness run above"
+ },
+ "full_harness_on_main_elf": {
+  "elf_sha256": "fc2c794058867a6c99df919e364dc2328da38669bc9da12194a968366960c6dd",
+  "command": "cargo test --locked --no-fail-fast -- --test-threads=1 --skip close_tests (the IMPL-33 close suite was unexecuted at this point and is run separately)",
+  "results": [
+   "ok. 94 passed; 0 failed; 0 ignored; 0 measured; 47 filtered out; finished in 50.96s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.91s",
+   "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.98s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "6f74007bfa2a1b544df1e0f2dec29bca520ff55d4b77c42dc6497740fb6276dd"
+ }
+}

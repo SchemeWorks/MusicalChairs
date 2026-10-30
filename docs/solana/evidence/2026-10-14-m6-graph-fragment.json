@@ -1,0 +1,950 @@
+{
+ "nodes": [
+  {
+   "id": "impl2026_10_14_m6_typed_phase_instructions",
+   "label": "Six typed allocation instructions discover_rows / apply_senior / seal_weights / allocate_rows / prune_rows / commit_ticket with expected_ticket_id, expected_cursor and 1..=8 rows; StaleTicket 6039 / StaleCursor 6040",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "status": "local_runtime_executed",
+   "rationale": "Commit e78d652 (IMPL-28). Remaining accounts per row; snapshot pages tagged by ticket; cursor reused across phases (ascending Discover/Allocate, descending Prune).",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "label": "Discovery accumulates Series A remainders in U256; seal freezes the post-senior denominator; a dead A pool and the B floor residue route to seed; allocate pays full-pool floor shares with the A residue derived at the last batch",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "status": "local_runtime_executed",
+   "rationale": "The coordinator brief's slice-decrement scheme under-paid later rows and was correctly replaced: shares use the full A pool, residue = toll − credited − seed_credit bounded by the open A count, so credited + seed_credit == toll by construction. Goldens 5,001/2,363+1,636/500+500; 5,750/1,000+3,250; 8,000/1,000/1,000.",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_prune_and_aliases",
+   "label": "Prune swap-deletes capped rows with the two legitimate aliases (shared registry page; moved == pruned at the last live slot), rejects duplicate independent writable Backers, and prunes rows newly capped by the ticket when real accounts are supplied",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "status": "local_runtime_executed",
+   "rationale": "Resolves draft Defects 8/9 and finding F4 (same-page swap-delete; inverted alias write). Placeholder for skipped rows = program id.",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_claim_backer_lazy",
+   "label": "claim_backer() materializes finalized pending credit lazily over A and B (watermark = pool.finalized_ticket) and pays funded amounts from the vault; NothingToClaim on replay",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "status": "local_runtime_executed",
+   "rationale": "Commit e78d652. Lifetime unchanged by claims; commit adds pending to funded_claims exactly once.",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_apply_senior_optional_backer",
+   "label": "ApplySenior.backer is optional: a ticket with no open A accepts the program-id placeholder (Anchor None) instead of a writable stand-in",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1083",
+   "status": "local_runtime_executed",
+   "rationale": "Commit cabfd01 after the harness showed the mandatory mut account failing Anchor ConstraintMut (2000) on the placeholder.",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_allocation_suite",
+   "label": "LiteSVM allocation suite: 18 rows / 657 observations on ELF 24716634…; the last M0 RED label (discover_row) is GREEN; chunk sizes 1/4/8 produce an identical digest and match the economics Book",
+   "file_type": "concept",
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "status": "local_runtime_executed",
+   "rationale": "Commit 8f4454f (IMPL-29). Measured with production accounts: discover 8 rows 644 B / 15 accounts / ~39k CU, allocate 571 B / 13, worst 8-row prune 1,044 B / 27 accounts / 88,887 CU — all under the 1,232-byte envelope (first DR-31 evidence).",
+   "community": 1333
+  },
+  {
+   "id": "impl2026_10_14_m6_receipt",
+   "label": "M6 receipt: ELF 24716634… (source set bdd7e69f…) carries M6 + both config-pin fixes + the optional senior account; 94 harness tests and the CLI green; M0 RED baseline entirely GREEN",
+   "file_type": "concept",
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "status": "completed_receipt",
+   "rationale": "IMPL-31. Codex M6 committed-source review (e78d652) PASS at source/unit boundary; LiteSVM differential (IMPL-30) in flight.",
+   "community": 1333
+  }
+ ],
+ "edges": [
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_prune_and_aliases",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_claim_backer_lazy",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_apply_senior_optional_backer",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1083",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "plan2026_10_13_m6_allocation_claims",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_dr_29_typed_phase_instructions",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_ix_discover_rows",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_ix_apply_senior",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_ix_seal_weights",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_ix_prune_rows",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13b_fix_prune_alias_exceptions_stale_rejection",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_phase_discover",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_phase_senior",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_phase_sealweights",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_phase_prune",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_section_instructions_allocation",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_discover_rows",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_apply_senior",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_seal_weights",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_allocate_rows",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_prune_rows",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "src_allocation_commit_ticket",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "plan2026_10_13_stubs_allocation_rs",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_typed_phase_instructions",
+   "target": "impl2026_10_14_m5_payout_pipeline",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1123",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "plan2026_10_13b_fix_u256_discovery_accumulator",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "plan2026_10_13_dr_05_width_contract",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "plan2026_10_13_goldens_toll_split",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "plan2026_10_13_tranche_pure_helpers_goldens",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "impl2026_10_14_m1_width_functions",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "src_backers_pro_rata",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "src_backers_seal_denominator",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+   "target": "src_allocation_senior_step",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L585",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_prune_and_aliases",
+   "target": "plan2026_10_13_defect_08_prune_same_page_swap_delete_bug",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_prune_and_aliases",
+   "target": "plan2026_10_13_defect_09_prune_alias_inverted_write",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_prune_and_aliases",
+   "target": "plan2026_10_13_finding_f4_allocation_prune_draft_bugs",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_prune_and_aliases",
+   "target": "plan2026_10_13_invariant_lazy_error_construction",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L81",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_claim_backer_lazy",
+   "target": "plan2026_10_13_ix_claim_backer",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_claim_backer_lazy",
+   "target": "src_claims_claim_backer",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_claim_backer_lazy",
+   "target": "solana_programs_musical_chairs_src_claims_rs",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_claim_backer_lazy",
+   "target": "production_solana_programs_musical_chairs_src_allocation_rs_src_allocation_claim_backer",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/claims.rs",
+   "source_location": "L74",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_apply_senior_optional_backer",
+   "target": "src_allocation_apply_senior",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1083",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_apply_senior_optional_backer",
+   "target": "impl2026_10_14_m6_typed_phase_instructions",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+   "source_location": "L1083",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_allocation_golden_t10000",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_golden_no_b_a1000_a10000_seed_5750_a1000_a3250",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_chunk_sizes_1_4_8_produce_identical_state",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_replaying_a_completed_discover_chunk_fails_without_credit",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_prune_same_page_swap_delete_clears_last_slot_on_first_page",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_prune_alias_when_pruned_row_is_last_row_marks_it_inactive",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_claim_during_ticket_pays_only_finalized_and_commit_adds_once",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_claim_never_restores_cap_headroom_and_capped_backer_leaves_registry_with_history",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_reopen_capped_a_keeps_first_funding_seq",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_normal_deposit_allowed_during_nonclosing_ticket_but_a_funding_and_payout_wait",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_test_conservation_identity_holds_after_every_phase",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13b_m6_alias_stale_u256_tests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "plan2026_10_13_kernel_chunk_fit_measurement",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "src_allocation_run_allocation_suite",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "solana_tests_financial_runtime_src_allocation_rs",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "impl2026_10_14_m0_red_baseline",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "impl2026_10_14_m5_world_and_suite",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "impl2026_10_14_m6_typed_phase_instructions",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "impl2026_10_14_m6_claim_backer_lazy",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_allocation_suite",
+   "target": "impl2026_10_14_m6_apply_senior_optional_backer",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/allocation.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "docs_solana_evidence_2026_10_14_m6_allocation_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "evidence_2026_10_14_m6_allocation_cli_copy",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "solana_programs_musical_chairs_idl_musical_chairs_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "impl2026_10_14_m5_receipt",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "impl2026_10_14_m6_allocation_suite",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m6_receipt",
+   "target": "impl2026_10_14_m5_config_pins",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_impl_kanban_pass",
+   "target": "impl2026_10_14_m6_allocation_suite",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/kanban.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_impl_kanban_pass",
+   "target": "impl2026_10_14_m6_receipt",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/kanban.md",
+   "source_location": "L1",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [
+  {
+   "id": "m6_allocation_ticket_2026_10_14",
+   "label": "M6 allocation ticket and lazy claims GREEN in LiteSVM (2026-10-14); M0 RED baseline fully GREEN",
+   "nodes": [
+    "impl2026_10_14_m6_typed_phase_instructions",
+    "impl2026_10_14_m6_u256_discovery_and_sealed_denominator",
+    "impl2026_10_14_m6_prune_and_aliases",
+    "impl2026_10_14_m6_claim_backer_lazy",
+    "impl2026_10_14_m6_apply_senior_optional_backer",
+    "impl2026_10_14_m6_allocation_suite",
+    "impl2026_10_14_m6_receipt",
+    "plan2026_10_13_m6_allocation_claims"
+   ],
+   "source_file": "docs/solana/evidence/2026-10-14-m6-allocation.json",
+   "source_location": "L1",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0
+  }
+ ],
+ "attribute_updates": {
+  "plan2026_10_13_m6_allocation_claims": {
+   "status": "completed_receipt",
+   "resolution": "M6 GREEN locally 2026-10-14 (e78d652, cf8926b, 8f4454f, cabfd01); Codex committed-source review PASS; LiteSVM differential IMPL-30 pending"
+  },
+  "plan2026_10_13_ix_claim_backer": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_dr_29_typed_phase_instructions": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_ix_discover_rows": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_ix_apply_senior": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_ix_seal_weights": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_ix_prune_rows": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_fix_u256_discovery_accumulator": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_fix_prune_alias_exceptions_stale_rejection": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_m6_alias_stale_u256_tests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_phase_discover": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_phase_senior": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_phase_sealweights": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_phase_prune": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_defect_08_prune_same_page_swap_delete_bug": {
+   "status": "resolved_in_local_implementation",
+   "resolution": "e78d652; regression row prune_same_page_swap_delete_clears_last_slot_on_first_page GREEN"
+  },
+  "plan2026_10_13_defect_09_prune_alias_inverted_write": {
+   "status": "resolved_in_local_implementation",
+   "resolution": "e78d652; row prune_alias_when_pruned_row_is_last_row_marks_it_inactive GREEN"
+  },
+  "plan2026_10_13_finding_f4_allocation_prune_draft_bugs": {
+   "status": "resolved_in_local_implementation",
+   "resolution": "both prune defects fixed and regression-tested"
+  },
+  "plan2026_10_13_stubs_allocation_rs": {
+   "status": "local_runtime_executed",
+   "resolution": "all seven stubs implemented (e78d652)"
+  },
+  "plan2026_10_13_kernel_chunk_fit_measurement": {
+   "resolution": "production rows measured 2026-10-14: 8-row discover 644 B, allocate 571 B, worst prune 1,044 B; all fit"
+  },
+  "plan2026_10_13_test_allocation_golden_t10000": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_golden_t10000_a4000_a6000_two_b_seed_5001_a2363_a1636_b500": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_golden_no_b_a1000_a10000_seed_5750_a1000_a3250": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_golden_only_a1000_and_b1_seed_8000_a1000_b1000_zero_denominator_to_seed": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_chunk_sizes_1_4_8_produce_identical_state": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_replaying_a_completed_discover_chunk_fails_without_credit": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_prune_same_page_swap_delete_clears_last_slot_on_first_page": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_prune_alias_when_pruned_row_is_last_row_marks_it_inactive": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_claim_during_ticket_pays_only_finalized_and_commit_adds_once": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_claim_never_restores_cap_headroom_and_capped_backer_leaves_registry_with_history": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_reopen_capped_a_keeps_first_funding_seq": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_normal_deposit_allowed_during_nonclosing_ticket_but_a_funding_and_payout_wait": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_conservation_identity_holds_after_every_phase": {
+   "status": "local_runtime_executed"
+  }
+ },
+ "repairs": {
+  "restored_raw_edges": [],
+  "attributes_restored": {},
+  "nodes_with_attributes_restored": [],
+  "same_symbol_as_edges": []
+ },
+ "metadata": {
+  "community": 1333,
+  "label": "Native Solana 2026-10-14 M6 allocation ticket and lazy claims (IMPL-28..31)",
+  "written_by": "coordinator (Claude Fable 5.1)"
+ }
+}

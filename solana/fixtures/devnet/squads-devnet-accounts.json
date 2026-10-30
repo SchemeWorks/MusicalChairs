@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cluster": "devnet",
+  "accounts": {
+    "program": {
+      "address": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "context_slot": 514486931,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "24283f16a2c2025b08f5efd0b1f813a14f1b0a9fd1e21b8686da4a14ae098a3d",
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "lamports": 7001141440,
+      "executable": true,
+      "rent_epoch": "18446744073709551615",
+      "space": 36,
+      "data_sha256": "7843a80c3208dd0357e30f7a504e94d8b0f17fbc237142ee7e4363858af0b54a",
+      "data_base64": "AgAAAN5fA80UTvlZeDAEQujVsh/36bXCtTG7b/FG999tVB3T"
+    },
+    "program_config": {
+      "address": "BSTq9w3kZwNwpBXJEvTZz2G9ZTNyKBvoSeXMvwb4cNZr",
+      "context_slot": 514486948,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "61c8c349a206a806b8d6e882c4954f3feec4477659a9f41ee77cd54cfa352d66",
+      "owner": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "lamports": 1893120,
+      "executable": false,
+      "rent_epoch": "18446744073709551615",
+      "space": 144,
+      "data_sha256": "50d0bc781370cb9682725ea1da688ba61fccc557e5a369dbd8ad0c118beb662c",
+      "data_base64": "xNJa55CVjD/y4DkJcttfEtTBz1IxzaY5194JtJU/4aL4ooeXbGx+0AAAAAAAAAAA8uA5CXLbXxLUwc9SMc2mOdfeCbSVP+Gi+KKHl2xsftAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+    },
+    "treasury": {
+      "address": "HM5y4mz3Bt9JY9mr1hkyhnvqxSH4H2u2451j7Hc2dtvK",
+      "context_slot": 514486955,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "37f8c2ba31474aeda3e4253fd968fb40584e02354522cbd2a4c590c0b428085c",
+      "owner": "11111111111111111111111111111111",
+      "lamports": 19996737051,
+      "executable": false,
+      "rent_epoch": "18446744073709551615",
+      "space": 0,
+      "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "data_base64": ""
+    }
+  }
+}

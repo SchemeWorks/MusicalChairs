@@ -1,0 +1,149 @@
+{
+ "recorded_at_utc": "2026-10-14T05:45:56.129424+00:00",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json"
+ ],
+ "pass_baseline": "c99a636b9f040c9bf0d18d3698328d9bbd33b7b2",
+ "reviewed_planning_commit": "db48ce33a40e10d0a1153d738926eb051bb3b033",
+ "planning_branch": "codex/native-solana-plan-20261013",
+ "scope": {
+  "source_sha256": {
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "adde88e960cd71e776ef250cb2c7bcb043361e4e160e2bb0871aa48ec9f2f97a",
+   "docs/coordination/native-solana-decision-register-20261013.md": "da594b422fc8ff005c4c672a3e0da43f0d39325f6436576b8c1fb4208a21c55c",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "b005eeadf7d1ff286e16d68f01850e8407faec6dd37c33227a90773108fe3d19",
+   "docs/coordination/native-solana-state-inventory-20261013.md": "1458d874792ec09581793a0982c023385f04c30bd182c3542f11505e6aeaf39f",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md": "e324dd179c4c3f1084cdcd158462feb4aaccc7feaa7c17b52de837e8217ae25e",
+   "docs/coordination/native-solana-codex-plan-review-20261013.md": "d9b59efdeed52842426bc4e4d3213bdda91d888da5266b94481bb8f20bd6b15a"
+  },
+  "fresh_semantic_files": [
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "docs/coordination/native-solana-decision-register-20261013.md",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "docs/coordination/native-solana-state-inventory-20261013.md",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md"
+  ],
+  "fresh_ast_files": [],
+  "content_unchanged_review_artifact": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+  "full_repository_freshness": false,
+  "motoko_coverage": "historical, not reextracted"
+ },
+ "before": {
+  "nodes": 7928,
+  "edges": 11089,
+  "hyperedges": 28
+ },
+ "added": {
+  "nodes": 52,
+  "edges": 121,
+  "hyperedges": 2
+ },
+ "after": {
+  "nodes": 7980,
+  "edges": 11210,
+  "hyperedges": 30
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-13-planning-revision-graph-fragment.json",
+  "sha256": "9d7ccb04db07dc830f6fa3c40cdb3e741de707383758294906211108e21f0a83",
+  "nodes": 52,
+  "edges": 121,
+  "hyperedges": 2
+ },
+ "community": 797,
+ "attribute_updates": {
+  "count": 20,
+  "kinds": [
+   "status=historical_superseded on advance_ticket and close_position_account nodes",
+   "resolution/resolved_by on codex20261013_plan_review_r1..r6 (status untouched)",
+   "correction note on F6/gap/R15 platform-tools nodes",
+   "revised=2026-10-13b on nine amended DR nodes"
+  ]
+ },
+ "checks": {
+  "all_prior_7928_node_ids_retained": true,
+  "all_prior_11089_raw_edge_identities_retained": true,
+  "all_prior_28_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "codex_review_nodes_unchanged_except_resolution_attrs": true,
+  "codex_review_doc_pin_unchanged": true,
+  "superseded_nodes_marked_historical": true,
+  "manifest_only_scoped_hashes_updated": true,
+  "semantic_cache_files": 5
+ },
+ "query_checks": {
+  "exact_ids": {
+   "r1": {
+    "id": "plan2026_10_13b_resolution_r1_nonce_permanence",
+    "present": true,
+    "explain_sha256": "603a258546863657808433a797828cafd03cb49341e0a3f62a7208e29842c75a",
+    "explain_bytes": 807
+   },
+   "r2": {
+    "id": "plan2026_10_13b_resolution_r2_captured_close_reserve",
+    "present": true,
+    "explain_sha256": "2749c13beda20918bad464452c7dc010e14e86ee56e6b9b78b6fa677cd214d7b",
+    "explain_bytes": 912
+   },
+   "r5": {
+    "id": "plan2026_10_13b_resolution_r5_orao_roles",
+    "present": true,
+    "explain_sha256": "6c0cb4524428f5dca251c16d877a077b39bab549f76d1a104a71b06b3353d5d4",
+    "explain_bytes": 808
+   },
+   "r6": {
+    "id": "plan2026_10_13b_resolution_r6_shenanigans_reservation_protocol",
+    "present": true,
+    "explain_sha256": "7ab2d23f2f242e73ddcb6bac47d7e52efd4848649d8e285f77c7bf29d7e7faf9",
+    "explain_bytes": 950
+   },
+   "fn": {
+    "id": "plan2026_10_13b_fn_required_close_reserve",
+    "present": true,
+    "explain_sha256": "49e4ac9c38b46eac80c174eaabeb412f6aee19ef4321492df84da2db6016e53a",
+    "explain_bytes": 491
+   },
+   "ix": {
+    "id": "plan2026_10_13b_ix_prune_rows",
+    "present": true,
+    "explain_sha256": "bdc20368eb006575dd63cd22b6fef2e958c169a133c0407ff7e4384fcf710871",
+    "explain_bytes": 407
+   }
+  },
+  "queries": {
+   "required close reserve captured participants candidate pages registry extension provider fee headroom": {
+    "nodes_returned": 18,
+    "hits_in_revised_or_review_sources": 0
+   },
+   "Position permanent nonce tombstone rent reclamation deferred": {
+    "nodes_returned": 23,
+    "hits_in_revised_or_review_sources": 0
+   },
+   "Admission guardian_vault rotate_guardian pause": {
+    "nodes_returned": 21,
+    "hits_in_revised_or_review_sources": 0
+   },
+   "ORAO Client owner state RngAuthority G Vault registration": {
+    "nodes_returned": 19,
+    "hits_in_revised_or_review_sources": 0
+   },
+   "Shenanigans reserveNativeReward executeNativeRewardLeg exactly-once": {
+    "nodes_returned": 24,
+    "hits_in_revised_or_review_sources": 0
+   },
+   "typed phase instructions discover_rows prune_rows commit_ticket StaleTicket": {
+    "nodes_returned": 25,
+    "hits_in_revised_or_review_sources": 0
+   }
+  },
+  "note": "exact_ids proves presence; label-based query hits show discoverability only"
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "Resolutions are specification/plan text; every handler remains unimplemented and untested.",
+  "Community 797 is a fresh bucket; report/clustering not regenerated.",
+  "Codex review document content and pin unchanged; only resolution attributes were added to its nodes."
+ ]
+}

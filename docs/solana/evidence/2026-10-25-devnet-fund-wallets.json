@@ -1,0 +1,442 @@
+{
+ "recorded_at_utc": "2026-10-25T15:02:25+00:00",
+ "step": "A1 wallet funding via the guarded fund-wallets (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval; Gideon's acceptance of M14-FUND-TOOL (docs/coordination/m14-fund-tool-gideon-review-20261025.md)",
+ "pins": {
+  "binary_sha256": "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5",
+  "plan": {
+   "commit": "edd7dd1928b628b483edf0a94b596da30c35e8f0",
+   "path": "docs/solana/devnet-funding-plan.json",
+   "sha256": "0ae55574620b599e4dfe6ae4842b7304053978593c08d49a6d3b53b34bd20a33"
+  },
+  "inventory": {
+   "commit": "edd7dd1928b628b483edf0a94b596da30c35e8f0",
+   "path": "docs/solana/evidence/2026-10-24-devnet-a1.json",
+   "sha256": "9c2b75522d6cfea0764f838133d9664a3c060814a1b245c4e7b15532c3d93913"
+  },
+  "packet": {
+   "packet_commit": "aeab47059477f977294cdcf084998933460a896f",
+   "packet_path": "docs/coordination/native-solana-m14-approval-packet-20261023.md",
+   "packet_sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f"
+  },
+  "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"
+ },
+ "dry_run": "all_ok; 17 would_fund; payer 7,879,683,960",
+ "execute": {
+  "mode": "execute",
+  "all_ok": true,
+  "totals": {
+   "already_funded_by_record": 0,
+   "fees_lamports": 85000,
+   "funded": 17,
+   "lamports_sent": 3830000000,
+   "noop_already_at_target": 0,
+   "targets": 17,
+   "would_fund": 0
+  },
+  "payer_balance_before": 7879683960,
+  "payer_balance_after": 4049598960,
+  "write_ahead": "17 records, 17 RESOLVED confirmed, 0 held/unknown",
+  "rows": [
+   {
+    "role": "G voter 1",
+    "recipient": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+    "bucket": "squads",
+    "target_lamports": 190000000,
+    "balance_before": 0,
+    "top_up_lamports": 190000000,
+    "balance_after": 190000000,
+    "outcome": "funded",
+    "step": "A1.fund.g-voter-1",
+    "intent_sha256": "ac3c2fcbe638df50842add0ed31555896dea445a35107c0ae0c8671876c183b2"
+   },
+   {
+    "role": "G voter 2",
+    "recipient": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+    "bucket": "squads",
+    "target_lamports": 50000000,
+    "balance_before": 0,
+    "top_up_lamports": 50000000,
+    "balance_after": 50000000,
+    "outcome": "funded",
+    "step": "A1.fund.g-voter-2",
+    "intent_sha256": "f48b6189eae83c9ae5988f240939b30ad416c8c80f201c9413c0566ca14a354b"
+   },
+   {
+    "role": "G voter 3",
+    "recipient": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+    "bucket": "squads",
+    "target_lamports": 50000000,
+    "balance_before": 0,
+    "top_up_lamports": 50000000,
+    "balance_after": 50000000,
+    "outcome": "funded",
+    "step": "A1.fund.g-voter-3",
+    "intent_sha256": "c89cb973ba542ab0f505bd2b72fb6605cba92ff47e4a2d58ed119685c6533d09"
+   },
+   {
+    "role": "P voter 1",
+    "recipient": "GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR",
+    "bucket": "squads",
+    "target_lamports": 100000000,
+    "balance_before": 0,
+    "top_up_lamports": 100000000,
+    "balance_after": 100000000,
+    "outcome": "funded",
+    "step": "A1.fund.p-voter-1",
+    "intent_sha256": "f85bc3ff55f2df0e900a547239858e539fa7d215fdf6a952fb234ac5eef4907e"
+   },
+   {
+    "role": "P voter 2",
+    "recipient": "5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k",
+    "bucket": "squads",
+    "target_lamports": 50000000,
+    "balance_before": 0,
+    "top_up_lamports": 50000000,
+    "balance_after": 50000000,
+    "outcome": "funded",
+    "step": "A1.fund.p-voter-2",
+    "intent_sha256": "e89ef921e3cf6255ed51d28cbf43d82c0648e4f810affcddb96b80a504afe34b"
+   },
+   {
+    "role": "P voter 3",
+    "recipient": "4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC",
+    "bucket": "squads",
+    "target_lamports": 50000000,
+    "balance_before": 0,
+    "top_up_lamports": 50000000,
+    "balance_after": 50000000,
+    "outcome": "funded",
+    "step": "A1.fund.p-voter-3",
+    "intent_sha256": "21ae4d2fe06e878b826d64a656210291a5832c66da9ceec688c904582df779fe"
+   },
+   {
+    "role": "plan wallet S",
+    "recipient": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+    "bucket": "sponsor",
+    "target_lamports": 980000000,
+    "balance_before": 0,
+    "top_up_lamports": 980000000,
+    "balance_after": 980000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-s",
+    "intent_sha256": "bf3fdee01ed651933c7f255a355541b63c574371abe688c67c2209633cb3f6a3"
+   },
+   {
+    "role": "management recipient",
+    "recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+    "bucket": "sponsor",
+    "target_lamports": 10000000,
+    "balance_before": 0,
+    "top_up_lamports": 10000000,
+    "balance_after": 10000000,
+    "outcome": "funded",
+    "step": "A1.fund.management-recipient",
+    "intent_sha256": "7670bd0feab0efacca107ae964f4b46896b2582ce944e90cbdfbf431db9362e2"
+   },
+   {
+    "role": "plan wallet K",
+    "recipient": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+    "bucket": "keeper",
+    "target_lamports": 50000000,
+    "balance_before": 0,
+    "top_up_lamports": 50000000,
+    "balance_after": 50000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-k",
+    "intent_sha256": "d9c8673e5ce1e2f20dadfd3e4a7202140007b90dbd87697641bfdd64490fd374"
+   },
+   {
+    "role": "plan wallet A1",
+    "recipient": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+    "bucket": "test_wallets",
+    "target_lamports": 1100000000,
+    "balance_before": 0,
+    "top_up_lamports": 1100000000,
+    "balance_after": 1100000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-a1",
+    "intent_sha256": "4b903b43f836824fd5d905e7d134fc88456a5545476162b27181601bf26bab45"
+   },
+   {
+    "role": "plan wallet A2",
+    "recipient": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+    "bucket": "test_wallets",
+    "target_lamports": 60000000,
+    "balance_before": 0,
+    "top_up_lamports": 60000000,
+    "balance_after": 60000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-a2",
+    "intent_sha256": "6f71ea14d1595b40338cb679309bca070d2d828538d0726ef6b831415489c7bc"
+   },
+   {
+    "role": "plan wallet P1",
+    "recipient": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+    "bucket": "test_wallets",
+    "target_lamports": 210000000,
+    "balance_before": 0,
+    "top_up_lamports": 210000000,
+    "balance_after": 210000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-p1",
+    "intent_sha256": "cd523ef9e59a0b132aeb73850000e6d49c3a518146eceba20f9d953eb09e570a"
+   },
+   {
+    "role": "plan wallet P2",
+    "recipient": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+    "bucket": "test_wallets",
+    "target_lamports": 110000000,
+    "balance_before": 0,
+    "top_up_lamports": 110000000,
+    "balance_after": 110000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-p2",
+    "intent_sha256": "70fee47411fc48d0ef6c26d299eaad38baaa9473a2667631663aa155711f5273"
+   },
+   {
+    "role": "plan wallet P3",
+    "recipient": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+    "bucket": "test_wallets",
+    "target_lamports": 30000000,
+    "balance_before": 0,
+    "top_up_lamports": 30000000,
+    "balance_after": 30000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-p3",
+    "intent_sha256": "8bddbf31a55b0b41f0fbe0e2cc80dcf6d418507b25d5e3534cf2e475e30f71ce"
+   },
+   {
+    "role": "plan wallet P4",
+    "recipient": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+    "bucket": "test_wallets",
+    "target_lamports": 80000000,
+    "balance_before": 0,
+    "top_up_lamports": 80000000,
+    "balance_after": 80000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-p4",
+    "intent_sha256": "d6a2697326c47a1be45cfb627ff1a46334fd34e3269fc4976eb1988f5b7a7886"
+   },
+   {
+    "role": "plan wallet P5",
+    "recipient": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+    "bucket": "test_wallets",
+    "target_lamports": 80000000,
+    "balance_before": 0,
+    "top_up_lamports": 80000000,
+    "balance_after": 80000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-p5",
+    "intent_sha256": "c8cdb0be421483ff2784281023f5262750da46429bac4754efa9290c31a63378"
+   },
+   {
+    "role": "plan wallet W",
+    "recipient": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+    "bucket": "test_wallets",
+    "target_lamports": 630000000,
+    "balance_before": 0,
+    "top_up_lamports": 630000000,
+    "balance_after": 630000000,
+    "outcome": "funded",
+    "step": "A1.fund.plan-wallet-w",
+    "intent_sha256": "1426e4a0a116e6fec201b8ca1142c62490ac0d4d4b2b72d615b24244bdb81ccb"
+   }
+  ],
+  "signatures": [
+   "ddyrmDvexYNmVG2MuLvPieTHRNQo9HmSgiLXLCjX76LynkvaKckvfbKyimyBGxTmsZXJyipRdjwQYwbqmK8My6s",
+   "2hg3VLUGDfav2gWDcrt4GKSN89HmkcwEdFngAwemPkTNDhe27WMqfsuWB9bpoNbvD5pfueHFzoCAbbDF8hc6uAJK",
+   "cGZaiosKHQ2Y5ihBegsZAA1WN3D7fQ7TojX8e4jS6hj2RZnxy3xzErLPLMUiuAU9zQev3nhNW5vBmQA8Lw15DSF",
+   "3i4i1XoxvwT5r1sw4aZ3vZnncogi3R2J3FrxAuosMUfckuDmJEv9eT1GUUG6SDR22sui7K6cRbigvTTtXGHtxpNW",
+   "4mmkBLep2KzDDQVWDdSvFE92NkWphXBFGuwwWtMj9cS3EGVWNtLYB7qvyPhunmLvcx4DK5R8UNJju82kCCj4WuC7",
+   "Hvw81b4jSgyKPcPdeTZtKQ9XdMnFS19bFV4g1AxhKaAAdDnBCQXi2evNatSP59aPwSJivTqB6zsihg3YhZsip2m",
+   "5ruhJFa2ZpwpqFaEA9VWnDPMVJ5PVq6nTkWuzvjRbUx7keEUVAfdduBeitaxoN7r8bMKdZVmZ4eHwhENSoBLhbet",
+   "nmYk5Y5F4F8wuYrLfwqFUKiyPF6PLMCRL3rqQCiJvSc7a8s7ZgUWiyaayKAeNaabSW5aXC5dbT3G2LnUgkGCRSq",
+   "Kc8Bh1yG8C9U95P7FhPfNMgfrexUNiTvmeSZeq2arxYcmNvmuFJyBvNuCWggX67jxS9SvQ8t9MeSnuzNKcuDdcJ",
+   "3WnPw9tmvUzDvxDEd8oZb2VCQUFYxBc5oqEcA8H2pQqe3qzeV2fbybGwaZf3fzZYQ17vNR33BNTenfgyvVPuYbuf",
+   "5zoMazW7UkFKfcGi7x8jntnuHWwUV2YUy4F8EYsgaGb8dR94Y9Qw2uLN4jh2GK6Ea6stM6krriwXkVLEVWyjupVM",
+   "5t7cvW7DQj1fMDxzDr4xrPvX6KRhJDMiAZytKqooTEW514VLVBEfnnnaPxjw1VjdntQbBJBGsLdwqCPrMvWL5tMX",
+   "3scQeTuCTWAQcp9GzqaJAJwFdbBvBVGqD2ZZgzz9sKAnrf7ySnQVvuDp34vbMurfzTbFDatqMLigbXExntyXiXZ2",
+   "3AkhPfNdB7HJRa2Tbw1Gjwmi6ZBeXMows67kKxFmitcBYP5E93Cfg1MHdSyQSmHu2uV1oMDstkNRUWDVERBQhe7F",
+   "2h6X8X3V2QxCHARjAhhcWaoCYc24fcaXpQdPPo1JucAEqdkn9gSX7hjjYhKhwVAn2CbCnMn5BedZBPg78Lb8fQJP",
+   "5GyF9XgbMk9UAPvunwGTKJKEYgX489RctGTaHmioHRyUuAGWB4vuvUfjz7gTpN9QeMScho5pjYGxQpHZe9KyC71u",
+   "49UCEeHeD3nmQqtHGJCj6CcLJ32gdVvEqs7hAP8j7PA5kjzJD1NmZ7NDLeszLP9Yv2euZU2raQGGjLv8BwFQNG9d"
+  ]
+ },
+ "independent_verification": {
+  "verified_utc": "2026-10-25T15:02:02+00:00",
+  "rows": [
+   {
+    "role": "G voter 1",
+    "recipient": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+    "target": 190000000,
+    "finalized_balance": 190000000,
+    "signature": "ddyrmDvexYNmVG2MuLvPieTHRNQo9HmSgiLXLCjX76LynkvaKckvfbKyimyBGxTmsZXJyipRdjwQYwbqmK8My6s",
+    "slot": 515008241,
+    "status": "finalized"
+   },
+   {
+    "role": "G voter 2",
+    "recipient": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+    "target": 50000000,
+    "finalized_balance": 50000000,
+    "signature": "2hg3VLUGDfav2gWDcrt4GKSN89HmkcwEdFngAwemPkTNDhe27WMqfsuWB9bpoNbvD5pfueHFzoCAbbDF8hc6uAJK",
+    "slot": 515008257,
+    "status": "finalized"
+   },
+   {
+    "role": "G voter 3",
+    "recipient": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+    "target": 50000000,
+    "finalized_balance": 50000000,
+    "signature": "cGZaiosKHQ2Y5ihBegsZAA1WN3D7fQ7TojX8e4jS6hj2RZnxy3xzErLPLMUiuAU9zQev3nhNW5vBmQA8Lw15DSF",
+    "slot": 515008264,
+    "status": "finalized"
+   },
+   {
+    "role": "P voter 1",
+    "recipient": "GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR",
+    "target": 100000000,
+    "finalized_balance": 100000000,
+    "signature": "3i4i1XoxvwT5r1sw4aZ3vZnncogi3R2J3FrxAuosMUfckuDmJEv9eT1GUUG6SDR22sui7K6cRbigvTTtXGHtxpNW",
+    "slot": 515008270,
+    "status": "finalized"
+   },
+   {
+    "role": "P voter 2",
+    "recipient": "5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k",
+    "target": 50000000,
+    "finalized_balance": 50000000,
+    "signature": "4mmkBLep2KzDDQVWDdSvFE92NkWphXBFGuwwWtMj9cS3EGVWNtLYB7qvyPhunmLvcx4DK5R8UNJju82kCCj4WuC7",
+    "slot": 515008320,
+    "status": "finalized"
+   },
+   {
+    "role": "P voter 3",
+    "recipient": "4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC",
+    "target": 50000000,
+    "finalized_balance": 50000000,
+    "signature": "Hvw81b4jSgyKPcPdeTZtKQ9XdMnFS19bFV4g1AxhKaAAdDnBCQXi2evNatSP59aPwSJivTqB6zsihg3YhZsip2m",
+    "slot": 515008327,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet S",
+    "recipient": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+    "target": 980000000,
+    "finalized_balance": 980000000,
+    "signature": "5ruhJFa2ZpwpqFaEA9VWnDPMVJ5PVq6nTkWuzvjRbUx7keEUVAfdduBeitaxoN7r8bMKdZVmZ4eHwhENSoBLhbet",
+    "slot": 515008334,
+    "status": "finalized"
+   },
+   {
+    "role": "management recipient",
+    "recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+    "target": 10000000,
+    "finalized_balance": 10000000,
+    "signature": "nmYk5Y5F4F8wuYrLfwqFUKiyPF6PLMCRL3rqQCiJvSc7a8s7ZgUWiyaayKAeNaabSW5aXC5dbT3G2LnUgkGCRSq",
+    "slot": 515008344,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet K",
+    "recipient": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+    "target": 50000000,
+    "finalized_balance": 50000000,
+    "signature": "Kc8Bh1yG8C9U95P7FhPfNMgfrexUNiTvmeSZeq2arxYcmNvmuFJyBvNuCWggX67jxS9SvQ8t9MeSnuzNKcuDdcJ",
+    "slot": 515008409,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet A1",
+    "recipient": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+    "target": 1100000000,
+    "finalized_balance": 1100000000,
+    "signature": "3WnPw9tmvUzDvxDEd8oZb2VCQUFYxBc5oqEcA8H2pQqe3qzeV2fbybGwaZf3fzZYQ17vNR33BNTenfgyvVPuYbuf",
+    "slot": 515008416,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet A2",
+    "recipient": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+    "target": 60000000,
+    "finalized_balance": 60000000,
+    "signature": "5zoMazW7UkFKfcGi7x8jntnuHWwUV2YUy4F8EYsgaGb8dR94Y9Qw2uLN4jh2GK6Ea6stM6krriwXkVLEVWyjupVM",
+    "slot": 515008422,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet P1",
+    "recipient": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+    "target": 210000000,
+    "finalized_balance": 210000000,
+    "signature": "5t7cvW7DQj1fMDxzDr4xrPvX6KRhJDMiAZytKqooTEW514VLVBEfnnnaPxjw1VjdntQbBJBGsLdwqCPrMvWL5tMX",
+    "slot": 515008428,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet P2",
+    "recipient": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+    "target": 110000000,
+    "finalized_balance": 110000000,
+    "signature": "3scQeTuCTWAQcp9GzqaJAJwFdbBvBVGqD2ZZgzz9sKAnrf7ySnQVvuDp34vbMurfzTbFDatqMLigbXExntyXiXZ2",
+    "slot": 515008476,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet P3",
+    "recipient": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+    "target": 30000000,
+    "finalized_balance": 30000000,
+    "signature": "3AkhPfNdB7HJRa2Tbw1Gjwmi6ZBeXMows67kKxFmitcBYP5E93Cfg1MHdSyQSmHu2uV1oMDstkNRUWDVERBQhe7F",
+    "slot": 515008485,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet P4",
+    "recipient": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+    "target": 80000000,
+    "finalized_balance": 80000000,
+    "signature": "2h6X8X3V2QxCHARjAhhcWaoCYc24fcaXpQdPPo1JucAEqdkn9gSX7hjjYhKhwVAn2CbCnMn5BedZBPg78Lb8fQJP",
+    "slot": 515008493,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet P5",
+    "recipient": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+    "target": 80000000,
+    "finalized_balance": 80000000,
+    "signature": "5GyF9XgbMk9UAPvunwGTKJKEYgX489RctGTaHmioHRyUuAGWB4vuvUfjz7gTpN9QeMScho5pjYGxQpHZe9KyC71u",
+    "slot": 515008543,
+    "status": "finalized"
+   },
+   {
+    "role": "plan wallet W",
+    "recipient": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+    "target": 630000000,
+    "finalized_balance": 630000000,
+    "signature": "49UCEeHeD3nmQqtHGJCj6CcLJ32gdVvEqs7hAP8j7PA5kjzJD1NmZ7NDLeszLP9Yv2euZU2raQGGjLv8BwFQNG9d",
+    "slot": 515008548,
+    "status": "finalized"
+   }
+  ],
+  "all_equal_target_and_finalized": true,
+  "deployer_finalized": {
+   "context": {
+    "apiVersion": "4.4.0-beta.1",
+    "slot": 515008748
+   },
+   "value": 4049598960
+  }
+ },
+ "budget": {
+  "internal_transfers_from_D": "3,830,000,000 + fees 85,000 = 3,830,085,000; NOT faucet intake",
+  "process_ledger": "received 15.0 + reserved 5.0 = 20.0 of 25 (unchanged); reserve unchanged"
+ },
+ "buckets_after": {
+  "squads": "A2 3,667,440 + voters 490,000,000 + fees 30,000 = 493,697,440 of 500,000,000",
+  "sponsor": "990,010,000 of 1,000,000,000",
+  "keeper": "50,005,000 of 100,000,000",
+  "test_wallets": "2,300,040,000 of 7,000,000,000"
+ }
+}

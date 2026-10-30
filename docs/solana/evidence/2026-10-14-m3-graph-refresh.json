@@ -1,0 +1,163 @@
+{
+ "recorded_at_utc": "2026-10-14T09:24:50.223555+00:00",
+ "card": "IMPL-19",
+ "milestone": "M3 authenticated controls — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "420f0922bc3825a20d01aa649610156ddf4fbc23",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "branch": "codex/native-solana-production-core",
+ "head_at_graph_update": "420f092",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "1f07a73a88ebf59603bdb18ca161388f5242fc73a20077c15c2dde4098f73caf",
+   "result": "11,920 nodes / 16,474 edges / 1,176 communities"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m3-fragment-spec.json 1176 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "58882bdff1afcd99e9c6e1cc4ab50f571804373e083ec0399bd80bc8bebcd1b7"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 11240,
+  "edges": 15393,
+  "hyperedges": 38
+ },
+ "after_graphify_update": {
+  "nodes": 11920,
+  "edges": 16474,
+  "hyperedges": 38
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 1,
+  "note": "same 16-edge/321-status repair as M0 and M2; one new same_symbol_as (a native controls.rs symbol matched a prior production_* node)"
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m3-graph-fragment.json",
+  "sha256": "c435295314078f88937b60b5c5eaf2c80a8a99e2503f6c1dfa8eb58f82ff9d8f",
+  "nodes": 8,
+  "edges": 89,
+  "hyperedges": 1,
+  "attribute_updates": 27,
+  "community": 1176
+ },
+ "after": {
+  "nodes": 11928,
+  "edges": 16580,
+  "hyperedges": 39
+ },
+ "graphify_update_growth_by_source_group": {
+  "docs/solana": 447,
+  "solana/tests/financial-runtime/src": 152,
+  "solana/programs/musical_chairs/src": 53,
+  "docs/coordination": 12,
+  "solana/tests/financial-runtime/fixtures": 9,
+  "solana/tests/financial-runtime/standin": 8,
+  "solana/tests/financial-runtime/scripts": 6,
+  "solana/probes/runtime/harness": 1
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/controls.rs": "9a20ae05c44d1fabf39def4f072f6d1565c5db7af67ab294bde066b4d92b3159",
+   "solana/programs/musical_chairs/src/error.rs": "0bd80dbfea6da01c8a963a495093958b65585b3554ccaad54e7ff472c4c1de81",
+   "solana/programs/musical_chairs/src/lib.rs": "1b80fdc07c66b08989a424c9e184a8133b173acff76788e44bedee8c0ffc525c",
+   "solana/programs/musical_chairs/idl/musical_chairs.json": "de83a400c1e2e3a0c7c074f82a240d12861fb04fd535138724f26a05b8472436",
+   "solana/tests/financial-runtime/standin/squads-vault-standin/Cargo.toml": "64bee06475273e37ced034dbae029ba6f999224d16697ef5f871850a4f386195",
+   "solana/tests/financial-runtime/standin/squads-vault-standin/Cargo.lock": "a086f599f32b643a052dc587d3059c18a0897dc7f651d18b4aca54e8c00dc656",
+   "solana/tests/financial-runtime/standin/squads-vault-standin/src/lib.rs": "f6045dc2f0901e8f41cf2c62d2ba073dfee88483fcb2f4f0f3fb6c8b1457fb5a",
+   "solana/tests/financial-runtime/scripts/build-standin-sbf.sh": "31b0d7758c563565255e7c72f007fa693614091f385db1aad8664b21a538fd33",
+   "solana/tests/financial-runtime/src/controls.rs": "92ced8a8e93159a6e92dd756766023a33f3066a169ea3ad4bd4e591adf38bbb2",
+   "solana/tests/financial-runtime/src/runtime.rs": "8a37be8883c88b2894d94104127992bb26e2635537e3a19ffdbfc67b8d2035a1",
+   "solana/tests/financial-runtime/src/lib.rs": "115c8c442b882f51f3fa0932114050a32e611c7665c7574644744275cc0e01a5",
+   "solana/tests/financial-runtime/src/main.rs": "682e11aed8ee555f337cefc6355e70f91467046dcb99fd040fec41819dfc9b58",
+   "solana/tests/financial-runtime/fixtures/squads/multisig_g.bin": "57e3c751dc9b3380d9b47d5bf4508e074ca22785939cfa8808af1c8ed70a6960",
+   "solana/tests/financial-runtime/fixtures/squads/multisig_p.bin": "3a20c6d2b6cfb2771fcefcc854bc475dd27368f2fd747319f5d9950afbe4afc3",
+   "solana/tests/financial-runtime/fixtures/squads/README.md": "19b3faec7e9f12bddf914526dbc842ec88f60c458da31293d1e8e54a31f67ecb",
+   "solana/tests/financial-runtime/fixtures/loader/program.bin": "d5c51489d02b2eccfa8f6166d767f772400e7f2f23297de866065e7860f6e030",
+   "solana/tests/financial-runtime/fixtures/loader/programdata.bin": "c3432f47b2770180e3e78989e4fe0d2c3d909a90d9f8d1f155729e69050a3479",
+   "solana/tests/financial-runtime/fixtures/loader/README.md": "55a3f9730f952bffd9ee1bcbec15d3abda73e4843471e211a72a98cc4d0c1c59",
+   "docs/coordination/kanban.md": "2fb7d9bf36650a3761f6316b85322d0c23d931f3b6ee1e0ee76f6875b6e1ee60",
+   "docs/solana/evidence/2026-10-14-m3-controls.json": "fc8f398be60de0675af274cf76417c1918a068e8c37a0d8ca603daf5c37e963b",
+   "docs/solana/evidence/2026-10-14-m3-cli.json": "eba40b214187ad504ef03d602ea10792fc29f7b0df36fc01b2b93284bdb4195d",
+   "docs/solana/evidence/2026-10-14-m3-graph-fragment.json": "c435295314078f88937b60b5c5eaf2c80a8a99e2503f6c1dfa8eb58f82ff9d8f"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file; semantic coverage is limited to the listed files and the fragment nodes"
+ },
+ "stale_or_uncovered": [
+  "the stand-in crate and the harness both emit ids of the form src_lib_* / src_controls_*; graphify keeps them distinct here but the scheme is not path-qualified, so collisions are possible later",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) is AST-extracted only",
+  "game handlers remain NotImplemented; no GREEN relationship for admission, payout or allocation",
+  "real Squads program execution is not represented; the stand-in node states the boundary"
+ ],
+ "checks": {
+  "all_prior_11240_node_ids_retained": true,
+  "all_prior_15393_raw_edge_identities_retained": true,
+  "all_prior_38_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "m3_plan_node_implemented_edges": 8,
+  "labels_file_has_community_1176": true
+ },
+ "query_checks": {
+  "outputs_dir": "/private/tmp/claude-501/-Users-robertripley-coding-musicalchairs/d73d4c44-c753-4322-aea2-96af6a5f7635/scratchpad/impl19-queries",
+  "results": {
+   "explain_layout": {
+    "bytes": 1615,
+    "sha256": "6f487e23fa31b85fed2e11aba5a7e747bd124ec0c713d3798f1bdfc04f4bcb29"
+   },
+   "explain_standin": {
+    "bytes": 1227,
+    "sha256": "38bb826e1bb981b77a7cf270f908e2d97a85844243d59d4d83184fc875e16b25"
+   },
+   "explain_suite": {
+    "bytes": 2018,
+    "sha256": "20385c376333b4ff94ba13b221b91a90cd95ab27547609492f4762619a6c0f2d"
+   },
+   "explain_validate_profile": {
+    "bytes": 1308,
+    "sha256": "1457ae6943062bee5b343d40823ca2941c209252f6cddf51cc6d85bb29b76e75"
+   },
+   "q_config": {
+    "bytes": 1663,
+    "sha256": "807f2d2c73c3ff0dae249fd12f6e2b5261b3823b4fa065c296bf184adcb929ed"
+   },
+   "q_governance": {
+    "bytes": 4631,
+    "sha256": "7b36be81b2baff53132121a7efcc5ad429c95208a012fc88653a07d6207cba4e"
+   }
+  },
+  "notes": [
+   "explain by id confirms the eight new nodes and the validate_profile neighbourhood (plan concept ↔ code calls edges, incl. initialize/rotate_guardian/require_governance callers)",
+   "q_governance and q_config return the M3 concept nodes with the pinned-layout and gating facts"
+  ]
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "Proof carriers: 2026-10-14-m3-controls.json and 2026-10-14-m3-cli.json.",
+  "Community 1176 is a fresh bucket; report/clustering not regenerated after the merge."
+ ]
+}

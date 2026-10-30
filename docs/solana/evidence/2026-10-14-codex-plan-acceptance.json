@@ -1,0 +1,42 @@
+{
+  "status": "accepted_for_local_implementation",
+  "recorded_at_utc": "2026-10-14T07:10:03.696633+00:00",
+  "planning_commit": "3109063e782d5b37a55db79cbd71d61df6f64f25",
+  "planning_branch": "codex/native-solana-plan-20261013",
+  "source_sha256": {
+    "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "01189e4e10e8753dccd598d83a44417dc3065ea129c7ece0dd4b747b66e24929",
+    "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "1a328d367adb8387120a3a09353a56ab4f040350665541f6f809dac0a52882e9",
+    "docs/coordination/native-solana-decision-register-20261013.md": "2f873676903fd180c89ade0e9093b34639ce9c4676df725365c03f30f8f40941",
+    "docs/coordination/native-solana-codex-review-packet-20261013.md": "6641bc99e9b7e910df3d82ed478acaa348330909000e845fb4e7883fdf279044"
+  },
+  "content_review": {
+    "root": "PASS",
+    "independent_bridge_delta": "PASS /root/claude_plan_round3_bridge",
+    "independent_resource_delta": "PASS /root/claude_plan_round3_resources after two exact mechanical corrections",
+    "claude_agreement": "review packet \u00a714.A"
+  },
+  "verification": {
+    "pushed_local_and_origin_refs_agree": true,
+    "final_commit_docs_only": true,
+    "commit_blobs_equal_worktree": true,
+    "all_21_protected_baseline_pins_unchanged": true,
+    "scoped_graph_source_pins_agree": true,
+    "prior_raw_graph_identity_preserved": true,
+    "graph_nodes": 8071,
+    "graph_raw_directed_links": 11422,
+    "graph_hyperedges": 36,
+    "no_duplicate_or_dangling_graph_identities": true
+  },
+  "authorized": "Local milestones M0\u2013M13; meaningful tests, compiled SBF/synthetic runtime/local-validator fixtures, focused CI, reviewable commits/PRs; Claude coordinator/workers, Codex review",
+  "not_authorized": [
+    "public-network deployment",
+    "live keys or wallets",
+    "live signing/broadcast/funding",
+    "ORAO or Squads live registration",
+    "governance activation",
+    "production canister/frontend change",
+    "operating service activation",
+    "GitHub PR merge"
+  ],
+  "proof_limit": "Documentation/design acceptance only. Production financial handlers are still drafts/stubs; implementation, runtime, CI, deployed-byte, finality and balance proof remain distinct."
+}

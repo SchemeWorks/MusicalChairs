@@ -1,0 +1,24 @@
+M14-FUND-TOOL local verification (Silas, 2026-10-25) — candidate frozen for Gideon's bounded review; NOT used on devnet
+worker: one Sonnet worker (implementation + tests + runbook); Silas: verification below
+files: src/devnet_ops/fund.rs (new) sha256 28d3c4438255e935a40412c84326447a6821ba6d5fae86951914b17738f37e6a
+       src/devnet_ops.rs (fund-wallets wiring, --plan/--plan-commit, run_step_annotated, read_pending parses the optional fund annotation and fails closed on a malformed one)
+       tests/fund_wallets.rs (new) sha256 01bd58be507f5438dfe63026c11943239193470249360424a16b01961ec83c22
+       docs/solana/devnet-ops.md (command row + 'Funding the plan wallets' section)
+untouched: program source/ELF/IDL/locks, packet (ae8a6a0e…), devnet-funding-plan.json, evidence
+binary (debug devnet_ops) sha256 448c4ed6c2d4eabd61f33495a9f388b354031ff9b9f79e65052ab1b6e7082e1c
+clippy -D warnings: clean
+fund_wallets: test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.83s
+devnet_ops_local: test result: ok. 33 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 11.58s
+m14_flow_tool: test result: ok. 14 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.34s
+full 39-step plan via runner (devnet ORAO): test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 5.52s
+backward compatibility: existing read-only 'readback --sections squads,program' with the new binary parsed the LIVE write-ahead file (2,784 lines from A2/A3, no fund annotation), seeded minContextSlot 514,981,415, all_ok, 0 false checks, file unchanged
+real plan: tests/fund_wallets.rs dry-runs the committed devnet-funding-plan.json + inventory (read-only, offline) and reproduces the plan's bucket totals and the 3,830,085,000 command total
+
+FUND-R1 correction (Gideon review of d3c8270, 2026-10-25): after a CONFIRMED transfer, a read-back below target, an absent or non-plain recipient, or a failed read now STOPS the batch at once (OpsError::Failed, INCIDENT message with role, recipient, step, signature, confirmed slot, expected and observed balance, read context); the write-ahead resolution stays CONFIRMED, so a re-run gives already_funded_by_record and never resends; no later target is sent. Same Sonnet worker; fund.rs run_batch + 2 hooked regressions:
+  a_confirmed_transfer_whose_read_back_is_below_target_stops_the_batch_and_is_never_resent
+  a_confirmed_transfer_whose_read_back_fails_or_shows_no_wallet_also_stops_the_batch
+Silas re-ran: clippy clean; fund_wallets ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.23s
+  devnet_ops_local ok. 33 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 11.25s
+  m14_flow_tool ok. 14 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 5.31s
+binary (debug devnet_ops) sha256 d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5; fund.rs sha256 ecf2c3a2417da3cfb5aaa41c20f4d5b1d22353ba58971a0567a7de9575305faa; devnet_ops.rs unchanged by this correction
+known limit (disclosed): the Cluster trait returns accounts without the RPC response's own context slot; the error reports the read's minContextSlot floor (= the confirmed slot) and the cluster slot read right after

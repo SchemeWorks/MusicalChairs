@@ -1,0 +1,314 @@
+{
+ "recorded_at_utc": "2026-10-27T18:02:24+00:00",
+ "step": "F11 R0-R2 (Block A, Solana devnet only): read-only preflight, propose reduce #3 [SetTimeLock{0}], two distinct G voter approvals",
+ "authority": "Rob's Block A approval (F11 in packet 6.5 line 490, D12 line 561); Gideon's acceptance of the F11 tool and immutable binary 9e4a5a4d (docs/coordination/m14-f11-tool-delta-20261027.md); protocol docs/coordination/m14-f11-timelock-protocol-20261027.md",
+ "operator_binary": {
+  "sha256": "9e4a5a4dbfa48b59275ed613f30203fb4b3aa1f91bb35856d86f6e8bec555802",
+  "bytes": 22995632,
+  "source_commit": "1765c2f",
+  "copy": "immutable artifact copy (SHA256SUMS verified before use)"
+ },
+ "packet_pin": {
+  "commit": "aeab47059477f977294cdcf084998933460a896f",
+  "sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "working_file_equal": true
+ },
+ "R0": {
+  "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG (devnet)",
+  "pending_file": "1,429/1,429 resolved, 0 open or held (before R1)",
+  "cluster_clock": 1793123989,
+  "g_phase": "normal",
+  "g_profile_exact_at_172800": true,
+  "g_transaction_index": 2,
+  "g_stale_transaction_index": 0,
+  "no_live_g_transaction": "#1 and #2 both Executed (scan complete 1..2)",
+  "program_checks": [
+   {
+    "name": "programdata.upgrade_authority_is_g_vault",
+    "ok": true
+   },
+   {
+    "name": "pool.initialized_and_program_owned",
+    "ok": true
+   },
+   {
+    "name": "pool.config_version_1_active",
+    "ok": true
+   },
+   {
+    "name": "orao_client.exists_and_orao_owned",
+    "ok": true
+   },
+   {
+    "name": "orao_client.owner_is_g_vault",
+    "ok": true
+   },
+   {
+    "name": "orao_client.state_is_rng_authority",
+    "ok": true
+   }
+  ],
+  "baseline_probe": {
+   "simulated_only": true,
+   "sent": false,
+   "g_time_lock_seconds": 172800,
+   "simulation_error": null,
+   "error_code": null,
+   "error_name": null,
+   "wrong_governance_profile": false,
+   "expected": "no program error (the no-op succeeds)",
+   "units_consumed": 37295,
+   "packet_bytes": 446
+  },
+  "baseline_probe_checks": [
+   {
+    "name": "probe.wrong_governance_profile_iff_time_lock_is_not_172800",
+    "ok": true
+   },
+   {
+    "name": "probe.no_error_other_than_the_expected_one",
+    "ok": true
+   }
+  ]
+ },
+ "R1_propose": {
+  "dry_run": {
+   "transaction_index": 3,
+   "intended_actions": [
+    {
+     "new_time_lock": 0,
+     "variant": "SetTimeLock"
+    }
+   ],
+   "preconditions": [
+    {
+     "name": "g.profile_exact_at_from_lock",
+     "ok": true
+    },
+    {
+     "name": "pending.no_open_or_held_records",
+     "ok": true
+    },
+    {
+     "name": "g.no_live_transaction_above_stale_index",
+     "ok": true
+    },
+    {
+     "name": "programdata.upgrade_authority_is_g_vault",
+     "ok": true
+    },
+    {
+     "name": "pool.initialized_and_program_owned",
+     "ok": true
+    },
+    {
+     "name": "pool.config_version_1_active",
+     "ok": true
+    },
+    {
+     "name": "orao_client.exists_and_orao_owned",
+     "ok": true
+    },
+    {
+     "name": "orao_client.owner_is_g_vault",
+     "ok": true
+    },
+    {
+     "name": "orao_client.state_is_rng_authority",
+     "ok": true
+    },
+    {
+     "name": "probe.baseline_succeeds_and_is_not_wrong_governance_profile",
+     "ok": true
+    },
+    {
+     "name": "proposer.balance_covers_rent_fees_and_its_own_floor",
+     "ok": true
+    }
+   ],
+   "rent_estimate": {
+    "basis": "getMinimumBalanceForRentExemption on this cluster; the config-transaction and proposal sizes are formula values",
+    "config_transaction": 1107440,
+    "config_transaction_bytes": 90,
+    "proposal": 1493520
+   }
+  },
+  "transaction_index": 3,
+  "config_transaction": "GzAimxVBXNrsZiN6pYQ2hP5uM7geaf8p8uaUPcw5bHGc",
+  "proposal": "J41D8YX7f7CjipuGYWfvFmbhdBqxv3PxcY21sBVkxtUE",
+  "stored_actions": [
+   {
+    "new_time_lock": 0,
+    "variant": "SetTimeLock"
+   }
+  ],
+  "creator": "G voter 1 (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6) = proposer = rent payer = fee payer",
+  "steps": [
+   {
+    "step": "F11.reduce.config_transaction_create",
+    "signature": "a5AhroF4UPvmePdtHsH6F1BgYhyAReeVwi61QfMKPcTpeUCZsw78PXtuFmdSSvPZXTrUySfp8t5ttQfr5Srd772",
+    "slot": 515776313,
+    "units_consumed": 15438,
+    "packet_bytes": 328
+   },
+   {
+    "step": "F11.reduce.proposal_create",
+    "signature": "47m2vGDsopYGcjTdQqcBC3taVqoqfckFQUWjyr6ZhrHQfgooPtG4xhbnjCxz6MiHQBAKE8S6brZbaA3zMTyrAD2i",
+    "slot": 515776318,
+    "units_consumed": 13331,
+    "packet_bytes": 327
+   }
+  ],
+  "checks": [
+   {
+    "name": "config_transaction.stores_exactly_the_intended_actions",
+    "ok": true,
+    "actual": "[{\"new_time_lock\":0,\"variant\":\"SetTimeLock\"}]"
+   },
+   {
+    "name": "config_transaction.multisig_index_and_creator",
+    "ok": true,
+    "actual": "multisig 5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu, index 3, creator 8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6"
+   },
+   {
+    "name": "proposal.is_active",
+    "ok": true,
+    "actual": "Active"
+   },
+   {
+    "name": "multisig.transaction_index_covers_the_proposal",
+    "ok": true,
+    "actual": "3"
+   }
+  ]
+ },
+ "R2_approvals": [
+  {
+   "voter": "G voter 1",
+   "member": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "steps": [
+    {
+     "step": "F11.reduce.proposal_approve",
+     "signature": "5kCa4Jyw2sPTqgTJTR8PA7GbBSZYzo5geCF6VjdN7BGnJQLEMELEWFS9PFARQXqarrP9i4YbKDRKP5cUrJWPD4Bs",
+     "slot": 515776424,
+     "units_consumed": 8774,
+     "packet_bytes": 285
+    }
+   ],
+   "checks": [
+    {
+     "name": "the member's approval is recorded",
+     "ok": true,
+     "actual": "true"
+    },
+    {
+     "name": "approvals += 1",
+     "ok": true,
+     "actual": "1"
+    },
+    {
+     "name": "proposal.is_approved_exactly_when_the_threshold_is_reached",
+     "ok": true,
+     "actual": "Active"
+    },
+    {
+     "name": "multisig.time_lock_unchanged_by_a_vote",
+     "ok": true,
+     "actual": "172800"
+    }
+   ]
+  },
+  {
+   "voter": "G voter 2",
+   "member": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+   "steps": [
+    {
+     "step": "F11.reduce.proposal_approve",
+     "signature": "XFpnLY8rs9SD1v2j6Gm8BsHs2aBcsV9W8CQiy3Ha4kMccKGFVjQuhzWi753F9T94aWy417wxgSjgucKLjMWrfCu",
+     "slot": 515776492,
+     "units_consumed": 9583,
+     "packet_bytes": 285
+    }
+   ],
+   "checks": [
+    {
+     "name": "the member's approval is recorded",
+     "ok": true,
+     "actual": "true"
+    },
+    {
+     "name": "approvals += 1",
+     "ok": true,
+     "actual": "2"
+    },
+    {
+     "name": "proposal.is_approved_exactly_when_the_threshold_is_reached",
+     "ok": true,
+     "actual": "Approved"
+    },
+    {
+     "name": "multisig.time_lock_unchanged_by_a_vote",
+     "ok": true,
+     "actual": "172800"
+    }
+   ]
+  }
+ ],
+ "approval": {
+  "status": "Approved",
+  "approved_at_unix": 1793124081,
+  "approved_at_utc": "2026-10-27T18:01:21Z",
+  "current_time_lock_s": 172800,
+  "earliest_execution_unix": 1793296881,
+  "earliest_execution_utc": "2026-10-29T18:01:21Z",
+  "source": "Proposal #3 status timestamp read from the chain (status phase reduce_approved); earliest = actual second-approval timestamp + the CURRENT 172,800 s lock, judged on the cluster clock"
+ },
+ "status_after": {
+  "phase": "reduce_approved",
+  "phase_detail": "reduce approved (transaction #3; executable at cluster time 1793296881)",
+  "transaction_index": 3,
+  "stale_transaction_index": 0,
+  "profile_exact_at_172800": true
+ },
+ "finality": [
+  {
+   "signature": "a5AhroF4UPvmePdtHsH6F1BgYhyAReeVwi61QfMKPcTpeUCZsw78PXtuFmdSSvPZXTrUySfp8t5ttQfr5Srd772",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515776313
+  },
+  {
+   "signature": "47m2vGDsopYGcjTdQqcBC3taVqoqfckFQUWjyr6ZhrHQfgooPtG4xhbnjCxz6MiHQBAKE8S6brZbaA3zMTyrAD2i",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515776318
+  },
+  {
+   "signature": "5kCa4Jyw2sPTqgTJTR8PA7GbBSZYzo5geCF6VjdN7BGnJQLEMELEWFS9PFARQXqarrP9i4YbKDRKP5cUrJWPD4Bs",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515776424
+  },
+  {
+   "signature": "XFpnLY8rs9SD1v2j6Gm8BsHs2aBcsV9W8CQiy3Ha4kMccKGFVjQuhzWi753F9T94aWy417wxgSjgucKLjMWrfCu",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515776492
+  }
+ ],
+ "pending_after": "1,433/1,433 resolved, 0 open or held",
+ "balances_after_finalized": {
+  "G voter 1": 173399520,
+  "G voter 2": 49985000,
+  "config tx #3": 1107440,
+  "proposal #3": 2468880,
+  "finalized_context_slot": 515776597
+ },
+ "spend_lamports": {
+  "G voter 1": "3,591,320 = config transaction rent 1,107,440 + proposal rent 2,468,880 + 3 fees (create, proposal, approve)",
+  "G voter 2": "5,000 (approve fee)",
+  "note": "the dry run's formula estimate for the proposal account (1,493,520) understates the real Squads allocation (2,468,880 rent); informational, Squads bucket"
+ },
+ "next": "execute reduce #3 ONCE at or after 2026-10-29T18:01:21Z (cluster clock) via the existing monitor, after a fresh enforced execute preflight; then R5 read-back + probe (expect WrongGovernanceProfile), then restore #4 [SetTimeLock{172800}] at the current 0 s lock in the SAME sitting, then the full readback 44/44 and a clean probe. Not inside the step 10 window (2026-11-03T13:11:35Z-15:37:47Z).",
+ "held": "all ICP B/C rows, real PP minting, any held-unknown retry, mainnet, PR #125 merge, default wallet, secret export, reserve release"
+}

@@ -1,0 +1,4794 @@
+//! M14-TOOL (packet RG-4): the devnet operator tool for the native-Solana deployment ceremony.
+//!
+//! The binary `devnet_ops` is a thin wrapper around [`run_cli`]; every behaviour lives here so the
+//! LiteSVM tests (`tests/devnet_ops_local.rs`) drive the very code paths the operator runs, through
+//! the [`Cluster`] trait (a JSON-RPC client in production, a LiteSVM wrapper in tests).
+//!
+//! ```text
+//! devnet_ops plan             # ordered step list, accounts, signers, fee payer, rent, packet sizes
+//! devnet_ops deploy           # loader-v3 buffer + chunked writes + deploy, byte check, authority -> G vault
+//! devnet_ops verify-bytes     # packet A8: ProgramData header, ELF equality, zero padding (read-only)
+//! devnet_ops squads-create    # G (2-of-3, 172,800 s) and P (2-of-3, 0 s) via real multisig_create_v2
+//! devnet_ops fund-vault       # small system transfer so the G vault can pay the ORAO Client rent
+//! devnet_ops fund-wallets     # M14-FUND-TOOL: top up the plan wallets from the pinned funding plan (once each)
+//! devnet_ops propose <action> # vault_transaction_create + proposal_create (initialize | register)
+//! devnet_ops approve <action> # proposal_approve by one member, after re-checking the stored message
+//! devnet_ops execute <action> # vault_transaction_execute after the time lock (sponsor co-signs initialize)
+//! devnet_ops readback         # packet A6 receipt (JSON): profiles, vaults, Pool/Admission, ORAO Client
+//! devnet_ops validator-fixtures <out_dir>   # offline: account JSONs + the exact local validator command
+//! devnet_ops g-timelock       # packet F11: G reduces its own Squads time lock and restores it (see `timelock`)
+//! ```
+//!
+//! # Safety interlocks (all enforced in code, all covered by tests)
+//!
+//! * **Dry run by default.** A write step is only sent with an explicit `--execute`.  `--execute`
+//!   needs an [`ExecToken`], which only [`Gate::execute_token_in`] can mint: the cluster is `local`
+//!   (default; the RPC URL must be `localhost`, `127.0.0.1` or `[::1]`), or `--cluster devnet` with
+//!   the packet pin below.  Any other cluster name is refused: the tool never targets mainnet.
+//! * **The packet pin is NOT an approval.** `--packet-sha256` plus `--packet-commit` is an
+//!   ARTIFACT-IDENTITY pin: it proves which packet TEXT the operator reviewed (the SHA-256 of the
+//!   packet file as committed at `--packet-commit`, which the working file must equal byte for byte;
+//!   the packet path is fixed and cannot be overridden on any cluster).  The authority to execute on
+//!   devnet is Rob's explicit approval, given in chat; no flag stands in for it.  Every executed
+//!   receipt records `{packet_path, packet_commit, packet_sha256}`.  The old `--i-have-approval`
+//!   spelling is rejected with an explanation.
+//! * **Double-send safety.** A signed transaction is written to a write-ahead record (stderr and the
+//!   `--pending-file`, one durable write + `sync_data`) before it is sent; an ambiguous send error
+//!   (timeout, transport) is polled (status lookups search the transaction HISTORY, not only the node's
+//!   recent status cache) to confirmed / failed before anything may be rebuilt, and a rerun resolves any
+//!   pending record first.  An expired blockhash proves only that a transaction cannot land NOW, never
+//!   that it did not land earlier, so a missing status or a failed lookup after the blockhash expired
+//!   leaves the record HELD UNKNOWN: an incident that stays open, blocks every `--execute`, and is
+//!   cleared only by a later lookup that positively finds the transaction confirmed or failed (the tool
+//!   has no command that clears an unknown record).  The file is read FAIL CLOSED (only a
+//!   missing file is empty; an unreadable file or an unparsable line is a refusal naming the line), so
+//!   use the same `--pending-file` for every command against a cluster.  After a send, reads are served
+//!   at or above the transaction's slot (`minContextSlot`; seeded at startup from the file's confirmed
+//!   records, so a new run's first read is covered too), and a step that is one transaction long never
+//!   loops on a possibly stale read.  The plain funding transfers (`fund-vault`, the flow's
+//!   `fund_operations` / `*_fund_series_a`) are refused when the file already holds a CONFIRMED record
+//!   for them, whatever a lagging node reports.  `fund-wallets` does the same per RECIPIENT: a confirmed
+//!   record for the role's step id (`A1.fund.<role>`) or for the recipient pubkey, under any role or
+//!   intent, means it is never sent again (see `fund.rs`).
+//! * **Genesis hash.** Before anything else, `getGenesisHash` must be devnet's
+//!   (`EtWTRABZ...`) for `--cluster devnet`, or NOT a known public cluster (mainnet-beta, testnet,
+//!   devnet) for `local` (a loopback tunnel to a public cluster is refused).
+//! * **Packet size.** Every transaction's serialized size (signature slots included) is computed
+//!   BEFORE signing and anything over 1,232 bytes is refused.  `vault_transaction_create` is always
+//!   built with proposer = creator = rent payer = fee payer (one signature, 1,140 bytes measured;
+//!   a separate fee payer would add a 64-byte signature and 32-byte key and overflow).
+//! * **Simulate before send.** Every send is preceded by `simulateTransaction`; an error refuses the
+//!   send.
+//! * **Time lock.** `execute` reads the proposal's `Approved { timestamp }` and the cluster clock and
+//!   refuses before `timestamp + time_lock` (the program would answer 6021 after burning a fee).
+//! * **Pinned bytes.** `deploy` and `verify-bytes` hash the ELF file first and refuse anything but
+//!   the pinned digest ([`PINNED_PROGRAM_ELF_SHA256`]; an override exists on `local` only).
+//! * **Approvers vote on what they were shown.** `approve` and `execute` rebuild the intended inner
+//!   instruction from the command line and refuse unless the on-chain vault transaction stores
+//!   exactly that message.  `propose` refuses when the program's `ProgramData` authority is not the
+//!   G vault (the proposal would fail after a wasted 48-hour wait).
+//! * **No key is generated here** and nothing is signed except by the key files named on the command
+//!   line; `~/.config/solana/id.json` is refused by path.
+//!
+//! # Solana notes (closest ICP / EVM comparisons)
+//!
+//! * A loader-v3 deploy is three on-chain objects: a *buffer* (scratch account the ELF is written
+//!   into, ~1,000 bytes per transaction because a transaction is capped at 1,232 bytes), the
+//!   *ProgramData* account (45-byte header + the ELF + zero padding up to `max_data_len`, so
+//!   `max_data_len` is the permanent size ceiling of every future upgrade and is paid in rent
+//!   up-front) and the tiny *Program* account.  ICP's install-code uploads a module the same way
+//!   but keeps one module hash; here "deployed equals reviewed" is the three-part statement
+//!   [`verify_programdata`] checks.
+//! * The upgrade authority is just a pubkey in the ProgramData header.  Handing it to the G vault
+//!   (a Squads PDA) uses the unchecked `SetAuthority` because a PDA cannot co-sign; from then on
+//!   only an approved, time-locked Squads vault transaction can upgrade or freeze the program (EVM
+//!   analogue: a proxy admin that is a Safe with a timelock module; ICP analogue: SNS-controlled
+//!   canister controllers).
+//! * A Squads vault is a PDA, so it "signs" only while Squads executes an approved vault
+//!   transaction.  The time lock is measured on the cluster's Clock sysvar (validators vote on it;
+//!   it can lag wall time), which is why [`Cluster::unix_time`] is read from the chain.
+
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::{Path, PathBuf},
+    str::FromStr,
+    time::Duration,
+};
+
+use anchor_lang::AccountDeserialize;
+use musical_chairs_program::{
+    accounts,
+    controls::{InitializeArgs, SQUADS_MULTISIG_DISCRIMINATOR, SQUADS_PROGRAM_ID},
+    instruction,
+    provider::{self, orao},
+    state, ID,
+};
+use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
+use solana_loader_v3_interface::{instruction as loader_instruction, state::UpgradeableLoaderState};
+use solana_rpc_client::rpc_client::RpcClient;
+use solana_sdk::{
+    account::Account,
+    commitment_config::CommitmentConfig,
+    compute_budget::ComputeBudgetInstruction,
+    hash::Hash,
+    instruction::Instruction,
+    message::Message,
+    pubkey::Pubkey,
+    signature::{Keypair, Signature, Signer},
+    sysvar,
+    transaction::Transaction,
+};
+use solana_system_interface::{instruction as system_instruction, program as system_program};
+
+use crate::{
+    devnet,
+    runtime::{anchor_ix, fixtures, pda},
+    squads_real as sq,
+};
+
+mod flow;
+mod fund;
+pub mod timelock;
+
+pub use fund::{FUND_BUCKET_CAPS, FUND_PER_TRANSFER_CAP_LAMPORTS, FUND_ROLES};
+
+// ---------------------------------------------------------------------------
+// Constants and pins
+// ---------------------------------------------------------------------------
+
+/// The legacy transaction packet limit (`PACKET_DATA_SIZE`).
+pub const PACKET_LIMIT: usize = 1_232;
+/// Solana devnet's genesis hash (the cluster pin of the packet; also `frontend/.../cluster.ts`).
+pub const DEVNET_GENESIS_HASH: &str = "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+/// Public cluster genesis hashes the tool refuses to treat as a "local" validator.
+pub const MAINNET_GENESIS_HASH: &str = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+pub const TESTNET_GENESIS_HASH: &str = "4uhcVJyU9pJkvQyS88uRDiswHXSCkY3zQawwpjk2NsNY";
+/// SHA-256 of the reviewed program ELF (`docs/solana/evidence/latest-build.json`,
+/// `artifact.sha256`; a test keeps the two in step).
+pub const PINNED_PROGRAM_ELF_SHA256: &str =
+    "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef";
+/// `Pool.cluster_domain` of the devnet acceptance run (packet section 2; NOT the LiteSVM fixture
+/// domain `controls::DEVNET_DOMAIN`, and not the localnet dev domain).
+pub const DEVNET_CLUSTER_DOMAIN: [u8; 32] = *b"musical-chairs-devnet-domain-v1!";
+/// The approval packet whose committed text `--packet-sha256` / `--packet-commit` pin (relative to the repo root;
+/// fixed, never overridable).
+pub const DEFAULT_PACKET_FILE: &str =
+    "docs/coordination/native-solana-m14-approval-packet-20261023.md";
+/// `UpgradeableLoaderState::ProgramData` metadata length (variant u32 + slot u64 + Option<Pubkey>).
+pub const PROGRAMDATA_HEADER_LEN: usize = 45;
+/// `UpgradeableLoaderState::Buffer` metadata length (variant u32 + Option<Pubkey>).
+pub const BUFFER_HEADER_LEN: usize = 37;
+/// Compute-unit limit requested by Squads transactions (no priority fee is ever set).
+pub const CU_SQUADS: u32 = 400_000;
+/// Compute-unit limit of the final loader `DeployWithMaxDataLen` transaction.
+pub const CU_DEPLOY: u32 = 1_400_000;
+/// Packet 4c: one program deployment is capped at 15 SOL.
+pub const DEPLOY_SPEND_CAP_LAMPORTS: u64 = 15_000_000_000;
+/// Packet 4b: the G vault needs about 0.02 SOL; the tool refuses to move more than 0.05 SOL.
+pub const VAULT_FUNDING_CAP_LAMPORTS: u64 = 50_000_000;
+pub const SIGNATURE_FEE_LAMPORTS: u64 = 5_000;
+/// Squads `Multisig` account size with three members (231 bytes, packet 4b).
+pub const MULTISIG_ACCOUNT_BYTES: usize = 231;
+/// `Proposal::size(3)` (discriminator + multisig + index + status + bump + three vectors).
+pub const PROPOSAL_ACCOUNT_BYTES: usize = 166;
+/// Lower bound for a plausible ELF (anything smaller is a wrong file).
+const MIN_ELF_BYTES: usize = 1_024;
+/// Upper bound the loader accepts for program data (10 MiB).
+const MAX_PROGRAM_BYTES: usize = 10 * 1024 * 1024;
+const SQUADS_ALL_PERMISSIONS: u8 = 7;
+const SQUADS_INITIATE: u8 = 1;
+const SQUADS_VOTE: u8 = 2;
+const SQUADS_EXECUTE: u8 = 4;
+
+// ---------------------------------------------------------------------------
+// Errors
+// ---------------------------------------------------------------------------
+
+/// What went wrong, mapped to the process exit code by [`exit_code`].
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum OpsError {
+    /// Bad command line (exit 2).
+    Usage(String),
+    /// A safety interlock fired; nothing was sent (exit 3).
+    Refused(String),
+    /// An RPC, I/O or on-chain failure (exit 1).
+    Failed(String),
+}
+
+impl std::fmt::Display for OpsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OpsError::Usage(message) => write!(f, "usage: {message}"),
+            OpsError::Refused(message) => write!(f, "REFUSED: {message}"),
+            OpsError::Failed(message) => write!(f, "failed: {message}"),
+        }
+    }
+}
+
+impl std::error::Error for OpsError {}
+
+/// Exit codes: 0 ok, 1 failure, 2 usage, 3 refused by an interlock, 4 a verification / readback
+/// check did not hold (the receipt is still printed).
+pub fn exit_code(error: &OpsError) -> i32 {
+    match error {
+        OpsError::Failed(_) => 1,
+        OpsError::Usage(_) => 2,
+        OpsError::Refused(_) => 3,
+    }
+}
+
+fn refuse<T>(message: impl Into<String>) -> Result<T, OpsError> {
+    Err(OpsError::Refused(message.into()))
+}
+
+fn fail<T>(message: impl Into<String>) -> Result<T, OpsError> {
+    Err(OpsError::Failed(message.into()))
+}
+
+fn usage<T>(message: impl Into<String>) -> Result<T, OpsError> {
+    Err(OpsError::Usage(message.into()))
+}
+
+fn rpc_err(context: &str, error: String) -> OpsError {
+    OpsError::Failed(format!("{context}: {error}"))
+}
+
+fn progress(message: impl AsRef<str>) {
+    eprintln!("[devnet_ops] {}", message.as_ref());
+}
+
+// ---------------------------------------------------------------------------
+// Command line
+// ---------------------------------------------------------------------------
+
+/// Flags that take a value.
+const VALUE_FLAGS: &[&str] = &[
+    "rpc",
+    "cluster",
+    "i-have-approval",
+    "packet",
+    "packet-sha256",
+    "packet-commit",
+    "plan",
+    "plan-commit",
+    "allow-rpc-host",
+    "pending-file",
+    "pending-wait-seconds",
+    "slot-polls",
+    "accept-failed-checks",
+    "max-data-len-justification",
+    "commitment",
+    "elf",
+    "expected-sha256",
+    "max-data-len",
+    "program-id",
+    "deployer",
+    "program-keypair",
+    "buffer-keypair",
+    "payer",
+    "member",
+    "sponsor",
+    "management-recipient",
+    "g-create-key",
+    "p-create-key",
+    "g-members",
+    "p-members",
+    "cluster-domain",
+    "provider-request-fee-lamports",
+    "provider-fee-headroom-bps",
+    "public-series-a-enabled",
+    "tx-index",
+    "expect-tx-index",
+    "lamports",
+    "max-creation-fee",
+    "max-spend-lamports",
+    "expect-authority",
+    "sections",
+    "program-so",
+    "out-dir",
+    "step",
+    "wallet-dir",
+    "receipts",
+    "genesis-unix",
+    "wait-seconds",
+];
+/// Flags without a value.
+const SWITCH_FLAGS: &[&str] = &[
+    "execute",
+    "simulate",
+    "allow-program-id-mismatch",
+    "local-oracle",
+    "help",
+];
+/// Subcommands that never write (they refuse `--execute`).
+const READ_ONLY_COMMANDS: &[&str] = &["plan", "verify-bytes", "readback"];
+const COMMANDS: &[&str] = &[
+    "plan",
+    "deploy",
+    "verify-bytes",
+    "squads-create",
+    "fund-vault",
+    "fund-wallets",
+    "propose",
+    "approve",
+    "execute",
+    "readback",
+    "validator-fixtures",
+    "flow",
+    "g-timelock",
+];
+
+/// A parsed command line: `devnet_ops <command> [positional] [--flag value] [--switch]`.
+#[derive(Clone, Debug, Default)]
+pub struct Opts {
+    pub command: String,
+    pub positional: Vec<String>,
+    values: BTreeMap<String, String>,
+    switches: BTreeSet<String>,
+}
+
+impl Opts {
+    pub fn parse(args: &[String]) -> Result<Opts, OpsError> {
+        let Some(command) = args.first() else {
+            return usage(help_text());
+        };
+        let mut opts = Opts {
+            command: command.clone(),
+            ..Opts::default()
+        };
+        if command == "--help" || command == "help" || command == "-h" {
+            opts.command = "help".into();
+            return Ok(opts);
+        }
+        if !COMMANDS.contains(&command.as_str()) {
+            return usage(format!("unknown command `{command}`\n{}", help_text()));
+        }
+        let mut index = 1;
+        while index < args.len() {
+            let token = &args[index];
+            index += 1;
+            let Some(flag) = token.strip_prefix("--") else {
+                opts.positional.push(token.clone());
+                continue;
+            };
+            let (name, inline) = match flag.split_once('=') {
+                Some((name, value)) => (name.to_string(), Some(value.to_string())),
+                None => (flag.to_string(), None),
+            };
+            if SWITCH_FLAGS.contains(&name.as_str()) {
+                if inline.is_some() {
+                    return usage(format!("--{name} takes no value"));
+                }
+                if !opts.switches.insert(name.clone()) {
+                    return usage(format!("--{name} given twice"));
+                }
+            } else if VALUE_FLAGS.contains(&name.as_str()) {
+                let value = match inline {
+                    Some(value) => value,
+                    None => match args.get(index) {
+                        Some(next) if !next.starts_with("--") => {
+                            index += 1;
+                            next.clone()
+                        }
+                        _ => return usage(format!("--{name} needs a value")),
+                    },
+                };
+                if opts.values.insert(name.clone(), value).is_some() {
+                    return usage(format!("--{name} given twice"));
+                }
+            } else {
+                return usage(format!("unknown flag --{name}"));
+            }
+        }
+        Ok(opts)
+    }
+
+    pub fn get(&self, flag: &str) -> Option<&str> {
+        self.values.get(flag).map(String::as_str)
+    }
+
+    pub fn require(&self, flag: &str) -> Result<&str, OpsError> {
+        self.get(flag)
+            .ok_or_else(|| OpsError::Usage(format!("`{}` needs --{flag}", self.command)))
+    }
+
+    pub fn switch(&self, flag: &str) -> bool {
+        self.switches.contains(flag)
+    }
+
+    fn u64_flag(&self, flag: &str) -> Result<Option<u64>, OpsError> {
+        self.get(flag)
+            .map(|value| {
+                value
+                    .replace('_', "")
+                    .parse::<u64>()
+                    .map_err(|_| OpsError::Usage(format!("--{flag} must be an unsigned integer")))
+            })
+            .transpose()
+    }
+
+    fn bool_flag(&self, flag: &str, default: bool) -> Result<bool, OpsError> {
+        match self.get(flag) {
+            None => Ok(default),
+            Some("true") => Ok(true),
+            Some("false") => Ok(false),
+            Some(_) => usage(format!("--{flag} must be `true` or `false`")),
+        }
+    }
+}
+
+pub fn help_text() -> String {
+    "usage: devnet_ops <command> [action] --rpc <url> [--cluster local|devnet] [--execute] [flags]\n\
+     commands: plan | deploy | verify-bytes | squads-create | fund-vault | fund-wallets | propose <initialize|register> |\n\
+     approve <initialize|register> | execute <initialize|register> | readback | validator-fixtures <out_dir> |\n\
+     flow init|status|next (the M14 flow plan; see docs/solana/devnet-ops.md) |\n\
+     g-timelock status|probe (read-only) | g-timelock propose|approve|execute reduce|restore (packet F11)\n\
+     Every write is a DRY RUN unless --execute is given. --execute is refused unless the RPC URL is\n\
+     loopback, or --cluster devnet is given with --packet-sha256 <sha256> --packet-commit <40-hex>\n\
+     (an artifact-identity pin of the reviewed packet text; it is NOT an approval: Rob's explicit\n\
+     approval is the authority) and --pending-file <path>: use the SAME --pending-file for every command\n\
+     against a cluster (it is the record of what was sent). The tool never targets mainnet.\n\
+     See docs/solana/devnet-ops.md."
+        .to_string()
+}
+
+// ---------------------------------------------------------------------------
+// The gate: loopback / devnet + packet pin / genesis hash
+// ---------------------------------------------------------------------------
+
+/// Which cluster family the operator named.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Target {
+    /// A validator on this machine (`solana-test-validator`).
+    Local,
+    /// Solana devnet (genesis hash pinned).
+    Devnet,
+}
+
+/// Which packet text the operator reviewed: the committed blob (`git show <commit>:<path>`), which
+/// the working file equals.  An artifact-identity pin, NOT an approval.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PacketPin {
+    pub packet_path: String,
+    pub packet_commit: String,
+    pub packet_sha256: String,
+}
+
+impl PacketPin {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "packet_path": self.packet_path,
+            "packet_commit": self.packet_commit,
+            "packet_sha256": self.packet_sha256,
+        })
+    }
+}
+
+/// Proof that the execute gate passed.  Only [`Gate::execute_token_in`] constructs one, and the only
+/// code that sends a transaction ([`Ctx::send_signed`]) demands it.  On devnet it carries the
+/// verified [`PacketPin`] so every receipt can record it.
+#[derive(Debug)]
+pub struct ExecToken {
+    packet: Option<PacketPin>,
+}
+
+#[derive(Clone, Debug)]
+pub struct Gate {
+    pub target: Target,
+    pub rpc_url: String,
+    pub execute: bool,
+    pub commitment: CommitmentConfig,
+}
+
+/// `(scheme, lowercase host, port)` of a URL, or why it is not acceptable.  Userinfo (`@`),
+/// backslashes and whitespace are rejected outright so `http://127.0.0.1@evil.example/` can never
+/// pass for loopback.
+pub fn parse_rpc_url(url: &str) -> Result<(String, String, Option<u16>), String> {
+    let (scheme, rest) = url
+        .split_once("://")
+        .ok_or_else(|| format!("`{url}` is not a URL (no scheme)"))?;
+    let scheme = scheme.to_ascii_lowercase();
+    if scheme != "http" && scheme != "https" {
+        return Err(format!("scheme `{scheme}` is not http or https"));
+    }
+    let authority = rest
+        .split(['/', '?', '#'])
+        .next()
+        .filter(|authority| !authority.is_empty())
+        .ok_or_else(|| "empty host".to_string())?;
+    if authority.contains('@') || authority.contains('\\') || authority.chars().any(char::is_whitespace)
+    {
+        return Err("userinfo, backslashes and whitespace are not allowed in the RPC URL".into());
+    }
+    let (host, port_text) = if let Some(stripped) = authority.strip_prefix('[') {
+        let (inner, tail) = stripped
+            .split_once(']')
+            .ok_or_else(|| "unterminated [ipv6] host".to_string())?;
+        let port = match tail {
+            "" => None,
+            tail => Some(
+                tail.strip_prefix(':')
+                    .ok_or_else(|| "garbage after the [ipv6] host".to_string())?,
+            ),
+        };
+        (inner.to_string(), port)
+    } else {
+        match authority.rsplit_once(':') {
+            Some((host, port)) => (host.to_string(), Some(port)),
+            None => (authority.to_string(), None),
+        }
+    };
+    if host.is_empty() {
+        return Err("empty host".into());
+    }
+    let port = match port_text {
+        None => None,
+        Some(text) => Some(
+            text.parse::<u16>()
+                .map_err(|_| format!("`{text}` is not a port"))?,
+        ),
+    };
+    Ok((scheme, host.to_ascii_lowercase(), port))
+}
+
+/// Exactly `localhost`, `127.0.0.1` or `::1` (`[::1]` in a URL).
+pub fn is_loopback_host(host: &str) -> bool {
+    matches!(host, "localhost" | "127.0.0.1" | "::1")
+}
+
+fn commitment_from(name: Option<&str>) -> Result<CommitmentConfig, OpsError> {
+    match name {
+        None | Some("confirmed") => Ok(CommitmentConfig::confirmed()),
+        Some("finalized") => Ok(CommitmentConfig::finalized()),
+        Some(other) => usage(format!(
+            "--commitment must be `confirmed` or `finalized`, not `{other}`"
+        )),
+    }
+}
+
+/// The repo root (`solana/tests/financial-runtime/../../..`).
+pub fn repo_root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..")
+}
+
+/// The public devnet RPC host the `--execute` allowlist accepts without being named.
+pub const DEVNET_PUBLIC_RPC_HOST: &str = "api.devnet.solana.com";
+
+fn is_lower_hex(text: &str, len: usize) -> bool {
+    text.len() == len && text.bytes().all(|byte| matches!(byte, b'0'..=b'9' | b'a'..=b'f'))
+}
+
+/// Read-only `git` call in `repo` with the environment that could redirect it removed.
+fn git_stdout(repo: &Path, args: &[&str]) -> Result<Vec<u8>, OpsError> {
+    let output = std::process::Command::new("git")
+        .arg("-C")
+        .arg(repo)
+        .args(args)
+        .env_remove("GIT_DIR")
+        .env_remove("GIT_WORK_TREE")
+        .env_remove("GIT_INDEX_FILE")
+        .env_remove("GIT_OBJECT_DIRECTORY")
+        .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES")
+        .env_remove("GIT_NAMESPACE")
+        .env("GIT_CONFIG_NOSYSTEM", "1")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .output()
+        .map_err(|error| OpsError::Refused(format!("cannot run `git` to read the frozen packet: {error}")))?;
+    if !output.status.success() {
+        return refuse(format!(
+            "`git {}` failed in {}: {}",
+            args.join(" "),
+            repo.display(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    Ok(output.stdout)
+}
+
+/// The artifact-identity pin of the packet: the SHA-256 of the blob `git show <commit>:<packet path>`
+/// must equal `claimed_sha256`, and the working file must equal that blob byte for byte (so the file
+/// on disk is the frozen, committed text).  This proves WHICH TEXT was reviewed; it is not, and does
+/// not replace, Rob's explicit approval.
+pub fn verify_packet_pin(repo: &Path, commit: &str, claimed_sha256: &str) -> Result<PacketPin, OpsError> {
+    if !is_lower_hex(commit, 40) {
+        return refuse("--packet-commit must be a full 40-digit lowercase hex commit id");
+    }
+    let sha = claimed_sha256.to_ascii_lowercase();
+    if !is_lower_hex(&sha, 64) {
+        return refuse("--packet-sha256 must be a 64-hex-digit SHA-256");
+    }
+    let kind = git_stdout(repo, &["cat-file", "-t", commit])?;
+    if String::from_utf8_lossy(&kind).trim() != "commit" {
+        return refuse(format!("--packet-commit {commit} is not a commit object in {}", repo.display()));
+    }
+    let blob = git_stdout(repo, &["show", &format!("{commit}:{DEFAULT_PACKET_FILE}")])?;
+    let blob_sha = devnet::sha256_hex(&blob);
+    if blob_sha != sha {
+        return refuse(format!(
+            "--packet-sha256 {sha} is not the SHA-256 of {DEFAULT_PACKET_FILE} as committed at {commit} ({blob_sha}); \
+             the wrong hash or commit was given"
+        ));
+    }
+    let path = repo.join(DEFAULT_PACKET_FILE);
+    let working = fs::read(&path).map_err(|error| {
+        OpsError::Refused(format!("cannot read the working packet {}: {error}", path.display()))
+    })?;
+    if working != blob {
+        return refuse(format!(
+            "the working-tree packet {} differs from the blob committed at {commit}; commit (freeze) the packet and pass \
+             that commit, or restore the file",
+            path.display()
+        ));
+    }
+    Ok(PacketPin {
+        packet_path: DEFAULT_PACKET_FILE.to_string(),
+        packet_commit: commit.to_string(),
+        packet_sha256: sha,
+    })
+}
+
+/// The flags that were removed because they named something they were not: refused on EVERY command
+/// (also the offline ones, which never build a [`Gate`]).
+fn reject_removed_flags(opts: &Opts) -> Result<(), OpsError> {
+    if opts.get("i-have-approval").is_some() {
+        return usage(
+            "--i-have-approval was REMOVED: the flag only ever pinned which packet text was reviewed, it is not an \
+             approval, and its name said otherwise. Rob's explicit approval (given in chat) is the authority to \
+             execute on devnet. Use --packet-sha256 <sha256> --packet-commit <40-hex commit> (artifact-identity pin).",
+        );
+    }
+    if opts.get("packet").is_some() {
+        return refuse(
+            "--packet is refused: the packet is always the committed default path \
+             (docs/coordination/native-solana-m14-approval-packet-20261023.md) at --packet-commit; a path override \
+             would let any file stand in for the reviewed text",
+        );
+    }
+    Ok(())
+}
+
+impl Gate {
+    /// Static checks that need no network: cluster name, URL shape, loopback rule.  Applies to every
+    /// subcommand, read-only ones included (`local` reads only loopback; `--cluster devnet` reads
+    /// any https URL, whose genesis hash is then checked).
+    pub fn from_opts(opts: &Opts) -> Result<Gate, OpsError> {
+        let target = match opts.get("cluster") {
+            None | Some("local") => Target::Local,
+            Some("devnet") => Target::Devnet,
+            Some(other) => {
+                return refuse(format!(
+                    "--cluster `{other}` is not supported: this tool only targets a local validator or devnet \
+                     (mainnet-beta and testnet are refused on purpose)"
+                ))
+            }
+        };
+        reject_removed_flags(opts)?;
+        let rpc_url = opts.require("rpc")?.to_string();
+        let (scheme, host, _port) = parse_rpc_url(&rpc_url).map_err(OpsError::Refused)?;
+        let loopback = is_loopback_host(&host);
+        match target {
+            Target::Local if !loopback => {
+                return refuse(format!(
+                    "cluster `local` requires a loopback RPC URL (localhost, 127.0.0.1, [::1]); `{host}` is not. \
+                     Use --cluster devnet for devnet."
+                ))
+            }
+            Target::Devnet if !loopback && scheme != "https" => {
+                return refuse("--cluster devnet requires an https RPC URL")
+            }
+            _ => {}
+        }
+        Ok(Gate {
+            target,
+            rpc_url,
+            execute: opts.switch("execute"),
+            commitment: commitment_from(opts.get("commitment"))?,
+        })
+    }
+
+    /// [`Gate::execute_token_in`] against this build's repository root.
+    pub fn execute_token(&self, opts: &Opts) -> Result<Option<ExecToken>, OpsError> {
+        self.execute_token_in(opts, &repo_root())
+    }
+
+    /// `Ok(None)` for a dry run; `Ok(Some(token))` when `--execute` passed every condition; an error
+    /// when `--execute` was requested but a condition fails.  On devnet the conditions are the packet
+    /// pin ([`verify_packet_pin`] in `repo`; an artifact-identity pin, NOT an approval) and an RPC host
+    /// allowlist.  `repo` exists so tests can pin a throwaway repository; the CLI always passes the
+    /// real one.
+    pub fn execute_token_in(&self, opts: &Opts, repo: &Path) -> Result<Option<ExecToken>, OpsError> {
+        if !self.execute {
+            return Ok(None);
+        }
+        let flow_read_only = opts.command == "flow"
+            && opts.positional.first().is_none_or(|action| action != "next");
+        if READ_ONLY_COMMANDS.contains(&opts.command.as_str()) || flow_read_only || timelock::is_read_only(opts) {
+            return usage(format!("`{}` is read-only and takes no --execute", opts.command));
+        }
+        if self.target == Target::Local {
+            if opts.get("packet-sha256").is_some() || opts.get("packet-commit").is_some() {
+                return usage("--packet-sha256 / --packet-commit pin the packet for --cluster devnet --execute only");
+            }
+            return Ok(Some(ExecToken { packet: None }));
+        }
+        // Devnet: the RPC host must be the public devnet endpoint or one named explicitly.
+        let (_, host, _) = parse_rpc_url(&self.rpc_url).map_err(OpsError::Refused)?;
+        let named = opts.get("allow-rpc-host").map(str::to_ascii_lowercase);
+        if !(is_loopback_host(&host) || host == DEVNET_PUBLIC_RPC_HOST || named.as_deref() == Some(host.as_str())) {
+            return refuse(format!(
+                "the RPC host `{host}` is not on the --execute allowlist (`{DEVNET_PUBLIC_RPC_HOST}`, or one host named \
+                 explicitly with --allow-rpc-host); the genesis hash it reports is self-reported"
+            ));
+        }
+        let sha = opts.get("packet-sha256").ok_or_else(|| {
+            OpsError::Refused(
+                "--execute on devnet needs --packet-sha256 <sha256 of the reviewed packet text> (an artifact-identity \
+                 pin; NOT an approval: Rob's explicit approval is the authority)"
+                    .into(),
+            )
+        })?;
+        let commit = opts.get("packet-commit").ok_or_else(|| {
+            OpsError::Refused(
+                "--execute on devnet needs --packet-commit <40-hex commit id> of the frozen packet; the pin hashes \
+                 `git show <commit>:<packet path>`, not the working file"
+                    .into(),
+            )
+        })?;
+        Ok(Some(ExecToken {
+            packet: Some(verify_packet_pin(repo, commit, sha)?),
+        }))
+    }
+
+    /// The genesis-hash interlock (run before any command logic).
+    pub fn check_genesis(&self, genesis: &str) -> Result<(), OpsError> {
+        match self.target {
+            Target::Devnet if genesis == DEVNET_GENESIS_HASH => Ok(()),
+            Target::Devnet => refuse(format!(
+                "genesis hash {genesis} is not devnet's ({DEVNET_GENESIS_HASH}); this tool never targets any other public cluster"
+            )),
+            Target::Local if genesis == MAINNET_GENESIS_HASH => refuse(
+                "the loopback RPC reports the MAINNET-BETA genesis hash (a tunnel?); refusing",
+            ),
+            Target::Local if genesis == TESTNET_GENESIS_HASH => {
+                refuse("the loopback RPC reports the TESTNET genesis hash (a tunnel?); refusing")
+            }
+            Target::Local if genesis == DEVNET_GENESIS_HASH => refuse(
+                "the loopback RPC reports devnet's genesis hash (a tunnel?); use --cluster devnet with the packet pin",
+            ),
+            Target::Local => Ok(()),
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Key files
+// ---------------------------------------------------------------------------
+
+/// A key given as a file (Solana CLI keypair JSON, or a file holding one base58 pubkey) or as a
+/// bare base58 pubkey.  Public-key-only values are enough for planning and read-backs; signing
+/// commands call [`KeyFile::keypair`].
+pub struct KeyFile {
+    pub pubkey: Pubkey,
+    keypair: Option<Keypair>,
+    source: String,
+}
+
+fn refuse_default_wallet(path: &Path) -> Result<(), OpsError> {
+    let canonical = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
+    for candidate in [path, canonical.as_path()] {
+        let parts: Vec<String> = candidate
+            .components()
+            .map(|component| component.as_os_str().to_string_lossy().into_owned())
+            .collect();
+        if parts.len() >= 3 && parts[parts.len() - 3..] == [".config", "solana", "id.json"] {
+            return refuse(format!(
+                "{} is the Solana CLI default wallet; this tool never reads it",
+                path.display()
+            ));
+        }
+    }
+    Ok(())
+}
+
+impl KeyFile {
+    pub fn load(spec: &str) -> Result<KeyFile, OpsError> {
+        let path = Path::new(spec);
+        refuse_default_wallet(path)?;
+        if path.is_file() {
+            let metadata = fs::metadata(path)
+                .map_err(|error| OpsError::Failed(format!("{spec}: {error}")))?;
+            if metadata.len() > 4_096 {
+                return refuse(format!("{spec} is too large to be a key file"));
+            }
+            let text = fs::read_to_string(path)
+                .map_err(|error| OpsError::Failed(format!("{spec}: {error}")))?;
+            let trimmed = text.trim();
+            if trimmed.starts_with('[') {
+                let bytes: Vec<u8> = serde_json::from_str(trimmed).map_err(|error| {
+                    OpsError::Failed(format!("{spec} is not a keypair JSON array: {error}"))
+                })?;
+                let keypair = Keypair::try_from(&bytes[..]).map_err(|_| {
+                    OpsError::Failed(format!(
+                        "{spec} is not a valid 64-byte ed25519 keypair (public half does not match the secret)"
+                    ))
+                })?;
+                return Ok(KeyFile {
+                    pubkey: keypair.pubkey(),
+                    keypair: Some(keypair),
+                    source: spec.to_string(),
+                });
+            }
+            let pubkey = Pubkey::from_str(trimmed).map_err(|_| {
+                OpsError::Failed(format!("{spec} holds neither a keypair JSON array nor a base58 pubkey"))
+            })?;
+            return Ok(KeyFile {
+                pubkey,
+                keypair: None,
+                source: spec.to_string(),
+            });
+        }
+        match Pubkey::from_str(spec) {
+            Ok(pubkey) => Ok(KeyFile {
+                pubkey,
+                keypair: None,
+                source: spec.to_string(),
+            }),
+            Err(_) => usage(format!("`{spec}` is neither an existing key file nor a base58 pubkey")),
+        }
+    }
+
+    /// The signing key; an error when only a public key was given.
+    pub fn keypair(&self) -> Result<&Keypair, OpsError> {
+        self.keypair.as_ref().ok_or_else(|| {
+            OpsError::Usage(format!(
+                "{} is a public key; this step must sign, so pass a keypair file",
+                self.source
+            ))
+        })
+    }
+}
+
+fn key_flag(opts: &Opts, flag: &str) -> Result<KeyFile, OpsError> {
+    KeyFile::load(opts.require(flag)?)
+}
+
+fn optional_key_flag(opts: &Opts, flag: &str) -> Result<Option<KeyFile>, OpsError> {
+    opts.get(flag).map(KeyFile::load).transpose()
+}
+
+/// Three distinct, non-zero member pubkeys, one per line (`#` comments and blank lines allowed).
+pub fn read_members(path: &str) -> Result<Vec<Pubkey>, OpsError> {
+    refuse_default_wallet(Path::new(path))?;
+    let text = fs::read_to_string(path).map_err(|error| OpsError::Failed(format!("{path}: {error}")))?;
+    let mut members = Vec::new();
+    for line in text.lines() {
+        let line = line.split('#').next().unwrap_or("").trim();
+        if line.is_empty() {
+            continue;
+        }
+        let key = Pubkey::from_str(line)
+            .map_err(|_| OpsError::Usage(format!("{path}: `{line}` is not a base58 pubkey")))?;
+        members.push(key);
+    }
+    let distinct: BTreeSet<Pubkey> = members.iter().copied().collect();
+    if members.len() != 3 || distinct.len() != 3 {
+        return usage(format!("{path} must list exactly 3 distinct member pubkeys"));
+    }
+    if members.contains(&Pubkey::default()) {
+        return usage(format!("{path} lists the all-zero pubkey"));
+    }
+    Ok(members)
+}
+
+/// A Squads multisig this tool manages: its create key, address and vault 0.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Identity {
+    pub create_key: Pubkey,
+    pub multisig: Pubkey,
+    pub vault: Pubkey,
+}
+
+pub fn identity(create_key: Pubkey) -> Identity {
+    let multisig = fixtures::squads::multisig_address(&create_key).0;
+    let vault = fixtures::squads::vault_address(&multisig, 0).0;
+    Identity {
+        create_key,
+        multisig,
+        vault,
+    }
+}
+
+pub fn sha256_bytes(data: &[u8]) -> [u8; 32] {
+    Sha256::digest(data).into()
+}
+
+// ---------------------------------------------------------------------------
+// The cluster abstraction
+// ---------------------------------------------------------------------------
+
+/// Result of `simulateTransaction`.
+#[derive(Clone, Debug, Default)]
+pub struct SimOutcome {
+    pub error: Option<String>,
+    pub logs: Vec<String>,
+    pub units_consumed: Option<u64>,
+}
+
+/// A confirmed transaction.
+#[derive(Clone, Debug)]
+pub struct SendOutcome {
+    pub signature: Signature,
+    pub units_consumed: Option<u64>,
+}
+
+/// Everything the tool needs from a cluster.  Production uses [`RpcCluster`]; the tests wrap
+/// LiteSVM.  Errors are plain strings (the transport's own message).
+pub trait Cluster {
+    fn genesis_hash(&self) -> Result<String, String>;
+    /// A blockhash valid for a transaction signed right now.
+    fn blockhash(&self) -> Result<Hash, String>;
+    fn account(&self, key: &Pubkey) -> Result<Option<Account>, String>;
+    fn rent_minimum(&self, data_len: usize) -> Result<u64, String>;
+    /// The cluster's own clock (Clock sysvar `unix_timestamp`), NOT this machine's clock.
+    fn unix_time(&self) -> Result<i64, String>;
+    fn slot(&self) -> Result<u64, String>;
+    /// `sig_verify` asks for signature verification where the transport supports it.
+    fn simulate(&self, tx: &Transaction, sig_verify: bool) -> Result<SimOutcome, String>;
+    /// Send and wait for confirmation.  [`SendError::Rejected`] means the transaction is known NOT to have
+    /// succeeded (preflight / execution error); [`SendError::Unknown`] means the outcome is ambiguous
+    /// (timeout, transport) and the transaction may still land: the caller must resolve it
+    /// ([`Cluster::signature_outcome`], [`Cluster::blockhash_valid`]) before it may rebuild anything.
+    fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError>;
+    /// A blockhash plus its `lastValidBlockHeight` when the transport knows it.
+    fn blockhash_with_expiry(&self) -> Result<(Hash, Option<u64>), String> {
+        self.blockhash().map(|hash| (hash, None))
+    }
+    /// Whether a transaction built on `hash` could still land.  The default is `false` (a double that
+    /// cannot tell treats the blockhash as expired, so an unresolved send ends instead of waiting).
+    fn blockhash_valid(&self, _hash: &Hash) -> Result<bool, String> {
+        Ok(false)
+    }
+    /// What the cluster says about `signature` right now, HISTORY INCLUDED (`searchTransactionHistory`):
+    /// a plain `getSignatureStatuses` searches only the node's RECENT status cache, so a transaction that
+    /// landed long enough ago is simply absent from it.  [`SigOutcome::Unknown`] (no status) and an `Err`
+    /// are therefore NEVER proof that the transaction did not land.
+    fn signature_outcome(&self, _signature: &Signature) -> Result<SigOutcome, String> {
+        Ok(SigOutcome::Unknown)
+    }
+    /// Reads from now on must reflect at least `slot` (the slot of a transaction this tool just
+    /// confirmed): `minContextSlot` on the RPC reads.
+    fn note_confirmed_slot(&self, _slot: u64) {}
+    /// Every account owned by `program` (`getProgramAccounts`).  Only the `flow` runner needs it.
+    fn program_accounts(&self, _program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
+        Err("this cluster cannot list program accounts".into())
+    }
+    /// The slot in which `signature` was processed, when known.
+    fn signature_slot(&self, _signature: &Signature) -> Result<Option<u64>, String> {
+        Ok(None)
+    }
+    /// The signatures that touched `key`, newest first (`getSignaturesForAddress`).
+    fn signatures_for_address(&self, _key: &Pubkey) -> Result<Vec<AddressSignature>, String> {
+        Err("this cluster cannot list the signatures of an address".into())
+    }
+}
+
+/// How a `send` failed.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SendError {
+    /// Known not to have succeeded: the preflight / simulation or the execution reported an error.
+    Rejected(String),
+    /// Ambiguous (timeout, transport, dropped connection): the transaction may still land.
+    Unknown(String),
+}
+
+impl std::fmt::Display for SendError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SendError::Rejected(message) => write!(f, "{message}"),
+            SendError::Unknown(message) => write!(f, "outcome unknown: {message}"),
+        }
+    }
+}
+
+/// What `getSignatureStatuses` (with `searchTransactionHistory`) says about a signature.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum SigOutcome {
+    Confirmed { slot: u64 },
+    /// Landed and failed.
+    Failed { slot: u64, error: String },
+    /// A status WAS found, but it has not reached the client's commitment yet: the transaction exists.
+    BelowCommitment { slot: u64 },
+    /// The lookup succeeded and returned NO status.  This is not proof of absence.
+    Unknown,
+}
+
+/// One entry of `getSignaturesForAddress`.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct AddressSignature {
+    pub signature: String,
+    pub slot: u64,
+    pub block_time: Option<i64>,
+    pub failed: bool,
+}
+
+/// Decode the `unix_timestamp` of a serialized Clock sysvar (bincode: slot u64, epoch_start
+/// i64, epoch u64, leader_schedule_epoch u64, unix_timestamp i64).
+pub fn clock_unix_timestamp(data: &[u8]) -> Result<i64, String> {
+    let bytes: [u8; 8] = data
+        .get(32..40)
+        .ok_or_else(|| "Clock sysvar is shorter than 40 bytes".to_string())?
+        .try_into()
+        .map_err(|_| "Clock sysvar slice".to_string())?;
+    Ok(i64::from_le_bytes(bytes))
+}
+
+/// JSON-RPC cluster (blocking `solana-rpc-client`).  After a confirmed send its reads carry
+/// `minContextSlot` = the transaction's slot, so a load-balanced RPC cannot answer from a node that
+/// has not seen the transaction yet.
+pub struct RpcCluster {
+    rpc: RpcClient,
+    commitment: CommitmentConfig,
+    min_slot: std::sync::atomic::AtomicU64,
+}
+
+impl RpcCluster {
+    pub fn connect(url: &str, commitment: CommitmentConfig) -> RpcCluster {
+        RpcCluster {
+            rpc: RpcClient::new_with_timeout_and_commitment(
+                url.to_string(),
+                Duration::from_secs(120),
+                commitment,
+            ),
+            commitment,
+            min_slot: std::sync::atomic::AtomicU64::new(0),
+        }
+    }
+
+    fn min_slot(&self) -> u64 {
+        self.min_slot.load(std::sync::atomic::Ordering::SeqCst)
+    }
+
+    /// Run a read that may answer "minimum context slot has not been reached", retrying a bounded number
+    /// of times while the node catches up.
+    fn catching_up<T>(&self, mut read: impl FnMut() -> Result<T, String>) -> Result<T, String> {
+        let mut attempts = 0;
+        loop {
+            match read() {
+                Err(error) if self.min_slot() > 0 && error.to_ascii_lowercase().contains("context slot") && attempts < 60 => {
+                    attempts += 1;
+                    std::thread::sleep(Duration::from_millis(500));
+                }
+                other => return other,
+            }
+        }
+    }
+
+    /// The JSON of an account-info config: `encoding` base64, this client's commitment and, after a
+    /// send, `minContextSlot`.  `RpcAccountInfoConfig` FLATTENS its commitment, so the commitment sits at
+    /// the TOP level (`{"commitment":"confirmed"}`); nesting `serde_json::to_value(CommitmentConfig)` under
+    /// a `commitment` key fails the flatten silently and the node answers at *finalized*.
+    fn config_json(&self) -> Value {
+        let mut config = serde_json::Map::new();
+        config.insert("encoding".into(), json!("base64"));
+        match serde_json::to_value(self.commitment) {
+            Ok(Value::Object(commitment)) => config.extend(commitment),
+            other => unreachable!("CommitmentConfig serializes to an object, got {other:?}"),
+        }
+        if self.min_slot() > 0 {
+            config.insert("minContextSlot".into(), json!(self.min_slot()));
+        }
+        Value::Object(config)
+    }
+
+    /// The typed RPC config the client method `_method` takes (`RpcAccountInfoConfig` for
+    /// `get_account_with_config`, `RpcProgramAccountsConfig` for `get_program_accounts_with_config`),
+    /// built from [`RpcCluster::config_json`].  The config types live in a crate this one does not depend
+    /// on directly (a new dependency would change `Cargo.lock`), so the method's signature names the
+    /// type.  FAIL CLOSED: the typed value is serialized again and every key asked for (`encoding`,
+    /// `commitment`, `minContextSlot`) must come back unchanged, because serde silently drops a key it
+    /// does not understand and a dropped `commitment` means the node answers at *finalized*.
+    fn typed_config<C, R>(
+        &self,
+        _method: impl Fn(&RpcClient, &Pubkey, C) -> R,
+    ) -> Result<C, String>
+    where
+        C: serde::de::DeserializeOwned + serde::Serialize,
+    {
+        let wanted = self.config_json();
+        let config: C = serde_json::from_value(wanted.clone()).map_err(|error| error.to_string())?;
+        let sent = serde_json::to_value(&config).map_err(|error| error.to_string())?;
+        for (key, value) in wanted.as_object().into_iter().flatten() {
+            if sent.get(key) != Some(value) {
+                return Err(format!(
+                    "internal error: the RPC config dropped `{key}` (wanted {value}, serialized {:?}); refusing to read at an unintended commitment",
+                    sent.get(key)
+                ));
+            }
+        }
+        Ok(config)
+    }
+
+    /// The two read configs EXACTLY as they go on the wire (typed, then serialized): `(account info,
+    /// program accounts)`.  A test hook for the regression where the commitment was silently dropped.
+    pub fn request_configs(&self) -> Result<(Value, Value), String> {
+        let account = self.typed_config(RpcClient::get_account_with_config)?;
+        let program_accounts = self.typed_config(RpcClient::get_program_accounts_with_config)?;
+        Ok((
+            serde_json::to_value(&account).map_err(|error| error.to_string())?,
+            serde_json::to_value(&program_accounts).map_err(|error| error.to_string())?,
+        ))
+    }
+}
+
+impl Cluster for RpcCluster {
+    fn genesis_hash(&self) -> Result<String, String> {
+        self.rpc
+            .get_genesis_hash()
+            .map(|hash| hash.to_string())
+            .map_err(|error| error.to_string())
+    }
+
+    fn blockhash(&self) -> Result<Hash, String> {
+        self.blockhash_with_expiry().map(|(hash, _)| hash)
+    }
+
+    fn blockhash_with_expiry(&self) -> Result<(Hash, Option<u64>), String> {
+        self.rpc
+            .get_latest_blockhash_with_commitment(self.commitment)
+            .map(|(hash, last_valid_block_height)| (hash, Some(last_valid_block_height)))
+            .map_err(|error| error.to_string())
+    }
+
+    fn blockhash_valid(&self, hash: &Hash) -> Result<bool, String> {
+        self.rpc
+            .is_blockhash_valid(hash, self.commitment)
+            .map_err(|error| error.to_string())
+    }
+
+    fn account(&self, key: &Pubkey) -> Result<Option<Account>, String> {
+        if self.min_slot() == 0 {
+            return self
+                .rpc
+                .get_account_with_commitment(key, self.commitment)
+                .map(|response| response.value)
+                .map_err(|error| error.to_string());
+        }
+        self.catching_up(|| {
+            let config = self.typed_config(RpcClient::get_account_with_config)?;
+            self.rpc
+                .get_account_with_config(key, config)
+                .map(|response| response.value)
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    fn rent_minimum(&self, data_len: usize) -> Result<u64, String> {
+        self.rpc
+            .get_minimum_balance_for_rent_exemption(data_len)
+            .map_err(|error| error.to_string())
+    }
+
+    fn unix_time(&self) -> Result<i64, String> {
+        let clock = self
+            .account(&sysvar::clock::id())?
+            .ok_or_else(|| "Clock sysvar account is absent".to_string())?;
+        clock_unix_timestamp(&clock.data)
+    }
+
+    fn slot(&self) -> Result<u64, String> {
+        self.rpc
+            .get_slot_with_commitment(self.commitment)
+            .map_err(|error| error.to_string())
+    }
+
+    fn simulate(&self, tx: &Transaction, _sig_verify: bool) -> Result<SimOutcome, String> {
+        // The client API's default simulation (`sigVerify` off, blockhash as given).  The tool has
+        // already verified locally that every required signer signed (`sign_checked`), and the
+        // cluster verifies signatures again on the real send.
+        let response = self
+            .rpc
+            .simulate_transaction(tx)
+            .map_err(|error| error.to_string())?;
+        Ok(SimOutcome {
+            error: response.value.err.map(|error| error.to_string()),
+            logs: response.value.logs.unwrap_or_default(),
+            units_consumed: response.value.units_consumed,
+        })
+    }
+
+    fn send(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
+        match self.rpc.send_and_confirm_transaction(tx) {
+            // The confirmed transaction's slot is NOT learned here: `Ctx::run_step` polls for it (and
+            // falls back to the slot read after confirmation) so a failure to learn it is an error that
+            // says the transaction CONFIRMED, never a silently un-advanced `minContextSlot`.
+            Ok(signature) => Ok(SendOutcome {
+                signature,
+                units_consumed: None,
+            }),
+            Err(error) => {
+                // A preflight or execution failure carries a TransactionError: definitely not a success.
+                // Anything else (timeout, transport) is ambiguous: the transaction may still land.
+                let text = error.to_string();
+                if error.get_transaction_error().is_some() {
+                    Err(SendError::Rejected(text))
+                } else {
+                    Err(SendError::Unknown(text))
+                }
+            }
+        }
+    }
+
+    /// `getSignatureStatuses` with `searchTransactionHistory: true`.  The plain call searches only the
+    /// node's recent status cache; a transaction that landed and was evicted from it would read as
+    /// "no status", which must never be mistaken for proof of absence.
+    fn signature_outcome(&self, signature: &Signature) -> Result<SigOutcome, String> {
+        let response = self
+            .rpc
+            .get_signature_statuses_with_history(&[*signature])
+            .map_err(|error| error.to_string())?;
+        Ok(match response.value.into_iter().next().flatten() {
+            None => SigOutcome::Unknown,
+            Some(status) => {
+                if let Some(error) = &status.err {
+                    SigOutcome::Failed { slot: status.slot, error: error.to_string() }
+                } else if status.satisfies_commitment(self.commitment) {
+                    SigOutcome::Confirmed { slot: status.slot }
+                } else {
+                    SigOutcome::BelowCommitment { slot: status.slot }
+                }
+            }
+        })
+    }
+
+    fn note_confirmed_slot(&self, slot: u64) {
+        self.min_slot.fetch_max(slot, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn program_accounts(&self, program: &Pubkey) -> Result<Vec<(Pubkey, Account)>, String> {
+        if self.min_slot() == 0 {
+            return self
+                .rpc
+                .get_program_accounts(program)
+                .map_err(|error| error.to_string());
+        }
+        self.catching_up(|| {
+            let config = self.typed_config(RpcClient::get_program_accounts_with_config)?;
+            self.rpc
+                .get_program_accounts_with_config(program, config)
+                .map_err(|error| error.to_string())
+        })
+    }
+
+    fn signature_slot(&self, signature: &Signature) -> Result<Option<u64>, String> {
+        self.rpc
+            .get_signature_statuses_with_history(&[*signature])
+            .map(|response| response.value.into_iter().next().flatten().map(|status| status.slot))
+            .map_err(|error| error.to_string())
+    }
+
+    fn signatures_for_address(&self, key: &Pubkey) -> Result<Vec<AddressSignature>, String> {
+        self.rpc
+            .get_signatures_for_address(key)
+            .map(|entries| {
+                entries
+                    .into_iter()
+                    .map(|entry| AddressSignature {
+                        signature: entry.signature,
+                        slot: entry.slot,
+                        block_time: entry.block_time,
+                        failed: entry.err.is_some(),
+                    })
+                    .collect()
+            })
+            .map_err(|error| error.to_string())
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Account decoders (bounds-checked; layouts from the Squads IDL and the loader)
+// ---------------------------------------------------------------------------
+
+struct Reader<'a> {
+    data: &'a [u8],
+    pos: usize,
+}
+
+impl<'a> Reader<'a> {
+    fn new(data: &'a [u8]) -> Self {
+        Reader { data, pos: 0 }
+    }
+    fn remaining(&self) -> usize {
+        self.data.len() - self.pos
+    }
+    fn take(&mut self, len: usize) -> Result<&'a [u8], String> {
+        let end = self
+            .pos
+            .checked_add(len)
+            .filter(|end| *end <= self.data.len())
+            .ok_or_else(|| format!("account data truncated at byte {}", self.pos))?;
+        let slice = &self.data[self.pos..end];
+        self.pos = end;
+        Ok(slice)
+    }
+    fn u8(&mut self) -> Result<u8, String> {
+        Ok(self.take(1)?[0])
+    }
+    fn u16(&mut self) -> Result<u16, String> {
+        Ok(u16::from_le_bytes(self.take(2)?.try_into().map_err(|_| "u16")?))
+    }
+    fn u32(&mut self) -> Result<u32, String> {
+        Ok(u32::from_le_bytes(self.take(4)?.try_into().map_err(|_| "u32")?))
+    }
+    fn u64(&mut self) -> Result<u64, String> {
+        Ok(u64::from_le_bytes(self.take(8)?.try_into().map_err(|_| "u64")?))
+    }
+    fn i64(&mut self) -> Result<i64, String> {
+        Ok(i64::from_le_bytes(self.take(8)?.try_into().map_err(|_| "i64")?))
+    }
+    fn key(&mut self) -> Result<Pubkey, String> {
+        Ok(Pubkey::new_from_array(
+            self.take(32)?.try_into().map_err(|_| "pubkey")?,
+        ))
+    }
+    /// A Borsh `Vec<Pubkey>` (u32 length prefix).
+    fn keys(&mut self) -> Result<Vec<Pubkey>, String> {
+        let count = self.u32()? as usize;
+        if count.checked_mul(32).is_none_or(|bytes| bytes > self.remaining()) {
+            return Err("vector length exceeds the account data".into());
+        }
+        (0..count).map(|_| self.key()).collect()
+    }
+    /// A Borsh `Vec<u8>` / `bytes` (u32 length prefix).
+    fn bytes(&mut self) -> Result<Vec<u8>, String> {
+        let count = self.u32()? as usize;
+        Ok(self.take(count)?.to_vec())
+    }
+}
+
+/// Anchor account discriminator: `sha256("account:<Name>")[..8]`.
+pub fn account_discriminator(name: &str) -> [u8; 8] {
+    let digest = Sha256::digest(format!("account:{name}").as_bytes());
+    digest[..8].try_into().expect("8 bytes")
+}
+
+/// The squads `Multisig` account (layout of the IDL's `Multisig`).
+pub fn decode_multisig(data: &[u8]) -> Result<sq::MultisigView, String> {
+    if data.len() < 8 || data[..8] != SQUADS_MULTISIG_DISCRIMINATOR {
+        return Err("not a Squads Multisig account (discriminator)".into());
+    }
+    let mut reader = Reader::new(data);
+    reader.take(8)?;
+    let create_key = reader.key()?;
+    let config_authority = reader.key()?;
+    let threshold = reader.u16()?;
+    let time_lock = reader.u32()?;
+    let transaction_index = reader.u64()?;
+    let stale_transaction_index = reader.u64()?;
+    let rent_collector = match reader.u8()? {
+        0 => None,
+        1 => Some(reader.key()?),
+        other => return Err(format!("rent_collector option tag {other}")),
+    };
+    let bump = reader.u8()?;
+    let member_count = reader.u32()? as usize;
+    if member_count.checked_mul(33).is_none_or(|bytes| bytes > reader.remaining()) {
+        return Err("member list exceeds the account data".into());
+    }
+    let mut members = Vec::with_capacity(member_count);
+    for _ in 0..member_count {
+        let member = reader.key()?;
+        let mask = reader.u8()?;
+        members.push((member, mask));
+    }
+    Ok(sq::MultisigView {
+        create_key,
+        config_authority,
+        threshold,
+        time_lock,
+        transaction_index,
+        stale_transaction_index,
+        rent_collector,
+        bump,
+        members,
+        trailing_bytes: reader.remaining(),
+    })
+}
+
+/// `ProposalStatus` (each variant but `Executing` carries the timestamp it was set at).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProposalStatus {
+    Draft(i64),
+    Active(i64),
+    Rejected(i64),
+    Approved(i64),
+    Executing,
+    Executed(i64),
+    Cancelled(i64),
+}
+
+impl ProposalStatus {
+    pub fn name(&self) -> &'static str {
+        match self {
+            ProposalStatus::Draft(_) => "Draft",
+            ProposalStatus::Active(_) => "Active",
+            ProposalStatus::Rejected(_) => "Rejected",
+            ProposalStatus::Approved(_) => "Approved",
+            ProposalStatus::Executing => "Executing",
+            ProposalStatus::Executed(_) => "Executed",
+            ProposalStatus::Cancelled(_) => "Cancelled",
+        }
+    }
+    pub fn timestamp(&self) -> Option<i64> {
+        match self {
+            ProposalStatus::Draft(t)
+            | ProposalStatus::Active(t)
+            | ProposalStatus::Rejected(t)
+            | ProposalStatus::Approved(t)
+            | ProposalStatus::Executed(t)
+            | ProposalStatus::Cancelled(t) => Some(*t),
+            ProposalStatus::Executing => None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProposalView {
+    pub multisig: Pubkey,
+    pub transaction_index: u64,
+    pub status: ProposalStatus,
+    pub approved: Vec<Pubkey>,
+    pub rejected: Vec<Pubkey>,
+    pub cancelled: Vec<Pubkey>,
+}
+
+pub fn decode_proposal(data: &[u8]) -> Result<ProposalView, String> {
+    if data.len() < 8 || data[..8] != account_discriminator("Proposal") {
+        return Err("not a Squads Proposal account (discriminator)".into());
+    }
+    let mut reader = Reader::new(data);
+    reader.take(8)?;
+    let multisig = reader.key()?;
+    let transaction_index = reader.u64()?;
+    let status = match reader.u8()? {
+        0 => ProposalStatus::Draft(reader.i64()?),
+        1 => ProposalStatus::Active(reader.i64()?),
+        2 => ProposalStatus::Rejected(reader.i64()?),
+        3 => ProposalStatus::Approved(reader.i64()?),
+        4 => ProposalStatus::Executing,
+        5 => ProposalStatus::Executed(reader.i64()?),
+        6 => ProposalStatus::Cancelled(reader.i64()?),
+        other => return Err(format!("unknown ProposalStatus variant {other}")),
+    };
+    let _bump = reader.u8()?;
+    Ok(ProposalView {
+        multisig,
+        transaction_index,
+        status,
+        approved: reader.keys()?,
+        rejected: reader.keys()?,
+        cancelled: reader.keys()?,
+    })
+}
+
+/// One instruction inside a stored vault transaction.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredInstruction {
+    pub program_id_index: u8,
+    pub account_indexes: Vec<u8>,
+    pub data: Vec<u8>,
+}
+
+/// The `VaultTransactionMessage` Squads stores (Borsh `Vec`s, unlike the small-vec input format).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredMessage {
+    pub num_signers: u8,
+    pub num_writable_signers: u8,
+    pub num_writable_non_signers: u8,
+    pub account_keys: Vec<Pubkey>,
+    pub instructions: Vec<StoredInstruction>,
+    pub address_table_lookups: usize,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct VaultTransactionView {
+    pub multisig: Pubkey,
+    pub creator: Pubkey,
+    pub index: u64,
+    pub vault_index: u8,
+    pub ephemeral_signer_bumps: Vec<u8>,
+    pub message: StoredMessage,
+}
+
+pub fn decode_vault_transaction(data: &[u8]) -> Result<VaultTransactionView, String> {
+    if data.len() < 8 || data[..8] != account_discriminator("VaultTransaction") {
+        return Err("not a Squads VaultTransaction account (discriminator)".into());
+    }
+    let mut reader = Reader::new(data);
+    reader.take(8)?;
+    let multisig = reader.key()?;
+    let creator = reader.key()?;
+    let index = reader.u64()?;
+    let _bump = reader.u8()?;
+    let vault_index = reader.u8()?;
+    let _vault_bump = reader.u8()?;
+    let ephemeral_signer_bumps = reader.bytes()?;
+    let num_signers = reader.u8()?;
+    let num_writable_signers = reader.u8()?;
+    let num_writable_non_signers = reader.u8()?;
+    let account_keys = reader.keys()?;
+    let instruction_count = reader.u32()? as usize;
+    if instruction_count > reader.remaining() {
+        return Err("instruction list exceeds the account data".into());
+    }
+    let mut instructions = Vec::with_capacity(instruction_count);
+    for _ in 0..instruction_count {
+        instructions.push(StoredInstruction {
+            program_id_index: reader.u8()?,
+            account_indexes: reader.bytes()?,
+            data: reader.bytes()?,
+        });
+    }
+    let address_table_lookups = reader.u32()? as usize;
+    Ok(VaultTransactionView {
+        multisig,
+        creator,
+        index,
+        vault_index,
+        ephemeral_signer_bumps,
+        message: StoredMessage {
+            num_signers,
+            num_writable_signers,
+            num_writable_non_signers,
+            account_keys,
+            instructions,
+            address_table_lookups,
+        },
+    })
+}
+
+/// The message Squads must have stored for `inner` executed by the vault (what
+/// `compile_vault_message` sent, in the stored shape).
+pub fn expected_stored_message(inner: &Instruction) -> StoredMessage {
+    let compiled = sq::compile_vault_message(inner);
+    let keys: Vec<Pubkey> = compiled.keys.iter().map(|entry| entry.0).collect();
+    let index_of = |key: &Pubkey| -> u8 {
+        keys.iter().position(|candidate| candidate == key).expect("compiled key") as u8
+    };
+    StoredMessage {
+        num_signers: compiled.keys.iter().filter(|entry| entry.1).count() as u8,
+        num_writable_signers: compiled.keys.iter().filter(|entry| entry.1 && entry.2).count() as u8,
+        num_writable_non_signers: compiled
+            .keys
+            .iter()
+            .filter(|entry| !entry.1 && entry.2)
+            .count() as u8,
+        instructions: vec![StoredInstruction {
+            program_id_index: index_of(&inner.program_id),
+            account_indexes: inner.accounts.iter().map(|meta| index_of(&meta.pubkey)).collect(),
+            data: inner.data.clone(),
+        }],
+        account_keys: keys,
+        address_table_lookups: 0,
+    }
+}
+
+/// Loader-v3 `Program` account: the ProgramData address it points at.
+pub fn decode_program_account(data: &[u8]) -> Result<Pubkey, String> {
+    let mut reader = Reader::new(data);
+    match reader.u32()? {
+        2 => reader.key(),
+        other => Err(format!("loader state variant {other} is not Program (2)")),
+    }
+}
+
+/// Loader-v3 `Buffer` account: its authority.
+pub fn decode_buffer_authority(data: &[u8]) -> Result<Option<Pubkey>, String> {
+    let mut reader = Reader::new(data);
+    match reader.u32()? {
+        1 => match reader.u8()? {
+            0 => Ok(None),
+            1 => Ok(Some(reader.key()?)),
+            other => Err(format!("buffer authority option tag {other}")),
+        },
+        other => Err(format!("loader state variant {other} is not Buffer (1)")),
+    }
+}
+
+/// The 45-byte `ProgramData` header.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ProgramDataHeader {
+    pub slot: u64,
+    pub authority: Option<Pubkey>,
+}
+
+pub fn decode_programdata_header(data: &[u8]) -> Result<ProgramDataHeader, String> {
+    if data.len() < PROGRAMDATA_HEADER_LEN {
+        return Err(format!(
+            "ProgramData is {} bytes, shorter than its {PROGRAMDATA_HEADER_LEN}-byte header",
+            data.len()
+        ));
+    }
+    let mut reader = Reader::new(data);
+    match reader.u32()? {
+        3 => {}
+        other => return Err(format!("loader state variant {other} is not ProgramData (3)")),
+    }
+    let slot = reader.u64()?;
+    let authority = match reader.u8()? {
+        0 => {
+            if data[13..PROGRAMDATA_HEADER_LEN].iter().any(|byte| *byte != 0) {
+                return Err("ProgramData authority is None but the 32 authority bytes are not zero".into());
+            }
+            None
+        }
+        1 => Some(reader.key()?),
+        other => return Err(format!("ProgramData authority option tag {other}")),
+    };
+    Ok(ProgramDataHeader { slot, authority })
+}
+
+/// The packet's A8 check on a fetched ProgramData account against the reviewed ELF.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProgramDataReport {
+    pub header: ProgramDataHeader,
+    pub data_len: usize,
+    pub elf_len: usize,
+    pub elf_matches: bool,
+    pub first_mismatch: Option<usize>,
+    pub padding_len: usize,
+    pub padding_all_zero: bool,
+    pub elf_sha256: String,
+    pub onchain_elf_sha256: String,
+    pub payload_sha256: String,
+}
+
+impl ProgramDataReport {
+    /// Header decodes, `data[45..45+elf_len] == ELF`, `data[45+elf_len..]` all zero.
+    pub fn ok(&self) -> bool {
+        self.elf_matches && self.padding_all_zero
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "programdata_slot": self.header.slot,
+            "upgrade_authority": self.header.authority.map(|key| key.to_string()),
+            "account_data_len": self.data_len,
+            "header_len": PROGRAMDATA_HEADER_LEN,
+            "elf_len": self.elf_len,
+            "elf_sha256": self.elf_sha256,
+            "onchain_elf_slice_sha256": self.onchain_elf_sha256,
+            "payload_sha256_after_header": self.payload_sha256,
+            "elf_matches": self.elf_matches,
+            "first_mismatch_offset": self.first_mismatch,
+            "zero_padding_len": self.padding_len,
+            "zero_padding_all_zero": self.padding_all_zero,
+            "ok": self.ok(),
+        })
+    }
+}
+
+/// Compare a ProgramData account's bytes with the ELF (`Err` only when the header is undecodable).
+pub fn verify_programdata(data: &[u8], elf: &[u8]) -> Result<ProgramDataReport, String> {
+    let header = decode_programdata_header(data)?;
+    let payload = &data[PROGRAMDATA_HEADER_LEN..];
+    let compared = payload.len().min(elf.len());
+    let first_mismatch = payload[..compared]
+        .iter()
+        .zip(&elf[..compared])
+        .position(|(left, right)| left != right)
+        .or(if payload.len() < elf.len() { Some(payload.len()) } else { None });
+    let (onchain_slice, padding) = if payload.len() >= elf.len() {
+        payload.split_at(elf.len())
+    } else {
+        (payload, &payload[payload.len()..])
+    };
+    Ok(ProgramDataReport {
+        header,
+        data_len: data.len(),
+        elf_len: elf.len(),
+        elf_matches: first_mismatch.is_none() && payload.len() >= elf.len(),
+        first_mismatch,
+        padding_len: padding.len(),
+        padding_all_zero: padding.iter().all(|byte| *byte == 0),
+        elf_sha256: devnet::sha256_hex(elf),
+        onchain_elf_sha256: devnet::sha256_hex(onchain_slice),
+        payload_sha256: devnet::sha256_hex(payload),
+    })
+}
+
+// ---------------------------------------------------------------------------
+// Transactions: build, size-check BEFORE signing, sign
+// ---------------------------------------------------------------------------
+
+/// One transaction the tool may send.
+#[derive(Clone, Debug)]
+pub struct Step {
+    pub id: String,
+    pub label: String,
+    pub instructions: Vec<Instruction>,
+    pub payer: Pubkey,
+    pub cu_limit: Option<u32>,
+    /// Needs the on-chain effect of an earlier step (so a dry run cannot simulate it).
+    pub depends_on_previous: bool,
+}
+
+/// A step compiled to a message, with its measured size.
+#[derive(Clone, Debug)]
+pub struct Built {
+    pub message: Message,
+    pub packet_bytes: usize,
+    pub required_signers: Vec<Pubkey>,
+}
+
+impl Built {
+    pub fn fits(&self) -> bool {
+        self.packet_bytes <= PACKET_LIMIT
+    }
+}
+
+/// Compile `step` (compute-budget instruction first, when requested) and measure the serialized
+/// transaction size, signature slots included, without signing anything.
+pub fn build_step(step: &Step) -> Built {
+    let mut instructions = Vec::with_capacity(step.instructions.len() + 1);
+    if let Some(limit) = step.cu_limit {
+        instructions.push(ComputeBudgetInstruction::set_compute_unit_limit(limit));
+    }
+    instructions.extend(step.instructions.iter().cloned());
+    let message = Message::new(&instructions, Some(&step.payer));
+    let packet_bytes = bincode::serialize(&Transaction::new_unsigned(message.clone()))
+        .map(|bytes| bytes.len())
+        .unwrap_or(usize::MAX);
+    let required = usize::from(message.header.num_required_signatures);
+    let required_signers = message.account_keys[..required].to_vec();
+    Built {
+        message,
+        packet_bytes,
+        required_signers,
+    }
+}
+
+/// The hard rule: refuse to sign anything over 1,232 bytes.  The size is checked on the unsigned
+/// message, so no signature exists when the refusal fires.
+pub fn sign_checked(
+    label: &str,
+    built: &Built,
+    signers: &[&Keypair],
+    blockhash: Hash,
+) -> Result<Transaction, OpsError> {
+    if !built.fits() {
+        return refuse(format!(
+            "{label}: serialized transaction is {} bytes, over the {PACKET_LIMIT}-byte packet limit; nothing was signed",
+            built.packet_bytes
+        ));
+    }
+    let mut seen = BTreeSet::new();
+    let unique: Vec<&dyn Signer> = signers
+        .iter()
+        .filter(|keypair| seen.insert(keypair.pubkey()))
+        .map(|keypair| *keypair as &dyn Signer)
+        .collect();
+    let mut transaction = Transaction::new_unsigned(built.message.clone());
+    transaction
+        .try_partial_sign(&unique, blockhash)
+        .map_err(|error| {
+            OpsError::Refused(format!(
+                "{label}: a provided signer does not belong to this transaction ({error}); nothing was sent"
+            ))
+        })?;
+    if !transaction.is_signed() {
+        let missing: Vec<String> = built
+            .required_signers
+            .iter()
+            .filter(|key| !seen.contains(key))
+            .map(|key| key.to_string())
+            .collect();
+        return refuse(format!(
+            "{label}: required signer(s) {} were not provided; nothing was sent",
+            missing.join(", ")
+        ));
+    }
+    Ok(transaction)
+}
+
+/// What one step did.
+#[derive(Clone, Debug)]
+pub struct StepResult {
+    pub step_id: String,
+    pub label: String,
+    pub fee_payer: Pubkey,
+    pub required_signers: Vec<Pubkey>,
+    pub packet_bytes: usize,
+    pub instruction_count: usize,
+    pub depends_on_previous: bool,
+    pub executed: bool,
+    pub signature: Option<Signature>,
+    /// The slot a confirmed send landed in (or, when its status never reported one, the cluster slot read
+    /// after the confirmation: see `Ctx::confirmed_slot`).
+    pub slot: Option<u64>,
+    pub simulation: Option<SimOutcome>,
+}
+
+impl StepResult {
+    pub fn to_json(&self) -> Value {
+        json!({
+            "step": self.step_id,
+            "label": self.label,
+            "fee_payer": self.fee_payer.to_string(),
+            "required_signers": self.required_signers.iter().map(Pubkey::to_string).collect::<Vec<_>>(),
+            "packet_bytes": self.packet_bytes,
+            "fits_1232": self.packet_bytes <= PACKET_LIMIT,
+            "instructions": self.instruction_count,
+            "depends_on_previous": self.depends_on_previous,
+            "executed": self.executed,
+            "signature": self.signature.map(|signature| signature.to_string()),
+            "slot": self.slot,
+            "simulation": self.simulation.as_ref().map(|sim| json!({
+                "error": sim.error,
+                "units_consumed": sim.units_consumed,
+            })),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Context: the one place that can send
+// ---------------------------------------------------------------------------
+
+/// The write-ahead identity of the `fund-vault` transfer (a plain system transfer: not idempotent).
+const FUND_VAULT_STEP_ID: &str = "A5.fund_vault";
+
+/// Polls for the slot of a just-confirmed transaction (`--slot-polls`, default 20) and the pause between
+/// them: 10 s in all by default.
+const DEFAULT_SLOT_POLLS: u64 = 20;
+const MAX_SLOT_POLLS: u64 = 60;
+const SLOT_POLL_INTERVAL: Duration = Duration::from_millis(500);
+
+pub struct Ctx<'a> {
+    pub opts: &'a Opts,
+    pub gate: &'a Gate,
+    pub cluster: &'a dyn Cluster,
+    token: Option<ExecToken>,
+    /// The cluster's genesis hash (already checked against the gate).
+    genesis: String,
+    /// Where every signed transaction is recorded BEFORE it is sent.
+    pending_path: Option<PathBuf>,
+    pending_wait_seconds: u64,
+    slot_polls: usize,
+}
+
+/// How an unresolved send ended.
+enum Resolution {
+    Landed(u64),
+    FailedOnChain(String),
+    /// The blockhash is no longer valid, but the final lookup (history included) found NO status, found
+    /// one below the commitment, or failed.  That proves only that the transaction cannot land NOW, never
+    /// that it did not land earlier (a status cache evicts; a lookup can fail).  The record stays open, an
+    /// INCIDENT: nothing is rebuilt, and the tool has no command that clears it; only a later lookup that
+    /// positively finds the transaction (confirmed or failed) resolves it.
+    Held { why: String },
+    StillUnknown,
+}
+
+/// Append one JSON line to `path` (created if absent), durably: the whole line (newline included) is
+/// built in ONE buffer, handed to the file in ONE `write_all` (an `O_APPEND` write, so it cannot be
+/// interleaved with or torn into a second `write(2)` by this process), then `sync_data()` flushes it to
+/// the disk before this returns.  Any failure is returned; callers that guard a send treat it as fatal.
+fn append_json_line(path: &Path, value: &Value) -> Result<(), OpsError> {
+    use std::io::Write;
+    let io = |error: std::io::Error| OpsError::Failed(format!("{}: {error}", path.display()));
+    let mut line = serde_json::to_string(value).expect("json line");
+    line.push('\n');
+    let existed = path.exists();
+    let mut file = fs::OpenOptions::new().create(true).append(true).open(path).map_err(io)?;
+    file.write_all(line.as_bytes()).map_err(io)?;
+    file.sync_data().map_err(io)?;
+    if !existed {
+        // A new file's directory entry is durable only once its directory is synced.  Best effort: not
+        // every filesystem lets a directory be fsynced, and the record itself is already on disk.
+        #[cfg(unix)]
+        if let Ok(directory) = fs::File::open(path.parent().filter(|dir| !dir.as_os_str().is_empty()).unwrap_or(Path::new("."))) {
+            let _ = directory.sync_all();
+        }
+    }
+    Ok(())
+}
+
+/// A write-ahead record that no resolution record closes yet.
+struct OpenRecord {
+    signature: Signature,
+    blockhash: Hash,
+    step: String,
+    /// `why` of the newest NON-closing `held_unknown` line for this signature, if an earlier run held it.
+    held: Option<String>,
+    /// The recipient a `fund-wallets` transfer pays (its `fund.recipient` annotation); `None` for every other step.
+    recipient: Option<String>,
+}
+
+/// A write-ahead record whose resolution says the transaction CONFIRMED.
+struct ConfirmedRecord {
+    signature: String,
+    step: String,
+    slot: Option<u64>,
+    /// The recipient a `fund-wallets` transfer paid; `None` for every other step.
+    recipient: Option<String>,
+    /// The semantic intent hash a `fund-wallets` transfer recorded; `None` for every other step.
+    intent: Option<String>,
+}
+
+/// One `write_ahead` line, before it is matched with its resolution.
+struct WriteAheadLine {
+    signature: Signature,
+    blockhash: Hash,
+    step: String,
+    ours: bool,
+    recipient: Option<String>,
+    intent: Option<String>,
+}
+
+/// What the write-ahead file says about THIS cluster (records of another genesis are skipped).
+#[derive(Default)]
+struct PendingLog {
+    open: Vec<OpenRecord>,
+    confirmed: Vec<ConfirmedRecord>,
+}
+
+impl PendingLog {
+    /// The highest slot among the confirmed records: reads must reflect at least this slot.
+    fn max_confirmed_slot(&self) -> Option<u64> {
+        self.confirmed.iter().filter_map(|record| record.slot).max()
+    }
+}
+
+/// Parse the write-ahead file, FAIL CLOSED.  Only a file that does not exist is an empty log.  Any other
+/// read error, any non-blank line that is not a JSON record this tool wrote, any record without the
+/// fields it must carry, is a refusal naming the line: skipping a line could hide a transaction that
+/// may still land, or a confirmed one that must not be repeated.
+fn read_pending(path: &Path, genesis: &str) -> Result<PendingLog, OpsError> {
+    let text = match fs::read_to_string(path) {
+        Ok(text) => text,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(PendingLog::default()),
+        Err(error) => {
+            return refuse(format!(
+                "cannot read the write-ahead file {} ({error}); refusing to continue without knowing what was already sent",
+                path.display()
+            ))
+        }
+    };
+    let bad = |number: usize, why: &str| {
+        refuse::<PendingLog>(format!(
+            "{} line {number}: {why}; the write-ahead file must be intact before anything is sent (inspect it, do not delete lines)",
+            path.display()
+        ))
+    };
+    let mut write_ahead: Vec<WriteAheadLine> = Vec::new();
+    let mut resolved: BTreeMap<String, (String, Option<u64>)> = BTreeMap::new();
+    let mut held: BTreeMap<String, String> = BTreeMap::new();
+    for (index, line) in text.lines().enumerate() {
+        let number = index + 1;
+        if line.trim().is_empty() {
+            continue;
+        }
+        let record: Value = match serde_json::from_str(line) {
+            Ok(record) => record,
+            Err(error) => return bad(number, &format!("is not valid JSON ({error})")),
+        };
+        match record["event"].as_str() {
+            Some("resolved") => {
+                let (Some(signature), Some(outcome)) = (record["signature"].as_str(), record["outcome"].as_str()) else {
+                    return bad(number, "a `resolved` record without a signature and an outcome");
+                };
+                resolved.insert(signature.to_string(), (outcome.to_string(), record["slot"].as_u64()));
+            }
+            // Informational and NON-closing: an earlier run found the blockhash expired and no status.
+            Some("held_unknown") => {
+                let Some(signature) = record["signature"].as_str() else {
+                    return bad(number, "a `held_unknown` record without a signature");
+                };
+                held.insert(signature.to_string(), record["why"].as_str().unwrap_or("(no reason recorded)").to_string());
+            }
+            Some("write_ahead") => {
+                let (Some(signature), Some(blockhash), Some(record_genesis)) = (
+                    record["signature"].as_str().and_then(|text| Signature::from_str(text).ok()),
+                    record["blockhash"].as_str().and_then(|text| Hash::from_str(text).ok()),
+                    record["genesis_hash"].as_str(),
+                ) else {
+                    return bad(number, "a `write_ahead` record without a valid signature, blockhash and genesis_hash");
+                };
+                // A `fund-wallets` transfer carries a `fund` annotation naming its recipient: fail closed on a
+                // malformed one, because the once-per-recipient guard reads it.
+                let (recipient, intent) = match record.get("fund") {
+                    None | Some(Value::Null) => (None, None),
+                    Some(fund) => {
+                        let Some(recipient) = fund["recipient"].as_str().filter(|text| Pubkey::from_str(text).is_ok()) else {
+                            return bad(number, "a `write_ahead` record whose `fund` annotation lacks a valid `recipient` pubkey");
+                        };
+                        (Some(recipient.to_string()), fund["intent_sha256"].as_str().map(str::to_string))
+                    }
+                };
+                write_ahead.push(WriteAheadLine {
+                    signature,
+                    blockhash,
+                    step: record["step"].as_str().unwrap_or("?").to_string(),
+                    ours: record_genesis == genesis,
+                    recipient,
+                    intent,
+                });
+            }
+            other => return bad(number, &format!("has an unknown event {other:?}")),
+        }
+    }
+    let mut log = PendingLog::default();
+    for WriteAheadLine { signature, blockhash, step, ours, recipient, intent } in write_ahead {
+        if !ours {
+            progress(format!("ignoring a write-ahead record of another cluster ({signature})"));
+            continue;
+        }
+        match resolved.get(&signature.to_string()) {
+            None => {
+                let held = held.get(&signature.to_string()).cloned();
+                log.open.push(OpenRecord { signature, blockhash, step, held, recipient });
+            }
+            Some((outcome, slot)) if outcome.starts_with("confirmed") => {
+                log.confirmed.push(ConfirmedRecord { signature: signature.to_string(), step, slot: *slot, recipient, intent });
+            }
+            Some(_) => {}
+        }
+    }
+    Ok(log)
+}
+
+fn unix_wall_clock() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |elapsed| elapsed.as_secs())
+}
+
+/// A user-supplied file path: never the Solana CLI default wallet.
+fn guarded_path(spec: &str) -> Result<PathBuf, OpsError> {
+    let path = PathBuf::from(spec);
+    refuse_default_wallet(&path)?;
+    Ok(path)
+}
+
+/// `true` when `text` is a JSON array of 32..=64 small integers, i.e. a Solana CLI keypair file.
+fn looks_like_keypair(text: &str) -> bool {
+    serde_json::from_str::<Vec<u64>>(text.trim()).is_ok_and(|bytes| (32..=64).contains(&bytes.len()) && bytes.iter().all(|byte| *byte < 256))
+}
+
+/// A file this tool APPENDS to (receipts, write-ahead records): never the default wallet, never a
+/// `.json` file (use `.jsonl`), never a keypair-shaped file.
+fn guarded_output_path(flag: &str, spec: &str) -> Result<PathBuf, OpsError> {
+    let path = guarded_path(spec)?;
+    if path.extension().is_some_and(|extension| extension == "json") {
+        return refuse(format!("--{flag} {spec}: appended records go to a `.jsonl` file, never a `.json` file (a keypair or wallets.json)"));
+    }
+    if path.is_file() {
+        let metadata = fs::metadata(&path).map_err(|error| OpsError::Failed(format!("{spec}: {error}")))?;
+        if metadata.len() <= 4_096 {
+            let text = fs::read_to_string(&path).unwrap_or_default();
+            if looks_like_keypair(&text) {
+                return refuse(format!("--{flag} {spec} is a keypair-shaped file; refusing to append to it"));
+            }
+        }
+    }
+    Ok(path)
+}
+
+/// `--slot-polls N` (1..=60, default 20): how often a confirmed transaction's slot is polled for.
+fn slot_polls(opts: &Opts) -> Result<usize, OpsError> {
+    let polls = opts.u64_flag("slot-polls")?.unwrap_or(DEFAULT_SLOT_POLLS);
+    if !(1..=MAX_SLOT_POLLS).contains(&polls) {
+        return usage(format!("--slot-polls must be between 1 and {MAX_SLOT_POLLS}"));
+    }
+    Ok(polls as usize)
+}
+
+/// The write-ahead file: `--pending-file`, else `<wallet-dir>/pending.jsonl` for `flow`.  Required for
+/// `--execute` on devnet.
+fn pending_path_for(opts: &Opts, gate: &Gate) -> Result<Option<PathBuf>, OpsError> {
+    let path = match opts.get("pending-file") {
+        Some(spec) => Some(guarded_output_path("pending-file", spec)?),
+        None if opts.command == "flow" => opts
+            .get("wallet-dir")
+            .map(|dir| guarded_output_path("wallet-dir", &PathBuf::from(dir).join("pending.jsonl").display().to_string()))
+            .transpose()?,
+        None => None,
+    };
+    if gate.execute && gate.target == Target::Devnet && path.is_none() {
+        return refuse(
+            "--execute on devnet needs --pending-file <path.jsonl>: every signed transaction is recorded there before it is sent, \
+             so an ambiguous send can be resolved instead of rebuilt",
+        );
+    }
+    Ok(path)
+}
+
+impl<'a> Ctx<'a> {
+    pub fn executing(&self) -> bool {
+        self.token.is_some()
+    }
+
+    fn mode(&self) -> &'static str {
+        if self.executing() {
+            "execute"
+        } else {
+            "dry-run"
+        }
+    }
+
+    pub fn account(&self, key: &Pubkey) -> Result<Option<Account>, OpsError> {
+        self.cluster
+            .account(key)
+            .map_err(|error| rpc_err(&format!("getAccountInfo {key}"), error))
+    }
+
+    pub fn rent(&self, data_len: usize) -> Result<u64, OpsError> {
+        self.cluster
+            .rent_minimum(data_len)
+            .map_err(|error| rpc_err("getMinimumBalanceForRentExemption", error))
+    }
+
+    fn balance(&self, key: &Pubkey) -> Result<u64, OpsError> {
+        Ok(self.account(key)?.map_or(0, |account| account.lamports))
+    }
+
+    /// The verified packet pin of an executed devnet run (`null` on a loopback cluster or a dry run).
+    pub fn packet_json(&self) -> Value {
+        self.token
+            .as_ref()
+            .and_then(|token| token.packet.as_ref())
+            .map_or(Value::Null, PacketPin::to_json)
+    }
+
+    /// The ONLY place a transaction is sent, and it demands the execute token.
+    fn send_signed(&self, tx: &Transaction) -> Result<SendOutcome, SendError> {
+        if self.token.is_none() {
+            return Err(SendError::Rejected("internal error: send attempted without the execute token".into()));
+        }
+        self.cluster.send(tx)
+    }
+
+    /// Persist (stderr and the pending file) the signature, blockhash and `lastValidBlockHeight` of a
+    /// transaction BEFORE it is sent, durably ([`append_json_line`]: one write, then `sync_data`).  A
+    /// failure to persist stops the send.  The record names the cluster (genesis hash), the command and the
+    /// verified packet pin (`null` on a loopback run), so the file says on its own which deployment,
+    /// which reviewed text and which command each transaction belongs to.
+    fn write_ahead(
+        &self,
+        step: &Step,
+        tx: &Transaction,
+        blockhash: Hash,
+        last_valid_block_height: Option<u64>,
+        fund: Option<&Value>,
+    ) -> Result<(), OpsError> {
+        let signature = tx.signatures[0];
+        let mut record = json!({
+            "schema": 1, "event": "write_ahead", "command": self.opts.command, "step": step.id, "label": step.label,
+            "signature": signature.to_string(), "blockhash": blockhash.to_string(),
+            "last_valid_block_height": last_valid_block_height, "fee_payer": step.payer.to_string(),
+            "genesis_hash": self.genesis, "packet": self.packet_json(), "at_unix": unix_wall_clock(),
+        });
+        // `fund-wallets` only: the recipient, the semantic intent and the plan pins, so the once-per-recipient
+        // guard can find the transfer by recipient as well as by step and the file says which plan it paid.
+        if let Some(fund) = fund {
+            record["fund"] = fund.clone();
+        }
+        progress(format!(
+            "WRITE-AHEAD {} signature {signature} blockhash {blockhash} last_valid_block_height {last_valid_block_height:?}",
+            step.id
+        ));
+        if let Some(path) = &self.pending_path {
+            append_json_line(path, &record).map_err(|error| {
+                OpsError::Refused(format!("cannot persist the write-ahead record ({error}); not sending"))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// Close a write-ahead record.  A confirmed one carries the slot it landed in (and where that slot
+    /// came from), so a later invocation can seed `minContextSlot` from it.  The resolution append is
+    /// durable like the record itself; if it cannot be written the write-ahead record stays open and the
+    /// next invocation resolves it again from the chain (so the failure is reported, not fatal).
+    fn mark_resolved(&self, signature: &Signature, outcome: &str, slot: Option<u64>, slot_source: &str) {
+        progress(format!("RESOLVED {signature}: {outcome}"));
+        if let Some(path) = &self.pending_path {
+            let record = json!({
+                "schema": 1, "event": "resolved", "signature": signature.to_string(), "outcome": outcome,
+                "slot": slot, "slot_source": slot.map(|_| slot_source), "genesis_hash": self.genesis,
+                "at_unix": unix_wall_clock(),
+            });
+            if let Err(error) = append_json_line(path, &record) {
+                progress(format!("warning: could not append the resolution record: {error}"));
+            }
+        }
+    }
+
+    /// Note, in the write-ahead file, that a record is HELD: its blockhash expired and the status lookup
+    /// found nothing (or failed).  Informational and NON-closing (`read_pending` leaves the record open):
+    /// the held state is re-derived from the chain by every run, so a failure to append is only reported.
+    fn mark_held(&self, signature: &Signature, step: &str, why: &str) {
+        progress(format!("HELD {signature} (step {step}): {why}"));
+        if let Some(path) = &self.pending_path {
+            let record = json!({
+                "schema": 1, "event": "held_unknown", "signature": signature.to_string(), "step": step,
+                "why": why, "genesis_hash": self.genesis, "at_unix": unix_wall_clock(),
+            });
+            if let Err(error) = append_json_line(path, &record) {
+                progress(format!("warning: could not append the held_unknown note: {error}"));
+            }
+        }
+    }
+
+    /// The slot a CONFIRMED transaction landed in, so every later read can carry `minContextSlot`.
+    /// Polls the signature status (a node that confirmed it may need a moment to report it), then falls
+    /// back to the slot the cluster reports AFTER the confirmation (at the client's commitment, so it is
+    /// at or above the transaction's slot; a conservative floor).  If neither works this is an error that
+    /// says the transaction CONFIRMED: never continue with a stale `minContextSlot` of 0.
+    fn confirmed_slot(&self, label: &str, signature: &Signature) -> Result<(u64, &'static str), OpsError> {
+        let polls = self.slot_polls;
+        for attempt in 0..polls {
+            if let Ok(Some(slot)) = self.cluster.signature_slot(signature) {
+                return Ok((slot, "signature_status"));
+            }
+            if attempt + 1 < polls {
+                std::thread::sleep(SLOT_POLL_INTERVAL);
+            }
+        }
+        match self.cluster.slot() {
+            Ok(slot) => {
+                progress(format!(
+                    "note: the slot of {signature} could not be read from its status after {polls} polls; \
+                     reads use the cluster slot {slot} observed after the confirmation instead"
+                ));
+                Ok((slot, "get_slot_after_confirmation"))
+            }
+            Err(error) => {
+                self.mark_resolved(signature, "confirmed", None, "unknown");
+                fail(format!(
+                    "{label}: the transaction {signature} CONFIRMED, but its slot could not be learned (status polls found none; \
+                     getSlot failed: {error}), so no post-state read can be trusted and none was made. Do NOT re-send it: \
+                     look {signature} up on an explorer, then re-run `flow status` / `readback` (the write-ahead record is in \
+                     the pending file)"
+                ))
+            }
+        }
+    }
+
+    /// Refuse a NON-IDEMPOTENT act (a plain transfer that would repeat) when the write-ahead file already
+    /// holds a CONFIRMED record for it on this cluster.  This guard does not depend on what the RPC node
+    /// answers: a lagging node that still reports the old balance cannot make the tool pay twice.
+    fn refuse_repeat_of_confirmed(&self, step_id: &str) -> Result<(), OpsError> {
+        if !self.executing() {
+            return Ok(());
+        }
+        let Some(path) = &self.pending_path else { return Ok(()) };
+        let log = read_pending(path, &self.genesis)?;
+        if let Some(record) = log.open.iter().find(|record| record.step == step_id) {
+            return refuse(format!(
+                "`{step_id}` has an OPEN write-ahead record (signature {}, recorded in {}): its outcome is not known, and it \
+                 moves funds and is not idempotent, so it is not sent again until that record is resolved (a re-run \
+                 re-queries it); the tool has no command to clear an unknown record",
+                record.signature,
+                path.display()
+            ));
+        }
+        match log.confirmed.iter().find(|record| record.step == step_id) {
+            Some(record) => refuse(format!(
+                "`{step_id}` already CONFIRMED on this cluster (signature {}, slot {}; recorded in {}): it moves funds and \
+                 is not idempotent, so it is never sent twice whatever a node reports. Look the signature up; if a second \
+                 transfer is genuinely intended it is outside this tool",
+                record.signature,
+                record.slot.map_or("unknown".to_string(), |slot| slot.to_string()),
+                path.display()
+            )),
+            None => Ok(()),
+        }
+    }
+
+    /// Hand the highest confirmed slot in the write-ahead file to the cluster (`minContextSlot` of every
+    /// later read): each CLI run starts with no slot of its own, and a load-balanced RPC node may still be
+    /// behind a transaction an EARLIER run confirmed.  Read-only commands do it too: their answers are
+    /// what the operator decides from.
+    fn seed_confirmed_slot(&self) -> Result<(), OpsError> {
+        let Some(path) = &self.pending_path else { return Ok(()) };
+        if let Some(slot) = read_pending(path, &self.genesis)?.max_confirmed_slot() {
+            progress(format!("reads on this cluster wait for slot {slot} (the latest confirmed record in {})", path.display()));
+            self.cluster.note_confirmed_slot(slot);
+        }
+        Ok(())
+    }
+
+    /// Poll a signature (history included) until it is confirmed, failed on chain, or its blockhash is
+    /// no longer valid, for at most `--pending-wait-seconds`.  An expired blockhash means the transaction
+    /// cannot land NOW; it is no evidence about an EARLIER landing, so a final lookup that finds no status (or
+    /// fails) is [`Resolution::Held`], never a closing resolution.
+    fn wait_outcome(&self, signature: &Signature, blockhash: &Hash) -> Resolution {
+        let started = std::time::Instant::now();
+        loop {
+            match self.cluster.signature_outcome(signature) {
+                Ok(SigOutcome::Confirmed { slot }) => return Resolution::Landed(slot),
+                Ok(SigOutcome::Failed { error, .. }) => return Resolution::FailedOnChain(error),
+                Ok(SigOutcome::BelowCommitment { .. } | SigOutcome::Unknown) | Err(_) => {}
+            }
+            if let Ok(false) = self.cluster.blockhash_valid(blockhash) {
+                // No longer valid: one last look, and only a FOUND status closes the question.
+                return match self.cluster.signature_outcome(signature) {
+                    Ok(SigOutcome::Confirmed { slot }) => Resolution::Landed(slot),
+                    Ok(SigOutcome::Failed { error, .. }) => Resolution::FailedOnChain(error),
+                    Ok(SigOutcome::BelowCommitment { slot }) => Resolution::Held {
+                        why: format!(
+                            "its blockhash is no longer valid and a status was found in slot {slot}, but it has not reached the \
+                             client's commitment yet"
+                        ),
+                    },
+                    Ok(SigOutcome::Unknown) => Resolution::Held {
+                        why: "its blockhash is no longer valid and the status lookup (history included) returned NO status; a \
+                              missing status is not proof of absence"
+                            .into(),
+                    },
+                    Err(error) => Resolution::Held {
+                        why: format!(
+                            "its blockhash is no longer valid and the status lookup (history included) FAILED ({error}); a failed \
+                             lookup is not proof of absence"
+                        ),
+                    },
+                };
+            }
+            if started.elapsed().as_secs() >= self.pending_wait_seconds {
+                return Resolution::StillUnknown;
+            }
+            std::thread::sleep(Duration::from_secs(2));
+        }
+    }
+
+    /// Before ANYTHING is built, resolve every write-ahead record of this cluster that has no
+    /// resolution: a transaction that may still land is never rebuilt.  A write-ahead file that cannot be
+    /// read or parsed is a refusal ([`read_pending`]), never an empty log.
+    ///
+    /// A record whose blockhash is no longer valid but whose status lookup found nothing (or failed) is
+    /// HELD, not closed: the transaction cannot land now, but it may have landed before the node's status
+    /// cache evicted it.  Held records stay open, are re-queried by every run, and make this refuse every
+    /// time.  Only a later lookup that positively FINDS the transaction (confirmed or failed on chain)
+    /// resolves one.  There is no command to clear an unknown record.
+    fn resolve_pending_all(&self) -> Result<Vec<Value>, OpsError> {
+        let Some(path) = &self.pending_path else { return Ok(Vec::new()) };
+        let open = read_pending(path, &self.genesis)?.open;
+        let mut report = Vec::new();
+        let mut held: Vec<(Signature, String, String)> = Vec::new();
+        for OpenRecord { signature, blockhash, step, .. } in open {
+            progress(format!("resolving the pending write-ahead record {signature} (step {step}) before anything else"));
+            let outcome = match self.wait_outcome(&signature, &blockhash) {
+                Resolution::Landed(slot) => {
+                    self.cluster.note_confirmed_slot(slot);
+                    self.mark_resolved(&signature, "confirmed", Some(slot), "signature_status");
+                    "confirmed"
+                }
+                Resolution::FailedOnChain(error) => {
+                    self.mark_resolved(&signature, "failed_on_chain", None, "");
+                    progress(format!("{signature} failed on chain: {error}"));
+                    "failed_on_chain"
+                }
+                Resolution::Held { why } => {
+                    self.mark_held(&signature, &step, &why);
+                    held.push((signature, step, why));
+                    continue;
+                }
+                Resolution::StillUnknown => {
+                    return refuse(format!(
+                        "the pending transaction {signature} (step {step}) has no final status and its blockhash is still \
+                         valid, so it MAY STILL LAND; nothing is rebuilt. Wait for the blockhash to expire (about 90 s) and \
+                         re-run, or look the signature up (record: {})",
+                        path.display()
+                    ));
+                }
+            };
+            report.push(json!({ "signature": signature.to_string(), "step": step, "outcome": outcome }));
+        }
+        if held.is_empty() {
+            return Ok(report);
+        }
+        let listed: String = held
+            .iter()
+            .map(|(signature, step, why)| format!("\n  - signature {signature} (step {step}): {why}"))
+            .collect();
+        refuse(format!(
+            "INCIDENT: {} write-ahead record(s) are HELD UNKNOWN and nothing is built or sent. The transaction's outcome is \
+             UNKNOWN: an expired blockhash proves only that it cannot land now; it says nothing about an earlier landing, and a missing or \
+             failed status lookup is not proof of absence.{listed}\n\
+             STOP. Report the signature and the step. Checking an explorer (or `solana confirm -v <signature>`) and the \
+             recipient's balance history is information gathering only; it does not authorize a retry. The tool will not \
+             rebuild or clear a held record and has NO command to clear an unknown record: it resolves only when a later \
+             run's history lookup positively finds the transaction confirmed or failed (re-run an --execute command to \
+             re-query). If that never happens, any retry needs a separate, exact approval from Rob (the signature, the \
+             effect and the retry) and a review. Record: {}",
+            held.len(),
+            path.display()
+        ))
+    }
+
+    /// For dry runs and read-only commands, which never resolve anything: the write-ahead records that are
+    /// still OPEN, as JSON, with a loud warning on stderr.  A held record blocks every `--execute`.
+    fn open_pending_notice(&self) -> Result<Vec<Value>, OpsError> {
+        let Some(path) = &self.pending_path else { return Ok(Vec::new()) };
+        let open = read_pending(path, &self.genesis)?.open;
+        if open.is_empty() {
+            return Ok(Vec::new());
+        }
+        progress(format!(
+            "WARNING: {} write-ahead record(s) in {} are OPEN (no resolution). This command does not resolve them; every --execute \
+             command resolves them first and REFUSES while any is HELD (its blockhash expired but no status was found: the \
+             outcome is UNKNOWN, it may have landed). Do not assume a funding step did not happen",
+            open.len(),
+            path.display()
+        ));
+        Ok(open
+            .iter()
+            .map(|record| {
+                progress(format!(
+                    "WARNING: {} (step {}) is {}",
+                    record.signature,
+                    record.step,
+                    record.held.as_deref().map_or("OPEN and unresolved".to_string(), |why| format!("HELD: {why}"))
+                ));
+                json!({
+                    "signature": record.signature.to_string(), "step": record.step,
+                    "held": record.held.is_some(), "held_why": record.held,
+                })
+            })
+            .collect())
+    }
+
+    /// Dry run: measure (and optionally simulate unsigned).  Execute: refuse oversize, sign,
+    /// simulate (refuse on error), write ahead, send, and resolve an ambiguous outcome.
+    pub fn run_step(&self, step: &Step, signers: &[&Keypair]) -> Result<StepResult, OpsError> {
+        self.run_step_annotated(step, signers, None)
+    }
+
+    /// [`Ctx::run_step`] with an optional `fund` annotation written into the step's write-ahead record
+    /// (`fund-wallets`: recipient, intent, plan pins).
+    fn run_step_annotated(&self, step: &Step, signers: &[&Keypair], fund: Option<&Value>) -> Result<StepResult, OpsError> {
+        let built = build_step(step);
+        let mut result = StepResult {
+            step_id: step.id.clone(),
+            label: step.label.clone(),
+            fee_payer: step.payer,
+            required_signers: built.required_signers.clone(),
+            packet_bytes: built.packet_bytes,
+            instruction_count: step.instructions.len() + usize::from(step.cu_limit.is_some()),
+            depends_on_previous: step.depends_on_previous,
+            executed: false,
+            signature: None,
+            slot: None,
+            simulation: None,
+        };
+        if !built.fits() {
+            return refuse(format!(
+                "{}: serialized transaction is {} bytes, over the {PACKET_LIMIT}-byte packet limit; nothing was signed",
+                step.label, built.packet_bytes
+            ));
+        }
+        if !self.executing() {
+            if self.opts.switch("simulate") && !step.depends_on_previous {
+                let blockhash = self
+                    .cluster
+                    .blockhash()
+                    .map_err(|error| rpc_err("getLatestBlockhash", error))?;
+                let mut message = built.message.clone();
+                message.recent_blockhash = blockhash;
+                let unsigned = Transaction::new_unsigned(message);
+                result.simulation = Some(
+                    self.cluster
+                        .simulate(&unsigned, false)
+                        .map_err(|error| rpc_err("simulateTransaction", error))?,
+                );
+            }
+            return Ok(result);
+        }
+        let (blockhash, last_valid_block_height) = self
+            .cluster
+            .blockhash_with_expiry()
+            .map_err(|error| rpc_err("getLatestBlockhash", error))?;
+        let tx = sign_checked(&step.label, &built, signers, blockhash)?;
+        let simulation = self
+            .cluster
+            .simulate(&tx, true)
+            .map_err(|error| rpc_err("simulateTransaction", error))?;
+        if let Some(error) = &simulation.error {
+            let tail: Vec<&String> = simulation.logs.iter().rev().take(6).collect();
+            return refuse(format!(
+                "{}: simulateTransaction failed ({error}); nothing was sent. Last logs: {:?}",
+                step.label,
+                tail.into_iter().rev().collect::<Vec<_>>()
+            ));
+        }
+        result.simulation = Some(simulation);
+        let signature = tx.signatures[0];
+        self.write_ahead(step, &tx, blockhash, last_valid_block_height, fund)?;
+        let (sent, slot) = match self.send_signed(&tx) {
+            Ok(sent) => {
+                // Reads from here on must reflect at least this transaction's slot.  The record says the
+                // transaction CONFIRMED before anything else can go wrong; if its slot cannot be learned
+                // the step ends here with an error that says so.
+                let (slot, source) = self.confirmed_slot(&step.label, &signature)?;
+                self.cluster.note_confirmed_slot(slot);
+                self.mark_resolved(&signature, "confirmed", Some(slot), source);
+                (sent, slot)
+            }
+            Err(SendError::Rejected(message)) => {
+                self.mark_resolved(&signature, "rejected", None, "");
+                return fail(format!("{}: transaction failed: {message}", step.label));
+            }
+            Err(SendError::Unknown(message)) => {
+                progress(format!("{}: send outcome unknown ({message}); polling {signature}", step.label));
+                match self.wait_outcome(&signature, &blockhash) {
+                    Resolution::Landed(slot) => {
+                        self.cluster.note_confirmed_slot(slot);
+                        self.mark_resolved(&signature, "confirmed_after_ambiguous_send", Some(slot), "signature_status");
+                        (SendOutcome { signature, units_consumed: None }, slot)
+                    }
+                    Resolution::FailedOnChain(error) => {
+                        self.mark_resolved(&signature, "failed_on_chain", None, "");
+                        return fail(format!("{}: the transaction landed and failed: {error}", step.label));
+                    }
+                    Resolution::Held { why } => {
+                        self.mark_held(&signature, &step.id, &why);
+                        return fail(format!(
+                            "{}: INCIDENT, the send outcome is UNKNOWN ({message}) and signature {signature} is HELD{}: {why}. \
+                             It MAY HAVE LANDED: do NOT rebuild or re-send it. The record stays open and every --execute command \
+                             now refuses. STOP: report the signature and the step; an explorer or the recipient's balance history \
+                             is information gathering only and does not authorize a retry. The tool has no command to clear an \
+                             unknown record: a later run resolves it only when its history lookup positively finds the \
+                             transaction confirmed or failed; any other retry needs Rob's separate, exact approval.",
+                            step.label,
+                            self.pending_path
+                                .as_ref()
+                                .map_or(String::new(), |path| format!(" in {}", path.display()))
+                        ));
+                    }
+                    Resolution::StillUnknown => {
+                        return fail(format!(
+                            "{}: the send outcome is UNKNOWN ({message}); signature {signature} is recorded as pending{} and its \
+                             blockhash may still be valid: do NOT rebuild. Re-run after about 90 s; the pending record is resolved first.",
+                            step.label,
+                            self.pending_path
+                                .as_ref()
+                                .map_or(String::new(), |path| format!(" in {}", path.display()))
+                        ));
+                    }
+                }
+            }
+        };
+        result.executed = true;
+        result.signature = Some(sent.signature);
+        result.slot = Some(slot);
+        progress(format!("{} -> {}", step.label, sent.signature));
+        Ok(result)
+    }
+}
+
+fn key_list(keys: &[Pubkey]) -> Vec<String> {
+    keys.iter().map(Pubkey::to_string).collect()
+}
+
+fn check(name: impl Into<String>, ok: bool, expected: impl ToString, actual: impl ToString) -> Value {
+    json!({
+        "name": name.into(),
+        "ok": ok,
+        "expected": expected.to_string(),
+        "actual": actual.to_string(),
+    })
+}
+
+fn checks_ok(checks: &[Value]) -> bool {
+    checks.iter().all(|entry| entry["ok"].as_bool() == Some(true))
+}
+
+// ---------------------------------------------------------------------------
+// Inner instructions and step builders
+// ---------------------------------------------------------------------------
+
+fn loader_id() -> Pubkey {
+    solana_sdk_ids::bpf_loader_upgradeable::id()
+}
+
+/// `["<program id>"]` under the upgradeable loader.
+pub fn programdata_address(program_id: &Pubkey) -> Pubkey {
+    solana_loader_v3_interface::get_program_data_address(program_id)
+}
+
+/// The `initialize` arguments of the devnet acceptance run (packet 3c / A4): the provider tuple is
+/// the live devnet ORAO tuple, the request fee equals the live devnet fee.
+pub fn launch_args(
+    opts: &Opts,
+    sponsor: Pubkey,
+    management_recipient: Pubkey,
+) -> Result<InitializeArgs, OpsError> {
+    let cluster_domain = match opts.get("cluster-domain") {
+        None => DEVNET_CLUSTER_DOMAIN,
+        Some(text) => {
+            let bytes = text.as_bytes();
+            if bytes.len() != 32 {
+                return usage("--cluster-domain must be exactly 32 bytes of text");
+            }
+            bytes.try_into().expect("32 bytes")
+        }
+    };
+    let headroom = match opts.u64_flag("provider-fee-headroom-bps")? {
+        None => 2_500,
+        Some(value) => u16::try_from(value)
+            .map_err(|_| OpsError::Usage("--provider-fee-headroom-bps must fit in u16".into()))?,
+    };
+    Ok(InitializeArgs {
+        sponsor,
+        management_recipient,
+        cluster_domain,
+        provider_request_fee_lamports: opts
+            .u64_flag("provider-request-fee-lamports")?
+            .unwrap_or(300_000),
+        provider_fee_headroom_bps: headroom,
+        provider_program: orao::id(),
+        provider_network_state: orao::state::network_state::NetworkState::find_address(&orao::id()).0,
+        provider_treasury: Pubkey::from_str(sq::DEVNET_ORAO_TREASURY).expect("treasury"),
+        provider_client: provider::client_address().0,
+        public_series_a_enabled: opts.bool_flag("public-series-a-enabled", true)?,
+    })
+}
+
+/// The program's `initialize` instruction (mirror of `controls::initialize_accounts`), with the
+/// G vault as the governance signer and the sponsor as a keypair signer.
+pub fn initialize_inner(g: &Identity, p: &Identity, args: InitializeArgs) -> Instruction {
+    anchor_ix(
+        accounts::Initialize {
+            sponsor: args.sponsor,
+            pool: pda(&[state::POOL_SEED]).0,
+            admission: pda(&[state::ADMISSION_SEED]).0,
+            game_vault: pda(&[state::GAME_VAULT_SEED]).0,
+            ops: pda(&[state::OPS_SEED]).0,
+            ticket: pda(&[state::TICKET_SEED]).0,
+            rng_authority: pda(&[state::RNG_AUTHORITY_SEED]).0,
+            config: pda(&[state::CONFIG_SEED, &1u32.to_le_bytes()]).0,
+            ops_cash: pda(&[state::OPS_CASH_SEED]).0,
+            squads_program: SQUADS_PROGRAM_ID,
+            governance_multisig: g.multisig,
+            governance: g.vault,
+            guardian_multisig: p.multisig,
+            guardian: p.vault,
+            self_program: ID,
+            program_data: programdata_address(&ID),
+            system_program: system_program::ID,
+        },
+        instruction::Initialize { args },
+    )
+}
+
+/// ORAO `register` with the G vault as payer (it must be the program's upgrade authority),
+/// registering this program's `RngAuthority` PDA (mirror of `squads_real::orao_register_instruction`).
+pub fn register_inner(g: &Identity) -> Instruction {
+    let (rng_authority, rng_bump) = provider::rng_authority_address();
+    crate::close::foreign_ix(
+        orao::id(),
+        orao::accounts::Register {
+            payer: g.vault,
+            program: ID,
+            program_data: programdata_address(&ID),
+            state: rng_authority,
+            client: provider::client_address().0,
+            network_state: orao::state::network_state::NetworkState::find_address(&orao::id()).0,
+            system_program: system_program::ID,
+        },
+        orao::instruction::Register {
+            params: orao::RegisterParams::new(vec![
+                state::RNG_AUTHORITY_SEED.to_vec(),
+                vec![rng_bump],
+            ]),
+        },
+    )
+}
+
+fn step_squads_create(
+    id: &str,
+    label: &str,
+    treasury: Pubkey,
+    creator: Pubkey,
+    identity: &Identity,
+    members: &[Pubkey],
+    time_lock: u32,
+) -> Step {
+    let specs: Vec<(Pubkey, u8)> = members.iter().map(|key| (*key, sq::PERMISSION_ALL)).collect();
+    let (instruction, derived) = sq::multisig_create_v2_ix(
+        treasury,
+        creator,
+        identity.create_key,
+        &specs,
+        sq::THRESHOLD,
+        time_lock,
+    );
+    debug_assert_eq!(derived, identity.multisig);
+    Step {
+        id: id.into(),
+        label: label.into(),
+        instructions: vec![instruction],
+        payer: creator,
+        cu_limit: Some(CU_SQUADS),
+        depends_on_previous: false,
+    }
+}
+
+fn step_create_buffer(
+    deployer: Pubkey,
+    buffer: Pubkey,
+    lamports: u64,
+    elf_len: usize,
+) -> Result<Step, OpsError> {
+    let instructions = loader_instruction::create_buffer(&deployer, &buffer, &deployer, lamports, elf_len)
+        .map_err(|error| OpsError::Failed(format!("create_buffer: {error}")))?;
+    Ok(Step {
+        id: "A3.create_buffer".into(),
+        label: "loader-v3 create buffer (system create_account + InitializeBuffer)".into(),
+        instructions,
+        payer: deployer,
+        cu_limit: None,
+        depends_on_previous: false,
+    })
+}
+
+fn step_write(deployer: Pubkey, buffer: Pubkey, offset: u32, bytes: Vec<u8>) -> Step {
+    Step {
+        id: "A3.write".into(),
+        label: format!("loader-v3 write {} bytes at offset {offset}", bytes.len()),
+        instructions: vec![loader_instruction::write(&buffer, &deployer, offset, bytes)],
+        payer: deployer,
+        cu_limit: None,
+        depends_on_previous: true,
+    }
+}
+
+#[allow(deprecated)] // loader-v3 is the packet's deployment path; loader-v4 is out of scope.
+fn step_deploy(
+    deployer: Pubkey,
+    program: Pubkey,
+    buffer: Pubkey,
+    program_lamports: u64,
+    max_data_len: usize,
+) -> Result<Step, OpsError> {
+    let instructions = loader_instruction::deploy_with_max_program_len(
+        &deployer,
+        &program,
+        &buffer,
+        &deployer,
+        program_lamports,
+        max_data_len,
+    )
+    .map_err(|error| OpsError::Failed(format!("deploy_with_max_program_len: {error}")))?;
+    Ok(Step {
+        id: "A3.deploy".into(),
+        label: format!("loader-v3 DeployWithMaxDataLen (max_data_len {max_data_len})"),
+        instructions,
+        payer: deployer,
+        cu_limit: Some(CU_DEPLOY),
+        depends_on_previous: true,
+    })
+}
+
+fn step_set_authority(program: Pubkey, deployer: Pubkey, new_authority: Pubkey) -> Step {
+    Step {
+        id: "A3.set_upgrade_authority".into(),
+        label: "loader-v3 SetAuthority: upgrade authority -> G vault (unchecked: a PDA cannot co-sign)"
+            .into(),
+        instructions: vec![loader_instruction::set_upgrade_authority(
+            &program,
+            &deployer,
+            Some(&new_authority),
+        )],
+        payer: deployer,
+        cu_limit: None,
+        depends_on_previous: true,
+    }
+}
+
+fn step_transfer(payer: Pubkey, to: Pubkey, lamports: u64) -> Step {
+    Step {
+        id: FUND_VAULT_STEP_ID.into(),
+        label: format!("system transfer {lamports} lamports to the G vault"),
+        instructions: vec![system_instruction::transfer(&payer, &to, lamports)],
+        payer,
+        cu_limit: None,
+        depends_on_previous: false,
+    }
+}
+
+/// `vault_transaction_create` + `proposal_create`.  The proposer is ALWAYS creator, rent payer and
+/// fee payer: that is the only arrangement whose `vault_transaction_create` fits the 1,232-byte
+/// packet (1,140 bytes measured; a separate payer adds a signature and a key, about 1,235).
+fn steps_propose(g: &Identity, member: Pubkey, index: u64, message: &[u8]) -> (Step, Step) {
+    let create = Step {
+        id: "A4.vault_transaction_create".into(),
+        label: format!("squads vault_transaction_create #{index} (proposer = fee payer)"),
+        instructions: vec![sq::vault_transaction_create_ix(
+            g.multisig, index, member, member, 0, 0, message,
+        )],
+        payer: member,
+        cu_limit: Some(CU_SQUADS),
+        depends_on_previous: false,
+    };
+    let proposal = Step {
+        id: "A4.proposal_create".into(),
+        label: format!("squads proposal_create #{index}"),
+        instructions: vec![sq::proposal_create_ix(g.multisig, index, member, member, false)],
+        payer: member,
+        cu_limit: Some(CU_SQUADS),
+        depends_on_previous: true,
+    };
+    (create, proposal)
+}
+
+fn step_approve(g: &Identity, member: Pubkey, index: u64) -> Step {
+    Step {
+        id: "A4.proposal_approve".into(),
+        label: format!("squads proposal_approve #{index} by {member}"),
+        instructions: vec![sq::proposal_approve_ix(g.multisig, index, member)],
+        payer: member,
+        cu_limit: Some(CU_SQUADS),
+        depends_on_previous: true,
+    }
+}
+
+fn step_execute(g: &Identity, member: Pubkey, index: u64, inner: &Instruction) -> Step {
+    let compiled = sq::compile_vault_message(inner);
+    Step {
+        id: "A4.vault_transaction_execute".into(),
+        label: format!("squads vault_transaction_execute #{index}"),
+        instructions: vec![sq::vault_transaction_execute_ix(
+            g.multisig,
+            index,
+            member,
+            compiled.remaining_accounts(&g.vault, &[]),
+        )],
+        payer: member,
+        cu_limit: Some(CU_SQUADS),
+        depends_on_previous: true,
+    }
+}
+
+/// The largest chunk whose loader `Write` transaction (deployer pays and signs) fits the packet.
+pub fn max_write_chunk(deployer: &Pubkey, buffer: &Pubkey) -> usize {
+    let size_with =
+        |len: usize| build_step(&step_write(*deployer, *buffer, 0, vec![0u8; len])).packet_bytes;
+    let mut chunk = PACKET_LIMIT.saturating_sub(size_with(0)).saturating_sub(4);
+    while chunk > 0 && size_with(chunk) > PACKET_LIMIT {
+        chunk -= 1;
+    }
+    chunk
+}
+
+// ---------------------------------------------------------------------------
+// Shared reads and checks
+// ---------------------------------------------------------------------------
+
+impl<'a> Ctx<'a> {
+    fn cluster_json(&self, genesis: &str) -> Value {
+        json!({
+            "rpc": self.gate.rpc_url,
+            "target": match self.gate.target { Target::Local => "local", Target::Devnet => "devnet" },
+            "genesis_hash": genesis,
+            "slot": self.cluster.slot().ok(),
+            "commitment": format!("{:?}", self.gate.commitment.commitment),
+        })
+    }
+
+    fn g_identity(&self) -> Result<Identity, OpsError> {
+        Ok(identity(key_flag(self.opts, "g-create-key")?.pubkey))
+    }
+
+    fn p_identity(&self) -> Result<Identity, OpsError> {
+        Ok(identity(key_flag(self.opts, "p-create-key")?.pubkey))
+    }
+}
+
+/// Packet 3b: the expected on-chain profile of a multisig.
+pub struct ProfileSpec<'a> {
+    pub name: &'a str,
+    pub identity: Identity,
+    pub members: &'a [Pubkey],
+    pub time_lock: u32,
+}
+
+/// Check an on-chain multisig account against its profile (G: 2-of-3, 172,800 s; P: 2-of-3, 0 s;
+/// autonomous, no rent collector, exactly the three listed members each with Initiate|Vote|Execute).
+pub fn profile_checks(
+    spec: &ProfileSpec<'_>,
+    account: Option<&Account>,
+) -> (Vec<Value>, Option<sq::MultisigView>) {
+    let name = spec.name;
+    let Some(account) = account else {
+        return (
+            vec![check(format!("{name}.multisig_exists"), false, spec.identity.multisig, "absent")],
+            None,
+        );
+    };
+    let mut checks = vec![check(
+        format!("{name}.multisig_owner_is_squads"),
+        account.owner == SQUADS_PROGRAM_ID,
+        SQUADS_PROGRAM_ID,
+        account.owner,
+    )];
+    let view = match decode_multisig(&account.data) {
+        Ok(view) => view,
+        Err(error) => {
+            checks.push(check(format!("{name}.multisig_decodes"), false, "a Multisig", error));
+            return (checks, None);
+        }
+    };
+    checks.push(check(
+        format!("{name}.create_key"),
+        view.create_key == spec.identity.create_key,
+        spec.identity.create_key,
+        view.create_key,
+    ));
+    checks.push(check(
+        format!("{name}.config_authority_is_zero"),
+        view.config_authority == Pubkey::default(),
+        Pubkey::default(),
+        view.config_authority,
+    ));
+    checks.push(check(format!("{name}.threshold"), view.threshold == sq::THRESHOLD, sq::THRESHOLD, view.threshold));
+    checks.push(check(format!("{name}.time_lock_seconds"), view.time_lock == spec.time_lock, spec.time_lock, view.time_lock));
+    checks.push(check(
+        format!("{name}.rent_collector_none"),
+        view.rent_collector.is_none(),
+        "none",
+        view.rent_collector.map_or("none".to_string(), |key| key.to_string()),
+    ));
+    let mut expected: Vec<(Pubkey, u8)> = spec
+        .members
+        .iter()
+        .map(|key| (*key, SQUADS_ALL_PERMISSIONS))
+        .collect();
+    expected.sort_by_key(|(key, _)| *key);
+    let mut actual = view.members.clone();
+    actual.sort_by_key(|(key, _)| *key);
+    checks.push(check(
+        format!("{name}.members_and_permissions"),
+        actual == expected,
+        format!("{expected:?}"),
+        format!("{actual:?}"),
+    ));
+    let vault = fixtures::squads::vault_address(&spec.identity.multisig, 0).0;
+    checks.push(check(format!("{name}.vault_index_0"), vault == spec.identity.vault, spec.identity.vault, vault));
+    (checks, Some(view))
+}
+
+/// What the cluster holds for a program id.
+pub struct ProgramLookup {
+    pub program_id: Pubkey,
+    pub programdata: Pubkey,
+    pub program: Option<Account>,
+    pub programdata_account: Option<Account>,
+}
+
+fn lookup_program(ctx: &Ctx<'_>, program_id: &Pubkey) -> Result<ProgramLookup, OpsError> {
+    let programdata = programdata_address(program_id);
+    Ok(ProgramLookup {
+        program_id: *program_id,
+        programdata,
+        program: ctx.account(program_id)?,
+        programdata_account: ctx.account(&programdata)?,
+    })
+}
+
+/// Checks of the loader-v3 Program account and the ProgramData account it points at.
+fn program_checks(lookup: &ProgramLookup) -> Vec<Value> {
+    let Some(program) = &lookup.program else {
+        return vec![check("program.account_exists", false, lookup.program_id, "absent")];
+    };
+    let mut checks = vec![
+        check("program.owner_is_loader_v3", program.owner == loader_id(), loader_id(), program.owner),
+        check("program.executable", program.executable, true, program.executable),
+    ];
+    match decode_program_account(&program.data) {
+        Ok(pointer) => checks.push(check(
+            "program.points_at_derived_programdata",
+            pointer == lookup.programdata,
+            lookup.programdata,
+            pointer,
+        )),
+        Err(error) => checks.push(check("program.decodes", false, "Program state", error)),
+    }
+    match &lookup.programdata_account {
+        None => checks.push(check("programdata.exists", false, lookup.programdata, "absent")),
+        Some(account) => checks.push(check(
+            "programdata.owner_is_loader_v3",
+            account.owner == loader_id(),
+            loader_id(),
+            account.owner,
+        )),
+    }
+    checks
+}
+
+fn read_pinned_elf(opts: &Opts, gate: &Gate) -> Result<(Vec<u8>, String), OpsError> {
+    let path = opts.require("elf")?;
+    refuse_default_wallet(Path::new(path))?;
+    let elf = fs::read(path).map_err(|error| OpsError::Failed(format!("{path}: {error}")))?;
+    if elf.len() < MIN_ELF_BYTES || elf.len() > MAX_PROGRAM_BYTES {
+        return refuse(format!("{path} is {} bytes, not a plausible program ELF", elf.len()));
+    }
+    if &elf[..4] != b"\x7fELF" {
+        return refuse(format!("{path} does not start with the ELF magic"));
+    }
+    let digest = devnet::sha256_hex(&elf);
+    let pinned = match opts.get("expected-sha256") {
+        None => PINNED_PROGRAM_ELF_SHA256.to_string(),
+        Some(value) => {
+            if gate.target != Target::Local {
+                return refuse("--expected-sha256 overrides the pin only on a local cluster");
+            }
+            let value = value.to_ascii_lowercase();
+            if value.len() != 64 || !value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+                return usage("--expected-sha256 must be 64 hex digits");
+            }
+            value
+        }
+    };
+    if digest != pinned {
+        return refuse(format!(
+            "{path} hashes to {digest}, not the pinned {pinned}; nothing was sent"
+        ));
+    }
+    Ok((elf, digest))
+}
+
+/// `(creation fee, treasury)` of the Squads `ProgramConfig` account.
+pub fn decode_program_config(data: &[u8]) -> Result<(u64, Pubkey), String> {
+    let mut reader = Reader::new(data);
+    reader.take(8)?;
+    let _authority = reader.key()?;
+    let fee = reader.u64()?;
+    let treasury = reader.key()?;
+    Ok((fee, treasury))
+}
+
+fn member_has(view: &sq::MultisigView, member: &Pubkey, permission: u8) -> bool {
+    view.members
+        .iter()
+        .any(|(key, mask)| key == member && mask & permission == permission)
+}
+
+/// The G multisig as the commands need it: profile verified (refusing on any failed check).
+fn require_g_profile(
+    ctx: &Ctx<'_>,
+    g: &Identity,
+    members: &[Pubkey],
+) -> Result<sq::MultisigView, OpsError> {
+    let account = ctx.account(&g.multisig)?;
+    let (checks, view) = profile_checks(
+        &ProfileSpec {
+            name: "G",
+            identity: *g,
+            members,
+            time_lock: sq::G_TIME_LOCK,
+        },
+        account.as_ref(),
+    );
+    match view {
+        Some(view) if checks_ok(&checks) => Ok(view),
+        _ => refuse(format!(
+            "the G multisig {} does not match the expected profile: {}",
+            g.multisig,
+            serde_json::to_string(&checks.iter().filter(|c| c["ok"] != json!(true)).collect::<Vec<_>>())
+                .unwrap_or_default()
+        )),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// verify-bytes (packet A8, read-only)
+// ---------------------------------------------------------------------------
+
+fn expected_authority(ctx: &Ctx<'_>, spec: &str) -> Result<Option<Pubkey>, OpsError> {
+    match spec {
+        "none" => Ok(None),
+        "g-vault" => Ok(Some(ctx.g_identity()?.vault)),
+        other => Ok(Some(KeyFile::load(other)?.pubkey)),
+    }
+}
+
+fn cmd_verify_bytes(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let (elf, elf_sha) = read_pinned_elf(ctx.opts, ctx.gate)?;
+    let program_id = match ctx.opts.get("program-id") {
+        None => ID,
+        Some(text) => Pubkey::from_str(text)
+            .map_err(|_| OpsError::Usage("--program-id must be a base58 pubkey".into()))?,
+    };
+    let lookup = lookup_program(ctx, &program_id)?;
+    let mut checks = program_checks(&lookup);
+    let mut report_json = Value::Null;
+    if let Some(account) = &lookup.programdata_account {
+        match verify_programdata(&account.data, &elf) {
+            Ok(report) => {
+                checks.push(check(
+                    "programdata.elf_bytes_equal_pinned_elf",
+                    report.elf_matches,
+                    format!("data[45..45+{}] == ELF {elf_sha}", report.elf_len),
+                    format!("first mismatch {:?}", report.first_mismatch),
+                ));
+                checks.push(check(
+                    "programdata.padding_all_zero",
+                    report.padding_all_zero,
+                    "all zero",
+                    format!("{} padding bytes", report.padding_len),
+                ));
+                if let Some(spec) = ctx.opts.get("expect-authority") {
+                    let want = expected_authority(ctx, spec)?;
+                    checks.push(check(
+                        "programdata.upgrade_authority",
+                        report.header.authority == want,
+                        want.map_or("none".to_string(), |key| key.to_string()),
+                        report
+                            .header
+                            .authority
+                            .map_or("none".to_string(), |key| key.to_string()),
+                    ));
+                }
+                report_json = report.to_json();
+            }
+            Err(error) => checks.push(check("programdata.header_decodes", false, "ProgramData header", error)),
+        }
+    }
+    let all_ok = checks_ok(&checks);
+    Ok(json!({
+        "command": "verify-bytes",
+        "mode": "read-only",
+        "program_id": program_id.to_string(),
+        "programdata_address": lookup.programdata.to_string(),
+        "elf_sha256": elf_sha,
+        "elf_len": elf.len(),
+        "programdata": report_json,
+        "checks": checks,
+        "all_ok": all_ok,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// squads-create (packet A2)
+// ---------------------------------------------------------------------------
+
+fn cmd_squads_create(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let payer = key_flag(opts, "payer")?;
+    let g_key = key_flag(opts, "g-create-key")?;
+    let p_key = key_flag(opts, "p-create-key")?;
+    let g_members = read_members(opts.require("g-members")?)?;
+    let p_members = read_members(opts.require("p-members")?)?;
+    let g = identity(g_key.pubkey);
+    let p = identity(p_key.pubkey);
+    if g.create_key == p.create_key {
+        return refuse("the G and P create keys must differ");
+    }
+    let config = ctx.account(&sq::program_config_address())?.ok_or_else(|| {
+        OpsError::Refused("the Squads ProgramConfig account is absent: Squads is not deployed on this cluster".into())
+    })?;
+    if config.owner != SQUADS_PROGRAM_ID {
+        return refuse(format!("ProgramConfig is owned by {}, not Squads", config.owner));
+    }
+    let (creation_fee, treasury) = decode_program_config(&config.data)
+        .map_err(|error| OpsError::Failed(format!("ProgramConfig: {error}")))?;
+    let max_fee = opts.u64_flag("max-creation-fee")?.unwrap_or(0);
+    if creation_fee > max_fee {
+        return refuse(format!(
+            "Squads charges {creation_fee} lamports per multisig, above --max-creation-fee {max_fee}"
+        ));
+    }
+    let overlap: Vec<String> = g_members
+        .iter()
+        .filter(|key| p_members.contains(key))
+        .map(Pubkey::to_string)
+        .collect();
+
+    let mut multisigs = Vec::new();
+    let mut steps = Vec::new();
+    let mut all_ok = true;
+    for (name, ident, members, time_lock) in [
+        ("G", g, &g_members, sq::G_TIME_LOCK),
+        ("P", p, &p_members, sq::P_TIME_LOCK),
+    ] {
+        let spec = ProfileSpec {
+            name,
+            identity: ident,
+            members,
+            time_lock,
+        };
+        let existing = ctx.account(&ident.multisig)?;
+        if existing.is_some() {
+            let (checks, _) = profile_checks(&spec, existing.as_ref());
+            if !checks_ok(&checks) {
+                return refuse(format!(
+                    "{name} multisig {} already exists with a DIFFERENT profile; refusing: {}",
+                    ident.multisig,
+                    serde_json::to_string(&checks).unwrap_or_default()
+                ));
+            }
+            progress(format!("{name} multisig {} already exists with the expected profile", ident.multisig));
+            multisigs.push(json!({
+                "name": name, "multisig": ident.multisig.to_string(), "vault_0": ident.vault.to_string(),
+                "created_by_this_run": false, "checks": checks,
+            }));
+            continue;
+        }
+        let step = step_squads_create(
+            &format!("A2.multisig_create_v2.{name}"),
+            &format!("squads multisig_create_v2 {name} (2-of-3, time lock {time_lock} s)"),
+            treasury,
+            payer.pubkey,
+            &ident,
+            members,
+            time_lock,
+        );
+        let signers: Vec<&Keypair> = if ctx.executing() {
+            vec![payer.keypair()?, g_or_p_key(&g_key, &p_key, name)?.keypair()?]
+        } else {
+            Vec::new()
+        };
+        let result = ctx.run_step(&step, &signers)?;
+        let mut entry = json!({
+            "name": name, "multisig": ident.multisig.to_string(), "vault_0": ident.vault.to_string(),
+            "created_by_this_run": result.executed,
+            "rent_lamports_estimate": ctx.rent(MULTISIG_ACCOUNT_BYTES)?,
+        });
+        if result.executed {
+            let (checks, _) = profile_checks(&spec, ctx.account(&ident.multisig)?.as_ref());
+            all_ok &= checks_ok(&checks);
+            entry["checks"] = json!(checks);
+        }
+        multisigs.push(entry);
+        steps.push(result.to_json());
+    }
+    Ok(json!({
+        "command": "squads-create",
+        "mode": ctx.mode(),
+        "squads_creation_fee_lamports": creation_fee,
+        "squads_treasury": treasury.to_string(),
+        "creator_and_fee_payer": payer.pubkey.to_string(),
+        "g_and_p_member_overlap": overlap,
+        "multisigs": multisigs,
+        "steps": steps,
+        "all_ok": all_ok,
+    }))
+}
+
+fn g_or_p_key<'k>(g: &'k KeyFile, p: &'k KeyFile, name: &str) -> Result<&'k KeyFile, OpsError> {
+    match name {
+        "G" => Ok(g),
+        "P" => Ok(p),
+        other => fail(format!("internal: unknown multisig {other}")),
+    }
+}
+
+// ---------------------------------------------------------------------------
+// fund-vault
+// ---------------------------------------------------------------------------
+
+fn cmd_fund_vault(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let payer = key_flag(opts, "payer")?;
+    let g = ctx.g_identity()?;
+    let members = read_members(opts.require("g-members")?)?;
+    let lamports = opts
+        .u64_flag("lamports")?
+        .ok_or_else(|| OpsError::Usage("`fund-vault` needs --lamports".into()))?;
+    if lamports == 0 || lamports > VAULT_FUNDING_CAP_LAMPORTS {
+        return refuse(format!(
+            "--lamports {lamports} is outside 1..={VAULT_FUNDING_CAP_LAMPORTS} (packet 4b: the vault needs about 0.02 SOL)"
+        ));
+    }
+    // A transfer is not idempotent. Whatever the RPC node reports about the vault's balance, a transfer the
+    // write-ahead file already holds as CONFIRMED is never repeated.
+    ctx.refuse_repeat_of_confirmed(FUND_VAULT_STEP_ID)?;
+    // The full G profile (members, 2-of-3, 172,800 s, autonomous), not just "a Squads-owned account".
+    require_g_profile(ctx, &g, &members)?;
+    // A balance guard: a transfer is not idempotent, so a repeated or resumed run must not pay twice.
+    let needed = ctx.rent(ORAO_CLIENT_BYTES)? + ctx.rent(0)?;
+    let before = ctx.balance(&g.vault)?;
+    if before >= needed {
+        return refuse(format!(
+            "the G vault {} already holds {before} lamports, at least the {needed} it needs (ORAO Client rent + its own floor); \
+             not funding it again",
+            g.vault
+        ));
+    }
+    if before + lamports > VAULT_FUNDING_CAP_LAMPORTS {
+        return refuse(format!(
+            "{before} already in the vault + {lamports} would bring its TOTAL above {VAULT_FUNDING_CAP_LAMPORTS} lamports (packet 4b: about 0.02 SOL)"
+        ));
+    }
+    let step = step_transfer(payer.pubkey, g.vault, lamports);
+    let signers: Vec<&Keypair> = if ctx.executing() { vec![payer.keypair()?] } else { Vec::new() };
+    let result = ctx.run_step(&step, &signers)?;
+    let mut checks = Vec::new();
+    let mut after = Value::Null;
+    if ctx.executing() {
+        let balance = ctx.balance(&g.vault)?;
+        checks.push(check("vault balance after == before + lamports", balance == before + lamports, before + lamports, balance));
+        after = json!(balance);
+    }
+    Ok(json!({
+        "command": "fund-vault",
+        "mode": ctx.mode(),
+        "g_vault": g.vault.to_string(),
+        "vault_balance_before": before,
+        "vault_balance_after": after,
+        "vault_needs_lamports": needed,
+        "steps": [result.to_json()],
+        "checks": checks,
+        "all_ok": checks_ok(&checks),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// deploy (packet A3)
+// ---------------------------------------------------------------------------
+
+fn cmd_deploy(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    // Devnet ceilings are not raisable: 15 SOL peak (packet 4c) and zero ProgramData padding unless a
+    // justification is given (and recorded).  Checked before anything is read.
+    let mut justification: Option<String> = None;
+    if ctx.gate.target == Target::Devnet {
+        if let Some(cap) = opts.u64_flag("max-spend-lamports")? {
+            if cap > DEPLOY_SPEND_CAP_LAMPORTS {
+                return refuse(format!(
+                    "--max-spend-lamports {cap} exceeds the packet's 15 SOL ({DEPLOY_SPEND_CAP_LAMPORTS} lamports) deployment ceiling; \
+                     it cannot be raised on devnet"
+                ));
+            }
+        }
+        if opts.get("max-data-len").is_some() {
+            let text = opts.get("max-data-len-justification").map(str::trim).unwrap_or("");
+            if text.is_empty() {
+                return refuse(
+                    "on devnet --max-data-len is accepted only with --max-data-len-justification <text>: ProgramData padding is \
+                     paid in rent and permanent (the packet deploys with max_data_len = elf_len)",
+                );
+            }
+            justification = Some(text.to_string());
+        }
+    }
+    let (elf, elf_sha) = read_pinned_elf(opts, ctx.gate)?;
+    let deployer = key_flag(opts, "deployer")?;
+    let program = key_flag(opts, "program-keypair")?;
+    let buffer = key_flag(opts, "buffer-keypair")?;
+    let g_key = key_flag(opts, "g-create-key")?;
+    let g_members = read_members(opts.require("g-members")?)?;
+    let g = identity(g_key.pubkey);
+
+    if program.pubkey != ID
+        && !(ctx.gate.target == Target::Local && opts.switch("allow-program-id-mismatch"))
+    {
+        return refuse(format!(
+            "the program keypair is {} but the compiled-in program id is {ID}; a different id needs a rebuilt \
+             ELF and re-pinned hashes (packet 5a). --allow-program-id-mismatch exists on a local cluster only",
+            program.pubkey
+        ));
+    }
+    let distinct: BTreeSet<Pubkey> = [deployer.pubkey, program.pubkey, buffer.pubkey].into_iter().collect();
+    if distinct.len() != 3 {
+        return refuse("the deployer, program and buffer keypairs must be three different keys");
+    }
+    let elf_len = elf.len();
+    let max_data_len = match opts.u64_flag("max-data-len")? {
+        None => elf_len,
+        Some(value) => usize::try_from(value).map_err(|_| OpsError::Usage("--max-data-len".into()))?,
+    };
+    if max_data_len < elf_len || max_data_len > MAX_PROGRAM_BYTES {
+        return refuse(format!(
+            "--max-data-len {max_data_len} must be at least the ELF length {elf_len} (and at most {MAX_PROGRAM_BYTES})"
+        ));
+    }
+    let buffer_rent = ctx.rent(BUFFER_HEADER_LEN + elf_len)?;
+    let program_rent = ctx.rent(UpgradeableLoaderState::size_of_program())?;
+    let programdata_rent = ctx.rent(PROGRAMDATA_HEADER_LEN + max_data_len)?;
+    let chunk = max_write_chunk(&deployer.pubkey, &buffer.pubkey);
+    if chunk == 0 {
+        return fail("cannot fit any ELF bytes in a write transaction");
+    }
+    let write_count = elf_len.div_ceil(chunk);
+    let fee_estimate = (write_count as u64 + 6) * SIGNATURE_FEE_LAMPORTS * 2;
+    let conservative_peak = buffer_rent + program_rent + programdata_rent + fee_estimate;
+    let cap = opts.u64_flag("max-spend-lamports")?.unwrap_or(DEPLOY_SPEND_CAP_LAMPORTS);
+    if conservative_peak > cap {
+        return refuse(format!(
+            "the deployment's peak lamports {conservative_peak} exceed the cap {cap} (--max-spend-lamports; packet 4c: 15 SOL)"
+        ));
+    }
+
+    let lookup = lookup_program(ctx, &program.pubkey)?;
+    let buffer_account = ctx.account(&buffer.pubkey)?;
+    let deployer_balance = ctx.balance(&deployer.pubkey)?;
+    let mut notes: Vec<String> = Vec::new();
+    if max_data_len > elf_len {
+        notes.push(format!(
+            "max_data_len exceeds the ELF by {} bytes: that padding is paid in rent and is permanent",
+            max_data_len - elf_len
+        ));
+    }
+    if devnet::elf64_extent(&elf) != Ok(elf_len) {
+        notes.push("the ELF's own section/segment table does not end exactly at the file length".into());
+    }
+
+    let program_exists = lookup.program.is_some();
+    let mut buffer_existing: Option<Vec<u8>> = None;
+    if !program_exists {
+        if let Some(account) = &buffer_account {
+            if account.owner != loader_id() {
+                return refuse(format!("the buffer address {} exists and is not loader-owned", buffer.pubkey));
+            }
+            match decode_buffer_authority(&account.data) {
+                Ok(Some(authority)) if authority == deployer.pubkey => {}
+                Ok(other) => {
+                    return refuse(format!(
+                        "the existing buffer's authority is {other:?}, not the deployer {}",
+                        deployer.pubkey
+                    ))
+                }
+                Err(error) => return refuse(format!("the existing buffer account is not a Buffer: {error}")),
+            }
+            if account.data.len() != BUFFER_HEADER_LEN + elf_len {
+                return refuse(format!(
+                    "the existing buffer is {} bytes, expected {}",
+                    account.data.len(),
+                    BUFFER_HEADER_LEN + elf_len
+                ));
+            }
+            buffer_existing = Some(account.data[BUFFER_HEADER_LEN..].to_vec());
+        }
+    } else {
+        let program_state = program_checks(&lookup);
+        if !checks_ok(&program_state) {
+            return refuse(format!(
+                "the program account exists but is not a healthy loader-v3 program: {}",
+                serde_json::to_string(&program_state).unwrap_or_default()
+            ));
+        }
+    }
+    let funds_needed = if program_exists {
+        0
+    } else {
+        (if buffer_existing.is_some() { 0 } else { buffer_rent }) + program_rent + programdata_rent + fee_estimate
+    };
+    if !program_exists && deployer_balance < funds_needed {
+        let message = format!(
+            "the deployer holds {deployer_balance} lamports but this deployment needs {funds_needed} (buffer {buffer_rent} + \
+             program {program_rent} + programdata {programdata_rent} + fees {fee_estimate}); fund it first so no buffer is stranded"
+        );
+        if ctx.executing() {
+            return refuse(message);
+        }
+        notes.push(format!("a real run would refuse: {message}"));
+    }
+
+    let mut steps = Vec::new();
+    let mut writes_summary = json!(null);
+    let mut stage_log: Vec<String> = Vec::new();
+
+    if !program_exists {
+        // 1. buffer
+        if buffer_existing.is_none() {
+            let step = step_create_buffer(deployer.pubkey, buffer.pubkey, buffer_rent, elf_len)?;
+            let signers: Vec<&Keypair> = if ctx.executing() {
+                vec![deployer.keypair()?, buffer.keypair()?]
+            } else {
+                Vec::new()
+            };
+            steps.push(ctx.run_step(&step, &signers)?.to_json());
+            stage_log.push("created the buffer".into());
+        } else {
+            stage_log.push("resuming into the existing buffer".into());
+        }
+        // 2. chunked writes (idempotent: identical chunks are skipped, so a re-run resumes)
+        let existing = buffer_existing.unwrap_or_else(|| vec![0u8; elf_len]);
+        let mut sent = 0usize;
+        let mut skipped = 0usize;
+        let mut max_packet = 0usize;
+        let mut first_signature = None;
+        let mut last_signature = None;
+        for (index, bytes) in elf.chunks(chunk).enumerate() {
+            let offset = index * chunk;
+            if existing[offset..offset + bytes.len()] == *bytes {
+                skipped += 1;
+                continue;
+            }
+            let step = step_write(deployer.pubkey, buffer.pubkey, offset as u32, bytes.to_vec());
+            max_packet = max_packet.max(build_step(&step).packet_bytes);
+            if !ctx.executing() {
+                sent += 1;
+                continue;
+            }
+            let result = ctx.run_step(&step, &[deployer.keypair()?])?;
+            sent += 1;
+            if first_signature.is_none() {
+                first_signature = result.signature.map(|s| s.to_string());
+            }
+            last_signature = result.signature.map(|s| s.to_string());
+            if sent.is_multiple_of(100) {
+                progress(format!("wrote {sent} chunks ({skipped} identical skipped) of {write_count}"));
+            }
+        }
+        writes_summary = json!({
+            "chunk_bytes": chunk, "total_chunks": write_count, "to_write": sent, "skipped_identical": skipped,
+            "max_packet_bytes": max_packet, "first_signature": first_signature, "last_signature": last_signature,
+            "executed": ctx.executing(),
+        });
+        if ctx.executing() {
+            // 3. the buffer must now hold exactly the pinned ELF
+            let buffer_now = ctx
+                .account(&buffer.pubkey)?
+                .ok_or_else(|| OpsError::Failed("the buffer disappeared".into()))?;
+            if buffer_now.data.get(BUFFER_HEADER_LEN..) != Some(&elf[..]) {
+                return fail("the buffer does not hold the pinned ELF after the writes; re-run `deploy` to rewrite the differing chunks");
+            }
+            stage_log.push("buffer verified byte-for-byte against the pinned ELF".into());
+            // 4. deploy
+            let step = step_deploy(deployer.pubkey, program.pubkey, buffer.pubkey, program_rent, max_data_len)?;
+            steps.push(ctx.run_step(&step, &[deployer.keypair()?, program.keypair()?])?.to_json());
+            stage_log.push("deployed".into());
+        } else {
+            let step = step_deploy(deployer.pubkey, program.pubkey, buffer.pubkey, program_rent, max_data_len)?;
+            steps.push(ctx.run_step(&step, &[])?.to_json());
+        }
+    } else {
+        stage_log.push("the program account already exists: skipping buffer, writes and deploy".into());
+    }
+
+    // 5. A8 first pass, BEFORE the authority moves
+    let mut checks = Vec::new();
+    let mut programdata_report = Value::Null;
+    let mut authority_after = Value::Null;
+    let g_checks = {
+        let account = ctx.account(&g.multisig)?;
+        profile_checks(
+            &ProfileSpec { name: "G", identity: g, members: &g_members, time_lock: sq::G_TIME_LOCK },
+            account.as_ref(),
+        )
+        .0
+    };
+    if ctx.executing() || program_exists {
+        let fresh = lookup_program(ctx, &program.pubkey)?;
+        checks.extend(program_checks(&fresh));
+        let Some(programdata_account) = &fresh.programdata_account else {
+            return fail("the ProgramData account is absent after the deploy");
+        };
+        let report = verify_programdata(&programdata_account.data, &elf)
+            .map_err(|error| OpsError::Failed(format!("ProgramData header: {error}")))?;
+        checks.push(check("programdata.elf_bytes_equal_pinned_elf", report.elf_matches, "equal", format!("{:?}", report.first_mismatch)));
+        checks.push(check("programdata.padding_all_zero", report.padding_all_zero, "all zero", report.padding_len));
+        programdata_report = report.to_json();
+        if !report.ok() {
+            return Ok(json!({
+                "command": "deploy", "mode": ctx.mode(), "stopped": "deployed bytes differ from the pinned ELF; the upgrade authority was NOT transferred",
+                "checks": checks, "programdata": programdata_report, "all_ok": false,
+            }));
+        }
+        // 6. authority -> G vault
+        match report.header.authority {
+            Some(authority) if authority == g.vault => {
+                stage_log.push("the upgrade authority is already the G vault".into());
+            }
+            Some(authority) if authority == deployer.pubkey => {
+                if !checks_ok(&g_checks) {
+                    return refuse(format!(
+                        "the G multisig is not in place with the expected profile ({}); run `squads-create` first. The upgrade authority stays with the deployer.",
+                        serde_json::to_string(&g_checks.iter().filter(|c| c["ok"] != json!(true)).collect::<Vec<_>>()).unwrap_or_default()
+                    ));
+                }
+                let step = step_set_authority(program.pubkey, deployer.pubkey, g.vault);
+                let signers: Vec<&Keypair> = if ctx.executing() { vec![deployer.keypair()?] } else { Vec::new() };
+                steps.push(ctx.run_step(&step, &signers)?.to_json());
+                stage_log.push("upgrade authority transferred to the G vault".into());
+            }
+            other => {
+                return refuse(format!(
+                    "the ProgramData upgrade authority is {other:?}: neither the deployer nor the G vault"
+                ))
+            }
+        }
+        if ctx.executing() {
+            let after = lookup_program(ctx, &program.pubkey)?;
+            let header = after
+                .programdata_account
+                .as_ref()
+                .map(|account| decode_programdata_header(&account.data))
+                .transpose()
+                .map_err(|error| OpsError::Failed(format!("ProgramData header after SetAuthority: {error}")))?;
+            let authority = header.and_then(|h| h.authority);
+            checks.push(check(
+                "programdata.upgrade_authority_is_g_vault",
+                authority == Some(g.vault),
+                g.vault,
+                authority.map_or("none".to_string(), |key| key.to_string()),
+            ));
+            authority_after = json!(authority.map(|key| key.to_string()));
+        }
+    }
+    let all_ok = checks_ok(&checks);
+    Ok(json!({
+        "command": "deploy",
+        "mode": ctx.mode(),
+        "program_id": program.pubkey.to_string(),
+        "programdata_address": programdata_address(&program.pubkey).to_string(),
+        "g_vault": g.vault.to_string(),
+        "elf": { "sha256": elf_sha, "elf_len": elf_len, "max_data_len": max_data_len, "padding": max_data_len - elf_len },
+        "rent_lamports": {
+            "buffer": buffer_rent, "program": program_rent, "programdata": programdata_rent,
+            "net_retained_after_buffer_refund": program_rent + programdata_rent,
+            "conservative_peak_with_fees": conservative_peak, "cap": cap,
+        },
+        "deployer_balance_lamports": deployer_balance,
+        "deployer_balance_after_lamports": if ctx.executing() { json!(ctx.balance(&deployer.pubkey)?) } else { Value::Null },
+        "max_data_len_justification": justification,
+        "stages": stage_log,
+        "writes": writes_summary,
+        "steps": steps,
+        "g_multisig_ready_for_authority_transfer": checks_ok(&g_checks),
+        "upgrade_authority_after": authority_after,
+        "programdata": programdata_report,
+        "checks": checks,
+        "notes": notes,
+        "all_ok": all_ok,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// propose / approve / execute (packet A4)
+// ---------------------------------------------------------------------------
+
+/// How many of the newest vault transactions `propose` compares with the intended message.
+const DUPLICATE_SCAN_WINDOW: u64 = 32;
+
+/// ORAO `Client` account size (packet 4b: R(123)).
+const ORAO_CLIENT_BYTES: usize = 123;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ActionKind {
+    Initialize,
+    Register,
+}
+
+struct Action {
+    kind: ActionKind,
+    inner: Instruction,
+    /// The keypair that must sign the OUTER `vault_transaction_execute` transaction.
+    outer_signer: Option<Pubkey>,
+    summary: Value,
+}
+
+fn args_json(args: &InitializeArgs) -> Value {
+    json!({
+        "sponsor": args.sponsor.to_string(),
+        "management_recipient": args.management_recipient.to_string(),
+        "cluster_domain_utf8": String::from_utf8_lossy(&args.cluster_domain),
+        "cluster_domain_hex": args.cluster_domain.iter().map(|b| format!("{b:02x}")).collect::<String>(),
+        "provider_request_fee_lamports": args.provider_request_fee_lamports,
+        "provider_fee_headroom_bps": args.provider_fee_headroom_bps,
+        "provider_program": args.provider_program.to_string(),
+        "provider_network_state": args.provider_network_state.to_string(),
+        "provider_treasury": args.provider_treasury.to_string(),
+        "provider_client": args.provider_client.to_string(),
+        "public_series_a_enabled": args.public_series_a_enabled,
+    })
+}
+
+fn action_from_opts(ctx: &Ctx<'_>, g: &Identity) -> Result<Action, OpsError> {
+    let name = ctx
+        .opts
+        .positional
+        .first()
+        .map(String::as_str)
+        .ok_or_else(|| OpsError::Usage(format!("`{}` needs an action: initialize | register", ctx.opts.command)))?;
+    if ctx.opts.positional.len() > 1 {
+        return usage("only one action may be given");
+    }
+    match name {
+        "initialize" => {
+            let p = ctx.p_identity()?;
+            let sponsor = key_flag(ctx.opts, "sponsor")?.pubkey;
+            let management = key_flag(ctx.opts, "management-recipient")?.pubkey;
+            let args = launch_args(ctx.opts, sponsor, management)?;
+            let inner = initialize_inner(g, &p, args);
+            Ok(Action {
+                kind: ActionKind::Initialize,
+                inner,
+                outer_signer: Some(sponsor),
+                summary: args_json(&args),
+            })
+        }
+        "register" => Ok(Action {
+            kind: ActionKind::Register,
+            inner: register_inner(g),
+            outer_signer: None,
+            summary: json!({
+                "orao_program": orao::id().to_string(),
+                "payer_is_g_vault": g.vault.to_string(),
+                "rng_authority": provider::rng_authority_address().0.to_string(),
+                "client": provider::client_address().0.to_string(),
+            }),
+        }),
+        other => usage(format!("unknown action `{other}` (initialize | register)")),
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Stage {
+    Propose,
+    Approve,
+    Execute,
+}
+
+/// State the action depends on.  `propose` is where a mistake costs a 48-hour cycle, so the
+/// program-authority and not-already-done checks refuse there already.
+fn action_preconditions(
+    ctx: &Ctx<'_>,
+    g: &Identity,
+    action: &Action,
+    stage: Stage,
+) -> Result<Vec<Value>, OpsError> {
+    let mut checks = Vec::new();
+    let lookup = lookup_program(ctx, &ID)?;
+    let authority = lookup
+        .programdata_account
+        .as_ref()
+        .map(|account| decode_programdata_header(&account.data))
+        .transpose()
+        .map_err(|error| OpsError::Failed(format!("ProgramData header: {error}")))?
+        .and_then(|header| header.authority);
+    checks.push(check(
+        "programdata.upgrade_authority_is_g_vault",
+        authority == Some(g.vault),
+        g.vault,
+        authority.map_or("absent or immutable".to_string(), |key| key.to_string()),
+    ));
+    match action.kind {
+        ActionKind::Initialize => {
+            let pool = pda(&[state::POOL_SEED]).0;
+            let existing = ctx.account(&pool)?;
+            checks.push(check(
+                "pool.not_yet_initialized",
+                existing.as_ref().is_none_or(|account| account.data.is_empty()),
+                "absent",
+                existing.map_or("absent".to_string(), |_| format!("{pool} exists")),
+            ));
+        }
+        ActionKind::Register => {
+            let client = provider::client_address().0;
+            let existing = ctx.account(&client)?;
+            checks.push(check(
+                "orao_client.not_yet_registered",
+                existing.as_ref().is_none_or(|account| account.data.is_empty()),
+                "absent",
+                existing.map_or("absent".to_string(), |_| format!("{client} exists")),
+            ));
+            let network_state = orao::state::network_state::NetworkState::find_address(&orao::id()).0;
+            let network = ctx.account(&network_state)?;
+            checks.push(check(
+                "orao_network_state.exists_and_orao_owned",
+                network.as_ref().is_some_and(|account| account.owner == orao::id()),
+                orao::id(),
+                network.map_or("absent".to_string(), |account| account.owner.to_string()),
+            ));
+            if stage == Stage::Execute {
+                let rng = ctx.account(&provider::rng_authority_address().0)?;
+                checks.push(check(
+                    "rng_authority.created_by_initialize",
+                    rng.as_ref().is_some_and(|account| account.owner == ID),
+                    "program-owned (run `initialize` first)",
+                    rng.map_or("absent".to_string(), |account| account.owner.to_string()),
+                ));
+                let needed = ctx.rent(ORAO_CLIENT_BYTES)? + ctx.rent(0)?;
+                let have = ctx.balance(&g.vault)?;
+                checks.push(check(
+                    "g_vault.can_pay_the_orao_client_rent",
+                    have >= needed,
+                    format!(">= {needed} lamports (run `fund-vault`)"),
+                    have,
+                ));
+            }
+        }
+    }
+    if !checks_ok(&checks) {
+        return refuse(format!(
+            "precondition(s) for `{}` do not hold; nothing was sent: {}",
+            ctx.opts.command,
+            serde_json::to_string(&checks.iter().filter(|c| c["ok"] != json!(true)).collect::<Vec<_>>())
+                .unwrap_or_default()
+        ));
+    }
+    Ok(checks)
+}
+
+fn stored_message_len(message: &StoredMessage) -> usize {
+    3 + (4 + 32 * message.account_keys.len())
+        + 4
+        + message
+            .instructions
+            .iter()
+            .map(|ix| 1 + (4 + ix.account_indexes.len()) + (4 + ix.data.len()))
+            .sum::<usize>()
+        + 4
+}
+
+/// Estimated size of the `VaultTransaction` account for `inner` (8 + 32 + 32 + 8 + 3 bytes,
+/// the empty ephemeral-signer vector, the stored message).
+fn vault_transaction_bytes(inner: &Instruction) -> usize {
+    8 + 32 + 32 + 8 + 3 + 4 + stored_message_len(&expected_stored_message(inner))
+}
+
+fn load_vault_transaction(
+    ctx: &Ctx<'_>,
+    g: &Identity,
+    index: u64,
+) -> Result<Option<(VaultTransactionView, Option<ProposalView>)>, OpsError> {
+    let Some(account) = ctx.account(&sq::transaction_address(&g.multisig, index))? else {
+        return Ok(None);
+    };
+    if account.owner != SQUADS_PROGRAM_ID {
+        return refuse(format!("the vault transaction #{index} account is not Squads-owned"));
+    }
+    let view = decode_vault_transaction(&account.data)
+        .map_err(|error| OpsError::Failed(format!("vault transaction #{index}: {error}")))?;
+    let proposal = match ctx.account(&sq::proposal_address(&g.multisig, index))? {
+        None => None,
+        Some(account) => {
+            if account.owner != SQUADS_PROGRAM_ID {
+                return refuse(format!("the proposal #{index} account is not Squads-owned"));
+            }
+            Some(
+                decode_proposal(&account.data)
+                    .map_err(|error| OpsError::Failed(format!("proposal #{index}: {error}")))?,
+            )
+        }
+    };
+    Ok(Some((view, proposal)))
+}
+
+/// Approvers (and the executor) act only on a vault transaction that stores exactly the intended
+/// message: the same accounts in the same order, the same instruction data.
+fn load_checked_proposal(
+    ctx: &Ctx<'_>,
+    g: &Identity,
+    index: u64,
+    action: &Action,
+) -> Result<(VaultTransactionView, ProposalView), OpsError> {
+    let Some((vtx, proposal)) = load_vault_transaction(ctx, g, index)? else {
+        return refuse(format!("there is no vault transaction #{index} on G {}", g.multisig));
+    };
+    let expected = expected_stored_message(&action.inner);
+    if vtx.multisig != g.multisig || vtx.index != index || vtx.vault_index != 0 {
+        return refuse(format!("vault transaction #{index} does not belong to G / vault 0"));
+    }
+    if !vtx.ephemeral_signer_bumps.is_empty() {
+        return refuse(format!("vault transaction #{index} declares ephemeral signers; not the intended action"));
+    }
+    if vtx.message != expected {
+        return refuse(format!(
+            "vault transaction #{index} does NOT store the intended `{}` message (on-chain: {} accounts, {} instruction(s), data sha256 {}; \
+             intended: {} accounts, data sha256 {}); not voting on / executing it",
+            ctx.opts.positional.first().map(String::as_str).unwrap_or("?"),
+            vtx.message.account_keys.len(),
+            vtx.message.instructions.len(),
+            vtx.message.instructions.first().map_or("-".to_string(), |ix| devnet::sha256_hex(&ix.data)),
+            expected.account_keys.len(),
+            devnet::sha256_hex(&action.inner.data),
+        ));
+    }
+    let Some(proposal) = proposal else {
+        return refuse(format!("vault transaction #{index} has no proposal yet (run `propose` to resume)"));
+    };
+    if proposal.multisig != g.multisig || proposal.transaction_index != index {
+        return refuse(format!("the proposal at #{index} names another multisig or index"));
+    }
+    Ok((vtx, proposal))
+}
+
+fn is_live(status: &ProposalStatus) -> bool {
+    matches!(
+        status,
+        ProposalStatus::Draft(_) | ProposalStatus::Active(_) | ProposalStatus::Approved(_) | ProposalStatus::Executing
+    )
+}
+
+fn cmd_propose(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let member = key_flag(opts, "member")?;
+    let g = ctx.g_identity()?;
+    let members = read_members(opts.require("g-members")?)?;
+    let view = require_g_profile(ctx, &g, &members)?;
+    if !member_has(&view, &member.pubkey, SQUADS_INITIATE) {
+        return refuse(format!("{} is not a G member with the Initiate permission", member.pubkey));
+    }
+    let action = action_from_opts(ctx, &g)?;
+    let preconditions = action_preconditions(ctx, &g, &action, Stage::Propose)?;
+    let compiled = sq::compile_vault_message(&action.inner);
+    let message_sha256 = devnet::sha256_hex(&compiled.bytes);
+
+    // A re-run must neither duplicate a live proposal nor leave a half-made one behind.  EVERY recent
+    // transaction (not only the newest) is compared with the intended message.
+    let mut index = view.transaction_index + 1;
+    let mut resume_proposal_only = false;
+    let expected_message = expected_stored_message(&action.inner);
+    let oldest = view
+        .stale_transaction_index
+        .saturating_add(1)
+        .max(view.transaction_index.saturating_sub(DUPLICATE_SCAN_WINDOW - 1))
+        .max(1);
+    for candidate in (oldest..=view.transaction_index).rev() {
+        let Some((vtx, proposal)) = load_vault_transaction(ctx, &g, candidate)? else { continue };
+        if vtx.message != expected_message {
+            continue;
+        }
+        match proposal {
+            None => {
+                if !resume_proposal_only {
+                    index = candidate;
+                    resume_proposal_only = true;
+                }
+            }
+            Some(proposal) if is_live(&proposal.status) => {
+                return refuse(format!(
+                    "an identical proposal already exists at #{candidate} (status {}); use approve / execute",
+                    proposal.status.name()
+                ))
+            }
+            Some(_) => {}
+        }
+    }
+    if ctx.executing() {
+        let expected = opts.u64_flag("expect-tx-index")?.ok_or_else(|| {
+            OpsError::Refused(format!(
+                "--execute needs --expect-tx-index {index} (the index this run would take; a dry run prints it)"
+            ))
+        })?;
+        if expected != index {
+            return refuse(format!("--expect-tx-index {expected} but this run would take #{index}"));
+        }
+    }
+    let (create, proposal_step) = steps_propose(&g, member.pubkey, index, &compiled.bytes);
+    let signers: Vec<&Keypair> = if ctx.executing() { vec![member.keypair()?] } else { Vec::new() };
+    let mut steps = Vec::new();
+    if !resume_proposal_only {
+        steps.push(ctx.run_step(&create, &signers)?.to_json());
+    }
+    steps.push(ctx.run_step(&proposal_step, &signers)?.to_json());
+
+    let mut checks = Vec::new();
+    let mut status = json!("not created (dry run)");
+    if ctx.executing() {
+        let (vtx, proposal) = load_checked_proposal(ctx, &g, index, &action)?;
+        checks.push(check("vault_transaction.stores_the_intended_message", true, "equal", "equal"));
+        checks.push(check(
+            "proposal.is_active",
+            matches!(proposal.status, ProposalStatus::Active(_)),
+            "Active",
+            proposal.status.name(),
+        ));
+        checks.push(check("vault_transaction.creator_is_proposer", vtx.creator == member.pubkey, member.pubkey, vtx.creator));
+        status = json!(proposal.status.name());
+    }
+    Ok(json!({
+        "command": "propose",
+        "mode": ctx.mode(),
+        "action": opts.positional.first(),
+        "multisig": g.multisig.to_string(),
+        "g_vault": g.vault.to_string(),
+        "transaction_index": index,
+        "vault_transaction": sq::transaction_address(&g.multisig, index).to_string(),
+        "proposal": sq::proposal_address(&g.multisig, index).to_string(),
+        "proposer_is_creator_rent_payer_and_fee_payer": member.pubkey.to_string(),
+        "message_bytes": compiled.bytes.len(),
+        "message_sha256": message_sha256,
+        "resumed_proposal_only": resume_proposal_only,
+        "parameters": action.summary,
+        "preconditions": preconditions,
+        "rent_lamports_estimate": {
+            "vault_transaction": ctx.rent(vault_transaction_bytes(&action.inner))?,
+            "proposal": ctx.rent(PROPOSAL_ACCOUNT_BYTES)?,
+        },
+        "proposal_status": status,
+        "steps": steps,
+        "checks": checks,
+        "all_ok": checks_ok(&checks),
+    }))
+}
+
+fn cmd_approve(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let member = key_flag(opts, "member")?;
+    let g = ctx.g_identity()?;
+    let members = read_members(opts.require("g-members")?)?;
+    let view = require_g_profile(ctx, &g, &members)?;
+    if !member_has(&view, &member.pubkey, SQUADS_VOTE) {
+        return refuse(format!("{} is not a G member with the Vote permission", member.pubkey));
+    }
+    let index = opts
+        .u64_flag("tx-index")?
+        .ok_or_else(|| OpsError::Usage("`approve` needs --tx-index".into()))?;
+    let action = action_from_opts(ctx, &g)?;
+    action_preconditions(ctx, &g, &action, Stage::Approve)?;
+    let (_vtx, proposal) = load_checked_proposal(ctx, &g, index, &action)?;
+    if !matches!(proposal.status, ProposalStatus::Active(_)) {
+        return refuse(format!(
+            "proposal #{index} is {}, not Active; nothing to approve",
+            proposal.status.name()
+        ));
+    }
+    if proposal.approved.contains(&member.pubkey) || proposal.rejected.contains(&member.pubkey) {
+        return refuse(format!("{} has already voted on proposal #{index}", member.pubkey));
+    }
+    let before_approvals = proposal.approved.len();
+    let step = step_approve(&g, member.pubkey, index);
+    let signers: Vec<&Keypair> = if ctx.executing() { vec![member.keypair()?] } else { Vec::new() };
+    let result = ctx.run_step(&step, &signers)?;
+
+    let mut after = json!(null);
+    let mut checks = Vec::new();
+    if ctx.executing() {
+        let (_, proposal) = load_checked_proposal(ctx, &g, index, &action)?;
+        checks.push(check("the member's approval is recorded", proposal.approved.contains(&member.pubkey), true, proposal.approved.contains(&member.pubkey)));
+        checks.push(check("approvals += 1", proposal.approved.len() == before_approvals + 1, before_approvals + 1, proposal.approved.len()));
+        let executable_after = match proposal.status {
+            ProposalStatus::Approved(timestamp) => Some(timestamp + i64::from(view.time_lock)),
+            _ => None,
+        };
+        after = json!({
+            "status": proposal.status.name(),
+            "approvals": proposal.approved.len(),
+            "threshold": view.threshold,
+            "approved_at": proposal.status.timestamp().filter(|_| matches!(proposal.status, ProposalStatus::Approved(_))),
+            "executable_after_unix": executable_after,
+            "time_lock_seconds": view.time_lock,
+        });
+    }
+    Ok(json!({
+        "command": "approve",
+        "mode": ctx.mode(),
+        "action": opts.positional.first(),
+        "transaction_index": index,
+        "member": member.pubkey.to_string(),
+        "approvals_before": before_approvals,
+        "after": after,
+        "parameters": action.summary,
+        "steps": [result.to_json()],
+        "checks": checks,
+        "all_ok": checks_ok(&checks),
+    }))
+}
+
+fn cmd_execute(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let member = key_flag(opts, "member")?;
+    let g = ctx.g_identity()?;
+    let members = read_members(opts.require("g-members")?)?;
+    let view = require_g_profile(ctx, &g, &members)?;
+    if !member_has(&view, &member.pubkey, SQUADS_EXECUTE) {
+        return refuse(format!("{} is not a G member with the Execute permission", member.pubkey));
+    }
+    let index = opts
+        .u64_flag("tx-index")?
+        .ok_or_else(|| OpsError::Usage("`execute` needs --tx-index".into()))?;
+    let action = action_from_opts(ctx, &g)?;
+    let (_vtx, proposal) = load_checked_proposal(ctx, &g, index, &action)?;
+    let approved_at = match proposal.status {
+        ProposalStatus::Approved(timestamp) => timestamp,
+        other => {
+            return refuse(format!(
+                "proposal #{index} is {}, not Approved ({} of {} approvals); it cannot execute",
+                other.name(),
+                proposal.approved.len(),
+                view.threshold
+            ))
+        }
+    };
+    // Squads: `now - approved_at >= time_lock`, on the cluster's own clock.
+    let now = ctx
+        .cluster
+        .unix_time()
+        .map_err(|error| rpc_err("reading the cluster clock", error))?;
+    let releases_at = approved_at + i64::from(view.time_lock);
+    if now < releases_at {
+        return refuse(format!(
+            "time lock not released: approved at {approved_at}, lock {} s, releases at {releases_at}, cluster clock {now} \
+             ({} s to go); executing now would fail with Squads error 6021 after paying a fee",
+            view.time_lock,
+            releases_at - now
+        ));
+    }
+    let preconditions = action_preconditions(ctx, &g, &action, Stage::Execute)?;
+    let compiled = sq::compile_vault_message(&action.inner);
+    let outer_keys = compiled.outer_signer_keys(&g.vault, &[]);
+    let sponsor_file;
+    let mut signers: Vec<&Keypair> = Vec::new();
+    if ctx.executing() {
+        signers.push(member.keypair()?);
+    }
+    if !outer_keys.is_empty() {
+        if outer_keys.as_slice() != action.outer_signer.as_slice() {
+            return refuse(format!(
+                "the message needs outer signer(s) {:?}, but this action expects {:?}",
+                key_list(&outer_keys),
+                action.outer_signer.map(|key| key.to_string())
+            ));
+        }
+        if ctx.executing() {
+            sponsor_file = key_flag(opts, "sponsor")?;
+            signers.push(sponsor_file.keypair()?);
+        }
+    }
+    let step = step_execute(&g, member.pubkey, index, &action.inner);
+    let result = ctx.run_step(&step, &signers)?;
+
+    let mut checks = Vec::new();
+    if ctx.executing() {
+        let (_, after) = load_checked_proposal(ctx, &g, index, &action)?;
+        checks.push(check(
+            "proposal.is_executed",
+            matches!(after.status, ProposalStatus::Executed(_)),
+            "Executed",
+            after.status.name(),
+        ));
+    }
+    Ok(json!({
+        "command": "execute",
+        "mode": ctx.mode(),
+        "action": opts.positional.first(),
+        "transaction_index": index,
+        "approved_at": approved_at,
+        "time_lock_releases_at": releases_at,
+        "cluster_clock": now,
+        "outer_signers": key_list(&outer_keys),
+        "preconditions": preconditions,
+        "steps": [result.to_json()],
+        "checks": checks,
+        "all_ok": checks_ok(&checks),
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// readback (packet A6)
+// ---------------------------------------------------------------------------
+
+fn anchor<T: AccountDeserialize>(account: &Account) -> Result<T, String> {
+    T::try_deserialize(&mut account.data.as_slice()).map_err(|error| error.to_string())
+}
+
+fn cmd_readback(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let g = ctx.g_identity()?;
+    let p = ctx.p_identity()?;
+    let g_members = read_members(opts.require("g-members")?)?;
+    let p_members = read_members(opts.require("p-members")?)?;
+    let sections: BTreeSet<String> = opts
+        .get("sections")
+        .unwrap_or("squads,program,initialize,orao")
+        .split(',')
+        .map(|part| part.trim().to_string())
+        .collect();
+    for section in &sections {
+        if !["squads", "program", "initialize", "orao"].contains(&section.as_str()) {
+            return usage(format!("--sections: unknown section `{section}`"));
+        }
+    }
+    let mut checks: Vec<Value> = Vec::new();
+
+    if sections.contains("squads") {
+        for (name, ident, members, lock) in [
+            ("G", g, &g_members, sq::G_TIME_LOCK),
+            ("P", p, &p_members, sq::P_TIME_LOCK),
+        ] {
+            let account = ctx.account(&ident.multisig)?;
+            let (list, _) = profile_checks(
+                &ProfileSpec { name, identity: ident, members, time_lock: lock },
+                account.as_ref(),
+            );
+            checks.extend(list);
+        }
+    }
+    let mut program_json = Value::Null;
+    if sections.contains("program") {
+        let lookup = lookup_program(ctx, &ID)?;
+        checks.extend(program_checks(&lookup));
+        if let Some(account) = &lookup.programdata_account {
+            match decode_programdata_header(&account.data) {
+                Ok(header) => {
+                    checks.push(check(
+                        "programdata.upgrade_authority_is_g_vault",
+                        header.authority == Some(g.vault),
+                        g.vault,
+                        header.authority.map_or("none".to_string(), |key| key.to_string()),
+                    ));
+                    program_json = json!({
+                        "program_id": ID.to_string(),
+                        "programdata": lookup.programdata.to_string(),
+                        "programdata_slot": header.slot,
+                        "account_data_len": account.data.len(),
+                        "payload_sha256_after_header": devnet::sha256_hex(&account.data[PROGRAMDATA_HEADER_LEN..]),
+                    });
+                    if let Some(path) = opts.get("elf") {
+                        let (elf, _) = read_pinned_elf(opts, ctx.gate).map_err(|error| {
+                            OpsError::Refused(format!("--elf {path}: {error}"))
+                        })?;
+                        if let Ok(report) = verify_programdata(&account.data, &elf) {
+                            checks.push(check("programdata.elf_bytes_equal_pinned_elf", report.elf_matches, "equal", format!("{:?}", report.first_mismatch)));
+                            checks.push(check("programdata.padding_all_zero", report.padding_all_zero, "all zero", report.padding_len));
+                        }
+                    }
+                }
+                Err(error) => checks.push(check("programdata.header_decodes", false, "ProgramData header", error)),
+            }
+        }
+    }
+    let mut pool_json = Value::Null;
+    if sections.contains("initialize") {
+        let domain: [u8; 32] = match opts.get("cluster-domain") {
+            None => DEVNET_CLUSTER_DOMAIN,
+            Some(text) if text.len() == 32 => text.as_bytes().try_into().expect("32 bytes"),
+            Some(_) => return usage("--cluster-domain must be exactly 32 bytes of text"),
+        };
+        let pool_key = pda(&[state::POOL_SEED]).0;
+        let admission_key = pda(&[state::ADMISSION_SEED]).0;
+        let config_key = pda(&[state::CONFIG_SEED, &1u32.to_le_bytes()]).0;
+        let pool_account = ctx.account(&pool_key)?;
+        let admission_account = ctx.account(&admission_key)?;
+        let config_account = ctx.account(&config_key)?;
+        let pool = pool_account.as_ref().map(anchor::<state::Pool>);
+        let admission = admission_account.as_ref().map(anchor::<state::Admission>);
+        let config = config_account.as_ref().map(anchor::<state::ConfigVersion>);
+        match (&pool_account, &pool) {
+            (Some(account), Some(Ok(pool))) => {
+                checks.push(check("pool.owner_is_program", account.owner == ID, ID, account.owner));
+                checks.push(check("pool.governance_is_g_vault", pool.governance == g.vault, g.vault, pool.governance));
+                checks.push(check("pool.guardian_vault_is_p_vault", pool.guardian_vault == p.vault, p.vault, pool.guardian_vault));
+                checks.push(check(
+                    "pool.cluster_domain",
+                    pool.cluster_domain == domain,
+                    String::from_utf8_lossy(&domain),
+                    String::from_utf8_lossy(&pool.cluster_domain),
+                ));
+                if let Some(sponsor) = optional_key_flag(opts, "sponsor")? {
+                    checks.push(check("pool.sponsor", pool.sponsor == sponsor.pubkey, sponsor.pubkey, pool.sponsor));
+                }
+                if let Some(management) = optional_key_flag(opts, "management-recipient")? {
+                    checks.push(check(
+                        "pool.management_recipient",
+                        pool.management_recipient == management.pubkey,
+                        management.pubkey,
+                        pool.management_recipient,
+                    ));
+                }
+                pool_json = json!({
+                    "pool": pool_key.to_string(),
+                    "round_id": pool.round_id,
+                    "active_config_version": pool.active_config_version,
+                    "pot": pool.pot, "seed": pool.seed, "management": pool.management,
+                    "pending_toll": pool.pending_toll, "funded_claims": pool.funded_claims.to_string(),
+                    "excess": pool.excess, "participant_count": pool.participant_count,
+                    "next_close_id": pool.next_close_id,
+                    "sponsor": pool.sponsor.to_string(),
+                    "management_recipient": pool.management_recipient.to_string(),
+                });
+            }
+            (Some(_), Some(Err(error))) => checks.push(check("pool.decodes", false, "a Pool", error)),
+            _ => checks.push(check("pool.exists", false, pool_key, "absent")),
+        }
+        match (&admission, &pool) {
+            (Some(Ok(admission)), pool_result) => {
+                checks.push(check("admission.guardian_vault_is_p_vault", admission.guardian_vault == p.vault, p.vault, admission.guardian_vault));
+                if let Some(Ok(pool)) = pool_result {
+                    checks.push(check(
+                        "admission.guardian_vault_equals_pool.guardian_vault",
+                        admission.guardian_vault == pool.guardian_vault,
+                        pool.guardian_vault,
+                        admission.guardian_vault,
+                    ));
+                }
+            }
+            (Some(Err(error)), _) => checks.push(check("admission.decodes", false, "an Admission", error)),
+            (None, _) => checks.push(check("admission.exists", false, admission_key, "absent")),
+        }
+        match config {
+            Some(Ok(config)) => {
+                let expected = launch_args(opts, Pubkey::default(), Pubkey::default())?;
+                checks.push(check("config1.version", config.version == 1, 1, config.version));
+                checks.push(check("config1.provider_program", config.provider_program == expected.provider_program, expected.provider_program, config.provider_program));
+                checks.push(check("config1.provider_network_state", config.provider_network_state == expected.provider_network_state, expected.provider_network_state, config.provider_network_state));
+                checks.push(check("config1.provider_treasury", config.provider_treasury == expected.provider_treasury, expected.provider_treasury, config.provider_treasury));
+                checks.push(check("config1.provider_client", config.provider_client == expected.provider_client, expected.provider_client, config.provider_client));
+                checks.push(check("config1.provider_request_fee_lamports", config.provider_request_fee_lamports == expected.provider_request_fee_lamports, expected.provider_request_fee_lamports, config.provider_request_fee_lamports));
+                checks.push(check("config1.provider_fee_headroom_bps", config.provider_fee_headroom_bps == expected.provider_fee_headroom_bps, expected.provider_fee_headroom_bps, config.provider_fee_headroom_bps));
+                checks.push(check("config1.public_series_a_enabled", config.public_series_a_enabled == expected.public_series_a_enabled, expected.public_series_a_enabled, config.public_series_a_enabled));
+            }
+            Some(Err(error)) => checks.push(check("config1.decodes", false, "a ConfigVersion", error)),
+            None => checks.push(check("config1.exists", false, config_key, "absent")),
+        }
+    }
+    let mut orao_json = Value::Null;
+    if sections.contains("orao") {
+        let client_key = provider::client_address().0;
+        let rng_authority = provider::rng_authority_address().0;
+        match ctx.account(&client_key)? {
+            None => checks.push(check("orao_client.exists", false, client_key, "absent")),
+            Some(account) => {
+                checks.push(check("orao_client.account_owner_is_orao_program", account.owner == orao::id(), orao::id(), account.owner));
+                match anchor::<orao::state::client::Client>(&account) {
+                    Ok(client) => {
+                        checks.push(check("orao_client.owner_is_g_vault", client.owner == g.vault, g.vault, client.owner));
+                        checks.push(check("orao_client.state_is_rng_authority", client.state == rng_authority, rng_authority, client.state));
+                        checks.push(check("orao_client.program_is_ours", client.program == ID, ID, client.program));
+                        orao_json = json!({
+                            "client": client_key.to_string(),
+                            "owner": client.owner.to_string(),
+                            "state": client.state.to_string(),
+                            "program": client.program.to_string(),
+                            "num_requests": client.num_requests,
+                        });
+                    }
+                    Err(error) => checks.push(check("orao_client.decodes", false, "an ORAO Client", error)),
+                }
+            }
+        }
+        let network_state = orao::state::network_state::NetworkState::find_address(&orao::id()).0;
+        let network = ctx.account(&network_state)?;
+        checks.push(check(
+            "orao_network_state.owner_is_orao_program",
+            network.as_ref().is_some_and(|account| account.owner == orao::id()),
+            orao::id(),
+            network.map_or("absent".to_string(), |account| account.owner.to_string()),
+        ));
+    }
+    let all_ok = checks_ok(&checks);
+    Ok(json!({
+        "command": "readback",
+        "receipt": "packet A6 / A8 read-back",
+        "mode": "read-only",
+        "g": { "create_key": g.create_key.to_string(), "multisig": g.multisig.to_string(), "vault_0": g.vault.to_string() },
+        "p": { "create_key": p.create_key.to_string(), "multisig": p.multisig.to_string(), "vault_0": p.vault.to_string() },
+        "program": program_json,
+        "pool": pool_json,
+        "orao": orao_json,
+        "checks": checks,
+        "all_ok": all_ok,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// plan
+// ---------------------------------------------------------------------------
+
+fn plan_step(ctx: &Ctx<'_>, step: &Step, all_fit: &mut bool) -> Result<Value, OpsError> {
+    let built = build_step(step);
+    let accounts: Vec<Value> = built
+        .message
+        .account_keys
+        .iter()
+        .enumerate()
+        .map(|(position, key)| {
+            json!({
+                "key": key.to_string(),
+                "signer": built.message.is_signer(position),
+                "writable": built.message.is_maybe_writable(position, None),
+            })
+        })
+        .collect();
+    let mut value = match ctx.run_step(step, &[]) {
+        Ok(result) => result.to_json(),
+        Err(OpsError::Refused(message)) => {
+            *all_fit = false;
+            json!({ "step": step.id, "label": step.label, "refused": message, "packet_bytes": built.packet_bytes, "fits_1232": false })
+        }
+        Err(other) => return Err(other),
+    };
+    value["accounts"] = json!(accounts);
+    Ok(value)
+}
+
+fn cmd_plan(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
+    let opts = ctx.opts;
+    let (elf, elf_sha) = read_pinned_elf(opts, ctx.gate)?;
+    let deployer = key_flag(opts, "deployer")?;
+    let program = key_flag(opts, "program-keypair")?;
+    let buffer = key_flag(opts, "buffer-keypair")?;
+    let payer = key_flag(opts, "payer")?;
+    let g = identity(key_flag(opts, "g-create-key")?.pubkey);
+    let p = identity(key_flag(opts, "p-create-key")?.pubkey);
+    let g_members = read_members(opts.require("g-members")?)?;
+    let p_members = read_members(opts.require("p-members")?)?;
+    let sponsor = key_flag(opts, "sponsor")?.pubkey;
+    let management = key_flag(opts, "management-recipient")?.pubkey;
+    let elf_len = elf.len();
+    let max_data_len = opts
+        .u64_flag("max-data-len")?
+        .map_or(elf_len, |value| value as usize);
+    if max_data_len < elf_len {
+        return refuse("--max-data-len is below the ELF length");
+    }
+    let mut warnings: Vec<String> = Vec::new();
+    if program.pubkey != ID {
+        warnings.push(format!(
+            "the program keypair {} is not the compiled-in program id {ID}: `deploy` will refuse outside a local cluster",
+            program.pubkey
+        ));
+    }
+    let treasury = match ctx.account(&sq::program_config_address())? {
+        Some(config) => decode_program_config(&config.data)
+            .map_err(|error| OpsError::Failed(format!("ProgramConfig: {error}")))?
+            .1,
+        None => {
+            warnings.push("the Squads ProgramConfig is absent on this cluster; the treasury below is a placeholder".into());
+            Pubkey::default()
+        }
+    };
+
+    let buffer_rent = ctx.rent(BUFFER_HEADER_LEN + elf_len)?;
+    let program_rent = ctx.rent(UpgradeableLoaderState::size_of_program())?;
+    let programdata_rent = ctx.rent(PROGRAMDATA_HEADER_LEN + max_data_len)?;
+    let multisig_rent = ctx.rent(MULTISIG_ACCOUNT_BYTES)?;
+    let proposal_rent = ctx.rent(PROPOSAL_ACCOUNT_BYTES)?;
+    let args = launch_args(opts, sponsor, management)?;
+    let initialize = initialize_inner(&g, &p, args);
+    let register = register_inner(&g);
+    let initialize_vtx_rent = ctx.rent(vault_transaction_bytes(&initialize))?;
+    let register_vtx_rent = ctx.rent(vault_transaction_bytes(&register))?;
+
+    let mut all_fit = true;
+    let mut phases = Vec::new();
+    let mut transactions = 0usize;
+
+    // A2
+    let mut steps = Vec::new();
+    for (name, ident, members, lock) in [("G", g, &g_members, sq::G_TIME_LOCK), ("P", p, &p_members, sq::P_TIME_LOCK)] {
+        let step = step_squads_create(
+            &format!("A2.multisig_create_v2.{name}"),
+            &format!("squads multisig_create_v2 {name} (2-of-3, time lock {lock} s)"),
+            treasury, payer.pubkey, &ident, members, lock,
+        );
+        steps.push(plan_step(ctx, &step, &mut all_fit)?);
+        transactions += 1;
+    }
+    phases.push(json!({ "phase": "A2", "title": "create G and P with real multisig_create_v2", "signers": "payer + each create key", "steps": steps }));
+
+    // A3
+    let chunk = max_write_chunk(&deployer.pubkey, &buffer.pubkey);
+    let write_count = elf_len.div_ceil(chunk.max(1));
+    let mut steps = Vec::new();
+    steps.push(plan_step(ctx, &step_create_buffer(deployer.pubkey, buffer.pubkey, buffer_rent, elf_len)?, &mut all_fit)?);
+    let mut sample_write = plan_step(ctx, &step_write(deployer.pubkey, buffer.pubkey, 0, vec![0u8; chunk]), &mut all_fit)?;
+    sample_write["repeat"] = json!(write_count);
+    sample_write["chunk_bytes"] = json!(chunk);
+    steps.push(sample_write);
+    steps.push(plan_step(ctx, &step_deploy(deployer.pubkey, program.pubkey, buffer.pubkey, program_rent, max_data_len)?, &mut all_fit)?);
+    steps.push(json!({ "step": "A3.verify_bytes", "label": "read-only A8 first pass: ProgramData header, ELF equality, zero padding (BEFORE the authority moves)" }));
+    steps.push(plan_step(ctx, &step_set_authority(program.pubkey, deployer.pubkey, g.vault), &mut all_fit)?);
+    transactions += 3 + write_count;
+    phases.push(json!({ "phase": "A3", "title": "deploy the pinned ELF, verify bytes, move the upgrade authority to the G vault", "signers": "deployer (+ buffer key, program key)", "steps": steps }));
+
+    // A5 (vault funding) happens before the register execution
+    let fund = opts.u64_flag("lamports")?.unwrap_or(20_000_000);
+    let steps = vec![plan_step(ctx, &step_transfer(payer.pubkey, g.vault, fund), &mut all_fit)?];
+    transactions += 1;
+    phases.push(json!({ "phase": "A4-prep", "title": "fund the G vault so it can pay the ORAO Client rent", "steps": steps }));
+
+    // A4
+    let current = ctx
+        .account(&g.multisig)?
+        .and_then(|account| decode_multisig(&account.data).ok())
+        .map_or(0, |view| view.transaction_index);
+    let proposer = g_members[0];
+    let approver_two = g_members[1];
+    let mut steps = Vec::new();
+    for (offset, (name, inner)) in [("initialize", &initialize), ("register", &register)].into_iter().enumerate() {
+        let index = current + 1 + offset as u64;
+        let compiled = sq::compile_vault_message(inner);
+        let (create, proposal) = steps_propose(&g, proposer, index, &compiled.bytes);
+        let mut s = plan_step(ctx, &create, &mut all_fit)?;
+        s["action"] = json!(name);
+        s["message_sha256"] = json!(devnet::sha256_hex(&compiled.bytes));
+        steps.push(s);
+        steps.push(plan_step(ctx, &proposal, &mut all_fit)?);
+        transactions += 2;
+    }
+    phases.push(json!({ "phase": "A4.propose", "title": "propose initialize and register (proposer = creator = rent payer = fee payer = G member 1)", "steps": steps }));
+    let mut steps = Vec::new();
+    for (offset, name) in ["initialize", "register"].into_iter().enumerate() {
+        let index = current + 1 + offset as u64;
+        for approver in [proposer, approver_two] {
+            let mut s = plan_step(ctx, &step_approve(&g, approver, index), &mut all_fit)?;
+            s["action"] = json!(name);
+            steps.push(s);
+            transactions += 1;
+        }
+    }
+    phases.push(json!({ "phase": "A4.approve", "title": "two approvals each (threshold 2); the clock for the time lock starts at the second approval", "steps": steps }));
+    let mut steps = vec![json!({
+        "step": "A4.wait",
+        "label": format!("wait {} s on the CLUSTER clock after the second approval of each proposal (one shared wait); `execute` refuses earlier", sq::G_TIME_LOCK),
+    })];
+    for (offset, (name, inner)) in [("initialize", &initialize), ("register", &register)].into_iter().enumerate() {
+        let index = current + 1 + offset as u64;
+        let mut s = plan_step(ctx, &step_execute(&g, proposer, index, inner), &mut all_fit)?;
+        s["action"] = json!(name);
+        if name == "initialize" {
+            s["outer_signers_in_addition_to_fee_payer"] = json!([sponsor.to_string()]);
+        }
+        steps.push(s);
+        transactions += 1;
+    }
+    phases.push(json!({ "phase": "A4.execute", "title": "execute initialize (sponsor co-signs the outer transaction), then register", "steps": steps }));
+
+    let fee_estimate = transactions as u64 * SIGNATURE_FEE_LAMPORTS * 2;
+    Ok(json!({
+        "command": "plan",
+        "mode": "read-only (nothing is signed or sent)",
+        "cluster": ctx.cluster_json(&ctx.cluster.genesis_hash().unwrap_or_default()),
+        "program_id": program.pubkey.to_string(),
+        "programdata": programdata_address(&program.pubkey).to_string(),
+        "elf": { "sha256": elf_sha, "elf_len": elf_len, "max_data_len": max_data_len, "write_chunk_bytes": chunk, "write_transactions": write_count },
+        "g": { "create_key": g.create_key.to_string(), "multisig": g.multisig.to_string(), "vault_0": g.vault.to_string(), "members": key_list(&g_members), "threshold": sq::THRESHOLD, "time_lock_seconds": sq::G_TIME_LOCK },
+        "p": { "create_key": p.create_key.to_string(), "multisig": p.multisig.to_string(), "vault_0": p.vault.to_string(), "members": key_list(&p_members), "threshold": sq::THRESHOLD, "time_lock_seconds": sq::P_TIME_LOCK },
+        "fee_payers": {
+            "squads_create_and_fund_vault": payer.pubkey.to_string(),
+            "deploy": deployer.pubkey.to_string(),
+            "propose_and_execute": proposer.to_string(),
+            "second_approval": approver_two.to_string(),
+        },
+        "initialize_parameters": args_json(&args),
+        "rent_lamports_estimates": {
+            "basis": "getMinimumBalanceForRentExemption on this cluster; Squads vault-transaction and proposal sizes are formula estimates",
+            "buffer": buffer_rent, "program": program_rent, "programdata": programdata_rent,
+            "deploy_net_retained": program_rent + programdata_rent,
+            "deploy_peak_while_buffer_and_programdata_coexist": buffer_rent + program_rent + programdata_rent,
+            "multisig_each": multisig_rent, "proposal_each": proposal_rent,
+            "vault_transaction_initialize": initialize_vtx_rent, "vault_transaction_register": register_vtx_rent,
+            "vault_funding": fund,
+            "fees_upper_estimate": fee_estimate,
+        },
+        "transactions_total": transactions,
+        "phases": phases,
+        "warnings": warnings,
+        "all_ok": all_fit,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// validator-fixtures (offline helper for the local-validator test)
+// ---------------------------------------------------------------------------
+
+fn account_file_json(address: &Pubkey, owner: &Pubkey, lamports: u64, data: &[u8]) -> Value {
+    use base64::Engine;
+    json!({
+        "pubkey": address.to_string(),
+        "account": {
+            "lamports": lamports,
+            "data": [base64::engine::general_purpose::STANDARD.encode(data), "base64"],
+            "owner": owner.to_string(),
+            "executable": false,
+            "rentEpoch": 0,
+            "space": data.len(),
+        }
+    })
+}
+
+/// Write the validator `--account` files for the Squads `ProgramConfig` and the ORAO NetworkState
+/// and treasury (devnet snapshots from `solana/fixtures/devnet/`) and return the exact
+/// `solana-test-validator` arguments.  Offline: no RPC, no key.
+fn cmd_validator_fixtures(opts: &Opts) -> Result<Value, OpsError> {
+    let out = opts
+        .positional
+        .first()
+        .map(String::as_str)
+        .or(opts.get("out-dir"))
+        .ok_or_else(|| OpsError::Usage("`validator-fixtures` needs an output directory".into()))?;
+    let out = PathBuf::from(out);
+    fs::create_dir_all(&out).map_err(|error| OpsError::Failed(format!("{}: {error}", out.display())))?;
+    let loaded = std::panic::catch_unwind(|| {
+        (
+            devnet::load_accounts(devnet::SQUADS_DEVNET_ACCOUNTS_FILE),
+            devnet::load_accounts(devnet::ORAO_DEVNET_ACCOUNTS_FILE),
+        )
+    })
+    .map_err(|_| OpsError::Failed("the devnet account fixtures failed their integrity checks".into()))?;
+    let (squads, orao_accounts) = loaded;
+    let mut written = Vec::new();
+    for (file, account) in [
+        ("squads_program_config.json", &squads["program_config"]),
+        ("orao_network_state.json", &orao_accounts["network_state"]),
+        ("orao_treasury.json", &orao_accounts["treasury"]),
+    ] {
+        let path = out.join(file);
+        let body = account_file_json(&account.address, &account.owner, account.lamports, &account.data);
+        fs::write(&path, serde_json::to_string_pretty(&body).expect("json"))
+            .map_err(|error| OpsError::Failed(format!("{}: {error}", path.display())))?;
+        written.push((account.address, path));
+    }
+    let fixtures_dir = devnet::fixture_dir()
+        .canonicalize()
+        .unwrap_or_else(|_| devnet::fixture_dir());
+    let mut command = format!(
+        "solana-test-validator --reset --quiet --rpc-port 8899 --faucet-port 9900 --ledger {ledger} --limit-ledger-size 10000 \
+         --bpf-program {squads} {fix}/{squads_so} --bpf-program {orao} {fix}/{orao_so}",
+        ledger = out.join("ledger").display(),
+        squads = SQUADS_PROGRAM_ID,
+        orao = orao::id(),
+        fix = fixtures_dir.display(),
+        squads_so = devnet::SQUADS_DEVNET_ELF_FILE,
+        orao_so = devnet::ORAO_DEVNET_ELF_FILE,
+    );
+    for (address, path) in &written {
+        command.push_str(&format!(" --account {address} {}", path.display()));
+    }
+    let mut preloaded = Value::Null;
+    if let (Some(so), Some(g_key)) = (opts.get("program-so"), opts.get("g-create-key")) {
+        refuse_default_wallet(Path::new(so))?;
+        let g = identity(KeyFile::load(g_key)?.pubkey);
+        let digest = devnet::sha256_hex(&fs::read(so).map_err(|error| OpsError::Failed(format!("{so}: {error}")))?);
+        if digest != PINNED_PROGRAM_ELF_SHA256 {
+            return refuse(format!("{so} hashes to {digest}, not the pinned {PINNED_PROGRAM_ELF_SHA256}"));
+        }
+        command.push_str(&format!(" --upgradeable-program {ID} {so} {}", g.vault));
+        preloaded = json!({ "program": ID.to_string(), "upgrade_authority_g_vault": g.vault.to_string() });
+    }
+    Ok(json!({
+        "command": "validator-fixtures",
+        "mode": "offline",
+        "files": written.iter().map(|(address, path)| json!({ "account": address.to_string(), "file": path.display().to_string() })).collect::<Vec<_>>(),
+        "preloaded_program": preloaded,
+        "validator_command": command,
+        "all_ok": true,
+    }))
+}
+
+// ---------------------------------------------------------------------------
+// Entry points
+// ---------------------------------------------------------------------------
+
+/// Run a parsed command against `cluster`: gate checks first (URL / cluster name / execute
+/// token / genesis hash), then the command.
+pub fn run_opts(opts: &Opts, cluster: &dyn Cluster) -> Result<Value, OpsError> {
+    run_opts_in(opts, cluster, &repo_root())
+}
+
+/// [`run_opts`] with the repository the devnet packet pin is verified in (tests pin a throwaway repo).
+pub fn run_opts_in(opts: &Opts, cluster: &dyn Cluster, repo: &Path) -> Result<Value, OpsError> {
+    if opts.command != "fund-wallets" && (opts.get("plan").is_some() || opts.get("plan-commit").is_some()) {
+        return usage("--plan / --plan-commit belong to `fund-wallets` only (the funding plan and its commit pin)");
+    }
+    if opts.command == "validator-fixtures" {
+        reject_removed_flags(opts)?;
+        return cmd_validator_fixtures(opts);
+    }
+    if opts.command == "flow" && opts.positional.first().map(String::as_str) == Some("init") {
+        reject_removed_flags(opts)?;
+        return flow::cmd_flow_init(opts);
+    }
+    if opts.command == "help" {
+        return Ok(json!({ "help": help_text() }));
+    }
+    let gate = Gate::from_opts(opts)?;
+    let token = gate.execute_token_in(opts, repo)?;
+    let pending_path = pending_path_for(opts, &gate)?;
+    let genesis = cluster
+        .genesis_hash()
+        .map_err(|error| rpc_err("getGenesisHash", error))?;
+    gate.check_genesis(&genesis)?;
+    let ctx = Ctx {
+        opts,
+        gate: &gate,
+        cluster,
+        token,
+        genesis: genesis.clone(),
+        pending_path,
+        pending_wait_seconds: opts.u64_flag("pending-wait-seconds")?.unwrap_or(90),
+        slot_polls: slot_polls(opts)?,
+    };
+    // A signed transaction that may still land is resolved before ANY command can build another.
+    let pending_resolved = if ctx.executing() { ctx.resolve_pending_all()? } else { Vec::new() };
+    // Every read from here on (the ones a decision is made from included) waits for the latest slot an
+    // earlier invocation confirmed: a CLI run starts with no slot of its own.
+    ctx.seed_confirmed_slot()?;
+    // Dry runs and read-only commands resolve nothing: say loudly which records are still open.
+    let open_pending = if ctx.executing() { Vec::new() } else { ctx.open_pending_notice()? };
+    let mut value = match opts.command.as_str() {
+        "plan" => cmd_plan(&ctx),
+        "deploy" => cmd_deploy(&ctx),
+        "verify-bytes" => cmd_verify_bytes(&ctx),
+        "squads-create" => cmd_squads_create(&ctx),
+        "fund-vault" => cmd_fund_vault(&ctx),
+        "fund-wallets" => fund::cmd_fund_wallets(&ctx, repo),
+        "propose" => cmd_propose(&ctx),
+        "approve" => cmd_approve(&ctx),
+        "execute" => cmd_execute(&ctx),
+        "readback" => cmd_readback(&ctx),
+        "flow" => flow::cmd_flow(&ctx),
+        "g-timelock" => timelock::cmd_g_timelock(&ctx),
+        other => usage(format!("unknown command `{other}`")),
+    }?;
+    if value.get("cluster").is_none() {
+        value["cluster"] = ctx.cluster_json(&genesis);
+    }
+    if ctx.executing() {
+        value["packet"] = ctx.packet_json();
+        if !pending_resolved.is_empty() {
+            value["pending_resolved"] = json!(pending_resolved);
+        }
+    }
+    if !open_pending.is_empty() {
+        value["open_pending_records"] = json!(open_pending);
+    }
+    Ok(value)
+}
+
+/// Parse `args` (without the program name) and run against `cluster`.
+pub fn run_with_cluster(args: &[String], cluster: &dyn Cluster) -> Result<Value, OpsError> {
+    run_opts(&Opts::parse(args)?, cluster)
+}
+
+/// [`run_with_cluster`] with the repository the devnet packet pin is verified in.
+pub fn run_with_cluster_in(args: &[String], cluster: &dyn Cluster, repo: &Path) -> Result<Value, OpsError> {
+    run_opts_in(&Opts::parse(args)?, cluster, repo)
+}
+
+/// The binary's body: connects an [`RpcCluster`] to `--rpc`, prints the JSON receipt on stdout and
+/// returns the process exit code (see [`exit_code`]; 4 when a verification check did not hold).
+pub fn run_cli(args: &[String]) -> i32 {
+    let outcome = Opts::parse(args).and_then(|opts| {
+        let flow_init = opts.command == "flow" && opts.positional.first().map(String::as_str) == Some("init");
+        if opts.command == "validator-fixtures" || opts.command == "help" || flow_init {
+            return run_opts(&opts, &OfflineCluster);
+        }
+        let gate = Gate::from_opts(&opts)?;
+        let cluster = RpcCluster::connect(&gate.rpc_url, gate.commitment);
+        run_opts(&opts, &cluster)
+    });
+    match outcome {
+        Ok(value) => {
+            println!("{}", serde_json::to_string_pretty(&value).expect("receipt JSON"));
+            if value["all_ok"] == json!(false) {
+                4
+            } else {
+                0
+            }
+        }
+        Err(error) => {
+            eprintln!("{error}");
+            exit_code(&error)
+        }
+    }
+}
+
+/// A cluster for the offline subcommands: every call is an error.
+struct OfflineCluster;
+
+impl Cluster for OfflineCluster {
+    fn genesis_hash(&self) -> Result<String, String> {
+        Err("offline".into())
+    }
+    fn blockhash(&self) -> Result<Hash, String> {
+        Err("offline".into())
+    }
+    fn account(&self, _key: &Pubkey) -> Result<Option<Account>, String> {
+        Err("offline".into())
+    }
+    fn rent_minimum(&self, _data_len: usize) -> Result<u64, String> {
+        Err("offline".into())
+    }
+    fn unix_time(&self) -> Result<i64, String> {
+        Err("offline".into())
+    }
+    fn slot(&self) -> Result<u64, String> {
+        Err("offline".into())
+    }
+    fn simulate(&self, _tx: &Transaction, _sig_verify: bool) -> Result<SimOutcome, String> {
+        Err("offline".into())
+    }
+    fn send(&self, _tx: &Transaction) -> Result<SendOutcome, SendError> {
+        Err(SendError::Rejected("offline".into()))
+    }
+}

@@ -1,0 +1,206 @@
+{
+ "recorded_at_utc": "2026-10-14T11:53:43.111883+00:00",
+ "cards": [
+  "IMPL-27 (M5 graph work deferred to the stable tree)",
+  "IMPL-31 (M6)"
+ ],
+ "milestone": "M5 admission/payouts + M6 allocation ticket and lazy claims — combined graph receipt (two fragments)",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "cabfd016b52b9b7916536ff530f9997f21414ef8",
+ "head_at_graph_update": "cabfd01",
+ "branch": "codex/native-solana-production-core",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "75ca284081bd4071d19a720e27d17d7ccd5eaec27b1d959db048bf4ae4901f10",
+   "result": "12,585 nodes / 17,942 edges → 13,912 / 20,071 after update (M5 suite + props, M6 program + suite, evidence JSON; lost prior 0)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m5-fragment-spec.json 1332 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "db5399fa0727f4f3c923e2e10cb79333199204ed401cb2b04858b959fd88879d",
+   "result": "APPLIED 13920 / 20176 / 41"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <post-M5 graph> m6-fragment-spec.json 1333 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "5c1e07b74e39a3a8ca5b512292d7f89a5eb3f586829b27c4fe3859a3e8696a84",
+   "result": "first validate BLOCKED on one dangling target (docs_solana_evidence_2026_10_14_m6_cli_json: graphify made no file node for the 2.7 MB CLI JSON); edge retargeted to the receipt leaf evidence_2026_10_14_m6_allocation_cli_copy; APPLIED 13927 / 20250 / 42"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 12585,
+  "edges": 17942,
+  "hyperedges": 40
+ },
+ "after_graphify_update": {
+  "nodes": 13912,
+  "edges": 20071,
+  "hyperedges": 40
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 16,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 0,
+  "note": "same idempotent 16-edge/321-status repair as M0/M2/M3/M4, applied once with the M5 fragment; the M6 fragment then merged onto the repaired graph (0 further repairs)"
+ },
+ "fragments": [
+  {
+   "milestone": "M5",
+   "path": "docs/solana/evidence/2026-10-14-m5-graph-fragment.json",
+   "sha256": "9241f92206e646ca3fc81ac15127420103fc1ef960220c9fe10ea8df2b0cabb4",
+   "nodes": 8,
+   "edges": 89,
+   "hyperedges": 1,
+   "attribute_updates": 36,
+   "community": 1332,
+   "flips": "plan2026_10_13_m5_admission_payouts → completed_receipt; 5 ix, 6 formula/rule, 13 plan2026_10_13_test_* M5 rows, R1/R2 resolutions, close-capture/owner-funded/W2 edits → local_runtime_executed; gaps no_red_green_proof + no_production_instruction_in_sbf → resolved_in_local_implementation"
+  },
+  {
+   "milestone": "M6",
+   "path": "docs/solana/evidence/2026-10-14-m6-graph-fragment.json",
+   "sha256": "3dd417ea6d3cdace86f981e489fdb35e1041c708ebdf52f20ea4acb001f1dec0",
+   "nodes": 7,
+   "edges": 74,
+   "hyperedges": 1,
+   "attribute_updates": 32,
+   "community": 1333,
+   "flips": "plan2026_10_13_m6_allocation_claims → completed_receipt; DR-29, 4 typed-ix, 4 phase, claim_backer ix, U256/alias fixes, 13 plan2026_10_13_test_* M6 rows, stubs_allocation_rs → local_runtime_executed; defects 08/09 + finding F4 → resolved_in_local_implementation; kernel_chunk_fit_measurement resolution recorded"
+  }
+ ],
+ "after": {
+  "nodes": 13927,
+  "edges": 20250,
+  "hyperedges": 42
+ },
+ "growth_since_pre_update_backup_by_source_group": {
+  "docs/solana": 868,
+  "solana/tests/financial-runtime/src": 253,
+  "solana/programs/musical_chairs/src": 167,
+  "docs/coordination": 29,
+  "solana/tests/financial-runtime/tests": 25
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/positions.rs": "b359be56e4e63d4785d4f85a7a6f793fe8397e80ab69a0bf435a71403f977808",
+   "solana/programs/musical_chairs/src/allocation.rs": "68ca145b447f159fd9576fa52732bc1a1f14144649efbc6d9e6dac98960ddbea",
+   "solana/programs/musical_chairs/src/claims.rs": "1cd0bab6d9b161e083df0dd3e1d2b963c419ce420de3711e774b2b3aea07d830",
+   "solana/programs/musical_chairs/src/controls.rs": "469a239c47559f187d257a1de0300ef1944ae0b44e09aaa2504c03a96c2e0c80",
+   "solana/programs/musical_chairs/src/lib.rs": "83e94d92eade1527eb3d45334c934f6c98057c00d0011b829c20b53c02bb8ed3",
+   "solana/programs/musical_chairs/src/error.rs": "fd97291431b43e645d2a81459c456d56a6daa0bbfa193a76f1f7088bb7f295b2",
+   "solana/programs/musical_chairs/src/state.rs": "5219c54ff28f490a2f6c77e79c091bdf32dc0ae42d04fb81e9a61029f0fd0598",
+   "solana/programs/musical_chairs/idl/musical_chairs.json": "132152760665e7676285965cc4f850591b48907a2bbd5b9ae609de34717b6d38",
+   "solana/tests/financial-runtime/src/world.rs": "1ce4a1c5e4118e5c683e413a52936e159f8301ae52f5f21426ee322ae0142475",
+   "solana/tests/financial-runtime/src/positions_suite.rs": "0cd14fef33b50e531f1c006129425ac6a0d6af60a8547ea898b9af99d70dd39a",
+   "solana/tests/financial-runtime/src/allocation.rs": "86ab992ed0cee71298bb153fea99b9172f85bb53d4b6813c2c6f39024fe5aa4d",
+   "solana/tests/financial-runtime/src/runtime.rs": "db1ee76f290ab9dfeb64f277bb7a79b77d1b0fa2b648182ae8f0aeb152ba7575",
+   "solana/tests/financial-runtime/src/financial.rs": "1b7d77bbb4ea3c92eef6dcb8ed364e28ec10703b234318e8a215688faa8a1d19",
+   "solana/tests/financial-runtime/src/controls.rs": "92b9ebb25b56ffccf33eea2c662f782dddabbe6bb7d94d42409ab7eff68802bf",
+   "solana/tests/financial-runtime/src/lib.rs": "458f5f15da3be13130005b48db216cd4f3c4c64a931063e7d3a0781491401ab6",
+   "solana/tests/financial-runtime/src/main.rs": "353f372b2e48bd6bffdc659e883abb2426e4537331dc2164c6e403baeb9bbaa4",
+   "solana/tests/financial-runtime/tests/payout_props.rs": "05def6897b2ad1a9a392cc6aef1a38dc39370cf7bf370a468bb3b13b8d3ec897",
+   "solana/tests/financial-runtime/tests/allocation_diff.rs": "3ac5c0bf28ff0fe87cd79815ccee5c1105cafdf0852f50296d40686acad6a505",
+   "docs/coordination/kanban.md": "a9cc2195fa17222bf14c9b19869d4f681f32253bfb8741a9818797d0bf5e8bac",
+   "docs/solana/evidence/2026-10-14-m5-admission-payouts.json": "f083bf40df273054393293d0e687fd403258050311895557c6cd95f04a44731a",
+   "docs/solana/evidence/2026-10-14-m5-cli.json": "4e815d026b9b70aea0927a0f2e8316e2d98e02b28ad290833fb37ae7e12ba021",
+   "docs/solana/evidence/2026-10-14-m5-quota-pin.json": "08f241eb78056c499488c8b34980afbf6d7c144baa351f6767098efa2489aff5",
+   "docs/solana/evidence/2026-10-14-m5-config-pins.json": "6ad1dc80b856d18cb3d5ff48743c16005a068693919dc643504e25d4b60a298e",
+   "docs/solana/evidence/2026-10-14-m6-allocation.json": "c5741ad49b50aae230d67982bcd02e03c4b09f3f1550ed1ad037f09e59826118",
+   "docs/solana/evidence/2026-10-14-m6-cli.json": "03c1325c461b634f78efe3ddf23657175d366f38b36c3d08ee80d2109cbd0a3b",
+   "docs/solana/evidence/2026-10-14-m5-graph-fragment.json": "9241f92206e646ca3fc81ac15127420103fc1ef960220c9fe10ea8df2b0cabb4",
+   "docs/solana/evidence/2026-10-14-m6-graph-fragment.json": "3dd417ea6d3cdace86f981e489fdb35e1041c708ebdf52f20ea4acb001f1dec0"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at cabfd01; semantic coverage is the listed files plus the two fragments. tests/allocation_diff.rs (IMPL-30) was being written during the update, so its AST nodes reflect an in-progress copy; the final file (sha listed) is executed and recorded in 2026-10-14-m6-allocation.json and will be re-extracted at the M7 refresh.",
+  "pinned_at": "c6fdaa7 for unchanged files; the three files corrected after the Codex M5/M6 handoff check (m6-allocation.json proof_level wording, controls.rs validate doc comment, kanban.md) are pinned at their corrected content in the follow-up docs commit",
+  "repin_history": [
+   {
+    "reason": "Codex handoff check c6fdaa7 item (2): the m6-allocation.json pin predated the IMPL-30 differential section; re-pinned at the corrected receipt",
+    "before": {
+     "docs/solana/evidence/2026-10-14-m6-allocation.json": "71e6810d7392a20aaaaa6a01a373c57107410118f2a21adc4bedcd37db9527a9",
+     "solana/programs/musical_chairs/src/controls.rs": "19decc67cc422ddf1b00107cc28576cb8b3e81788e42e8f7c660c6dbe96fa2cc",
+     "docs/coordination/kanban.md": "dcb2e269ba1fe0fca681990c22922133e62b0fbcd80a958179fc08c509f53ba5"
+    }
+   }
+  ],
+  "graphify_manifest_note": "graphify-out/manifest.json (gitignored) keys files by mtime + ast_hash, not sha256; its entry for 2026-10-14-m6-allocation.json (ast_hash c3a76a25…) and the evidence_2026_10_14_m6_allocation_* leaf nodes were extracted from the receipt BEFORE the differential_impl30 section and the proof_level correction were added. The graph identities are unchanged; the differential section is carried into the graph at the M7 refresh (no redundant whole-graph refresh)."
+ },
+ "stale_or_uncovered": [
+  "solana/tests/financial-runtime/tests/allocation_diff.rs: AST from an in-progress copy (final file hashed above; re-extract at M7)",
+  "docs/solana/evidence/2026-10-14-m6-cli.json (2.7 MB): no graphify file node; referenced through the receipt leaf evidence_2026_10_14_m6_allocation_cli_copy",
+  "IMPL-32 M7 program (close.rs/provider.rs/sampling.rs) lives in an isolated worktree, not in this tree: uncovered until applied",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only",
+  "docs/solana/evidence/2026-10-14-m6-allocation.json: graph leaf nodes/manifest reflect the pre-IMPL-30 version (re-extract at M7)"
+ ],
+ "checks": {
+  "all_prior_12585_node_ids_retained": true,
+  "all_prior_17942_raw_edge_identities_retained": true,
+  "all_prior_40_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "two_overwritten_concept_nodes_restored": true,
+  "m5_plan_node_implemented_edges": 8,
+  "m6_plan_node_implemented_edges": 7,
+  "community_1332_nodes": 8,
+  "community_1333_nodes": 7,
+  "edge_m6_u256_discovery_to_src_backers_pro_rata": true,
+  "statuses_after": {
+   "plan2026_10_13_m5_admission_payouts": "completed_receipt",
+   "plan2026_10_13_m6_allocation_claims": "completed_receipt",
+   "plan2026_10_13_defect_08_prune_same_page_swap_delete_bug": "resolved_in_local_implementation",
+   "plan2026_10_13_defect_09_prune_alias_inverted_write": "resolved_in_local_implementation",
+   "plan2026_10_13_finding_f4_allocation_prune_draft_bugs": "resolved_in_local_implementation",
+   "plan2026_10_13_gap_no_red_green_proof": "resolved_in_local_implementation",
+   "plan2026_10_13_stubs_allocation_rs": "local_runtime_executed"
+  }
+ },
+ "query_checks": {
+  "outputs": {
+   "m56-queries.txt": {
+    "sha256": "4a14971a9679ef2a07c88decc0b484946b6cc416d690424cfcf1abedfbb3dbdd",
+    "queries": [
+     "M5 admission payouts open_position withdraw_simple (90 nodes; new community-1332/1333 nodes surface among the first 10)",
+     "M6 allocation ticket discover_rows prune_rows claim_backer (55 nodes)",
+     "config pins quota_count seed_bps validate"
+    ],
+    "community_1332_hits": 5,
+    "community_1333_hits": 3
+   },
+   "m56-explain.txt": {
+    "sha256": "ee26041a41fd952c88bbe1e9a62b9aceff5be5b4979ac9088e0b5a77f4b35fe5",
+    "explained_ids": [
+     "impl2026_10_14_m5_payout_pipeline",
+     "impl2026_10_14_m6_prune_and_aliases",
+     "impl2026_10_14_m5_config_pins",
+     "impl2026_10_14_m6_allocation_suite"
+    ],
+    "all_resolved": true
+   }
+  },
+  "note": "graphify path label matching is ambiguous for these names; explain <id> used instead, as in M3/M4"
+ },
+ "graph_json_sha256_after": "955245ea937b86a3662986a69267286f2706cf6cda0cf5ca1ffa76a55803691b",
+ "evidence_caveat": "A graph relationship is navigation evidence; financial and authority claims are verified against the committed source and the LiteSVM receipts, not the graph."
+}

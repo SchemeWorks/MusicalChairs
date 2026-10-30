@@ -1,0 +1,320 @@
+{
+ "program": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+ "event_cpi_tag_hex": "e445a52e51cb9a1d",
+ "source": "local solana-test-validator 3.1.0 (agave v3.1.0-beta.0 release), getTransaction encoding json maxSupportedTransactionVersion 0, finalized; captured 2026-10-24 from the localCluster.test.ts (flows-*) and localClusterClosing.test.ts (closing-*) runs on ELF 0c88d4e7\u2026",
+ "transactions": [
+  {
+   "file": "closing-001.json",
+   "slot": 28,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "36e575a321079714"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-002.json",
+   "slot": 30,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "b05e125d82525c97"
+   ],
+   "events": [
+    "PayoutPaid",
+    "RoundClosed"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-003.json",
+   "slot": 31,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-004.json",
+   "slot": 32,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-005.json",
+   "slot": 33,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "5c895e51996e48e0"
+   ],
+   "events": [
+    "CandidatesSealed"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-006.json",
+   "slot": 35,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "3c2638b3f21f5012"
+   ],
+   "events": [
+    "DrawRequested"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-007.json",
+   "slot": 36,
+   "err": null,
+   "top_level_program_ix_discriminators": [],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-008.json",
+   "slot": 38,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "67b7aa2e25a7d96d"
+   ],
+   "events": [
+    "DrawCaptured"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-009.json",
+   "slot": 40,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "36fe380d39ed4226"
+   ],
+   "events": [
+    "PromotionApplied"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-010.json",
+   "slot": 41,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "efa0fe0bfe903594"
+   ],
+   "events": [
+    "RoundFinalized"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-011.json",
+   "slot": 43,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "closing-012.json",
+   "slot": 44,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "87802f4d0f98f031"
+   ],
+   "events": [
+    "PositionOpened"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-001.json",
+   "slot": 22,
+   "err": null,
+   "top_level_program_ix_discriminators": [],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-002.json",
+   "slot": 25,
+   "err": null,
+   "top_level_program_ix_discriminators": [],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-003.json",
+   "slot": 27,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "a5521c05fbec09db"
+   ],
+   "events": [
+    "OperationsFunded"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-004.json",
+   "slot": 28,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-005.json",
+   "slot": 29,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-006.json",
+   "slot": 30,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "c4c969d2afbdf035"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-007.json",
+   "slot": 66,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "87802f4d0f98f031"
+   ],
+   "events": [
+    "PositionOpened"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-008.json",
+   "slot": 71,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "b05e125d82525c97"
+   ],
+   "events": [
+    "PayoutPaid"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-009.json",
+   "slot": 72,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "627fc96ea49f914b"
+   ],
+   "events": [
+    "SeriesAFunded"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-010.json",
+   "slot": 79,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "b05e125d82525c97"
+   ],
+   "events": [
+    "PayoutPaid"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-011.json",
+   "slot": 80,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "639a3ff11aa2f22a"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-012.json",
+   "slot": 82,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "7d9e3054dc6e3f26"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-013.json",
+   "slot": 83,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "962587340bff5fdf"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-014.json",
+   "slot": 85,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "e37559b7248e7885"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-015.json",
+   "slot": 87,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "db6dc679559483d7"
+   ],
+   "events": [],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-016.json",
+   "slot": 89,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "0f61373826f958dc"
+   ],
+   "events": [
+    "TicketCommitted"
+   ],
+   "version": "legacy"
+  },
+  {
+   "file": "flows-017.json",
+   "slot": 92,
+   "err": null,
+   "top_level_program_ix_discriminators": [
+    "ac94537674b9be85"
+   ],
+   "events": [
+    "BackerClaimed"
+   ],
+   "version": "legacy"
+  }
+ ]
+}

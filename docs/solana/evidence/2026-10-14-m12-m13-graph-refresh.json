@@ -1,0 +1,141 @@
+{
+ "recorded_at_utc": "2026-10-15T04:56:29.154678+00:00",
+ "cards": [
+  "IMPL-47d",
+  "IMPL-48c"
+ ],
+ "milestone": "M12 ICP bridge + PP exactly-once and M13 keepers/monitoring — graph receipt",
+ "head_at_graph_update": "f9cbcc5",
+ "branch": "codex/native-solana-production-core",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m12-packet-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m11-graph-refresh.json"
+ ],
+ "pre_update_backup": "scratchpad/graph-backup-m12m13 (taken from the accepted post-packet state before this update)",
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log": "scratchpad/impl47/graphify-update-m12m13.log",
+   "result": "19,960 / 30,087 / 47 → 20,687 / 31,127 / 47 (AST re-extraction incl. solana/keepers/worker, native_sol_keeper, the replica stub/driver, the bridge cooldown fix)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m12m13-fragment-spec.json 1781 validate|apply",
+   "result": "restored 17 collapsed raw edges and 321 stripped node attributes (same set as the packet refresh); fragment 9 nodes / 19 edges / 2 hyperedges / 2 attribute updates; APPLIED 20,696 / 31,163 / 49; fragment docs/solana/evidence/2026-10-14-m12-m13-graph-fragment.json"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 19960,
+  "edges": 30087,
+  "hyperedges": 47
+ },
+ "after_graphify_update": {
+  "nodes": 20687,
+  "edges": 31127,
+  "hyperedges": 47
+ },
+ "after_merge": {
+  "nodes": 20696,
+  "edges": 31163,
+  "hyperedges": 49
+ },
+ "fragment": {
+  "label": "Native Solana 2026-10-14 M12 ICP bridge + PP exactly-once and M13 keepers/monitoring (IMPL-47a..d, 48a..c)",
+  "community": 1781,
+  "nodes": [
+   "impl2026_10_14_m12_fixtures_candid_rig",
+   "impl2026_10_14_m12_bridge_canister",
+   "impl2026_10_14_m12_shenanigans_native_rewards",
+   "impl2026_10_14_m12_replica_integration",
+   "impl2026_10_14_m12_receipt",
+   "impl2026_10_14_m13_keeper_worker",
+   "impl2026_10_14_m13_icp_watchdog",
+   "impl2026_10_14_m13_operations_runbook",
+   "impl2026_10_14_m13_receipt"
+  ],
+  "hyperedges": [
+   "m12_bridge_2026_10_14",
+   "m13_keepers_2026_10_14"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_m12_icp_bridge → completed_receipt",
+   "plan2026_10_13_m13_keepers_monitoring → completed_receipt"
+  ]
+ },
+ "invariants": {
+  "every_prior_node_id_preserved": true,
+  "prior_raw_edge_multiplicity_preserved": true,
+  "prior_hyperedges_preserved": true,
+  "duplicate_node_ids": 0,
+  "dangling_edges": 0,
+  "edge_direction_preserved": true,
+  "all_committed_fragment_nodes_present": true
+ },
+ "scope": {
+  "covered_files_sha256_at_head": {
+   ".github/workflows/native-solana-model.yml": "a1c6b8ab8bf07077348e841b30eb8f485684f84ecfbd2106a1f7e122c5fd21e2",
+   "dfx.json": "8c7cce7bef96c3a3c4193aeb8b309a14b6f8c4112259281ccfe7dd157e8d45bd",
+   "native_sol_bridge/Outbox.mo": "e78fde4c6e3b247847ab457989ce74b5bcd2d5f324a3c86ebc339dc6a46faf3d",
+   "native_sol_bridge/test/gen/b58.py": "91829b8d7a19d4478419562b68f3ee83804f1903d7092124093af73a6af8a614",
+   "native_sol_bridge/test/gen/genfix.py": "3aa61530062a9adf5c35b129811688f6de76d9e7415d4a523f1f0ea52ce07bdf",
+   "native_sol_bridge/test/gen/wire.py": "c2a54fce776f7e02d49ff0a858be807957503c20ac598767e3622038f3ff1364",
+   "native_sol_bridge/test/outbox.test.mo": "f4f36c86845cc0a2a91cfe768659824b760734000c60ff8e5d3df4516cd134a3",
+   "native_sol_bridge/test/replica/dfx.json": "076e27f84fd5be3b2ce21bcf62a3818eb88a2a8ea00733b6ac479b6844a744da",
+   "native_sol_bridge/test/replica/drive.py": "0e033faee0d42fb288c2aa211389c55b0ac52895b94124c6c5d07b018bc4a3d5",
+   "native_sol_bridge/test/replica/receipt-2026-10-14.json": "eafb6247185d8e5c0888e55f85487d6d2d59860774c62dd6eeef27cf0d053a3c",
+   "native_sol_bridge/test/replica/run.sh": "edb51444705eff8c2d17548243330740d6209103b296c069ad562f9cd588010e",
+   "native_sol_bridge/test/replica/sol_rpc_stub/main.mo": "4f3e5a60de363b2d7a2ce6e6020d1524558ca4a0a268d739433225ab650ea7e0",
+   "native_sol_keeper/Accounts.mo": "6198e2070bea0c341088cd96bd8b81138947e8b448266b881260a32fe08a9f9a",
+   "native_sol_keeper/AuthorityTable.mo": "080aba031777a3fea9116756b315ea51a5849cc7d096eec86e4719d0fdcddbf3",
+   "native_sol_keeper/Base58.mo": "d7fc7681b200043246308fcf3d013df5fe5ba58d3b29843cbf4dc684911dfbf8",
+   "native_sol_keeper/Base64.mo": "56f488f2a4e716ee30dd4b4e2a6d486bbde347304059d7a524737923d84e53cd",
+   "native_sol_keeper/Gate.mo": "c31d294138e39aebfd02d59662be8bfd1d2920ac6d77ec6143b242723a714772",
+   "native_sol_keeper/Journal.mo": "630c0bd8ad5956f36b0953a634bbdba9c70a101707c3a33cff5d4f03baf195fa",
+   "native_sol_keeper/Mgmt.mo": "c6c72a9bcca1f750318607fb66f54f5f0e693688fc67fb38ccce385fbdab0fe2",
+   "native_sol_keeper/Pda.mo": "854cd26c8c198a189006b36d14a643d30c4de3899dc69cc5d2cce049d4db602a",
+   "native_sol_keeper/Planner.mo": "61e70bf4ab6870690da2fce005dce5b2a328d1eb53a833185cdebac256d592cf",
+   "native_sol_keeper/Policy.mo": "01fee5644f919cd651a26327f90eaeae957c1e38f7b10006b45b1a677578a85f",
+   "native_sol_keeper/Rpc.mo": "5cb4fac2442a6d8edc942cbee029af12821a3fa970f531f97331aa581f4112b6",
+   "native_sol_keeper/Sha256.mo": "7aad8a2de7191b714ab04eda1ed791155631615e8e858f03854134f304ad84bd",
+   "native_sol_keeper/Tx.mo": "c045d9ea9ba5b1809712743abb31c23efe48f35ec119bb4fb3c28b9a5496d36a",
+   "native_sol_keeper/main.mo": "510e75be167509a9d7b6d910d4c516b91f2cce0d1cf9d9f20fbca26af0406a41",
+   "native_sol_keeper/test/accounts.test.mo": "e524818259afa1a4b2047cdc8b6b2e552747832755598609e1d960d80c51c56b",
+   "native_sol_keeper/test/authority.test.mo": "0b6135e5b75a7436d2e86c1d00e76f59276002bb36715284b1589fd3123cb5da",
+   "native_sol_keeper/test/fixtures.mo": "eaa49346f0630647379b5ba5a51ff63a51275d2df03f05d5484106b9a80b1b7a",
+   "native_sol_keeper/test/gate.test.mo": "9498757351a2054abaecb574bcdcc18c1caf58ffd9cc8198e447b1e7c49a52c4",
+   "native_sol_keeper/test/gen/authority_table.py": "463b52e9e5b7d1cf9c7bcd02f1b2cdbf1b7853384f55bdfadc86ea7751074625",
+   "native_sol_keeper/test/gen/fixtures.py": "37482f2174fcaf34b1b2c785511315fb547a635e7af45e35f4783547bfba592a",
+   "native_sol_keeper/test/journal.test.mo": "37e5edad56ec5901af8394b4aa613a816eda9068fb32be074d127faa51c3ce1e",
+   "native_sol_keeper/test/pda.test.mo": "f18b24780144f2adddb19671ad567efe02fe2c16547224b310419451b4d9085f",
+   "native_sol_keeper/test/planner.test.mo": "3fe8e74963d90f5edf9e4ed41d44070916bf2e6314a1e1225e21f1b773c04f9f",
+   "native_sol_keeper/test/policy.test.mo": "77e04e185f3dd534d3bfaa9b93b4c0bceef933322d1935495964cffe2d78ca40",
+   "native_sol_keeper/test/tx.test.mo": "b6968d69e9b0069d61cad75cce2ea4e38083bfa353c5cc0c85718f42604600a0",
+   "solana/keepers/worker/Cargo.toml": "bfcc443211a197ac83d92bcf12384752d3e1b7e56e6e9164b7e3fc451310e2f3",
+   "solana/keepers/worker/src/journal.rs": "6aab06abd2d7211a567f1832754afc5caef560da1ce5368b2568c59932193f11",
+   "solana/keepers/worker/src/lib.rs": "3169d875421b8dd3acf95bc936d39235d71b4aac3aecb8c339123aec1ae5cc52",
+   "solana/keepers/worker/src/main.rs": "d60f4574fd156fe929e0a805203fb4d73a7f1154bae2955b28bd1f1b6488c1d6",
+   "solana/keepers/worker/src/metrics.rs": "1f35df13af250ef9a9ba8297773ca8fbd400091a5964f4fc2fa38fbdf13c5a9d",
+   "solana/keepers/worker/src/plan.rs": "e7109ccd36925ac1e3e8c08dd8a64e18888cd404b14f4dda18175949fd8dacda",
+   "solana/keepers/worker/src/rpc.rs": "3f66fb697606012c8f9f9aa884dbcf3b40948f1886ae72df6821d77cee2b5fee",
+   "solana/keepers/worker/src/runner.rs": "7b9cc6ecbccd86fa8df8865da4a88ab8a59dc148779f32b13efd577e498dd470",
+   "solana/keepers/worker/src/state.rs": "d349465ba26e8a345a656f9524b3135e64d566f5fb2711314605d69a6aaf4bb3",
+   "solana/keepers/worker/tests/fixtures/mod.rs": "388d45d5303f6aa8da75602608c61943e45c0215dbabbcea048196b5cacc0ce3",
+   "solana/keepers/worker/tests/keeper.rs": "39d70204416fa2ca31add2c9bfbd540bd112ff22459e2285be3535551adf745d"
+  },
+  "note": "semantic coverage = this fragment (coordinator-authored from the receipts and handoffs); AST coverage = graphify update on the committed tree"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m12_replica_integration\"",
+   "result": "Node: Local-replica integration (first cross-canister evidence, local only): SOL RPC stub at the pinned mainnet id serving the real fixtures, shenanigans at the ledger minting-account id, the real pp_ledger and ic-siws provider; observe → forward → bind (Reserved through the real siws_provider) → execute → reconcile for the bound owner, promotion with snapshot-rollback reconcile, unbound event pending, four disagreement/gap modes, idempotency, four upgrade points, concurrency and quarantine; 115"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m13_keeper_worker\"",
+   "result": "Node: Fee-only keeper worker CLI (Rust, harness pins): pure planner in the reference order (ticket phases → closing pipeline → idle refund/observe), batches cut downward at page edges with the one-row fallback on a 1.4M-CU simulation, fee-only guard before every signature, write-ahead journal with byte-identical re-broadcast and expiry-only fresh blockhash, 60 s / 300 s metrics; RED 0/3 on stubs → GREEN 13/13; fmt + clippy clean; CI job\n  ID:        impl2026_10_14_m13_keeper_worker\n  Source:    "
+  },
+  {
+   "cmd": "graphify path \"impl2026_10_14_m13_icp_watchdog\" \"plan2026_10_13_m13_keepers_monitoring\"",
+   "result": ""
+  }
+ ],
+ "note": "A graph relationship is navigation evidence only; financial and authority claims are verified against current source and tests."
+}

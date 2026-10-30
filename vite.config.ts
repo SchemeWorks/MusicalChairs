@@ -13,6 +13,14 @@ export default defineConfig(({ mode }) => {
   // define because Vite's native import.meta.env loads from envDir=root('frontend'),
   // but our env files live at the repo root where this loadEnv reads.
   const VITE_SOLANA_RPC_URL = env.VITE_SOLANA_RPC_URL || '';
+  // Dev-only local-cluster mode (burner wallet, no SIWS canister call). The flag
+  // is only honoured together with import.meta.env.DEV, which Vite folds to
+  // `false` in production builds, so the mode compiles out of every release
+  // (frontend/src/solana/native/localModeFlag.ts).
+  const VITE_NATIVE_LOCAL_CLUSTER = env.VITE_NATIVE_LOCAL_CLUSTER || '';
+  // The ICP native_sol_bridge canister id for the verified native activity feed (hooks/useNativeHistory.ts).
+  // Empty/absent disables the feed: it makes no call.
+  const VITE_NATIVE_BRIDGE_CANISTER_ID = env.VITE_NATIVE_BRIDGE_CANISTER_ID || '';
   
   return {
     root: 'frontend',
@@ -40,6 +48,8 @@ export default defineConfig(({ mode }) => {
       'process.env.DFX_NETWORK': JSON.stringify(DFX_NETWORK),
       'process.env.CANISTER_ID_BACKEND': JSON.stringify(CANISTER_ID_BACKEND),
       'process.env.VITE_SOLANA_RPC_URL': JSON.stringify(VITE_SOLANA_RPC_URL),
+      'process.env.VITE_NATIVE_LOCAL_CLUSTER': JSON.stringify(VITE_NATIVE_LOCAL_CLUSTER),
+      'process.env.VITE_NATIVE_BRIDGE_CANISTER_ID': JSON.stringify(VITE_NATIVE_BRIDGE_CANISTER_ID),
       global: 'globalThis',
     },
     optimizeDeps: {

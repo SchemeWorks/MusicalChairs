@@ -1,0 +1,111 @@
+{
+ "recorded_at_utc": "2026-10-14T07:05:42.851570+00:00",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision4-graph-refresh.json"
+ ],
+ "pass_baseline": "c99a636b9f040c9bf0d18d3698328d9bbd33b7b2",
+ "reviewed_planning_commit": "88adc7bb62ae2d24a131ee48f47e9c29b424b7ca",
+ "planning_branch": "codex/native-solana-plan-20261013",
+ "codex_pin_file": "/private/tmp/mc-plan-final-two-edit-pins-20261013.json",
+ "scope": {
+  "source_sha256": {
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "1a328d367adb8387120a3a09353a56ab4f040350665541f6f809dac0a52882e9",
+   "docs/coordination/native-solana-decision-register-20261013.md": "2f873676903fd180c89ade0e9093b34639ce9c4676df725365c03f30f8f40941",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md": "6641bc99e9b7e910df3d82ed478acaa348330909000e845fb4e7883fdf279044",
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "01189e4e10e8753dccd598d83a44417dc3065ea129c7ece0dd4b747b66e24929",
+   "docs/coordination/native-solana-state-inventory-20261013.md": "608e5440665c6ebd70661ec994f1c285a67840478790724c67fd05f9fa2a4c0a"
+  },
+  "fresh_semantic_files": [
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "docs/coordination/native-solana-decision-register-20261013.md",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md"
+  ],
+  "fresh_ast_files": [],
+  "unchanged_this_round": [
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "docs/coordination/native-solana-state-inventory-20261013.md"
+  ],
+  "full_repository_freshness": false,
+  "motoko_coverage": "historical, not reextracted"
+ },
+ "before": {
+  "nodes": 8068,
+  "edges": 11412,
+  "hyperedges": 36
+ },
+ "added": {
+  "nodes": 3,
+  "edges": 10,
+  "hyperedges": 0
+ },
+ "after": {
+  "nodes": 8071,
+  "edges": 11422,
+  "hyperedges": 36
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-13-planning-revision5-graph-fragment.json",
+  "sha256": "aebf9ae8b8db618b0da2af0fd47b4af44136795115339568d9e6f4c8583babdc",
+  "nodes": 3,
+  "edges": 10,
+  "hyperedges": 0
+ },
+ "community": 801,
+ "attribute_updates": {
+  "count": 2,
+  "ids": [
+   "plan2026_10_13b_dr_32_provider_attribution",
+   "plan2026_10_13d_m5_close_capture_asserts"
+  ]
+ },
+ "checks": {
+  "all_prior_8068_node_ids_retained": true,
+  "all_prior_11412_raw_edge_identities_retained": true,
+  "all_prior_36_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_codex_review_nodes_status_unchanged": true,
+  "spec_unchanged_since_88adc7b": true,
+  "inventory_unchanged_since_88adc7b": true,
+  "plan_matches_codex_pin": true,
+  "register_matches_codex_pin": true,
+  "four_review_artifact_pins_unchanged": true,
+  "manifest_only_scoped_hashes_updated": true,
+  "semantic_cache_files": 3
+ },
+ "anchors_out_of_range": [],
+ "query_checks": {
+  "exact_ids": {
+   "repin": {
+    "id": "plan2026_10_14_final_repin",
+    "present": true,
+    "explain_sha256": "d10bc8ac48aba0470b270fbbb11a1c285081e96c6ba9c9180f5487d607d1c068",
+    "explain_bytes": 883
+   },
+   "e1": {
+    "id": "plan2026_10_14_edit_dr32_actual_retained_lamports",
+    "present": true,
+    "explain_sha256": "b27e87e5915b5e3cbcc4f2d967f2a42dadb03592c7a13f6065963267da6ae965",
+    "explain_bytes": 718
+   },
+   "e2": {
+    "id": "plan2026_10_14_edit_m5_w2_pool_assertion",
+    "present": true,
+    "explain_sha256": "8f2c19c15883cbd70d9ad8aaf375be7f62536902bb9bcb113868be9ab885dbb3",
+    "explain_bytes": 558
+   }
+  },
+  "note": "exact_ids proves presence and explain output; no financial or runtime proof"
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "All handlers remain unimplemented; the two edits are register/plan text.",
+  "Community 801 is a fresh bucket; report/clustering not regenerated."
+ ]
+}

@@ -1,0 +1,654 @@
+{
+ "receipt": "COOL-1 supplement to receipt-2026-10-14-v2.json (IMPL-49b)",
+ "started": "2026-10-15T07:35:02Z",
+ "network": "local dfx replica 127.0.0.1:4943; nothing public",
+ "why": "The v2 run's COOL-1 asserted the OLD post-forward bind cooldown and failed against the accepted repair (ca00bbc + bind clears the gate). This supplement runs only the corrected scenario.",
+ "v2_receipt": {
+  "file": "receipt-2026-10-14-v2.json",
+  "sha256": "d493a2b2f4ceb42200bc8ec70ad352389ca89cad8104aacf7bdba276f8da290d",
+  "left_unmodified": true
+ },
+ "stale_assertion_in_v2_receipt": "releasePending right after a forward is refused with Cooldown: the bind step reads the next_attempt_at that verifyAndForward set",
+ "corrected_assertion": "releasePending immediately after a successful verifyAndForward is NOT throttled: a forward that lands in Forwarded clears Entry.next_attempt_at (ca00bbc), so the bind answers ok with Shenanigans' own answer (Unbound for an unbound owner, Reserved/AlreadyReserved for a bound one) and never err Cooldown",
+ "other_cases": "The other 153 passing checks of the v2 run (154 total; 133 of them were in the first-phase checkpoint) are unaffected by this supplement and remain valid at their pins; nothing else was re-run.",
+ "operator_principal": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+ "nonadmin_identity": {
+  "name": "mc-nonadmin",
+  "principal": "6xfpf-o3g6j-zlcsz-5g5gj-awwhe-nbejh-7cxgo-belsu-g5sad-y66aj-uqe"
+ },
+ "canisters": {
+  "native_sol_bridge": {
+   "id": "u6s2n-gx777-77774-qaaba-cai",
+   "module_hash": "0x8dd8c22355c1556e9624abc9a5a139eefcf79aa7a49e0cb7ef8962a6f97a97a6"
+  },
+  "shenanigans": {
+   "id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "module_hash": "0xe7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091"
+  },
+  "sol_rpc_stub": {
+   "id": "tghme-zyaaa-aaaar-qarca-cai",
+   "module_hash": "0xd9e3b2815762e240a9919c189b49dd1f530c6e3cd33ae1f789e34031b5044e5f"
+  }
+ },
+ "stub_mode_before": {
+  "Agree": null
+ },
+ "scenarios": [
+  {
+   "scenario": "unbound owner (clone of flows-007, burner owner)",
+   "synthetic_signature": "3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx",
+   "forward_status": "Forwarded",
+   "entry_next_attempt_at_after_forward": 0,
+   "seconds_between_forward_reply_and_bind_call": 3.41,
+   "releasePending_reply": {
+    "ok": {
+     "binding": {
+      "Unbound": null
+     },
+     "shenanigans": [
+      {
+       "Unbound": null
+      }
+     ]
+    }
+   },
+   "expected_shenanigans_answers": [
+    {
+     "Unbound": null
+    }
+   ]
+  },
+  {
+   "scenario": "bound owner (clone of closing-012, Bow1CG...)",
+   "synthetic_signature": "3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy",
+   "forward_status": "Forwarded",
+   "entry_next_attempt_at_after_forward": 0,
+   "seconds_between_forward_reply_and_bind_call": 3.3,
+   "releasePending_reply": {
+    "ok": {
+     "binding": {
+      "Bound": {
+       "at": "1792049727681640001"
+      }
+     },
+     "shenanigans": [
+      {
+       "Reserved": null
+      }
+     ]
+    }
+   },
+   "expected_shenanigans_answers": [
+    {
+     "Reserved": null
+    },
+    {
+     "AlreadyReserved": null
+    }
+   ]
+  }
+ ],
+ "left_behind": "Two synthetic bridge entries (Forwarded). The bound-owner one is Reserved in Shenanigans with two Pending legs (no gift: the shared reservation is held); no leg was executed and nothing was minted.",
+ "finished": "2026-10-15T07:35:28Z",
+ "result": {
+  "checks": 2,
+  "passed": 0,
+  "failed": [
+   "COOL-1/flows-007",
+   "COOL-1/closing-012"
+  ]
+ },
+ "checks": [
+  {
+   "id": "COOL-1/flows-007",
+   "check": "releasePending immediately after a successful verifyAndForward is NOT throttled: a forward that lands in Forwarded clears Entry.next_attempt_at (ca00bbc), so the bind answers ok with Shenanigans' own answer (Unbound for an unbound owner, Reserved/AlreadyReserved for a bound one) and never err Cooldown [unbound owner (clone of flows-007, burner owner); 3.4 s after the forward]",
+   "pass": false,
+   "detail": {
+    "ok": {
+     "binding": {
+      "Unbound": null
+     },
+     "shenanigans": [
+      {
+       "Unbound": null
+      }
+     ]
+    }
+   }
+  },
+  {
+   "id": "COOL-1/closing-012",
+   "check": "releasePending immediately after a successful verifyAndForward is NOT throttled: a forward that lands in Forwarded clears Entry.next_attempt_at (ca00bbc), so the bind answers ok with Shenanigans' own answer (Unbound for an unbound owner, Reserved/AlreadyReserved for a bound one) and never err Cooldown [bound owner (clone of closing-012, Bow1CG...); 3.3 s after the forward]",
+   "pass": false,
+   "detail": {
+    "ok": {
+     "binding": {
+      "Bound": {
+       "at": "1792049727681640001"
+      }
+     },
+     "shenanigans": [
+      {
+       "Reserved": null
+      }
+     ]
+    }
+   }
+  }
+ ],
+ "calls": [
+  {
+   "n": 1,
+   "t": "2026-10-15T07:35:06Z",
+   "step": "stub getMode",
+   "canister": "sol_rpc_stub",
+   "canister_id": "tghme-zyaaa-aaaar-qarca-cai",
+   "method": "getMode",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "()",
+   "ok": true,
+   "reply": {
+    "Agree": null
+   },
+   "error": null
+  },
+  {
+   "n": 2,
+   "t": "2026-10-15T07:35:08Z",
+   "step": "stub cloneFixture(flows-007 -> synthetic copy with another signature)",
+   "canister": "sol_rpc_stub",
+   "canister_id": "tghme-zyaaa-aaaar-qarca-cai",
+   "method": "cloneFixture",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(\"QyfUy5noAjh36yq9jBcbRD5UCsZxH6qYe46GKFMaS6QHsfg33d4FGgXRHKX1CbByaffKEhJm35ckXxSqU8hjVJH\", 113 : nat8)",
+   "ok": true,
+   "reply": [
+    "3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx"
+   ],
+   "error": null
+  },
+  {
+   "n": 3,
+   "t": "2026-10-15T07:35:10Z",
+   "step": "submit unbound owner (clone of flows-007, burner owner)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "submitEventDescriptor",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx\"; instruction_index = 1 : nat; inner_instruction_index = 4 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG\"; basis_lamports = 1000000000 ...(641 chars)",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "Submitted": {
+      "seq": "7"
+     }
+    }
+   },
+   "error": null
+  },
+  {
+   "n": 4,
+   "t": "2026-10-15T07:35:14Z",
+   "step": "verifyAndForward unbound owner (clone of flows-007, burner owner) (non-admin)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "verifyAndForward",
+   "caller": "mc-nonadmin(throwaway non-admin: not controller, not admin, not relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx\"; instruction_index = 1 : nat; inner_instruction_index = 4 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "binding": {
+      "Unbound": null
+     },
+     "cursor": "7",
+     "seq": "7",
+     "status": {
+      "Forwarded": {
+       "already_observed": false,
+       "at": "1792049713561814001",
+       "obligation_id": "ev1|6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx|1|4|1"
+      }
+     }
+    }
+   },
+   "error": null
+  },
+  {
+   "n": 5,
+   "t": "2026-10-15T07:35:15Z",
+   "step": "bridge getEvent unbound owner (clone of flows-007, burner owner)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "getEvent",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx\"; instruction_index = 1 : nat; inner_instruction_index = 4 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": [
+    {
+     "binding": {
+      "Unbound": null
+     },
+     "descriptor": {
+      "basis_lamports": "1000000000",
+      "beneficiary_pubkey": "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG",
+      "event_id": {
+       "cluster_domain": [
+        109,
+        117,
+        115,
+        105,
+        99,
+        97,
+        108,
+        45,
+        99,
+        104,
+        97,
+        105,
+        114,
+        115,
+        45,
+        108,
+        111,
+        99,
+        97,
+        108,
+        110,
+        101,
+        116,
+        45,
+        100,
+        101,
+        118,
+        33,
+        33,
+        33,
+        33,
+        33
+       ],
+       "event_schema_version": "1",
+       "inner_instruction_index": "4",
+       "instruction_index": "1",
+       "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+       "signature": "3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx"
+      },
+      "kind": {
+       "PositionOpened": null
+      },
+      "plan": [
+       {
+        "Simple": null
+       }
+      ],
+      "source_close_id": [],
+      "source_round_id": "1"
+     },
+     "event_key": "6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx|1|4|1",
+     "next_attempt_at": "0",
+     "seq": "7",
+     "status": {
+      "Forwarded": {
+       "already_observed": false,
+       "at": "1792049713561814001",
+       "obligation_id": "ev1|6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx|1|4|1"
+      }
+     },
+     "submitted_at": "1792049709979457001",
+     "submitted_by": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+     "verified": [
+      {
+       "event": {
+        "PositionOpened": {
+         "close_id": [],
+         "config_version": 1,
+         "gross": "1000000000",
+         "load": "40000000",
+         "nonce": "4895690605773200396",
+         "owner": "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG",
+         "plan": 0,
+         "round_id": "1",
+         "schema_version": 1
+        }
+       },
+       "forward": {
+        "basis_lamports": "1000000000",
+        "beneficiary_pubkey": "HixcV1fZc9B9qqWRFThcs5heon6usJAFfbbaSHYXzniG",
+        "event_id": {
+         "cluster_domain": [
+          109,
+          117,
+          115,
+          105,
+          99,
+          97,
+          108,
+          45,
+          99,
+          104,
+          97,
+          105,
+          114,
+          115,
+          45,
+          108,
+          111,
+          99,
+          97,
+          108,
+          110,
+          101,
+          116,
+          45,
+          100,
+          101,
+          118,
+          33,
+          33,
+          33,
+          33,
+          33
+         ],
+         "event_schema_version": "1",
+         "inner_instruction_index": "4",
+         "instruction_index": "1",
+         "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+         "signature": "3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx"
+        },
+        "kind": {
+         "PositionOpened": null
+        },
+        "plan": [
+         {
+          "Simple": null
+         }
+        ],
+        "source_close_id": [],
+        "source_round_id": "1"
+       },
+       "slot": "28",
+       "tx_version": {
+        "legacy": null
+       }
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "n": 6,
+   "t": "2026-10-15T07:35:17Z",
+   "step": "releasePending unbound owner (clone of flows-007, burner owner) IMMEDIATELY after the forward (non-admin)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "releasePending",
+   "caller": "mc-nonadmin(throwaway non-admin: not controller, not admin, not relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3GYruHF9T86fLHS9wfuwfyBuEkDdbvYwVVHgh7oUFp9KfW6u28R62udKoQVjD1htJhxxGinsDiwJ9LCYtQfwJatx\"; instruction_index = 1 : nat; inner_instruction_index = 4 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "binding": {
+      "Unbound": null
+     },
+     "shenanigans": [
+      {
+       "Unbound": null
+      }
+     ]
+    }
+   },
+   "error": null
+  },
+  {
+   "n": 7,
+   "t": "2026-10-15T07:35:19Z",
+   "step": "stub cloneFixture(closing-012 -> synthetic copy with another signature)",
+   "canister": "sol_rpc_stub",
+   "canister_id": "tghme-zyaaa-aaaar-qarca-cai",
+   "method": "cloneFixture",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(\"436S4sakFheBrYSuv6ie3o5T45fzrMeaHHru3EVhsxf6KUDig2muwiK5nftF5jSm8doTPbj6DURShz6yUvEQDoVA\", 114 : nat8)",
+   "ok": true,
+   "reply": [
+    "3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy"
+   ],
+   "error": null
+  },
+  {
+   "n": 8,
+   "t": "2026-10-15T07:35:21Z",
+   "step": "submit bound owner (clone of closing-012, Bow1CG...)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "submitEventDescriptor",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy\"; instruction_index = 1 : nat; inner_instruction_index = 3 : nat; event_schema_version = 1 : nat }; source_round_id = 2 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 100000000 :...(640 chars)",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "Submitted": {
+      "seq": "8"
+     }
+    }
+   },
+   "error": null
+  },
+  {
+   "n": 9,
+   "t": "2026-10-15T07:35:25Z",
+   "step": "verifyAndForward bound owner (clone of closing-012, Bow1CG...) (non-admin)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "verifyAndForward",
+   "caller": "mc-nonadmin(throwaway non-admin: not controller, not admin, not relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy\"; instruction_index = 1 : nat; inner_instruction_index = 3 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "binding": {
+      "Unbound": null
+     },
+     "cursor": "8",
+     "seq": "8",
+     "status": {
+      "Forwarded": {
+       "already_observed": false,
+       "at": "1792049724394601001",
+       "obligation_id": "ev1|6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy|1|3|1"
+      }
+     }
+    }
+   },
+   "error": null
+  },
+  {
+   "n": 10,
+   "t": "2026-10-15T07:35:26Z",
+   "step": "bridge getEvent bound owner (clone of closing-012, Bow1CG...)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "getEvent",
+   "caller": "operator(dfx identity; controller+admin+relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy\"; instruction_index = 1 : nat; inner_instruction_index = 3 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": [
+    {
+     "binding": {
+      "Unbound": null
+     },
+     "descriptor": {
+      "basis_lamports": "100000000",
+      "beneficiary_pubkey": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+      "event_id": {
+       "cluster_domain": [
+        109,
+        117,
+        115,
+        105,
+        99,
+        97,
+        108,
+        45,
+        99,
+        104,
+        97,
+        105,
+        114,
+        115,
+        45,
+        108,
+        111,
+        99,
+        97,
+        108,
+        110,
+        101,
+        116,
+        45,
+        100,
+        101,
+        118,
+        33,
+        33,
+        33,
+        33,
+        33
+       ],
+       "event_schema_version": "1",
+       "inner_instruction_index": "3",
+       "instruction_index": "1",
+       "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+       "signature": "3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy"
+      },
+      "kind": {
+       "PositionOpened": null
+      },
+      "plan": [
+       {
+        "Simple": null
+       }
+      ],
+      "source_close_id": [],
+      "source_round_id": "2"
+     },
+     "event_key": "6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy|1|3|1",
+     "next_attempt_at": "0",
+     "seq": "8",
+     "status": {
+      "Forwarded": {
+       "already_observed": false,
+       "at": "1792049724394601001",
+       "obligation_id": "ev1|6d75736963616c2d6368616972732d6c6f63616c6e65742d6465762121212121|7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7|3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy|1|3|1"
+      }
+     },
+     "submitted_at": "1792049721010146001",
+     "submitted_by": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+     "verified": [
+      {
+       "event": {
+        "PositionOpened": {
+         "close_id": [],
+         "config_version": 1,
+         "gross": "100000000",
+         "load": "4000000",
+         "nonce": "6354873731899977057",
+         "owner": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+         "plan": 0,
+         "round_id": "2",
+         "schema_version": 1
+        }
+       },
+       "forward": {
+        "basis_lamports": "100000000",
+        "beneficiary_pubkey": "Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew",
+        "event_id": {
+         "cluster_domain": [
+          109,
+          117,
+          115,
+          105,
+          99,
+          97,
+          108,
+          45,
+          99,
+          104,
+          97,
+          105,
+          114,
+          115,
+          45,
+          108,
+          111,
+          99,
+          97,
+          108,
+          110,
+          101,
+          116,
+          45,
+          100,
+          101,
+          118,
+          33,
+          33,
+          33,
+          33,
+          33
+         ],
+         "event_schema_version": "1",
+         "inner_instruction_index": "3",
+         "instruction_index": "1",
+         "program_id": "7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7",
+         "signature": "3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy"
+        },
+        "kind": {
+         "PositionOpened": null
+        },
+        "plan": [
+         {
+          "Simple": null
+         }
+        ],
+        "source_close_id": [],
+        "source_round_id": "2"
+       },
+       "slot": "45",
+       "tx_version": {
+        "legacy": null
+       }
+      }
+     ]
+    }
+   ],
+   "error": null
+  },
+  {
+   "n": 11,
+   "t": "2026-10-15T07:35:28Z",
+   "step": "releasePending bound owner (clone of closing-012, Bow1CG...) IMMEDIATELY after the forward (non-admin)",
+   "canister": "native_sol_bridge",
+   "canister_id": "u6s2n-gx777-77774-qaaba-cai",
+   "method": "releasePending",
+   "caller": "mc-nonadmin(throwaway non-admin: not controller, not admin, not relayer)",
+   "arg": "(record { cluster_domain = blob \"\\6d\\75\\73\\69\\63\\61\\6c\\2d\\63\\68\\61\\69\\72\\73\\2d\\6c\\6f\\63\\61\\6c\\6e\\65\\74\\2d\\64\\65\\76\\21\\21\\21\\21\\21\"; program_id = \"7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7\"; signature = \"3HiP7YnagBkhDGZ3s2GweG7NuN1wNtTaR7ysJtWwhcF3QSmSnnyduE4HQCu5bhkJNTSeo9HW7ATYfguCdyjMueGy\"; instruction_index = 1 : nat; inner_instruction_index = 3 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "ok": {
+     "binding": {
+      "Bound": {
+       "at": "1792049727681640001"
+      }
+     },
+     "shenanigans": [
+      {
+       "Reserved": null
+      }
+     ]
+    }
+   },
+   "error": null
+  }
+ ]
+}

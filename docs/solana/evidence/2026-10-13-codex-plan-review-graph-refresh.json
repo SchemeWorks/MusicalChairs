@@ -1,0 +1,46 @@
+{
+  "recorded_at_utc": "2026-10-14T05:19:55.074992+00:00",
+  "reviewed_commit": "db48ce33a40e10d0a1153d738926eb051bb3b033",
+  "previous_scoped_receipt": "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "scope": {
+    "fresh_semantic_files": [
+      "docs/coordination/native-solana-codex-plan-review-20261013.md"
+    ],
+    "source_sha256": {
+      "docs/coordination/native-solana-codex-plan-review-20261013.md": "d9b59efdeed52842426bc4e4d3213bdda91d888da5266b94481bb8f20bd6b15a"
+    },
+    "fresh_ast_files": [],
+    "full_repository_freshness": false
+  },
+  "before": {
+    "nodes": 7921,
+    "edges": 11080,
+    "hyperedges": 27
+  },
+  "added": {
+    "nodes": 7,
+    "edges": 9,
+    "hyperedges": 1
+  },
+  "after": {
+    "nodes": 7928,
+    "edges": 11089,
+    "hyperedges": 28
+  },
+  "fragment": {
+    "path": "docs/solana/evidence/2026-10-13-codex-plan-review-graph-fragment.json",
+    "sha256": "06335445581674e2e7b2e5ef8c30ea92f219bf2fc4f605a92a4ad7b50f76fa6a"
+  },
+  "checks": {
+    "prior_nodes_raw_edges_and_hyperedges_unchanged": true,
+    "no_dangling_ids": true,
+    "scoped_cache_files": 1,
+    "scoped_manifest_only": true
+  },
+  "limits": [
+    "Review findings are navigation records, not execution proof.",
+    "Existing planning and source pins remain unchanged.",
+    "Historical report/clustering is not regenerated for this one-document append.",
+    "No implementation or financial tests executed."
+  ]
+}

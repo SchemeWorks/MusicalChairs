@@ -1,0 +1,3 @@
+# Third-party SDK sources are provenance-pinned by the local probe.
+# The repository graph covers our model/probe code; it does not reindex the SDK.
+solana/probes/provider-resources/vendor/

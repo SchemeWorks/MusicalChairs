@@ -1,0 +1,125 @@
+{
+  "description": "Byte-exact vectors for the promotion draw: ordinal mapping, candidate digest chain and protocol seed. Regenerate with MC_WRITE_SAMPLING_FIXTURE=1 cargo test sampling.",
+  "domains": {
+    "index": "MC/EEC/INDEX/v1",
+    "seed": "SchemeWorks/MC/EEC/v1",
+    "candidates": "MC/EEC/CANDIDATES/v1"
+  },
+  "rule": {
+    "word": "u64_le(SHA256(index_domain || output_64 || round_id_le || counter_le)[0..8])",
+    "limit": "floor(2^64 / N) * N",
+    "accept": "first counter in 0..64 with word < limit; ordinal = word mod N",
+    "exhausted": "all 64 counters rejected (or N == 0)"
+  },
+  "output_vectors": [
+    {
+      "label": "zero output, one candidate",
+      "output_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "round_id": 1,
+      "candidate_count": 1,
+      "ordinal": 0,
+      "counter": 0
+    },
+    {
+      "label": "zero output, two candidates",
+      "output_hex": "00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+      "round_id": 1,
+      "candidate_count": 2,
+      "ordinal": 1,
+      "counter": 0
+    },
+    {
+      "label": "ramp output, three candidates",
+      "output_hex": "1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e",
+      "round_id": 7,
+      "candidate_count": 3,
+      "ordinal": 0,
+      "counter": 0
+    },
+    {
+      "label": "ramp output, twenty candidates",
+      "output_hex": "3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d",
+      "round_id": 1,
+      "candidate_count": 20,
+      "ordinal": 18,
+      "counter": 0
+    },
+    {
+      "label": "all-ones output, 1000 candidates",
+      "output_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "round_id": 18446744073709551615,
+      "candidate_count": 1000,
+      "ordinal": 391,
+      "counter": 0
+    },
+    {
+      "label": "round id matters",
+      "output_hex": "5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c",
+      "round_id": 2,
+      "candidate_count": 20,
+      "ordinal": 3,
+      "counter": 0
+    },
+    {
+      "label": "large N, counter zero accepted",
+      "output_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f",
+      "round_id": 1,
+      "candidate_count": 9223372036854775809,
+      "ordinal": 3303687002060396424,
+      "counter": 0
+    },
+    {
+      "label": "large N, counter one accepted",
+      "output_hex": "3e3f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d",
+      "round_id": 1,
+      "candidate_count": 9223372036854775809,
+      "ordinal": 8096969836794620040,
+      "counter": 1
+    },
+    {
+      "label": "large N, counter three accepted",
+      "output_hex": "5d5e5f606162636465666768696a6b6c6d6e6f707172737475767778797a7b7c7d7e7f808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c",
+      "round_id": 1,
+      "candidate_count": 9223372036854775809,
+      "ordinal": 2139357791230669977,
+      "counter": 3
+    },
+    {
+      "label": "N = u64::MAX",
+      "output_hex": "1718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f50515253545556",
+      "round_id": 1,
+      "candidate_count": 18446744073709551615,
+      "ordinal": 14802704397899030155,
+      "counter": 0
+    }
+  ],
+  "constructed_samples": [
+    { "label": "all 64 words rejected, N = 3 (limit = 2^64 - 1)", "candidate_count": 3, "word_for_every_counter": "18446744073709551615", "result": "exhausted" },
+    { "label": "counter 0 rejected, counter 1 accepted, N = 2^63 + 1 (limit = N)", "candidate_count": 9223372036854775809, "words": ["9223372036854775809", "5"], "counter": 1, "ordinal": 5 }
+  ],
+  "candidates": {
+    "set_tag": 0,
+    "rows": [
+    { "owner": "4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi", "owner_hex": "0101010101010101010101010101010101010101010101010101010101010101", "loss": "100" },
+    { "owner": "8qbHbw2BbbTHBW1sbeqakYXVKRQM8Ne7pLK7m6CVfeR", "owner_hex": "0202020202020202020202020202020202020202020202020202020202020202", "loss": "200" },
+    { "owner": "CktRuQ2mttgRGkXJtyksdKHjUdc2C4TgDzyB98oEzy8", "owner_hex": "0303030303030303030303030303030303030303030303030303030303030303", "loss": "300000000" },
+    { "owner": "GgBaCs3NCBuZN12kCJgAW63ydqohFkHEdfdEXBPzLHq", "owner_hex": "0404040404040404040404040404040404040404040404040404040404040404", "loss": "18446744073709551622" }
+    ],
+    "empty_digest_hex": "64901f28a1f9404ed05ba90df6d5736f73a732083a32bf60895faed55122311c",
+    "chain_rule": "d0 = SHA256(candidates_domain || tag); d(i+1) = SHA256(d(i) || owner_32 || loss_le_16)",
+    "digest_hex": "4c78a8fbc5f854512359f7bceba26c0ef8ec4e5c33f4990720a15e5a09285902"
+  },
+  "protocol_seed": {
+    "rule": "SHA256(seed_domain || cluster_domain_32 || program_id_32 || round_le || close_le || set_tag || selected_count_le || sealed_digest_32)",
+    "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+    "round_id": 1,
+    "close_id": 1,
+    "set_tag": 0,
+    "selected_count": 4,
+    "sealed_digest_hex": "4c78a8fbc5f854512359f7bceba26c0ef8ec4e5c33f4990720a15e5a09285902",
+    "vectors": [
+      { "cluster": "litesvm-fixture", "cluster_domain": "musical-chairs-litesvm-fixture!!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6c69746573766d2d666978747572652121", "seed_hex": "8db7e75d85d19ae2148f65c5edd8f9bcd3a0a08df0117341c3cec8801c39be8e" },
+      { "cluster": "devnet", "cluster_domain": "musical-chairs-devnet-domain-v1!", "cluster_domain_hex": "6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121", "seed_hex": "6da6ab262fdcc0e6b910569c764cfcb86c18df17fcac97d332057e8768770b7d" }
+    ]
+  }
+}

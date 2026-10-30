@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { AuthClient } from '@dfinity/auth-client';
 import { Identity, AnonymousIdentity } from '@dfinity/agent';
 import { Principal } from '@dfinity/principal';
+import { LOCAL_CLUSTER_MODE } from '../solana/native/localModeFlag';
+import { loadLocalModeWallet } from '../solana/native/localModeLoader';
 
 // ============================================================================
 // Types
@@ -28,6 +31,10 @@ export interface WalletContextType extends WalletState {
   getICPBalance: () => Promise<bigint>;
   transferICP: (to: string, amount: bigint) => Promise<{ height: bigint }>;
   approveICP: (spender: string, amount: bigint) => Promise<{ allowance: bigint }>;
+  // Dev-only local-cluster mode (solana-test-validator + burner/imported wallet, no
+  // SIWS canister call). `connectLocalCluster` is undefined in every production build.
+  isLocalCluster: boolean;
+  connectLocalCluster?: (opts?: { secret?: string }) => Promise<void>;
   // Wallet dropdown open/close state
   isOpen: boolean;
   openWallet: () => void;
@@ -141,10 +148,50 @@ export function WalletProvider({ children }: WalletProviderProps) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [authClient, setAuthClient] = useState<AuthClient | null>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const queryClient = useQueryClient();
+  // True while the connected session is a local-cluster wallet (dev only).
+  const localSessionRef = useRef(false);
   const openWallet = useCallback(() => setIsOpen(true), []);
   const closeWallet = useCallback(() => setIsOpen(false), []);
 
   const isConnected = walletType !== 'none' && (!!identity || walletType === 'oisy' || walletType === 'siws');
+
+  // ============================================================================
+  // Local-cluster mode (dev only; compiled out of production builds)
+  // ============================================================================
+
+  // Everything local-cluster is written as `LOCAL_CLUSTER_MODE ? <thing> : undefined` or behind
+  // `if (LOCAL_CLUSTER_MODE && loadLocalModeWallet)`, and the module is reached ONLY through
+  // loadLocalModeWallet (localModeLoader.ts), so the bundler drops all of it, and the
+  // localModeWallet chunk, when the constant folds to false. A dynamic import written directly in a
+  // function handed to a hook (useCallback, useEffect) would NOT be dropped; see localModeLoader.ts.
+  //
+  // The session adoption itself (walletType 'siws' + pubkey, no identity, locally seeded profile)
+  // lives in localModeWallet.adoptLocalSession; this host only hands it the state setters.
+  const localHost = LOCAL_CLUSTER_MODE
+    ? {
+        queryClient,
+        setIdentity,
+        setPrincipal,
+        setSolanaPubkey,
+        setWalletType,
+        markLocalSession: () => {
+          localSessionRef.current = true;
+        },
+      }
+    : undefined;
+
+  const connectLocalCluster = LOCAL_CLUSTER_MODE
+    ? async (opts?: { secret?: string }) => {
+        setIsConnecting(true);
+        try {
+          const local = await loadLocalModeWallet!();
+          local.adoptLocalSession(await local.connectLocalClusterWallet(opts), localHost!);
+        } finally {
+          setIsConnecting(false);
+        }
+      }
+    : undefined;
 
   // ============================================================================
   // Initialization - Check for existing sessions
@@ -166,6 +213,19 @@ export function WalletProvider({ children }: WalletProviderProps) {
         },
       });
       setAuthClient(client);
+
+      // Local-cluster mode: a reload keeps the same wallet (secret in sessionStorage).
+      // No network, no ICP call; nothing below runs for a restored local session.
+      if (LOCAL_CLUSTER_MODE && loadLocalModeWallet) {
+        const local = await loadLocalModeWallet();
+        const restored = await local.restoreLocalClusterWallet();
+        if (restored) {
+          local.adoptLocalSession(restored, localHost!);
+          // Best effort: top the wallet up again if the validator was reset meanwhile.
+          void local.ensureLocalFunds(restored.pubkey).catch(() => {});
+          return;
+        }
+      }
 
       // Check for saved wallet type
       const savedWalletType = localStorage.getItem('musical-chairs-wallet-type') as WalletType | null;
@@ -432,7 +492,10 @@ export function WalletProvider({ children }: WalletProviderProps) {
 
   const disconnect = useCallback(async () => {
     try {
-      if (walletType === 'plug' && window.ic?.plug) {
+      if (LOCAL_CLUSTER_MODE && loadLocalModeWallet && localSessionRef.current) {
+        const { disconnectLocalClusterWallet } = await loadLocalModeWallet();
+        disconnectLocalClusterWallet();
+      } else if (walletType === 'plug' && window.ic?.plug) {
         await window.ic.plug.disconnect();
       } else if (walletType === 'oisy') {
         const { clearOisySigner } = await import('../lib/oisySigner');
@@ -518,6 +581,8 @@ export function WalletProvider({ children }: WalletProviderProps) {
     isInitializing,
     connect,
     disconnect,
+    isLocalCluster: LOCAL_CLUSTER_MODE,
+    connectLocalCluster,
     getICPBalance,
     transferICP,
     approveICP,
