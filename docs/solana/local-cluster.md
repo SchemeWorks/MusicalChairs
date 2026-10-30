@@ -13,15 +13,63 @@ and the program is loaded at its declared address with `--upgradeable-program`, 
 on a cluster. LiteSVM (the harness) skips some runtime rules (rent-state checks on data-less
 accounts); the validator applies all of them, which is why the browser flows run here.
 
-## Tools (owned temp dir, no global install)
+## Tools (cached pinned copies, no global install)
+
+The original M11 copies lived in `/private/tmp/mc-solana-runtime-tools-20261013/`, which no longer exists. The same pinned
+tools are cached under `~/.cache/mc-solana-tools/` (re-checked 2026-10-30 for DEMO-LOCAL).
 
 | tool | where | pin |
 | --- | --- | --- |
-| `solana-test-validator`, `solana` 3.1.0 (`src:bd8c57e7`) | `/private/tmp/mc-solana-runtime-tools-20261013/agave-macos/solana-release/bin/` | official `solana-release-aarch64-apple-darwin.tar.bz2` of agave v3.1.0-beta.0, sha in `latest-build.json` (`toolchain.archives`) |
-| program ELF | `…/sbf-output/musical_chairs_program.so` | `latest-build.json` artifact (`8f97e83d…` after M10) |
-| Squads vault stand-in | `solana/tests/financial-runtime/standin/squads-vault-standin/artifacts/squads_vault_standin.so` | harness fixture (`SQDS4ep…`) |
-| ORAO VRF | `solana/probes/runtime/fixtures/orao-callback-mainnet-finalized.so` at `VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU` | probes provenance |
-| bootstrap | `local_cluster` bin of the harness crate (`cargo build --locked --bin local_cluster`) | commit `73fd37d` |
+| `solana-test-validator`, `solana` 3.1.0 (`src:bd8c57e7`) | `~/.cache/mc-solana-tools/agave/solana-release/bin/` | official `solana-release-aarch64-apple-darwin.tar.bz2` of agave v3.1.0-beta.0, sha in `latest-build.json` (`toolchain.archives`) |
+| program ELF | `solana/programs/musical_chairs/artifacts/musical_chairs_program.so` (gitignored) | `latest-build.json` artifact (`0c88d4e7…` since the M14-5A re-pin; id `7aSvuR19…`) |
+| Squads vault stand-in | `solana/tests/financial-runtime/standin/squads-vault-standin/artifacts/squads_vault_standin.so` | `latest-build.json` `standin_artifact_sha256` (`eb78e77f…`) |
+| ORAO VRF | `solana/probes/runtime/fixtures/orao-callback-mainnet-finalized.so` at `VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU` | probes provenance (`6d180b1e…`) |
+| bootstrap | `local_cluster` bin of the harness crate, `~/.cache/mc-solana-tools/harness-target/debug/local_cluster` | `23f690ae…`, built from the harness source committed at `1765c2f` (unchanged since) |
+
+## One-command demo (DEMO-LOCAL, 2026-10-30)
+
+`scripts/demo-local.sh` wraps the closing-world recipe below for a click-through. It uses the pinned files above and refuses
+to start, without rebuilding anything, if any hash differs. It also refuses if a port it needs is busy or less than 3 GiB is free.
+It never stops a process it did not start.
+
+```bash
+scripts/demo-local.sh            # start: practice game -> validator -> local oracle -> website; Ctrl-C stops and cleans up
+scripts/demo-local.sh owner-key  # copy the practice owner's key to the clipboard (for the wallet import box)
+scripts/demo-local.sh status     # read-only Pool / Ops / Ticket summary
+scripts/demo-local.sh stop       # clean up a run that was killed without Ctrl-C
+```
+
+In the Claude desktop app the same launcher is the `demo-local` entry of `.claude/launch.json`. Each run owns one folder,
+`~/.cache/mc-demo-local/run-<UTC time>/`, holding the capped ledger (`--limit-ledger-size 10000`), the practice keys, the logs
+and the process ids. Stopping removes that folder and nothing else.
+
+**What to click** (website at `http://localhost:5180`):
+
+1. **As a new player.**
+   1. Choose "Connect new burner wallet". The local faucet funds it with 5 test SOL.
+   2. Go to Invest, pick The Starter Package and enter an amount. The projection shows the Front-End Load and the daily rate. Deposit.
+   3. In the Profit Center the position card shows live earnings and the Carried Interest tier. Withdraw to see the confirmation sheet and the payout.
+   4. In the Seed Round, fund the Series A. Withdraw once more in the Profit Center. That starts a six-step allocation run, one click per step, with "Resume processing".
+   5. Back in the Seed Round, "Claim Repayment" pays the backer's share.
+2. **As the ten-day-old player.**
+   1. Log out of the burner.
+   2. Run `scripts/demo-local.sh owner-key`, open "Import a wallet secret", paste and choose "Import and connect".
+   3. The 1 SOL position from ten days ago shows "This payout closes the round". Withdraw and choose "Confirm and close the round".
+   4. Keep pressing the next button: the six allocation steps, the candidate pages and the candidate list, "Request randomized selection" (the local oracle answers in seconds), "Capture randomness", "Apply Emergency Equity Conversion", then "Finalize round".
+   5. "Open a position in the new round" makes a round-2 deposit.
+
+Browser smoke of exactly this path, 2026-10-30: `docs/solana/evidence/demo-local-20261030/` (9 captures plus a hash manifest).
+
+**What it is not.** The practice game is SYNTHETIC: the position is backdated ten days and the pot is set to 0.1 SOL, so
+the closing path is reachable today. The draw is answered by the local oracle's synthetic key, not the ORAO network. It
+proves nothing about devnet timing, oracle liveness or the accepted 39-step flow.
+
+**Limits found on 2026-10-30:**
+- The pinned validator 3.1.0 has no RPC or faucet bind option, so ports 8899 and 9900 listen on all interfaces.
+  `--bind-address 127.0.0.1` keeps gossip and TPU on loopback, and the chain holds only throwaway practice state.
+- The existing legacy (Chain Fusion) panels and the Shenanigans panels make anonymous, read-only queries to the live
+  Internet Computer. They make no update calls, signatures or payments, and all native game traffic goes to the local validator.
+- Both are logged in `docs/coordination/DEMO_DEFERRED_WORK.md`.
 
 ## Recipe
 

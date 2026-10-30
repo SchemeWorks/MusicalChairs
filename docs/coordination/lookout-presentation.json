@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, flow steps 1 to 9 and the governance waiting-period rehearsal are complete and Gideon-accepted. Flow step 10 is November 3 on the network's real clock. A one-command local demo starting from a pre-aged practice game is being built. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed. The next real checks must wait until November 3 because the game runs on real time. Meanwhile we’re building a practice version Rob can click through on his own computer; he doesn’t need to do anything.",
+  "summary": "Block A on the Solana test network: setup, flow steps 1 to 9 and the governance waiting-period rehearsal are complete and Gideon-accepted. Flow step 10 is November 3 on the network's real clock. A one-command local demo starting from a pre-aged practice game now works end to end. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed. A practice version that skips the waiting now works on Rob’s computer, from first deposit to a new round. The real test-network checks continue on November 3; Rob doesn’t need to do anything.",
   "glossary": [
     {
       "term": "M14",

@@ -26,6 +26,15 @@
       ],
       "port": 5181,
       "autoPort": true
+    },
+    {
+      "name": "demo-local",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "scripts/demo-local.sh",
+        "start"
+      ],
+      "port": 5180
     }
   ]
 }

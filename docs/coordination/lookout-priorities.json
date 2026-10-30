@@ -47,9 +47,9 @@
     {
       "id": "local-demo-delivery",
       "title": "Local click-through demo for Rob",
-      "status": "in_progress",
+      "status": "done",
       "blockedReason": "",
-      "nextAction": "Build the one-command launcher with a stop command and a short walkthrough, check each screen once in the browser, then give Rob the link and the command. Local only; the practice game state is synthetic.",
+      "nextAction": "Done on 2026-10-30: one command starts the practice click-through (a synthetic, already-aged game with a local draw), checked end to end in the browser and left running for Rob.",
       "cardIds": [
         "DEMO-LOCAL"
       ]

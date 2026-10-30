@@ -470,10 +470,10 @@
     },
     {
       "id": "DEMO-LOCAL",
-      "state": "In progress",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Make the existing local click-through of the new Solana screens start with one command, so Rob can try it himself.",
-      "evidenceText": "State detail: in progress since 2026-10-30; Gideon made it the next task and the second priority. An optional demo improvement, not part of acceptance. Rob asked whether the waiting could be fast-forwarded: on the test network it cannot, because that network runs on real time, but this local version starts from a practice game that is already ten days old, so every screen can be tried today. Before building anything, every saved tool and program file was checked against its recorded fingerprint, and all match. The work is a launcher, a stop command and a short walkthrough, with no product changes, then one browser check of each screen. This is a local demonstration only, not test-network evidence.",
+      "evidenceText": "State detail: done on 2026-10-30; this was the second priority. One command now starts a practice version of the new Solana game on this computer, and stopping it cleans everything up. Rob asked to fast-forward instead of waiting: the test network runs on real time and cannot skip ahead, but the practice game starts from a player who joined ten days ago, so every screen can be tried today. One full pass in the browser worked: deposit, the position card, withdrawals, backer funding and claim, then the round closing, the draw, the conversion, finalizing and a deposit in round two. The practice data and the draw's answer are made up locally; this is a demonstration, not test-network evidence. Two small limits are logged for later: some older screens still read live data, and the practice chain is reachable from the local network while it runs.",
       "evidenceLinks": []
     },
     {
