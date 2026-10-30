@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup and flow steps 1 to 9 are accepted. The governance waiting-period rehearsal finished on October 30 under Rob's direct approval: lowered, refusal confirmed in simulation, restored, all readback checks passing; Gideon's review is pending. Flow step 10 is November 3. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed on October 30 after Rob’s go-ahead. The next checks, starting with the first player withdrawal, must wait until November 3 because of the game’s built-in timing. Rob does not need to do anything.",
+  "summary": "Block A on the Solana test network: setup, flow steps 1 to 9 and the governance waiting-period rehearsal are complete and Gideon-accepted. Flow step 10 is November 3 on the network's real clock. A one-command local demo starting from a pre-aged practice game is being built. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed. The next real checks must wait until November 3 because the game runs on real time. Meanwhile we’re building a practice version Rob can click through on his own computer; he doesn’t need to do anything.",
   "glossary": [
     {
       "term": "M14",

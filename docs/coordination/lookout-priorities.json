@@ -5,7 +5,7 @@
       "title": "Native Solana test-network acceptance (Block A)",
       "status": "blocked",
       "blockedReason": "The main 39-step flow (9 done) waits for step 10, the first player withdrawal, on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC on the network's clock. The governance waiting-period rehearsal finished on 2026-10-30 with Rob's direct approval: lowered, the expected refusal confirmed in simulation, then restored at once with all readback checks passing. No Internet Computer activation or real rewards are part of this work.",
-      "nextAction": "In the November 3 window: run steps 10 to 12. Gideon reviews the rehearsal receipt.",
+      "nextAction": "In the November 3 window: run steps 10 to 12.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
@@ -42,6 +42,16 @@
         "M14-A7-EXPIRE",
         "M14-A-ACCEPT",
         "M14-F12-OPT"
+      ]
+    },
+    {
+      "id": "local-demo-delivery",
+      "title": "Local click-through demo for Rob",
+      "status": "in_progress",
+      "blockedReason": "",
+      "nextAction": "Build the one-command launcher with a stop command and a short walkthrough, check each screen once in the browser, then give Rob the link and the command. Local only; the practice game state is synthetic.",
+      "cardIds": [
+        "DEMO-LOCAL"
       ]
     },
     {

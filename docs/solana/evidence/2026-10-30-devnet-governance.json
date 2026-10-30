@@ -3,9 +3,10 @@
  "step": "F11 R4-S4 (Block A, Solana devnet only): execute reduce #3 [SetTimeLock{0}], document the reduced state, propose/approve/execute restore #4 [SetTimeLock{172800}] in the same sitting, full read-back",
  "authority": {
   "block_a": "Rob's Block A approval (F11 in packet 6.5 line 490, D12 line 561); Gideon's acceptance of the F11 tool and immutable binary 9e4a5a4d (docs/coordination/m14-f11-tool-delta-20261027.md, 1765c2f)",
-  "fresh_direct_approval_20261030": "Rob approved this exact rehearsal directly in Gideon's Codex chat, answering Gideon's explicit request covering execute reduce #3, the simulation-only refusal probe and the immediate restore #4 to 172,800 s in the same sitting. Rob's words as relayed by Gideon: 'And for the Devnet waiting period rehearsal how do I approve it? I approve that. I approve the executive-approved proposal number 3. Let me know if you need me to do something else but full speed ahead'. Rob then pasted Gideon's relay into Silas's own chat himself. Silas did not read the Codex chat; the provenance is Gideon's verification plus Rob's own paste.",
+  "fresh_direct_approval_20261030": "Rob approved this exact rehearsal directly in Gideon's Codex chat, answering Gideon's explicit request covering execute reduce #3, the simulation-only refusal probe and the immediate restore #4 to 172,800 s in the same sitting. Rob's words as relayed by Gideon: 'And for the Devnet waiting period rehearsal how do I approve it? I approve that. I approve the executive-approved proposal number 3. Let me know if you need me to do something else but full speed ahead'. Delivery to Silas: Gideon delivered the fresh approval relay to Silas's chat as a visible message through computer use (his YouMessage13); Rob approved directly in Codex and supplied the Silas app screenshot. Silas did not read the Codex chat; the provenance is Gideon's verification of the human turn.",
   "resolves": "the 2026-10-29 automatic-review hold on the F11 execution directive, for this exact devnet envelope only",
-  "does_not_approve": "mainnet, ICP B/C rows, real PP, any held-unknown retry, the PR #125 merge, or the rejected CLAUDE.md publishing-renewal edit"
+  "does_not_approve": "mainnet, ICP B/C rows, real PP, any held-unknown retry, the PR #125 merge, or the rejected CLAUDE.md publishing-renewal edit",
+  "provenance_correction": "2026-10-30, at Gideon's request: an earlier version of this field said Rob pasted Gideon's relay himself; that statement was unsupported and is replaced above."
  },
  "operator_binary": {
   "sha256": "9e4a5a4dbfa48b59275ed613f30203fb4b3aa1f91bb35856d86f6e8bec555802",
@@ -980,6 +981,12 @@
   "the probe never sent anything (no key can sign for the vault PDA)",
   "the main flow is unchanged at 9 of 39 steps"
  ],
- "next": "Gideon's bounded review of this receipt; main flow step 10 in its 2026-11-03T13:11:35Z-15:37:47Z window with d3c66966 (existing monitor)",
- "held": "all ICP B/C rows, real PP minting, any held-unknown retry, mainnet, PR #125 merge, default wallet, secret export, reserve release"
+ "next": "main flow step 10 in its 2026-11-03T13:11:35Z-15:37:47Z window with d3c66966 (existing monitor)",
+ "held": "all ICP B/C rows, real PP minting, any held-unknown retry, mainnet, PR #125 merge, default wallet, secret export, reserve release",
+ "gideon_acceptance": {
+  "date": "2026-10-30",
+  "verdict": "ACCEPTED (bounded receipt review from the committed coordinator evidence)",
+  "checked": "all six unique finalized signatures with err null; the original distinct 2026-10-27 voters; the enforced latest-index and no-other-live guards; exact actions and profile-only changes; the deadline; the reduced unsigned WrongGovernanceProfile probe with sent=false; the 99-second same-sitting restoration; the full 44/44 readback, clean probe and restored phase; payer and ledger arithmetic; the packet pin and publication hashes",
+  "not_done_by_reviewer": "no live RPC and no duplicate suites; no financial rerun"
+ }
 }

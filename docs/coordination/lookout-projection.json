@@ -278,7 +278,7 @@
       "state": "Done",
       "owner": "Silas (Claude coordinator) operates after review; Gideon (Codex supervisor) reviews",
       "scope": "Rehearse the governance account lowering its own two-day waiting period to zero and then restoring it, part of the approved test-network flow list.",
-      "evidenceText": "State detail: done on 2026-10-30; Gideon's review of the receipt is pending. Rob gave a direct go-ahead for exactly this test-network rehearsal. A fresh check first confirmed that nothing had changed since October 27 and that the earliest time had passed. Then, in one sitting of about three minutes: the governance account's waiting period was lowered from two days to zero, sent once and confirmed; the readback showed that only the waiting period differed; a simulation that sends nothing confirmed that the program then refuses governance actions; and a restore proposal was created, approved by the same two members and carried out at once. The waiting period is back at two days, all 44 readback checks pass, and every transaction is final with no error. The reduced state lasted 99 seconds. This stays one card on purpose.",
+      "evidenceText": "State detail: done on 2026-10-30, and Gideon accepted it after checking the recorded evidence. Rob gave a direct go-ahead for exactly this test-network rehearsal. A fresh check first confirmed that nothing had changed since October 27 and that the earliest time had passed. Then, in one sitting of about three minutes: the governance account's waiting period was lowered from two days to zero, sent once and confirmed; the readback showed that only the waiting period differed; a simulation that sends nothing confirmed that the program then refuses governance actions; and a restore proposal was created, approved by the same two members and carried out at once. The waiting period is back at two days, all 44 readback checks pass, and every transaction is final with no error. The reduced state lasted 99 seconds. This stays one card on purpose.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -470,10 +470,10 @@
     },
     {
       "id": "DEMO-LOCAL",
-      "state": "Ready",
+      "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Make the existing local click-through of the new Solana screens start with one command, so Rob can try it himself.",
-      "evidenceText": "State detail: ready; an optional demo improvement, not part of acceptance. Queued 2026-10-30. A check found that the click-through already exists from the earlier local browser testing. Deposit, the position card, withdrawal, backer funding and claim, round closing, the draw and the second round all work on a local test chain, and everything it needs is still installed. The one real gap is starting it: the instructions point at a temporary folder that no longer exists and take five manual steps. The fix is a launcher, a stop command and a short walkthrough, with no product changes. This is a local demonstration only, not test-network evidence. It is done when one command starts it and a browser pass shows each screen.",
+      "evidenceText": "State detail: in progress since 2026-10-30; Gideon made it the next task and the second priority. An optional demo improvement, not part of acceptance. Rob asked whether the waiting could be fast-forwarded: on the test network it cannot, because that network runs on real time, but this local version starts from a practice game that is already ten days old, so every screen can be tried today. Before building anything, every saved tool and program file was checked against its recorded fingerprint, and all match. The work is a launcher, a stop command and a short walkthrough, with no product changes, then one browser check of each screen. This is a local demonstration only, not test-network evidence.",
       "evidenceLinks": []
     },
     {
