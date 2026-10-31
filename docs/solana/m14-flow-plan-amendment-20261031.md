@@ -1,6 +1,6 @@
 # M14 flow plan amendment — 2026-10-31: run F3 (steps 10–12) now
 
-**Status: CANDIDATE for Gideon's bounded acceptance.** No revised devnet transaction has been sent. Card M14-A7-ACCEL.
+**Status: ACCEPTED by Gideon (2026-10-31) at 40d07d1, and steps 10–12 EXECUTED the same day** (section 9). The accepted text of sections 1–8 is this file at 40d07d1 (sha256 `3b4a98d3d86d74c45dbc17193dc9ef04afb17759aa45e4cde9eccdcc43fcf24b`); section 9 is the only later addition. Card M14-A7-ACCEL.
 
 ## 1. Authority and scope
 
@@ -128,3 +128,64 @@ With the candidate runner `13b25fb3…`, steps 10, 11 and 12 run, each once:
 - conservation, readback and append-only receipts.
 
 Any failed check, refusal, contradiction or unknown outcome means STOP: no retry and no alternate executor. Step 13 and later keep the times in section 6, on the existing monitor.
+
+## 9. Acceptance and execution (added after acceptance, 2026-10-31)
+
+**Gideon's acceptance.** Gideon accepted the candidate at pushed `40d07d1` (code `5b32a02`, this amendment at sha256 `3b4a98d3…`).
+- **Approved operator.** `13b25fb35e33c3ad2f4ecc87e7762edb7f8a914a28f4a233d59e31222e9cb2df` (22,997,376 bytes), from its immutable copy only.
+- **What he reviewed independently:**
+  - the plan, guard and test diff;
+  - the F6 inequality and the downstream figures;
+  - all 39 rehearsal steps and the original first nine ids;
+  - the ten wallet equations and their non-negative minima;
+  - the timing boundaries, the resume check and the unsigned preview;
+  - the six manifest hashes;
+  - the preserved runner `d3c66966…` and the nine-receipt hash `6385fc3d…`;
+  - the unchanged frozen packet and the three prose corrections.
+- **What he reused.** The local test receipts; there was no duplicate build, suite or root RPC.
+
+**His bounded execution instruction**, within Rob's direct authorization:
+- fresh devnet cluster, genesis, program and config pins, the actual clock and F3 window, the 9/39 history, a pending file with nothing held, and conservation guards;
+- then steps 10, 11 and 12, each ONCE and in order, through the approved operator;
+- no step 13 and no other send.
+
+**Pre-send guards** (all with `13b25fb3…`):
+- runner hash OK;
+- packet `ae8a6a0e…` equal;
+- receipts `6385fc3d…`;
+- write-ahead 1,439/1,439 resolved, 0 held;
+- finalized readback 44/44;
+- status 9/39, foreign 0, conservation true, step 10 ready, F3 window inside at 358,746 s.
+
+**Execution.** Each step was dry-run, then sent once:
+
+| step | transactions (finalized, err null) | result |
+| --- | --- | --- |
+| 10 `a1_withdraw_simple` | 1 (slot 517,236,955) | paid 456,785,185 gross (about 358,783 s after the open, 12 % tier), toll 54,814,222, net 401,970,963; pot 1,029,200,000 → 572,414,815; 7/7 checks; the expectation came from the real pre-state |
+| 11 `advance_ticket_f3` | 6 (slots 517,237,110–517,237,241) | ticket 1 committed: A1 credited 27,407,109, seed 27,407,113 (= toll); 6/6 checks |
+| 12 `a1_claim_a_only` | 1 (slot 517,237,388) | A1 claimed 27,407,109 (A part only); funded claims → 0; 3/3 checks; A1's row open with 34,592,891 left |
+
+**Reconciliation.**
+- **A1's balance.** Finalized balance 44,955,720 → 474,323,792 (+429,368,072). That is the net payout plus the claim, minus two 5,000-lamport fees.
+- **Keeper.** 49,980,000 → 49,950,000, the six ticket fees.
+- **Game vault.** Spendable fell 429,378,072, to 640,621,928, which is the pot 572,414,815 + seed 27,407,113 + management 40,800,000.
+- **Files.** Write-ahead 1,447/1,447 resolved. Receipts appended; the first nine lines are byte-identical. Ledger row `20261031-A7-flow-10-12`, 40,000 lamports of fees.
+- **Evidence.** `docs/solana/evidence/2026-10-31-f3-acceleration/devnet-steps-10-12.json`.
+
+**After.**
+- 12/39 done.
+- Next is step 13. Its plan earliest is 2026-11-06T02:23:35Z; strict insolvency is possible on chain from 00:10:57Z.
+- Step 13 needs Gideon's go-ahead, because this instruction covered steps 10–12 only.
+- Model projection from the real step 10, not yet chain fact: A1 has about 13.13 M left after the close, against the Compound15 senior slice of 14,091,732, so F6 keeps about 0.96 M of margin.
+
+**Gideon's execution acceptance (2026-10-31).** Gideon accepted the saved devnet execution evidence: `devnet-steps-10-12.json` (sha256 `4a375dca1cf4112980d77191aade557f6e1060bb2b16a9f2649dfbf431465a75`) and the 12-line raw flow receipts (sha256 `2d56a1bb24ca03023aee0e3b33e9baf193e3b70b032c2a31e6c5aa623721e6bd`). His bounded computational review confirmed:
+- the old receipt and ledger bytes are exact prefixes;
+- 12 ordered, unique step receipts;
+- every new post-check and conservation result true;
+- exactly 8 unique signatures, matching 8 finalized outcomes with err null;
+- net + toll = gross, and credited + seed = toll, including the actual rounding;
+- the reduction from the initial pot, the A1 and keeper balance deltas, the vault identity and the 40,000 lamports of fees;
+- write-ahead 1,447/1,447 resolved, 0 open; live flow 12/39.
+
+He made no duplicate root RPC, test or build. The downstream local rehearsal evidence remains accepted. The later F6 outcome is still a projection until it actually runs. Step 13 stays clock-gated, and the remaining steps keep the program's actual conditions and the accepted 39-step coverage.
+

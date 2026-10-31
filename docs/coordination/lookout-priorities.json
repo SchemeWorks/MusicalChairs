@@ -3,9 +3,9 @@
     {
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
-      "status": "in_progress",
-      "blockedReason": "",
-      "nextAction": "The revised test schedule is ready for Gideon's review: the first player withdrawal and the two steps after it can run now, any time before November 3 at 15:27 UTC, with every later check kept and local rehearsals passing. After his acceptance, steps 10 to 12 run once. The round-ending withdrawal (November 6), the deposit maturities and the draw deadlines keep the times the program enforces. No Internet Computer activation or real rewards are part of this work.",
+      "status": "blocked",
+      "blockedReason": "Steps 1 to 12 are done: the first player withdrawal, its fee split and the first backer claim ran on 2026-10-31 under the accepted revised timing, with every check passing. Step 13, the withdrawal that ends round one, cannot happen before 2026-11-06 at 02:23 UTC: the game's insolvency rule is first met shortly after midnight that day and the plan keeps a small margin. It also needs Gideon's go-ahead. No Internet Computer activation or real rewards are part of this work.",
+      "nextAction": "On or after 2026-11-06 at 02:23 UTC, with Gideon's go-ahead: run step 13 and the draw steps that follow it in the same sitting.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
