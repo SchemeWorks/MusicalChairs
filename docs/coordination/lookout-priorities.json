@@ -3,9 +3,9 @@
     {
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
-      "status": "blocked",
-      "blockedReason": "The main 39-step flow (9 done) waits for step 10, the first player withdrawal, on 2026-11-03 at or after 13:11 UTC and before 15:37 UTC on the network's clock. The governance waiting-period rehearsal finished on 2026-10-30 with Rob's direct approval: lowered, the expected refusal confirmed in simulation, then restored at once with all readback checks passing. No Internet Computer activation or real rewards are part of this work.",
-      "nextAction": "In the November 3 window: run steps 10 to 12.",
+      "status": "in_progress",
+      "blockedReason": "",
+      "nextAction": "At Rob's direct request (2026-10-31), revise the test schedule so the first player withdrawal and the two steps after it run now instead of November 3, keeping every later check; Gideon reviews the revised runner before anything is sent, then steps 10 to 12 run once. The round-ending withdrawal (about November 6), the deposit maturities and the draw deadlines keep the times the program enforces. The governance waiting-period rehearsal finished on 2026-10-30. No Internet Computer activation or real rewards are part of this work.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
@@ -29,6 +29,7 @@
         "M14-A7",
         "M14-F11",
         "M14-F11-TOOL",
+        "M14-A7-ACCEL",
         "M14-A7-WD1",
         "M14-A7-CLAIM1",
         "M14-A7-CLOSE1",

@@ -265,7 +265,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 9/39 steps done, and Gideon accepted those nine from the raw receipts. The plan's clock starts from the program's actual activation time, read from the network. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. Each was simulated first, sent once and confirmed, and passed all its checks; the conservation checks and every wallet's balance equation held after each step. The remaining steps are queued as child cards, M14-A7-WD1 to M14-A7-EXPIRE; each child owns its own steps, and this card tracks the total. Next: step 10, the first player withdrawal, no earlier than 2026-11-03 13:11 UTC and before 15:37 UTC on the network's clock, because the plan expects the first-week Carried Interest rate.",
+      "evidenceText": "State detail: in progress; 9/39 steps done, and Gideon accepted those nine from the raw receipts. The plan's clock starts from the program's actual activation time, read from the network. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. Each was simulated first, sent once and confirmed, and passed all its checks; the conservation checks and every wallet's balance equation held after each step. The remaining steps are queued as child cards, M14-A7-WD1 to M14-A7-EXPIRE; each child owns its own steps, and this card tracks the total. Next: at Rob's direct request (2026-10-31) the test schedule is being revised so step 10, the first player withdrawal, and steps 11 and 12 can run now instead of November 3 (card M14-A7-ACCEL); they run once Gideon accepts the revision.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -300,11 +300,24 @@
       ]
     },
     {
+      "id": "M14-A7-ACCEL",
+      "state": "In progress",
+      "owner": "Silas (Claude coordinator); Sonnet worker for the code",
+      "scope": "Revise the chosen test schedule so the first withdrawal and its follow-ups (flow steps 10 to 12) can run now instead of on November 3, keeping every later check.",
+      "evidenceText": "State detail: in progress since 2026-10-31; part of M14-A7. Rob asked directly not to wait days for a schedule the team chose. This is a dated test-plan revision: the program, its rules, the amounts, the budgets and the nine finished steps stay exactly as they are. A fresh read-only look at the test network confirmed nine steps done and the books balanced. The proposal moves the first withdrawal from about seven days after the deposit to four, with an enforced window, because an earlier withdrawal leaves the backer less fee credit and a later step needs that backer to reach its full 124% repayment. The round-ending withdrawal, the deposit maturities and the draw deadlines keep the times the program itself enforces. Gideon reviews the revised runner and its rehearsal before anything is sent.",
+      "evidenceLinks": [
+        {
+          "title": "Draft PR #125 (plan and packet on the branch)",
+          "url": "https://github.com/SchemeWorks/MusicalChairs/pull/125"
+        }
+      ]
+    },
+    {
       "id": "M14-A7-WD1",
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "First player withdrawal and the backer's share of its fee (flow steps 10 and 11).",
-      "evidenceText": "State detail: blocked by the clock; part of M14-A7. The withdrawal may run only on 2026-11-03 from 13:11:35 until before 15:37:47 UTC on the network's clock. The start comes from the plan's timing, counted from the program's actual activation; the end is when that deposit's first-week 12% Carried Interest rate expires. The keeper then splits the fee: half to the backer, half carried into the next round. Each step is simulated first, sent once and must pass every money-accounting check. Missing the window means stop and report to Gideon, because later plan steps rely on this fee.",
+      "evidenceText": "State detail: blocked while the timing revision is reviewed; part of M14-A7. Under the revision (card M14-A7-ACCEL) this withdrawal can run now instead of on November 3, still at the first-week 12% Carried Interest rate; it runs only after Gideon accepts the revised runner, simulated first and sent once. The keeper then splits the fee: half to the backer, half carried into the next round. Until the revision is accepted the old window stands and nothing is sent.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -317,7 +330,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "First backer claim, before any draw (flow step 12).",
-      "evidenceText": "State detail: blocked until steps 10 and 11 finish; part of M14-A7. It runs straight after them in the same sitting, planned for about 13:13 UTC on 2026-11-03 if they run on time. The backer claims the share credited from the first withdrawal fee. No draw has happened yet, so this shows a backer can claim before any promotion. Simulated first, sent once, and every money-accounting check must pass.",
+      "evidenceText": "State detail: blocked until steps 10 and 11 finish; part of M14-A7. Under the timing revision it runs straight after them in the same sitting, once Gideon accepts the revised runner. The backer claims the share credited from the first withdrawal fee. No draw has happened yet, so this shows a backer can claim before any promotion. Simulated first, sent once, and every money-accounting check must pass.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",

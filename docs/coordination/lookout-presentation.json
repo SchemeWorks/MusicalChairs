@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, flow steps 1 to 9 and the governance waiting-period rehearsal are complete and Gideon-accepted. Flow step 10 is November 3 on the network's real clock. A one-command local demo starting from a pre-aged practice game now works end to end. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and its safety-controls test passed. A practice version that skips the waiting now works on Rob’s computer, from first deposit to a new round. The real test-network checks continue on November 3; Rob doesn’t need to do anything.",
+  "summary": "Block A on the Solana test network: setup, flow steps 1–9 and the governance waiting-period rehearsal are complete and Gideon-accepted. At Rob's instruction the plan is being revised so the first withdrawal runs now, not November 3, with every later check kept; Gideon reviews it before any send. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and a practice version works on Rob’s computer. Rob asked not to wait until November 3, so the test plan is being reworked to let the next withdrawal happen now. It runs as soon as the reviewer signs off; Rob doesn’t need to do anything.",
   "glossary": [
     {
       "term": "M14",
@@ -321,6 +321,11 @@
     {
       "term": "snapshot",
       "definition": "A saved copy of a canister's state, taken before an upgrade so it can be restored if anything differs afterwards."
+    },
+    {
+      "term": "test-plan revision",
+      "definition": "A dated change to the schedule the team chose for its test-network checks. It never changes the program or its rules, and Gideon reviews it before it is used.",
+      "cardId": "M14-A7-ACCEL"
     }
   ]
 }
