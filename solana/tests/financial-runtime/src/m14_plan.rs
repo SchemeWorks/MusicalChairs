@@ -484,7 +484,7 @@ pub fn arithmetic_at(f3_elapsed: u64, close1_elapsed: u64) -> Result<Arithmetic,
     let a1_after = model("A1 row after C15", book.backer(BackerKey::new(A1, Series::A)))?;
     let a1_remaining_after_c15 = model("A1 remaining after C15", a1_after.remaining_entitlement())?;
     let a1_still_open_after_c15 = book.is_active(BackerKey::new(A1, Series::A));
-    if !(a1_remaining_after_c15 <= 10 && !a1_still_open_after_c15) {
+    if a1_remaining_after_c15 > 10 || a1_still_open_after_c15 {
         return Err(format!(
             "F6 fails: A1's Series A row must reach 124 % at the Compound15 ticket, but {a1_remaining_after_c15} is still remaining after it (open: {a1_still_open_after_c15}); round 1 credited it too little at F3 elapsed {f3_elapsed}"
         ));
