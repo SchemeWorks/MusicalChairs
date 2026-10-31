@@ -10,8 +10,13 @@
 //!
 //! * `the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries` is `#[ignore]` and needs
 //!   `MC_ORAO_PROFILE=devnet` (like `m14_flow_plan`).
+//! * `the_f3_window_guard_and_a_late_open_still_reach_every_later_check` is `#[ignore]` as well: A1 opens
+//!   3,700 s late (beyond the 1 h allowance), `flow next` refuses F3 before `F3_MIN_ELAPSED` after A1's
+//!   on-chain open, accepts it at exactly that elapsed, and the other 38 steps still pass their checks
+//!   (F6 included, with F3's payout equal to the pure arithmetic at that elapsed).
 //! * The gate and refusal tests (out of order, too early, wrong wallet, devnet without the packet
-//!   identity pin, `--local-oracle` off loopback, the unfulfilled oracle) run in a plain `cargo test`.
+//!   identity pin, `--local-oracle` off loopback, the unfulfilled oracle, the upper end of the F3 window)
+//!   run in a plain `cargo test`.
 //!
 //! ```text
 //! MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --nocapture
@@ -1424,4 +1429,216 @@ fn the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries() {
             println!("oracle latency (LiteSVM, plan spacing): {}", receipt["oracle"]);
         }
     }
+}
+
+// ---------------------------------------------------------------------------
+// The F3 window
+// ---------------------------------------------------------------------------
+
+/// A1 opens `LATE` seconds after its plan offset, beyond the 1 h allowance that `F3_MIN_ELAPSED` makes for
+/// a late open; the plan's own instant for F3 is then before the window opens.  `flow next` refuses F3
+/// there (dry run and `--execute`, nothing simulated or sent), accepts it at exactly `F3_MIN_ELAPSED`
+/// after A1's on-chain `opened_at`, and every later check of the plan still holds, F6 at the Compound15
+/// ticket included.
+#[test]
+#[ignore = "needs MC_ORAO_PROFILE=devnet (see the file docs)"]
+fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
+    const LATE: u64 = 3_700;
+    require_devnet_profile();
+    let (mut world, keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let steps = m14_plan::plan();
+    let genesis = START_TIME as u64;
+    let args = |parts: &[&str]| flow(parts, &dir);
+    // Where A1 will open, and so where close 1 falls in A1's own elapsed time.
+    let opened_at = genesis + m14_plan::O1 + LATE;
+    let close1_actual = genesis + m14_plan::CLOSE1_AT - opened_at;
+    let (window_opens, window_closes) = (opened_at + m14_plan::F3_MIN_ELAPSED, opened_at + m14_plan::F3_MAX_ELAPSED);
+    let expected = m14_plan::arithmetic_at(m14_plan::F3_MIN_ELAPSED, close1_actual).unwrap_or_else(|error| {
+        panic!("a late open ({LATE} s) with F3 at {} s and the close at {close1_actual} s: {error}", m14_plan::F3_MIN_ELAPSED)
+    });
+    assert!(close1_actual >= expected.insolvent_from_elapsed, "the late open still leaves the close insolvent");
+
+    let mut receipts = 0usize;
+    let mut finalized_round_three = false;
+    for step in &steps {
+        let mut at = genesis + step.at;
+        if step.id == "a1_open_simple" {
+            at += LATE;
+        }
+        // The clock only moves forward: a step that is overdue (F3 and its follow-ups after the guard
+        // test below) runs at once.
+        if cluster.now() < at {
+            cluster.warp_to(at);
+        }
+
+        if step.id == "a1_withdraw_simple" {
+            // The plan's own instant: 100 s before the window opens, and nothing may be signed or sent.
+            assert_eq!(cluster.now(), at);
+            let elapsed = cluster.now() - opened_at;
+            assert_eq!(elapsed, m14_plan::F3_AT - m14_plan::O1 - LATE);
+            assert!(elapsed < m14_plan::F3_MIN_ELAPSED);
+            let (sends, sims) = (cluster.sends.get(), cluster.sims.get());
+            let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+            assert_eq!(status["next"]["id"], step.id);
+            assert_eq!(status["next"]["ready"], true, "`ready` stays earliest-only: the plan's instant has come");
+            let window = &status["next"]["f3_window"];
+            assert_eq!(window["inside"], false, "{window}");
+            assert_eq!(window["opened_at"].as_u64(), Some(opened_at));
+            assert_eq!((window["opens_unix"].as_u64(), window["closes_unix"].as_u64()), (Some(window_opens), Some(window_closes)));
+            for execute in [false, true] {
+                let mut parts = vec!["flow", "next", "--step", step.id, "--local-oracle"];
+                if execute {
+                    parts.push("--execute");
+                }
+                let message = refused(ops::run_with_cluster(&args(&parts[..]), &cluster));
+                assert!(message.contains("F3 window"), "execute={execute}: {message}");
+                assert!(message.contains(&elapsed.to_string()), "the elapsed time is named: {message}");
+                assert!(message.contains(&window_opens.to_string()) && message.contains(&window_closes.to_string()), "both bounds are named: {message}");
+                assert!(message.contains("F6"), "the reason for the lower bound is given: {message}");
+            }
+            // One second short of the window is refused too; the window's first second is accepted.
+            cluster.warp_to(window_opens - 1);
+            let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--local-oracle"]), &cluster));
+            assert!(message.contains("F3 window"), "{message}");
+            cluster.warp_to(window_opens);
+            let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+            assert_eq!(status["next"]["f3_window"]["inside"], true, "{}", status["next"]["f3_window"]);
+            let dry = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--local-oracle"]), &cluster));
+            assert_eq!(dry["mode"], "dry-run");
+            assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "the refusals and the dry run send and simulate nothing");
+        }
+
+        let observed_before = cluster.observed();
+        let pool_before = cluster.with_world(|w| w.pool());
+        let receipt = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute", "--local-oracle"]), &cluster));
+        let new_observations: Vec<Observation> = cluster.observations.borrow()[observed_before..].to_vec();
+        assert_eq!(receipt["step"], step.id);
+        assert_eq!(receipt["all_ok"], true, "{}: {:?}", step.id, failing(&receipt));
+        assert_eq!(receipt["conservation"]["ok"], true, "{}: {}", step.id, receipt["conservation"]);
+        cluster.with_world(m7::assert_identities);
+        receipts += 1;
+
+        match step.id {
+            "a1_open_simple" => {
+                let position = cluster.with_world(|w| w.position(keys[&Who::A1].pubkey(), 1));
+                assert_eq!(position.opened_at, opened_at, "A1 opened {LATE} s after its plan offset");
+            }
+            "a1_withdraw_simple" => {
+                assert_eq!(cluster.now(), window_opens, "F3 ran at the first second of its window");
+                let event: PayoutPaid = last_event(&new_observations, step.id);
+                assert!(!event.closing);
+                assert_eq!(
+                    (event.gross_paid, event.toll, event.net),
+                    (expected.f3.paid_gross, expected.f3.toll, expected.f3.net),
+                    "F3 at the window's first second equals the pure arithmetic"
+                );
+            }
+            "a1_closing_withdraw" => {
+                let event: PayoutPaid = last_event(&new_observations, step.id);
+                assert!(event.closing);
+                assert_eq!(
+                    (event.gross_paid, event.toll, event.net),
+                    (expected.close1.paid_gross, expected.close1.toll, expected.close1.net),
+                    "close 1 equals the pure arithmetic"
+                );
+                assert_eq!(event.gross_paid, pool_before.pot, "pot-capped: the whole pot is paid");
+            }
+            "advance_ticket_c15" => {
+                // F6: the Compound15 toll caps A1's Series A row and it leaves the registry.
+                let a1 = cluster.with_world(|w| w.backer(keys[&Who::A1].pubkey(), 0));
+                assert!(!a1.active && a1.remaining().unwrap() <= 10, "A1 reached 124 percent in ticket 3");
+            }
+            "p1_settle_compound15" => {
+                let event: PayoutPaid = last_event(&new_observations, step.id);
+                assert!(!event.closing, "C15 is solvent");
+                assert!(event.gross_paid < pool_before.pot && u128::from(event.gross_paid) == expected.c15.gross_owed, "C15 paid in full out of a larger pot");
+                assert_eq!(
+                    (event.gross_paid, event.toll, event.net),
+                    (expected.c15.paid_gross, expected.c15.toll, expected.c15.net),
+                    "C15 equals the pure arithmetic"
+                );
+            }
+            "winner_claim_a_and_b" => {
+                let event: BackerClaimed = last_event(&new_observations, step.id);
+                assert!(event.a_part > 0 && event.b_part > 0, "the winner's combined claim has both parts");
+            }
+            "w_settle_compound30" => {
+                let event: PayoutPaid = last_event(&new_observations, step.id);
+                assert!(event.closing, "C30 is strictly insolvent");
+                assert_eq!(event.gross_paid, pool_before.pot, "pot-capped");
+                assert!(expected.c30.gross_owed > u128::from(pool_before.pot));
+            }
+            "finalize_2" => {
+                let event: RoundFinalized = last_event(&new_observations, step.id);
+                assert_eq!((event.close_id, event.new_round), (2, 3));
+                finalized_round_three = true;
+            }
+            "expire_at_deadline" => {
+                assert_eq!(receipt["result"], "refused_as_expected");
+                assert!(new_observations.is_empty(), "the refused-by-design transaction is not sent");
+            }
+            _ => {}
+        }
+    }
+
+    assert_eq!(receipts, steps.len(), "all {} steps ran", steps.len());
+    assert!(finalized_round_three, "the last receipt finalizes round 2");
+    let pool = cluster.with_world(|w| w.pool());
+    assert_eq!((pool.round_id, pool.current_close_id, pool.active_ticket), (3, None, 0), "round 3 is open, nothing in flight");
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["completed"].as_u64(), Some(steps.len() as u64));
+    assert_eq!(status["next"], "the plan is complete");
+    assert_eq!(status["conservation"]["ok"], true);
+    println!(
+        "M14 F3 window: PASS - A1 opened {LATE} s late; F3 refused at the plan's instant (elapsed {}), accepted at {}; all {} steps passed their checks",
+        m14_plan::F3_AT - m14_plan::O1 - LATE,
+        m14_plan::F3_MIN_ELAPSED,
+        steps.len()
+    );
+}
+
+/// The upper end of the window: `F3_MAX_ELAPSED - 1` after A1's on-chain open is accepted, `F3_MAX_ELAPSED`
+/// is refused (10 minutes before the 12 % tier ends), in a fresh world because the clock only moves
+/// forward.  Steps 1-9 involve no ORAO instruction, so this runs in a plain `cargo test`.
+#[test]
+fn the_f3_window_closes_ten_minutes_before_the_12_percent_tier_ends() {
+    let (mut world, keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let steps = m14_plan::plan();
+    let genesis = START_TIME as u64;
+    let args = |parts: &[&str]| flow(parts, &dir);
+    assert_eq!(steps[9].id, "a1_withdraw_simple", "steps 1-9 precede F3");
+    for step in &steps[..9] {
+        if cluster.now() < genesis + step.at {
+            cluster.warp_to(genesis + step.at);
+        }
+        let receipt = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute"]), &cluster));
+        assert_eq!(receipt["all_ok"], true, "{}: {:?}", step.id, failing(&receipt));
+    }
+    let opened_at = cluster.with_world(|w| w.position(keys[&Who::A1].pubkey(), 1).opened_at);
+    assert_eq!(opened_at, genesis + m14_plan::O1);
+    let (sends, sims) = (cluster.sends.get(), cluster.sims.get());
+    let dry_run = || ops::run_with_cluster(&args(&["flow", "next", "--step", "a1_withdraw_simple"]), &cluster);
+    let inside = || ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster))["next"]["f3_window"]["inside"].clone();
+
+    // The last second of the window: accepted (a dry run: nothing is sent).
+    cluster.warp_to(opened_at + m14_plan::F3_MAX_ELAPSED - 1);
+    assert_eq!(inside(), true);
+    let accepted = ok(dry_run());
+    assert_eq!(accepted["mode"], "dry-run");
+    assert_eq!(accepted["step"], "a1_withdraw_simple");
+    assert_eq!(accepted["plan_revision"], m14_plan::PLAN_REVISION);
+
+    // The bound itself: refused, in a dry run and with --execute, nothing simulated or sent.
+    cluster.warp_to(opened_at + m14_plan::F3_MAX_ELAPSED);
+    assert_eq!(inside(), false);
+    let message = refused(dry_run());
+    assert!(message.contains("F3 window") && message.contains("12 %"), "{message}");
+    assert!(message.contains(&(opened_at + m14_plan::F3_MAX_ELAPSED).to_string()), "the bound is named: {message}");
+    let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "a1_withdraw_simple", "--execute"]), &cluster));
+    assert!(message.contains("F3 window"), "{message}");
+    assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "nothing was sent or simulated");
 }

@@ -33,8 +33,8 @@
 //!
 //! plus the usual `MC_FINANCIAL_SBF` / `MC_STANDIN_SBF` if the artifacts are not at
 //! their default paths.  `MC_M14_FLOW_REPORT=<path>` additionally writes the report as
-//! JSON.  The two pure tests (plan shape and solvency arithmetic against the host
-//! oracles) need no artifacts and run in a plain `cargo test`.
+//! JSON.  The three pure tests (plan shape, solvency arithmetic against the host
+//! oracles, and the F3 window that keeps every later check) need no artifacts and run in a plain `cargo test`.
 //!
 //! The plan itself is documented in `docs/solana/m14-flow-plan.md`.  Its data (`Who`, `Act`, `Step`,
 //! the schedule, the amounts, `plan()` and the pure `arithmetic()`) lives in the library module
@@ -72,7 +72,8 @@ use solana_system_interface::program as system_program;
 use musical_chairs_financial_runtime::m14_plan::{
     plan, wallet_funding, day, Act, Step, Who, ALL_WALLETS, REQUIRED_FLOWS, SOL, GOVERNANCE_DELAY, DEADLINE_SECS,
     A1_GAME, CANDIDATE_GAME, W_COMPOUND30, P1_COMPOUND15,
-    O1, F3_AT, CLOSE1_AT, arithmetic, Arithmetic,
+    O1, F3_AT, CLOSE1_AT, arithmetic, arithmetic_at, f3_earliest_viable_elapsed, Arithmetic, F3_MAX_ELAPSED,
+    F3_MIN_ELAPSED,
 };
 
 
@@ -122,6 +123,65 @@ fn plan_solvency_arithmetic_holds_against_the_host_oracles() {
     assert!(a.a1_net_total < A1_GAME);
     assert!(a.seed_carried > 0);
     assert!(a.r1_pot_before_f3 > 0);
+}
+
+/// F3 is a free-choice offset, but every later check of the plan holds only from a smallest elapsed on:
+/// below it, round 1 credits A1's Series A row too little for the Compound15 toll to cap it (F6).  The
+/// operator's guard sends F3 only inside `F3_MIN_ELAPSED..F3_MAX_ELAPSED` after A1's on-chain open; this
+/// proves every later check holds all over that window, for the plan's close and for a late open.
+#[test]
+fn f3_window_keeps_every_later_check() {
+    let plan_close = CLOSE1_AT - O1;
+    let min = f3_earliest_viable_elapsed(plan_close);
+    println!(
+        "smallest viable F3 elapsed {min} s ({:.3} d); the window opens at {F3_MIN_ELAPSED} s ({:.3} d) and closes (exclusive) at {F3_MAX_ELAPSED} s ({:.3} d)",
+        min as f64 / DAY as f64,
+        F3_MIN_ELAPSED as f64 / DAY as f64,
+        F3_MAX_ELAPSED as f64 / DAY as f64
+    );
+    assert!(min > 0, "F3 at zero elapsed pays nothing, so it cannot be viable");
+    assert!(arithmetic_at(min, plan_close).is_ok());
+    let below = arithmetic_at(min - 1, plan_close).expect_err("one second below the minimum must fail");
+    assert!(below.contains("F6"), "the only failure below the minimum is F6: {below}");
+    assert!(min + 3_600 <= F3_MIN_ELAPSED, "the window opens at least an hour after the computed minimum: {min} vs {F3_MIN_ELAPSED}");
+
+    // The window, hour by hour and at its last second, for the plan's close, devnet's actual close (A1
+    // opened 132 s late) and the latest open the allowance covers (1 h late).
+    let mut sampled: Vec<u64> = (F3_MIN_ELAPSED..F3_MAX_ELAPSED).step_by(3_600).collect();
+    sampled.push(F3_MAX_ELAPSED - 1);
+    for close in [plan_close, plan_close - 132, plan_close - 3_600] {
+        for &elapsed in &sampled {
+            arithmetic_at(elapsed, close)
+                .unwrap_or_else(|error| panic!("F3 at elapsed {elapsed} with the close at elapsed {close}: {error}"));
+        }
+    }
+
+    // The plan's own instant and the instant the devnet run first allows (A1 opened 132 s late) are inside.
+    for elapsed in [F3_AT - O1, F3_AT - O1 - 132] {
+        assert!((F3_MIN_ELAPSED..F3_MAX_ELAPSED).contains(&elapsed), "elapsed {elapsed} is outside the window");
+    }
+    // The window stays in the 12 % tier; the tier ends at 7 days.
+    assert_eq!(fees::simple_toll_bps(F3_MAX_ELAPSED), 1_200);
+    assert_eq!(fees::simple_toll_bps(7 * DAY), 750);
+
+    // The close threshold is A1's accrued against the round 1 pot: F3 does not move it.
+    let plan_threshold = arithmetic().insolvent_from_elapsed;
+    for elapsed in [F3_MIN_ELAPSED, F3_MAX_ELAPSED - 1] {
+        let a = arithmetic_at(elapsed, plan_close).expect("inside the window");
+        assert_eq!(a.insolvent_from_elapsed, plan_threshold, "the close threshold depends on F3 at {elapsed}");
+    }
+
+    println!(
+        "{:>10} {:>22} {:>14} {:>15} {:>15}",
+        "F3 elapsed", "a1_remaining_after_r1", "seed_carried", "r2_pot_at_c15", "r2_pot_at_c30"
+    );
+    for elapsed in [min, F3_MIN_ELAPSED, F3_AT - O1, F3_MAX_ELAPSED - 1] {
+        let a = arithmetic_at(elapsed, plan_close).expect("viable");
+        println!(
+            "{elapsed:>10} {:>22} {:>14} {:>15} {:>15}",
+            a.a1_remaining_after_r1, a.seed_carried, a.r2_pot_at_c15, a.r2_pot_at_c30
+        );
+    }
 }
 
 #[test]

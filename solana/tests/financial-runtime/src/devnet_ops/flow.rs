@@ -27,9 +27,11 @@
 //! receipt line counts as evidence for exactly ONE step, the deliberately refused early expiry, which
 //! leaves no on-chain trace, and only when the receipt says `refused_as_expected` and is stamped for THIS
 //! cluster (genesis hash, program id, `ConfigVersion#1` activation).  The next step is the first one that is not done;
-//! `flow next` refuses any other step, any step before its earliest time (genesis + offset), a receipt
-//! log holding receipts of another cluster, and any step after a `done_with_failed_checks` receipt that
-//! has not been accepted with `--accept-failed-checks`.
+//! `flow next` refuses any other step, any step before its earliest time (genesis + offset), the F3
+//! step (`a1_withdraw_simple`) outside its window (`m14_plan::F3_MIN_ELAPSED..F3_MAX_ELAPSED` seconds
+//! after A1's on-chain `opened_at`, whatever the offset says: a late open moves the window with it),
+//! a receipt log holding receipts of another cluster, and any step after a `done_with_failed_checks`
+//! receipt that has not been accepted with `--accept-failed-checks`.
 //!
 //! # Genesis
 //!
@@ -806,7 +808,7 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
             })
         })
         .collect();
-    let next_json = match (next, &genesis) {
+    let mut next_json = match (next, &genesis) {
         (Some(eval), Some(genesis)) => {
             let earliest = genesis.genesis_unix + eval.step.at as i64;
             json!({
@@ -826,11 +828,33 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         }),
         (None, _) => json!("the plan is complete"),
     };
+    // The F3 step is sent only inside its window of actual elapsed time since A1's on-chain open
+    // (`ready` stays earliest-only: the window is reported beside it).
+    if let Some(eval) = next {
+        if let Act::WithdrawSimple { nonce, closing: false } = eval.step.act {
+            let opened_at = resolve(eval.step.who, winner)
+                .and_then(|actor| wallets.keys.get(&actor).copied())
+                .and_then(|owner| view.position(owner, nonce))
+                .map(|position| position.opened_at);
+            if let (Some(opened_at), Some(object)) = (opened_at, next_json.as_object_mut()) {
+                let (opens, closes) = f3_window(opened_at);
+                object.insert(
+                    "f3_window".into(),
+                    json!({
+                        "opens_unix": opens, "opens_utc": utc(opens), "closes_unix": closes, "closes_utc": utc(closes),
+                        "inside": (opens..closes).contains(&view.now), "opened_at": opened_at,
+                        "min_elapsed_s": m14_plan::F3_MIN_ELAPSED, "max_elapsed_s_exclusive": m14_plan::F3_MAX_ELAPSED,
+                    }),
+                );
+            }
+        }
+    }
     let books = conservation(&view);
     Ok(json!({
         "command": "flow status",
         "mode": "read-only",
         "plan": PLAN_NAME,
+        "plan_revision": m14_plan::PLAN_REVISION,
         "program_id": ID.to_string(),
         "cluster_unix": view.now,
         "cluster_slot": view.slot,
@@ -906,6 +930,42 @@ fn open_ix_for_round(
             expected_config: 1,
         },
     )
+}
+
+/// The F3 window for a position opened at `opened_at`, as `(opens, closes)` unix seconds; `closes` is
+/// exclusive.  Actual elapsed (cluster clock minus the on-chain `opened_at`) is what counts, not the
+/// plan offset: a late open moves the window with it.
+fn f3_window(opened_at: u64) -> (i64, i64) {
+    (
+        opened_at as i64 + m14_plan::F3_MIN_ELAPSED as i64,
+        opened_at as i64 + m14_plan::F3_MAX_ELAPSED as i64,
+    )
+}
+
+/// Refuses the F3 step (A1's solvent Simple withdrawal) unless the actual elapsed since the position's
+/// on-chain `opened_at` is inside `F3_MIN_ELAPSED..F3_MAX_ELAPSED`.  Runs before anything is signed,
+/// simulated or sent, in a dry run as well.
+fn refuse_outside_f3_window(step_id: &str, opened_at: u64, now: u64) -> Result<(), OpsError> {
+    let (opens, closes) = f3_window(opened_at);
+    let elapsed = now as i64 - opened_at as i64;
+    if (opens..closes).contains(&(now as i64)) {
+        return Ok(());
+    }
+    let reason = if (now as i64) < opens {
+        "before the window the round 1 Backer credit would be too small for A1's Series A row to reach its \
+         124 % cap at the Compound15 ticket (F6)"
+    } else {
+        "the 12 % tier the plan models ends 7 days after the open, and the window stops 10 minutes before that"
+    };
+    refuse(format!(
+        "F3 window: step `{step_id}` may be sent only while the time since the position's on-chain opened_at \
+         {opened_at} is at least {} s and under {} s, i.e. from {opens} ({}) until before {closes} ({}); the cluster \
+         clock is {now}, so the elapsed time is {elapsed} s; {reason}",
+        m14_plan::F3_MIN_ELAPSED,
+        m14_plan::F3_MAX_ELAPSED,
+        utc(opens),
+        utc(closes),
+    ))
 }
 
 /// What `withdraw_simple` must pay at `now`, from the position and the pot on chain.
@@ -1095,6 +1155,10 @@ fn next_tx(
             let position = view
                 .position(owner, nonce)
                 .ok_or_else(|| OpsError::Refused(format!("{} has no position with nonce {nonce}", step.who.name())))?;
+            // F3, the plan's only non-closing Simple withdrawal, has a window of its own.
+            if matches!(step.act, Act::WithdrawSimple { closing: false, .. }) {
+                refuse_outside_f3_window(step.id, position.opened_at, now)?;
+            }
             let expected = match kind {
                 PayoutKind::WithdrawSimple => simple_expectation(w, owner, nonce, now)?,
                 PayoutKind::SettleCompounding => {
@@ -1907,7 +1971,8 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
     }
     if let Some(preview) = dry_run_preview {
         return Ok(json!({
-            "command": "flow next", "mode": "dry-run", "plan": PLAN_NAME, "step": step.id, "index": index + 1,
+            "command": "flow next", "mode": "dry-run", "plan": PLAN_NAME, "plan_revision": m14_plan::PLAN_REVISION,
+            "step": step.id, "index": index + 1,
             "flows": step.flows, "actor": actor.name(), "actor_pubkey": actor_key.to_string(),
             "expect": step.expect, "earliest_unix": earliest, "earliest_utc": utc(earliest), "cluster_unix": view.now,
             "preview": preview, "conservation": books, "all_ok": true,
@@ -1937,7 +2002,7 @@ fn cmd_next(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         "done"
     };
     let receipt = json!({
-        "schema": 1, "plan": PLAN_NAME, "step": step.id, "index": index + 1, "flows": step.flows,
+        "schema": 1, "plan": PLAN_NAME, "plan_revision": m14_plan::PLAN_REVISION, "step": step.id, "index": index + 1, "flows": step.flows,
         "result": result, "mode": ctx.mode(), "cluster": ctx.cluster_json(&ctx.genesis),
         "stamp": stamp.to_json(), "packet": ctx.packet_json(),
         "actor": actor.name(), "actor_pubkey": actor_key.to_string(), "winner": winner.map(|who| who.name()),
