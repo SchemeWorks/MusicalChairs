@@ -200,8 +200,13 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
 * **What is done.** Every step has a state predicate judged from the cluster (a counter reached, an account exists, a draw state, `finalized`,
   ...). A step is also done when any later step is. A receipt line counts as evidence ONLY for the one step that leaves no on-chain trace
   (the refused-by-design expiry), only if the receipt is stamped for THIS cluster and says `refused_as_expected` (any other result, a failed-check one included, leaves the step to be simulated again); every other step is judged from the chain alone. `flow
-  status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`.
-* **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; an actor wallet that does not match
+  status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`; when the next step
+  is F3 (`a1_withdraw_simple`) it adds `next.f3_window` (`opens_*`, `closes_*` exclusive, `inside`, A1's on-chain `opened_at`). Status,
+  dry-run and receipt documents carry `plan_revision` beside `plan` (additive; `plan` stays `M14-SIM Seq-B`, so earlier receipts resume).
+* **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; F3 (`a1_withdraw_simple`) outside its window,
+  `F3_MIN_ELAPSED` (342,000 s) to before `F3_MAX_ELAPSED` (604,200 s) after A1's ON-CHAIN `opened_at` (a late open moves the window with it;
+  below it F6 would fail, at 7 days the 12 % tier ends; amendment `m14-flow-plan-amendment-20261031.md`), checked before anything is signed,
+  simulated or sent, in a dry run too; an actor wallet that does not match
   `wallets.json`; books that do not balance before the step; an economics oracle that disagrees with the plan (a payout the plan calls solvent
   that would be insolvent, or the reverse); a promotion deadline already passed for request or capture. Then it builds exactly that step's
   transaction(s) with the harness builders (see below), measures (1,232 B), simulates, and sends only under the standard interlocks (dry run by
@@ -352,9 +357,9 @@ A validator clock cannot be warped, so the 48-hour execute is exercised in LiteS
 ```bash
 cd solana/tests/financial-runtime
 cargo +1.92.0 test --locked --test devnet_ops_local -- --test-threads=1 --nocapture      # LiteSVM + gates; 2 tests ignored
-cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals; 1 test ignored
-MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`
-cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic (the rehearsal itself is --ignored)
+cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals (incl. the F3 window's end); 2 tests ignored
+MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`, nominal and with A1 3,700 s late (F3 at the window's start)
+cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic + the whole F3 window (the rehearsal itself is --ignored)
 cargo +1.92.0 test --locked --test fund_wallets -- --test-threads=1                        # fund-wallets: plan validation, pin, once-per-recipient, held/resume
 MC_LOCAL_RPC=http://127.0.0.1:8899 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored --test-threads=1 --nocapture \
   local_validator_deploy_authority_squads_and_proposal_lifecycle     # fresh --reset validator per run

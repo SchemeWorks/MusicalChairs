@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, flow steps 1–9 and the governance waiting-period rehearsal are complete and Gideon-accepted. At Rob's instruction the plan is being revised so the first withdrawal runs now, not November 3, with every later check kept; Gideon reviews it before any send. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and a practice version works on Rob’s computer. Rob asked not to wait until November 3, so the test plan is being reworked to let the next withdrawal happen now. It runs as soon as the reviewer signs off; Rob doesn’t need to do anything.",
+  "summary": "Block A on the Solana test network: setup, flow steps 1–9 and the governance waiting-period rehearsal are complete and accepted. At Rob's instruction a revised plan lets the first withdrawal run now, not November 3, keeping every later check; local rehearsals pass and Gideon reviews it before any send. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and a practice version works on Rob’s computer. The test plan has been reworked so the next withdrawal no longer waits until November 3, and practice runs of every later step still pass. It goes ahead once the reviewer signs off; Rob doesn’t need to do anything.",
   "glossary": [
     {
       "term": "M14",

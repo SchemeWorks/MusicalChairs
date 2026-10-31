@@ -301,10 +301,10 @@
     },
     {
       "id": "M14-A7-ACCEL",
-      "state": "In progress",
+      "state": "Review",
       "owner": "Silas (Claude coordinator); Sonnet worker for the code",
       "scope": "Revise the chosen test schedule so the first withdrawal and its follow-ups (flow steps 10 to 12) can run now instead of on November 3, keeping every later check.",
-      "evidenceText": "State detail: in progress since 2026-10-31; part of M14-A7. Rob asked directly not to wait days for a schedule the team chose. This is a dated test-plan revision: the program, its rules, the amounts, the budgets and the nine finished steps stay exactly as they are. A fresh read-only look at the test network confirmed nine steps done and the books balanced. The proposal moves the first withdrawal from about seven days after the deposit to four, with an enforced window, because an earlier withdrawal leaves the backer less fee credit and a later step needs that backer to reach its full 124% repayment. The round-ending withdrawal, the deposit maturities and the draw deadlines keep the times the program itself enforces. Gideon reviews the revised runner and its rehearsal before anything is sent.",
+      "evidenceText": "State detail: ready for Gideon's review since 2026-10-31; part of M14-A7. Rob asked directly not to wait days for a schedule the team chose. This is a dated test-plan revision: the program, its rules, the amounts, the budgets and the nine finished steps stay exactly as they are. The first withdrawal moves from about seven days after the deposit to four, inside an enforced window, because an earlier withdrawal leaves the backer less fee credit and a later step needs that backer to reach its full 124% repayment; the earliest workable time is about 3.8 days, so the window has hours of margin. Local rehearsals of the whole 39-step flow pass, including one with a deliberately late deposit. A read-only check on the test network confirmed the revised runner picks up exactly where the nine finished steps left off, with nothing sent. The round-ending withdrawal stays on November 6, and the later maturities and draw deadlines keep the times the program enforces. Nothing is sent until Gideon accepts.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",

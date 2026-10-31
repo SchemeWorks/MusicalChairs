@@ -1,5 +1,7 @@
 # M14 flow plan (packet RG-7): the devnet acceptance flows with concrete amounts
 
+**Amended 2026-10-31** ([amendment](m14-flow-plan-amendment-20261031.md), Rob's direct instruction): F3 (steps 10–12) moves from 6.9 to 4.0 days after A1's open, and the operator enforces an F3 window on the actual elapsed time; every other offset, amount and budget is unchanged. The figures below are the amended ones; the amendment lists old against new. The amended plan was re-run locally (commit 5b32a02): the three pure tests, the LiteSVM rehearsal (model equals chain) and both whole-flow operator runs PASS.
+
 Status (2026-10-23): **executed locally — PASS.** The coordinator ran the plan (commit 9b19045): the two pure tests passed, and the LiteSVM run on the production SBF ELF with the DEVNET ORAO binary (`MC_ORAO_PROFILE=devnet`) reached all 15 flow codes. Conservation was checked after every step. The total duration is 41.463 days and the first draw request is at day 11.454. The recorded per-step values, first-success offsets and per-wallet spend are in `docs/solana/evidence/2026-10-23-m14-preflight/m14-flow-report.json`. Values below still marked (model) were derived from the host economics oracles (`musical-chairs-economics`: `fees`, `earnings` and the `Book` allocation oracle) and re-derived in an independent script; the LiteSVM run compares the chain's own values with them and fails on any disagreement it can decide (section 10), so the PASS confirms them within those checks. This is a LOCAL result only: LiteSVM slots and rent are not cluster-realistic, ORAO fulfilment is synthetic and Squads is the stand-in.
 
 Nothing here touches a network, a real key or a deployed program: LiteSVM only, the production SBF ELF
@@ -61,29 +63,29 @@ is resolved at run time from the `PromotionApplied` event.
 | 7 | 2.003 | 173,040 | A1 | `open_position` Simple | 1 | PositionOpened: Front-End Load 4 % = 0.04, pot += 0.96; round 1 pot is 1.0292 with P4 and P5 | F2 |
 | 8 | 2.003 | 173,100 | P4 | `open_position` Simple | 0.01 | PositionOpened (candidate-to-be) | F2 |
 | 9 | 2.004 | 173,160 | P5 | `open_position` Simple | 0.01 | PositionOpened (candidate-to-be) | F2 |
-| 10 | 8.903 | 769,200 | A1 | `withdraw_simple` |  | PayoutPaid, solvent: owed 0.759 of pot 1.0292, toll 12 % = 0.09108, net 0.66792; the toll rides ticket 1 | F3 |
-| 11 | 8.903 | 769,230 | K | ticket phases Discover..Commit (keeper) |  | ticket Discover..Commit; TicketCommitted: A1 credited 0.04554 (the Backer half), seed 0.04554 | F3 |
-| 12 | 8.904 | 769,290 | A1 | `claim_backer` |  | BackerClaimed a_part 0.04554, b_part 0 (A alone, before any promotion) | F5a |
-| 13 | 11.453 | 989,520 | A1 | `withdraw_simple` |  | strict insolvency: owed 0.2805 > pot 0.2702; PayoutPaid closing, gross_paid = pot (partial), toll 7.5 %; RoundClosed, deadline = now + 600 | F4,F8 |
-| 14 | 11.453 | 989,550 | K | ticket phases Discover..Commit (keeper) |  | closing ticket 2 commits; CloseRecord.cash_committed; A1 credited 0.0101325 | F8 |
+| 10 | 6.003 | 518,640 | A1 | `withdraw_simple` |  | PayoutPaid, solvent: owed 0.44 of pot 1.0292, toll 12 % = 0.0528, net 0.3872; the toll rides ticket 1 | F3 |
+| 11 | 6.003 | 518,670 | K | ticket phases Discover..Commit (keeper) |  | ticket Discover..Commit; TicketCommitted: A1 credited 0.0264 (the Backer half), seed 0.0264 | F3 |
+| 12 | 6.004 | 518,730 | A1 | `claim_backer` |  | BackerClaimed a_part 0.0264, b_part 0 (A alone, before any promotion) | F5a |
+| 13 | 11.453 | 989,520 | A1 | `withdraw_simple` |  | strict insolvency: owed 0.5995 > pot 0.5892; PayoutPaid closing, gross_paid = pot (partial), toll 7.5 %; RoundClosed, deadline = now + 600 | F4,F8 |
+| 14 | 11.453 | 989,550 | K | ticket phases Discover..Commit (keeper) |  | closing ticket 2 commits; CloseRecord.cash_committed; A1 credited 0.022095 | F8 |
 | 15 | 11.453 | 989,580 | K | `provision_page(Candidate)` x2 (locked reserve) |  | 1 preferred + 1 fallback page from the locked reserve | F8 |
 | 16 | 11.454 | 989,610 | K | `build_candidates` |  | CandidatesSealed: preferred set {P4, P5}, count 2 (A1 is fallback-only: it holds Series A history) | F8 |
 | 17 | 11.454 | 989,640 | K | `request_round_draw` |  | DrawRequested: fee 300,000 lamports + request rent, paid from the locked reserve | F8r |
 | 18 | 11.454 | 989,655 | K | ORAO `fulfill` (synthetic authority) |  | ORAO request fulfilled by the synthetic authority (no cluster latency in LiteSVM) | F8c |
 | 19 | 11.455 | 989,670 | K | `capture_round_draw` |  | DrawCaptured inside the 600 s deadline | F8c |
 | 20 | 11.455 | 989,685 | K | `apply_promotion` |  | PromotionApplied: winner in {P4, P5}, loss 0.01, Series B entitlement 0.0116; B row joins the registry | F9a |
-| 21 | 11.455 | 989,700 | W | `finalize_round` + `provision_page` + `open_position` Compound30 (one tx) | 0.6 | ONE tx by the plain wallet: finalize_round + participant page + Compound30 open; round 2, seed 0.0556725 carried | F9b |
+| 21 | 11.455 | 989,700 | W | `finalize_round` + `provision_page` + `open_position` Compound30 (one tx) | 0.6 | ONE tx by the plain wallet: finalize_round + participant page + Compound30 open; round 2, seed 0.048495 carried | F9b |
 | 22 | 11.456 | 989,760 | P1 | `open_position` Compound15 | 0.2 | PositionOpened; maturity +15 d | F2 |
 | 23 | 11.456 | 989,820 | P2 | `open_position` Simple | 0.1 | PositionOpened | F2 |
 | 24 | 11.457 | 989,880 | P3 | `open_position` Simple | 0.02 | PositionOpened | F2 |
 | 25 | 11.458 | 989,940 | A2 | `fund_series_a` | 0.05 | SeriesAFunded; registry_len +1 | F1 |
 | 26 | 11.458 | 990,000 | Winner | `fund_series_a` | 0.05 | SeriesAFunded: the promoted wallet now holds A and B | F1 |
 | 27 | 11.459 | 990,060 | K | `provision_close_record(2)` |  | CloseRecord(2) exists | setup |
-| 28 | 26.456 | 2,285,820 | P1 | `settle_compounding` |  | solvent: owed 0.89471 of pot 1.03887 (16 % spare); Jackpot Fee 9 % = 0.08052, net 0.81419; ticket 3 | F7a |
-| 29 | 26.457 | 2,285,850 | K | ticket phases Discover..Commit (keeper) |  | ticket 3 commits; A1's Series A reaches 124 % (remaining 0.0063275 -> 0) and leaves the registry | F6 |
+| 28 | 26.456 | 2,285,820 | P1 | `settle_compounding` |  | solvent: owed 0.89471 of pot 1.031695 (15 % spare); Jackpot Fee 9 % = 0.08052, net 0.81419; ticket 3 | F7a |
+| 29 | 26.457 | 2,285,850 | K | ticket phases Discover..Commit (keeper) |  | ticket 3 commits; A1's Series A reaches 124 % (remaining 0.013505 -> 0) and leaves the registry | F6 |
 | 30 | 26.457 | 2,285,910 | Winner | `claim_backer` |  | BackerClaimed in ONE instruction: a_part 0.00906, b_part 0.00805 | F5b |
-| 31 | 26.458 | 2,285,970 | A1 | `claim_backer` |  | a capped row can still claim its funded credit (0.01646) | F6 |
-| 32 | 41.456 | 3,581,760 | W | `settle_compounding` |  | strict insolvency: owed 7.3606 vs pot 0.14416 (51x); gross_paid = pot, toll 13 %; deadline = now + 600 | F7b,F4 |
+| 31 | 26.458 | 2,285,970 | A1 | `claim_backer` |  | a capped row can still claim its funded credit (0.0356) | F6 |
+| 32 | 41.456 | 3,581,760 | W | `settle_compounding` |  | strict insolvency: owed 7.3606 vs pot 0.13698 (54x); gross_paid = pot, toll 13 %; deadline = now + 600 | F7b,F4 |
 | 33 | 41.456 | 3,581,790 | K | ticket phases Discover..Commit (keeper) |  | closing ticket 4 commits | F10 |
 | 34 | 41.456 | 3,581,820 | K | `provision_page(Candidate)` x2 (locked reserve) |  | 1 + 1 pages | F10 |
 | 35 | 41.457 | 3,581,850 | K | `build_candidates` |  | CandidatesSealed: preferred {W, P2, P3}, count 3 | F10 |
@@ -104,8 +106,8 @@ deposits minus fees minus rent of the accounts it created, and no other wallet m
 | --- | --- | --- | --- |
 | F1 | A funding | 6 (A1), 25 (A2), 26 (Winner) | 2.002 |
 | F2 | deposit | 7-9, 22-24 and 21 (W's Compound30) | 2.003 |
-| F3 | Simple payout (solvent, 12 % tier) | 10-11 | 8.903 |
-| F5a | claim, A part only, before any promotion | 12 | 8.904 |
+| F3 | Simple payout (solvent, 12 % tier) | 10-11 | 6.003 |
+| F5a | claim, A part only, before any promotion | 12 | 6.004 |
 | F4 | partial payout (pot-capped) | 13 and 32 | 11.453 |
 | F8 | closing with candidates | 13-16 | 11.453 |
 | F8r | draw request | 17 | 11.454 |
@@ -124,31 +126,32 @@ Round 1 (clock zero is A1's open at offset 173,040):
 
 * Pot after the deposits: A1 Series A 50,000,000 + 96 % x 1,000,000,000 + 2 x 9,600,000 = **1,029,200,000**;
   Front-End Load taken to management 40,800,000.
-* F3, A1 withdraws at elapsed 596,160 s (6.9 d, inside the 12 % tier, `< 7 d`): owed 759,000,000 < pot, so
-  solvent. Toll 12 % = 91,080,000, net 667,920,000, pot left 270,200,000. Ticket 1: Backer half 45,540,000
-  (senior 15,939,000 + A pool 29,601,000, all to A1 because it is the only open row and no B row exists),
-  seed 45,540,000. A1 has 16,460,000 of its 62,000,000 entitlement left. F5a claims 45,540,000.
+* F3, A1 withdraws at elapsed 345,600 s (4.0 d, inside the 12 % tier, `< 7 d`; amended 2026-10-31 from 596,160 s): owed
+  440,000,000 < pot, so solvent. Toll 12 % = 52,800,000, net 387,200,000, pot left 589,200,000. Ticket 1: Backer half 26,400,000
+  (all to A1 because it is the only open row and no B row exists), seed 26,400,000. A1 has 35,600,000 of its 62,000,000
+  entitlement left. F5a claims 26,400,000.
 * Strict insolvency threshold: A1's owed minus what F3 paid first exceeds the pot at elapsed **808,390 s =
-  9.3564 d** (day 11.359). The plan closes at elapsed 816,480 s (9.45 d, 7.5 % tier): owed 280,500,000
-  against pot 270,200,000, **insolvent by 10,300,000**. The payout is pot-capped: gross_paid 270,200,000,
-  toll 20,265,000, net 249,935,000, pot 0. Ticket 2: A1 credited 10,132,500 (remaining 6,327,500), seed
-  10,132,500.
-* A1 ends round 1 with net payouts 917,855,000 against a deposit of 1,000,000,000: a loser of 82,145,000 with
+  9.3564 d** (day 11.359), whatever F3 paid (A1's owed minus F3's payment exceeds the pot minus F3's payment exactly when
+  A1's accrual exceeds the round 1 pot). The plan closes at elapsed 816,480 s (9.45 d, 7.5 % tier): owed 599,500,000
+  against pot 589,200,000, **insolvent by 10,300,000**. The payout is pot-capped: gross_paid 589,200,000,
+  toll 44,190,000, net 545,010,000, pot 0. Ticket 2: A1 credited 22,095,000 (remaining 13,505,000), seed
+  22,095,000.
+* A1 ends round 1 with net payouts 932,210,000 against a deposit of 1,000,000,000: a loser of 67,790,000 with
   Series A history, hence a fallback candidate only. P4 and P5 (history-free, loss 10,000,000 each) are the
   preferred set, so the draw selects between them; the winner receives a Series B entitlement of
-  floor(10,000,000 x 11,600 / 10,000) = **11,600,000**. Seed carried into round 2: **55,672,500**.
+  floor(10,000,000 x 11,600 / 10,000) = **11,600,000**. Seed carried into round 2: **48,495,000**.
 
 Round 2 (clock zero is W's open at offset 989,700):
 
-* Pot at the Compound15 settlement: 55,672,500 + 96 % x (600,000,000 + 200,000,000 + 100,000,000 +
-  20,000,000) + Series A 2 x 50,000,000 = **1,038,872,500**. Owed to P1: floor(200,000,000 x 4.473565759...)
-  = **894,713,151**, solvent with 144,159,349 spare (16.1 %). Jackpot Fee 9 % = 80,524,183, net
+* Pot at the Compound15 settlement: 48,495,000 + 96 % x (600,000,000 + 200,000,000 + 100,000,000 +
+  20,000,000) + Series A 2 x 50,000,000 = **1,031,695,000**. Owed to P1: floor(200,000,000 x 4.473565759...)
+  = **894,713,151**, solvent with 136,981,849 spare (15.3 %). Jackpot Fee 9 % = 80,524,183, net
   814,188,968 (P1 turns 0.2 SOL into 0.814 SOL). Ticket 3: A1's senior slice (35 % of 40,262,092 = 14.1 M)
-  exceeds its 6,327,500 remaining, so A1 is credited exactly 6,327,500 and **reaches 124 %** (the overshoot
+  exceeds its 13,505,000 remaining, so A1 is credited exactly 13,505,000 and **reaches 124 %** (the overshoot
   goes to seed); A2 and the Winner's A row get 9,058,970 each; the Winner's B row gets 8,052,418.
-* Pot at the Compound30 settlement: 144,159,349. Owed to W: floor(600,000,000 x 12.267678469...) =
-  **7,360,607,081**, 51 times the pot, so strictly insolvent by construction. Paid: gross 144,159,349, toll
-  13 % = 18,740,715, net 125,418,634 (W loses 474,581,366). The pot is 0 and the close starts.
+* Pot at the Compound30 settlement: 136,981,849. Owed to W: floor(600,000,000 x 12.267678469...) =
+  **7,360,607,081**, 54 times the pot, so strictly insolvent by construction. Paid: gross 136,981,849, toll
+  13 % = 17,807,640, net 119,174,209 (W loses 480,825,791). The pot is 0 and the close starts.
 * Total Front-End Load over the run: 4 % x 1.94 SOL = 77,600,000.
 
 Why the amounts are what they are:
@@ -156,10 +159,10 @@ Why the amounts are what they are:
 | constraint | consequence for the amounts |
 | --- | --- |
 | close 1 must be strictly insolvent early | the closing position is the largest allowed deposit (1.0 SOL, packet cap) and everything else in the round is a minimum (Series A 0.05, candidates 0.01 x 2), so the pot is only 0.0692 SOL above 96 % of the position |
-| F6 at the Compound15 toll | A1 must have at most 14.1 M left when ticket 3 starts, i.e. at least 47.9 M credited in round 1: the early solvent F3 payout (12 % tier) supplies 45.5 M, the closing toll 10.1 M |
+| F6 at the Compound15 toll | A1 must have at most 14.1 M left when ticket 3 starts, i.e. at least 47.9 M credited in round 1: the solvent F3 payout (12 % tier) supplies 26.4 M at 4.0 d and the closing toll 22.1 M (48.5 M). Every F3 elapsed from 325,118 s (3.763 d) to the 7-day tier boundary works; the operator enforces 342,000 s to before 604,200 s on the actual elapsed (amendment 2026-10-31) |
 | C15 solvent, C30 insolvent | 4.4736 x 0.2 SOL must fit the round 2 pot (needs the 0.6 SOL Compound30 and the 0.12 SOL of Simple positions); 12.2677 x 0.6 SOL is 51 x the remaining pot |
 | combined claim | the Winner must hold A and B, so it funds Series A before ticket 3 |
-| close 2 candidates | W (loss 474.6 M), P2 and P3 are history-free losers: preferred set of 3; P1 won (net 814 M > 200 M deposit) |
+| close 2 candidates | W (loss 480.8 M), P2 and P3 are history-free losers: preferred set of 3; P1 won (net 814 M > 200 M deposit) |
 
 ## 6. Findings: what the literal Seq-B does not do, and the smallest change
 
@@ -189,8 +192,11 @@ packet's description (section 6.4/6.5) do not hold as written, and one plan line
 4. **F6 at the Compound15 toll depends on F3.** With the minimum Series A (entitlement 62,000,000) A1 is capped by
    the first big toll only if it has little entitlement left. Without the early solvent payout the round 1
    closing toll alone credits A1 38.6 M (23.4 M left), and the 0.2 SOL Compound15 toll cannot cap it; it would
-   need a Compound15 of at least 0.332 SOL and a pot above 1.486 SOL. F3 at 6.9 days (12 % tier, before the
-   7-day boundary) is therefore part of the F6 plan, not an independent flow.
+   need a Compound15 of at least 0.332 SOL and a pot above 1.486 SOL. F3 (12 % tier, before the 7-day boundary) is
+   therefore part of the F6 plan, not an independent flow. Its exact time is free inside a window: A1's round 1 credit is
+   38,595,000 + 2.25 % of what F3 pays, so F6 holds from F3 elapsed 325,118 s (3.763 d) up to the tier boundary. The plan
+   originally used 6.9 days; the 2026-10-31 amendment uses 4.0 days and the operator refuses F3 outside 342,000 s to before
+   604,200 s after A1's on-chain open.
 5. **F10 differs from the packet's C2 window in one stage code.** The plan builds and requests close 2's draw and
    never fulfils it, so the expiry records stage `requested-unfulfilled` (5). The C2 watchdog window never
    builds candidates or requests, so there the stage is `candidates-incomplete` (1). Both end in
@@ -206,14 +212,14 @@ test prints both columns). Fees are 5,000 lamports per transaction signature. "N
 
 | wallet | funding sent | deposits / Series A | devnet rent | fees | need | receipts | net spend |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| A1 | 1.100 | 1.000 + 0.050 | 0.005034 (User, Backer, UserRound, Position) | 0.000030 (6 tx) | 1.055064 | 0.979855 (F3 net 0.66792, closing net 0.249935, claims 0.04554 + 0.01646) | 0.075209 |
+| A1 | 1.100 | 1.000 + 0.050 | 0.005034 (User, Backer, UserRound, Position) | 0.000030 (6 tx) | 1.055064 | 0.99421 (F3 net 0.3872, closing net 0.54501, claims 0.0264 + 0.0356) | 0.060854 |
 | A2 | 0.060 | 0.050 | 0.002474 (User, Backer) | 0.000005 | 0.052479 | 0 (9.06 M unclaimed credit) | 0.052479 |
 | P1 | 0.210 | 0.200 | 0.003637 | 0.000010 | 0.203647 | 0.814189 | -0.610542 |
 | P2 | 0.110 | 0.100 | 0.003637 | 0.000005 | 0.103642 | 0 | 0.103642 |
 | P3 | 0.030 | 0.020 | 0.003637 | 0.000005 | 0.023642 | 0 | 0.023642 |
 | P4 / P5 (not promoted) | 0.080 | 0.010 | 0.003637 | 0.000005 | 0.013642 | 0 | 0.013642 |
 | P4 / P5 (Winner) | 0.080 | 0.010 + 0.050 | 0.005034 | 0.000015 | 0.065049 | 0.017111 (A 9.06 M + B 8.05 M) | 0.047938 |
-| W | 0.630 | 0.600 | 0.003637 | 0.000010 | 0.603647 | 0.125419 | 0.478228 |
+| W | 0.630 | 0.600 | 0.003637 | 0.000010 | 0.603647 | 0.119174 | 0.484473 |
 | **8 test wallets** | | **1.94 + 0.15 = 2.09** | | | **2.121** (with the Winner counted once) | | |
 | S | 0.550 | 0.500 operations | 0 | 0.000005 | 0.500005 | 0 (stays in operations) | 0.500005 |
 | K | 0.050 | 0 | 0 | about 0.00022 (43 tx, one with an extra signature) | 0.00022 | 0 | 0.00022 |
@@ -233,7 +239,7 @@ The test prints the ops books at the end. All figures are the plan's, not a repl
 | step(s) | bound by | detail |
 | --- | --- | --- |
 | 1-9 (day 2.0) | **governance** | 172,800 s after the second G approval: `initialize` and ORAO `register` execute together; nothing can precede it |
-| 10-12 (day 8.9) | market clock, free choice | any time before the 7-day tier boundary and before the strict-insolvency threshold; day 8.9 gives the 12 % tier |
+| 10-12 (day 6.0) | market clock, free choice inside the F3 window | the runner sends F3 only while the actual time since A1's on-chain open is 342,000 s to before 604,200 s: earlier, F6 would fail (computed minimum 325,118 s); at 7 days the tier drops to 7.5 %. Day 6.0 (4.0 d after the open) is the plan's offset (amended 2026-10-31 from day 8.9) |
 | 13 (day 11.453) | **market clock (insolvency)** | owed has to exceed the pot: not before day 11.359; no oracle involved |
 | 14-16 (day 11.453) | immediate | closing ticket, candidate pages, candidate build (permissionless, no oracle) |
 | 17-20 (day 11.454-11.455) | **oracle** | the request is only accepted while `now <= close_started_at + 600` and the fulfilled result is captured only inside the same window (a later capture is ignored); `apply_promotion` may come later. The plan spends 165 s in total because LiteSVM has no latency; devnet's real fulfilment time is what this step measures |
@@ -274,7 +280,7 @@ wait, the 30-day Compound30 maturity and the real ORAO fulfilment time against t
 cd solana/tests/financial-runtime
 MC_ORAO_PROFILE=devnet MC_M14_FLOW_REPORT=/tmp/m14-flow-report.json \
   cargo +1.92.0 test --locked --test m14_flow_plan -- --ignored --nocapture
-cargo +1.92.0 test --locked --test m14_flow_plan          # the two pure tests (plan shape, solvency arithmetic)
+cargo +1.92.0 test --locked --test m14_flow_plan          # the three pure tests (plan shape, solvency arithmetic, the whole F3 window)
 ```
 
 (plus `MC_FINANCIAL_SBF` / `MC_STANDIN_SBF` when the artifacts are not at their default paths.) The run
