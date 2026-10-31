@@ -32,13 +32,14 @@ The runner's "too early" check is kept. The F3 window is an additional refusal.
 | step(s) | what decides the time | can it move earlier? |
 | --- | --- | --- |
 | 10–12 | the plan's choice (the old 6.9 d was chosen for the 12 % tier) | **yes**, down to the F6 limit below; that is this amendment |
-| 13 | strict insolvency, from the economics: A1's accrual exceeds the round 1 pot 808,390 s after its open, whatever F3 pays | no. On chain from 2026-11-06T00:10:57Z; the plan step stays at 2026-11-06T02:23:35Z (the original 2.2 h margin, worth 10,300,000 lamports of insolvency) |
-| 17, 19 | oracle deadline: request and capture only while `now <= close_started_at + 600` | no |
-| 28 | Compound15 maturity: P1's actual open + 1,296,000 s | no |
-| 32 | Compound30 maturity: W's actual open (step 21) + 2,592,000 s | no |
-| 37–39 | expiry needs `now > close_started_at + 600` | no |
+| 13 | strict insolvency, from the economics: A1's accrual exceeds the round 1 pot 808,390 s after its open, whatever F3 pays | not before the threshold, which the program enforces: 2026-11-06T00:10:57Z on chain. The plan step at 2026-11-06T02:23:35Z adds the original 2.2 h margin (10,300,000 lamports of insolvency); that margin is a chosen test timing, kept unchanged here, not a program rule |
+| 14–16, 17–20, 21–27, 33–36 | permissionless steps; their 15–60 s spacing is the plan's choice | the spacing is a chosen test timing (any order-preserving spacing works); only the oracle deadline below binds 17 and 19 |
+| 17, 19 | oracle deadline: request and capture only while `now <= close_started_at + 600` | no (program-enforced) |
+| 28 | Compound15 maturity: P1's actual open + 1,296,000 s | not before maturity (program-enforced); the plan's extra 60 s after maturity is a chosen test timing |
+| 32 | Compound30 maturity: W's actual open (step 21) + 2,592,000 s | not before maturity (program-enforced); the plan's extra 60 s after maturity is a chosen test timing |
+| 37–39 | expiry needs `now > close_started_at + 600` | no (program-enforced); finalize 10 s after expiry is a chosen spacing |
 
-No deposit can bring step 13 earlier: more deposits only grow the pot. Moving any later step would need changed production durations or rates, which this instruction does not authorize.
+No deposit can bring step 13's threshold earlier: more deposits only grow the pot. What the program enforces is the insolvency threshold, the two maturities and the 600 s deadline; what the plan adds on top (step 13's 2.2 h margin, the post-maturity 60 s and the permissionless step spacing) are chosen test timings. Removing step 13's margin would bring step 13 and, through step 21's open, both maturities about 2.2 hours earlier; this amendment keeps those offsets unchanged to keep the change minimal, and moving the thresholds themselves would need changed production durations or rates, which this instruction does not authorize.
 
 ## 4. The limiting inequality (why 4.0 days, and the window)
 
@@ -104,8 +105,8 @@ There is no new funding source and no reserve release.
 ## 7. Proof
 
 **Local proof** (model and LiteSVM on the production ELF with the devnet ORAO binary; not devnet proof):
-- `m14_flow_plan`, the three pure tests, pass. Among them, `f3_window_keeps_every_later_check` checks every hour of the window plus its last second, against the nominal close and closes 132 s and 3,600 s later, and checks that the close threshold does not depend on F3.
-- The plan's LiteSVM rehearsal passes, with the model equal to the chain for the seed carried and both round 2 pots. Duration is unchanged: 3,582,371 s.
+- `m14_flow_plan`, the three pure tests, pass. Among them, `f3_window_keeps_every_later_check` checks every hour of the window plus its last second against three close ages: the nominal one and close ages 132 s and 3,600 s SHORTER, because a late open (132 s on devnet, up to the 1-hour allowance) makes A1's position younger at the same plan instant. It also checks that the close threshold does not depend on F3.
+- The plan's LiteSVM rehearsal passes, with the model equal to the chain for the seed carried and both round 2 pots. Duration is unchanged: 3,582,371 s. Its line "advance_ticket_c15: … the ticket credited 39675358 -> capped" is the ticket's TOTAL credit across all rows (`committed.credited`: A1 13,505,000 + A2 9,058,970 + the Winner's A 9,058,970 and B 8,052,418), not A1's own credit; A1's cap credit is 13,505,000 and its capped claim 35,600,000, as in section 5 and the report.
 - `m14_flow_tool`: 15 plain tests pass, including `the_f3_window_closes_ten_minutes_before_the_12_percent_tier_ends`.
 - `m14_flow_tool`: both whole-flow runs through `flow next` pass.
   - The nominal run.

@@ -116,5 +116,9 @@
   "every amount, wallet funding, cap and budget",
   "every offset except steps 10-12",
   "PLAN_NAME"
+ ],
+ "notes": [
+  "The rehearsal line 'the ticket credited 39675358' is ticket 3's TOTAL credit across rows (committed.credited: A1 13,505,000 + A2 9,058,970 + Winner A 9,058,970 + Winner B 8,052,418), not A1's own credit; A1's cap credit is 13,505,000 and its capped claim 35,600,000.",
+  "The arithmetic skew cases use close ages 132 s and 3,600 s SHORTER than nominal (A1 opened late), not later closes."
  ]
 }
