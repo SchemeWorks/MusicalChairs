@@ -1,5 +1,5 @@
 {
-  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done, every check passing. Gideon accepted a timing assessment: step 13 could move at most about two hours earlier, the plan's own margin, so the schedule is kept; the game's insolvency rule sets November 6. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done. Gideon accepted a timing assessment: step 13 could move at most about two hours earlier, the plan's own margin, so the schedule is kept; the game's insolvency rule sets November 6. Internet Computer rows, real rewards, mainnet and the merge stay held.",
   "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and the first player withdrawal and backer payout have gone through. The round-ending step could only come about two hours sooner, because the game’s own math sets the earliest date, November 6, so the plan stays as it is. Rob doesn’t need to do anything.",
   "glossary": [
     {
