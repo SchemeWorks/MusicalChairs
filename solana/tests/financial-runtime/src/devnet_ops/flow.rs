@@ -26,7 +26,10 @@
 //! set).  A step is also done when any LATER step's predicate holds (state only moves forward).  A
 //! receipt line counts as evidence for exactly ONE step, the deliberately refused early expiry, which
 //! leaves no on-chain trace, and only when the receipt says `refused_as_expected` and is stamped for THIS
-//! cluster (genesis hash, program id, `ConfigVersion#1` activation).  The next step is the first one that is not done;
+//! cluster (genesis hash, program id, `ConfigVersion#1` activation).  That refused-by-design step is done
+//! ONLY by its `refused_as_expected` receipt of this cluster: neither a passed deadline nor a later step
+//! stands in for it.  When its window is missed, status lists it under `missed_refusal_evidence`, `all_ok`
+//! is false and the plan stops there (no waiver).  The next step is the first one that is not done;
 //! `flow next` refuses any other step, any step before its earliest time (genesis + offset), the F3
 //! step (`a1_withdraw_simple`) outside its window (`m14_plan::F3_MIN_ELAPSED..F3_MAX_ELAPSED` seconds
 //! after A1's on-chain `opened_at`, whatever the offset says: a late open moves the window with it),
@@ -49,9 +52,12 @@
 //!
 //! # The refused-by-design step
 //!
-//! `expire_at_deadline` is meant to be REFUSED by the program (`DeadlineNotReached`, expiry on the
-//! deadline).  The runner builds, signs and simulates it, requires exactly that error, records it and
-//! sends nothing (a known-failing transaction would only burn a fee; the simulation is the evidence).
+//! `expire_at_deadline` is meant to be REFUSED by the program (`DeadlineNotReached`: expiry needs
+//! `now > deadline`).  The plan simulates it 30 s after the draw request (`C30_AT + 150`), inside the
+//! deadline, so its window does not depend on how late step 32 ran.  The runner builds, signs and
+//! simulates it, requires exactly that error, records it and sends nothing (a known-failing transaction
+//! would only burn a fee; the simulation is the evidence).  The LiteSVM rehearsal also checks the exact
+//! boundary second.
 
 use std::time::Instant;
 
@@ -572,14 +578,39 @@ fn done_by_state(
             let finalized = view.close(close_id).is_some_and(|record| record.finalized);
             (finalized, format!("CloseRecord({close_id}).finalized {finalized}"))
         }
+        // Never done from chain state: only its `refused_as_expected` receipt completes it (see `evaluate`).
         Act::ExpireTooEarly { close_id } => match view.close(close_id) {
             Some(record) if record.close_started_at > 0 => {
-                let passed = record.promotion != state::Promotion::Pending || view.now > record.promotion_deadline as i64;
-                (passed, format!("promotion terminal or the deadline {} has passed", record.promotion_deadline))
+                let deadline = record.promotion_deadline;
+                if refusal_missed(view, close_id) {
+                    (
+                        false,
+                        format!(
+                            "MISSED: the deadline {deadline} has passed or the promotion is terminal with no refused_as_expected receipt; the refusal evidence can no longer be produced and chain state does not stand in for it (not waived)"
+                        ),
+                    )
+                } else {
+                    (
+                        false,
+                        format!(
+                            "the refusal can be simulated until the deadline {deadline} (cluster clock {}); only a refused_as_expected receipt completes it",
+                            view.now
+                        ),
+                    )
+                }
             }
             _ => (false, format!("close {close_id} has not started")),
         },
     }
+}
+
+/// The refusal window of a traceless expected-refusal step is over: the close's promotion is terminal or the
+/// cluster clock is past the deadline (the program would now ACCEPT the expiry).
+fn refusal_missed(view: &View, close_id: u64) -> bool {
+    view.close(close_id).is_some_and(|record| {
+        record.close_started_at > 0
+            && (record.promotion != state::Promotion::Pending || view.now > record.promotion_deadline as i64)
+    })
 }
 
 struct StepEval {
@@ -590,7 +621,7 @@ struct StepEval {
 }
 
 /// Judge every step from the cluster (and the receipt log for the traceless ones); a step is done when
-/// its predicate or any later step's holds.
+/// its predicate or any later step's holds, except a traceless step, which only its own receipt completes.
 fn evaluate(view: &View, wallets: &Wallets, receipts: &ReceiptLog) -> (Vec<StepEval>, Option<Who>) {
     let steps = m14_plan::plan();
     let winner = resolve_winner(view, wallets);
@@ -614,7 +645,7 @@ fn evaluate(view: &View, wallets: &Wallets, receipts: &ReceiptLog) -> (Vec<StepE
             done[index] = true;
             evidence[index] = local[index].1.clone();
             later = true;
-        } else if later {
+        } else if later && !traceless(steps[index].act) {
             done[index] = true;
             evidence[index] = "a later step is complete".into();
         } else {
@@ -849,6 +880,35 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
             }
         }
     }
+    // The refused-by-design step shows its window beside `ready` (inclusive: the program refuses until `now > deadline`).
+    if let Some(eval) = next {
+        if let Act::ExpireTooEarly { close_id } = eval.step.act {
+            if let (Some(record), Some(genesis), Some(object)) = (view.close(close_id), &genesis, next_json.as_object_mut()) {
+                if record.close_started_at > 0 {
+                    let earliest = genesis.genesis_unix + eval.step.at as i64;
+                    let deadline = record.promotion_deadline as i64;
+                    object.insert(
+                        "refusal_window".into(),
+                        json!({
+                            "opens_unix": earliest, "opens_utc": utc(earliest),
+                            "deadline_unix": record.promotion_deadline, "deadline_utc": utc(deadline), "deadline_inclusive": true,
+                            "inside": earliest <= view.now && view.now <= deadline,
+                            "missed": refusal_missed(&view, close_id),
+                        }),
+                    );
+                }
+            }
+        }
+    }
+    // Traceless steps that are not done although their window is over: the evidence can no longer be produced.
+    let missed: Vec<&str> = evals
+        .iter()
+        .filter(|eval| !eval.done)
+        .filter_map(|eval| match eval.step.act {
+            Act::ExpireTooEarly { close_id } if refusal_missed(&view, close_id) => Some(eval.step.id),
+            _ => None,
+        })
+        .collect();
     let books = conservation(&view);
     Ok(json!({
         "command": "flow status",
@@ -872,7 +932,8 @@ fn cmd_status(ctx: &Ctx<'_>) -> Result<Value, OpsError> {
         "foreign_receipts": receipts.foreign,
         "failed_check_receipts": receipts.failed_checks,
         "unaccepted_failed_check_receipts": unaccepted,
-        "all_ok": (conservation_ok(&books) || view.pool().is_none()) && unaccepted.is_empty(),
+        "missed_refusal_evidence": missed,
+        "all_ok": (conservation_ok(&books) || view.pool().is_none()) && unaccepted.is_empty() && missed.is_empty(),
     }))
 }
 
@@ -1352,12 +1413,17 @@ fn next_tx(
         }
         Act::ExpireTooEarly { close_id } => {
             let record = need_close(close_id)?;
-            if record.close_started_at == 0 || record.promotion != state::Promotion::Pending {
-                return refuse(format!("close {close_id} is not waiting on its promotion"));
+            if record.close_started_at == 0 {
+                return refuse(format!("close {close_id} has not started"));
+            }
+            if record.promotion != state::Promotion::Pending {
+                return refuse(format!(
+                    "MISSED: close {close_id} is not waiting on its promotion, so the refusal evidence can no longer be produced; chain state does not stand in for it and the outcome is not waived: stop and report"
+                ));
             }
             if now > record.promotion_deadline {
                 return refuse(format!(
-                    "the deadline {} has passed (cluster clock {now}): expiry would now SUCCEED, so the refusal evidence cannot be produced",
+                    "MISSED: the deadline {} has passed (cluster clock {now}): expiry would now SUCCEED, so the refusal evidence can no longer be produced; chain state does not stand in for it and the outcome is not waived: stop and report",
                     record.promotion_deadline
                 ));
             }

@@ -13,10 +13,21 @@
 //! * `the_f3_window_guard_and_a_late_open_still_reach_every_later_check` is `#[ignore]` as well: A1 opens
 //!   3,700 s late (beyond the 1 h allowance), `flow next` refuses F3 before `F3_MIN_ELAPSED` after A1's
 //!   on-chain open, accepts it at exactly that elapsed, and the other 38 steps still pass their checks
-//!   (F6 included, with F3's payout equal to the pure arithmetic at that elapsed).
+//!   (F6 included, with F3's payout equal to the pure arithmetic at that elapsed).  The late open also
+//!   covers the late close and the maturities: close 1 is refused at the plan's instant and one second
+//!   short of A1's ACTUAL strict-insolvency threshold and sent at the threshold, the compounding
+//!   settlements wait for the positions' actual maturities (read from chain), and step 38 waits for
+//!   `now > deadline`.
+//! * `the_current_devnet_run_closes_at_its_threshold_and_every_later_check_holds` is `#[ignore]` as well: it
+//!   replays the current devnet run's ACTUAL timings for steps 1-12 (A1 opened 132 s late, F3 at elapsed
+//!   358,784), checks the recorded devnet facts, then runs step 13 exactly at the threshold and steps
+//!   14-39 on the new schedule.
+//! * `a_missed_refusal_window_is_reported_and_never_counted_done` is `#[ignore]` as well: the expected
+//!   refusal (step 37) is left until the deadline has passed; `flow status` lists it as missed, nothing
+//!   counts it done (not the passed deadline, not a later step that somebody else ran) and the plan stops.
 //! * The gate and refusal tests (out of order, too early, wrong wallet, devnet without the packet
-//!   identity pin, `--local-oracle` off loopback, the unfulfilled oracle, the upper end of the F3 window)
-//!   run in a plain `cargo test`.
+//!   identity pin, `--local-oracle` off loopback, the unfulfilled oracle, the upper end of the F3 window,
+//!   a fresh status without missed evidence) run in a plain `cargo test`.
 //!
 //! ```text
 //! MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --nocapture
@@ -32,6 +43,7 @@ use std::{
     sync::atomic::{AtomicUsize, Ordering},
 };
 
+use musical_chairs_economics::{earnings::SimpleAccrual, fees};
 use musical_chairs_financial_runtime::{
     close as m7,
     devnet::{self, OraoProfile},
@@ -1138,6 +1150,105 @@ fn balances(cluster: &WorldCluster<'_>, keys: &BTreeMap<Who, Keypair>) -> BTreeM
     cluster.with_world(|w| ALL_WALLETS.iter().map(|who| (*who, w.lamports(keys[who].pubkey()))).collect())
 }
 
+/// `flow next` for `step_id`, as a dry run and with `--execute`, is refused (a safety refusal) with every
+/// `needle` in its message, and nothing is simulated or sent.
+fn assert_refused_untouched(cluster: &WorldCluster<'_>, dir: &TempDir, step_id: &str, needles: &[&str]) {
+    let (sends, sims) = (cluster.sends.get(), cluster.sims.get());
+    for execute in [false, true] {
+        let mut parts = vec!["flow", "next", "--step", step_id, "--local-oracle"];
+        if execute {
+            parts.push("--execute");
+        }
+        let message = refused(ops::run_with_cluster(&flow(&parts, dir), cluster));
+        for needle in needles {
+            assert!(message.contains(*needle), "{step_id} (execute={execute}): `{needle}` is not in: {message}");
+        }
+    }
+    assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "{step_id}: nothing was simulated or sent");
+}
+
+/// The step's entry in a `flow status` document.
+fn status_step<'a>(status: &'a Value, id: &str) -> &'a Value {
+    status["steps"]
+        .as_array()
+        .expect("steps")
+        .iter()
+        .find(|step| step["id"] == id)
+        .unwrap_or_else(|| panic!("{id} is in the plan"))
+}
+
+/// A Simple position's owed minus the pot at `now`, from the chain's own position and pot with the host
+/// economics (as `simple_expectation` in `m14_flow_plan.rs`).
+fn simple_owed_minus_pot(cluster: &WorldCluster<'_>, owner: Pubkey, nonce: u64, now: u64) -> i128 {
+    cluster.with_world(|w| {
+        let position = w.position(owner, nonce);
+        let mut accrual = SimpleAccrual {
+            principal: position.principal,
+            last_accrued_at: position.last_accrued_at,
+            expires_at: position.maturity_at,
+            remainder: position.remainder,
+            accrued_gross: position.accrued_gross,
+        };
+        accrual.accrue(now).expect("the position accrues");
+        let owed = accrual.accrued_gross - position.paid_gross;
+        let pot = w.pool().pot;
+        let payout = fees::payout(owed, pot, fees::simple_toll_bps(now - position.opened_at)).expect("payout arithmetic");
+        let difference = i128::try_from(owed).expect("owed fits") - i128::from(pot);
+        assert_eq!(payout.insolvent, difference > 0, "strict insolvency is owed > pot");
+        difference
+    })
+}
+
+/// One executed plan step.
+struct Driven {
+    receipt: Value,
+    /// The transactions the step sent.
+    observations: Vec<Observation>,
+    pool_before: state::Pool,
+    /// The cluster clock the step ran at.
+    at: u64,
+}
+
+/// One plan step through `flow next`: one second before the plan's earliest instant it is refused as too
+/// early (when the clock is still before it), then the clock moves to `at` (never before the plan's
+/// instant, never backwards), a dry run sends and simulates nothing, and the real run must pass every check.
+fn drive(cluster: &WorldCluster<'_>, dir: &TempDir, step: &m14_plan::Step, at: u64) -> Driven {
+    let args = |parts: &[&str]| flow(parts, dir);
+    let earliest = START_TIME as u64 + step.at;
+    if cluster.now() + 1 < earliest {
+        cluster.warp_to(earliest - 1);
+    }
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), cluster));
+    assert_eq!(status["next"]["id"], step.id, "status names {} as next", step.id);
+    if cluster.now() < earliest {
+        assert_eq!(status["next"]["ready"], false, "{} is not ready yet", step.id);
+        let (sends, sims) = (cluster.sends.get(), cluster.sims.get());
+        let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute", "--local-oracle"]), cluster));
+        assert!(message.contains("too early"), "{}: {message}", step.id);
+        assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "{}: too early sends nothing", step.id);
+    }
+    let at = at.max(earliest);
+    if cluster.now() < at {
+        cluster.warp_to(at);
+    }
+    let (sends, sims) = (cluster.sends.get(), cluster.sims.get());
+    let dry = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--local-oracle"]), cluster));
+    assert_eq!(dry["mode"], "dry-run", "{}", step.id);
+    assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "{}: a dry run sends nothing", step.id);
+
+    let observed_before = cluster.observed();
+    let pool_before = cluster.with_world(|w| w.pool());
+    let now = cluster.now();
+    let receipt = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute", "--local-oracle"]), cluster));
+    let observations: Vec<Observation> = cluster.observations.borrow()[observed_before..].to_vec();
+    assert_eq!(receipt["step"], step.id);
+    assert_eq!(receipt["all_ok"], true, "{}: {:?}", step.id, failing(&receipt));
+    assert_eq!(receipt["conservation"]["ok"], true, "{}: {}", step.id, receipt["conservation"]);
+    assert_eq!(receipt["cluster_unix_before"].as_u64(), Some(now));
+    cluster.with_world(m7::assert_identities);
+    Driven { receipt, observations, pool_before, at: now }
+}
+
 #[test]
 #[ignore = "needs MC_ORAO_PROFILE=devnet (see the file docs)"]
 fn the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries() {
@@ -1349,7 +1460,10 @@ fn the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries() {
                 assert_eq!(receipt["refused_as_expected"]["error"], "DeadlineNotReached");
                 assert_eq!(receipt["refused_as_expected"]["sent"], false);
                 assert!(new_observations.is_empty(), "the refused-by-design transaction is not sent");
-                assert_eq!(cluster.with_world(|w| w.close_record(2)).promotion, state::Promotion::Pending);
+                let close2 = cluster.with_world(|w| w.close_record(2));
+                assert_eq!(close2.promotion, state::Promotion::Pending);
+                let before = receipt["cluster_unix_before"].as_u64().expect("clock");
+                assert!(before < close2.promotion_deadline, "the refusal is simulated inside the deadline: {before} vs {}", close2.promotion_deadline);
             }
             "expire_promotion_2" => {
                 let event: PromotionSkipped = last_event(&new_observations, step.id);
@@ -1408,6 +1522,7 @@ fn the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries() {
     assert_eq!(status["next"], "the plan is complete");
     assert_eq!(status["winner"], winner.unwrap().name());
     assert_eq!(status["conservation"]["ok"], true);
+    assert_eq!(status["missed_refusal_evidence"], serde_json::json!([]));
     let log = fs::read_to_string(dir.file("flow-receipts.jsonl")).unwrap();
     assert_eq!(log.lines().count(), steps.len(), "one receipt line per step");
     for (line, step) in log.lines().zip(&steps) {
@@ -1440,6 +1555,13 @@ fn the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries() {
 /// there (dry run and `--execute`, nothing simulated or sent), accepts it at exactly `F3_MIN_ELAPSED`
 /// after A1's on-chain `opened_at`, and every later check of the plan still holds, F6 at the Compound15
 /// ticket included.
+///
+/// The late open also covers late execution and the actual-open maturity checks.  Close 1's plan instant is
+/// 3,568 s BEFORE A1's actual strict-insolvency threshold (`opened_at + CLOSE1_INSOLVENT_FROM_ELAPSED`): the
+/// runner's insolvency pre-check refuses it there and one second short of the threshold, and sends it at the
+/// threshold.  Steps 14-27 are then overdue and run at once.  The Compound15 and Compound30 settlements are
+/// refused before the positions' ACTUAL maturities (read from chain) and sent at them; steps 33-37 run at once
+/// at the Compound30 close; step 38 is refused at the deadline itself and sent one second later.
 #[test]
 #[ignore = "needs MC_ORAO_PROFILE=devnet (see the file docs)"]
 fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
@@ -1451,24 +1573,33 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
     let steps = m14_plan::plan();
     let genesis = START_TIME as u64;
     let args = |parts: &[&str]| flow(parts, &dir);
-    // Where A1 will open, and so where close 1 falls in A1's own elapsed time.
+    // Where A1 will open, and so where F3 falls in A1's own elapsed time and where close 1 first becomes possible.
     let opened_at = genesis + m14_plan::O1 + LATE;
-    let close1_actual = genesis + m14_plan::CLOSE1_AT - opened_at;
+    let threshold = opened_at + m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED;
     let (window_opens, window_closes) = (opened_at + m14_plan::F3_MIN_ELAPSED, opened_at + m14_plan::F3_MAX_ELAPSED);
-    let expected = m14_plan::arithmetic_at(m14_plan::F3_MIN_ELAPSED, close1_actual).unwrap_or_else(|error| {
-        panic!("a late open ({LATE} s) with F3 at {} s and the close at {close1_actual} s: {error}", m14_plan::F3_MIN_ELAPSED)
-    });
-    assert!(close1_actual >= expected.insolvent_from_elapsed, "the late open still leaves the close insolvent");
+    assert_eq!(
+        threshold - (genesis + m14_plan::CLOSE1_AT),
+        LATE - m14_plan::A1_DEVNET_OPEN_DELAY,
+        "close 1's plan instant is 3,568 s before A1's actual threshold"
+    );
+    // Close 1 is sent exactly at the threshold, with F3 at the first second of its window.
+    let expected_at_threshold =
+        m14_plan::arithmetic_at(m14_plan::F3_MIN_ELAPSED, m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED).unwrap_or_else(|error| {
+            panic!("a late open ({LATE} s) with F3 at {} s and the close at the threshold: {error}", m14_plan::F3_MIN_ELAPSED)
+        });
+    assert_eq!(expected_at_threshold.insolvent_from_elapsed, m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED);
 
     let mut receipts = 0usize;
     let mut finalized_round_three = false;
+    // The cluster clock at which the Compound30 settlement closed round 2 (close 2 starts there).
+    let mut t32 = 0u64;
     for step in &steps {
         let mut at = genesis + step.at;
         if step.id == "a1_open_simple" {
             at += LATE;
         }
         // The clock only moves forward: a step that is overdue (F3 and its follow-ups after the guard
-        // test below) runs at once.
+        // test below, steps 14-27 after the close) runs at once.
         if cluster.now() < at {
             cluster.warp_to(at);
         }
@@ -1510,6 +1641,41 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
             assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "the refusals and the dry run send and simulate nothing");
         }
 
+        if step.id == "a1_closing_withdraw" {
+            // The plan's instant is before A1's ACTUAL threshold (read from chain): the insolvency pre-check
+            // refuses close 1 there and one second short of the threshold, and nothing is simulated or sent.
+            let a1_opened = cluster.with_world(|w| w.position(keys[&Who::A1].pubkey(), 1).opened_at);
+            assert_eq!(a1_opened + m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED, threshold);
+            assert_eq!(cluster.now(), at);
+            assert!(at < threshold);
+            assert_refused_untouched(&cluster, &dir, step.id, &["strictly insolvent", "solvent"]);
+            cluster.warp_to(threshold - 1);
+            assert_refused_untouched(&cluster, &dir, step.id, &["strictly insolvent", "solvent"]);
+            cluster.warp_to(threshold);
+        }
+
+        if step.id == "p1_settle_compound15" || step.id == "w_settle_compound30" {
+            // The plan's instant is before the position's ACTUAL maturity (it opened at the late threshold).
+            let owner = if step.id == "p1_settle_compound15" { Who::P1 } else { Who::W };
+            let maturity = cluster.with_world(|w| w.position(keys[&owner].pubkey(), 1).maturity_at);
+            assert_eq!(cluster.now(), at);
+            assert!(at < maturity, "{}: the plan's instant {at} is before the maturity {maturity}", step.id);
+            assert_refused_untouched(&cluster, &dir, step.id, &["matures at"]);
+            cluster.warp_to(maturity - 1);
+            assert_refused_untouched(&cluster, &dir, step.id, &["matures at"]);
+            cluster.warp_to(maturity);
+        }
+
+        if step.id == "expire_promotion_2" {
+            // The plan's instant is long past, but the program needs now > deadline: refused AT the deadline.
+            let deadline = cluster.with_world(|w| w.close_record(2)).promotion_deadline;
+            assert_eq!(deadline, t32 + m14_plan::DEADLINE_SECS);
+            assert_eq!(cluster.now(), t32, "steps 33-37 ran at once at the close");
+            cluster.warp_to(deadline);
+            assert_refused_untouched(&cluster, &dir, step.id, &["not past"]);
+            cluster.warp_to(deadline + 1);
+        }
+
         let observed_before = cluster.observed();
         let pool_before = cluster.with_world(|w| w.pool());
         let receipt = ok(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute", "--local-oracle"]), &cluster));
@@ -1531,19 +1697,39 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
                 assert!(!event.closing);
                 assert_eq!(
                     (event.gross_paid, event.toll, event.net),
-                    (expected.f3.paid_gross, expected.f3.toll, expected.f3.net),
+                    (expected_at_threshold.f3.paid_gross, expected_at_threshold.f3.toll, expected_at_threshold.f3.net),
                     "F3 at the window's first second equals the pure arithmetic"
                 );
             }
             "a1_closing_withdraw" => {
+                assert_eq!(cluster.now(), threshold, "close 1 ran at A1's actual threshold");
                 let event: PayoutPaid = last_event(&new_observations, step.id);
                 assert!(event.closing);
                 assert_eq!(
                     (event.gross_paid, event.toll, event.net),
-                    (expected.close1.paid_gross, expected.close1.toll, expected.close1.net),
-                    "close 1 equals the pure arithmetic"
+                    (
+                        expected_at_threshold.close1.paid_gross,
+                        expected_at_threshold.close1.toll,
+                        expected_at_threshold.close1.net
+                    ),
+                    "close 1 at the threshold equals the pure arithmetic"
                 );
                 assert_eq!(event.gross_paid, pool_before.pot, "pot-capped: the whole pot is paid");
+                let closed: RoundClosed = last_event(&new_observations, step.id);
+                assert_eq!((closed.close_id, closed.deadline), (1, threshold + m14_plan::DEADLINE_SECS));
+            }
+            "request_draw_1" | "capture_draw_1" => {
+                let deadline = cluster.with_world(|w| w.close_record(1)).promotion_deadline;
+                assert!(cluster.now() <= deadline, "{}: inside the deadline of close 1 ({} vs {deadline})", step.id, cluster.now());
+            }
+            "w_finalize_reopen" => {
+                // W opens at the threshold instant, so its maturity is 30 days after it.
+                let position = cluster.with_world(|w| w.position(keys[&Who::W].pubkey(), 1));
+                assert_eq!((position.opened_at, position.maturity_at), (threshold, threshold + 2_592_000));
+            }
+            "p1_open_compound15" => {
+                let position = cluster.with_world(|w| w.position(keys[&Who::P1].pubkey(), 1));
+                assert_eq!((position.opened_at, position.maturity_at), (threshold, threshold + 1_296_000));
             }
             "advance_ticket_c15" => {
                 // F6: the Compound15 toll caps A1's Series A row and it leaves the registry.
@@ -1551,12 +1737,14 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
                 assert!(!a1.active && a1.remaining().unwrap() <= 10, "A1 reached 124 percent in ticket 3");
             }
             "p1_settle_compound15" => {
+                let maturity = cluster.with_world(|w| w.position(keys[&Who::P1].pubkey(), 1).maturity_at);
+                assert_eq!(cluster.now(), maturity, "C15 ran at the position's actual maturity");
                 let event: PayoutPaid = last_event(&new_observations, step.id);
                 assert!(!event.closing, "C15 is solvent");
-                assert!(event.gross_paid < pool_before.pot && u128::from(event.gross_paid) == expected.c15.gross_owed, "C15 paid in full out of a larger pot");
+                assert!(event.gross_paid < pool_before.pot && u128::from(event.gross_paid) == expected_at_threshold.c15.gross_owed, "C15 paid in full out of a larger pot");
                 assert_eq!(
                     (event.gross_paid, event.toll, event.net),
-                    (expected.c15.paid_gross, expected.c15.toll, expected.c15.net),
+                    (expected_at_threshold.c15.paid_gross, expected_at_threshold.c15.toll, expected_at_threshold.c15.net),
                     "C15 equals the pure arithmetic"
                 );
             }
@@ -1565,19 +1753,34 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
                 assert!(event.a_part > 0 && event.b_part > 0, "the winner's combined claim has both parts");
             }
             "w_settle_compound30" => {
+                let maturity = cluster.with_world(|w| w.position(keys[&Who::W].pubkey(), 1).maturity_at);
+                assert_eq!(cluster.now(), maturity, "C30 ran at the position's actual maturity");
+                t32 = cluster.now();
                 let event: PayoutPaid = last_event(&new_observations, step.id);
                 assert!(event.closing, "C30 is strictly insolvent");
                 assert_eq!(event.gross_paid, pool_before.pot, "pot-capped");
-                assert!(expected.c30.gross_owed > u128::from(pool_before.pot));
+                assert!(expected_at_threshold.c30.gross_owed > u128::from(pool_before.pot));
+                let closed: RoundClosed = last_event(&new_observations, step.id);
+                assert_eq!((closed.close_id, closed.deadline), (2, t32 + m14_plan::DEADLINE_SECS));
+            }
+            "expire_at_deadline" => {
+                assert_eq!(receipt["result"], "refused_as_expected");
+                assert!(new_observations.is_empty(), "the refused-by-design transaction is not sent");
+                let deadline = cluster.with_world(|w| w.close_record(2)).promotion_deadline;
+                assert!(receipt["cluster_unix_before"].as_u64().expect("clock") <= deadline, "the refusal is simulated inside the deadline");
+            }
+            "expire_promotion_2" => {
+                assert_eq!(cluster.now(), t32 + m14_plan::DEADLINE_SECS + 1, "expired one second past the deadline");
+                let event: PromotionSkipped = last_event(&new_observations, step.id);
+                assert_eq!(
+                    (event.close_id, event.reason, event.stage),
+                    (2, pclose::REASON_DEADLINE, pclose::STAGE_REQUESTED_UNFULFILLED)
+                );
             }
             "finalize_2" => {
                 let event: RoundFinalized = last_event(&new_observations, step.id);
                 assert_eq!((event.close_id, event.new_round), (2, 3));
                 finalized_round_three = true;
-            }
-            "expire_at_deadline" => {
-                assert_eq!(receipt["result"], "refused_as_expected");
-                assert!(new_observations.is_empty(), "the refused-by-design transaction is not sent");
             }
             _ => {}
         }
@@ -1592,9 +1795,10 @@ fn the_f3_window_guard_and_a_late_open_still_reach_every_later_check() {
     assert_eq!(status["next"], "the plan is complete");
     assert_eq!(status["conservation"]["ok"], true);
     println!(
-        "M14 F3 window: PASS - A1 opened {LATE} s late; F3 refused at the plan's instant (elapsed {}), accepted at {}; all {} steps passed their checks",
+        "M14 late open: PASS - A1 opened {LATE} s late; F3 refused at the plan's instant (elapsed {}), accepted at {}; close 1 refused at the plan's instant and at threshold - 1, sent at the threshold ({} s after the plan's instant); the settlements waited for the actual maturities; all {} steps passed their checks",
         m14_plan::F3_AT - m14_plan::O1 - LATE,
         m14_plan::F3_MIN_ELAPSED,
+        threshold - (genesis + m14_plan::CLOSE1_AT),
         steps.len()
     );
 }
@@ -1641,4 +1845,311 @@ fn the_f3_window_closes_ten_minutes_before_the_12_percent_tier_ends() {
     let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "a1_withdraw_simple", "--execute"]), &cluster));
     assert!(message.contains("F3 window"), "{message}");
     assert_eq!((cluster.sends.get(), cluster.sims.get()), (sends, sims), "nothing was sent or simulated");
+}
+
+// ---------------------------------------------------------------------------
+// The current devnet run, and a missed refusal window
+// ---------------------------------------------------------------------------
+
+/// A1's F3 elapsed in the current devnet run (recorded: seconds after its open; it paid 456,785,185).
+const DEVNET_F3_ELAPSED: u64 = 358_784;
+
+/// Replays the current devnet run: its ACTUAL timings for steps 1-12 relative to genesis (`START_TIME` plays
+/// devnet's genesis, 1,792,942,295): A1 opened 132 s late, P4 and P5 at T0 + 401 / 420, F3 at A1's elapsed
+/// 358,784 (steps 11 and 12 right after).  Then close 1 exactly at the threshold of A1's actual open and
+/// steps 14-39 on the new schedule, each refused one second early and run at its instant.
+#[test]
+#[ignore = "needs MC_ORAO_PROFILE=devnet (see the file docs)"]
+fn the_current_devnet_run_closes_at_its_threshold_and_every_later_check_holds() {
+    require_devnet_profile();
+    let predicted = m14_plan::arithmetic_at(DEVNET_F3_ELAPSED, m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED)
+        .expect("the devnet run's F3 and its close at the threshold");
+    assert_eq!(predicted.seed_carried, 48_872_669);
+    let (mut world, keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let steps = m14_plan::plan();
+    let genesis = START_TIME as u64;
+    let args = |parts: &[&str]| flow(parts, &dir);
+    let a1 = keys[&Who::A1].pubkey();
+
+    // ---- steps 1-12 at devnet's actual timings ----------------------------------------------------
+    let mut opened_at = 0u64;
+    for step in &steps[..12] {
+        let at = match step.id {
+            "a1_open_simple" => genesis + m14_plan::O1 + m14_plan::A1_DEVNET_OPEN_DELAY,
+            "p4_open_simple" => genesis + m14_plan::T0 + 401,
+            "p5_open_simple" => genesis + m14_plan::T0 + 420,
+            "a1_withdraw_simple" => opened_at + DEVNET_F3_ELAPSED,
+            // Steps 11 and 12: their plan instants have passed, so they run right after F3.
+            _ => genesis + step.at,
+        };
+        let ran = drive(&cluster, &dir, step, at);
+        match step.id {
+            "a1_open_simple" => {
+                opened_at = cluster.with_world(|w| w.position(a1, 1).opened_at);
+                assert_eq!(opened_at, genesis + m14_plan::O1 + 132);
+                assert_eq!(opened_at - genesis, m14_plan::A1_DEVNET_OPENED_AT - m14_plan::DEVNET_GENESIS_UNIX);
+            }
+            "a1_withdraw_simple" => {
+                assert_eq!(ran.at - opened_at, DEVNET_F3_ELAPSED);
+                let event: PayoutPaid = last_event(&ran.observations, step.id);
+                assert!(!event.closing);
+                assert_eq!((event.gross_paid, event.toll, event.net), (456_785_185, 54_814_222, 401_970_963));
+            }
+            "advance_ticket_f3" | "a1_claim_a_only" => {
+                assert_eq!(ran.at, opened_at + DEVNET_F3_ELAPSED, "{}: right after F3", step.id);
+                if step.id == "a1_claim_a_only" {
+                    let event: BackerClaimed = last_event(&ran.observations, step.id);
+                    assert_eq!(event.amount, 27_407_109, "the claim of step 12 paid devnet's amount");
+                }
+            }
+            _ => {}
+        }
+    }
+
+    // ---- the replay holds devnet's recorded facts ------------------------------------------------
+    let (pool, row) = cluster.with_world(|w| (w.pool(), w.backer(a1, 0)));
+    assert_eq!((pool.pot, pool.seed), (572_414_815, 27_407_113));
+    assert_eq!(row.remaining().expect("remaining"), 34_592_891);
+
+    // ---- resume and once-only ----------------------------------------------------------------------
+    let earliest = genesis + m14_plan::CLOSE1_AT;
+    assert_eq!(earliest, opened_at + m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED, "the plan gate is the threshold of the actual open");
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["completed"].as_u64(), Some(12));
+    assert_eq!(status["next"]["id"], "a1_closing_withdraw");
+    assert_eq!(status["plan_revision"], m14_plan::PLAN_REVISION);
+    assert_eq!(status["next"]["earliest_unix"].as_u64(), Some(earliest));
+    for step in &steps[..12] {
+        let sends = cluster.sends.get();
+        let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", step.id, "--execute"]), &cluster));
+        assert!(message.contains("already complete"), "{}: {message}", step.id);
+        assert_eq!(cluster.sends.get(), sends, "{}: a completed step sends nothing", step.id);
+    }
+
+    // ---- steps 13-39 ------------------------------------------------------------------------------------
+    let mut owed_at_threshold = 0i128;
+    let mut receipts = 12usize;
+    for step in &steps[12..] {
+        let at = genesis + step.at;
+        if step.id == "a1_closing_withdraw" {
+            // The plan's gate coincides with the game's own threshold for this run: one second short A1 is
+            // still owed less than the pot, at the instant strictly more.
+            assert_eq!(simple_owed_minus_pot(&cluster, a1, 1, at - 1), -1_042);
+            owed_at_threshold = simple_owed_minus_pot(&cluster, a1, 1, at);
+            assert_eq!(owed_at_threshold, 231);
+        }
+        if step.id == "expire_at_deadline" {
+            // The refusal window is shown beside `ready`: closed one second early, open at the instant, and it
+            // ends with the (inclusive) deadline.
+            let deadline = cluster.with_world(|w| w.close_record(2)).promotion_deadline;
+            assert_eq!(deadline, genesis + m14_plan::C30_AT + m14_plan::DEADLINE_SECS);
+            cluster.warp_to(at - 1);
+            let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+            let window = &status["next"]["refusal_window"];
+            assert_eq!((window["inside"].clone(), window["missed"].clone()), (Value::Bool(false), Value::Bool(false)), "{window}");
+            assert_eq!(window["opens_unix"].as_u64(), Some(at));
+            assert_eq!(window["deadline_unix"].as_u64(), Some(deadline));
+            assert_eq!(window["deadline_inclusive"], true);
+            assert_refused_untouched(&cluster, &dir, step.id, &["too early"]);
+            cluster.warp_to(at);
+            let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+            let window = &status["next"]["refusal_window"];
+            assert_eq!((window["inside"].clone(), window["missed"].clone()), (Value::Bool(true), Value::Bool(false)), "{window}");
+            assert_eq!(status["missed_refusal_evidence"], serde_json::json!([]));
+        }
+
+        let ran = drive(&cluster, &dir, step, at);
+        receipts += 1;
+        let (observations, pool_before) = (&ran.observations, &ran.pool_before);
+        match step.id {
+            "a1_closing_withdraw" => {
+                assert_eq!(ran.at, earliest);
+                let event: PayoutPaid = last_event(observations, step.id);
+                assert!(event.closing);
+                assert_eq!((event.gross_paid, event.toll, event.net), (572_414_815, 42_931_111, 529_483_704));
+                assert_eq!(
+                    (event.gross_paid, event.toll, event.net),
+                    (predicted.close1.paid_gross, predicted.close1.toll, predicted.close1.net)
+                );
+                assert_eq!(event.gross_paid, pool_before.pot, "pot-capped: the whole pot is paid");
+                let closed: RoundClosed = last_event(observations, step.id);
+                assert_eq!((closed.close_id, closed.deadline), (1, earliest + m14_plan::DEADLINE_SECS));
+            }
+            "advance_ticket_close1" => {
+                let committed: TicketCommitted = last_event(observations, step.id);
+                assert_eq!(committed.credited + committed.seed, committed.toll);
+                assert_eq!(committed.toll, predicted.close1.toll);
+            }
+            "w_finalize_reopen" => {
+                let finalized: RoundFinalized = last_event(observations, step.id);
+                assert_eq!((finalized.close_id, finalized.new_round), (1, 2));
+                assert_eq!(finalized.seed_carried, pool_before.seed);
+                assert_eq!(finalized.seed_carried, predicted.seed_carried, "the carried seed equals the model");
+            }
+            "p1_settle_compound15" => {
+                let event: PayoutPaid = last_event(observations, step.id);
+                assert!(!event.closing, "C15 is solvent");
+                assert_eq!(
+                    (event.gross_paid, event.toll, event.net),
+                    (predicted.c15.paid_gross, predicted.c15.toll, predicted.c15.net),
+                    "C15 equals the pure arithmetic"
+                );
+            }
+            "advance_ticket_c15" => {
+                // F6: ticket 3 caps A1's Series A row and it leaves the registry.
+                let row = cluster.with_world(|w| w.backer(a1, 0));
+                assert!(!row.active && row.remaining().expect("remaining") <= 10, "A1 reached 124 percent in ticket 3");
+            }
+            "winner_claim_a_and_b" => {
+                let event: BackerClaimed = last_event(observations, step.id);
+                assert!(event.a_part > 0 && event.b_part > 0, "the winner's combined claim has both parts");
+            }
+            "w_settle_compound30" => {
+                let event: PayoutPaid = last_event(observations, step.id);
+                assert!(event.closing, "C30 is strictly insolvent");
+                assert_eq!(pool_before.pot, predicted.r2_pot_at_c30, "the pot before C30 equals the model");
+                assert_eq!(event.gross_paid, pool_before.pot, "pot-capped");
+                let closed: RoundClosed = last_event(observations, step.id);
+                assert_eq!((closed.close_id, closed.deadline), (2, at + m14_plan::DEADLINE_SECS));
+            }
+            "expire_at_deadline" => {
+                let close2 = cluster.with_world(|w| w.close_record(2));
+                assert_eq!(ran.receipt["result"], "refused_as_expected");
+                assert_eq!(ran.receipt["refused_as_expected"]["error"], "DeadlineNotReached");
+                assert_eq!(ran.receipt["refused_as_expected"]["sent"], false);
+                assert!(observations.is_empty(), "the refused-by-design transaction is not sent");
+                assert!(ran.at < close2.promotion_deadline, "the refusal is simulated inside the deadline");
+                assert_eq!(close2.promotion, state::Promotion::Pending);
+            }
+            "expire_promotion_2" => {
+                assert_eq!(ran.at, cluster.with_world(|w| w.close_record(2)).promotion_deadline + 1, "one second past the deadline");
+                let event: PromotionSkipped = last_event(observations, step.id);
+                assert_eq!(
+                    (event.close_id, event.reason, event.stage),
+                    (2, pclose::REASON_DEADLINE, pclose::STAGE_REQUESTED_UNFULFILLED)
+                );
+            }
+            "finalize_2" => {
+                let event: RoundFinalized = last_event(observations, step.id);
+                assert_eq!((event.close_id, event.new_round), (2, 3));
+            }
+            _ => {}
+        }
+    }
+
+    // ---- the end ---------------------------------------------------------------------------------------
+    assert_eq!(receipts, steps.len());
+    let status = ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(status["completed"].as_u64(), Some(steps.len() as u64));
+    assert_eq!(status["next"], "the plan is complete");
+    assert_eq!(status["missed_refusal_evidence"], serde_json::json!([]));
+    assert_eq!(status["all_ok"], true, "{status}");
+    let log = fs::read_to_string(dir.file("flow-receipts.jsonl")).unwrap();
+    assert_eq!(log.lines().count(), steps.len(), "one receipt line per step");
+    for (line, step) in log.lines().zip(&steps) {
+        let entry: Value = serde_json::from_str(line).unwrap();
+        assert_eq!(entry["step"], step.id);
+        assert_eq!(entry["all_ok"], true, "{}", step.id);
+    }
+    println!(
+        "M14 current devnet run: PASS - close 1 at {earliest} (A1's open {opened_at} + {}), owed - pot {owed_at_threshold} lamports; all {} steps passed their checks",
+        m14_plan::CLOSE1_INSOLVENT_FROM_ELAPSED,
+        steps.len()
+    );
+}
+
+/// The expected refusal (step 37) is left until the deadline of close 2 has passed.  `flow status` then lists
+/// it under `missed_refusal_evidence` and `all_ok` is false; neither the passed deadline nor a later step
+/// (step 38, expired by a third party) counts it done; `flow next` refuses it and every later step.
+#[test]
+#[ignore = "needs MC_ORAO_PROFILE=devnet (see the file docs)"]
+fn a_missed_refusal_window_is_reported_and_never_counted_done() {
+    require_devnet_profile();
+    let (mut world, keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let steps = m14_plan::plan();
+    let genesis = START_TIME as u64;
+    let args = |parts: &[&str]| flow(parts, &dir);
+    let status = || ok(ops::run_with_cluster(&args(&["flow", "status"]), &cluster));
+    assert_eq!(steps[36].id, "expire_at_deadline");
+    for step in &steps[..36] {
+        drive(&cluster, &dir, step, genesis + step.at);
+    }
+    let deadline = cluster.with_world(|w| w.close_record(2)).promotion_deadline;
+
+    // Inside the window nothing is missed ...
+    let inside = status();
+    assert_eq!(inside["next"]["id"], "expire_at_deadline");
+    assert_eq!(inside["next"]["refusal_window"]["missed"], false);
+    assert_eq!(inside["missed_refusal_evidence"], serde_json::json!([]));
+    assert_eq!(inside["all_ok"], true, "{inside}");
+    // ... the deadline second itself is still inside (the program refuses until now > deadline) ...
+    cluster.warp_to(deadline);
+    let boundary = status();
+    assert_eq!(boundary["next"]["refusal_window"]["inside"], true);
+    assert_eq!(boundary["next"]["refusal_window"]["missed"], false);
+    assert_eq!(boundary["missed_refusal_evidence"], serde_json::json!([]));
+
+    // ... and one second later the program would ACCEPT the expiry: the window is missed.
+    cluster.warp_to(deadline + 1);
+    let missed = status();
+    let entry = status_step(&missed, "expire_at_deadline");
+    assert_eq!(entry["done"], false, "{entry}");
+    assert!(entry["evidence"].as_str().expect("evidence").starts_with("MISSED"), "{entry}");
+    assert_eq!(missed["missed_refusal_evidence"], serde_json::json!(["expire_at_deadline"]));
+    assert_eq!(missed["all_ok"], false);
+    assert_eq!(missed["completed"].as_u64(), Some(36));
+    assert_eq!(missed["next"]["id"], "expire_at_deadline");
+    assert_eq!(missed["next"]["refusal_window"]["missed"], true);
+    assert_eq!(missed["next"]["refusal_window"]["inside"], false);
+    assert_eq!(missed["next"]["refusal_window"]["deadline_unix"].as_u64(), Some(deadline));
+
+    // The runner refuses the step (dry run and --execute) and the step after it.
+    assert_refused_untouched(&cluster, &dir, "expire_at_deadline", &["MISSED"]);
+    let sends = cluster.sends.get();
+    let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "expire_promotion_2", "--execute"]), &cluster));
+    assert!(message.contains("not the next step") && message.contains("MISSED"), "{message}");
+    assert_eq!(cluster.sends.get(), sends);
+
+    // Somebody else expires close 2 (permissionless), outside `flow next`: the chain now shows step 38's effect.
+    let expire = cluster.with_world(|w| m7::expire_ix(w, 2));
+    {
+        let mut world = cluster.world.borrow_mut();
+        let keeper = std::mem::replace(&mut world.rt.payer, keys[&Who::A1].insecure_clone());
+        let outcome = world.send("third_party_expire", vec![expire], &[]);
+        world.rt.payer = keeper;
+        let observation = outcome.expect("anybody may expire a close once its deadline has passed");
+        let skipped: PromotionSkipped = observation.last_event();
+        assert_eq!((skipped.close_id, skipped.reason), (2, pclose::REASON_DEADLINE));
+    }
+    let after = status();
+    assert_eq!(status_step(&after, "expire_promotion_2")["done"], true, "step 38 is done: its promotion is terminal");
+    let entry = status_step(&after, "expire_at_deadline");
+    assert_eq!(entry["done"], false, "a later step's completion does not stand in for the refusal: {entry}");
+    assert!(entry["evidence"].as_str().expect("evidence").starts_with("MISSED"), "{entry}");
+    assert_eq!(after["completed"].as_u64(), Some(37), "steps 1-36 and 38");
+    assert_eq!(after["next"]["id"], "expire_at_deadline");
+    assert_eq!(after["missed_refusal_evidence"], serde_json::json!(["expire_at_deadline"]));
+    assert_eq!(after["all_ok"], false);
+    // The plan stops there: step 37 stays refused and step 39 is not the next step.
+    assert_refused_untouched(&cluster, &dir, "expire_at_deadline", &["MISSED"]);
+    let sends = cluster.sends.get();
+    let message = refused(ops::run_with_cluster(&args(&["flow", "next", "--step", "finalize_2", "--execute"]), &cluster));
+    assert!(message.contains("not the next step"), "{message}");
+    assert_eq!(cluster.sends.get(), sends);
+}
+
+/// A fresh cluster has no missed refusal evidence and no refusal window yet.
+#[test]
+fn a_fresh_status_reports_no_missed_refusal_evidence() {
+    let (mut world, _keys, dir) = fixture();
+    let cluster = WorldCluster::new(&mut world);
+    init(&cluster, &dir);
+    let status = ok(ops::run_with_cluster(&flow(&["flow", "status"], &dir), &cluster));
+    assert_eq!(status["missed_refusal_evidence"], serde_json::json!([]));
+    assert_eq!(status["all_ok"], true, "{status}");
+    assert!(status["next"].get("refusal_window").is_none(), "{status}");
 }

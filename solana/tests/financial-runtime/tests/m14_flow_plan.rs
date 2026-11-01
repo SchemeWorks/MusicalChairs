@@ -33,8 +33,9 @@
 //!
 //! plus the usual `MC_FINANCIAL_SBF` / `MC_STANDIN_SBF` if the artifacts are not at
 //! their default paths.  `MC_M14_FLOW_REPORT=<path>` additionally writes the report as
-//! JSON.  The three pure tests (plan shape, solvency arithmetic against the host
-//! oracles, and the F3 window that keeps every later check) need no artifacts and run in a plain `cargo test`.
+//! JSON.  The four pure tests (plan shape, solvency arithmetic against the host
+//! oracles, the F3 window that keeps every later check, and close 1 at its threshold with every later
+//! offset shifted) need no artifacts and run in a plain `cargo test`.
 //!
 //! The plan itself is documented in `docs/solana/m14-flow-plan.md`.  Its data (`Who`, `Act`, `Step`,
 //! the schedule, the amounts, `plan()` and the pure `arithmetic()`) lives in the library module
@@ -73,7 +74,8 @@ use musical_chairs_financial_runtime::m14_plan::{
     plan, wallet_funding, day, Act, Step, Who, ALL_WALLETS, REQUIRED_FLOWS, SOL, GOVERNANCE_DELAY, DEADLINE_SECS,
     A1_GAME, CANDIDATE_GAME, W_COMPOUND30, P1_COMPOUND15,
     O1, F3_AT, CLOSE1_AT, arithmetic, arithmetic_at, f3_earliest_viable_elapsed, Arithmetic, F3_MAX_ELAPSED,
-    F3_MIN_ELAPSED,
+    F3_MIN_ELAPSED, A1_DEVNET_OPENED_AT, A1_DEVNET_OPEN_DELAY, C30_AT, CLOSE1_INSOLVENT_FROM_ELAPSED,
+    DEVNET_GENESIS_UNIX,
 };
 
 
@@ -91,9 +93,11 @@ fn devnet_rent(space: usize) -> u64 {
 fn plan_solvency_arithmetic_holds_against_the_host_oracles() {
     let a = arithmetic();
     println!("{a:#?}");
-    // Round 1: the close is strict and has a comfortable margin (10 s of accrual is
-    // about 12,700 lamports, so 5,000,000 is more than 6 minutes).
-    assert!(a.close1_owed_minus_pot >= 5_000_000, "close 1 margin {}", a.close1_owed_minus_pot);
+    // Round 1: the close sits at the strict-insolvency threshold of A1's actual devnet open (no margin).
+    assert_eq!(a.insolvent_from_elapsed, CLOSE1_INSOLVENT_FROM_ELAPSED);
+    // an on-time open closes 132 s past its threshold: the plan time is the devnet run's threshold
+    assert_eq!(a.close1_elapsed, CLOSE1_INSOLVENT_FROM_ELAPSED + A1_DEVNET_OPEN_DELAY);
+    assert!(a.close1_owed_minus_pot > 0, "close 1 is strictly insolvent: {}", a.close1_owed_minus_pot);
     assert!(a.close1.paid_gross < a.close1.gross_owed.try_into().expect("fits"));
     let insolvent_day = day(O1 + a.insolvent_from_elapsed);
     assert!(
@@ -145,15 +149,23 @@ fn f3_window_keeps_every_later_check() {
     assert!(below.contains("F6"), "the only failure below the minimum is F6: {below}");
     assert!(min + 3_600 <= F3_MIN_ELAPSED, "the window opens at least an hour after the computed minimum: {min} vs {F3_MIN_ELAPSED}");
 
-    // The window, hour by hour and at its last second, for the plan's close, devnet's actual close (A1
-    // opened 132 s late) and the latest open the allowance covers (1 h late).
+    // The window, hour by hour and at its last second, for the close of an on-time open, the devnet run's
+    // close (exactly at the threshold) and the last second of the 7.5 % tier.  Since this revision an open
+    // later than 132 s makes the runner wait for the actual threshold (its insolvency pre-check), so no
+    // close age below the threshold occurs.
     let mut sampled: Vec<u64> = (F3_MIN_ELAPSED..F3_MAX_ELAPSED).step_by(3_600).collect();
     sampled.push(F3_MAX_ELAPSED - 1);
-    for close in [plan_close, plan_close - 132, plan_close - 3_600] {
+    for close in [plan_close, CLOSE1_INSOLVENT_FROM_ELAPSED, 14 * DAY - 1] {
         for &elapsed in &sampled {
             arithmetic_at(elapsed, close)
                 .unwrap_or_else(|error| panic!("F3 at elapsed {elapsed} with the close at elapsed {close}: {error}"));
         }
+    }
+    // One second below the threshold the close is not strictly insolvent, whatever F3 paid.
+    for elapsed in [F3_MIN_ELAPSED, F3_AT - O1, F3_MAX_ELAPSED - 1] {
+        let error = arithmetic_at(elapsed, CLOSE1_INSOLVENT_FROM_ELAPSED - 1)
+            .expect_err("one second below the threshold the close is solvent");
+        assert!(error.contains("strictly insolvent"), "F3 at elapsed {elapsed}: {error}");
     }
 
     // The plan's own instant and the instant the devnet run first allows (A1 opened 132 s late) are inside.
@@ -242,13 +254,134 @@ fn plan_is_ordered_within_the_packet_buckets_and_covers_every_flow() {
     }
     let close2 = at("w_settle_compound30");
     assert!(at("request_draw_2") < close2 + DEADLINE_SECS, "close 2 requests inside the deadline");
-    assert_eq!(at("expire_at_deadline"), close2 + DEADLINE_SECS, "the early expiry sits ON the deadline");
+    assert!(
+        at("expire_at_deadline") > at("request_draw_2") && at("expire_at_deadline") < close2 + DEADLINE_SECS,
+        "the expected refusal is simulated inside the deadline, after the request"
+    );
     assert_eq!(at("expire_promotion_2"), close2 + DEADLINE_SECS + 1);
 
     // The duration, as the doc states it.
     let last = steps.last().expect("steps").at;
     let days = day(last);
     assert!((41.0..42.0).contains(&days), "total duration {days} days");
+}
+
+/// Close 1 (step 13) sits exactly at the strict-insolvency threshold measured from A1's ACTUAL devnet open:
+/// the 7,958 s of chosen margin are gone, every later offset moved with it, steps 1-12 are untouched (receipts
+/// of the running cluster still resume) and the model outcome equals the one at the previous close instant.
+#[test]
+fn close1_has_no_margin_and_every_later_offset_moves_with_it() {
+    /// The close instant of the previous revision (`"2026-10-31 F3 at 4.0 d"`).
+    const PREVIOUS_CLOSE1_AT: u64 = O1 + 816_480;
+    const SHIFT: u64 = PREVIOUS_CLOSE1_AT - CLOSE1_AT;
+    /// A1's F3 elapsed on devnet (a recorded fact: it paid 456,785,185).
+    const DEVNET_F3_ELAPSED: u64 = 358_784;
+
+    assert_eq!(SHIFT, 7_958);
+    assert_eq!(A1_DEVNET_OPEN_DELAY, 132);
+    assert_eq!(DEVNET_GENESIS_UNIX + CLOSE1_AT, 1_793_923_857);
+    assert_eq!(A1_DEVNET_OPENED_AT + CLOSE1_INSOLVENT_FROM_ELAPSED, 1_793_923_857);
+    assert_eq!(arithmetic().insolvent_from_elapsed, CLOSE1_INSOLVENT_FROM_ELAPSED);
+
+    // The devnet run: F3 at its actual elapsed, close 1 at the threshold.
+    let actual = arithmetic_at(DEVNET_F3_ELAPSED, CLOSE1_INSOLVENT_FROM_ELAPSED).expect("the devnet run closes at its threshold");
+    assert_eq!(actual.f3.paid_gross, 456_785_185);
+    assert_eq!(actual.close1_owed_minus_pot, 231);
+    assert_eq!(
+        (actual.close1.paid_gross, actual.close1.toll, actual.close1.net),
+        (572_414_815, 42_931_111, 529_483_704)
+    );
+    assert_eq!(actual.a1_remaining_after_r1, 13_127_336);
+    let below = arithmetic_at(DEVNET_F3_ELAPSED, CLOSE1_INSOLVENT_FROM_ELAPSED - 1)
+        .expect_err("one second below the threshold the close is solvent");
+    assert!(below.contains("strictly insolvent"), "{below}");
+
+    // Same model outcome as at the previous close instant (the payout is pot-capped in both).
+    let previous_elapsed = PREVIOUS_CLOSE1_AT - O1 - A1_DEVNET_OPEN_DELAY;
+    for f3 in [F3_AT - O1, DEVNET_F3_ELAPSED] {
+        let now = arithmetic_at(f3, CLOSE1_INSOLVENT_FROM_ELAPSED)
+            .unwrap_or_else(|error| panic!("F3 at {f3}, close at the threshold: {error}"));
+        let before = arithmetic_at(f3, previous_elapsed)
+            .unwrap_or_else(|error| panic!("F3 at {f3}, close at the previous instant: {error}"));
+        assert_eq!(now.insolvent_from_elapsed, before.insolvent_from_elapsed, "F3 at {f3}");
+        assert_eq!(now.f3, before.f3, "F3 at {f3}");
+        assert_eq!(
+            (now.close1.paid_gross, now.close1.toll, now.close1.net, now.close1.insolvent),
+            (before.close1.paid_gross, before.close1.toll, before.close1.net, before.close1.insolvent),
+            "F3 at {f3}: close 1"
+        );
+        assert_eq!(now.seed_carried, before.seed_carried, "F3 at {f3}");
+        assert_eq!(now.r2_pot_at_c15, before.r2_pot_at_c15, "F3 at {f3}");
+        assert_eq!(now.r2_pot_at_c30, before.r2_pot_at_c30, "F3 at {f3}");
+        assert_eq!(now.c15, before.c15, "F3 at {f3}");
+        assert_eq!(now.c30, before.c30, "F3 at {f3}");
+        assert_eq!(now.a1_remaining_after_r1, before.a1_remaining_after_r1, "F3 at {f3}");
+        assert_eq!(now.a1_remaining_after_c15, before.a1_remaining_after_c15, "F3 at {f3}");
+        assert_eq!(now.winner_a_pending, before.winner_a_pending, "F3 at {f3}");
+        assert_eq!(now.winner_b_pending, before.winner_b_pending, "F3 at {f3}");
+        assert_eq!(now.a1_net_total, before.a1_net_total, "F3 at {f3}");
+    }
+
+    // Steps 1-12 are unchanged: ids and offsets (the receipts of the running cluster resume by id).
+    let steps = plan();
+    assert_eq!(steps.len(), 39);
+    let first_twelve: [(&str, u64); 12] = [
+        ("fund_operations", 172_800),
+        ("provision_registry_0", 172_830),
+        ("provision_snapshot_0", 172_860),
+        ("provision_participants_r1_0", 172_890),
+        ("provision_close_record_1", 172_920),
+        ("a1_fund_series_a", 172_980),
+        ("a1_open_simple", 173_040),
+        ("p4_open_simple", 173_100),
+        ("p5_open_simple", 173_160),
+        ("a1_withdraw_simple", 518_640),
+        ("advance_ticket_f3", 518_670),
+        ("a1_claim_a_only", 518_730),
+    ];
+    for (step, (id, at)) in steps.iter().zip(first_twelve) {
+        assert_eq!((step.id, step.at), (id, at));
+    }
+
+    // Steps 13-39 keep their ids and order; each offset is the previous one less the shift, except the
+    // expected refusal, which is simulated 30 s after the draw request.
+    let previous: [(&str, u64); 27] = [
+        ("a1_closing_withdraw", 989_520),
+        ("advance_ticket_close1", 989_550),
+        ("candidate_pages_1", 989_580),
+        ("build_candidates_1", 989_610),
+        ("request_draw_1", 989_640),
+        ("fulfil_1", 989_655),
+        ("capture_draw_1", 989_670),
+        ("apply_promotion_1", 989_685),
+        ("w_finalize_reopen", 989_700),
+        ("p1_open_compound15", 989_760),
+        ("p2_open_simple", 989_820),
+        ("p3_open_simple", 989_880),
+        ("a2_fund_series_a", 989_940),
+        ("winner_fund_series_a", 990_000),
+        ("provision_close_record_2", 990_060),
+        ("p1_settle_compound15", 2_285_820),
+        ("advance_ticket_c15", 2_285_850),
+        ("winner_claim_a_and_b", 2_285_910),
+        ("a1_claim_after_cap", 2_285_970),
+        ("w_settle_compound30", 3_581_760),
+        ("advance_ticket_close2", 3_581_790),
+        ("candidate_pages_2", 3_581_820),
+        ("build_candidates_2", 3_581_850),
+        ("request_draw_2", 3_581_880),
+        ("expire_at_deadline", 3_582_360),
+        ("expire_promotion_2", 3_582_361),
+        ("finalize_2", 3_582_371),
+    ];
+    for (step, (id, was)) in steps[12..].iter().zip(previous) {
+        let want = if id == "expire_at_deadline" { C30_AT + 150 } else { was - SHIFT };
+        assert_eq!((step.id, step.at), (id, want), "{id} moved by the shift");
+    }
+    let at = |id: &str| steps.iter().find(|step| step.id == id).expect(id).at;
+    assert_eq!(at("expire_at_deadline"), 3_573_952);
+    // No amount changed: the same eleven funded steps.
+    assert_eq!(steps.iter().map(|step| step.amount).sum::<u64>(), 2_590_000_000);
 }
 
 // ---------------------------------------------------------------------------
@@ -428,6 +561,8 @@ impl Sim {
     fn run(&mut self, step: Step) {
         self.w.warp_to(START_TIME as u64 + step.at);
         assert_eq!(self.offset(), step.at, "{}: the clock is at the step's offset", step.id);
+        // The expected-refusal step also warps to the deadline's boundary second, so record the step's own instant.
+        let step_clock = self.w.now();
         let actor = match step.who {
             Who::Winner => self.resolve(Who::Winner),
             other => other,
@@ -489,7 +624,7 @@ impl Sim {
         self.records.push(Record {
             step,
             actor,
-            clock: self.w.now(),
+            clock: step_clock,
             slot: self.clock_slot(),
             txs,
             fees,
@@ -1180,19 +1315,29 @@ impl Sim {
         facts.created.push(("Position", state::Position::SPACE));
     }
 
+    /// The expected refusal: expiry INSIDE the deadline (the step's own instant), then ON the deadline (the
+    /// boundary second, after a warp); `now > deadline` is strict, so both are refused, fee only.
     fn expire_too_early(&mut self, id: &str, close_id: u64) {
         let record = self.w.close_record(close_id);
+        assert!(self.w.now() < record.promotion_deadline, "{id}: the step's instant is inside the deadline");
+        self.refused_expiry(id, id, close_id);
+        self.w.warp_to(record.promotion_deadline);
         assert_eq!(self.w.now(), record.promotion_deadline, "{id}: exactly on the deadline");
+        self.refused_expiry(id, &format!("{id}.boundary"), close_id);
+        assert_eq!(self.w.close_record(close_id).promotion, state::Promotion::Pending);
+    }
+
+    /// One `expire_promotion` that the program must refuse with `DeadlineNotReached`, changing nothing but the fee.
+    fn refused_expiry(&mut self, id: &str, variant: &str, close_id: u64) {
         let before = self.w.snapshot_all();
         let ix = m7::expire_ix(&self.w, close_id);
-        match self.w.send(id, vec![ix], &[]) {
-            Ok(unexpected) => panic!("{id}: expiry on the deadline must be refused: {unexpected:?}"),
+        match self.w.send(variant, vec![ix], &[]) {
+            Ok(unexpected) => panic!("{id}: expiry must be refused: {unexpected:?}"),
             Err(failed) => {
                 self.w.assert_rejected(&failed, ErrorCode::DeadlineNotReached);
                 self.w.assert_fee_only(&before, &failed);
             }
         }
-        assert_eq!(self.w.close_record(close_id).promotion, state::Promotion::Pending);
     }
 
     fn expire_promotion(&mut self, id: &str, close_id: u64) {

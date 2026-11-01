@@ -68,10 +68,26 @@ pub const F3_MIN_ELAPSED: u64 = 342_000;
 /// models the 12 % tier; at or after the boundary the toll would be 7.5 %).
 pub const F3_MAX_ELAPSED: u64 = 7 * DAY - 600;
 /// Additive label of this revision of the plan's timing; `PLAN_NAME` (in the operator tool) stays
-/// the same so that receipts written under an earlier revision still resume.
-pub const PLAN_REVISION: &str = "2026-10-31 F3 at 4.0 d";
-/// A1's insolvent (closing) withdrawal: 9.45 days after open, inside the 7.5 % tier.
-pub const CLOSE1_AT: u64 = O1 + 816_480;
+/// the same so that receipts written under an earlier revision still resume.  The previous revision
+/// was `"2026-10-31 F3 at 4.0 d"`.
+pub const PLAN_REVISION: &str = "2026-11-01 close 1 at the strict-insolvency threshold";
+/// Devnet facts of the current run (recorded from the cluster, not computed): genesis
+/// (ConfigVersion#1.activated_at 1,793,115,095 minus GOVERNANCE_DELAY) and A1's on-chain opened_at.
+pub const DEVNET_GENESIS_UNIX: u64 = 1_792_942_295;
+pub const A1_DEVNET_OPENED_AT: u64 = 1_793_115_467;
+/// A1 opened 132 s after its plan offset on devnet.
+pub const A1_DEVNET_OPEN_DELAY: u64 = A1_DEVNET_OPENED_AT - DEVNET_GENESIS_UNIX - O1;
+/// A1's elapsed at which its owed first exceeds the round 1 pot (strict insolvency), whatever F3 paid:
+/// floor(1e9 * 11 * e / 8,640,000) > 1,029,200,000.  The tests check it against the economics oracle.
+pub const CLOSE1_INSOLVENT_FROM_ELAPSED: u64 = 808_390;
+/// A1's insolvent (closing) withdrawal: 9.36 days after A1's actual devnet open, inside the 7.5 % tier.
+/// Revised 2026-11-01 (Rob's instruction): the strict-insolvency threshold measured from A1's ACTUAL devnet
+/// open, with no margin.  It was `O1 + 816_480`, which added 7,958 s of chosen margin; every later offset
+/// derives from this one, so each moved by the same 7,958 s.  An on-time open (the rehearsal) closes 132 s
+/// after its own threshold, with the same pot-capped outcome.  An open later than 132 s is refused by the
+/// runner's existing insolvency pre-check until the actual threshold.  No buffer guarantees closure against
+/// a foreign deposit racing between the pre-check and execution; the payout has no must-close flag.
+pub const CLOSE1_AT: u64 = O1 + A1_DEVNET_OPEN_DELAY + CLOSE1_INSOLVENT_FROM_ELAPSED;
 /// The composed finalize/reopen by the plain wallet: round 2 opens (and W's Compound30
 /// is pinned) here.
 pub const R2O: u64 = CLOSE1_AT + 180;
@@ -165,7 +181,8 @@ pub enum Act {
     /// `finalize_round` + `provision_page(Participant)` + `open_position` in ONE
     /// transaction signed by the plain wallet.
     ComposedReopen { close_id: u64, plan: PlanKindArg, nonce: u64 },
-    /// `expire_promotion` AT the deadline: refused (`now > deadline` is strict).
+    /// `expire_promotion` on or before the deadline is refused (`now > deadline` is strict); the operator
+    /// simulates it and sends nothing; the rehearsal also checks the boundary second.
     ExpireTooEarly { close_id: u64 },
     ExpirePromotion { close_id: u64 },
     FinalizeRound { close_id: u64 },
@@ -238,9 +255,9 @@ pub fn plan() -> Vec<Step> {
             "ticket Discover..Commit; TicketCommitted: A1 credited 0.0264 (the Backer half), seed 0.0264"),
         step("a1_claim_a_only", "F5a", F3_AT + 90, A1, Claim { a: true, b: false }, 0,
             "BackerClaimed a_part 0.0264, b_part 0 (A alone, before any promotion)"),
-        // ---- day 11.45: the strictly insolvent, pot-capped payout closes round 1 ----
+        // ---- day 11.36: the strictly insolvent, pot-capped payout closes round 1 ----
         step("a1_closing_withdraw", "F4,F8", CLOSE1_AT, A1, WithdrawSimple { nonce: 1, closing: true }, 0,
-            "strict insolvency: owed 0.5995 > pot 0.5892; PayoutPaid closing, gross_paid = pot (partial), toll 7.5 %; RoundClosed, deadline = now + 600"),
+            "strict insolvency at the threshold: owed just above the pot (0.5892 in the model); PayoutPaid closing, gross_paid = pot (partial), toll 7.5 %; RoundClosed, deadline = now + 600"),
         step("advance_ticket_close1", "F8", CLOSE1_AT + 30, Keeper, AdvanceTicket { caps: None }, 0,
             "closing ticket 2 commits; CloseRecord.cash_committed; A1 credited 0.022095"),
         step("candidate_pages_1", "F8", CLOSE1_AT + 60, Keeper, CandidatePages { close_id: 1 }, 0,
@@ -278,7 +295,7 @@ pub fn plan() -> Vec<Step> {
             "BackerClaimed in ONE instruction: a_part 0.00906, b_part 0.00805"),
         step("a1_claim_after_cap", "F6", C15_AT + 150, A1, Claim { a: true, b: false }, 0,
             "a capped row can still claim its funded credit (0.0356)"),
-        // ---- day 41.45: the Compound30 settlement is insolvent: close 2, expiry path ----
+        // ---- day 41.36: the Compound30 settlement is insolvent: close 2, expiry path ----
         step("w_settle_compound30", "F7b,F4", C30_AT, W, SettleCompound { nonce: 1, closing: true }, 0,
             "strict insolvency: owed 7.3606 vs pot 0.13698 (54x); gross_paid = pot, toll 13 %; deadline = now + 600"),
         step("advance_ticket_close2", "F10", C30_AT + 30, Keeper, AdvanceTicket { caps: None }, 0,
@@ -289,8 +306,8 @@ pub fn plan() -> Vec<Step> {
             "CandidatesSealed: preferred {W, P2, P3}, count 3"),
         step("request_draw_2", "F10", C30_AT + 120, Keeper, RequestDraw { close_id: 2 }, 0,
             "DrawRequested; the request is never fulfilled"),
-        step("expire_at_deadline", "F10", C30_AT + DEADLINE_SECS, Keeper, ExpireTooEarly { close_id: 2 }, 0,
-            "refused DeadlineNotReached at now == deadline (fee only)"),
+        step("expire_at_deadline", "F10", C30_AT + 150, Keeper, ExpireTooEarly { close_id: 2 }, 0,
+            "refused DeadlineNotReached inside the deadline (simulated, nothing sent): expiry needs now > deadline"),
         step("expire_promotion_2", "F10", C30_AT + DEADLINE_SECS + 1, Keeper, ExpirePromotion { close_id: 2 }, 0,
             "PromotionSkipped(Deadline, requested-unfulfilled)"),
         step("finalize_2", "F10", C30_AT + DEADLINE_SECS + 11, Keeper, FinalizeRound { close_id: 2 }, 0,
