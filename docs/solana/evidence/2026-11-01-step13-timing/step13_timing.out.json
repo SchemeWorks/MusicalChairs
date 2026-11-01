@@ -1,0 +1,145 @@
+{
+  "self_checks": "F3 paid/toll/net, the step-10 preview, ticket 1 credit/seed and the pot all reproduce",
+  "threshold": {
+    "condition": "floor(1e9*11*e/8,640,000) - 456,785,185 > 572,414,815  <=>  floor(1e9*11*e/8,640,000) > 1,029,200,000",
+    "e_star_s": 808390,
+    "e_star_days": 9.356366,
+    "one_second_before": {
+      "unix": 1793923856,
+      "utc": "2026-11-06T00:10:56Z",
+      "pacific": "2026-11-05 16:10:56 PST",
+      "elapsed": 808389,
+      "owed": 572413773,
+      "pot": 572414815,
+      "owed_minus_pot": -1042,
+      "result": "solvent: a withdrawal would pay in full and NOT close"
+    },
+    "at_threshold": {
+      "unix": 1793923857,
+      "utc": "2026-11-06T00:10:57Z",
+      "pacific": "2026-11-05 16:10:57 PST",
+      "elapsed": 808390,
+      "owed": 572415046,
+      "pot": 572414815,
+      "owed_minus_pot": 231,
+      "result": "strictly insolvent: pot-capped payout closes round 1"
+    },
+    "toll_bps_at_threshold": 750
+  },
+  "plan_step13": {
+    "unix": 1793931815,
+    "utc": "2026-11-06T02:23:35Z",
+    "pacific": "2026-11-05 18:23:35 PST",
+    "elapsed": 816348,
+    "owed_minus_pot": 10131944,
+    "margin_s": 7958
+  },
+  "close1_same_for_any_close_instant": {
+    "valid_window_elapsed_s": [
+      808390,
+      1209599
+    ],
+    "valid_window_end": {
+      "unix": 1794325066,
+      "utc": "2026-11-10T15:37:46Z",
+      "pacific": "2026-11-10 07:37:46 PST"
+    },
+    "close_payout": {
+      "paid_gross": 572414815,
+      "toll": 42931111,
+      "net": 529483704,
+      "insolvent": true
+    },
+    "ticket2_a1_credit": 21465555,
+    "ticket2_seed": 21465556,
+    "a1_entitlement_left_after_round1": 13127336,
+    "a1_round1_net": 931454667,
+    "a1_loser_by": 68545333,
+    "projections_not_chain_facts": {
+      "round2_seed_carried": 48872669,
+      "c15_owed": 894713151,
+      "c15_pot": 1032072669,
+      "c15_solvent": true,
+      "c15_senior_slice": 14091732,
+      "f6_holds": true,
+      "f6_margin": 964396,
+      "c30_pot": 137359518,
+      "c30_owed": 7360607081,
+      "c30_strictly_insolvent": true
+    }
+  },
+  "option_extra_candidate_withdrawals": {
+    "earliest_close_if_both_withdraw_at_that_instant": {
+      "unix": 1793908007,
+      "utc": "2026-11-05T19:46:47Z",
+      "pacific": "2026-11-05 11:46:47 PST",
+      "elapsed": 792540
+    },
+    "gain_vs_threshold_s": 15850,
+    "p4_net_payout": 9333102,
+    "p4_loss_becomes": 666898,
+    "winner_series_b_entitlement_becomes": 773601,
+    "winner_series_b_entitlement_plan": 11600000,
+    "needs": "2 extra withdrawals + 2 extra keeper tickets, new runner steps, changed Winner B amounts and budgets"
+  },
+  "new_deposits_cannot_help": {
+    "reason": "a deposit adds 96 % to the pot at once and its own accrual (11 %/day) can only take it back after 0.96/0.11 days",
+    "days": 8.7273
+  },
+  "foreign_inflow_delays_threshold_s": {
+    "min_game_deposit_0.01_sol_(pot +9,600,000)": 7541,
+    "min_series_a_0.05_sol_(pot +50,000,000)": 39273
+  },
+  "accepted_schedule": {
+    "step13": {
+      "unix": 1793931815,
+      "utc": "2026-11-06T02:23:35Z",
+      "pacific": "2026-11-05 18:23:35 PST"
+    },
+    "step17_19_deadline_if_closed_at_plan": {
+      "unix": 1793932415,
+      "utc": "2026-11-06T02:33:35Z",
+      "pacific": "2026-11-05 18:33:35 PST"
+    },
+    "step21_reopen": {
+      "unix": 1793931995,
+      "utc": "2026-11-06T02:26:35Z",
+      "pacific": "2026-11-05 18:26:35 PST"
+    },
+    "step22_p1_open": {
+      "unix": 1793932055,
+      "utc": "2026-11-06T02:27:35Z",
+      "pacific": "2026-11-05 18:27:35 PST"
+    },
+    "step28_c15_plan": {
+      "unix": 1795228115,
+      "utc": "2026-11-21T02:28:35Z",
+      "pacific": "2026-11-20 18:28:35 PST"
+    },
+    "step28_c15_maturity_if_22_on_time": {
+      "unix": 1795228055,
+      "utc": "2026-11-21T02:27:35Z",
+      "pacific": "2026-11-20 18:27:35 PST"
+    },
+    "step32_c30_plan": {
+      "unix": 1796524055,
+      "utc": "2026-12-06T02:27:35Z",
+      "pacific": "2026-12-05 18:27:35 PST"
+    },
+    "step32_c30_maturity_if_21_on_time": {
+      "unix": 1796523995,
+      "utc": "2026-12-06T02:26:35Z",
+      "pacific": "2026-12-05 18:26:35 PST"
+    },
+    "step37_runner_earliest": {
+      "unix": 1796524655,
+      "utc": "2026-12-06T02:37:35Z",
+      "pacific": "2026-12-05 18:37:35 PST"
+    },
+    "step39_last": {
+      "unix": 1796524666,
+      "utc": "2026-12-06T02:37:46Z",
+      "pacific": "2026-12-05 18:37:46 PST"
+    }
+  }
+}

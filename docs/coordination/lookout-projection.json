@@ -343,7 +343,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Close round 1 and line up the draw candidates (flow steps 13 to 16).",
-      "evidenceText": "State detail: blocked by the game's clock; part of M14-A7. Steps 10 to 12 are done. The pot can no longer pay the largest player in full from shortly after midnight UTC on 2026-11-06, which is what ends a round; the plan's time is 02:23:35 UTC that day, and it needs Gideon's go-ahead. The closing withdrawal takes what the pot holds, then the keeper settles the fee, prepares the candidate lists and seals the candidates. This runs in the same sitting as the first live draw, which has a 600-second deadline from the close.",
+      "evidenceText": "State detail: blocked by the game's clock; part of M14-A7; a timing assessment is with Gideon for acceptance. Rob asked whether step 13 can come earlier. The game first allows the withdrawal that ends round 1 at 00:10:57 UTC on 2026-11-06; the plan's 02:23:35 UTC adds about 2 hours 13 minutes of margin the plan chose. Removing it would change no amounts, but needs a revised operator tool and a fresh acceptance, and no margin can fully rule out a stranger's deposit landing at the same moment. Recommendation: keep the plan's time. A read-only check on 2026-11-01 found round 1 unchanged. The step needs Gideon's go-ahead and runs in the same sitting as the first live draw, which has a 600-second deadline from the close.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -447,7 +447,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Let the second draw expire and finalize round 2 (flow steps 37 to 39).",
-      "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7. At the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second later the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan.",
+      "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7; one open test-tool risk. At the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second later the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan. Open risk, found on 2026-11-01: the tool can only record that refusal in a window as wide as the delay before the round 2 closing step is sent, which could be seconds. It needs a decision or fix before round 2 closes; a missed window would leave that evidence missing, not passed.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",

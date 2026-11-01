@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done. Under Gideon-accepted revised timing, the first withdrawal, its fee split and the first backer claim ran on 2026-10-31 with every check passing. Step 13 cannot run before November 6 (insolvency rule). Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and the first player withdrawal and backer payout went through today without waiting. The next step, the withdrawal that ends a round, can’t happen before November 6, because the game’s own rules need that much time. Rob doesn’t need to do anything.",
+  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done, every check passing. A timing assessment, now with Gideon, finds step 13 can move at most about two hours earlier, the plan's own margin; the game's insolvency rule sets November 6. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and the first player withdrawal and backer payout have gone through. Rob asked whether the round-ending step could come sooner: only by about two hours, because the game’s own math sets the earliest date, November 6. Rob doesn’t need to do anything.",
   "glossary": [
     {
       "term": "M14",
