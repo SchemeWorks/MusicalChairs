@@ -1,5 +1,15 @@
 # Native Solana discovery evidence and team handoff
 
+## Current team allocation (updated 2026-11-01)
+
+The canonical copy is the "Native board priorities" section of [the board](kanban.md); this summary must match it. The discovery record below dates from 2026-10-12 and is historical.
+
+- **Roles.** Gideon (Codex supervisor) owns the board, the sub-project ranking, compute and effort allocation, and live Lookout accuracy. Silas (Claude coordinator) owns implementation: task queues, bounded workers, cards and the existing publisher. No second board or publisher.
+- **Allocation standard (Rob, 2026-11-01).** Priorities guide intelligent allocation and are not a rank-1 lock: independent, authorized, cheap lower-ranked work may proceed. No universal task cap and no busywork. Each dispatch states its outcome, acceptance condition, authorized allowance and a stop checkpoint; replan when cost or context grows without progress. No authority is added and no hold is lifted.
+- **Now.** Owner: Silas, on the accepted revised devnet flow at 12 of 39 steps. Next main deliverable: step 13, not before 2026-11-06T02:23:35Z and only after Gideon's go-ahead. Constrained resources: disk headroom (23 GiB free at 2026-11-01T08:28Z), one build executor and the cluster clock. No new ready work identified.
+
+## Discovery record (2026-10-12)
+
 Date: 2026-10-12. Coordinator: `/root`. Checkout: `/Users/robertripley/coding/musicalchairs`. Source was inspected initially on `main` at `f96b33ff95020458be754bfa0d7471b72a7403af`; documentation branch is `codex/native-solana-discovery-20261012` with those source files unchanged.
 
 Scope: source-based discovery and draft specification/roadmap. No product edits, dependency installs, builds, tests, deployments, chain transactions or financial actions. Existing untracked agent configuration was preserved. No production-state or served-byte proof was collected.

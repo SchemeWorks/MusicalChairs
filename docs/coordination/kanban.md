@@ -169,6 +169,17 @@ Scope includes production account source and the admission/payout/allocation tra
 
 The ordered sub-projects, mirrored as `docs/coordination/lookout-priorities.json`. Keep each rank when its status changes. Work selection follows the CLAUDE.md "Priorities" rule: highest-ranked authorized ready or in-progress item first; record a block and what clears it, then move to the next; no manufactured gates or authority.
 
+**Allocation standard (Rob's clarification, recorded 2026-11-01).**
+
+- *Roles.* Gideon owns this board, the sub-project ranking, how compute and effort are allocated, and live Lookout accuracy. Silas owns implementation: task queues, bounded workers, cards and the existing publisher. There is no second board or publisher.
+- *Priorities guide allocation; they are not a lock.* The rule above sets the order of attention, not a ban on everything below rank 1. Lower-ranked work that is independent, already authorized and cheap may proceed while a higher item waits or runs.
+- *No task cap and no busywork.* There is no universal limit on concurrent tasks. Nothing is invented to keep anyone busy; when no authorized work is ready, waiting is correct.
+- *Every dispatch states* its outcome, its acceptance condition, its authorized allowance (scope, model and budget) and a stop checkpoint.
+- *Replan instead of grinding.* If cost or context keeps growing without progress, stop at the checkpoint and replan rather than retrying the same way.
+- This adds no authority and lifts no hold; every existing approval boundary still applies.
+
+**Current allocation (2026-11-01).** Owner: Silas, running the accepted revised devnet flow (rank 1), now at 12 of 39 steps. Next main deliverable: step 13, the strict-insolvency round close, not before 2026-11-06T02:23:35Z and only after Gideon's later go-ahead; no send is authorized now. Constrained resources: disk headroom (23 GiB free at 2026-11-01T08:28Z after an earlier full-disk stop; step 13 records each send before sending, so free space is rechecked before that sitting), the single build executor (Silas) and the cluster clock. Shared constraints go through the existing cross-project resource owner. Other lanes: demo and visibility are done and event-driven, legacy delivery is paused, recovery is blocked, and ICP/production activation stays held. No new ready work is identified, so waiting is correct.
+
 | rank | id | status | blocked by / next action | cards |
 | --- | --- | --- | --- | --- |
 | 1 | native-solana-devnet-acceptance | blocked | steps 1–12 done (10–12 on 2026-10-31 under the Gideon-accepted M14-A7-ACCEL revision; every check true, all finalized). Step 13 (strict-insolvency close) cannot run before 2026-11-06T02:23:35Z (insolvency possible on chain from 00:10:57Z; the plan keeps its 2.2 h margin) and needs Gideon's go-ahead; then the draw steps 14–20 in the same sitting. F11 COMPLETE 2026-10-30 (Gideon ACCEPTED). No ICP or production activation | M14-PRE-ORAO, M14-PRE-SQUADS, M14-TOOL, M14-SIM, M14-RUN, M14-TOOL-REV, M14-TOOL-FIX, M14-TOOL-RECHECK, M14-TOOL-FIX2, M14-F3-HOLD, M14-A-APPROVAL, M14-5A-REPIN, M14-A1, M14-A2, M14-A3, M14-FUND-TOOL, M14-A4, M14-A5, M14-A6, M14-A7, M14-F11, M14-F11-TOOL, M14-A7-ACCEL, M14-A7-WD1, M14-A7-CLAIM1, M14-A7-CLOSE1, M14-A7-DRAW1, M14-A7-PROMO, M14-A7-REOPEN, M14-A7-R2SETUP, M14-A7-C15, M14-A7-CAP, M14-A7-CLOSE2, M14-A7-EXPIRE, M14-A-ACCEPT, M14-F12-OPT |
