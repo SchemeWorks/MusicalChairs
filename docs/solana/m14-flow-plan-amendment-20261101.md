@@ -1,11 +1,11 @@
 # M14 flow plan amendment — 2026-11-01: close 1 at the strict-insolvency threshold
 
-**Status: CANDIDATE for Gideon's bounded review.** Nothing has been sent and nothing may be sent under this candidate before he accepts it. Card M14-A7-CLOSE1.
+**Status: CANDIDATE for Gideon's bounded review.** Nothing has been sent and nothing may be sent under this candidate before he accepts it. Card M14-A7-CLOSE1. His five documentation precision fixes from the bounded review (scoped basis, the step 37 exception, the usable step 37 interval, "can turn", the build provenance) are applied; the tested code 29c8f97 and the candidate `a9dcb1b3…` are unchanged.
 
 ## 1. Authority and scope
 
 - **Rob's direct instruction.** Given in Gideon's Codex chat on 2026-11-01 and relayed in Gideon's bounded handoff: "Have Silas remove the extra two-hour margin and shift the dependent steps with it. Keep the game rules unchanged and verify the later checks still work."
-- **Basis.** The accepted step 13 timing assessment ([m14-step13-timing-assessment-20261101.md](m14-step13-timing-assessment-20261101.md), accepted at 03e3625) found 7,958 s of chosen margin before step 13 and nothing else removable within the accepted sequence.
+- **Basis.** The accepted step 13 timing assessment ([m14-step13-timing-assessment-20261101.md](m14-step13-timing-assessment-20261101.md), accepted at 03e3625) found that the 7,958 s of chosen margin before step 13 can be removed without changing any payout amount or adding a financial step. The later post-maturity 60 s and the permissionless step spacing also remain chosen timings; this amendment keeps them.
 - **What it covers.** A revision of the Block A devnet test schedule and its operator:
   - the margin removed;
   - the dependent steps shifted with it;
@@ -23,11 +23,11 @@
 | item | before | after |
 | --- | --- | --- |
 | step 13 offset (`CLOSE1_AT`) | `O1 + 816,480` (genesis + 989,520 = 2026-11-06T02:23:35Z) | `O1 + 132 + 808,390` (genesis + 981,562 = **2026-11-06T00:10:57Z**, Nov 5 16:10:57 PST) |
-| steps 14–39 | derived from `CLOSE1_AT` | the same derivation, so each moves by exactly −7,958 s (table in section 5) |
+| steps 14–39 | derived from `CLOSE1_AT` | the same derivation, so each moves by exactly −7,958 s, EXCEPT step 37, which moves an additional 450 s earlier (−8,408 s in all; next row and section 5) |
 | step 37 offset | `C30_AT + 600`, on the deadline second | `C30_AT + 150`, 30 s after the close 2 request, inside the deadline (section 4) |
 | step 37 "done" | its `refused_as_expected` receipt, OR chain state once the deadline had passed, OR any later step | ONLY its `refused_as_expected` receipt; a missed window is reported as MISSED and stops the plan (section 4) |
 | plan label | `plan_revision` "2026-10-31 F3 at 4.0 d" | "2026-11-01 close 1 at the strict-insolvency threshold"; `plan` stays `M14-SIM Seq-B`, so the 12 receipts resume |
-| operator | approved `13b25fb3…` (22,997,376 B) | candidate **`a9dcb1b3…`** (23,020,064 B), built once from commit 29c8f97; both earlier main runners kept unchanged beside it |
+| operator | approved `13b25fb3…` (22,997,376 B) | ONE immutable candidate **`a9dcb1b3…`** (23,020,064 B) from commit 29c8f97, after two `cargo build --bin devnet_ops` invocations: the first found the binary already current (cargo had built it from the same sources during the test runs) and gave `a9dcb1b3…`; the second, forced by touching the sources, recompiled and reproduced `a9dcb1b3…`. Both earlier main runners are kept unchanged beside it |
 
 What sets the new step 13 time:
 - A1's owed first exceeds the round 1 pot at elapsed 808,390 s. One second earlier owed − pot is −1,042 lamports, and at 808,390 s it is +231. The threshold does not depend on F3, because F3's payment lowered owed and pot by the same amount.
@@ -68,7 +68,8 @@ Step 37 is an expected-refusal simulation with zero sends. Its only evidence is 
 **The window.**
 - The old plan put step 37 on the deadline second. On devnet the refusal is possible only while `now <= close 2 start + 600`, and close 2 starts whenever step 32 actually runs.
 - The usable window was therefore `[genesis + C30_AT + 600, step 32 + 600]`: as wide as step 32's lateness, so a prompt step 32 left seconds.
-- The plan now simulates step 37 at `C30_AT + 150`, 30 s after the request. The window is then about 450 s whatever step 32's lateness.
+- The plan now simulates step 37 at `C30_AT + 150`, 30 s after the request. Its nominal window is `[genesis + C30_AT + 150, actual close 2 start + 600]`, inclusive.
+- The usable interval is narrower: it starts at max(the plan earliest, the completion of steps 33–36), because the runner runs steps strictly in order, and operator and RPC time can consume it. No fixed width is guaranteed. Only if step 32 runs on time and steps 33–36 keep their 30 s spacing do about 450 s remain.
 - The LiteSVM rehearsal still proves the exact boundary: an expiry is refused at its own instant AND on the deadline second, and accepted one second later.
 
 **The substitution.**
@@ -178,10 +179,10 @@ Evidence: [`evidence/2026-11-01-close1-threshold/`](evidence/2026-11-01-close1-t
 ## 9. Remaining real conditions
 
 - **Step 13 is still conditional on the unchanged live pot.** The threshold assumes the round 1 pot is still 572,414,815. The program is public, so a foreign deposit before the run moves the threshold later; the runner's pre-check then refuses until the new threshold.
-- **The inflow race stays.** A foreign deposit landing between the runner's pre-check and execution would turn the close into a solvent withdrawal. The payout has no must-close flag, and this amendment does not change the program. At the threshold the cushion is 231 lamports, against about 10.1 M with the old margin; neither covers a minimum Series A (0.05 SOL). The margin's removal makes this race the main residual risk at step 13.
+- **The inflow race stays.** A foreign deposit landing between the runner's pre-check and execution can turn the close into a solvent withdrawal; whether it does depends on the raced amount and the actual execution time, and no buffer guarantees the close. The payout has no must-close flag, and this amendment does not change the program. At the threshold the cushion is 231 lamports, against about 10.1 M with the old margin; neither covers a minimum Series A (0.05 SOL). The margin's removal makes this race the main residual risk at step 13.
 - **The draw.** Steps 17–19 must land inside the real 600 s deadline; devnet ORAO latency is still unmeasured.
 - **Round 2 timing.** The Compound15 and Compound30 dates hold only if steps 21–22 run on time; otherwise the actual maturities decide.
-- **Step 37 on devnet.** The window is now about 450 s, but meeting it still depends on the operator on the day. A miss is reported and stops; it is never counted as passed.
+- **Step 37 on devnet.** The usable interval runs from max(the plan earliest, the completion of steps 33–36) to close 2 start + 600, inclusive. Operator and RPC time can consume it, so no width is guaranteed. A miss is reported and stops; it is never counted as passed.
 - **Running step 13 at all** needs Gideon's acceptance of this candidate and then his separate go-ahead.
 
 ## 10. After acceptance

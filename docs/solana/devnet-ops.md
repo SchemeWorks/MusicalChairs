@@ -236,8 +236,8 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
 * **`expire_at_deadline`** is meant to be REFUSED (`DeadlineNotReached`: expiry needs `now > deadline`). The runner builds, signs and simulates it, requires
   exactly that error in the logs, records `refused_as_expected` and sends nothing (a known-failing transaction would only burn a fee; the simulation
   is the evidence). It must run while the cluster clock is at or before close 2's deadline. Since the 2026-11-01 amendment the plan puts it 30 s after
-  the close 2 request (`C30_AT + 150`), so its window is about 450 s whatever step 32's lateness (before, it sat on the deadline second, a window as wide
-  as step 32's lateness). After the deadline the refusal can no longer be produced: the step is MISSED, not passed; status reports it and the plan
+  the close 2 request (`C30_AT + 150`); its usable window runs from max(that plan earliest, the completion of steps 33–36) to the deadline, inclusive, and operator
+  and RPC time can consume it, so no width is guaranteed (before, it sat on the deadline second, a window as wide as step 32's lateness). After the deadline the refusal can no longer be produced: the step is MISSED, not passed; status reports it and the plan
   stops there for a decision.
 * **Local use.** On a loopback validator the clock is real time, so only the first steps (setup and round 1 deposits, offsets up to 173,160 s)
   are runnable in one sitting, with `--genesis-unix <now - 172800>`; the whole plan runs in LiteSVM (`tests/m14_flow_tool.rs`).

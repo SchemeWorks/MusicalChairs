@@ -66,7 +66,7 @@
   "candidate_sha256": "a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c",
   "bytes": 23020064,
   "source": "solana/ tree at 29c8f97 (clean)",
-  "build": "cargo +1.92.0 build --locked --bin devnet_ops (dev profile), same CARGO_HOME/CARGO_TARGET_DIR; a forced rebuild (touched sources) reproduced the hash",
+  "build": "ONE immutable candidate from two invocations of cargo +1.92.0 build --locked --bin devnet_ops (dev profile, same CARGO_HOME/CARGO_TARGET_DIR) on the clean 29c8f97 tree: the first reported the binary already current (cargo had built it from the same sources during the test runs) and gave a9dcb1b3...; the second, after touching src/bin/devnet_ops.rs, src/devnet_ops/flow.rs and src/m14_plan.rs (mtime only, no content change), recompiled and reproduced a9dcb1b3... (23,020,064 B). Only that binary was copied to the immutable directory",
   "immutable_copy": "~/.cache/mc-solana-artifacts/devnet_ops/a9dcb1b3.../ (SHA256SUMS OK, PROVENANCE.txt; binary mode 555)",
   "preserved_runners": {
    "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5": "22,600,400 B, SHA256SUMS OK after the build (steps 1-9)",

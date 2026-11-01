@@ -254,7 +254,7 @@ The test prints the ops books at the end. All figures are the plan's, not a repl
 | 28-31 (day 26.364) | **maturity** | Compound15 settles 1,296,000 s after its own open (the position pins `maturity_at` at open) |
 | 32 (day 41.363) | **maturity** | Compound30 settles 2,592,000 s after W's open (the composed transaction); the insolvency is by construction |
 | 33-36 | immediate, inside 600 s | closing ticket, candidates, request |
-| 37-39 | **deadline** | `expire_promotion` needs `now > close_started_at + 600`. The expected refusal (37) is simulated 30 s after the request, inside the deadline, so its window (about 450 s) does not depend on how late step 32 ran (2026-11-01; it used to sit ON the deadline second, a window as wide as step 32's lateness); the LiteSVM rehearsal also checks the boundary second. Accepted one second after the deadline, finalize 10 s later |
+| 37-39 | **deadline** | `expire_promotion` needs `now > close_started_at + 600`. The expected refusal (37) is simulated 30 s after the request, inside the deadline (2026-11-01; it used to sit ON the deadline second, a window as wide as step 32's lateness): its window runs from max(the plan earliest, the completion of steps 33–36) to close 2 + 600 inclusive, and operating time can consume it, so no width is guaranteed; the LiteSVM rehearsal also checks the boundary second. Accepted one second after the deadline, finalize 10 s later |
 
 Everything else is permissionless and immediate. The only wall-clock risks on devnet are the 2-day governance
 wait, the 30-day Compound30 maturity and the real ORAO fulfilment time against the 600 s deadline.
