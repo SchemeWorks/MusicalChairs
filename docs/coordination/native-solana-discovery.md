@@ -6,7 +6,7 @@ The canonical copy is the "Native board priorities" section of [the board](kanba
 
 - **Roles.** Gideon (Codex supervisor) owns the board, the sub-project ranking, compute and effort allocation, and live Lookout accuracy. Silas (Claude coordinator) owns implementation: task queues, bounded workers, cards and the existing publisher. No second board or publisher.
 - **Allocation standard (Rob, 2026-11-01).** Priorities guide intelligent allocation and are not a rank-1 lock: independent, authorized, cheap lower-ranked work may proceed. No universal task cap and no busywork. Each dispatch states its outcome, acceptance condition, authorized allowance and a stop checkpoint; replan when cost or context grows without progress. No authority is added and no hold is lifted.
-- **Now.** Owner: Silas, on the accepted revised devnet flow at 12 of 39 steps. Next main deliverable: step 13, not before 2026-11-06T02:23:35Z and only after Gideon's go-ahead. Constrained resources: disk headroom (23 GiB free at 2026-11-01T08:28Z), one build executor and the cluster clock. No new ready work identified.
+- **Now.** Owner: Silas, on the accepted revised devnet flow at 12 of 39 steps. Next main deliverable: Gideon's bounded review of the step 13 margin-removal candidate (M14-A7-CLOSE1, commit 29c8f97, runner a9dcb1b3…; [amendment](../solana/m14-flow-plan-amendment-20261101.md)); if accepted, step 13 not before 2026-11-06T00:10:57Z and only after his go-ahead. Constrained resources: disk headroom (114 GiB free at 2026-11-01T19:32Z), one build executor and the cluster clock. No new ready work identified.
 
 ## Discovery record (2026-10-12)
 

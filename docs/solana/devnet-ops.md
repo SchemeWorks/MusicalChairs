@@ -198,10 +198,11 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
   deadline, strict insolvency) still decide, and the runner pre-checks them with a plain-language refusal. `--genesis-unix N` overrides
   genesis on a loopback cluster only (a local validator cannot wait two days).
 * **What is done.** Every step has a state predicate judged from the cluster (a counter reached, an account exists, a draw state, `finalized`,
-  ...). A step is also done when any later step is. A receipt line counts as evidence ONLY for the one step that leaves no on-chain trace
-  (the refused-by-design expiry), only if the receipt is stamped for THIS cluster and says `refused_as_expected` (any other result, a failed-check one included, leaves the step to be simulated again); every other step is judged from the chain alone. `flow
+  ...). A step is also done when any later step is, EXCEPT the refused-by-design expiry. A receipt line counts as evidence ONLY for that one step, which leaves no on-chain trace,
+  only if the receipt is stamped for THIS cluster and says `refused_as_expected` (any other result, a failed-check one included, leaves the step to be simulated again); every other step is judged from the chain alone. Neither a passed deadline nor a later step stands in for that receipt (2026-11-01): a missed window is listed in `missed_refusal_evidence`, makes `all_ok` false and stops the plan there (no waiver). `flow
   status` prints each step's `done`, its evidence, its earliest time, and `next` with `ready` and `seconds_until_earliest`; when the next step
-  is F3 (`a1_withdraw_simple`) it adds `next.f3_window` (`opens_*`, `closes_*` exclusive, `inside`, A1's on-chain `opened_at`). Status,
+  is F3 (`a1_withdraw_simple`) it adds `next.f3_window` (`opens_*`, `closes_*` exclusive, `inside`, A1's on-chain `opened_at`); when it is the
+  refused-by-design expiry it adds `next.refusal_window` (`opens_*` = the plan earliest, `deadline_*` inclusive, `inside`, `missed`). Status,
   dry-run and receipt documents carry `plan_revision` beside `plan` (additive; `plan` stays `M14-SIM Seq-B`, so earlier receipts resume).
 * **`flow next`** refuses: a step that is not THE next one; a step before its earliest time; F3 (`a1_withdraw_simple`) outside its window,
   `F3_MIN_ELAPSED` (342,000 s) to before `F3_MAX_ELAPSED` (604,200 s) after A1's ON-CHAIN `opened_at` (a late open moves the window with it;
@@ -232,9 +233,12 @@ devnet_ops flow next   --step ID --wallet-dir W --rpc URL [--execute] [--local-o
   request -> fulfilment latency from the request account's own history (`getSignaturesForAddress`): slots and seconds from block times, and the margin
   to the promotion deadline. If the oracle fulfils between invocations, `flow next --step fulfil_1` observes it and writes the receipt. Only on a
   loopback cluster, `--local-oracle` signs the fulfilment with `W/ORACLE.json` (the synthetic authority the local ORAO network is configured with).
-* **`expire_at_deadline`** is meant to be REFUSED (`DeadlineNotReached`, expiry on the deadline). The runner builds, signs and simulates it, requires
+* **`expire_at_deadline`** is meant to be REFUSED (`DeadlineNotReached`: expiry needs `now > deadline`). The runner builds, signs and simulates it, requires
   exactly that error in the logs, records `refused_as_expected` and sends nothing (a known-failing transaction would only burn a fee; the simulation
-  is the evidence). It must run while the cluster clock is at or before the deadline; after that the step counts as passed.
+  is the evidence). It must run while the cluster clock is at or before close 2's deadline. Since the 2026-11-01 amendment the plan puts it 30 s after
+  the close 2 request (`C30_AT + 150`), so its window is about 450 s whatever step 32's lateness (before, it sat on the deadline second, a window as wide
+  as step 32's lateness). After the deadline the refusal can no longer be produced: the step is MISSED, not passed; status reports it and the plan
+  stops there for a decision.
 * **Local use.** On a loopback validator the clock is real time, so only the first steps (setup and round 1 deposits, offsets up to 173,160 s)
   are runnable in one sitting, with `--genesis-unix <now - 172800>`; the whole plan runs in LiteSVM (`tests/m14_flow_tool.rs`).
 
@@ -357,9 +361,9 @@ A validator clock cannot be warped, so the 48-hour execute is exercised in LiteS
 ```bash
 cd solana/tests/financial-runtime
 cargo +1.92.0 test --locked --test devnet_ops_local -- --test-threads=1 --nocapture      # LiteSVM + gates; 2 tests ignored
-cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals (incl. the F3 window's end); 2 tests ignored
-MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`, nominal and with A1 3,700 s late (F3 at the window's start)
-cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic + the whole F3 window (the rehearsal itself is --ignored)
+cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture          # flow runner gates and refusals (incl. the F3 window's end); 4 tests ignored
+MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture   # the whole plan through `flow next`: nominal; the current devnet run replayed (A1 +132 s, close 1 at its threshold); A1 3,700 s late (F3 at the window's start, close 1 at its own threshold, settlements at actual maturities); a missed refusal window
+cargo +1.92.0 test --locked --test m14_flow_plan                                           # plan shape + arithmetic + the whole F3 window + the close-1 shift (the rehearsal itself is --ignored)
 cargo +1.92.0 test --locked --test fund_wallets -- --test-threads=1                        # fund-wallets: plan validation, pin, once-per-recipient, held/resume
 MC_LOCAL_RPC=http://127.0.0.1:8899 cargo +1.92.0 test --locked --test devnet_ops_local -- --ignored --test-threads=1 --nocapture \
   local_validator_deploy_authority_squads_and_proposal_lifecycle     # fresh --reset validator per run
