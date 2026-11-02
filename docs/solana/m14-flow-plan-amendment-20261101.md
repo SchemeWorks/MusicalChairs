@@ -1,6 +1,6 @@
 # M14 flow plan amendment — 2026-11-01: close 1 at the strict-insolvency threshold
 
-**Status: CANDIDATE for Gideon's bounded review.** Nothing has been sent and nothing may be sent under this candidate before he accepts it. Card M14-A7-CLOSE1. His five documentation precision fixes from the bounded review (scoped basis, the step 37 exception, the usable step 37 interval, "can turn", the build provenance) are applied; the tested code 29c8f97 and the candidate `a9dcb1b3…` are unchanged.
+**Status: ACCEPTED by Gideon on 2026-11-02 (UTC)** (section 11). Accepted local proof plus a read-only resume, not devnet proof of steps 13–39. Nothing has been sent; step 13 still needs his separate go-ahead. Card M14-A7-CLOSE1. His five documentation precision fixes from the bounded review (scoped basis, the step 37 exception, the usable step 37 interval, "can turn", the build provenance) are applied; the tested code 29c8f97 and the candidate `a9dcb1b3…` are unchanged.
 
 ## 1. Authority and scope
 
@@ -171,7 +171,7 @@ Evidence: [`evidence/2026-11-01-close1-threshold/`](evidence/2026-11-01-close1-t
 
 ## 8. Preservation
 
-- **Earlier runners.** Both main runners verify unchanged after the build: `d3c66966…` (22,600,400 B; steps 1–9) and `13b25fb3…` (22,997,376 B; steps 10–12; still the approved runner until acceptance).
+- **Earlier runners.** Both main runners verify unchanged after the build: `d3c66966…` (22,600,400 B; steps 1–9) and `13b25fb3…` (22,997,376 B; steps 10–12; the approved runner until this acceptance). Both are kept as preserved historical runners.
 - **Devnet files.** Receipts `2d56a1bb…` (12 lines), write-ahead `e37f76e3…` and SOL ledger `ec6acf8c…` are unchanged. There is no new ledger row, because nothing was sent.
 - **Pins.** The frozen packet `ae8a6a0e…`, the ELF `0c88d4e7…`, genesis and `PLAN_NAME` are unchanged.
 - **Graph.** No graph maintenance in this bounded pass. AST coverage of the four changed files is stale since the 2026-10-27 refresh, as it was for 5b32a02.
@@ -183,9 +183,9 @@ Evidence: [`evidence/2026-11-01-close1-threshold/`](evidence/2026-11-01-close1-t
 - **The draw.** Steps 17–19 must land inside the real 600 s deadline; devnet ORAO latency is still unmeasured.
 - **Round 2 timing.** The Compound15 and Compound30 dates hold only if steps 21–22 run on time; otherwise the actual maturities decide.
 - **Step 37 on devnet.** The usable interval runs from max(the plan earliest, the completion of steps 33–36) to close 2 start + 600, inclusive. Operator and RPC time can consume it, so no width is guaranteed. A miss is reported and stops; it is never counted as passed.
-- **Running step 13 at all** needs Gideon's acceptance of this candidate and then his separate go-ahead.
+- **Running step 13 at all** needs Gideon's separate go-ahead; the revision itself is accepted (section 11).
 
-## 10. After acceptance
+## 10. After acceptance (in effect since 2026-11-02)
 
 - **The approved runner** becomes `a9dcb1b3…`, from its immutable copy only.
 - **Step 13** may run no earlier than 2026-11-06T00:10:57Z and only with Gideon's go-ahead, through the standard guards:
@@ -193,3 +193,33 @@ Evidence: [`evidence/2026-11-01-close1-threshold/`](evidence/2026-11-01-close1-t
   - dry run, then executed once;
   - steps 14–20 in the same sitting.
 - **On any problem, stop.** Any refusal, failed check, contradiction or unknown outcome means STOP: no retry and no alternate executor.
+
+## 11. Acceptance
+
+Gideon independently accepted this revision on 2026-11-02 (UTC).
+
+- **What he accepted.**
+  - Code 29c8f97 (`29c8f97cad2f8597f426f881208deae149ea6070`).
+  - The readable amendment and evidence 1813ff5, with the precision fixes 45062c8 (`45062c8c7b5a603994a27bc049e457cd0da52a17`).
+  - The immutable runner `a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c` (23,020,064 bytes), built from the clean solana tree at 29c8f97.
+- **What his root review covered.**
+  - the exact four-file source and test diff;
+  - the actual-open threshold arithmetic and the dependent offsets;
+  - all 39 unique model steps, the ten wallet equations and their nonnegative minima;
+  - the three all-39 operator scenarios plus the missed-window test;
+  - the exact deadline proof;
+  - the finalized read-only 12-receipt resume;
+  - the seven manifest hashes and all three immutable binary hashes and sizes.
+
+  He ran no duplicate build, suite or RPC.
+- **Unchanged.** The packet, the first 12 receipts and the ledger; the production program, IDL, ELF, economics, rates, durations, amounts and budgets.
+- **Limit.** This is accepted local proof plus a read-only resume, not devnet proof of steps 13–39.
+- **Effect.**
+  - The approved runner is now `a9dcb1b3…`. `d3c66966…` and `13b25fb3…` stay preserved as historical runners.
+  - The 7,958 s chosen margin is superseded.
+  - The actual-open Compound15 and Compound30 maturities and the real close deadlines are unchanged.
+- **Still required.**
+  - Step 13: no earlier than 1,793,923,857 (2026-11-06T00:10:57Z; Nov 5 16:10:57 PST), conditional on live strict insolvency.
+  - Gideon's bounded go-ahead, at his first eligible existing wake after he inspects the cards, receipts and progress. No new timer.
+  - Steps 18 and 37 stay zero-send. Step 37 needs its own `refused_as_expected` receipt within max(plan earliest, predecessor completion) to actual close 2 + 600, inclusive. There is no waiver for missing proof.
+  - Any refusal, failed check, unknown outcome or new denial means stop and report.

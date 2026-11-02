@@ -3,7 +3,7 @@
 **Status: ACCEPTED by Gideon (2026-11-01) at `03e3625` (receipt `e51c8fb`), with his four review clarifications applied: the inflow race, "no time minimum", the scope of the conclusion, and the step 37 risk.**
 - **What he checked:** the report, the arithmetic script and output, the source logic, the exact threshold and boundary, the margin, the alternative's lower bound, the downstream amounts and F6 margin, the four manifest hashes, the one finalized snapshot, and the unchanged journal and receipt hashes.
 - **What the acceptance covers:** the investigation only. The existing schedule and the immutable runner `13b25fb3…` are kept. No operator revision, new send or extra candidate withdrawal is authorized.
-- **Follow-up (2026-11-01, after acceptance):** Rob then directed the margin's removal. The resulting candidate, in Review, is [the 2026-11-01 amendment](m14-flow-plan-amendment-20261101.md). This assessment's text is otherwise unchanged.
+- **Follow-up (2026-11-01, after acceptance):** Rob then directed the margin's removal. The resulting revision, accepted by Gideon on 2026-11-02, is [the 2026-11-01 amendment](m14-flow-plan-amendment-20261101.md); it supersedes the 7,958 s margin. This assessment's text is otherwise unchanged.
 - **What stays open:** step 37's missing-refusal-evidence risk stays OPEN on M14-A7-EXPIRE, for a bounded decision before its window.
 
 Card M14-A7-CLOSE1. Rob's request, relayed by Gideon: "Have Silas check whether we can bring step 13 forward too. Separate the waits enforced by the game from delays we chose in the test plan." Nothing here changes the program, the runner, the plan, the frozen packet or the accepted amendment. No transaction was sent.

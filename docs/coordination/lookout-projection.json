@@ -265,7 +265,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 12/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1, in review). Next: Gideon reviews it; step 13, the withdrawal that ends round one, is then due at 00:10:57 UTC on 2026-11-06, the first second the game allows, with his go-ahead.",
+      "evidenceText": "State detail: in progress; 12/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02 from local rehearsals and a read-only check. Next: step 13, the withdrawal that ends round one, at 00:10:57 UTC on 2026-11-06 at the earliest, the first second the game allows, with his go-ahead.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -340,10 +340,10 @@
     },
     {
       "id": "M14-A7-CLOSE1",
-      "state": "Review",
+      "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Close round 1 and line up the draw candidates (flow steps 13 to 16).",
-      "evidenceText": "State detail: in review; part of M14-A7. At Rob's direct request, Silas removed the roughly two hours of margin the plan had chosen before step 13, the withdrawal that ends round 1, and moved every later step with it. Step 13 is now due at 00:10:57 UTC on 2026-11-06, the first second the game's own insolvency rule allows; the game's rules and every amount stay the same. All 39 steps passed again in local rehearsals, including a replay of this run's real timings and runs where steps happen late. A read-only check found the first 12 steps intact, and nothing was sent. Next: Gideon reviews the revised operator tool; step 13 then needs his go-ahead and runs in the same sitting as the first live draw. A stranger's deposit landing at the same moment can still stop the round from closing.",
+      "evidenceText": "State detail: blocked on the clock and Gideon's go-ahead; part of M14-A7. At Rob's direct request, Silas removed the roughly two hours of margin the plan had chosen before step 13, the withdrawal that ends round 1, and moved every later step with it. Gideon accepted the change on 2026-11-02 after his own review of the code, the arithmetic, the local rehearsals of all 39 steps and a read-only check of the first 12. That covers local proof only, not the later steps on the test network. The game's rules and every amount stay the same. Step 13 can run at 00:10:57 UTC on 2026-11-06 at the earliest, the first second the game's own insolvency rule allows, only with Gideon's go-ahead, and in the same sitting as the first live draw. Nothing has been sent. A stranger's deposit landing at the same moment can still stop the round from closing.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -408,7 +408,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "First compounding payout: the 15-day deposit settles with money to spare (flow step 28).",
-      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 15-day deposit can settle no earlier than 15 days after it opens. The plan's earliest time, counted from the actual activation, is 2026-11-21 at 02:28:35 UTC. That holds only if round 2 opens on schedule; any delay moves it later by the same amount. The pot should cover the payout in full, with the 9% Jackpot Fee going to backers and the next round.",
+      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 15-day deposit can settle no earlier than 15 days after it opens. The plan's earliest time, counted from the actual activation, is 2026-11-21 at 00:15:57 UTC. That holds only if round 2 opens on schedule; any delay moves it later by the same amount. The pot should cover the payout in full, with the 9% Jackpot Fee going to backers and the next round.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -434,7 +434,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Close round 2 with the 30-day payout and request a second draw (flow steps 32 to 36).",
-      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 30-day deposit settles no earlier than 30 days after it opened in M14-A7-REOPEN. The plan's earliest time, counted from the actual activation, is 2026-12-06 at 02:27:35 UTC, later if round 2 opened late. By design the pot cannot pay in full, so this payout ends round 2. The keeper then settles the fee, prepares and seals the candidates and requests a second draw. The plan deliberately never captures this draw, even if the oracle answers, to test the deadline path.",
+      "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 30-day deposit settles no earlier than 30 days after it opened in M14-A7-REOPEN. The plan's earliest time, counted from the actual activation, is 2026-12-06 at 00:14:57 UTC, later if round 2 opened late. By design the pot cannot pay in full, so this payout ends round 2. The keeper then settles the fee, prepares and seals the candidates and requests a second draw. The plan deliberately never captures this draw, even if the oracle answers, to test the deadline path.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -447,7 +447,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Let the second draw expire and finalize round 2 (flow steps 37 to 39).",
-      "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7; one open test-tool risk, with a fix in review. Inside the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second after the deadline the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan. Open risk, found on 2026-11-01: the old schedule left only seconds to record that refusal. The fix in review simulates it 30 seconds after the round 2 draw request, inside the deadline; how much of the window is left depends on how quickly the steps before it finish. Only the recorded refusal counts: a missed window is reported and stops the plan, never counted as passed. The risk stays open until the fix is accepted and the window is met.",
+      "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7; one open test-tool risk; its fix was accepted on 2026-11-02. Inside the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second after the deadline the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan. Open risk, found on 2026-11-01: the old schedule left only seconds to record that refusal. The accepted fix simulates it 30 seconds after the round 2 draw request, inside the deadline; how much of the window is left depends on how quickly the steps before it finish. Only the recorded refusal counts: a missed window is reported and stops the plan, never counted as passed. The risk stays open until the window is met on the test network.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
