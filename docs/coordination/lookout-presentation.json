@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done. Gideon accepted removing the two-hour margin before step 13 from local rehearsals; step 13 waits for 00:10:57 UTC on November 6 and his go-ahead, with every amount unchanged. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and the first player withdrawal and backer payout have gone through. Gideon approved Rob’s request to end the first round about two hours sooner, on the afternoon of November 5 Pacific time, with nothing else changed. Gideon gives the go-ahead that day; Rob doesn’t need to do anything.",
+  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–12 are done. Gideon accepted removing the two-hour margin before step 13 from local rehearsals; step 13 is pre-approved for the first check-in after 00:10:57 UTC on November 6, once live checks pass, amounts unchanged. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, and the first player withdrawal and backer payout have gone through. The first round is set to end on the afternoon of November 5 Pacific time, about two hours sooner, as Rob asked and Gideon approved. Silas runs it once safety checks pass; Rob has nothing to do.",
   "glossary": [
     {
       "term": "M14",

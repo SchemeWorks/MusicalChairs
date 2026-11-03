@@ -4,8 +4,8 @@
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
       "status": "blocked",
-      "blockedReason": "Steps 1 to 12 are done, with every check passing. At Rob's request the plan's two-hour margin before step 13, the withdrawal that ends round one, was removed and the later steps moved with it, with every amount unchanged; Gideon accepted the change on 2026-11-02 from local rehearsals and a read-only check. Step 13 now waits for the clock, 00:10:57 UTC on 2026-11-06, the first second the game allows, and for Gideon's go-ahead. No Internet Computer activation or real rewards are part of this work.",
-      "nextAction": "On or after 2026-11-06 at 00:10:57 UTC, with Gideon's go-ahead, run step 13 and the draw steps that follow it in the same sitting.",
+      "blockedReason": "Steps 1 to 12 are done, with every check passing. At Rob's request the plan's two-hour margin before step 13, the withdrawal that ends round one, was removed and the later steps moved with it, with every amount unchanged; Gideon accepted the change on 2026-11-02 from local rehearsals and a read-only check. Step 13 now waits only for the clock, 00:10:57 UTC on 2026-11-06, the first second the game allows, and its live safety checks; at Rob's request Gideon approved it in advance on 2026-11-03. No Internet Computer activation or real rewards are part of this work.",
+      "nextAction": "At the first check-in on or after 2026-11-06 at 00:10:57 UTC, Silas confirms step 13 is still next and rechecks the live safety conditions, then runs step 13 and the draw steps through step 20 in the same sitting, stopping to report on any unexpected result.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
