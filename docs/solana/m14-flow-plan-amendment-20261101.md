@@ -261,3 +261,18 @@ Gideon independently accepted this revision on 2026-11-02 (UTC).
 - **Accepted.** Gideon accepted the actual step 21 devnet outcome on 2026-11-06 in a bounded computational receipt review at 4ae541e (evidence `b2f6952b…`, receipts `a116fcb3…`, raw transaction `5afdc0e7…`; no root RPC, tests, build or source change).
 - **Correction (2026-11-06, prose only).** This section and `devnet-step-21.json` first said step 37's window ends at the actual close 2 deadline + 600. It ends at the actual close 2 time + 600, which is the deadline itself (inclusive); adding 600 to the deadline would double the interval. The §11 rule is unchanged; the evidence manifest was refreshed.
 - **Not done.** Steps 22 onward: not authorized by Rob's step 21 instruction; each keeps its own predecessors and needs his explicit authorization. The Compound15 maturity will count from P1's actual open at step 22.
+
+## 14. Execution (steps 22–27, 2026-11-06)
+
+- **Authority.** Rob's explicit approval of "Musical Chairs steps 22–27: round-two devnet setup, 0.42 devnet SOL plus existing-budget fees/rent, then stop for review", for the exact plan sha256 `31b10b11…`, read by Gideon in the original human message and relayed the same day. Steps 22–27 only; no new funding.
+- **Guards, immediately before.** HEAD = origin 20b393d; runner `a9dcb1b3…` verified; `solana/` unchanged since 29c8f97; packet pin `ae8a6a0e…`; full finalized readback 44/44; finalized status 21/39 with step 22 next and ready, `all_ok`, 0 foreign receipts; receipts `a116fcb3…` (21 lines); write-ahead 1,461/1,461 resolved; conservation true; every actor's budget covered; 60 GiB free.
+- **Steps.** Each was dry-run, then executed once, in order.
+  - 22: P1 opened a 0.20 SOL Compound15 position (96 % to the pot, 4 % Front-End Load).
+  - 23–24: P2 and P3 opened 0.10 and 0.02 SOL Simple positions.
+  - 25–26: A2 and the winner P5 each funded 0.05 SOL of Series A, entitlement 124 % (62,000,000 each); the registry grew to 4.
+  - 27: the keeper provisioned CloseRecord(2); its 3,987,800 rent came from Ops.
+- **Money.** The pot went from 624,872,669 to 1,032,072,669 and management from 64,800,000 to 77,600,000. The 420,000,000 principal entered the game vault exactly; actor rent was 14,782,800 and fees 30,000. Every actor's balance change equals its lamport equation.
+- **Timing.** P1's position, read from the account, opened at 1,793,928,431 (2026-11-06T01:27:11Z, 4,334 s after the plan time) and matures at 1,795,224,431 (2026-11-21T01:27:11Z), exactly 1,296,000 s later. The program enforces this maturity, so step 28 runs no earlier than that, 4,274 s after its plan earliest.
+- **After.** Finalized status 27/39, `all_ok`; 6 of 6 transactions finalized with `err` null; write-ahead 1,467/1,467 resolved; every check true and conservation held after every step.
+- **Evidence.** `docs/solana/evidence/2026-11-06-r2setup/` (eight files under `MANIFEST.sha256`; `devnet-steps-22-27.json` sha256 `3112e1c3…`); receipts 27 lines, sha256 `be94572a…`, the first 21 unchanged; ledger row `20261106-A7-flow-22-27`.
+- **Not done.** Step 28 onward: not covered by this approval; each needs its own explicit authorization.

@@ -4,8 +4,8 @@
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
       "status": "blocked",
-      "blockedReason": "Steps 1 to 21 are done, with every check passing. Steps 13 to 20 ran in one sitting on 2026-11-06 under the go-ahead Gideon gave in advance at Rob's request: round one closed short of money as planned, the real oracle answered the first live draw in two seconds, and P5 was promoted to backer. Gideon accepted their evidence the same day. Step 21 then reopened the game for round two under Rob's own go-ahead; the 30-day deposit it opened matures at 01:01:30 UTC on 2026-12-06, and Gideon accepted it. No Internet Computer activation or real rewards are part of this work.",
-      "nextAction": "The round two setup steps 22 to 27 are ready by the clock but run only after Rob explicitly approves them; Silas then runs them.",
+      "blockedReason": "Steps 1 to 27 are done, with every check passing. On 2026-11-06 round one closed short of money as planned, the real oracle answered the first live draw in two seconds, and P5 was promoted to backer; Gideon accepted it. Step 21 reopened the game and steps 22 to 27 set up round two with 0.42 test SOL, each under Rob's own approval; the setup waits for Gideon's review. No Internet Computer activation or real rewards are part of this work.",
+      "nextAction": "After Gideon reviews steps 22 to 27, the 15-day deposit settles no earlier than 01:27:11 UTC on 2026-11-21, once Rob explicitly approves that step; Silas then runs it.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
