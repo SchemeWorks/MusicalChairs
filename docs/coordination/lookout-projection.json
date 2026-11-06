@@ -265,7 +265,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 20/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02. Steps 13 to 20, the round 1 close, the first live draw and the promotion, ran in one sitting on 2026-11-06 with every check passing, and wait for Gideon's review. Next: step 21, which reopens the game for round 2, under its own go-ahead.",
+      "evidenceText": "State detail: in progress; 20/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02. Steps 13 to 20, the round 1 close, the first live draw and the promotion, ran in one sitting on 2026-11-06 with every check passing, and Gideon accepted their evidence the same day. Next: step 21, which reopens the game for round 2, under its own go-ahead.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -340,10 +340,10 @@
     },
     {
       "id": "M14-A7-CLOSE1",
-      "state": "Review",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Close round 1 and line up the draw candidates (flow steps 13 to 16).",
-      "evidenceText": "State detail: in review; part of M14-A7. Ran on 2026-11-06 under the go-ahead Gideon gave in advance at Rob's request. Fresh checks first confirmed that nothing had changed since step 12 and that round 1 was still short of money. Step 13, the withdrawal that ends round 1, then paid out the whole remaining pot with the 7.5% Carried Interest on it, and started the 600-second deadline for the draw. The keeper split the fee and lined up the two smallest players as draw candidates. Each step was simulated first, sent once and passed every check, and the money-accounting checks held after each. Waiting for Gideon's review of the saved evidence.",
+      "evidenceText": "State detail: done on 2026-11-06; part of M14-A7. Ran on 2026-11-06 under the go-ahead Gideon gave in advance at Rob's request. Fresh checks first confirmed that nothing had changed since step 12 and that round 1 was still short of money. Step 13, the withdrawal that ends round 1, then paid out the whole remaining pot with the 7.5% Carried Interest on it, and started the 600-second deadline for the draw. The keeper split the fee and lined up the two smallest players as draw candidates. Each step was simulated first, sent once and passed every check, and the money-accounting checks held after each. Gideon accepted the saved test-network evidence the same day.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -353,10 +353,10 @@
     },
     {
       "id": "M14-A7-DRAW1",
-      "state": "Review",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "First live draw: request it, wait for the real oracle's answer, capture the result (flow steps 17 to 19).",
-      "evidenceText": "State detail: in review; part of M14-A7. In the same sitting as the round 1 close, the keeper asked the ORAO oracle for a random number. On the test network the real oracle answered in about two seconds, the first measured answer time, while the tool only watched and sent nothing. The result was captured nearly seven minutes before the 600-second deadline. Every check passed. Waiting for Gideon's review of the saved evidence.",
+      "evidenceText": "State detail: done on 2026-11-06; part of M14-A7. In the same sitting as the round 1 close, the keeper asked the ORAO oracle for a random number. On the test network the real oracle answered in about two seconds, the first measured answer time, while the tool only watched and sent nothing. The result was captured nearly seven minutes before the 600-second deadline. Every check passed. Gideon accepted the saved test-network evidence the same day.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -366,10 +366,10 @@
     },
     {
       "id": "M14-A7-PROMO",
-      "state": "Review",
+      "state": "Done",
       "owner": "Silas (Claude coordinator)",
       "scope": "Promote the draw winner (flow step 20).",
-      "evidenceText": "State detail: in review; part of M14-A7. Straight after the draw, the keeper applied the result: player P5 won and became a backer with a claim worth 116% of their loss. Every check passed, and every transaction of the sitting is final. Waiting for Gideon's review of the saved evidence.",
+      "evidenceText": "State detail: done on 2026-11-06; part of M14-A7. Straight after the draw, the keeper applied the result: player P5 won and became a backer with a claim worth 116% of their loss. Every check passed, and every transaction of the sitting is final. Gideon accepted the saved test-network evidence the same day.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -382,7 +382,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Finish round 1 and open round 2 in one transaction from an ordinary wallet (flow step 21).",
-      "evidenceText": "State detail: blocked until the promotion is accepted; part of M14-A7. A plain player wallet sends one transaction that finalizes round 1, prepares round 2 and opens its own 30-day compounding deposit. The money carried forward from round 1 seeds round 2. This deposit's time starts the 30-day clock for the end of round 2. The promotion ran on 2026-11-06 and is in review. This step's earliest time has passed, but it needs its own go-ahead, which the last one did not cover.",
+      "evidenceText": "State detail: blocked until its own go-ahead; part of M14-A7. A plain player wallet sends one transaction that finalizes round 1, prepares round 2 and opens its own 30-day compounding deposit. The money carried forward from round 1 seeds round 2. This deposit's time starts the 30-day clock for the end of round 2. The promotion it waited on is done and accepted. This step's earliest time has passed, but it needs its own go-ahead, which the last one did not cover.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",

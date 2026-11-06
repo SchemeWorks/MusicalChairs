@@ -245,4 +245,5 @@ Gideon independently accepted this revision on 2026-11-02 (UTC).
   - Every check was true and conservation held after every step.
   - Fees 65,000 lamports (A1 5,000; K 60,000). A1's +529,478,704 and the game vault's −529,483,704 reconcile exactly.
 - **Evidence.** `docs/solana/evidence/2026-11-06-close1-draw1/` (seven files under `MANIFEST.sha256`; `devnet-steps-13-20.json` sha256 `1ce370c5…`); receipts 20 lines, sha256 `b4b20e11…`, the first 12 unchanged; ledger row `20261106-A7-flow-13-20`.
+- **Accepted.** Gideon accepted steps 13–20 as the recorded devnet outcomes on 2026-11-06, in a bounded receipt review at 3365fe8 (evidence `1ce370c5…`, receipts `b4b20e11…`, full readback `1aa15f47…`; no root RPC, build or tests; no source delta).
 - **Not done.** Step 21 is ready by the clock but outside this go-ahead; it keeps its own predecessors and authority. Later dates move with the actual times of steps 21 and 22, because the Compound15 and Compound30 maturities count from the actual opens.
