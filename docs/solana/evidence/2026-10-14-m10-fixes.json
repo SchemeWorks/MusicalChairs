@@ -1,0 +1,218 @@
+{
+ "recorded_at_utc": "2026-10-14T18:16:52.929039+00:00",
+ "card": "IMPL-40a",
+ "milestone": "M10 security review repairs",
+ "branch": "codex/native-solana-production-core",
+ "head_at_receipt": "ae0e937",
+ "pre_fix_elf": {
+  "sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+  "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+  "kept_at": "scratchpad/impl40/elf-pre-fix (RED reruns)"
+ },
+ "fixed_elf": {
+  "sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "bytes": 1397160,
+  "stack_offset_warnings": 0,
+  "pinned_in_latest_build_json": true
+ },
+ "red_on_pre_fix": {
+  "unit_on_pre_fix_source": [
+   "controls::review_pins::validate_pins_the_simple_toll_table_and_day_bounds FAILED (divergent table validated)",
+   "positions::review_dust_route::dust_toll_routes_to_seed_like_the_host_book FAILED (toll 1 → Ticket)"
+  ],
+  "litesvm_on_elf_d77b23bf": [
+   "financial.close.withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible.degraded_g_profile.degraded_g_profile unexpectedly succeeded: Observation { label: \"financial.close.withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible.degraded_g_profile.degraded_g_profil",
+   "assertion `left == right` failed: financial.controls.m3.initialize_rejects_one_of_three_profile.wrong_provider_client: expected Custom(6029), got Some(\"InstructionError(1, Custom(0))\")",
+   "left: Some(0)",
+   "financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_toll_table unexpectedly succeeded: Observation { label: \"financial.controls.m3.stage_config_requires_g_and_future_round.noncanonical_toll_table\", artifact_sha256: \"d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba",
+   "the vault must not freeze when the floor rises within the classified excess: Some(\"InstructionError(1, Custom(6001))\")",
+   "test a_toll_whose_slices_all_floor_to_zero_goes_to_the_seed_without_a_ticket ... PRE_FIX_TICKET toll=3 seed_delta=3 funded_claims_delta=0 backers_unchanged=true",
+   "left: 1",
+   "financial.controls.m3.initialize_rejects_one_of_three_profile.wrong_provider_client unexpectedly succeeded: Observation { label: \"financial.controls.m3.initialize_rejects_one_of_three_profile.wrong_provider_client\", artifact_sha256: \"d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958\","
+  ]
+ },
+ "green_on_fixed_elf": {
+  "cargo_test_results": [
+   [
+    "ok",
+    "187",
+    "0"
+   ],
+   [
+    "ok",
+    "0",
+    "0"
+   ],
+   [
+    "ok",
+    "2",
+    "0"
+   ],
+   [
+    "ok",
+    "3",
+    "0"
+   ],
+   [
+    "ok",
+    "5",
+    "0"
+   ],
+   [
+    "ok",
+    "8",
+    "0"
+   ],
+   [
+    "ok",
+    "3",
+    "0"
+   ],
+   [
+    "ok",
+    "2",
+    "0"
+   ],
+   [
+    "ok",
+    "0",
+    "0"
+   ]
+  ],
+  "cli_observations": 9505,
+  "cli_unsuccessful": 589
+ },
+ "repairs": [
+  {
+   "id": "SEC-1 = ECO-2",
+   "file": "controls.rs ConfigTerms::validate",
+   "change": "pin simple_toll_bps == fees::simple_toll_bps at 0 / 7·DAY / 14·DAY and simple_toll_day_bounds == [7, 14]",
+   "tests": [
+    "unit validate_pins_the_simple_toll_table_and_day_bounds",
+    "stage_config_requires_g_and_future_round.noncanonical_toll_table / .noncanonical_toll_bounds"
+   ]
+  },
+  {
+   "id": "SEC-3 = ECO-1 (dust subset)",
+   "file": "positions.rs toll_route",
+   "change": "toll_route(toll, registry_len, (senior, a, b) bps): all slices of the half zero → Seed (host Book::allocate parity; plan L647 zero-slice shortcut)",
+   "tests": [
+    "unit dust_toll_routes_to_seed_like_the_host_book (1..=64 vs the host rule)",
+    "tests/review_fixes.rs a_toll_whose_slices_all_floor_to_zero_goes_to_the_seed_without_a_ticket (toll 3)",
+    "a_toll_of_five_or_more_still_starts_the_ticket (toll 6)"
+   ],
+   "pre_fix_evidence": "PRE_FIX_TICKET toll=3 seed_delta=3 funded_claims_delta=0 backers_unchanged=true (identical end state)"
+  },
+  {
+   "id": "ECO-3",
+   "file": "lib.rs sync_game / sync_ops",
+   "change": "excess / unallocated_excess re-derived as the residual over owned partitions at the live floor (floating, never spendable); shortfall against owned partitions still fails",
+   "tests": [
+    "tests/review_fixes.rs a_rent_floor_rise_within_the_classified_excess_does_not_freeze_the_vault (Custom(6001) on the pre-fix ELF)"
+   ]
+  },
+  {
+   "id": "SEC-4",
+   "file": "controls.rs initialize + provider.rs expected_client",
+   "change": "args.provider_client must equal Client::find_address(program, rng_authority, orao) → WrongProviderTuple",
+   "tests": [
+    "initialize_rejects_one_of_three_profile.wrong_provider_client (fresh rig; \"unexpectedly succeeded\" on the pre-fix ELF)"
+   ],
+   "harness_fixture_change": "controls.rs initialize_args uses the derived client instead of key(0xE4)"
+  },
+  {
+   "id": "SEC-5",
+   "file": "close.rs withdraw_provider_return",
+   "change": "require_governance (profile + vault derivation + signer) instead of require_vault_signer + pool.governance only",
+   "tests": [
+    "withdraw_rejects_….degraded_g_profile → WrongGovernanceProfile (succeeded on the pre-fix ELF)"
+   ],
+   "behaviour_change": "rogue_multisig tamper now WrongAccount 6005 (as on every other G instruction) instead of NotAuthorized 6004"
+  },
+  {
+   "id": "SEC-6",
+   "file": "error.rs",
+   "change": "range comment names 6050/6051"
+  },
+  {
+   "id": "SEC-8",
+   "file": ".github/workflows/native-solana-model.yml",
+   "change": "assert zero \"Stack offset\" lines in the SBF build log; run solana/scripts/check-idl.sh"
+  }
+ ],
+ "frozen_contract": {
+  "space_sizes": "unchanged",
+  "error_codes": "unchanged (6000–6051)",
+  "events": "unchanged (20)",
+  "idl": "unchanged (no instruction/account/event/error change)"
+ },
+ "not_applied_returned_to_codex": [
+  "SEC-2 governance-tunable bounds",
+  "effective_round_id staging deadlock",
+  "ECO-1 general ≥ 5-lamport ticket griefing (keeper priority, no economics change)"
+ ],
+ "limits": [
+  "LiteSVM 0.7.1 at local default rent; not a cluster measurement",
+  "the rent-ratchet row drives the Rent sysvar directly (1/10 then restored) — a schedule change the cluster has never performed upward",
+  "ECO-3 runtime row covers sync_game (GameVault, pool.excess); sync_ops carries the identical floating-residual change with source proof and the existing OpsCash donation/shortfall rows, but no separate rent-cycle SBF row (narrow limit, disclosed per the Codex M10 review)",
+  "Linux CI (run 38614117412 on f132fd4): production-sbf build with the pinned tools, source set 994a9ff4…/lock 77f859f9… asserted, IDL regeneration clean, 0 stack-offset warnings, 187 + 23 harness tests and clippy green; the Linux ELF bytes differ from the macOS 8f97e83d… with the exact cause unverified"
+ ],
+ "linux_ci": {
+  "recorded_at_utc": "2026-10-14T18:39:01.068115+00:00",
+  "run_id": "38614117412",
+  "url": "https://github.com/SchemeWorks/MusicalChairs/actions/runs/38614117412",
+  "runner": "ubuntu-latest (GitHub-hosted)",
+  "linux_artifact_sha256": "a398d6f4b5fba0fe78c76cc5bcbe79bbbbc725bfd25451eeaab14bb9a161f297",
+  "linux_source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+  "linux_lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "standin_artifact_sha256": "955441aa488074c17af35e1cf191a564977f5a810da91a3622927ee8de0ee7ca",
+  "cargo_build_sbf_version": "cargo-build-sbf 3.1.0-beta.0",
+  "platform_rustc": "rustc 1.84.1-dev",
+  "test_results": [
+   "ok. 187 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 396.87s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.79s",
+   "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.01s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.52s",
+   "ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 144.84s",
+   "ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "steps": {
+   "Set up job": "success",
+   "Run actions/checkout@v4": "success",
+   "Run dtolnay/rust-toolchain@1.92.0": "success",
+   "Read the pinned archive hashes": "success",
+   "Restore the pinned toolchain archives": "success",
+   "Download and verify the pinned toolchain archives": "success",
+   "Unpack the toolchain into the job-local directory": "success",
+   "Build the program and the vault stand-in with the pinned tools (provenance guard on)": "success",
+   "Assert the source set and lock against the committed pins; record the artifact hash": "success",
+   "Committed IDL matches a fresh generation": "success",
+   "Run the LiteSVM harness on the fresh artifact": "success",
+   "Clippy (deny warnings)": "success",
+   "Post Restore the pinned toolchain archives": "success",
+   "Post Run actions/checkout@v4": "success",
+   "Complete job": "success"
+  },
+  "clippy": "success",
+  "artifact_vs_macos_pin": "Linux ELF a398d6f4… vs macOS 8f97e83d…: differ; source set and lock asserted equal to the pins; exact cause of cross-host byte differences unverified",
+  "note": "Linux bytes are not required to equal the macOS bytes; the source set and lock are asserted equal to docs/solana/evidence/latest-build.json",
+  "harness": "success",
+  "tests_passed_total": 210,
+  "macos_artifact_sha256_pinned": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "artifact_bytes_equal_macos": false,
+  "idl_check": "clean sha256=11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "stack_offset_warnings": 0,
+  "second_run": {
+   "run_id": "38615349220",
+   "commit": "54f3ff84",
+   "conclusion": "success",
+   "note": "explicit CARGO_HOME for the IDL step (portability improvement; the first run had CARGO_HOME from the dtolnay/rust-toolchain GITHUB_ENV export); same source set / lock pins, idl_check clean"
+  }
+ },
+ "codex_acceptance": "M10 accepted 2026-10-14 at the source / local SBF / threat-model / graph / Linux-CI boundaries (run 38614117412 on f132fd4: Linux ELF a398d6f4…, source set 994a9ff4…, lock 77f859f9…, stack_offset_warnings=0, 210 tests, clippy); no deployed or live proof"
+}

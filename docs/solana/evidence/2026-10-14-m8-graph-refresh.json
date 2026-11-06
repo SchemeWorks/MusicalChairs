@@ -1,0 +1,138 @@
+{
+ "recorded_at_utc": "2026-10-14T15:20:54.534644+00:00",
+ "card": "IMPL-38",
+ "milestone": "M8 reserve, refund, cleanup and randomized conservation — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "3e26f20ccafd9cbcf9d311b22d1834277bfe8de6",
+ "head_at_graph_update": "3e26f20",
+ "branch": "codex/native-solana-production-core",
+ "note_on_commit": "the update ran on the working tree that the IMPL-37/38 commit then recorded (IMPL-36 was already committed as 3e26f20); the committed files are hashed below",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m7-graph-refresh.json (incl. the IMPL-45 correction and delta pins)",
+  "docs/solana/evidence/2026-10-14-m6-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "31205deffa5511b1401f2a11a0dda6d329525548c79c47df218a9cf643ab4637",
+   "result": "15,255 nodes / 22,871 edges / 43 hyperedges → 16,154 / 24,252 / 43 (lost prior 0); re-extracts the IMPL-45/36 files the M7 receipt marked historical, so M7 AST freshness is current again"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m8-fragment-spec.json 1575 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "27f77078e5d0dbd13cf313e711890368b6c9a30b61f66fc32ba6a34549fd3e03",
+   "builder_sha256": "d632fd9d76d649009ebb0476f7b6bb7e9514e87b50365539a7960982dcfe2f76",
+   "result": "APPLIED 16159 / 24318 / 44"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 15255,
+  "edges": 22871,
+  "hyperedges": 43
+ },
+ "after_graphify_update": {
+  "nodes": 16154,
+  "edges": 24252,
+  "hyperedges": 43
+ },
+ "repairs_against_pre_update_backup": {
+  "raw_edges_restored": 17,
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "overwritten_concept_nodes_restored": [
+   "plans_2026_10_12_native_solana_global_constraints",
+   "coordination_native_solana_model_probes_delivered_scope"
+  ],
+  "same_symbol_as_edges_added": 0,
+  "note": "the idempotent 321-status repair as every prior milestone; 17 raw edges restored this time (16 before): graphify collapsed one more same-endpoint multi-edge among the newly extracted M8 files; all are restored from the pre-update backup"
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-14-m8-graph-fragment.json",
+  "sha256": "91ccd313bf1b85e99ae980b3faa9c15b3dc1b81024dc45cc57322b99ee899f48",
+  "community": 1575,
+  "spec_counts": {
+   "nodes": 5,
+   "edges": 49,
+   "hyperedges": 1,
+   "attribute_updates": 24
+  }
+ },
+ "after": {
+  "nodes": 16159,
+  "edges": 24318,
+  "hyperedges": 44
+ },
+ "scope": {
+  "covered_source_sha256": {
+   "solana/programs/musical_chairs/src/close.rs": "922750192b73d7e15cb85a54268566abf2540fa7dc78873128631f2f4a5a5c7a",
+   "solana/programs/musical_chairs/src/controls.rs": "07fc7df224c62876108910c838cfd0ffdcaa3838a83af3a15de7f1525df71ef1",
+   "solana/tests/financial-runtime/src/reserve.rs": "49425ed3bab3d41d4eb4e10fe54a26daacf8f3a821a733a56c60ccd5c54237c4",
+   "solana/tests/financial-runtime/src/fuzz.rs": "7e665df0ab72a306cc9d77c724856bd8d507f8ce45356f8fbcc38d98077ac856",
+   "solana/tests/financial-runtime/src/close.rs": "de2188d75bfb60ce30b5078efc0b87a7d359c878b37923e813447fe39f8d27f1",
+   "solana/tests/financial-runtime/src/world.rs": "a6be2ac0a575dcd85a0d2cd0455f16c091a310a53303a4d7dbd5c578393dc91b",
+   "solana/tests/financial-runtime/src/lib.rs": "eff1b1c62b0eb04b6f9dc4f1b18d4cc72b51c391690625fa04cfe9ab1680cf69",
+   "solana/tests/financial-runtime/src/main.rs": "e169166ee30e69238385421604be84add42cee2f2ca0ab00355da4a024c0b713",
+   "solana/tests/financial-runtime/tests/payout_props.rs": "274d1206b3647284d989ee089785acc38019a6f1b009d75f186b86fe88088aef",
+   "docs/coordination/kanban.md": "356fb09c726e5b6deda7358c004448146156cc74da04d8a059e49a3c6ddaa4c3",
+   "docs/coordination/native-solana-m8-handoff-20261014.md": "0177389dbcd87c387ba620aeaf87fc377ac7985cd6b3d50ea70765078132ed30",
+   "docs/solana/evidence/2026-10-14-m8-reserve-cleanup.json": "ffe8d93435d8cc62ef24cb253285407829dd48e48a3bddb0513cc5bb37945720",
+   "docs/solana/evidence/2026-10-14-m8-cli.json": "2eb2783b21e37d3f3dca42d8cc2f8e97995b4877788e512329e1cb654c63da8e",
+   "docs/solana/evidence/2026-10-14-m8-graph-fragment.json": "91ccd313bf1b85e99ae980b3faa9c15b3dc1b81024dc45cc57322b99ee899f48"
+  },
+  "manifest_note": "graphify advanced manifest hashes for every re-extracted file at this update; semantic coverage is the listed files and the fragment; docs/solana/evidence/2026-10-14-m8-cli.json (large) gets no graphify file node and is referenced only from the receipt",
+  "ast_freshness": "CURRENT at this update for the listed files (the M7 historical marking is superseded; the IMPL-45/36 files were re-extracted here)"
+ },
+ "stale_or_uncovered": [
+  "docs/solana/evidence/2026-10-14-m8-cli.json: no graphify file node (size)",
+  "docs/coordination/native-solana-supervision.md (Codex, untracked) AST only"
+ ],
+ "checks": {
+  "all_prior_15255_node_ids_retained": true,
+  "all_prior_22871_raw_edge_identities_retained": true,
+  "all_prior_43_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_status_values_restored_or_explicitly_updated": true,
+  "community_1575_nodes": 5,
+  "statuses_after": {
+   "plan2026_10_13_m8_reserve_refund_cleanup": "completed_receipt",
+   "plan2026_10_13_gap_no_reserve_refund_cleanup_code": "resolved_in_local_implementation",
+   "plan2026_10_13_acc_deferral_account_retirement_refunds": "resolved_in_local_implementation",
+   "plan2026_10_13c_conservation_transitions_table": "local_runtime_executed",
+   "plan2026_10_13_test_randomized_300_step_sequence_keeps_both_conservation_identities": "local_runtime_executed",
+   "plan2026_10_13_test_sponsor_withdrawal_cannot_touch_locked": "local_runtime_executed"
+  }
+ },
+ "query_checks": {
+  "m8-explain.txt": {
+   "sha256": "d0853a23ab3397f4fa3d53648bbbfd201a85b3e876086739860ae8daad43525e",
+   "explained_ids": [
+    "impl2026_10_14_m8_program_pass",
+    "impl2026_10_14_m8_reserve_suite",
+    "impl2026_10_14_m8_fuzz"
+   ],
+   "all_resolved": true
+  },
+  "m8-queries.txt": {
+   "sha256": "08c55ed26a00c9bd1f7ff72b66b36e92bd9154419edbb2067f4cfcdd028077a5",
+   "note": "free-text query \"M8 reserve refund cleanup randomized conservation\"; concept nodes are reached through explain <id> (label matching ambiguous, as before)"
+  }
+ },
+ "graph_json_sha256_after": "0f2e98917a846d3646410853a0d9fa74e9b45c83aefa3bd8022960878fdba8d3",
+ "evidence_caveat": "A graph relationship is navigation evidence; financial and authority claims are verified against the committed source and the LiteSVM receipts, not the graph."
+}

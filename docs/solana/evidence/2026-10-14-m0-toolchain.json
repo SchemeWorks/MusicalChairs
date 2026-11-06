@@ -1,0 +1,76 @@
+{
+ "card": "IMPL-01",
+ "milestone": "M0 step 2",
+ "recorded_at_utc": "2026-10-14T07:22:33.326730+00:00",
+ "verdict": "installed platform-tools tree IS anza v1.48 (osx-aarch64): archive SHA-256 verified, all 2,872 regular files and 11 symlinks byte-identical; only 17 empty directories differ",
+ "banner_note": "cargo-build-sbf --version prints \"platform-tools v1.52\" as its default; the wrapper passes --tools-version v1.48 --skip-tools-install and exports the installed rustc 1.84.1-dev, so the banner was never evidence of the compiler used (inventory section 4 correction confirmed)",
+ "archive": {
+  "url_asset": "platform-tools-osx-aarch64.tar.bz2 (release v1.48, published 2025-05-14)",
+  "bytes": 422197780,
+  "sha256_expected": "799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd",
+  "sha256_actual": "799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd",
+  "matched": true
+ },
+ "installed": {
+  "path": "/private/tmp/mc-solana-runtime-tools-20261013/platform-tools",
+  "version_md": "293a1b6c60a0b8d92593843c373539e21e3ba087  https://github.com/anza-xyz/rust.git\n12fe57a9d229b236a595ca14f8946da5833e1fd2  https://github.com/anza-xyz/cargo.git\nf0f8003daa3f71a1a3e2f067f8d5bb46e2756514  https://github.com/anza-xyz/newlib.git\n",
+  "version_md_bytes": 240,
+  "version_md_sha256": "a0b189c38e1a1cd784ae7c88de06285263adbcd4e9ce1a5a98169475a6faf9db",
+  "rustc_version": "rustc 1.84.1-dev",
+  "cargo_version": "cargo 1.84.0 (12fe57a9d 2025-04-07)",
+  "sha256": {
+   "rustc": "ab6cfa61ce01944ef0729b01663e2da23251ff48e5eb5bf9238587f65096547d",
+   "cargo": "b57f6208bbd0b54574df3dba5a73091f2228fdd146d21239cecfecbabb4be19b",
+   "clang": "70e53904220bcc816f43de6d2e6ae31e6adda5f848d0640a0a318dd22626a8be"
+  },
+  "clang_note": "llvm/bin/clang is a symlink to clang-19 (also clang++, clang-cl, clang-cpp); hash is of clang-19 (113,294,312 bytes)",
+  "du": "1.3G",
+  "file_mtimes": "version.md, rust/bin/*, llvm/bin/clang-19 all dated May 14 2025"
+ },
+ "extracted_v148": {
+  "path": "/private/tmp/mc-platform-tools-v148-check-20261014/extracted",
+  "version_md": "293a1b6c60a0b8d92593843c373539e21e3ba087  https://github.com/anza-xyz/rust.git\n12fe57a9d229b236a595ca14f8946da5833e1fd2  https://github.com/anza-xyz/cargo.git\nf0f8003daa3f71a1a3e2f067f8d5bb46e2756514  https://github.com/anza-xyz/newlib.git\n",
+  "version_md_sha256": "a0b189c38e1a1cd784ae7c88de06285263adbcd4e9ce1a5a98169475a6faf9db",
+  "rustc_version": "rustc 1.84.1-dev",
+  "cargo_version": "cargo 1.84.0 (12fe57a9d 2025-04-07)",
+  "sha256": {
+   "rustc": "ab6cfa61ce01944ef0729b01663e2da23251ff48e5eb5bf9238587f65096547d",
+   "cargo": "b57f6208bbd0b54574df3dba5a73091f2228fdd146d21239cecfecbabb4be19b",
+   "clang": "70e53904220bcc816f43de6d2e6ae31e6adda5f848d0640a0a318dd22626a8be"
+  },
+  "per_item": {
+   "version_md_bytes": "IDENTICAL (cmp, 240 bytes)",
+   "rustc_version": "IDENTICAL",
+   "cargo_version": "IDENTICAL",
+   "rustc_sha256": "IDENTICAL",
+   "cargo_sha256": "IDENTICAL",
+   "clang-19_sha256 (clang symlink resolves to it)": "IDENTICAL",
+   "all_regular_files_sha256 (2872 files)": "IDENTICAL",
+   "symlinks (11)": "IDENTICAL",
+   "directory_tree": "installed tree lacks 17 empty directories present in the archive (e.g. llvm/include/bits, llvm/include/rpc, rust/lib/rustlib/*/lib/self-contained); no file differs"
+  }
+ },
+ "prior_88_case_runtime_evidence": "not superseded; built with this verified v1.48 tree",
+ "worker_report_json": "/private/tmp/mc-platform-tools-v148-check-20261014/report.json",
+ "worker_report_sha256": "686ad94e9cc72469dbfd38a8c660d6c98df7256d9009d4b10ce4944fde0eaaf9",
+ "created_paths": [
+  "/private/tmp/mc-platform-tools-v148-check-20261014/",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/release_v1.48.json",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/release_v1.52.json",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/releases_list.json",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/repo_contents_v1.48.json",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/repo_version_md_v1.52.json",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/archive_members.txt",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/extracted/",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/filelist.diff",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/installed_files.sha256",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/extracted_files.sha256",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/files.sha256.diff",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/installed_symlinks.txt",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/extracted_symlinks.txt",
+  "/private/tmp/mc-platform-tools-v148-check-20261014/report.json",
+  "/private/tmp/mc-solana-runtime-tools-20261013/downloads/platform-tools-osx-aarch64-v1.48.tar.bz2"
+ ],
+ "proof_level": "toolchain identity only; no build claim",
+ "model_invoked": "claude-haiku worker, coordinator authorized the 422 MB fetch"
+}

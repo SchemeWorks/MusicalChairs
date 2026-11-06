@@ -1,0 +1,402 @@
+{
+ "recorded_at_utc": "2026-10-27T15:42:04+00:00",
+ "step": "A4 execute (initialize #1, ORAO register #2) + A5 register/operations/first pages + A6 read-back + A7 flow steps 1-9 with A9 conservation (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval (docs/coordination/m14-block-a-approval-20261024.md); Gideon's 2026-10-27T15:27:34Z resume instruction after both recorded deadlines; no new human approval needed or requested",
+ "preflight": {
+  "cluster_genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG (devnet pin)",
+  "cluster_clock_at_preflight": {
+   "finalized_block_time": 1793115015,
+   "utc": "2026-10-27T15:30:15Z",
+   "past_initialize_deadline_s": 1511,
+   "past_register_deadline_s": 1493
+  },
+  "pending_file": {
+   "write_ahead": 1418,
+   "resolved_confirmed": 1418,
+   "open": 0,
+   "held_unknown": 0
+  },
+  "pins": {
+   "devnet_ops_binary_sha256": "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5",
+   "elf_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+   "packet": {
+    "commit": "aeab47059477f977294cdcf084998933460a896f",
+    "sha256_at_commit": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+    "working_file_equal": true
+   },
+   "funding_plan_at_edd7dd1": "0ae55574620b599e4dfe6ae4842b7304053978593c08d49a6d3b53b34bd20a33 (working equal)",
+   "inventory_at_edd7dd1": "9c2b75522d6cfea0764f838133d9664a3c060814a1b245c4e7b15532c3d93913 (working equal)"
+  },
+  "stored_messages": {
+   "initialize_rebuilt_sha256": "5b620be11b52b1fb6167534b9b6f2e81662c8eafaea4b81b523b7cfdc0377882",
+   "register_rebuilt_sha256": "8105b2b48941f158ecb679487410a98678fc4575d58d66812887c453de250b78",
+   "equal_to_recorded": true,
+   "how": "read-only `plan` rebuilt both messages from the identical flags; each execute dry run also refused-unless the on-chain vault transaction stores exactly the rebuilt message"
+  },
+  "approval_timestamps_reread": {
+   "initialize": {
+    "approved_at": 1792940704,
+    "releases_at": 1793113504
+   },
+   "register": {
+    "approved_at": 1792940722,
+    "releases_at": 1793113522
+   },
+   "equal_to_recorded": true
+  },
+  "balances_before_lamports": {
+   "G voter 1 (fee payer)": 177005840,
+   "sponsor S": 980000000,
+   "G vault": 15000000,
+   "management recipient": 10000000
+  }
+ },
+ "initialize": {
+  "transaction_index": 1,
+  "signature": "2mvuJsmwKpQsTVaSLK3EfZ2Jr4yhaKeJ4crqSGKTjR1DmbqHHE48ajGYyJGme2NekBmN5KNMiji5V2SGNMzKXuk4",
+  "slot": 515738887,
+  "fee_payer": "G voter 1",
+  "outer_co_signer": "sponsor S",
+  "packet_bytes": 878,
+  "units_consumed": 148945,
+  "cluster_clock_at_execute": 1793115093,
+  "proposal_status_after": "Executed",
+  "finality": {
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515738887
+  },
+  "rng_authority_created": {
+   "address": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22",
+   "owner": "program",
+   "lamports": 858520,
+   "commitment": "finalized"
+  }
+ },
+ "activation_stamp": {
+  "configversion1_activated_at": 1793115095,
+  "utc": "2026-10-27T15:31:35Z",
+  "source": "ConfigVersion#1.activated_at read from the chain (flow status), NOT inferred from the proposal or deadline",
+  "flow_genesis_unix": 1792942295,
+  "flow_genesis_utc": "2026-10-25T15:31:35Z"
+ },
+ "register": {
+  "transaction_index": 2,
+  "signature": "2SjCCPav9K6WuFDBkQYTv11CyYaSkNRG3Pzuwu5338qrDhshQ5XdGJ9RqDDPWKbSDidUwcCT1cfRoa6caKzWq1YS",
+  "slot": 515739087,
+  "fee_payer": "G voter 1",
+  "units_consumed": 54622,
+  "cluster_clock_at_execute": 1793115141,
+  "proposal_status_after": "Executed",
+  "finality": {
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 515739087
+  },
+  "orao_client": {
+   "client": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+   "num_requests": 0,
+   "owner": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+   "program": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+   "state": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22"
+  },
+  "client_rent_paid_by_g_vault": 1275080
+ },
+ "a6_readback": {
+  "commitment": "Finalized",
+  "slot": 515739151,
+  "checks": 44,
+  "failed": [],
+  "all_ok": true,
+  "pool_after_initialize": "round 1, pot 0, participants 0, active config 1",
+  "file": "docs/solana/evidence/2026-10-27-devnet-a6-readback.json"
+ },
+ "a5_orao_client_funding": {
+  "status": "NOT SENT (unspent)",
+  "why": "the packet's A5 line 'fund the Client' and D13 'ORAO client funding 0.05 SOL' come from the local-cluster genesis (50,000,000); the program's request_round_draw tops the Client up with exactly fee + pending request rent by system transfer immediately before the ORAO CPI (programs/musical_chairs/src/provider.rs header), and the accepted LiteSVM flow rehearsal on the devnet ORAO binary registered the Client WITHOUT extra funding (tests/financial-runtime/src/close.rs provider_setup) and passed every draw; the reviewed tool has no guarded command for this transfer and an unguarded CLI transfer is refused by policy",
+  "decision_owner": "Gideon adjudicates (recommendation: leave unfunded); not needed before flow step 17 (first draw request, about 2026-11-06)"
+ },
+ "flow": {
+  "plan": "M14-SIM Seq-B (39 steps)",
+  "wallets_file": "public keys only; all 10 equal the committed A1 inventory",
+  "completed": 9,
+  "total": 39,
+  "steps": [
+   {
+    "index": 1,
+    "step": "fund_operations",
+    "actor": "S",
+    "flows": "setup",
+    "result": "done",
+    "signatures": [
+     [
+      "4RqDDh28bUbEerJPbHALj92wrdarqpgB7DKMJmDtD2ECgimsxvRHFdrrhh1QXMPriPfgkUF4mV2jTXJACw9GGxXq",
+      515739793
+     ]
+    ],
+    "checks": 4,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 0,
+    "ops_cash_spendable": 500000000
+   },
+   {
+    "index": 2,
+    "step": "provision_registry_0",
+    "actor": "K",
+    "flows": "setup",
+    "result": "done",
+    "signatures": [
+     [
+      "5HWDzSiAzrJMDdmxRJ2fYsQ3oWBZxR3vutw7THpyTZ45yU211ZFPTvA9DDA7Jqr8WX2bXhWeiN5LT7TuMJa3gGXB",
+      515739906
+     ]
+    ],
+    "checks": 4,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 0,
+    "ops_cash_spendable": 497719080
+   },
+   {
+    "index": 3,
+    "step": "provision_snapshot_0",
+    "actor": "K",
+    "flows": "setup",
+    "result": "done",
+    "signatures": [
+     [
+      "2p9SF8c4famvBv4xwFxF556GqgYfXkLoC1y9hqu1mEQnLvaCqVVdbHf9njjUbB7zMEf1jw4bygr957VGzxFjakKY",
+      515739985
+     ]
+    ],
+    "checks": 4,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 0,
+    "ops_cash_spendable": 494381520
+   },
+   {
+    "index": 4,
+    "step": "provision_participants_r1_0",
+    "actor": "K",
+    "flows": "setup",
+    "result": "done",
+    "signatures": [
+     [
+      "3EhSxeRPRSoSnQYWmwf6CMvBeT5YSBLkn7jQnVTq3iutj9bauJUYhiPJ9u7k8wAGr4Cba3MtY2nj31uYrESjARAw",
+      515740107
+     ]
+    ],
+    "checks": 4,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 0,
+    "ops_cash_spendable": 492054880
+   },
+   {
+    "index": 5,
+    "step": "provision_close_record_1",
+    "actor": "K",
+    "flows": "setup",
+    "result": "done",
+    "signatures": [
+     [
+      "3XgifoUMcze3vvfC8mxRxL8Xehwm5TBBHGi9D32eFgc1GC3fVEFx8yvQBCyS3b2HYx2MnebtwXaMkBLsV9du6CNp",
+      515740187
+     ]
+    ],
+    "checks": 4,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 0,
+    "ops_cash_spendable": 488067080
+   },
+   {
+    "index": 6,
+    "step": "a1_fund_series_a",
+    "actor": "A1",
+    "flows": "F1",
+    "result": "done",
+    "signatures": [
+     [
+      "3EtvVaHvxWsc4NZoFSpdy8R2KXw16M17y5WhZLmoFMqWJA3bWiXZQs65EHHtrbwDzSwGEpocFRmF9Ya1nhZjn4R3",
+      515740350
+     ]
+    ],
+    "checks": 8,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 50000000,
+    "ops_cash_spendable": 488067080
+   },
+   {
+    "index": 7,
+    "step": "a1_open_simple",
+    "actor": "A1",
+    "flows": "F2",
+    "result": "done",
+    "signatures": [
+     [
+      "5zyHhkdAjh6ftv1swtXia6odXFrhZX74zvMEwBwxJm5vLNSEn7HXaU9XEAFALuLtHmHKQRXbr4FQQZfY4c3EvMMX",
+      515740434
+     ]
+    ],
+    "checks": 9,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 1050000000,
+    "ops_cash_spendable": 488067080
+   },
+   {
+    "index": 8,
+    "step": "p4_open_simple",
+    "actor": "P4",
+    "flows": "F2",
+    "result": "done",
+    "signatures": [
+     [
+      "4zDNFc9QHUKJ3u9Cyoi29egk5Wad6w25dTyPcWvDMVqAPoW2ymhXTF3mwJvSDciha5LxZbHA2zSyp7VmR3HRGhER",
+      515740556
+     ]
+    ],
+    "checks": 9,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 1060000000,
+    "ops_cash_spendable": 488067080
+   },
+   {
+    "index": 9,
+    "step": "p5_open_simple",
+    "actor": "P5",
+    "flows": "F2",
+    "result": "done",
+    "signatures": [
+     [
+      "4zV32LMtanaE5YxYmiP25WriYHpehSXdWSzGck7ibFdPGN7zitF8FQbUvvAY4qUpqv1TaVm1pz8ub47RVzbF4tgf",
+      515740637
+     ]
+    ],
+    "checks": 9,
+    "failed_checks": 0,
+    "conservation_ok": true,
+    "game_vault_spendable": 1070000000,
+    "ops_cash_spendable": 488067080
+   }
+  ],
+  "receipts_file": "docs/solana/evidence/2026-10-27-devnet-flow-receipts.jsonl (snapshot through step 9; every line stamped with genesis, program id and activation)",
+  "foreign_receipts": 0,
+  "failed_check_receipts": []
+ },
+ "a9_conservation": "held after every action: genesis (both identities = rent only), after initialize/register, and after each of steps 1-9 (game vault identity, OpsCash identity, partition identity; per-actor lamport equations all equal)",
+ "balances_after_finalized": {
+  "finalized_context_slot": 515741063,
+  "G voter 1": {
+   "pubkey": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "lamports": 176990840,
+   "owner": "11111111111111111111111111111111"
+  },
+  "G vault": {
+   "pubkey": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+   "lamports": 13724920,
+   "owner": "11111111111111111111111111111111"
+  },
+  "management recipient": {
+   "pubkey": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+   "lamports": 10000000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "ORAO Client": {
+   "pubkey": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+   "lamports": 1275080,
+   "owner": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU"
+  },
+  "RngAuthority": {
+   "pubkey": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22",
+   "lamports": 858520,
+   "owner": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o"
+  },
+  "deployer D": {
+   "pubkey": "6wMkX8FsrqRQPsLngBNQbDgA4VCFU4LmCpUtPhykPq7k",
+   "lamports": 4034593960,
+   "owner": "11111111111111111111111111111111"
+  },
+  "S": {
+   "pubkey": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+   "lamports": 468773280,
+   "owner": "11111111111111111111111111111111"
+  },
+  "K": {
+   "pubkey": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+   "lamports": 49980000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "A1": {
+   "pubkey": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+   "lamports": 44955720,
+   "owner": "11111111111111111111111111111111"
+  },
+  "A2": {
+   "pubkey": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+   "lamports": 60000000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "P1": {
+   "pubkey": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+   "lamports": 210000000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "P2": {
+   "pubkey": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+   "lamports": 110000000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "P3": {
+   "pubkey": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+   "lamports": 30000000,
+   "owner": "11111111111111111111111111111111"
+  },
+  "P4": {
+   "pubkey": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+   "lamports": 66357720,
+   "owner": "11111111111111111111111111111111"
+  },
+  "P5": {
+   "pubkey": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+   "lamports": 66357720,
+   "owner": "11111111111111111111111111111111"
+  },
+  "W": {
+   "pubkey": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+   "lamports": 630000000,
+   "owner": "11111111111111111111111111111111"
+  }
+ },
+ "reconciliation_lamports": {
+  "G voter 1": "-15,000 = initialize execute fee (2 signatures) 10,000 + register execute fee 5,000",
+  "G vault": "-1,275,080 = ORAO Client rent at registration",
+  "sponsor S": "-511,226,720 = initialize accounts 11,221,720 (packet 3a) + fund_operations 500,000,000 + fee 5,000",
+  "keeper K": "-20,000 = 4 page/close-record fees (page rent paid from operations)",
+  "operations": "500,000,000 - 488,067,080 = 11,932,920 = Registry 2,280,920 + Snapshot 3,337,560 + Participants r1 2,326,640 + CloseRecord(1) 3,987,800",
+  "A1": "-1,055,044,280 = Series A 50,000,000 + deposit 1,000,000,000 + rent 5,034,280 (User, Backer, UserRound, Position) + 2 fees",
+  "P4, P5": "-13,642,280 each = deposit 10,000,000 + rent 3,637,280 + 1 fee",
+  "deployer D": "unchanged 4,034,593,960",
+  "game vault": "rent 695,960 + 1,070,000,000 (Series A 0.05 + deposits 1.02)"
+ },
+ "process_sol_ledger": "no new faucet intake; still 15.0 received + 5.0 reserved = 20.0 of 25 committed",
+ "next_gate": {
+  "step": "10 a1_withdraw_simple (F3), then 11 keeper ticket phases and 12 A1 A-only claim",
+  "earliest_utc": "2026-11-03T13:11:35Z",
+  "earliest_unix": 1793711495,
+  "must_run_before_utc": "2026-11-03T15:37:47Z",
+  "must_run_before_unix": 1793720267,
+  "why_upper_bound": "A1's position opened at 1793115467; Carried Interest is 12% only while elapsed < 7 days (crates/economics/src/fees.rs simple_toll_bps); the plan's step 10 expects the 12% tier",
+  "clock": "cluster Clock sysvar; no clock warp, no early action"
+ },
+ "open_items_for_gideon": [
+  "A5 ORAO Client funding: not sent; recommend leaving unfunded (see a5_orao_client_funding)",
+  "F11 (G reduces its own time lock, document, restore; packet 6.5, days 2-4 in parallel): the reviewed devnet_ops has no guarded config-transaction command (propose/approve/execute cover initialize and register only), and the flow plan marks F11 'not simulated'; not executed; needs a tool card + bounded review, or an explicit deferral"
+ ],
+ "held": "all ICP B/C rows, real PP minting, any held-unknown retry, mainnet, PR #125 merge"
+}

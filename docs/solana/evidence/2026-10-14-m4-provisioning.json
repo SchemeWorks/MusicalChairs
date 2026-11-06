@@ -1,0 +1,1890 @@
+{
+ "card": "IMPL-23 (M4 close-out)",
+ "recorded_at_utc": "2026-10-14T10:11:53.566282+00:00",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "IMPL-21 provisioning program": "5d4dcd6",
+  "IDL regen (M4)": "2c1a837",
+  "IMPL-22 harness suite": "fe5d3d0",
+  "note": "M5 program commits 4585bb2/fa37be8 landed before the M4 suite could run, so the suite executed on the M5 ELF; the M4-only ELF was built but not separately run"
+ },
+ "elf_lineage": {
+  "m4_only_build": {
+   "head": "2c1a837afebeabc92480e61856442294f22c4301",
+   "artifact_sha256": "dfc40c51d3474ff227b764c3447b6c781e9a220349e1f0ceeb1fd103b2857e25",
+   "source_set_sha256": "76421bf19979ba192e8113eaa79a5628a00483023f8b8466957873c3734e270b",
+   "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+   "run": "not run (superseded before the harness compiled)"
+  },
+  "executed_build": {
+   "head": "fa37be87499b9f4f03bbeefd8b10d7957597fac5",
+   "artifact_sha256": "28c9d90b29185d37d58008d96888775b024042546f25a401b6edf4bddf60e4d0",
+   "artifact_bytes": 955480,
+   "source_set_sha256": "f77e9d8a5a911b01728cd9d8cc3149c2443225c36dbaa1c6103336098c14b939",
+   "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+   "before_after_equal": true
+  },
+  "standin_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8"
+ },
+ "program_unit_tests": "86 after IMPL-21 (124 after IMPL-24, same tree)",
+ "idl_after_m4": {
+  "sha256_at_2c1a837": "82518e33b2c6ef051a148fac5a91ce36df0793d4b314a2eff8caf5ea95d72490",
+  "instructions": 23,
+  "accounts": 14,
+  "errors": 37,
+  "note": "CloseRecord entered the account list via provision_close_record/close_shared_account; ParticipantPage/CandidatePage are written through unchecked accounts and remain outside the IDL account list until an Account<T> references them"
+ },
+ "error_codes_added": {
+  "6032": "WrongIndex",
+  "6033": "NotClosable",
+  "6034": "AlreadyClosed",
+  "6035": "PageNotProvisioned",
+  "6036": "LockNotPermitted"
+ },
+ "need_bound_rule_free_funding": {
+  "registry_snapshot": "index <= registry_len / 8",
+  "participant": "index <= participant_count / 8",
+  "next_close_candidate": "index < pages_for(max(participant_count, 1), 8)",
+  "current_close_candidate": "no extra bound",
+  "scope": "Funding::Free only (sponsor cash); Caller and LockedClose unaffected",
+  "rationale": "a permissionless caller must not be able to lock sponsor free operations cash into permanent pages nobody needs (worker-flagged drain; accepted as a tighter spec-compatible precondition)"
+ },
+ "harness_run": {
+  "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 with MC_FINANCIAL_SBF + MC_STANDIN_SBF",
+  "result_line": "FAILED. 51 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 21.37s",
+  "passed": 51,
+  "failed_red_trio": {
+   "financial.open_moves_real_sol": "InstructionError(1, Custom(6035))",
+   "financial.claim_moves_real_sol": "InstructionError(1, Custom(2006))",
+   "financial.allocation.golden-t10000.discover-row": "InstructionError(1, Custom(6021))"
+  },
+  "red_trio_note": "open/claim now fail on fixture preconditions (no participant page; config seeds for a fixture position with config_version 0) because the M5 handlers exist; IMPL-25 turns them GREEN; discover_row remains NotImplemented until M6",
+  "log_sha256": "eae435bbb4e08c240270864b6b4e0a827ecf6b3b035952e754d62eaa8f4d5947",
+  "cli": {
+   "exit": 0,
+   "observations": 307,
+   "copy": "docs/solana/evidence/2026-10-14-m4-cli.json",
+   "copy_sha256": "592da54f35b6b5d8a51f2c7e15b5c8d6793051da7553cfe72afa4c8f7635dc18"
+  }
+ },
+ "provisioning_rows": {
+  "count": 173,
+  "successes": 101,
+  "rejections": 72,
+  "error_tally": {
+   "InstructionError(1, Custom(6032))": 18,
+   "InstructionError(1, Custom(6005))": 12,
+   "InstructionError(1, Custom(6007))": 2,
+   "InstructionError(1, Custom(6033))": 25,
+   "InstructionError(1, Custom(6034))": 2,
+   "InstructionError(1, Custom(6001))": 5,
+   "InstructionError(1, Custom(6036))": 8
+  },
+  "rows": [
+   {
+    "label": "provision_snapshot_sequential_only.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_snapshot_sequential_only.index_1_before_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 13190,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_snapshot_sequential_only.address_of_index_1_for_index_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 12184,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_snapshot_sequential_only",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "provision_snapshot_sequential_only.index_0_again",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11690,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_snapshot_sequential_only.index_0_again_counter_rewound",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11738,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_snapshot_sequential_only.index_1",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "provision_snapshot_sequential_only.registry_index_1_before_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11689,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_snapshot_sequential_only.registry_index_0",
+    "success": true,
+    "error": null,
+    "compute_units": 27035,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 328
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.registry_page",
+    "success": true,
+    "error": null,
+    "compute_units": 27035,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 328
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.boundary.fund_rent_minus_1",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.boundary.rent_minus_1",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 16658,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.boundary.fund_one_more",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.boundary.exactly_rent",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.prefunded_page.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.prefunded_page",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "provision_from_ops_debits_free_balance_by_exact_rent.prefunded_page.close",
+    "success": true,
+    "error": null,
+    "compute_units": 16147,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 335
+   },
+   {
+    "label": "provision_by_caller_records_owner_component_and_refund_destination.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_by_caller_records_owner_component_and_refund_destination",
+    "success": true,
+    "error": null,
+    "compute_units": 26906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "provision_by_caller_records_owner_component_and_refund_destination.fee_payer_as_caller",
+    "success": true,
+    "error": null,
+    "compute_units": 27135,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 322
+   },
+   {
+    "label": "provision_by_caller_records_owner_component_and_refund_destination.second_caller",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "provision_by_caller_records_owner_component_and_refund_destination.empty_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 26906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.snapshot_0",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.snapshot_1",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.snapshot_2",
+    "success": true,
+    "error": null,
+    "compute_units": 26906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.registry_0",
+    "success": true,
+    "error": null,
+    "compute_units": 27035,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 328
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.registry_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25635,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 322
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.setup.registry_2",
+    "success": true,
+    "error": null,
+    "compute_units": 25635,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 322
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.registry.middle.no_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.registry.head.no_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.tail.no_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.middle.no_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.head.no_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.registry.tail.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.registry.middle.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.registry.head.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.tail.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.middle.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_snapshot_and_registry_pages_always_refused_not_closable.snapshot.head.ticket_active",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.provision_0",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.provision_1",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.refused_middle",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.refused_with_active_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 7063,
+    "packet_bytes": 416,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.provision_2",
+    "success": true,
+    "error": null,
+    "compute_units": 26906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.provision_3",
+    "success": true,
+    "error": null,
+    "compute_units": 29906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.participant_page",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.close_participant_page",
+    "success": true,
+    "error": null,
+    "compute_units": 16159,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 333
+   },
+   {
+    "label": "snapshot_pages_counter_never_decrements.provision_4",
+    "success": true,
+    "error": null,
+    "compute_units": 26906,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.provision_preferred_0",
+    "success": true,
+    "error": null,
+    "compute_units": 31887,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.provision_fallback_0",
+    "success": true,
+    "error": null,
+    "compute_units": 34889,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.promotion_pending",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8661,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.provision_close_record_2",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 665
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.newer_close_record_terminal",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8673,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.kind_names_newer_close",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 9345,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.wrong_set_tag_in_kind",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 9348,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal",
+    "success": true,
+    "error": null,
+    "compute_units": 14699,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 335
+   },
+   {
+    "label": "close_candidate_page_refused_until_its_own_close_record_is_terminal.applied_promotion_fallback_set",
+    "success": true,
+    "error": null,
+    "compute_units": 17718,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 334
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.provision_page_0_free",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.provision_page_1_caller",
+    "success": true,
+    "error": null,
+    "compute_units": 25794,
+    "packet_bytes": 498,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 331
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.record_not_finalized",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8658,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.round_matches_not_finalized",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8658,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.finalized_other_round",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8659,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.kind_names_other_round",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8659,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.record_not_at_canonical_address",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8659,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.caller_page_wrong_refund_destination",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 15477,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized",
+    "success": true,
+    "error": null,
+    "compute_units": 16147,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 333
+   },
+   {
+    "label": "close_participant_page_refused_until_that_round_finalized.caller_page",
+    "success": true,
+    "error": null,
+    "compute_units": 16345,
+    "packet_bytes": 424,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 330
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.provision_caller_funded",
+    "success": true,
+    "error": null,
+    "compute_units": 31978,
+    "packet_bytes": 531,
+    "message_account_count": 10,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 333
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.promotion_pending",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 8661,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.wrong_refund_destination",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 15529,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.ops_cash_as_refund_destination",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 15348,
+    "packet_bytes": 393,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once",
+    "success": true,
+    "error": null,
+    "compute_units": 16397,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 331
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.second_call",
+    "success": false,
+    "error": "InstructionError(1, Custom(6034))",
+    "compute_units": 8760,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.reprovision_closed_slot",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 14713,
+    "packet_bytes": 531,
+    "message_account_count": 10,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.mixed_components.provision_locked",
+    "success": true,
+    "error": null,
+    "compute_units": 32056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 350
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.mixed_components",
+    "success": true,
+    "error": null,
+    "compute_units": 16397,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 334
+   },
+   {
+    "label": "close_candidate_page_refunds_components_once.mixed_components.second_call",
+    "success": false,
+    "error": "InstructionError(1, Custom(6034))",
+    "compute_units": 8760,
+    "packet_bytes": 425,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_close_record_always_refused.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "close_close_record_always_refused.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "close_close_record_always_refused",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 6880,
+    "packet_bytes": 384,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_close_record_always_refused.as_registry",
+    "success": false,
+    "error": "InstructionError(1, Custom(6033))",
+    "compute_units": 6880,
+    "packet_bytes": 384,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_close_record_always_refused.as_participant",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 9104,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "close_close_record_always_refused.as_candidate",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 9109,
+    "packet_bytes": 393,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.unfunded_ops",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 15956,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 9642,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.close_id_zero",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 9642,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.address_of_close_2_for_close_1",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 11725,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.locked_close_funding",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 11292,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.free_next_close_id",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.again",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11270,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.locked_close_on_existing",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11270,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.stale_close_id",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 9642,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_close_record_requires_next_close_id.caller_next_close_id",
+    "success": true,
+    "error": null,
+    "compute_units": 25700,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 657
+   },
+   {
+    "label": "provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only",
+    "success": true,
+    "error": null,
+    "compute_units": 31886,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only.preferred_page_1",
+    "success": true,
+    "error": null,
+    "compute_units": 34886,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "provision_candidate_pages_for_next_close_reduces_required_reserve_per_set_only.fallback_page_0",
+    "success": true,
+    "error": null,
+    "compute_units": 34888,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent",
+    "success": true,
+    "error": null,
+    "compute_units": 32056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 350
+   },
+   {
+    "label": "provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent.second_page",
+    "success": true,
+    "error": null,
+    "compute_units": 35056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 344
+   },
+   {
+    "label": "provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent.reserve_exhausted",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 22714,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_debits_remaining_partitions_sponsor_first_and_records_spent.prefunded_page",
+    "success": true,
+    "error": null,
+    "compute_units": 32056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 350
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.provision_close_record_2",
+    "success": true,
+    "error": null,
+    "compute_units": 25709,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 657
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 14831,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.set_tag_2",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 12972,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.wrong_index",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 17715,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.snapshot_kind",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 13313,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.registry_kind",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 11812,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.participant_kind",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 13359,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.page_address_of_index_1_for_index_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 15209,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.close_record_of_another_close",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 14981,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.missing_close_record",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 10018,
+    "packet_bytes": 403,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.valid_once",
+    "success": true,
+    "error": null,
+    "compute_units": 32056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 350
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.repeat_same_call",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 14715,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_wrong_close_set_or_index_and_cannot_debit_twice.repeat_counter_rewound",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 14763,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.preferred_0",
+    "success": true,
+    "error": null,
+    "compute_units": 32056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 350
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.preferred_1",
+    "success": true,
+    "error": null,
+    "compute_units": 35056,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 344
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 14840,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.same_index_free",
+    "success": true,
+    "error": null,
+    "compute_units": 31940,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 338
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.fallback_0",
+    "success": true,
+    "error": null,
+    "compute_units": 35058,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 344
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.fallback_1",
+    "success": true,
+    "error": null,
+    "compute_units": 36558,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 344
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.fallback_at_required",
+    "success": false,
+    "error": "InstructionError(1, Custom(6036))",
+    "compute_units": 16341,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "provision_locked_close_rejects_index_at_or_beyond_required_pages_per_set.fallback_same_index_free",
+    "success": true,
+    "error": null,
+    "compute_units": 33442,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "free_funding_respects_need_bound.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "free_funding_respects_need_bound",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 13274,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.snapshot_index_1_registry_len_7",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 13274,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.snapshot_index_1_caller_same_state",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 530
+   },
+   {
+    "label": "free_funding_respects_need_bound.registry_index_1_registry_len_7",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11773,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.registry_index_1_registry_len_8",
+    "success": true,
+    "error": null,
+    "compute_units": 25535,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 328
+   },
+   {
+    "label": "free_funding_respects_need_bound.registry_len_9.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "free_funding_respects_need_bound.snapshot_index_1_registry_len_9",
+    "success": true,
+    "error": null,
+    "compute_units": 28306,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_0_count_0",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_1_count_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11821,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_1_count_7",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 11821,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_1_count_8",
+    "success": true,
+    "error": null,
+    "compute_units": 25694,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_2_count_8",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 13321,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.participant_index_2_count_16",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 337
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_index_0_count_0",
+    "success": true,
+    "error": null,
+    "compute_units": 31887,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_index_1_count_0",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 17795,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_index_1_count_8",
+    "success": false,
+    "error": "InstructionError(1, Custom(6032))",
+    "compute_units": 17795,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_fallback_index_0_caller_count_0",
+    "success": true,
+    "error": null,
+    "compute_units": 34980,
+    "packet_bytes": 531,
+    "message_account_count": 10,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 333
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_fallback_index_1_caller_count_0",
+    "success": true,
+    "error": null,
+    "compute_units": 36480,
+    "packet_bytes": 531,
+    "message_account_count": 10,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 333
+   },
+   {
+    "label": "free_funding_respects_need_bound.candidate_index_1_count_9",
+    "success": true,
+    "error": null,
+    "compute_units": 34886,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 339
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess",
+    "success": true,
+    "error": null,
+    "compute_units": 7939,
+    "packet_bytes": 283,
+    "message_account_count": 5,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess.second_call_is_a_noop",
+    "success": true,
+    "error": null,
+    "compute_units": 7939,
+    "packet_bytes": 283,
+    "message_account_count": 5,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess.further_credit",
+    "success": true,
+    "error": null,
+    "compute_units": 7939,
+    "packet_bytes": 283,
+    "message_account_count": 5,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess.wrong_ops_cash",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 6608,
+    "packet_bytes": 283,
+    "message_account_count": 5,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "reconcile_ops_cash_classifies_anonymous_credit_as_unallocated_excess.provision_also_classifies",
+    "success": true,
+    "error": null,
+    "compute_units": 28406,
+    "packet_bytes": 490,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 531
+   },
+   {
+    "label": "rent-table.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16743,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 6
+   },
+   {
+    "label": "rent-table.provision_close_record_1",
+    "success": true,
+    "error": null,
+    "compute_units": 25593,
+    "packet_bytes": 392,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 663
+   },
+   {
+    "label": "rent-table.provision_registry_0",
+    "success": true,
+    "error": null,
+    "compute_units": 27035,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 328
+   },
+   {
+    "label": "rent-table.provision_snapshot_0",
+    "success": true,
+    "error": null,
+    "compute_units": 26806,
+    "packet_bytes": 394,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 536
+   },
+   {
+    "label": "rent-table.provision_participant_0",
+    "success": true,
+    "error": null,
+    "compute_units": 27194,
+    "packet_bytes": 402,
+    "message_account_count": 8,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 338
+   },
+   {
+    "label": "rent-table.provision_candidate_0",
+    "success": true,
+    "error": null,
+    "compute_units": 31887,
+    "packet_bytes": 435,
+    "message_account_count": 9,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 340
+   },
+   {
+    "label": "rent-table",
+    "success": true,
+    "error": null,
+    "compute_units": 7939,
+    "packet_bytes": 283,
+    "message_account_count": 5,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   }
+  ]
+ },
+ "rent_table_local_default": {
+  "account_storage_overhead_bytes": 128,
+  "candidate_page": {
+   "rent_lamports": 3194640,
+   "space_bytes": 331
+  },
+  "close_record": {
+   "rent_lamports": 5463600,
+   "space_bytes": 657
+  },
+  "exemption_threshold": 2.0,
+  "label": "local default rent (LiteSVM); not the mainnet schedule",
+  "lamports_per_byte_with_threshold": 6960,
+  "lamports_per_byte_year": 3480,
+  "participant_page": {
+   "rent_lamports": 3187680,
+   "space_bytes": 330
+  },
+  "registry_page": {
+   "rent_lamports": 3125040,
+   "space_bytes": 321
+  },
+  "rent_floor_for_zero_data": 890880,
+  "snapshot_page": {
+   "rent_lamports": 4572720,
+   "space_bytes": 529
+  }
+ },
+ "regression": {
+  "m3_rows": 110,
+  "m3_successes": 38,
+  "m0_controls_suite": [
+   [
+    "financial.controls.pause.guardian",
+    true,
+    null
+   ],
+   [
+    "financial.controls.pause.wrong-guardian",
+    false,
+    "InstructionError(1, Custom(6004))"
+   ],
+   [
+    "financial.controls.operations.fund-20000",
+    true,
+    null
+   ],
+   [
+    "financial.controls.operations.withdraw-5000",
+    true,
+    null
+   ],
+   [
+    "financial.controls.management.empty-balance",
+    false,
+    "InstructionError(1, Custom(6023))"
+   ]
+  ]
+ },
+ "deviations_and_notes": [
+  "row 14 \"index beyond required_pages_per_set\" is unreachable: the sequential-index check (WrongIndex) fires first; the boundary index == required is tested for both sets",
+  "close_shared_account takes no index: it re-derives the PDA from the kind seeds plus the page's stored index",
+  "a CloseRecord address passed as Snapshot/Registry kind → NotClosable; as Participant/Candidate → WrongAccount (decode)",
+  "prefunded targets debit rent − existing lamports; the prefunded surplus lands in unallocated_excess on close",
+  "Observation.account_changes reports lamport_delta 0 for a deleted (closed) account; the suite measures money from before/after balances",
+  "Ops.total_rent_funded is also incremented by stage_config_version (create_shared Free path)",
+  "the old provision_registry guards (active_ticket == 0, index <= registry_len/8 for any funding) are replaced by the Free-only need bound"
+ ],
+ "proof_level": "LiteSVM execution of every provisioning/cleanup row on the compiled ELF with complete provenance; rent figures are LiteSVM local defaults (6,960 lamports/byte), not the mainnet schedule (DR-27); no production game instruction GREEN yet",
+ "solana_notes": [
+  "Rent is a refundable deposit proportional to allocated bytes plus a 128-byte metadata overhead; the program never hard-codes it (Rent::get()) because the schedule changes (SIMD-0437).",
+  "Closing an account on Solana means moving its lamports out, zeroing and resizing its data and reassigning it to the system program; a second close sees a system-owned empty account, which the program reports as AlreadyClosed.",
+  "PDAs that are \"permanent\" (registry/snapshot pages) are a policy choice enforced by NotClosable, not a runtime property."
+ ]
+}

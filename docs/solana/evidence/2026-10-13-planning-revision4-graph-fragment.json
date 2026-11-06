@@ -1,0 +1,801 @@
+{
+ "nodes": [
+  {
+   "id": "codex20261013_plan_final_consistency_document",
+   "label": "Codex final consistency edits before local implementation go-ahead (accepts F1–F5 architecture)",
+   "file_type": "document",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L1",
+   "status": "review_requests_revision",
+   "rationale": "Eight exact coherence fixes; Codex will verify the delta and issue the M0–M13 go-ahead."
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e1",
+   "label": "Edit 1 — M12 summary aligned to corrected §9 protocol",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L5",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e1"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e2",
+   "label": "Edit 2 — Pinned PP ledger minting Account and icrc1_minting_account verification",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L6",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e2"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e3",
+   "label": "Edit 3 — §11 heading marks DR-22/DR-23 accepted",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L7",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e3"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e4",
+   "label": "Edit 4 — Split request-rent funded fields only; eligibility zero until observation",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L8",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e4"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e5",
+   "label": "Edit 5 — Closing test uses w2.ops()",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L9",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e5"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e6",
+   "label": "Edit 6 — withdraw_provider_return binds the supplied owner destination",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L10",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e6"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e7",
+   "label": "Edit 7 — Explicit owner→OpsCash contribution transfer; corrected §8.6 lock row",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L11",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e7"
+  },
+  {
+   "id": "codex20261013_plan_final_consistency_e8",
+   "label": "Edit 8 — Eligibility from actual retained RequestAccount lamports, frozen once",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L12",
+   "status": "confirmed_review_finding",
+   "resolution": "addressed_in_docs_2026_10_13e",
+   "resolved_by": "plan2026_10_13e_resolution_e8"
+  },
+  {
+   "id": "plan2026_10_13e_revision_round_5",
+   "label": "Planning revision after Codex final consistency edits (2026-10-13e)",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "status": "review_resolution_pass",
+   "rationale": "Docs-only; exactly the eight requested edits; agreement recorded; awaiting Codex delta verification and M0–M13 go-ahead."
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e1_m12_summary",
+   "label": "Edit 1 resolved: M12 Files/Interfaces state the corrected two-level/retry/receipt protocol",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L684",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "label": "Edit 2 resolved: minting Account {Shenanigans, null} pinned with the ledger; icrc1_minting_account verified before receipt acceptance",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L442",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e3_section11_heading",
+   "label": "Edit 3 resolved: §11 heading marks DR-22 and DR-23 accepted",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L464",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e4_split_funded_fields",
+   "label": "Edit 4 resolved: only request_rent_funded_s/o and owner_request_rent_refundable_remaining; eligibility zero until observation",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L340",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e5_w2_ops",
+   "label": "Edit 5 resolved: closing test asserts the aggregate on w2.ops()",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L321",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e6_owner_destination_binding",
+   "label": "Edit 6 resolved: withdraw_provider_return binds the supplied owner destination to CloseRecord.owner_refund_destination and excludes protected accounts",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L307",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "label": "Edit 7 resolved: owner contribution is a physical owner→OpsCash system transfer inside the closing payout; §8.6 lock row corrected",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L415",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+   "label": "Edit 8 resolved: eligible = funded.saturating_sub(actual fulfilled RequestAccount lamports), frozen once; no Rent::get() inference",
+   "file_type": "rationale",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L399",
+   "status": "resolved_in_specification_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_pp_minting_account_pin",
+   "label": "Pinned PP minting Account {owner = j56tm-oaaaa-aaaac-qf34q-cai, subaccount = null} verified via icrc1_minting_account()",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L442",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13e_owner_contribution_system_transfer",
+   "label": "Owner contribution: system transfer owner→OpsCash of exactly locked_owner_remaining inside the closing payout, before the lock",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L381",
+   "status": "recommended_design"
+  },
+  {
+   "id": "plan2026_10_13e_m5_owner_funded_close_test",
+   "label": "M5 owner-funded close identity and rollback test (R=2, free=1, opt-in=1)",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L352",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_m7_retained_lamport_tests",
+   "label": "M7 changed-rent and extra-lamport eligibility tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L593",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_m12_minting_account_tests",
+   "label": "M12 minting Account and wrong-kind receipt tests",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L688",
+   "status": "future_production_unimplemented"
+  },
+  {
+   "id": "plan2026_10_13e_m7_split_field_assertions",
+   "label": "M7 split funded-field assertions",
+   "file_type": "concept",
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L589",
+   "status": "future_production_unimplemented"
+  }
+ ],
+ "edges": [
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_corrections_document",
+   "relation": "follows",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "plan2026_10_13d_revision_round_4",
+   "relation": "reviews",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L3",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e1",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L5",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e2",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L6",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e3",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L7",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e4",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L8",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e5",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L9",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e6",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L10",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e7",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L11",
+   "weight": 1.0
+  },
+  {
+   "source": "codex20261013_plan_final_consistency_document",
+   "target": "codex20261013_plan_final_consistency_e8",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-plan-final-consistency-20261013.md",
+   "source_location": "L12",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13_spec_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13_plan_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13_inventory_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13_packet_document",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "codex20261013_plan_final_consistency_document",
+   "relation": "responds_to",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13d_revision_round_4",
+   "relation": "follows",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e1_m12_summary",
+   "target": "codex20261013_plan_final_consistency_e1",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e1_m12_summary",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "target": "codex20261013_plan_final_consistency_e2",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e3_section11_heading",
+   "target": "codex20261013_plan_final_consistency_e3",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e3_section11_heading",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e4_split_funded_fields",
+   "target": "codex20261013_plan_final_consistency_e4",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e4_split_funded_fields",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e5_w2_ops",
+   "target": "codex20261013_plan_final_consistency_e5",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e5_w2_ops",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e6_owner_destination_binding",
+   "target": "codex20261013_plan_final_consistency_e6",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e6_owner_destination_binding",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "target": "codex20261013_plan_final_consistency_e7",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+   "target": "codex20261013_plan_final_consistency_e8",
+   "relation": "resolves",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_revision_round_5",
+   "target": "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e1_m12_summary",
+   "target": "plan2026_10_13d_resolution_f4_pp_recovery_receipts",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L684",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "target": "plan2026_10_13d_resolution_f4_pp_recovery_receipts",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L442",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e4_split_funded_fields",
+   "target": "plan2026_10_13d_resolution_f1_authenticated_provider_returns",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L340",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e6_owner_destination_binding",
+   "target": "plan2026_10_13d_ix_withdraw_provider_return",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L307",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "target": "plan2026_10_13d_conservation_table_with_aggregate",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L415",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+   "target": "plan2026_10_13d_ix_observe_request_fulfilled",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L399",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e3_section11_heading",
+   "target": "plan2026_10_13_dr_22_native_default_view",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L464",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e3_section11_heading",
+   "target": "plan2026_10_13_dr_23_https_polling",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L464",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "target": "plan2026_10_13e_pp_minting_account_pin",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L442",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_pp_minting_account_pin",
+   "target": "plan2026_10_13c_pp_reconcile_leg_from_ledger",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L442",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "target": "plan2026_10_13e_owner_contribution_system_transfer",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L381",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_owner_contribution_system_transfer",
+   "target": "plan2026_10_13_ix_withdraw_simple",
+   "relation": "refines",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "source_location": "L317",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13e_m5_owner_funded_close_test",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L352",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_m5_owner_funded_close_test",
+   "target": "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L352",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13e_m7_retained_lamport_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L593",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_m7_retained_lamport_tests",
+   "target": "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L593",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13e_m12_minting_account_tests",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L688",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_m12_minting_account_tests",
+   "target": "plan2026_10_13e_resolution_e2_minting_account_pin",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L688",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13_plan_document",
+   "target": "plan2026_10_13e_m7_split_field_assertions",
+   "relation": "contains",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L589",
+   "weight": 1.0
+  },
+  {
+   "source": "plan2026_10_13e_m7_split_field_assertions",
+   "target": "plan2026_10_13e_resolution_e4_split_funded_fields",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "source_location": "L589",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [
+  {
+   "id": "plan2026_10_13e_codex_consistency_edits",
+   "label": "Codex final consistency edits 1–8 and their resolutions",
+   "nodes": [
+    "plan2026_10_13e_revision_round_5",
+    "plan2026_10_13e_resolution_e1_m12_summary",
+    "plan2026_10_13e_resolution_e2_minting_account_pin",
+    "plan2026_10_13e_resolution_e3_section11_heading",
+    "plan2026_10_13e_resolution_e4_split_funded_fields",
+    "plan2026_10_13e_resolution_e5_w2_ops",
+    "plan2026_10_13e_resolution_e6_owner_destination_binding",
+    "plan2026_10_13e_resolution_e7_owner_contribution_transfer",
+    "plan2026_10_13e_resolution_e8_retained_lamport_eligibility",
+    "codex20261013_plan_final_consistency_e1",
+    "codex20261013_plan_final_consistency_e2",
+    "codex20261013_plan_final_consistency_e3",
+    "codex20261013_plan_final_consistency_e4",
+    "codex20261013_plan_final_consistency_e5",
+    "codex20261013_plan_final_consistency_e6",
+    "codex20261013_plan_final_consistency_e7",
+    "codex20261013_plan_final_consistency_e8"
+   ],
+   "relation": "form",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-codex-review-packet-20261013.md"
+  }
+ ],
+ "input_tokens": null,
+ "output_tokens": null,
+ "metadata": {
+  "local_date": "2026-10-13",
+  "recorded_at_utc": "2026-10-14T06:55:08.597258+00:00",
+  "pass_baseline": "c99a636b9f040c9bf0d18d3698328d9bbd33b7b2",
+  "reviewed_planning_commit": "43f1b4ac7fb21b6e078f8554959928a11f91d331",
+  "planning_branch": "codex/native-solana-plan-20261013",
+  "scope": "Docs-only revision after Codex final consistency edits 1–8: coordinator-written semantic fragment covering the unchanged note (document + eight edit nodes), resolution nodes, the pinned minting Account and owner-contribution-transfer nodes and plan steps; attribute updates mark the observe/withdraw/table/reconcile nodes revised. Register unchanged this round.",
+  "source_sha256": {
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "01189e4e10e8753dccd598d83a44417dc3065ea129c7ece0dd4b747b66e24929",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "8395bbaa5a7840b513ad7498e3c667bc28b9a3a2158f4cdeeb531ae0f7786c00",
+   "docs/coordination/native-solana-state-inventory-20261013.md": "608e5440665c6ebd70661ec994f1c285a67840478790724c67fd05f9fa2a4c0a",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md": "c88f3376f204ef731b9d8b1786260dcd38434ea2508d1fdd33e9f15bca3837b7",
+   "docs/coordination/native-solana-plan-final-consistency-20261013.md": "fcfbd35894946c678094fa4ccc5879795911a5fc7868142f73808ce077fd9c4c",
+   "docs/coordination/native-solana-decision-register-20261013.md": "e354a2b8578a1b446e5ee5ad79c464b61fedb55ca6141b79e92175be721f42ef"
+  },
+  "attribute_updates": {
+   "plan2026_10_13d_ix_observe_request_fulfilled": {
+    "revised": "2026-10-13e",
+    "note": "eligibility from actual retained RequestAccount lamports"
+   },
+   "plan2026_10_13d_ix_withdraw_provider_return": {
+    "revised": "2026-10-13e",
+    "note": "binds supplied owner destination"
+   },
+   "plan2026_10_13d_conservation_table_with_aggregate": {
+    "revised": "2026-10-13e",
+    "note": "closing-lock row shows owner contribution deltas"
+   },
+   "plan2026_10_13c_pp_reconcile_leg_from_ledger": {
+    "revised": "2026-10-13e",
+    "note": "minting Account pinned and verified"
+   }
+  }
+ }
+}

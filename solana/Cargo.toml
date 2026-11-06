@@ -1,0 +1,13 @@
+[workspace]
+members = ["crates/economics"]
+exclude = ["probes/provider-resources", "probes/runtime", "programs/musical_chairs", "tests/financial-runtime", "tools/idl-build"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+rust-version = "1.84"
+
+[workspace.dependencies]
+ethnum = "=1.5.2"
+sha2 = "=0.10.9"
+serde_json = "=1.0.149"

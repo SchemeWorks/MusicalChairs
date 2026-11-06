@@ -1,0 +1,421 @@
+type VerifyForwardResponse = 
+ variant {
+   err: CommonError;
+   ok: Summary;
+ };
+type Verified = 
+ record {
+   event: Event;
+   forward: Descriptor;
+   slot: nat64;
+   tx_version: TxVersion;
+ };
+type Unverifiable = 
+ variant {
+   Disagreement;
+   Inconsistent;
+   NotFinalized;
+   NotFound;
+   ProviderError: text;
+   Undecodable: text;
+   UnsupportedSchema: nat;
+   UnsupportedTransactionVersion: opt nat8;
+ };
+type TxVersion = 
+ variant {
+   legacy;
+   v0;
+ };
+type SupportedProvider = 
+ variant {
+   AlchemyDevnet;
+   AlchemyMainnet;
+   AnkrDevnet;
+   AnkrMainnet;
+   ChainstackDevnet;
+   ChainstackMainnet;
+   DrpcDevnet;
+   DrpcMainnet;
+   HeliusDevnet;
+   HeliusMainnet;
+   PublicNodeMainnet;
+ };
+type Summary = 
+ record {
+   binding: Binding;
+   cursor: nat;
+   seq: nat;
+   status: Status;
+ };
+type SubmitResult = 
+ variant {
+   Duplicate: record {
+                same_descriptor: bool;
+                seq: nat;
+                status: Status;
+              };
+   Malformed: text;
+   Submitted: record {seq: nat;};
+ };
+type SubmitResponse = 
+ variant {
+   err: variant {
+          NotConfigured;
+          NotRelayer;
+          Rejected: text;
+        };
+   ok: SubmitResult;
+ };
+type Status = 
+ variant {
+   Forwarded:
+    record {
+      already_observed: bool;
+      at: nat64;
+      obligation_id: ObligationId;
+    };
+   Invalid: record {
+              at: nat64;
+              reason: RejectReason;
+            };
+   Pending;
+   Quarantined: record {
+                  at: nat64;
+                  reason: text;
+                };
+   Unverified: record {
+                 attempts: nat;
+                 last_at: nat64;
+                 reason: Unverifiable;
+               };
+   Verified: record {
+               last_at: nat64;
+               last_reason: opt text;
+               retries: nat;
+             };
+ };
+type SolanaCluster = 
+ variant {
+   Devnet;
+   Mainnet;
+   Testnet;
+ };
+type SeriesAFunded = 
+ record {
+   close_id: opt nat64;
+   entitlement_after: nat;
+   gross: nat64;
+   owner: text;
+   round_id: nat64;
+   schema_version: nat8;
+ };
+type RpcSources = 
+ variant {
+   Custom: vec RpcSource;
+   Default: SolanaCluster;
+ };
+type RpcSource = 
+ variant {
+   Custom: RpcEndpoint;
+   Supported: SupportedProvider;
+ };
+type RpcEndpoint = 
+ record {
+   headers: opt vec HttpHeader;
+   url: text;
+ };
+type RoundFinalized = 
+ record {
+   close_id: nat64;
+   new_round: nat64;
+   schema_version: nat8;
+   seed_carried: nat64;
+ };
+type ReleaseResponse = 
+ variant {
+   err: variant {
+          Cooldown: nat64;
+          NotConfigured;
+          NotForwarded;
+          UnknownEvent;
+        };
+   ok: record {
+         binding: Binding;
+         shenanigans: opt BindResult;
+       };
+ };
+type RejectReason = 
+ variant {
+   BasisMismatch;
+   CloseMismatch;
+   ClusterMismatch;
+   ForgedEventAuthority;
+   ForgedProgramId;
+   InvalidAccountIndex;
+   KindMismatch;
+   MalformedEvent: text;
+   NotEventCpi;
+   NotInnerCpi;
+   OuterProgramMismatch;
+   OwnerNotSigner;
+   PlanMismatch;
+   ProgramIdMismatch;
+   RecipientMismatch;
+   RoundMismatch;
+   SchemaMismatch;
+   SignatureMismatch;
+   TransactionFailed;
+   UnknownEvent;
+   WrongAncestry;
+ };
+type PublicConfig = 
+ record {
+   cluster_domain: blob;
+   event_authority: text;
+   program_id: text;
+   shenanigans: principal;
+   supported_schema_versions: vec nat;
+ };
+type PromotionApplied = 
+ record {
+   close_id: opt nat64;
+   entitlement: nat;
+   loss: nat64;
+   round_id: nat64;
+   schema_version: nat8;
+   winner: text;
+ };
+type PositionOpened = 
+ record {
+   close_id: opt nat64;
+   config_version: nat32;
+   gross: nat64;
+   load: nat64;
+   nonce: nat64;
+   owner: text;
+   plan: nat8;
+   round_id: nat64;
+   schema_version: nat8;
+ };
+type Plan = 
+ variant {
+   Compound15;
+   Compound30;
+   Simple;
+ };
+type PayoutPaid = 
+ record {
+   close_id: opt nat64;
+   closing: bool;
+   destination: text;
+   gross_paid: nat64;
+   net: nat64;
+   nonce: nat64;
+   owner: text;
+   round_id: nat64;
+   schema_version: nat8;
+   ticket_id: nat64;
+   toll: nat64;
+ };
+type OtherEvent = 
+ record {
+   body: blob;
+   name: text;
+   schema_version: nat8;
+ };
+type ObligationId = text;
+type LegStatus = 
+ variant {
+   Committed: record {block: nat;};
+   Pending;
+   Quarantined: record {
+                  reason: text;
+                  recoverable: bool;
+                };
+   Retryable: record {
+                attempts: nat;
+                reason: text;
+              };
+   SubmittedUnknown;
+ };
+type LegRecord = 
+ record {
+   calls: nat;
+   checked_at: nat64;
+   event_key: text;
+   index: nat;
+   last_error: opt text;
+   status: opt LegStatus;
+ };
+type Kind = 
+ variant {
+   PositionOpened;
+   PromotionApplied;
+   SeriesAFunded;
+ };
+type HttpHeader = 
+ record {
+   name: text;
+   value: text;
+ };
+type ExecuteResponse = 
+ variant {
+   err:
+    variant {
+      Anonymous;
+      BadLegIndex;
+      CallFailed: text;
+      Cooldown: nat64;
+      NotBound;
+      NotConfigured;
+      NotForwarded;
+      UnknownEvent;
+    };
+   ok: record {
+         from_record: bool;
+         leg: LegRecord;
+         status: LegStatus;
+       };
+ };
+type EventId = 
+ record {
+   cluster_domain: blob;
+   event_schema_version: nat;
+   inner_instruction_index: nat;
+   instruction_index: nat;
+   program_id: text;
+   signature: text;
+ };
+type Event = 
+ variant {
+   BackerClaimed: BackerClaimed;
+   Other: OtherEvent;
+   PayoutPaid: PayoutPaid;
+   PositionOpened: PositionOpened;
+   PromotionApplied: PromotionApplied;
+   RoundFinalized: RoundFinalized;
+   SeriesAFunded: SeriesAFunded;
+ };
+type Entry = 
+ record {
+   binding: Binding;
+   descriptor: Descriptor;
+   event_key: text;
+   next_attempt_at: nat64;
+   seq: nat;
+   status: Status;
+   submitted_at: nat64;
+   submitted_by: principal;
+   verified: opt Verified;
+ };
+type Descriptor = 
+ record {
+   basis_lamports: nat64;
+   beneficiary_pubkey: text;
+   event_id: EventId;
+   kind: Kind;
+   plan: opt Plan;
+   source_close_id: opt nat64;
+   source_round_id: nat64;
+ };
+type Config = 
+ record {
+   cluster_domain: blob;
+   event_authority: text;
+   program_id: text;
+   rpc_a: RpcSources;
+   rpc_b: RpcSources;
+   shenanigans: principal;
+   supported_schema_versions: vec nat;
+ };
+type CommonError = 
+ variant {
+   Cooldown: nat64;
+   NotConfigured;
+   UnknownEvent;
+ };
+type Binding = 
+ variant {
+   Bound: record {at: nat64;};
+   Unbound;
+ };
+type BindResult = 
+ variant {
+   AlreadyReserved;
+   Rejected: text;
+   Reserved;
+   Unbound;
+   UnknownEvent;
+ };
+type BackerClaimed = 
+ record {
+   a_part: nat64;
+   amount: nat64;
+   b_part: nat64;
+   owner: text;
+   round_id: nat64;
+   schema_version: nat8;
+ };
+service : {
+  /// Execute ONE frozen leg of a Reserved obligation. Anyone may call it (the anonymous
+  /// principal is refused); the caller supplies no recipient, amount or bytes: the bridge
+  /// calls `shenanigans.executeNativeRewardLeg(event_id, leg_index)` as itself (it is on
+  /// Shenanigans' execute allowlist) and Shenanigans re-presents the fields it froze at bind.
+  /// Requires the outbox entry to be Forwarded AND bound. Idempotent: a Committed leg returns
+  /// the stored status with no call; Pending / SubmittedUnknown / Retryable / Quarantined legs
+  /// call again and Shenanigans' own idempotency (write-ahead SubmittedUnknown, identical
+  /// retry, ledger Duplicate, dedup-window quarantine) decides. Per-event cooldown applies.
+  /// The admin path on Shenanigans stays available as a fallback; the observation allowlist is
+  /// never touched here.
+  executeReservedLeg: (eventId: EventId, legIndex: nat) -> (ExecuteResponse);
+  getConfig: () -> (opt PublicConfig) query;
+  /// Every entry with seq <= cursor is durable-done (forwarded, quarantined
+  /// or provably invalid). A gap (e.g. unsupported transaction version)
+  /// holds it back.
+  getCursor: () -> (nat) query;
+  getEvent: (eventId: EventId) -> (opt Entry) query;
+  /// Operator/audit intake view, newest-first, the complement of `getRecentEvents`:
+  /// Pending, Unverified (including gaps), Verified-but-unacknowledged and Invalid.
+  /// `Invalid` is an intake/audit terminal state: the descriptor was proven false from an
+  /// agreed finalized observation, the cursor may pass it, and a corrected descriptor for the
+  /// same event id is admitted as a new entry. It is NOT verified delivery and never appears
+  /// in the public history.
+  getIntakeEvents: (before: opt nat, limit: nat) -> (vec Entry) query;
+  /// What the bridge has recorded from Shenanigans about this event's reward legs
+  /// (ascending leg index): the last status returned, the last call error, call count.
+  getLegStatuses: (eventId: EventId) -> (vec LegRecord) query;
+  /// Open (cursor-blocking) entries with seq > `after`, oldest first; pass
+  /// `getCursor()` to see exactly what holds the cursor back.
+  getPending: (after: nat, limit: nat) -> (vec Entry) query;
+  /// PUBLIC verified history (DR-25, spec section 9): newest-first page of entries at the
+  /// verified-delivery checkpoint only: `Forwarded` (Shenanigans answered Observed or
+  /// AlreadyObserved) and `Quarantined` (a durable PERMANENT Shenanigans rejection, returned
+  /// with its status). `before`: only entries with seq < before. Pending, Unverified,
+  /// Verified-but-unacknowledged and Invalid entries are NOT here; see `getIntakeEvents`.
+  getRecentEvents: (before: opt nat, limit: nat) -> (vec Entry) query;
+  getRelayers: () -> (vec principal) query;
+  /// Forwarded events whose beneficiary has no SIWS binding yet.
+  getUnbound: (pubkey: text) -> (vec Entry) query;
+  /// For an event Shenanigans already holds as Observed: ask it to bind the
+  /// beneficiary pubkey to a principal and reserve the legs. `#Unbound`
+  /// leaves the event pubkey-keyed (retry after the user signs in with that
+  /// wallet); the cursor is not involved either way.
+  releasePending: (eventId: EventId) -> (ReleaseResponse);
+  setConfig: (c: Config) -> (variant {
+                               err: text;
+                               ok;
+                             });
+  setRelayers: (ps: vec principal) -> (variant {
+                                         err: text;
+                                         ok;
+                                       });
+  /// Relayer-authenticated. Descriptors that contradict this canister's own
+  /// configuration (wrong cluster/program) are refused without being stored.
+  submitEventDescriptor: (d: Descriptor) -> (SubmitResponse);
+  /// Drive one event as far as it will go: verify (two RPC calls) if not yet
+  /// verified, then `observeNativeEvent` (one Shenanigans call) if verified.
+  /// Idempotent and safe to call concurrently: every state write goes
+  /// through a guarded transition, and a per-event cooldown (persisted
+  /// before the first await) bounds the cycles a caller can burn.
+  verifyAndForward: (eventId: EventId) -> (VerifyForwardResponse);
+}

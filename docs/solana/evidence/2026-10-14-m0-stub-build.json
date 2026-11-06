@@ -1,0 +1,106 @@
+{
+ "card": "IMPL-05",
+ "milestone": "M0 step 5",
+ "recorded_at_utc": "2026-10-14T07:26:23.765296+00:00",
+ "branch": "codex/native-solana-production-core",
+ "head_at_build": "5d9afa5f9547866ffaff5be1cfb96550c8c5a06a",
+ "command": "solana/tests/financial-runtime/scripts/build-sbf.sh with MC_SBF_BUILDER=<tools>/cargo-build-sbf-3.1.0-beta.0/bin/cargo-build-sbf, MC_SBF_SDK=<tools>/cargo-build-sbf-3.1.0-beta.0/sbf-sdk, MC_PLATFORM_TOOLS=<tools>/platform-tools, MC_SBF_TARGET_DIR=<tools>/program-target, CARGO_HOME=<tools>/cargo-home; <tools>=/private/tmp/mc-solana-runtime-tools-20261013",
+ "wrapper_flags": "--skip-tools-install --tools-version v1.48 --no-rustup-override -j 2 -- --locked (unchanged from the adopted wrapper)",
+ "started_utc": "2026-10-14T07:23:10Z",
+ "finished_utc": "2026-10-14T07:25:08Z",
+ "exit_code": 0,
+ "build_seconds_reported": "45.29s release profile",
+ "artifact": {
+  "path": "solana/programs/musical_chairs/artifacts/musical_chairs_program.so",
+  "bytes": 616064,
+  "sha256": "d7538b07aa834a28efbf583bf6420244a131a67f02122b469519dad92e91f6ce",
+  "elf_magic": "7f454c46",
+  "note": "stub ELF: ten handlers return ErrorCode::NotImplemented; includes M1 floor_proportional delegation; this file is gitignored and pinned here"
+ },
+ "source_set_sha256": "613eb0c5d7bbda62eaf22ad4d0ff5ff299f15f86e2794f9551a6903a3c8e786f",
+ "source_set_files": [
+  "Cargo.toml e6fde7c4ba1cc1671423997fec389a3874204caab58227430d665ca5c875c040",
+  "crates/economics/Cargo.toml 4e1f4acdbf4864a98a87072ca591f79ce818b183cc89a3bbce3909ffc56fe931",
+  "crates/economics/src/admission.rs 688c32a81149207b1b15d38f964bb5ab133595133f6d648a099e4ca49fcceb18",
+  "crates/economics/src/backers.rs 107f9a27e729283892eb5f495537f39e49f3b7dae3d0e93809133b96db339605",
+  "crates/economics/src/earnings.rs 27d238170819774b04ded1997cd70d2d219f6c0ecee15543d5e3922cffc717dc",
+  "crates/economics/src/fees.rs 0c31f7ce819f7b91306c4f37a087a68a7dce8334055ac805f7e611d93ef45722",
+  "crates/economics/src/lib.rs c9302bcd7bf268f39f54e8b95b535a96c1ee9d7be7f813243d79a222a1bc1281",
+  "crates/economics/src/rounds.rs 2c2055b5ebb4a8e59255adc2cf82788a81810c49efbb4c1ed7e1711ff11e8472",
+  "programs/musical_chairs/.cargo/config.toml 20d835efa40cc597d7fbb0b6719b43aa17b7329a59273e825db657ca132b5370",
+  "programs/musical_chairs/Cargo.lock 15b2592cfb56e28185ebc7ba0aed75d40bfac1e70af1b154078468b8523890b8",
+  "programs/musical_chairs/Cargo.toml 3311cf750a5c712263a0380cb917c694bb69ec59257f3e3582ea2eaa37e0bfd0",
+  "programs/musical_chairs/src/allocation.rs 6b5517e82ac9a8e8ab336a9f8bb2f1caa53ee4b6c63ff7bef87f71058bd4afc5",
+  "programs/musical_chairs/src/controls.rs 6fc9a9f79db5ba98bcf03a7b8becea9b142836930e8e2dd0849dd1a87a55cb26",
+  "programs/musical_chairs/src/lib.rs c84ce7f8c8d6a830121d4ccf7e66c10c524a7cfbfae9224c8adf0a26af62ec0a",
+  "programs/musical_chairs/src/positions.rs 00ecf3b477e6ef9a7e433df169fb57e62d2fc1a367be35393a7baa05fa154484",
+  "programs/musical_chairs/src/state.rs c8841462eb3af0d359478afc78441f81d5728077c6a1486ad331133a903b3ee3",
+  "rust-toolchain.toml d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82",
+  "tests/financial-runtime/scripts/build-sbf.sh c8fc2f4477fe1592f9ad6e42fd5fb9a7478f4835c0e10530bb6f95fc05ba5831",
+  "tests/financial-runtime/scripts/source-set-digest.sh e54608746e4fd88da1703fe70b2003b6790586b63e7c36b2e6890058fdffed28"
+ ],
+ "lock_sha256": "15b2592cfb56e28185ebc7ba0aed75d40bfac1e70af1b154078468b8523890b8",
+ "toolchain": {
+  "cargo_build_sbf": "3.1.0-beta.0",
+  "cargo_build_sbf_sha256": "2e999118c4e865e02ed07ad9effc36e4f8f1c2630bb61334fbdb914269170fd6",
+  "platform_tools": "v1.48 (verified byte-identical to archive 799e4cfc\u2026, see 2026-10-14-m0-toolchain.json)",
+  "platform_rustc": "rustc 1.84.1-dev",
+  "platform_cargo": "cargo 1.84.0 (12fe57a9d 2025-04-07)",
+  "sbpf_version": "v0 (as in the adopted wrapper/probe profile)",
+  "host_cargo": "1.92.0"
+ },
+ "superseded_unrecorded_artifact": {
+  "sha256": "c9f6016e5c96b5eb774a6bfb935b3a9f32c2115221ea6fcb274e0d0a3fbd3c43",
+  "bytes": 615848,
+  "note": "pre-existing artifact without provenance, now overwritten"
+ },
+ "log_sha256": "16a5b6c56640b9e2a025c4bf715988859217d80a898332164d79cbc769e477b1",
+ "proof_level": "compiled SBF stub artifact with COMPLETE source-set provenance (DR-35/C5) and a clean-build byte-identical reproduction; no instruction executed in this receipt; not a financial or deployment proof",
+ "source_set_coverage": "COMPLETE per DR-35/C5 correction (IMPL-09, commit 37f506a): 19 files = workspace root Cargo.toml, crates/economics/Cargo.toml, crates/economics/src/**/*.rs (6), programs/musical_chairs/{Cargo.toml,Cargo.lock,.cargo/config.toml}, programs/musical_chairs/src/**/*.rs (5), build-sbf.sh, source-set-digest.sh, rust-toolchain.toml. Not covered by design: crates/economics/tests, harness manifests/lock, target dirs, generated artifacts.",
+ "provenance_history": [
+  {
+   "recorded_at_utc": "2026-10-14T07:26:23.765296+00:00",
+   "source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
+   "source_set_coverage": "INCOMPLETE \u2014 this digest predates the DR-35/C5 correction: it omits crates/economics/Cargo.toml, crates/economics/src/**/*.rs (a path dependency compiled into the ELF), the solana/Cargo.toml workspace root the economics manifest inherits edition/rust-version/dependency versions from, and source-set-digest.sh itself. IMPL-09 corrects the set, rebuilds once and refreshes this receipt; until then provenance is NOT complete.",
+   "source_set_files": [
+    "programs/musical_chairs/.cargo/config.toml 20d835efa40cc597d7fbb0b6719b43aa17b7329a59273e825db657ca132b5370",
+    "programs/musical_chairs/Cargo.lock 15b2592cfb56e28185ebc7ba0aed75d40bfac1e70af1b154078468b8523890b8",
+    "programs/musical_chairs/Cargo.toml 3311cf750a5c712263a0380cb917c694bb69ec59257f3e3582ea2eaa37e0bfd0",
+    "programs/musical_chairs/src/allocation.rs 6b5517e82ac9a8e8ab336a9f8bb2f1caa53ee4b6c63ff7bef87f71058bd4afc5",
+    "programs/musical_chairs/src/controls.rs 6fc9a9f79db5ba98bcf03a7b8becea9b142836930e8e2dd0849dd1a87a55cb26",
+    "programs/musical_chairs/src/lib.rs c84ce7f8c8d6a830121d4ccf7e66c10c524a7cfbfae9224c8adf0a26af62ec0a",
+    "programs/musical_chairs/src/positions.rs 00ecf3b477e6ef9a7e433df169fb57e62d2fc1a367be35393a7baa05fa154484",
+    "programs/musical_chairs/src/state.rs c8841462eb3af0d359478afc78441f81d5728077c6a1486ad331133a903b3ee3",
+    "rust-toolchain.toml d0c46cd3a68028a2d8bad683c5016ddafb0218922f8b2bb09e7fbae0ee73cf82",
+    "tests/financial-runtime/scripts/build-sbf.sh 06dbc8d13a09297e153da8985b5e5af9be0f94975d27b5babbe14cf5aec7f70a"
+   ],
+   "note": "original IMPL-05 receipt; incomplete set (10 files); preserved verbatim here"
+  }
+ ],
+ "superseded_incomplete_source_set_sha256": "886b8fa6de4339f19dc4ad784deb3f3277daf7f21a5822cc6f84aa3363d4cefc",
+ "provenance_refreshed_at_utc": "2026-10-14T07:43:37.672597+00:00",
+ "refresh_builds": {
+  "incremental_rebuild": {
+   "head": "37f506a15b500773d9c71b4d7b14e95c3dc41e01",
+   "target_dir": "/private/tmp/mc-solana-runtime-tools-20261013/program-target (reused)",
+   "cargo": "Finished release in 0.15s (fingerprints up to date; program sources unchanged since 5d9afa5)",
+   "artifact_sha256": "d7538b07aa834a28efbf583bf6420244a131a67f02122b469519dad92e91f6ce",
+   "before_after_equal": true,
+   "wrapper_exit": 0,
+   "log_sha256": "57a950a356619fd16a145380ef052a1721fc7a996b317bc6127caa63a7de8707"
+  },
+  "clean_rebuild": {
+   "head": "37f506a15b500773d9c71b4d7b14e95c3dc41e01",
+   "target_dir": "/private/tmp/mc-solana-runtime-tools-20261013/program-target-clean-20261014 (fresh, empty)",
+   "cargo": "Finished release in 41.08s; compiled musical-chairs-economics v0.1.0 and musical-chairs-program v0.1.0 from source",
+   "artifact_sha256": "d7538b07aa834a28efbf583bf6420244a131a67f02122b469519dad92e91f6ce",
+   "before_after_equal": true,
+   "wrapper_exit": 0,
+   "started_utc": "2026-10-14T07:41:39Z",
+   "finished_utc": "2026-10-14T07:42:22Z",
+   "log_sha256": "3d71cfaf6aac244ed714b851cba0f3a2c6f8c15eb7e75c0773da847cd0a1cecc"
+  },
+  "reproducibility": "the clean build from an empty target directory produced byte-identical bytes to the 5d9afa5 build (sha256 d7538b07\u2026); the wrapper observed the same complete digest before and after each build; no mid-build source change occurred (source writers were idle; both workers had returned)"
+ },
+ "mid_build_rejection_exercised": "yes \u2014 see 2026-10-14-m0-provenance-guard.json (fake builder, exit 3, artifact moved aside, no receipt)"
+}

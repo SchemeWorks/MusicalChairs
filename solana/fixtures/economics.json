@@ -1,0 +1,16 @@
+{
+  "simple_one_day": { "principal": 1000000000, "elapsed_seconds": 86400, "owed": 110000000, "toll_bps": 1200, "toll": 13200000, "net": 96800000 },
+  "simple_before_day_7": { "principal": 1000000000, "elapsed_seconds": 604799, "owed": 769998726, "toll_bps": 1200, "toll": 92399847, "net": 677598879 },
+  "simple_day_7": { "principal": 1000000000, "elapsed_seconds": 604800, "owed": 770000000, "toll_bps": 750, "toll": 57750000, "net": 712250000 },
+  "simple_before_day_14": { "principal": 1000000000, "elapsed_seconds": 1209599, "owed": 1539998726, "toll_bps": 750, "toll": 115499904, "net": 1424498822 },
+  "simple_day_14": { "principal": 1000000000, "elapsed_seconds": 1209600, "owed": 1540000000, "toll_bps": 300, "toll": 46200000, "net": 1493800000 },
+  "simple_maturity": { "principal": 1000000000, "elapsed_seconds": 1814400, "owed": 2310000000, "toll_bps": 300, "toll": 69300000, "net": 2240700000 },
+  "compound_15": { "principal": 1000000000, "elapsed_seconds": 1296000, "owed": 4473565759, "toll_bps": 900, "toll": 402620918, "net": 4070944841 },
+  "compound_30": { "principal": 1000000000, "elapsed_seconds": 2592000, "owed": 12267678469, "toll_bps": 1300, "toll": 1594798200, "net": 10672880269 },
+  "insolvent": { "owed": 100000003, "pot": 50000001, "toll_bps": 1200, "paid_gross": 50000001, "toll": 6000000, "net": 44000001 },
+  "backer_goldens": {
+    "two_a_two_b": { "toll": 10000, "a_entitlements": [4000, 6000], "b_entitlements": [100000, 100000], "seed": 5001, "a_credits": [2363, 1636], "b_credits": [500, 500] },
+    "a_cap_no_b": { "toll": 10000, "a_entitlements": [1000, 10000], "b_entitlements": [], "seed": 5750, "a_credits": [1000, 3250], "b_credits": [] },
+    "only_a1_and_b1": { "toll": 10000, "a_entitlements": [1000], "b_entitlements": [100000], "seed": 8000, "a_credits": [1000], "b_credits": [1000] }
+  }
+}

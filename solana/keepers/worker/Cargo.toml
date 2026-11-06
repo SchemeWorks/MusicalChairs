@@ -1,0 +1,38 @@
+[package]
+name = "musical-chairs-keeper-worker"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Fee-only keeper worker CLI for the native Solana Musical Chairs program (plan M13)."
+
+[lib]
+name = "musical_chairs_keeper"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mc-keeper"
+path = "src/main.rs"
+
+[dependencies]
+anchor-lang = "=0.32.1"
+bincode = "=1.3.3"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.149"
+sha2 = "=0.10.9"
+solana-sdk = "=2.3.1"
+solana-rpc-client = "=2.3.1"
+# RpcSimulateTransactionConfig / RpcSendTransactionConfig / the preflight error classification.
+solana-rpc-client-api = "=2.3.1"
+musical-chairs-program = { path = "../../programs/musical_chairs", features = ["no-entrypoint"] }
+
+# Standalone crate, built outside the economics workspace (like tests/financial-runtime).
+[workspace]
+resolver = "2"
+
+[profile.dev]
+debug = 0
+incremental = false
+
+[profile.test]
+debug = 0
+incremental = false

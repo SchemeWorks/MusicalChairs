@@ -23,6 +23,7 @@ import PpLedger "PpLedger";
 import Reginald "Reginald";
 import Subaccount "Subaccount";
 import Icrc21 "icrc21";
+import NativeRewards "NativeRewards";
 
 // TODO(2026-05-11): Rename "chips" terminology in this canister — depositChips,
 // claimCashOut, chip subaccount, CashOutEntry, etc. — to non-casino verbiage
@@ -1470,7 +1471,7 @@ persistent actor Self {
                 // Signup gift — gated on first qualifying game record.
                 // Gift itself goes through the deductive cascade (mint event).
                 if (mintConfig.signupGiftPp > 0) {
-                    switch (principalMap.get(signupGiftClaimed, game.player)) {
+                    switch (signupGiftLegacyClaim(game.player)) { // IMPL-49a: shared reservation, claimed BEFORE the mint await; null = granted
                         case (?_) {}; // already claimed
                         case (null) {
                             let giftBase = ppToUnits(mintConfig.signupGiftPp);
@@ -1493,9 +1494,11 @@ persistent actor Self {
                                     // mint below is already at-least-once). Set BEFORE the
                                     // cascade so a cascade failure can't re-trigger the gift.
                                     signupGiftClaimed := principalMap.put(signupGiftClaimed, game.player, Time.now());
+                                    signupGiftLegacyFinalize(game.player, true); // IMPL-49a: reservation -> Committed
                                     await distributeDeductiveCascade(game.player, giftCascade, giftEventId);
                                 };
                                 case (#Err(msg)) {
+                                    signupGiftLegacyFinalize(game.player, false); // IMPL-49a: reservation -> Failed (legacy-only retry)
                                     Debug.print("Signup-gift mint failed for " # giftEventId # ": " # msg);
                                 };
                             };
@@ -5952,6 +5955,428 @@ persistent actor Self {
         };
         []; // Unknown pool — frontend uses its own defaults for spellFlavor.* etc.
     };
+
+    // ========================================================================
+    // NATIVE SOLANA REWARDS (plan M12 / spec section 9)  -- BEGIN
+    //
+    // Additive actor glue over the pure NativeRewards state machine. ALL
+    // exactly-once logic lives in NativeRewards.mo (tested standalone); this
+    // block only (1) loads/stores the four persistent vars, (2) performs the
+    // single await between two pure steps, and (3) applies the small, idempotent
+    // side effects of a leg's FIRST commit (knownPpHolders, referral stats).
+    //
+    // INVARIANTS the glue must keep:
+    //   * bindAndReserve: nothing is awaited between NativeRewards.applyBind and
+    //     the commits of the obligation, the signup-gift reservation book and the
+    //     siphon consumption; the single SIWS await comes BEFORE applyBind (which
+    //     re-reads the obligation), and no ledger await precedes the reservation.
+    //   * Signup gift (IMPL-49a / Codex R1): ONE shared reservation per principal in
+    //     `signupGiftReservations`, claimed synchronously by BOTH this block and the legacy
+    //     observer BEFORE their mint/ledger await (see NativeRewards.reserveGift). The
+    //     legacy observer is touched on exactly three lines, tagged `IMPL-49a`.
+    //   * executeNativeRewardLeg / retryNativeRewardLeg: the state returned by
+    //     beginExecute/beginRetry (leg #SubmittedUnknown) is committed BEFORE the
+    //     icrc1_transfer await.
+    //   * The legacy mintWithEffects / mintInternal / distributeDeductiveCascade /
+    //     chipTransfer / burnFrom are never referenced from this block (a grep
+    //     test, shenanigans/test/legacy-untouched.test.sh, enforces it).
+    //
+    // New persistent vars are plain top-level vars with initializers, so the
+    // upgrade is implicit and additive: NO migration is attached.
+    // ========================================================================
+
+    /// Principals allowed to call observeNativeEvent / executeNativeRewardLeg
+    /// (the native_sol_bridge canister). Admin-managed.
+    var nativeBridgeAllowlist : [Principal] = [];
+    /// Append-only versioned reward-policy table; entry i has version i + 1.
+    var nativePolicyTable : [NativeRewards.PolicyVersion] = [];
+    /// event key -> immutable observation (policy version pinned at first observation).
+    var nativeObservations : NativeRewards.ObsMap = textMap.empty<NativeRewards.NativeObservation>();
+    /// event key -> reward obligation (two status levels: obligation and leg).
+    var nativeObligations : NativeRewards.OblMap = textMap.empty<NativeRewards.NativeRewardObligation>();
+
+    /// Pinned ic-siws v0.1.0 provider (mainnet). Deliberately a constant, not an
+    /// admin setter: repointing it would let an operator choose reward recipients.
+    transient let NATIVE_SIWS_PROVIDER_ID : Text = "tcm26-yqaaa-aaaac-qg2lq-cai";
+
+    type NativeSiwsProvider = actor {
+        get_principal : shared query Text -> async { #Ok : Blob; #Err : Text };
+    };
+
+    public type NativeBindResult = {
+        #Reserved;
+        #AlreadyReserved;
+        #Unbound;
+        #UnknownEvent;
+        #Rejected : Text;
+    };
+
+    /// Shared signup-gift reservation book (IMPL-49a / Codex R1). ONE reservation per
+    /// principal, claimed synchronously by BOTH the legacy observer and the native bind path
+    /// before their mint / ledger await. `signupGiftClaimed` keeps meaning "gift committed
+    /// (or grandfathered)". New stable var with an initializer: implicit, additive upgrade.
+    var signupGiftReservations : NativeRewards.GiftBook = principalMap.empty<NativeRewards.GiftReservation>();
+
+    /// Legacy observer, BEFORE its gift mint await. Returns null iff the legacy path now
+    /// holds the reservation (proceed to mint); any non-null value means skip the gift
+    /// (already committed, or the native path holds it). Synchronous: no await between
+    /// the check and the claim.
+    func signupGiftLegacyClaim(p : Principal) : ?Int {
+        let now = Time.now();
+        let (book, r) = NativeRewards.reserveGift(signupGiftReservations, signupGiftClaimed, p, #legacy, now);
+        switch (r) {
+            case (#Granted) {
+                signupGiftReservations := book;
+                null;
+            };
+            case (#Denied(_)) {
+                switch (principalMap.get(signupGiftClaimed, p)) {
+                    case (?t) { ?t };
+                    case null { ?now };
+                };
+            };
+        };
+    };
+
+    /// Legacy observer, AFTER its gift mint await: #Ok -> Committed, #Err -> Failed
+    /// (retryable only by the legacy path, and takeable by native while Failed).
+    func signupGiftLegacyFinalize(p : Principal, ok : Bool) {
+        let (book, claimed) = NativeRewards.finalizeGift(
+            signupGiftReservations,
+            signupGiftClaimed,
+            p,
+            #legacy,
+            if ok { #Ok } else { #Err },
+            Time.now(),
+        );
+        signupGiftReservations := book;
+        signupGiftClaimed := claimed;
+    };
+
+    func nativeState() : NativeRewards.State {
+        {
+            bridgeAllowlist = nativeBridgeAllowlist;
+            policyTable = nativePolicyTable;
+            observations = nativeObservations;
+            obligations = nativeObligations;
+        };
+    };
+
+    func nativeCommit(s : NativeRewards.State) {
+        nativeBridgeAllowlist := s.bridgeAllowlist;
+        nativePolicyTable := s.policyTable;
+        nativeObservations := s.observations;
+        nativeObligations := s.obligations;
+    };
+
+    func nativeRequireBridge(caller : Principal) {
+        if (not NativeRewards.isBridge(nativeState(), caller)) {
+            Debug.trap("Unauthorized: native bridge only");
+        };
+    };
+
+    /// Permissionless entry points still refuse the anonymous principal so an
+    /// unauthenticated flood cannot spend this canister's cycles on outbound calls.
+    func nativeRequireNonAnonymous(caller : Principal) {
+        if (Principal.isAnonymous(caller)) { Debug.trap("Authentication required") };
+    };
+
+    /// Read-only snapshot of the existing referral / effect maps, taken at binding time.
+    func nativeEffectsSnapshot() : NativeRewards.EffectsSnapshot {
+        {
+            payoutTarget = getPayoutTarget;
+            isActive = isActive;
+            house = house();
+            mintMultiplierBps = func(p : Principal) : ?Nat {
+                switch (principalMap.get(mintMultipliers, p)) {
+                    case (?m) { if (Time.now() >= m.expiresAt) { null } else { ?m.multiplierBps } };
+                    case null { null };
+                };
+            };
+            siphon = func(p : Principal) : ?NativeRewards.SiphonView {
+                switch (principalMap.get(mintSiphons, p)) {
+                    case (?sp) {
+                        if (Time.now() >= sp.expiresAt or sp.siphonedSoFar >= sp.capUnits) { null } else {
+                            ?{
+                                siphoner = sp.siphoner;
+                                pctTimes100 = sp.pctTimes100;
+                                remainingCap = sp.capUnits - sp.siphonedSoFar;
+                            };
+                        };
+                    };
+                    case null { null };
+                };
+            };
+            cascadeBoostBps = func(p : Principal) : ?Nat {
+                switch (principalMap.get(cascadeBoosts, p)) {
+                    case (?b) { if (Time.now() >= b.expiresAt) { null } else { ?b.multiplierBps } };
+                    case null { null };
+                };
+            };
+            cascadeDepthCap = CASCADE_DEPTH_CAP;
+        };
+    };
+
+    /// Add the siphon cap consumed at binding to the live siphon records (once).
+    func nativeApplySiphonConsumption(consumed : [(Principal, Nat)]) {
+        for ((holder, units) in consumed.vals()) {
+            switch (principalMap.get(mintSiphons, holder)) {
+                case (?sp) {
+                    mintSiphons := principalMap.put(mintSiphons, holder, { sp with siphonedSoFar = sp.siphonedSoFar + units });
+                };
+                case null {};
+            };
+        };
+    };
+
+    /// Idempotent first-commit side effects: runs only when a leg newly becomes
+    /// Committed (execute, retry or reconcile), so it fires exactly once per leg.
+    func nativeOnLegCommitted(event_id : NativeRewards.EventId, leg_index : Nat) {
+        switch (NativeRewards.getObligation(nativeState(), event_id)) {
+            case (?obl) {
+                if (leg_index < obl.legs.size()) {
+                    let leg = obl.legs[leg_index];
+                    // A committed native signup-gift leg commits the shared reservation (and records the claim).
+                    let (book, claimed) = NativeRewards.onLegCommitted(signupGiftReservations, signupGiftClaimed, leg, Time.now());
+                    signupGiftReservations := book;
+                    signupGiftClaimed := claimed;
+                    // Without this the holder is invisible to stimulus/raid spells and leaderboards.
+                    knownPpHolders := principalMap.put(knownPpHolders, leg.holder, true);
+                    switch (leg.role) {
+                        case (#cascade(c)) {
+                            if (c.rank <= 3) { bumpReferralEarnings(leg.holder, c.rank, c.gross) };
+                        };
+                        case _ {};
+                    };
+                };
+            };
+            case null {};
+        };
+    };
+
+    /// Bridge-only. Idempotent on the immutable event id. Pins the current
+    /// policy version at first observation; consumes no effect and awaits nothing.
+    public shared ({ caller }) func observeNativeEvent(event : NativeRewards.NativeEvent) : async NativeRewards.ObserveResult {
+        nativeRequireBridge(caller);
+        let (s2, r) = NativeRewards.observe(nativeState(), event, Time.now());
+        nativeCommit(s2);
+        r;
+    };
+
+    /// Permissionless. Resolves the beneficiary principal through the pinned
+    /// siws_provider (the one await), then reserves atomically with no further await.
+    public shared ({ caller }) func bindAndReserve(event_id : NativeRewards.EventId) : async NativeBindResult {
+        nativeRequireNonAnonymous(caller);
+        switch (NativeRewards.prepareBind(nativeState(), event_id)) {
+            case (#UnknownEvent) { #UnknownEvent };
+            case (#AlreadyReserved) { #AlreadyReserved };
+            case (#Lookup(l)) {
+                let siws : NativeSiwsProvider = actor (NATIVE_SIWS_PROVIDER_ID);
+                let lookup : ?Principal = switch (await siws.get_principal(l.address)) {
+                    case (#Ok(blob)) {
+                        if (blob.size() == 0 or blob.size() > 29) { null } else { ?Principal.fromBlob(blob) };
+                    };
+                    case (#Err(_)) { null };
+                };
+                // ---- ONE atomic, await-free block: re-read, claim marker, compute legs, consume caps, store ----
+                let out = NativeRewards.applyBind(
+                    nativeState(),
+                    { self = Principal.fromActor(Self); signupMarkers = signupGiftClaimed; giftBook = signupGiftReservations; effects = nativeEffectsSnapshot() },
+                    event_id,
+                    lookup,
+                    Time.now(),
+                );
+                switch (out.result) {
+                    case (#Reserved) {
+                        nativeCommit(out.state);
+                        signupGiftReservations := out.giftBook;
+                        nativeApplySiphonConsumption(out.siphonConsumed);
+                    };
+                    case _ {};
+                };
+                out.result;
+            };
+        };
+    };
+
+    func nativeSubmitLeg(event_id : NativeRewards.EventId, leg_index : Nat, mode : { #Execute; #Retry }) : async NativeRewards.LegStatus {
+        let (s1, begin) = switch (mode) {
+            case (#Execute) { NativeRewards.beginExecute(nativeState(), event_id, leg_index, Time.now()) };
+            case (#Retry) { NativeRewards.beginRetry(nativeState(), event_id, leg_index, Time.now()) };
+        };
+        // #SubmittedUnknown (or the window-expiry quarantine) is durable BEFORE any await.
+        nativeCommit(s1);
+        switch (begin) {
+            case (#NotReserved) { Debug.trap("native obligation is not reserved") };
+            case (#UnknownLeg) { Debug.trap("unknown native reward leg") };
+            case (#Skip(x)) { x.status };
+            case (#Expired(st)) { st };
+            case (#Submit(arg)) {
+                let outcome : NativeRewards.TransferOutcome = try {
+                    switch (
+                        await ppLedger.icrc1_transfer({
+                            from_subaccount = null;
+                            to = arg.to;
+                            amount = arg.amount;
+                            fee = null;
+                            memo = ?arg.memo;
+                            created_at_time = ?arg.created_at_time;
+                        })
+                    ) {
+                        case (#Ok(block)) { #Ok(block) };
+                        case (#Err(e)) { #Err(e) };
+                    };
+                } catch (e) {
+                    #CallFailed(Error.message(e));
+                };
+                let (s2, res) = NativeRewards.applyTransferOutcome(nativeState(), event_id, leg_index, outcome, Time.now());
+                nativeCommit(s2);
+                if (res.newlyCommitted) { nativeOnLegCommitted(event_id, leg_index) };
+                res.status;
+            };
+        };
+    };
+
+    /// Bridge or admin. Pending / SubmittedUnknown legs: writes #SubmittedUnknown, then ONE icrc1_transfer
+    /// with the frozen fields (from_subaccount = null, fee = null).
+    public shared ({ caller }) func executeNativeRewardLeg(event_id : NativeRewards.EventId, leg_index : Nat) : async NativeRewards.LegStatus {
+        if (not (NativeRewards.isBridge(nativeState(), caller) or isAdminPrincipal(caller))) {
+            Debug.trap("Unauthorized: native bridge or admin only");
+        };
+        await nativeSubmitLeg(event_id, leg_index, #Execute);
+    };
+
+    /// Permissionless. Retryable / SubmittedUnknown legs only, identical frozen fields, only inside the dedup window.
+    public shared ({ caller }) func retryNativeRewardLeg(event_id : NativeRewards.EventId, leg_index : Nat) : async NativeRewards.LegStatus {
+        nativeRequireNonAnonymous(caller);
+        await nativeSubmitLeg(event_id, leg_index, #Retry);
+    };
+
+    /// Permissionless. Reads the pinned ledger (and an archive only if the ledger's own archives() lists it),
+    /// verifies the minting Account, and commits the leg only on an exact `mint` record.
+    /// A rejected receipt traps with the reason; nothing is written.
+    public shared ({ caller }) func reconcileLegFromLedger(event_id : NativeRewards.EventId, leg_index : Nat, block_index : Nat) : async NativeRewards.LegStatus {
+        nativeRequireNonAnonymous(caller);
+        switch (NativeRewards.getObligation(nativeState(), event_id)) {
+            case (?obl) {
+                if (leg_index >= obl.legs.size()) { Debug.trap("unknown native reward leg") };
+                // Nothing to prove for an already committed leg: answer without spending ledger calls.
+                switch (obl.legs[leg_index].status) {
+                    case (#Committed _) { return obl.legs[leg_index].status };
+                    case _ {};
+                };
+            };
+            case null { Debug.trap("unknown native obligation") };
+        };
+        let ledgerId = Principal.fromText(PpLedger.PP_LEDGER_CANISTER_ID);
+        let ledger : NativeRewards.LedgerQueryActor = actor (PpLedger.PP_LEDGER_CANISTER_ID);
+        let reportedMinter = await ledger.icrc1_minting_account();
+        let archiveInfos = await ledger.archives();
+        let resp = await ledger.get_transactions({ start = block_index; length = 1 });
+        var source : Principal = ledgerId;
+        var answeredIndex : Nat = block_index;
+        var txOpt : ?NativeRewards.LedgerTx = null;
+        if (resp.transactions.size() > 0) {
+            txOpt := ?resp.transactions[0];
+            answeredIndex := resp.first_index;
+        } else {
+            // Archived (or absent): only a canister the ledger itself lists can be asked.
+            switch (NativeRewards.selectArchive(archiveInfos, block_index)) {
+                case (?arch) {
+                    let archive : NativeRewards.ArchiveQueryActor = actor (Principal.toText(arch));
+                    let r = await archive.get_transactions({ start = block_index; length = 1 });
+                    source := arch;
+                    if (r.transactions.size() > 0) { txOpt := ?r.transactions[0] };
+                };
+                case null {};
+            };
+        };
+        let receipt : NativeRewards.LedgerReceipt = { source = source; block_index = answeredIndex; tx = txOpt };
+        let env : NativeRewards.ReconcileEnv = {
+            ledger = ledgerId;
+            archives = Array.map<NativeRewards.ArchiveInfo, Principal>(archiveInfos, func(a) { a.canister_id });
+            configuredMinter = { owner = Principal.fromActor(Self); subaccount = null };
+            reportedMinter = reportedMinter;
+        };
+        let (s2, res) = NativeRewards.reconcileFromLedgerBlock(nativeState(), event_id, leg_index, block_index, receipt, env, Time.now());
+        switch (res) {
+            case (#Committed(r)) {
+                nativeCommit(s2);
+                if (r.newlyCommitted) { nativeOnLegCommitted(event_id, leg_index) };
+                r.status;
+            };
+            case (#Rejected(msg)) { Debug.trap("reconcile rejected: " # msg) };
+            case (#UnknownLeg) { Debug.trap("unknown native reward leg") };
+        };
+    };
+
+    public query func getNativeObligation(event_id : NativeRewards.EventId) : async ?NativeRewards.NativeRewardObligation {
+        NativeRewards.getObligation(nativeState(), event_id);
+    };
+
+    /// The shared signup-gift reservation of a principal (null = none). Read-only; for operators and replica tests.
+    public query func getSignupGiftReservation(p : Principal) : async ?NativeRewards.GiftReservation {
+        principalMap.get(signupGiftReservations, p);
+    };
+
+    public query func getNativeObservation(event_id : NativeRewards.EventId) : async ?NativeRewards.NativeObservation {
+        NativeRewards.getObservation(nativeState(), event_id);
+    };
+
+    /// Canonical text key (= ObligationId) of an event id; lets clients correlate `#Observed(id)`.
+    public query func nativeEventKey(event_id : NativeRewards.EventId) : async Text {
+        NativeRewards.eventKey(event_id);
+    };
+
+    // ---- admin ----
+
+    public shared ({ caller }) func setNativeBridgeAllowlist(list : [Principal]) : async () {
+        requireAdmin(caller);
+        for (p in list.vals()) {
+            if (Principal.isAnonymous(p)) { Debug.trap("anonymous principal cannot be a native bridge") };
+        };
+        nativeCommit(NativeRewards.setBridgeAllowlist(nativeState(), list));
+    };
+
+    public query func getNativeBridgeAllowlist() : async [Principal] {
+        nativeBridgeAllowlist;
+    };
+
+    /// Append-only: assigns the next version number; existing versions are never edited.
+    public shared ({ caller }) func appendNativePolicyVersion(draft : NativeRewards.PolicyDraft) : async Nat {
+        requireAdmin(caller);
+        switch (NativeRewards.appendPolicy(nativeState(), draft, Time.now())) {
+            case (#Ok(r)) { nativeCommit(r.state); r.version };
+            case (#Err(msg)) { Debug.trap(msg) };
+        };
+    };
+
+    /// Convenience: append a version copied from the live mintConfig (SOL rates, cascade bps, signup gift).
+    public shared ({ caller }) func appendNativePolicyFromMintConfig(dedupWindowNs : Nat) : async Nat {
+        requireAdmin(caller);
+        let draft : NativeRewards.PolicyDraft = {
+            simple21DayPpPerSol = mintConfig.simple21DayPpPerSol;
+            compounding15DayPpPerSol = mintConfig.compounding15DayPpPerSol;
+            compounding30DayPpPerSol = mintConfig.compounding30DayPpPerSol;
+            backerPpPerSol = mintConfig.backerPpPerSol;
+            signupGiftPp = mintConfig.signupGiftPp;
+            cascadeInitialBps = mintConfig.cascadeInitialBps;
+            cascadePassthroughBps = mintConfig.cascadePassthroughBps;
+            applyEffects = true;
+            dedupWindowNs = dedupWindowNs;
+        };
+        switch (NativeRewards.appendPolicy(nativeState(), draft, Time.now())) {
+            case (#Ok(r)) { nativeCommit(r.state); r.version };
+            case (#Err(msg)) { Debug.trap(msg) };
+        };
+    };
+
+    public query func getNativePolicyTable() : async [NativeRewards.PolicyVersion] {
+        nativePolicyTable;
+    };
+
+    // NATIVE SOLANA REWARDS (plan M12 / spec section 9)  -- END
+    // ========================================================================
 
     // ========================================================================
     // ICRC-21 consent messages, ICRC-28 trusted origins, ICRC-10 standards.

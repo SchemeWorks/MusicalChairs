@@ -1,0 +1,1025 @@
+{
+ "schema": 1,
+ "card": "M14-A7-R2SETUP",
+ "what": "devnet flow steps 22-27 in order, each dry-run then executed ONCE with the approved immutable runner; then STOP for review",
+ "authority": "Rob's explicit approval of 'Musical Chairs steps 22-27: round-two devnet setup, 0.42 devnet SOL plus existing-budget fees/rent, then stop for review' (exact plan sha256 31b10b11...), read by Gideon in the original human message and relayed 2026-11-06; steps 22-27 only, no new funding",
+ "runner": {
+  "sha256": "a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c",
+  "bytes": 23020064,
+  "immutable_copy_verified": true
+ },
+ "presend_guards": {
+  "checked_at_utc": "2026-11-06T01:26:16Z-01:26:55Z",
+  "git": "HEAD = origin = 20b393d; flow plan docs/solana/m14-flow-plan.md sha256 31b10b112d035a8d326a28e4a8877efded19aa48137e621060dbe322fa89e440; solana/ unchanged since 29c8f97",
+  "packet_sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "readback_finalized": "44/44 all_ok (full, ORAO-client checks included)",
+  "status": "21/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next p1_open_compound15 ready",
+  "receipts_before": "21 lines, sha256 a116fcb35887ca77e8d940a86158230f395f2c0f21c5773821bd2b4aaa8ffb43; operator copy identical",
+  "pending": "1,461/1,461 write-ahead resolved, 0 held",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "genesis_unix": 1792942295,
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+  "budgets": "finalized balances P1 210,000,000, P2 110,000,000, P3 30,000,000, A2 60,000,000, P5 66,357,720, K 49,890,000: each covers its principal + rent + fee (the accepted wallet equations)",
+  "disk": "60 GiB free; operator journal 3.4 MB"
+ },
+ "steps": {
+  "p1_open_compound15": {
+   "index": 22,
+   "actor": "P1",
+   "actor_pubkey": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+   "flows": "F2",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 981802,
+   "earliest_unix": 1793924097,
+   "cluster_unix_before": 1793928418,
+   "cluster_unix_after": 1793928432,
+   "checks": [
+    {
+     "actual": "816872669",
+     "expected": "816872669",
+     "name": "pot += 96 % of the deposit",
+     "ok": true
+    },
+    {
+     "actual": "72800000",
+     "expected": "72800000",
+     "name": "management += 4 % Front-End Load",
+     "ok": true
+    },
+    {
+     "actual": "2",
+     "expected": "2",
+     "name": "participant_count += 1 for a new participant",
+     "ok": true
+    },
+    {
+     "actual": "200000000",
+     "expected": "200000000",
+     "name": "position.principal == gross",
+     "ok": true
+    },
+    {
+     "actual": "1",
+     "expected": "1",
+     "name": "position.kind",
+     "ok": true
+    },
+    {
+     "actual": "1296000",
+     "expected": "1296000",
+     "name": "position.maturity_at - opened_at == plan duration",
+     "ok": true
+    },
+    {
+     "actual": "1793928431",
+     "expected": "1793928419..=1793928432",
+     "name": "position opened inside the step",
+     "ok": true
+    },
+    {
+     "actual": "-203642280",
+     "expected": "-203642280",
+     "name": "open_position: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "p1_open_compound15: open_position",
+     "packet_bytes": 578,
+     "required_signers": [
+      "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY"
+     ],
+     "signature": "516WQrNhqCsK5wYi437ikzXR74BU5hZW3BYhgApGzJPCbfeHrEawGdcC8qsadnmpcgGs67homjngZnwMvkZKWffq",
+     "simulation": {
+      "error": null,
+      "units_consumed": 55182
+     },
+     "slot": 519133505,
+     "step": "p1_open_compound15"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 6357720,
+    "ops": {
+     "free_balance": 474874040,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "20320000",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 72800000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 2,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 816872669,
+     "registry_len": 2,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "position": {
+     "claimed": false,
+     "kind": 1,
+     "maturity_at": 1795224431,
+     "net_payout": "0",
+     "opened_at": 1793928431,
+     "paid_gross": "0",
+     "principal": 200000000
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 911834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "911138224",
+     "rent": 695960,
+     "spendable": 911138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "474874040",
+     "lamports": 475524280,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 474874040
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-22.json (dry run flow-22-dry.json)"
+  },
+  "p2_open_simple": {
+   "index": 23,
+   "actor": "P2",
+   "actor_pubkey": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+   "flows": "F2",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 981862,
+   "earliest_unix": 1793924157,
+   "cluster_unix_before": 1793928447,
+   "cluster_unix_after": 1793928461,
+   "checks": [
+    {
+     "actual": "912872669",
+     "expected": "912872669",
+     "name": "pot += 96 % of the deposit",
+     "ok": true
+    },
+    {
+     "actual": "76800000",
+     "expected": "76800000",
+     "name": "management += 4 % Front-End Load",
+     "ok": true
+    },
+    {
+     "actual": "3",
+     "expected": "3",
+     "name": "participant_count += 1 for a new participant",
+     "ok": true
+    },
+    {
+     "actual": "100000000",
+     "expected": "100000000",
+     "name": "position.principal == gross",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "position.kind",
+     "ok": true
+    },
+    {
+     "actual": "1814400",
+     "expected": "1814400",
+     "name": "position.maturity_at - opened_at == plan duration",
+     "ok": true
+    },
+    {
+     "actual": "1793928461",
+     "expected": "1793928448..=1793928461",
+     "name": "position opened inside the step",
+     "ok": true
+    },
+    {
+     "actual": "-103642280",
+     "expected": "-103642280",
+     "name": "open_position: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "p2_open_simple: open_position",
+     "packet_bytes": 578,
+     "required_signers": [
+      "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3"
+     ],
+     "signature": "3gBxvzUuhPGk59bt4UpPuMxCMzZdg91vbuucVMUjU3V2BexEfzKPMBVRg5NRAd8cntADyc8vhTPKumkoWL1L7ZYY",
+     "simulation": {
+      "error": null,
+      "units_consumed": 58182
+     },
+     "slot": 519133625,
+     "step": "p2_open_simple"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 6357720,
+    "ops": {
+     "free_balance": 474874040,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "20320000",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 76800000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 3,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 912872669,
+     "registry_len": 2,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "position": {
+     "claimed": false,
+     "kind": 0,
+     "maturity_at": 1795742861,
+     "net_payout": "0",
+     "opened_at": 1793928461,
+     "paid_gross": "0",
+     "principal": 100000000
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 1011834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "1011138224",
+     "rent": 695960,
+     "spendable": 1011138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "474874040",
+     "lamports": 475524280,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 474874040
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-23.json (dry run flow-23-dry.json)"
+  },
+  "p3_open_simple": {
+   "index": 24,
+   "actor": "P3",
+   "actor_pubkey": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+   "flows": "F2",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 981922,
+   "earliest_unix": 1793924217,
+   "cluster_unix_before": 1793928476,
+   "cluster_unix_after": 1793928490,
+   "checks": [
+    {
+     "actual": "932072669",
+     "expected": "932072669",
+     "name": "pot += 96 % of the deposit",
+     "ok": true
+    },
+    {
+     "actual": "77600000",
+     "expected": "77600000",
+     "name": "management += 4 % Front-End Load",
+     "ok": true
+    },
+    {
+     "actual": "4",
+     "expected": "4",
+     "name": "participant_count += 1 for a new participant",
+     "ok": true
+    },
+    {
+     "actual": "20000000",
+     "expected": "20000000",
+     "name": "position.principal == gross",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "position.kind",
+     "ok": true
+    },
+    {
+     "actual": "1814400",
+     "expected": "1814400",
+     "name": "position.maturity_at - opened_at == plan duration",
+     "ok": true
+    },
+    {
+     "actual": "1793928490",
+     "expected": "1793928477..=1793928490",
+     "name": "position opened inside the step",
+     "ok": true
+    },
+    {
+     "actual": "-23642280",
+     "expected": "-23642280",
+     "name": "open_position: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "p3_open_simple: open_position",
+     "packet_bytes": 578,
+     "required_signers": [
+      "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg"
+     ],
+     "signature": "cty3appR4k6tvEhTH7cku4svyzqFKmRqENsJu7oM9SBKMaJmBSEuqdr3uurmQDZeV8MQAi4XeHCYXEfaY9TdE8b",
+     "simulation": {
+      "error": null,
+      "units_consumed": 67182
+     },
+     "slot": 519133748,
+     "step": "p3_open_simple"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 6357720,
+    "ops": {
+     "free_balance": 474874040,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "20320000",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 77600000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 4,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 932072669,
+     "registry_len": 2,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "position": {
+     "claimed": false,
+     "kind": 0,
+     "maturity_at": 1795742890,
+     "net_payout": "0",
+     "opened_at": 1793928490,
+     "paid_gross": "0",
+     "principal": 20000000
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 1031834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "1031138224",
+     "rent": 695960,
+     "spendable": 1031138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "474874040",
+     "lamports": 475524280,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 474874040
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-24.json (dry run flow-24-dry.json)"
+  },
+  "a2_fund_series_a": {
+   "index": 25,
+   "actor": "A2",
+   "actor_pubkey": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+   "flows": "F1",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 981982,
+   "earliest_unix": 1793924277,
+   "cluster_unix_before": 1793928506,
+   "cluster_unix_after": 1793928520,
+   "checks": [
+    {
+     "actual": "982072669",
+     "expected": "982072669",
+     "name": "pot += gross (no load on Series A)",
+     "ok": true
+    },
+    {
+     "actual": "77600000",
+     "expected": "77600000",
+     "name": "management unchanged",
+     "ok": true
+    },
+    {
+     "actual": "3",
+     "expected": "3",
+     "name": "registry_len += 1 for a new row",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "backer active",
+     "ok": true
+    },
+    {
+     "actual": "50000000",
+     "expected": "50000000",
+     "name": "backer.amount += gross",
+     "ok": true
+    },
+    {
+     "actual": "62000000",
+     "expected": "62000000",
+     "name": "backer.entitlement += 124 %",
+     "ok": true
+    },
+    {
+     "actual": "-52478960",
+     "expected": "-52478960",
+     "name": "fund_series_a: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "a2_fund_series_a: fund_series_a",
+     "packet_bytes": 532,
+     "required_signers": [
+      "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX"
+     ],
+     "signature": "4GRKNLP6PRhuyn6NBHiRVAvcr1HCyRzssLYg4JU4zjeUMNESXFoFsgL1cvZi3zqWZC8ZCuYyFopmzve2TytFGxn3",
+     "simulation": {
+      "error": null,
+      "units_consumed": 49056
+     },
+     "slot": 519133828,
+     "step": "a2_fund_series_a"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 7521040,
+    "backer_a": {
+     "active": true,
+     "amount": "50000000",
+     "entitlement": "62000000",
+     "funded": 0,
+     "lifetime": "0",
+     "pending": 0,
+     "pending_ticket": 0
+    },
+    "ops": {
+     "free_balance": 474874040,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "20320000",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 77600000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 4,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 982072669,
+     "registry_len": 3,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 1081834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "1081138224",
+     "rent": 695960,
+     "spendable": 1081138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "474874040",
+     "lamports": 475524280,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 474874040
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-25.json (dry run flow-25-dry.json)"
+  },
+  "winner_fund_series_a": {
+   "index": 26,
+   "actor": "P5",
+   "actor_pubkey": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+   "flows": "F1",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 982042,
+   "earliest_unix": 1793924337,
+   "cluster_unix_before": 1793928535,
+   "cluster_unix_after": 1793928538,
+   "checks": [
+    {
+     "actual": "1032072669",
+     "expected": "1032072669",
+     "name": "pot += gross (no load on Series A)",
+     "ok": true
+    },
+    {
+     "actual": "77600000",
+     "expected": "77600000",
+     "name": "management unchanged",
+     "ok": true
+    },
+    {
+     "actual": "4",
+     "expected": "4",
+     "name": "registry_len += 1 for a new row",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "backer active",
+     "ok": true
+    },
+    {
+     "actual": "50000000",
+     "expected": "50000000",
+     "name": "backer.amount += gross",
+     "ok": true
+    },
+    {
+     "actual": "62000000",
+     "expected": "62000000",
+     "name": "backer.entitlement += 124 %",
+     "ok": true
+    },
+    {
+     "actual": "-51402000",
+     "expected": "-51402000",
+     "name": "fund_series_a: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "winner_fund_series_a: fund_series_a",
+     "packet_bytes": 532,
+     "required_signers": [
+      "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ"
+     ],
+     "signature": "4nWPrHKN5EfevAqeGHG3xxVUwcGzXgWb9MX1znAUPrSZTp6NxJMtuK1jgNWEZzsg5uJ6trnYSi4sW9xD8qu9434K",
+     "simulation": {
+      "error": null,
+      "units_consumed": 52354
+     },
+     "slot": 519133949,
+     "step": "winner_fund_series_a"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 14955720,
+    "backer_a": {
+     "active": true,
+     "amount": "50000000",
+     "entitlement": "62000000",
+     "funded": 0,
+     "lifetime": "0",
+     "pending": 0,
+     "pending_ticket": 0
+    },
+    "backer_b": {
+     "active": true,
+     "amount": "0",
+     "entitlement": "11600000",
+     "funded": 0,
+     "lifetime": "0",
+     "pending": 0,
+     "pending_ticket": 0
+    },
+    "ops": {
+     "free_balance": 474874040,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "20320000",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 77600000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 4,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 1032072669,
+     "registry_len": 4,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 1131834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "1131138224",
+     "rent": 695960,
+     "spendable": 1131138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "474874040",
+     "lamports": 475524280,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 474874040
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-26.json (dry run flow-26-dry.json)"
+  },
+  "provision_close_record_2": {
+   "index": 27,
+   "actor": "K",
+   "actor_pubkey": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+   "flows": "setup",
+   "result": "done",
+   "all_ok": true,
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "offset_s": 982102,
+   "earliest_unix": 1793924397,
+   "cluster_unix_before": 1793928553,
+   "cluster_unix_after": 1793928568,
+   "checks": [
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "CloseRecord exists",
+     "ok": true
+    },
+    {
+     "actual": "470886240",
+     "expected": "470886240",
+     "name": "close record rent comes from Ops.free_balance",
+     "ok": true
+    },
+    {
+     "actual": "-5000",
+     "expected": "-5000",
+     "name": "provision_close_record_2: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "provision_close_record_2: provision_close_record",
+     "packet_bytes": 392,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "4Umpy4FmirE7W639hw4sSMrCWa75rsX65KpVC8yJgdRLzAKvWrQWj89vyeLmEspfvyhbK9sAtEwimXUDCm5d7kfr",
+     "simulation": {
+      "error": null,
+      "units_consumed": 31398
+     },
+     "slot": 519134070,
+     "step": "provision_close_record_2"
+    }
+   ],
+   "readbacks": {
+    "actor_lamports": 49885000,
+    "close": {
+     "candidate_cursor": 0,
+     "captured_at": 0,
+     "cash_committed": false,
+     "close_id": 2,
+     "close_started_at": 0,
+     "draw_state": 0,
+     "fallback_count": 0,
+     "finalized": false,
+     "locked_owner_remaining": 0,
+     "locked_sponsor_remaining": 0,
+     "participant_count": 0,
+     "preferred_count": 0,
+     "promotion": "Pending",
+     "promotion_deadline": 0,
+     "provisioned_fallback_pages": 0,
+     "provisioned_preferred_pages": 0,
+     "request_account": "11111111111111111111111111111111",
+     "required_reserve": 0,
+     "reserve_settled": false,
+     "round_id": 0,
+     "sealed": false
+    },
+    "ops": {
+     "free_balance": 470886240,
+     "locked_remaining_total": 0,
+     "request_rent_outstanding": 4505960,
+     "total_contributed": "500000000",
+     "total_rent_funded": "24307800",
+     "unallocated_excess": 0
+    },
+    "pool": {
+     "active_ticket": 0,
+     "current_close_id": null,
+     "excess": 0,
+     "finalized_ticket": 2,
+     "funded_claims": "21465555",
+     "management": 77600000,
+     "next_close_id": 2,
+     "next_ticket": 3,
+     "participant_count": 4,
+     "participant_pages": 1,
+     "pending_toll": 0,
+     "pot": 1032072669,
+     "registry_len": 4,
+     "registry_pages": 1,
+     "round_id": 2,
+     "seed": 0,
+     "snapshot_pages": 1
+    },
+    "ticket": {
+     "close_id": 1,
+     "id": 2,
+     "phase": 6,
+     "toll": 42931111
+    }
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 1131834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "1131138224",
+     "rent": 695960,
+     "spendable": 1131138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "470886240",
+     "lamports": 471536480,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 470886240
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "receipt_file": "~/.mc-devnet-ops/flow-27.json (dry run flow-27-dry.json)"
+  }
+ },
+ "p1_timing": {
+  "plan_open_unix": 1793924097,
+  "plan_open_utc": "2026-11-06T00:14:57Z",
+  "actual_open_unix": 1793928431,
+  "actual_open_utc": "2026-11-06T01:27:11Z",
+  "late_by_s": 4334,
+  "maturity_unix": 1795224431,
+  "maturity_utc": "2026-11-21T01:27:11Z",
+  "duration_s": 1296000,
+  "step28_plan_earliest_unix": 1795220157,
+  "step28_plan_earliest_utc": "2026-11-21T00:15:57Z",
+  "note": "the program enforces the actual maturity; step 28 (C15) can run no earlier than 2026-11-21T01:27:11Z, 4274 s after its plan earliest; the RPC block time of the open transaction is 1793928432, 1 s after the program's Clock reading stored in the position"
+ },
+ "post_state": {
+  "status": "27/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next p1_settle_compound15 (NOT run: outside this approval; not ready before P1's maturity)",
+  "transactions": "6 sent, 6/6 finalized, err null",
+  "pending": "1,467/1,467 write-ahead resolved, 0 held",
+  "receipts": "27 lines (first 21 byte-identical)"
+ },
+ "spend_reconciliation": {
+  "principal_lamports": 420000000,
+  "by_actor_principal": {
+   "P1": 200000000,
+   "P2": 100000000,
+   "P3": 20000000,
+   "A2": 50000000,
+   "P5": 50000000,
+   "K": 0
+  },
+  "rent_by_actor": {
+   "P1": 3637280,
+   "P2": 3637280,
+   "P3": 3637280,
+   "A2": 2473960,
+   "P5": 1397000,
+   "K": 0
+  },
+  "fees_lamports": 30000,
+  "balances_finalized_before": {
+   "P1": 210000000,
+   "P2": 110000000,
+   "P3": 30000000,
+   "A2": 60000000,
+   "P5": 66357720,
+   "K": 49890000,
+   "S": 468773280
+  },
+  "balances_finalized_after": {
+   "P1": 6357720,
+   "P2": 6357720,
+   "P3": 6357720,
+   "A2": 7521040,
+   "P5": 14955720,
+   "K": 49885000,
+   "S": 468773280
+  },
+  "game_vault": "lamports 711,834,184 -> 1,131,834,184 (+420,000,000, the principal)",
+  "pot": "624,872,669 + 192,000,000 (P1 net) + 96,000,000 (P2 net) + 19,200,000 (P3 net) + 50,000,000 (A2) + 50,000,000 (P5) = 1,032,072,669; management 64,800,000 -> 77,600,000 (+12,800,000 = 4 % of the 320,000,000 deposited into positions; no load on Series A)",
+  "ops": "free 474,874,040 -> 470,886,240 (-3,987,800, close record 2 rent); lamports 475,524,280 -> 471,536,480",
+  "note": "principal and rent are internal transfers into the game vault and program accounts; fees 30,000; no new funding or faucet intake"
+ },
+ "signatures": [
+  "516WQrNhqCsK5wYi437ikzXR74BU5hZW3BYhgApGzJPCbfeHrEawGdcC8qsadnmpcgGs67homjngZnwMvkZKWffq",
+  "3gBxvzUuhPGk59bt4UpPuMxCMzZdg91vbuucVMUjU3V2BexEfzKPMBVRg5NRAd8cntADyc8vhTPKumkoWL1L7ZYY",
+  "cty3appR4k6tvEhTH7cku4svyzqFKmRqENsJu7oM9SBKMaJmBSEuqdr3uurmQDZeV8MQAi4XeHCYXEfaY9TdE8b",
+  "4GRKNLP6PRhuyn6NBHiRVAvcr1HCyRzssLYg4JU4zjeUMNESXFoFsgL1cvZi3zqWZC8ZCuYyFopmzve2TytFGxn3",
+  "4nWPrHKN5EfevAqeGHG3xxVUwcGzXgWb9MX1znAUPrSZTp6NxJMtuK1jgNWEZzsg5uJ6trnYSi4sW9xD8qu9434K",
+  "4Umpy4FmirE7W639hw4sSMrCWa75rsX65KpVC8yJgdRLzAKvWrQWj89vyeLmEspfvyhbK9sAtEwimXUDCm5d7kfr"
+ ]
+}

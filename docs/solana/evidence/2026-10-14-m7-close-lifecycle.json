@@ -1,0 +1,384 @@
+{
+ "recorded_at_utc": "2026-10-14T13:25:01.344059+00:00",
+ "card": "IMPL-34 (closing IMPL-32, IMPL-33; with IMPL-42/43/44)",
+ "milestone": "M7 close lifecycle: candidates, ORAO draw, promotion, expiry, finalization, provider budget and returns",
+ "branch": "codex/native-solana-production-core",
+ "commit_at_run": "366df88233d807cb75b5ea94ca33102b2ebf8b59",
+ "elf": {
+  "sha256": "fc2c794058867a6c99df919e364dc2328da38669bc9da12194a968366960c6dd",
+  "bytes": 1363760,
+  "source_set_sha256": "e7e2ffcbac842aed4ee47e89baf58e9697d9a3881eceb2569c1b7c8b391166aa",
+  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "build_log_sha256": "fd4dbe0b155a70a1b19f8a43b0569beb084eb7ed9fdba860688cd65f0a7bdbf0",
+  "guard": "source set identical before and after the build",
+  "lineage": [
+   "27de0cfc… IMPL-32 applied (8fdade5): hasher single-path fix; all 1,044 prior CLI observations outcome-identical to the M6 ELF",
+   "fc2c7940… IMPL-42/43 (366df88): deadline pin + deferred owner refunds"
+  ],
+  "idl_sha256": "11840ae04eaebff5d75a1952e87577c280a79f5b4e42550319201cdf3e9bb597",
+  "idl": {
+   "instructions": 36,
+   "events": 20,
+   "errors": 52
+  },
+  "program_unit_tests": 244
+ },
+ "provider": {
+  "artifact_sha256": "6d180b1e91be7d5c541f75e2413146beb047d9beeb76ac8eb1d7c883200c6b8b",
+  "env": "MC_ORAO_SBF (optional override; the hash is still enforced)",
+  "pinned_by": "solana/probes/runtime/fixtures/orao-provenance.json (program_binary.elf_sha256)",
+  "program_id": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+  "scope": "captured mainnet ORAO VRF-with-callback ELF loaded at its mainnet id; one synthetic fulfill authority; no cluster latency; the Squads program is the test-only stand-in"
+ },
+ "runtime": {
+  "anchor": "0.32.1",
+  "fee_model": "observed LiteSVM base fee; not a mainnet quote",
+  "legacy_packet_limit": 1232,
+  "litesvm": "0.7.1",
+  "solana_sdk": "2.3.1"
+ },
+ "standin": {
+  "artifact_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
+  "env": "MC_STANDIN_SBF",
+  "scope": "test-only stand-in loaded at the Squads program id; it signs as the vault PDA and is never deployed"
+ },
+ "scope": "Compiled Musical Chairs financial SBF executed locally in LiteSVM with synthetic actors and injected production accounts; no deployment, provider, wallet, Squads, signing, broadcast, or live settlement proof",
+ "close_suite": {
+  "file": "solana/tests/financial-runtime/src/close.rs",
+  "rows": 42,
+  "row_names": [
+   "anonymous_ops_cash_credit_becomes_unallocated_excess_and_is_never_spent",
+   "apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116",
+   "apply_promotion_terminalizes_entropy_exhausted_from_labeled_synthetic_state",
+   "build_candidates_rejects_skipped_or_reordered_rows",
+   "build_candidates_visits_every_participant_once_and_seals_digests",
+   "capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop",
+   "changed_rent_sysvar_after_fulfillment_does_not_overstate_eligible",
+   "collision_with_preexisting_request_fails_closed_no_alternate_seed",
+   "cpi_failure_rolls_back_all_accounting",
+   "direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round",
+   "expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash",
+   "expire_promotion_requires_clock_past_deadline_and_no_capture",
+   "expired_unfulfilled_request_keeps_rent_outstanding_and_late_fulfillment_reimburses_client_later",
+   "extra_request_account_lamports_reduce_eligibility_never_increase",
+   "finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once",
+   "fulfillment_reimburses_excess_rent_to_client_only_and_changes_no_ops_accounting",
+   "g_signature_without_executed_withdraw_cpi_credits_nothing_and_anonymous_opscash_surplus_is_never_reclassified",
+   "g_withdraws_client_elsewhere_records_deficit_without_blocking_commit_expire_finalize_or_claims",
+   "increase_provider_budget_moves_extra_from_free_raises_cap_and_refunds_unused_once",
+   "late_authentic_fulfillment_after_skip_cannot_mint_or_revive",
+   "late_fulfillment_after_expiry_becomes_eligible_only_when_observed",
+   "locked_remaining_total_aggregate_equals_sum_of_remaining_partitions_after_every_transition",
+   "observe_request_fulfilled_once_sets_eligible_and_owner_refundable_remaining_and_rejects_pending",
+   "observed_deficit_then_real_return_lowers_it_and_never_blocks_commit_expire_finalize_or_claims",
+   "owner_fallback_may_fund_provider_fee_and_rent_after_sponsor_exhausted_with_exact_attribution",
+   "protocol_seed_differs_between_devnet_and_mainnet_cluster_domains_and_matches_host_vector",
+   "provider-setup",
+   "request_after_deadline_is_rejected_before_fees",
+   "request_cpi_failure_leaves_partitions_and_ledger_unchanged",
+   "request_decrements_remaining_partitions_sponsor_first_and_records_spent_split",
+   "request_rejects_wrong_client_owner_wrong_client_state_or_wrong_account_owner",
+   "request_round_draw_creates_request_with_protocol_seed_and_marker_atomically",
+   "same_owner_multi_position_aggregation_and_sealed_userround_immutability",
+   "sealed_with_zero_losers_skips_no_candidates_without_request",
+   "second_close_cannot_reuse_first_close_request_binding",
+   "settlement_refunds_only_remaining_partitions_never_spent_amounts",
+   "timely_capture_cannot_be_expired_and_applies_after_deadline",
+   "two_closes_cannot_claim_the_same_reimbursement",
+   "two_closes_two_rounds_sequence",
+   "two_partial_provider_returns_then_replay_pay_exact_owner_residual_once",
+   "withdraw_provider_return_executes_orao_withdraw_cpi_and_asserts_client_and_opscash_deltas",
+   "withdraw_rejects_wrong_client_wrong_destination_and_amount_above_eligible"
+  ],
+  "observations": 784,
+  "successes": 676,
+  "rejections": 108,
+  "rejection_tally": {
+   "InstructionError(1, Custom(6001))": 15,
+   "InstructionError(1, Custom(6005))": 23,
+   "InstructionError(1, Custom(6019))": 1,
+   "InstructionError(1, Custom(6035))": 1,
+   "InstructionError(1, Custom(6011))": 3,
+   "InstructionError(1, Custom(6045))": 13,
+   "InstructionError(1, InsufficientFunds)": 1,
+   "InstructionError(2, Custom(6000))": 1,
+   "InstructionError(1, Custom(6042))": 3,
+   "InstructionError(1, Custom(6029))": 12,
+   "InstructionError(1, Custom(6049))": 3,
+   "InstructionError(1, Custom(6048))": 11,
+   "InstructionError(1, Custom(6004))": 2,
+   "InstructionError(1, Custom(2006))": 2,
+   "InstructionError(1, Custom(3010))": 1,
+   "InstructionError(1, ArithmeticOverflow)": 2,
+   "InstructionError(1, Custom(6041))": 1,
+   "InstructionError(1, Custom(6007))": 2,
+   "InstructionError(1, Custom(6043))": 2,
+   "InstructionError(1, Custom(6006))": 2,
+   "InstructionError(1, Custom(6028))": 2,
+   "InstructionError(1, Custom(0))": 1,
+   "InstructionError(1, Custom(6044))": 2,
+   "InstructionError(1, Custom(6046))": 1,
+   "InstructionError(3, Custom(6016))": 1
+  },
+  "host_rows": [
+   "sampler_all_64_counters_rejected_pure",
+   "seed_vectors_file_matches_the_program_sampler"
+  ],
+  "fixtures": {
+   "solana/fixtures/seed-vectors.json": "964bf1db0abf173544418ebd7c3d4f131c2cac140ee3115b0174efc4c8eca8db",
+   "solana/fixtures/sampling.json": "c9b63e4469799e7552e318a4aeebde448aa912095bbfd8009f89c0a7cacf8c2d",
+   "orao_elf": "solana/probes/runtime/fixtures/orao-callback-mainnet-finalized.so (hash enforced by the harness; see provider)"
+  },
+  "first_execution": {
+   "result": [
+    "FAILED. 43 passed; 4 failed; 0 ignored; 0 measured; 94 filtered out; finished in 40.89s"
+   ],
+   "log_sha256": "cf1dc5ad8656b72070542ec77112a5e4536c50931798e870ccaf271419295ec5",
+   "failures": "four rows claimed as a fixture Series A Backer whose User PDA did not exist (Anchor 3012 AccountNotInitialized on `user`); fund_series_a is init_if_needed on User so the fixture state was impossible; fixed by installing the User in Scene::new / start_second_close (coordinator)",
+   "second_execution_log_sha256": "ac3cdae3aa77a969149619cdee26c79d173597150f3c78fc69267d66f5fed4c8"
+  },
+  "coordinator_edits_to_the_worker_suite": [
+   "Scene::new / start_second_close: install_user for fixture Backers (impossible-state fix)",
+   "settlement_refunds_only_remaining_partitions_never_spent_amounts.undeliverable-destination: observation upgraded to assert the IMPL-43 deferral (expiry succeeds; remainder stays owed; excess unchanged; sponsor remainder released; destination untouched)"
+  ],
+  "undeliverable_destination_row": {
+   "success": true,
+   "note": "undeliverable_destination (IMPL-43 deferral asserted): {\"destination_lamports_after\":0,\"destination_lamports_before\":0,\"expected_behaviour\":\"IMPL-43: deferred to the owner; deliver_owner_refund pays it once the destination can receive the credit\",\"free_balance_before_after\":[0,24350620],\"locked_owner_remaining_after\":500,\"locked_remaining_total_before_after\":[24351120,500],\"owner_remainder_before\":500,\"reserve_settled_after\":true,\"transaction_succeeded\":true,\"unallocated_excess_before_after\":[0,0]}"
+  }
+ },
+ "full_harness": {
+  "results": [
+   "ok. 141 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 103.87s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.83s",
+   "ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.01s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.31s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "log_sha256": "2ff6776ae9246900b20b50d7ac6bdb79f82b0f16cc144e6e4b82f06624924f1a",
+  "cli_all_exit": 0,
+  "cli_observations_total": 1830,
+  "cli_json": {
+   "path": "docs/solana/evidence/2026-10-14-m7-cli.json",
+   "sha256": "6e94d326717eaa1ed7366bde68cbe4abf6f007c0df624c294c7131e93015abe8"
+  }
+ },
+ "compute_and_packet_by_instruction_max_over_close_suite_successes": {
+  "AllocateRows": {
+   "cu_max": 11947,
+   "packet_max": 333,
+   "accounts_max": 6,
+   "n": 5
+  },
+  "ApplyPromotion": {
+   "cu_max": 71164,
+   "packet_max": 681,
+   "accounts_max": 17,
+   "n": 13
+  },
+  "ApplySenior": {
+   "cu_max": 8050,
+   "packet_max": 291,
+   "accounts_max": 5,
+   "n": 5
+  },
+  "BuildCandidates": {
+   "cu_max": 49810,
+   "packet_max": 816,
+   "accounts_max": 21,
+   "n": 256
+  },
+  "CaptureRoundDraw": {
+   "cu_max": 35661,
+   "packet_max": 383,
+   "accounts_max": 8,
+   "n": 21
+  },
+  "ClaimBacker": {
+   "cu_max": 28173,
+   "packet_max": 514,
+   "accounts_max": 10,
+   "n": 3
+  },
+  "CommitTicket": {
+   "cu_max": 21393,
+   "packet_max": 358,
+   "accounts_max": 7,
+   "n": 5
+  },
+  "Configure": {
+   "cu_max": 9312,
+   "packet_max": 400,
+   "accounts_max": 5,
+   "n": 1
+  },
+  "DiscoverRows": {
+   "cu_max": 19119,
+   "packet_max": 399,
+   "accounts_max": 8,
+   "n": 5
+  },
+  "ExpirePromotion": {
+   "cu_max": 28219,
+   "packet_max": 449,
+   "accounts_max": 10,
+   "n": 21
+  },
+  "FinalizeRound": {
+   "cu_max": 17413,
+   "packet_max": 317,
+   "accounts_max": 6,
+   "n": 19
+  },
+  "Fulfill": {
+   "cu_max": 19747,
+   "packet_max": 628,
+   "accounts_max": 10,
+   "n": 36
+  },
+  "IncreaseProviderBudget": {
+   "cu_max": 15651,
+   "packet_max": 357,
+   "accounts_max": 7,
+   "n": 4
+  },
+  "Initialize": {
+   "cu_max": 8651,
+   "packet_max": 292,
+   "accounts_max": 5,
+   "n": 1
+  },
+  "ObserveRequestFulfilled": {
+   "cu_max": 30863,
+   "packet_max": 382,
+   "accounts_max": 8,
+   "n": 19
+  },
+  "ProvisionPage": {
+   "cu_max": 35124,
+   "packet_max": 435,
+   "accounts_max": 9,
+   "n": 113
+  },
+  "PruneRows": {
+   "cu_max": 12597,
+   "packet_max": 337,
+   "accounts_max": 6,
+   "n": 5
+  },
+  "ReconcileOpsCash": {
+   "cu_max": 12732,
+   "packet_max": 433,
+   "accounts_max": 9,
+   "n": 2
+  },
+  "ReconcileOpsCashWithClient": {
+   "cu_max": 14948,
+   "packet_max": 316,
+   "accounts_max": 6,
+   "n": 6
+  },
+  "Register": {
+   "cu_max": 34855,
+   "packet_max": 544,
+   "accounts_max": 12,
+   "n": 1
+  },
+  "SealWeights": {
+   "cu_max": 4586,
+   "packet_max": 258,
+   "accounts_max": 4,
+   "n": 5
+  },
+  "Withdraw": {
+   "cu_max": 9389,
+   "packet_max": 360,
+   "accounts_max": 7,
+   "n": 3
+  },
+  "WithdrawSimple": {
+   "cu_max": 62866,
+   "packet_max": 760,
+   "accounts_max": 17,
+   "n": 66
+  }
+ },
+ "widest_close_packet": {
+  "label": "financial.close.build_candidates_rejects_skipped_or_reordered_rows.nine_rows",
+  "packet_bytes": 1183,
+  "accounts": 32,
+  "cu": 20150,
+  "fits_legacy_packet": true
+ },
+ "all_close_observations_fit_legacy_packet": true,
+ "findings_for_codex": [
+  {
+   "id": "M7-F1",
+   "severity": "design (griefing, no fund loss)",
+   "title": "Pre-funded request PDA blocks the draw until the deadline",
+   "evidence": {
+    "label": "financial.close.collision_with_preexisting_request_fails_closed_no_alternate_seed.prefunded_system_account.request",
+    "error": "InstructionError(1, Custom(0))",
+    "note": "prefunded_system_account: the request FAILED CLOSED (the provider refuses a pre-funded PDA; a public-address griefing vector until the deadline) (a pre-funded empty system-owned account at the request PDA)"
+   },
+   "detail": "The request PDA is derived from public inputs once the candidate set is sealed. The captured ORAO executable creates it with create_account, which fails (system Custom(0) AccountAlreadyInUse) when anyone has pre-funded the address; request_round_draw fails closed as designed (Collision / no alternate seed), so the promotion for that close can only expire Skipped(Deadline). Cost to a griefer on the cluster: the rent-exempt minimum for an empty account (890,880 lamports locally) per close, lost to the griefer; impact: that round's Series B promotion is skipped, the seed carries, every cash path (settlement, finalize, claims) completes, no lamports are lost by the project. The plan accepted fail-closed collisions; it did not price this vector.",
+   "options": [
+    "accept and document (the promotion is a bonus draw, not owed cash; ~0.0009 SOL per grief)",
+    "ask ORAO whether request creation can tolerate a pre-funded PDA (upstream; not ours)",
+    "any seed-unpredictability change would reopen the accepted deterministic-seed design (not recommended here)"
+   ],
+   "status": "Codex: fits the frozen contract; documented as an accepted griefing risk (supplement §4); no seed/provider redesign, no gate",
+   "cost_estimate": "LOCAL/DEFAULT-FIXTURE ESTIMATE: the rent-exempt minimum of an empty account under the harness rent fixture is 890,880 lamports ≈ 0.00089 SOL (3,480 lamports per byte-year × 2-year exemption threshold × 128 bytes of account overhead) plus one transaction fee, stranded at the PDA, per close. The cluster figure follows its live rent schedule and is not asserted here. Impact: one skipped Series B promotion, no fund loss."
+  },
+  {
+   "id": "M7-F2",
+   "severity": "cosmetic",
+   "title": "capture_round_draw records IgnoredLate on an already-terminal close before the terminal check",
+   "detail": "close.rs capture_round_draw: a late capture on a terminal close sets draw_state = IGNORED_LATE (a harmless field write) whereas a timely capture on a terminal close returns PromotionTerminal; ordering only, no cash or state of consequence.",
+   "status": "Codex: cosmetic, deferred to the M8 program pass"
+  },
+  {
+   "id": "M7-F3",
+   "severity": "note",
+   "title": "Error codes LateCapture 6027 and CandidatesIncomplete 6047 are declared but never raised",
+   "detail": "Late capture is the IgnoredLate no-op; incomplete candidates expire with STAGE_CANDIDATES_INCOMPLETE. Frozen codes stay reserved.",
+   "status": "Codex: reserved codes are fine"
+  },
+  {
+   "id": "M7-F4",
+   "severity": "plan wording",
+   "title": "Treasury fee moves at request time, not at fulfillment",
+   "detail": "Probe receipts and the suite: request: Client −(fee+rent), request account +rent, Treasury +fee; fulfillment: request −excess rent, Client +excess rent. The plan sketch said \"Treasury +300,000 at fulfillment\".",
+   "status": "fixed in the supplement §5 (request-time fee wording)"
+  }
+ ],
+ "limits": [
+  "one synthetic ORAO fulfill authority (Ed25519 precompile + Fulfill), no cluster latency or quorum",
+  "LiteSVM 0.7.1 does not check rent state for data-less accounts (IMPL-43 receipt); local default rent fixture: 3,480 lamports per byte-year with a 2-year exemption threshold (6,960 lamports per byte incl. the 128-byte overhead)",
+  "the Squads stand-in proves application guards only (M3)",
+  "mainnet cluster domain not yet defined; two vectors (litesvm fixture, devnet) pinned"
+ ],
+ "related_receipts": [
+  "docs/solana/evidence/2026-10-14-m7-deadline-pin.json",
+  "docs/solana/evidence/2026-10-14-m7-owner-refund.json",
+  "docs/coordination/native-solana-m7-contract-supplement-20261014.md"
+ ],
+ "scope_note": "Local only; nothing deployed, signed with live keys, funded, registered with ORAO or Squads, activated or merged.",
+ "impl45_note": {
+  "elf_after_impl45": "28f54d5e80568fc4e9528de280bc1aa82afcfa5b71606087b1c703547f4e3265",
+  "source_set_sha256": "7e703900109d1353666b7c734c7aaa7ccd1bd942e545b59bc9cff86f8135867e",
+  "change": "withdraw_provider_return preflight (no behaviour change for deliverable returns); every M7 row re-run green on the IMPL-45 ELF",
+  "full_harness_results": [
+   "ok. 142 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 105.12s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.90s",
+   "ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.24s",
+   "ok. 7 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 43.50s",
+   "ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s",
+   "ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+  ],
+  "cli_json_sha256": "dd2603b731036318ae5df1ca8083f1288fca61f32fcc6a5725dc472d37b7696f",
+  "close_rows": 43
+ }
+}

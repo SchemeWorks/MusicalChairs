@@ -1,0 +1,8 @@
+[build]
+jobs = 2
+rustflags = ["--check-cfg=cfg(target_os, values(\"solana\"))", "--check-cfg=cfg(feature, values(\"anchor-debug\"))"]
+
+# MSRV-aware resolution so `cargo generate-lockfile` on the host (1.92) only picks
+# crate versions the platform-tools cargo (1.84) can parse (no edition-2024 crates).
+[resolver]
+incompatible-rust-versions = "fallback"
