@@ -247,3 +247,15 @@ Gideon independently accepted this revision on 2026-11-02 (UTC).
 - **Evidence.** `docs/solana/evidence/2026-11-06-close1-draw1/` (seven files under `MANIFEST.sha256`; `devnet-steps-13-20.json` sha256 `1ce370c5…`); receipts 20 lines, sha256 `b4b20e11…`, the first 12 unchanged; ledger row `20261106-A7-flow-13-20`.
 - **Accepted.** Gideon accepted steps 13–20 as the recorded devnet outcomes on 2026-11-06, in a bounded receipt review at 3365fe8 (evidence `1ce370c5…`, receipts `b4b20e11…`, full readback `1aa15f47…`; no root RPC, build or tests; no source delta).
 - **Not done.** Step 21 is ready by the clock but outside this go-ahead; it keeps its own predecessors and authority. Later dates move with the actual times of steps 21 and 22, because the Compound15 and Compound30 maturities count from the actual opens.
+
+## 13. Execution (step 21, 2026-11-06)
+
+- **Authority.** Rob's explicit authorization of step 21 and of its relay, read by Gideon in the trusted human turn and relayed the same day. Step 21 only; then stop for review.
+- **Guards, immediately before.** HEAD = origin 405a9b7 with the flow plan unchanged (sha256 `31b10b11…`); runner `a9dcb1b3…` verified; `solana/` unchanged since 29c8f97; packet pin `ae8a6a0e…`; full finalized readback 44/44; finalized status 20/39 with step 21 next and ready, `all_ok`, 0 foreign receipts; receipts `b4b20e11…` (20 lines); write-ahead 1,460/1,460 resolved; conservation true; W at its funded 630,000,000; 56 GiB free.
+- **Step.** Dry run, then the one composed transaction executed once (slot 519,127,036, finalized, `err` null): `FinalizeRound`, `ProvisionPage`, `OpenPosition`.
+  - Round 1 finalized and round 2 open. The carried seed of 48,872,669 entered the pot once; with W's net deposit of 576,000,000 (0.6 SOL less the 24,000,000 Front-End Load) the pot is 624,872,669.
+  - Ops paid the 2,326,640 round 2 participant page. W's −603,642,280 (deposit, 3,637,280 rent, 5,000 fee) equals its lamport equation.
+- **Timing.** W's position opened at 1,793,926,890 (2026-11-06T01:01:30Z, 2,853 s after the plan time) and matures at 1,796,518,890 (2026-12-06T01:01:30Z), exactly 30 days, read from the position account. The program enforces this maturity, so step 32 runs no earlier than that, 2,793 s after its plan earliest. Step 37's window still ends at the actual close 2 deadline + 600.
+- **After.** Finalized status 21/39, `all_ok`; every check true and conservation held; write-ahead 1,461/1,461 resolved.
+- **Evidence.** `docs/solana/evidence/2026-11-06-reopen/` (seven files under `MANIFEST.sha256`; `devnet-step-21.json` sha256 `b2f6952b…`); receipts 21 lines, sha256 `a116fcb3…`, the first 20 unchanged; ledger row `20261106-A7-flow-21`.
+- **Not done.** Steps 22 onward; each keeps its own predecessors and authority. The Compound15 maturity will count from P1's actual open at step 22.

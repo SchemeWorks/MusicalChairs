@@ -265,7 +265,7 @@
       "state": "In progress",
       "owner": "Silas (Claude coordinator)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 20/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02. Steps 13 to 20, the round 1 close, the first live draw and the promotion, ran in one sitting on 2026-11-06 with every check passing, and Gideon accepted their evidence the same day. Next: step 21, which reopens the game for round 2, under its own go-ahead.",
+      "evidenceText": "State detail: in progress; 21/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02. Steps 13 to 20, the round 1 close, the first live draw and the promotion, ran in one sitting on 2026-11-06 with every check passing, and Gideon accepted their evidence the same day. Step 21 then reopened the game for round 2 under Rob's own go-ahead and waits for Gideon's review. Next: the round 2 setup steps, under their own go-ahead.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -379,10 +379,10 @@
     },
     {
       "id": "M14-A7-REOPEN",
-      "state": "Blocked",
+      "state": "Review",
       "owner": "Silas (Claude coordinator)",
       "scope": "Finish round 1 and open round 2 in one transaction from an ordinary wallet (flow step 21).",
-      "evidenceText": "State detail: blocked until its own go-ahead; part of M14-A7. A plain player wallet sends one transaction that finalizes round 1, prepares round 2 and opens its own 30-day compounding deposit. The money carried forward from round 1 seeds round 2. This deposit's time starts the 30-day clock for the end of round 2. The promotion it waited on is done and accepted. This step's earliest time has passed, but it needs its own go-ahead, which the last one did not cover.",
+      "evidenceText": "State detail: in review; part of M14-A7. Ran on 2026-11-06 under Rob's explicit go-ahead for this one step. Fresh checks first confirmed that nothing had changed. The plain player wallet then sent one transaction that finalized round 1, prepared round 2 and opened its own 30-day compounding deposit of 0.6 test SOL. The money carried forward from round 1 seeded round 2 exactly once. The deposit opened about 47 minutes after the plan's time, so the end of round 2 can come no earlier than 01:01:30 UTC on 2026-12-06. Every check passed and the transaction is final. Waiting for Gideon's review of the saved evidence.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -395,7 +395,7 @@
       "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Round 2 deposits and new backer funding (flow steps 22 to 27).",
-      "evidenceText": "State detail: blocked until round 2 opens; part of M14-A7. It runs right after. A 15-day compounding deposit and two small regular deposits open, and a second backer and the draw winner add backer funding, so the winner holds both an ordinary backer share and its winner's share. The record for round 2's close is prepared. The 15-day deposit's time starts the clock for M14-A7-C15.",
+      "evidenceText": "State detail: blocked until the reopen is accepted and this step has its own go-ahead; part of M14-A7. Round 2 is open. A 15-day compounding deposit and two small regular deposits open, and a second backer and the draw winner add backer funding, so the winner holds both an ordinary backer share and its winner's share. The record for round 2's close is prepared. The 15-day deposit's time starts the clock for M14-A7-C15.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
