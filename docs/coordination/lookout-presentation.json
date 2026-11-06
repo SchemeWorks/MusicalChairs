@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–27 are done. On November 6 round 1 closed, the real oracle answered the first live draw in two seconds, P5 won, and round 2 opened and was set up; the setup awaits Gideon's review. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network. On November 5 Pacific time the first round ended as planned, a live random draw picked a winner within seconds, and round two was set up with Rob’s approval. Gideon is reviewing the setup; the next step is a payout after November 20 that needs Rob’s approval.",
+  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–27 are done. On November 6 round 1 closed, the real oracle answered the first live draw in two seconds, P5 won, and round 2 opened and was set up; Gideon accepted all of it. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network. On November 5 Pacific time the first round ended as planned, a live random draw picked a winner within seconds, and round two was set up with Rob’s approval. Gideon has accepted all of it; the next step is a payout after November 20 that needs Rob’s approval.",
   "glossary": [
     {
       "term": "M14",
