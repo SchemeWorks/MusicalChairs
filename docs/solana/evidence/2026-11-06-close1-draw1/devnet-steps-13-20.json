@@ -1,0 +1,979 @@
+{
+ "schema": 1,
+ "card": "M14-A7-CLOSE1 / M14-A7-DRAW1 / M14-A7-PROMO",
+ "what": "devnet flow steps 13-20 in one sitting, each sending step dry-run then executed ONCE with the approved immutable runner; step 18 observation-only (zero sends)",
+ "authority": "Rob's direct instruction via Gideon (2026-11-03 UTC, recorded b94741c/496e1de) and Gideon's bounded conditional go-ahead, activated by Gideon at the first existing eligible wake 2026-11-06T00:17:34Z; no further approval; later scopes keep their own predecessors and authority",
+ "runner": {
+  "sha256": "a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c",
+  "bytes": 23020064,
+  "immutable_copy_verified": true,
+  "source": "solana/ tree at 29c8f97, unchanged at HEAD 496e1de"
+ },
+ "presend_guards": {
+  "checked_at_utc": "2026-11-06T00:19:33Z-00:23:40Z",
+  "readback_finalized": "39/39 all_ok (sections squads, program, initialize; ELF 0c88d4e7...)",
+  "status": "12/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, conservation True, next a1_closing_withdraw ready (earliest 2026-11-06T00:10:57Z), cluster unix 1793924518",
+  "pending": "1,447/1,447 write-ahead resolved, 0 open, 0 held",
+  "receipts_sha256_before": "2d56a1bb24ca03023aee0e3b33e9baf193e3b70b032c2a31e6c5aa623721e6bd (12 lines)",
+  "packet_sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+  "configversion1_activated_at": 1793115095,
+  "genesis_unix": 1792942295,
+  "live_strict_insolvency": "step 13 dry run at cluster unix 1793924620: pot 572,414,815 unchanged since step 10 (no foreign deposit), gross owed 573,389,004, margin -974,189 -> insolvent; pot-capped payout 572,414,815, toll 42,931,111 (7.5 %), net 529,483,704, close reserve 10,941,400",
+  "budgets": "finalized balances A1 474,323,792 and K 49,950,000 against fees of 5,000 per transaction; S 468,773,280",
+  "disk": "55 GiB free on the data volume; operator journal 3.1 MB"
+ },
+ "deadline": {
+  "close_started_unix": 1793924649,
+  "deadline_unix": 1793925249,
+  "request_landed_by_unix": 1793924802,
+  "request_margin_s": 447,
+  "capture_landed_by_unix": 1793924835,
+  "capture_margin_s": 414,
+  "orao": {
+   "request_slot": 519118214,
+   "fulfil_slot": 519118222,
+   "latency_slots": 8,
+   "latency_seconds": 2,
+   "deadline_margin_seconds": 457,
+   "request_signature": "3DtoTsMBKid3BtSwaAqoxrnPUzTFVHThgQ3vRM625FiuQRQhsjAZqTFydkUzYMkLPbjcHgWkUVe38k6vcta7NKqQ",
+   "fulfil_signature": "PeqhPJKA2hFBdpGpSdubcCf8pHkj7cVWJmGB1jR4UM1kLxHLbaarUiVU5G9MQsS64CyCrq1PR8N5uHxQaozKKWC",
+   "request_account": "9RtenVFn664nVEFzPxQ87H1LzCUvRG7Z2Ya6DD21vgyP"
+  }
+ },
+ "winner": "P5",
+ "steps": {
+  "a1_closing_withdraw": {
+   "index": 13,
+   "actor": "A1",
+   "flows": "F4,F8",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-13.json (dry run flow-13-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924646,
+   "cluster_unix_after": 1793924651,
+   "checks": [
+    {
+     "actual": "572414815",
+     "expected": "572414815 (+/- 0)",
+     "name": "paid_gross matches the economics oracle",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "572414815",
+     "name": "pot -= paid_gross",
+     "ok": true
+    },
+    {
+     "actual": "572414815",
+     "expected": "572414815",
+     "name": "pot-capped: paid the whole pot",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "pot is empty",
+     "ok": true
+    },
+    {
+     "actual": "Some(1)",
+     "expected": "Some(1)",
+     "name": "round is closing",
+     "ok": true
+    },
+    {
+     "actual": "2",
+     "expected": "2",
+     "name": "next_close_id += 1",
+     "ok": true
+    },
+    {
+     "actual": "1793925249",
+     "expected": "1793925249",
+     "name": "deadline == close_started_at + 600",
+     "ok": true
+    },
+    {
+     "actual": "10941400",
+     "expected": "10941400",
+     "name": "required_reserve == spec 8.1 reserve",
+     "ok": true
+    },
+    {
+     "actual": "10941400 / 0",
+     "expected": "10941400 / 0",
+     "name": "sponsor funds the whole reserve",
+     "ok": true
+    },
+    {
+     "actual": "477125680",
+     "expected": "477125680",
+     "name": "Ops.free_balance -= reserve",
+     "ok": true
+    },
+    {
+     "actual": "2",
+     "expected": "non-zero",
+     "name": "the toll rides an allocation ticket",
+     "ok": true
+    },
+    {
+     "actual": "529483704",
+     "expected": "net <= 572414815",
+     "name": "net + toll == paid_gross",
+     "ok": true
+    },
+    {
+     "actual": "529478704",
+     "expected": "529478704",
+     "name": "payout (destination = owner): actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "a1_closing_withdraw: payout",
+     "packet_bytes": 632,
+     "required_signers": [
+      "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US"
+     ],
+     "signature": "g63EWayEuhSbFRHoxPt2YzmQSKSFsxeBoZzz29S6XUVFFpXYV6BqeuvvHhB66pehh6nJ6TpaEakdRjVAjGbGbBf",
+     "simulation": {
+      "error": null,
+      "units_consumed": 76160
+     },
+     "slot": 519117624,
+     "step": "a1_closing_withdraw"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "488067080",
+     "lamports": 488717320,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 488067080
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 10941400,
+     "sum_of_close_records": 10941400
+    }
+   },
+   "pre_state": {
+    "close_reserve": 10941400,
+    "expectation": {
+     "gross_owed": "573422106",
+     "insolvent": true,
+     "margin": "-1007291",
+     "net": 529483704,
+     "paid_gross": 572414815,
+     "toll": 42931111
+    },
+    "pot_before": 572414815
+   }
+  },
+  "advance_ticket_close1": {
+   "index": 14,
+   "actor": "K",
+   "flows": "F8",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-14.json (dry run flow-14-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924665,
+   "cluster_unix_after": 1793924711,
+   "checks": [
+    {
+     "actual": "2",
+     "expected": "2",
+     "name": "finalized_ticket == ticket",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "no ticket in flight",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "pending_toll -= ticket toll",
+     "ok": true
+    },
+    {
+     "actual": "42931111",
+     "expected": "42931111",
+     "name": "toll fully allocated (credited + seed)",
+     "ok": true
+    },
+    {
+     "actual": "-30000",
+     "expected": "-30000",
+     "name": "advance_ticket_close1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: discover (rows 1)",
+     "packet_bytes": 399,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "5iP4ZHysM982mhhqnUTDZMMBHmFECBo8vSLyHp5QLd6oeHVcz4sNhctGfKHBt2jefdok7sJAbWKpztGLR5kFpPg1",
+     "simulation": {
+      "error": null,
+      "units_consumed": 19107
+     },
+     "slot": 519117744,
+     "step": "advance_ticket_close1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: senior (rows 0)",
+     "packet_bytes": 291,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "JSSecdNWXKMZSxmPRjZAWpFwwJzCRFVWsbhhTfazbSzLjvWcMG3T87aY75UopZf3BeyeR25FMgavjLAPgNDHM1J",
+     "simulation": {
+      "error": null,
+      "units_consumed": 8044
+     },
+     "slot": 519117753,
+     "step": "advance_ticket_close1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: seal (rows 0)",
+     "packet_bytes": 258,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "5ZD1dat4vZYUPVGsLXtEdRettxDKMUzWC4TAz4xsgo8wCV2Er4HBcHXLLqTvLbWiKC5BUsW1obZMcGrweC7nGCdf",
+     "simulation": {
+      "error": null,
+      "units_consumed": 4570
+     },
+     "slot": 519117807,
+     "step": "advance_ticket_close1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: allocate (rows 1)",
+     "packet_bytes": 333,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "3uRrxahacQ4Ld8e988duXWhwnRrNB5Zk5LBQveLjY12Ym3eGjpq73Ub99hHkdsGy4AzDUct3i2wwWCwm23qmEQcJ",
+     "simulation": {
+      "error": null,
+      "units_consumed": 11941
+     },
+     "slot": 519117815,
+     "step": "advance_ticket_close1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: prune (rows 1)",
+     "packet_bytes": 337,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "PF3sXC3fBzaaAfCMLFrySj7LjyUXBisiT4q8bCZt3wHGjMPqNsZi6DwMrm9KZkYZYEN45cJgwu4ogETp7Fz4Ewh",
+     "simulation": {
+      "error": null,
+      "units_consumed": 12605
+     },
+     "slot": 519117823,
+     "step": "advance_ticket_close1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "advance_ticket_close1: ticket 2: commit (rows 0)",
+     "packet_bytes": 358,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "4w8U9iTf7JebPCpCoSWZDiVTePggRostAUbdt9oMqr7hMWjrUJxz99tf6hhXLUWccxHp82XZ17gnPd7ccL8MfZax",
+     "simulation": {
+      "error": null,
+      "units_consumed": 24191
+     },
+     "slot": 519117874,
+     "step": "advance_ticket_close1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "488067080",
+     "lamports": 488717320,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 488067080
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 10941400,
+     "sum_of_close_records": 10941400
+    }
+   },
+   "pre_state": null
+  },
+  "candidate_pages_1": {
+   "index": 15,
+   "actor": "K",
+   "flows": "F8",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-15.json (dry run flow-15-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924725,
+   "cluster_unix_after": 1793924743,
+   "checks": [
+    {
+     "actual": "Some((1, 1))",
+     "expected": "1/1",
+     "name": "both candidate sets are provisioned",
+     "ok": true
+    },
+    {
+     "actual": "-10000",
+     "expected": "-10000",
+     "name": "candidate_pages_1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "candidate_pages_1: candidate page preferred #0",
+     "packet_bytes": 435,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "kTTh3xUgPptuRXfHZHHmDXXmec5A8pammSamFDgrZVEZB49j6F3vF1qgVdJaQj5bVx4VPjyVCNMH1LwdiabL2q7",
+     "simulation": {
+      "error": null,
+      "units_consumed": 43906
+     },
+     "slot": 519117955,
+     "step": "candidate_pages_1"
+    },
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "candidate_pages_1: candidate page fallback #0",
+     "packet_bytes": 435,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "YFE6HC5dASTUFELnFwuC3j5wLbmse1edPq5BPqweBFk4HSTrNBZUVwW1xAG4pGEUpXTdus5NUZvNKxzs6bLAEmY",
+     "simulation": {
+      "error": null,
+      "units_consumed": 43908
+     },
+     "slot": 519118006,
+     "step": "candidate_pages_1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "483403640",
+     "lamports": 484053880,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 483403640
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 6277960,
+     "sum_of_close_records": 6277960
+    }
+   },
+   "pre_state": null
+  },
+  "build_candidates_1": {
+   "index": 16,
+   "actor": "K",
+   "flows": "F8",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-16.json (dry run flow-16-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924757,
+   "cluster_unix_after": 1793924773,
+   "checks": [
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "candidate set sealed",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "selected set tag",
+     "ok": true
+    },
+    {
+     "actual": "[HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF, Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ]",
+     "expected": "[HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF, Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ]",
+     "name": "page 0 lists the independently derived candidates",
+     "ok": true
+    },
+    {
+     "actual": "-5000",
+     "expected": "-5000",
+     "name": "build_candidates_1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "build_candidates_1: build_candidates rows 3 from 0",
+     "packet_bytes": 749,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "25HanRmHZwv5DF3nQobkNny6MY6318ANsd4HGHWihDX1YhMVSZRvFZhHG1ULTQaXWJxyaX53GAqWYSkttV4Qwo6k",
+     "simulation": {
+      "error": null,
+      "units_consumed": 48307
+     },
+     "slot": 519118132,
+     "step": "build_candidates_1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "483403640",
+     "lamports": 484053880,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 483403640
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 6277960,
+     "sum_of_close_records": 6277960
+    }
+   },
+   "pre_state": null
+  },
+  "request_draw_1": {
+   "index": 17,
+   "actor": "K",
+   "flows": "F8r",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-17.json (dry run flow-17-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924787,
+   "cluster_unix_after": 1793924802,
+   "checks": [
+    {
+     "actual": "1",
+     "expected": "1",
+     "name": "draw requested",
+     "ok": true
+    },
+    {
+     "actual": "1793924802",
+     "expected": "now <= deadline",
+     "name": "inside the deadline",
+     "ok": true
+    },
+    {
+     "actual": "-5000",
+     "expected": "-5000",
+     "name": "request_draw_1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "request_draw_1: request_round_draw",
+     "packet_bytes": 648,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "3DtoTsMBKid3BtSwaAqoxrnPUzTFVHThgQ3vRM625FiuQRQhsjAZqTFydkUzYMkLPbjcHgWkUVe38k6vcta7NKqQ",
+     "simulation": {
+      "error": null,
+      "units_consumed": 78579
+     },
+     "slot": 519118214,
+     "step": "request_draw_1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "478597680",
+     "lamports": 479247920,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 478597680
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 1472000,
+     "sum_of_close_records": 1472000
+    }
+   },
+   "pre_state": null
+  },
+  "fulfil_1": {
+   "index": 18,
+   "actor": "K",
+   "flows": "F8c",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-18.json",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924803,
+   "cluster_unix_after": 1793924816,
+   "checks": [
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "the ORAO request is fulfilled",
+     "ok": true
+    },
+    {
+     "actual": "0",
+     "expected": "0",
+     "name": "orao fulfill (transaction + precompile signature): actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [],
+   "oracle": {
+    "deadline_margin_seconds": 457,
+    "fulfil_block_time": 1793924792,
+    "fulfil_signature": "PeqhPJKA2hFBdpGpSdubcCf8pHkj7cVWJmGB1jR4UM1kLxHLbaarUiVU5G9MQsS64CyCrq1PR8N5uHxQaozKKWC",
+    "fulfil_slot": 519118222,
+    "latency_seconds": 2,
+    "latency_slots": 8,
+    "request_account": "9RtenVFn664nVEFzPxQ87H1LzCUvRG7Z2Ya6DD21vgyP",
+    "request_block_time": 1793924790,
+    "request_signature": "3DtoTsMBKid3BtSwaAqoxrnPUzTFVHThgQ3vRM625FiuQRQhsjAZqTFydkUzYMkLPbjcHgWkUVe38k6vcta7NKqQ",
+    "request_slot": 519118214,
+    "source": "getSignaturesForAddress(request account)",
+    "tool_waited_seconds": null
+   },
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "478597680",
+     "lamports": 479247920,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 478597680
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 1472000,
+     "sum_of_close_records": 1472000
+    }
+   },
+   "pre_state": null
+  },
+  "capture_draw_1": {
+   "index": 19,
+   "actor": "K",
+   "flows": "F8c",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-19.json (dry run flow-19-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924831,
+   "cluster_unix_after": 1793924835,
+   "checks": [
+    {
+     "actual": "2",
+     "expected": "2",
+     "name": "draw captured",
+     "ok": true
+    },
+    {
+     "actual": "-5000",
+     "expected": "-5000",
+     "name": "capture_draw_1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "capture_draw_1: capture_round_draw",
+     "packet_bytes": 383,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "ij6tfVjUXabfXqWExaTVeiFoQ9PCh3Xq1JfmohD2zmfP77Kb9Cb9n6ep2toQQGhjcvq6zLXVL5rfCekerHfkfye",
+     "simulation": {
+      "error": null,
+      "units_consumed": 34175
+     },
+     "slot": 519118399,
+     "step": "capture_draw_1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "478597680",
+     "lamports": 479247920,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 478597680
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 1472000,
+     "sum_of_close_records": 1472000
+    }
+   },
+   "pre_state": null
+  },
+  "apply_promotion_1": {
+   "index": 20,
+   "actor": "K",
+   "flows": "F9a",
+   "result": "done",
+   "all_ok": true,
+   "receipt_file": "~/.mc-devnet-ops/flow-20.json (dry run flow-20-dry.json)",
+   "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+   "cluster_unix_before": 1793924850,
+   "cluster_unix_after": 1793924864,
+   "checks": [
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "promotion applied",
+     "ok": true
+    },
+    {
+     "actual": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+     "expected": "P4 or P5",
+     "name": "the winner is one of P4 / P5",
+     "ok": true
+    },
+    {
+     "actual": "11600000",
+     "expected": "11600000",
+     "name": "Series B entitlement is 116 % of the loss",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "the winner's B row is active",
+     "ok": true
+    },
+    {
+     "actual": "2",
+     "expected": "2",
+     "name": "the B row joined the registry",
+     "ok": true
+    },
+    {
+     "actual": "-5000",
+     "expected": "-5000",
+     "name": "apply_promotion_1: actor lamport equation",
+     "ok": true
+    },
+    {
+     "actual": "true",
+     "expected": "true",
+     "name": "both conservation identities and the partition identity",
+     "ok": true
+    }
+   ],
+   "transactions": [
+    {
+     "depends_on_previous": false,
+     "executed": true,
+     "fee_payer": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+     "fits_1232": true,
+     "instructions": 2,
+     "label": "apply_promotion_1: apply_promotion",
+     "packet_bytes": 681,
+     "required_signers": [
+      "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW"
+     ],
+     "signature": "Lkg5UKzDW17n1JskModS5ArDCi1JSamYr4j9CFQwk4B5CE62yA3pqGWQxFobSwLSpFBCegwkyp5hMKk56A3hGCn",
+     "simulation": {
+      "error": null,
+      "units_consumed": 64018
+     },
+     "slot": 519118520,
+     "step": "apply_promotion_1"
+    }
+   ],
+   "oracle": null,
+   "conservation": {
+    "game_vault": {
+     "lamports": 111834184,
+     "ok": true,
+     "pot_seed_management_pending_toll_funded_claims_excess": "111138224",
+     "rent": 695960,
+     "spendable": 111138224
+    },
+    "ok": true,
+    "ops_cash": {
+     "free_locked_unallocated": "477200680",
+     "lamports": 477850920,
+     "ok": true,
+     "rent": 650240,
+     "spendable": 477200680
+    },
+    "partitions": {
+     "ok": true,
+     "ops_locked_remaining_total": 0,
+     "sum_of_close_records": 0
+    }
+   },
+   "pre_state": null
+  }
+ },
+ "post_state": {
+  "status": "20/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next w_finalize_reopen (ready by the clock; NOT run: outside this go-ahead)",
+  "transactions": "13 sent, 13/13 finalized, err null",
+  "pending": "1,460/1,460 write-ahead resolved, 0 held",
+  "receipts": "20 lines (first 12 byte-identical)"
+ },
+ "spend_reconciliation": {
+  "fees_lamports": 65000,
+  "by_actor": {
+   "A1": "1 transaction, 5,000",
+   "K": "12 transactions, 60,000"
+  },
+  "balances_finalized_before": {
+   "A1": 474323792,
+   "K": 49950000,
+   "S": 468773280
+  },
+  "balances_finalized_after": {
+   "A1": 1003802496,
+   "K": 49890000,
+   "S": 468773280
+  },
+  "a1_equation": "1,003,802,496 - 474,323,792 = 529,478,704 = net payout 529,483,704 - fee 5,000",
+  "game_vault_spendable": "111138224 after step 13 (from 640,621,928 before: -529,483,704, the net payout; the toll stays inside, allocated by ticket 2) -> 111138224 after step 20",
+  "ops_cash": {
+   "after_step_13": {
+    "lamports": 488717320,
+    "free_locked_unallocated": "488067080"
+   },
+   "after_step_14": {
+    "lamports": 488717320,
+    "free_locked_unallocated": "488067080"
+   },
+   "after_step_15": {
+    "lamports": 484053880,
+    "free_locked_unallocated": "483403640"
+   },
+   "after_step_16": {
+    "lamports": 484053880,
+    "free_locked_unallocated": "483403640"
+   },
+   "after_step_17": {
+    "lamports": 479247920,
+    "free_locked_unallocated": "478597680"
+   },
+   "after_step_18": {
+    "lamports": 479247920,
+    "free_locked_unallocated": "478597680"
+   },
+   "after_step_19": {
+    "lamports": 479247920,
+    "free_locked_unallocated": "478597680"
+   },
+   "after_step_20": {
+    "lamports": 477850920,
+    "free_locked_unallocated": "477200680"
+   }
+  },
+  "ops_cash_before": {
+   "lamports": 488717320,
+   "free_locked_unallocated": "488067080"
+  },
+  "note": "internal transfers only (payout from the game vault; close reserve from Ops); fees from the test-wallet and keeper buckets; no faucet intake"
+ },
+ "signatures": [
+  "g63EWayEuhSbFRHoxPt2YzmQSKSFsxeBoZzz29S6XUVFFpXYV6BqeuvvHhB66pehh6nJ6TpaEakdRjVAjGbGbBf",
+  "5iP4ZHysM982mhhqnUTDZMMBHmFECBo8vSLyHp5QLd6oeHVcz4sNhctGfKHBt2jefdok7sJAbWKpztGLR5kFpPg1",
+  "JSSecdNWXKMZSxmPRjZAWpFwwJzCRFVWsbhhTfazbSzLjvWcMG3T87aY75UopZf3BeyeR25FMgavjLAPgNDHM1J",
+  "5ZD1dat4vZYUPVGsLXtEdRettxDKMUzWC4TAz4xsgo8wCV2Er4HBcHXLLqTvLbWiKC5BUsW1obZMcGrweC7nGCdf",
+  "3uRrxahacQ4Ld8e988duXWhwnRrNB5Zk5LBQveLjY12Ym3eGjpq73Ub99hHkdsGy4AzDUct3i2wwWCwm23qmEQcJ",
+  "PF3sXC3fBzaaAfCMLFrySj7LjyUXBisiT4q8bCZt3wHGjMPqNsZi6DwMrm9KZkYZYEN45cJgwu4ogETp7Fz4Ewh",
+  "4w8U9iTf7JebPCpCoSWZDiVTePggRostAUbdt9oMqr7hMWjrUJxz99tf6hhXLUWccxHp82XZ17gnPd7ccL8MfZax",
+  "kTTh3xUgPptuRXfHZHHmDXXmec5A8pammSamFDgrZVEZB49j6F3vF1qgVdJaQj5bVx4VPjyVCNMH1LwdiabL2q7",
+  "YFE6HC5dASTUFELnFwuC3j5wLbmse1edPq5BPqweBFk4HSTrNBZUVwW1xAG4pGEUpXTdus5NUZvNKxzs6bLAEmY",
+  "25HanRmHZwv5DF3nQobkNny6MY6318ANsd4HGHWihDX1YhMVSZRvFZhHG1ULTQaXWJxyaX53GAqWYSkttV4Qwo6k",
+  "3DtoTsMBKid3BtSwaAqoxrnPUzTFVHThgQ3vRM625FiuQRQhsjAZqTFydkUzYMkLPbjcHgWkUVe38k6vcta7NKqQ",
+  "ij6tfVjUXabfXqWExaTVeiFoQ9PCh3Xq1JfmohD2zmfP77Kb9Cb9n6ep2toQQGhjcvq6zLXVL5rfCekerHfkfye",
+  "Lkg5UKzDW17n1JskModS5ArDCi1JSamYr4j9CFQwk4B5CE62yA3pqGWQxFobSwLSpFBCegwkyp5hMKk56A3hGCn"
+ ]
+}

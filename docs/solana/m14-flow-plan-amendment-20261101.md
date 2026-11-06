@@ -223,3 +223,26 @@ Gideon independently accepted this revision on 2026-11-02 (UTC).
   - Gideon's bounded go-ahead, at his first eligible existing wake after he inspects the cards, receipts and progress. No new timer.
   - Steps 18 and 37 stay zero-send. Step 37 needs its own `refused_as_expected` receipt within max(plan earliest, predecessor completion) to actual close 2 + 600, inclusive. There is no waiver for missing proof.
   - Any refusal, failed check, unknown outcome or new denial means stop and report.
+
+## 12. Execution (steps 13–20, 2026-11-06)
+
+- **Authority.** Rob's direct instruction via Gideon and Gideon's bounded conditional go-ahead (recorded b94741c and 496e1de), activated by Gideon at the first existing eligible wake, 2026-11-06T00:17:34Z. No other approval was needed or sought.
+- **Guards, immediately before.**
+  - Runner `a9dcb1b3…` (23,020,064 bytes) verified; `solana/` unchanged since 29c8f97; packet pin `ae8a6a0e…`.
+  - Finalized readback 39/39; finalized status 12/39 with step 13 next and ready, `all_ok`, 0 foreign receipts.
+  - Receipts `2d56a1bb…` (12 lines); write-ahead 1,447/1,447 resolved; conservation true; budgets covered; 55 GiB free.
+- **Live strict insolvency.** The step 13 dry run (cluster 1,793,924,620) saw the pot unchanged at 572,414,815 lamports and owed 573,389,004: margin −974,189.
+- **Steps.** Each sending step was dry-run, then executed once; step 18 sent nothing.
+  - 13, at cluster 1,793,924,646 (00:24:06Z, 789 s after the threshold): the whole pot paid, toll 42,931,111 (7.5 %), net 529,483,704; round 1 closing; deadline 1,793,925,249.
+  - 14: ticket 2 in six transactions; the whole toll allocated.
+  - 15–16: one preferred and one fallback page; the preferred set {P4, P5} sealed.
+  - 17: the draw request landed 447 s before the deadline.
+  - 18: the real ORAO fulfilment came 8 slots (2 s) after the request; zero sends.
+  - 19: the capture landed 414 s before the deadline.
+  - 20: winner P5; Series B entitlement 11,600,000 lamports (116 %).
+- **After.**
+  - Finalized status 20/39, `all_ok`, winner P5; 13 of 13 transactions finalized with `err` null; write-ahead 1,460/1,460 resolved.
+  - Every check was true and conservation held after every step.
+  - Fees 65,000 lamports (A1 5,000; K 60,000). A1's +529,478,704 and the game vault's −529,483,704 reconcile exactly.
+- **Evidence.** `docs/solana/evidence/2026-11-06-close1-draw1/` (six files under `MANIFEST.sha256`; `devnet-steps-13-20.json` sha256 `1ce370c5…`); receipts 20 lines, sha256 `b4b20e11…`, the first 12 unchanged; ledger row `20261106-A7-flow-13-20`.
+- **Not done.** Step 21 is ready by the clock but outside this go-ahead; it keeps its own predecessors and authority. Later dates move with the actual times of steps 21 and 22, because the Compound15 and Compound30 maturities count from the actual opens.
