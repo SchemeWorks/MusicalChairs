@@ -244,7 +244,7 @@
   "duration_s": 2592000,
   "step32_plan_earliest_unix": 1796516097,
   "step32_plan_earliest_utc": "2026-12-06T00:14:57Z",
-  "note": "the program enforces the actual maturity; the runner waits for it, so step 32 can run no earlier than 2026-12-06T01:01:30Z (2793 s after its plan earliest); step 37's window runs to the ACTUAL close 2 deadline + 600 as before"
+  "note": "the program enforces the actual maturity; the runner waits for it, so step 32 can run no earlier than 2026-12-06T01:01:30Z (2793 s after its plan earliest); step 37's window runs to the ACTUAL close 2 time + 600, i.e. the deadline itself (inclusive), as before"
  },
  "post_state": {
   "status": "21/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next p1_open_compound15 (NOT run: outside this authorization)",
