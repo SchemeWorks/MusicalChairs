@@ -614,10 +614,10 @@
     },
     {
       "id": "LEG-1-SHIP",
-      "state": "Backlog",
+      "state": "Review",
       "owner": "Silas (Claude coordinator)",
       "scope": "Ship the legacy memo fix to the live Shenanigans canister.",
-      "evidenceText": "State detail: held; not started, under the paused third priority. The fix is done and reviewed locally (LEG-1, LEG-1-REV). Shipping needs a rebuilt and pinned candidate, Gideon's acceptance of that candidate and Rob's separate approval of the live upgrade. Its order against the Shenanigans upgrade is Rob's decision. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2). A proposed restart scope is recorded but not started: rebuild and pin the update locally, and show it differs from the live version only by the fix. The live upgrade stays separate.",
+      "evidenceText": "State detail: in review; a local update is prepared and waits for Gideon's decision. On 2026-11-11 Silas rebuilt the fixed Shenanigans service locally with the same compiler the live one uses and compared it, read-only, with the live service: the saved-data layout and the public interface match, and the only code change is the memo fix. One exact build is preserved for any later upgrade. A rebuild does not reproduce that file byte for byte: one embedded description section gets different internal type names each time, while everything else matches. Gideon decides whether that is acceptable. Nothing was deployed; the live upgrade still needs Rob's separate approval. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2).",
       "evidenceLinks": []
     }
   ]

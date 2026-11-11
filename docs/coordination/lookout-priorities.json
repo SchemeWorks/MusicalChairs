@@ -68,9 +68,9 @@
     {
       "id": "legacy-memo-repair-delivery",
       "title": "Legacy rewards ledger-memo fix delivery",
-      "status": "paused",
-      "blockedReason": "The local fix and its independent review are complete, but Gideon's final acceptance of a deploy candidate and Rob's separate approval for a mainnet upgrade are both absent. It resumes only when both exist. Do not resume product work before then.",
-      "nextAction": "",
+      "status": "blocked",
+      "blockedReason": "A local update is prepared, preserved and waiting for Gideon's decision: a rebuild does not reproduce it byte for byte, although its code, saved-data layout and public interface match. Rob's separate approval for the live upgrade is still absent. Nothing is deployed.",
+      "nextAction": "Gideon reviews the prepared update and its evidence. If he accepts it, the live upgrade still needs Rob's separate approval; Silas would then install that exact file with a backup snapshot.",
       "cardIds": [
         "LEG-1",
         "LEG-1-REV",
