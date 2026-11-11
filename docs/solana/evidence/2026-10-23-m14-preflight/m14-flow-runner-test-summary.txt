@@ -1,0 +1,20 @@
+=== 1 m14_flow_tool  ===
+exit 0
+test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 1.64s
+=== 2 m14_flow_tool (MC_ORAO_PROFILE=devnet) ===
+exit 101
+model seed carried 55672500 vs chain 55672500 (match)
+thread 'the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries' (18957503) panicked at tests/m14_flow_tool.rs:576:9:
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 6.22s
+=== 3 m14_flow_plan  ===
+exit 0
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+=== 4 m14_flow_plan (MC_ORAO_PROFILE=devnet) ===
+exit 0
+w_finalize_reopen: model seed carried 55672500 vs chain 55672500 (match)
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 1.05s
+=== 5 devnet_ops_local  ===
+exit 0
+test result: ok. 18 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 9.78s
+=== rerun after the fee-count fix ===
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 12.78s

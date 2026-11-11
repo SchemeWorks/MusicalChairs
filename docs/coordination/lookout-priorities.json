@@ -1,0 +1,105 @@
+{
+  "items": [
+    {
+      "id": "native-solana-devnet-acceptance",
+      "title": "Native Solana test-network acceptance (Block A)",
+      "status": "blocked",
+      "blockedReason": "Steps 1 to 27 are done, with every check passing. On 2026-11-06 round one closed short of money as planned, the real oracle answered the first live draw in two seconds, and P5 was promoted to backer; Gideon accepted it. Step 21 reopened the game and steps 22 to 27 set up round two with 0.42 test SOL, each under Rob's own approval, and Gideon accepted them. No Internet Computer activation or real rewards are part of this work.",
+      "nextAction": "Rob approved only the 15-day deposit's settlement in advance, and Gideon verified that approval. At the first existing check-in after the deposit matures, no earlier than 01:27:11 UTC on 2026-11-21, Silas confirms the maturity and every live safety check, runs that one step once, then stops for review. Nothing is sent before then.",
+      "cardIds": [
+        "M14-PRE-ORAO",
+        "M14-PRE-SQUADS",
+        "M14-TOOL",
+        "M14-SIM",
+        "M14-RUN",
+        "M14-TOOL-REV",
+        "M14-TOOL-FIX",
+        "M14-TOOL-RECHECK",
+        "M14-TOOL-FIX2",
+        "M14-F3-HOLD",
+        "M14-A-APPROVAL",
+        "M14-5A-REPIN",
+        "M14-A1",
+        "M14-A2",
+        "M14-A3",
+        "M14-FUND-TOOL",
+        "M14-A4",
+        "M14-A5",
+        "M14-A6",
+        "M14-A7",
+        "M14-F11",
+        "M14-F11-TOOL",
+        "M14-A7-ACCEL",
+        "M14-A7-WD1",
+        "M14-A7-CLAIM1",
+        "M14-A7-CLOSE1",
+        "M14-A7-DRAW1",
+        "M14-A7-PROMO",
+        "M14-A7-REOPEN",
+        "M14-A7-R2SETUP",
+        "M14-A7-C15",
+        "M14-A7-CAP",
+        "M14-A7-CLOSE2",
+        "M14-A7-EXPIRE",
+        "M14-A-ACCEPT",
+        "M14-F12-OPT"
+      ]
+    },
+    {
+      "id": "local-demo-delivery",
+      "title": "Local click-through demo for Rob",
+      "status": "done",
+      "blockedReason": "",
+      "nextAction": "Done on 2026-10-30: one command starts the practice click-through (a synthetic, already-aged game with a local draw), checked end to end in the browser and left running for Rob.",
+      "cardIds": [
+        "DEMO-LOCAL"
+      ]
+    },
+    {
+      "id": "private-board-visibility",
+      "title": "Private board visibility and priorities",
+      "status": "done",
+      "blockedReason": "",
+      "nextAction": "Alden's priorities cutover is live (confirmed 2026-10-26). Later updates are event-driven: the priorities, cards, summary and glossary are refreshed together at each material checkpoint.",
+      "cardIds": [
+        "LOOKOUT-PROJ"
+      ]
+    },
+    {
+      "id": "legacy-memo-repair-delivery",
+      "title": "Legacy rewards ledger-memo fix delivery",
+      "status": "blocked",
+      "blockedReason": "Gideon accepted the preserved local update on 2026-11-11 after his own review: the reviewed source change is the memo fix only, its test builds have identical program code, and its public interface and saved-data layout match the live service. Which source the live service was built from is inferred, not proven. Only that exact file is accepted. The live upgrade needs Rob's separate decision; nothing is deployed.",
+      "nextAction": "Rob decides whether to approve a backup-protected upgrade with that exact file; Gideon recommends doing it before the larger Shenanigans upgrade for Solana. Once live, failed gifts and pending backer retries can pay at today's settings; recovering older missed rewards stays separate.",
+      "cardIds": [
+        "LEG-1",
+        "LEG-1-REV",
+        "LEG-1-SHIP"
+      ]
+    },
+    {
+      "id": "legacy-failed-mint-recovery",
+      "title": "Legacy failed reward-mint recovery",
+      "status": "blocked",
+      "blockedReason": "Needs a decision on claimant coverage, the original events and duplicate prevention, plus separate recovery authority. It clears only when that decision and authority exist.",
+      "nextAction": "",
+      "cardIds": [
+        "LEG-2"
+      ]
+    },
+    {
+      "id": "icp-integration-production-activation",
+      "title": "Internet Computer integration and production activation",
+      "status": "paused",
+      "blockedReason": "All Internet Computer deployments and upgrades, activation, real reward minting, mainnet and the code merge are held. Each needs its own separate approval, considered after the test-network acceptance.",
+      "nextAction": "",
+      "cardIds": [
+        "M14-B1B2",
+        "M14-B3",
+        "M14-B4",
+        "M14-C2",
+        "M14-C1C3"
+      ]
+    }
+  ]
+}

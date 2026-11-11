@@ -1,0 +1,365 @@
+{
+ "nodes": [
+  {
+   "id": "impl2026_10_27_f11_timelock_protocol",
+   "label": "F11 G time-lock rehearsal protocol (2026-10-27): R0 read-only preflight; reduce G 172,800 -> 0 s as config transaction #3 (2 approvals, 48 h on the cluster clock); R5 document (Squads read-back + simulate-only RG-8 probe); restore 0 -> 172,800 s as #4 at once in the same sitting; S4 read-back 44/44; stop rules; receipt contract",
+   "file_type": "concept",
+   "status": "accepted_contract_in_execution",
+   "rationale": "F11 is in the approved Block A flow list (packet 6.5 line 490, D12 line 561); revised for F11-R1 (R4/S3 enforced guard)",
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L1",
+   "community": 2059
+  },
+  {
+   "id": "impl2026_10_27_g_timelock_tool",
+   "label": "devnet_ops g-timelock (M14-F11-TOOL): status/probe read-only; propose/approve/execute reduce|restore; only SetTimeLock 0 and 172,800 as code constants; exact stored-action checks; execute refuses before approved_at + the CURRENT lock; reuses gate, write-ahead, F3 held-unknown; immutable operator binary 9e4a5a4d (commit 1765c2f)",
+   "file_type": "concept",
+   "status": "accepted_by_gideon_for_the_devnet_f11_rehearsal_only",
+   "rationale": "Gideon accepted the tool delta and the exact immutable binary after F11-R1 closed; acceptance closes the review hold only, not evidence of a live step",
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L1",
+   "community": 2059
+  },
+  {
+   "id": "review2026_10_27_f11_r1_execute_liveness",
+   "label": "F11-R1 (Gideon, blocking, CLOSED): execute must itself enforce 'executing config == latest G transaction' and 'every other G transaction above the stale index is terminal' before any signing, simulation or send; fixed by require_no_other_live in 1765c2f with 3 regression tests",
+   "file_type": "concept",
+   "status": "closed_fixed_and_accepted",
+   "rationale": "a transaction created during the 48 h wait would otherwise be staled; an already-approved stale vault transaction still executes on the real Squads binary",
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L95",
+   "community": 2059
+  },
+  {
+   "id": "impl2026_10_27_rg8_reduced_g_refuses_governance",
+   "label": "RG-8 consequence: while G's Squads time lock != 172,800 s the program refuses every G governance instruction (require_governance -> WrongGovernanceProfile 6031); verified locally on the real Squads binary (a real G vault rotate_recipient no-op succeeds before and fails 6031 after the reduce); devnet baseline probe ran clean (simulated only); the reduced-state devnet probe is pending",
+   "file_type": "concept",
+   "status": "verified_locally_devnet_reduced_probe_pending",
+   "rationale": "packet RG-8 line 370; probe is simulate-only (no key can sign for the vault PDA)",
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L24",
+   "community": 2059
+  },
+  {
+   "id": "impl2026_10_27_a5_client_prefund_unspent",
+   "label": "A5 accepted operational deviation: the packet's separate 0.05 SOL ORAO Client prefund stays UNSPENT; request_round_draw tops the Client up with exactly fee + pending request rent before each CPI; the accepted LiteSVM provider_setup adds no Client credit; frozen packet unchanged; devnet oracle liveness unproven until the first draw",
+   "file_type": "concept",
+   "status": "accepted_operational_deviation_unused_budget",
+   "rationale": "source-backed (provider.rs:11-18, close.rs:1058-1108, tests close.rs:290-400); accepted by Gideon 2026-10-27",
+   "source_file": "docs/coordination/m14-a4-a7-gideon-acceptance-20261027.md",
+   "source_location": "L16",
+   "community": 2059
+  },
+  {
+   "id": "exec2026_10_27_block_a_governance_and_flow_1_9",
+   "label": "Block A on devnet (2026-10-27): initialize #1 and ORAO register #2 executed once after the 48 h lock, finalized; ConfigVersion#1 activation 1793115095 (flow genesis = activation - 172,800); A6 read-back 44/44 at finalized; flow steps 1-9 executed with conservation holding after each; next gate step 10 on 2026-11-03 13:11:35Z-15:37:47Z (12% tier)",
+   "file_type": "concept",
+   "status": "executed_on_devnet_accepted_by_gideon",
+   "rationale": "receipts in the evidence file; main flow uses the accepted immutable operator binary d3c66966",
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-a4-execute-flow-1-9.json",
+   "source_location": "L1",
+   "community": 2059
+  },
+  {
+   "id": "exec2026_10_27_f11_reduce_approved",
+   "label": "F11 reduce #3 on devnet: proposed once ([SetTimeLock{0}], creator G voter 1) and approved by G voters 1 and 2 at 1793124081 (2026-10-27T18:01:21Z); earliest execution 2026-10-29T18:01:21Z on the cluster clock; NOT executed yet",
+   "file_type": "concept",
+   "status": "approved_on_devnet_not_executed",
+   "rationale": "R0-R2 of the protocol; all four transactions finalized; pending 0 held",
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json",
+   "source_location": "L1",
+   "community": 2059
+  },
+  {
+   "id": "impl2026_10_27_immutable_operator_binaries",
+   "label": "Operational rule after an incident: live devnet_ops commands run only from immutable copies ~/.cache/mc-solana-artifacts/devnet_ops/<sha>/ (accepted d3c66966 for the main flow, 9e4a5a4d for F11); a cargo test build had overwritten the target-dir copy; the accepted source rebuilt byte-identical",
+   "file_type": "concept",
+   "status": "operational_rule",
+   "rationale": "debug builds at the same worktree path were reproducible (both binaries rebuilt to the same hash)",
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L77",
+   "community": 2059
+  }
+ ],
+ "edges": [
+  {
+   "source": "impl2026_10_27_f11_timelock_protocol",
+   "target": "plan2026_10_13_m14_devnet_acceptance",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_f11_timelock_protocol",
+   "target": "impl2026_10_24_m14_approval_packet_rev5",
+   "relation": "follows_up",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L7",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_f11_timelock_protocol",
+   "target": "src_controls_require_governance",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L24",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_g_timelock_tool",
+   "target": "impl2026_10_27_f11_timelock_protocol",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_g_timelock_tool",
+   "target": "impl2026_10_24_m14_devnet_ops_tool",
+   "relation": "extends",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L18",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_g_timelock_tool",
+   "target": "solana_tests_financial_runtime_src_devnet_ops_timelock_rs",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L12",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_g_timelock_tool",
+   "target": "devnet_ops_timelock_cmd_g_timelock",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/devnet_ops/timelock.rs",
+   "source_location": "L527",
+   "weight": 1.0
+  },
+  {
+   "source": "solana_tests_financial_runtime_tests_g_timelock_rs",
+   "target": "impl2026_10_27_g_timelock_tool",
+   "relation": "verifies_locally",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L38",
+   "weight": 1.0
+  },
+  {
+   "source": "review2026_10_27_f11_r1_execute_liveness",
+   "target": "impl2026_10_27_g_timelock_tool",
+   "relation": "reviews",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L95",
+   "weight": 1.0
+  },
+  {
+   "source": "review2026_10_27_f11_r1_execute_liveness",
+   "target": "devnet_ops_timelock_require_no_other_live",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/devnet_ops/timelock.rs",
+   "source_location": "L869",
+   "weight": 1.0
+  },
+  {
+   "source": "review2026_10_27_f11_r1_execute_liveness",
+   "target": "devnet_ops_timelock_cmd_execute_tl",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/devnet_ops/timelock.rs",
+   "source_location": "L1793",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_rg8_reduced_g_refuses_governance",
+   "target": "src_controls_require_governance",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-timelock-protocol-20261027.md",
+   "source_location": "L24",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_rg8_reduced_g_refuses_governance",
+   "target": "devnet_ops_timelock_run_probe",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/devnet_ops/timelock.rs",
+   "source_location": "L1096",
+   "weight": 1.0
+  },
+  {
+   "source": "solana_tests_financial_runtime_tests_g_timelock_rs",
+   "target": "impl2026_10_27_rg8_reduced_g_refuses_governance",
+   "relation": "verifies_locally",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L52",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_a5_client_prefund_unspent",
+   "target": "plan2026_10_13_m14_devnet_acceptance",
+   "relation": "follows_up",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-a4-a7-gideon-acceptance-20261027.md",
+   "source_location": "L16",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_block_a_governance_and_flow_1_9",
+   "target": "plan2026_10_13_m14_devnet_acceptance",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-a4-execute-flow-1-9.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_block_a_governance_and_flow_1_9",
+   "target": "impl2026_10_24_m14_flow_runner",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-a4-execute-flow-1-9.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_block_a_governance_and_flow_1_9",
+   "target": "impl2026_10_27_a5_client_prefund_unspent",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-a4-a7-gideon-acceptance-20261027.md",
+   "source_location": "L16",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_f11_reduce_approved",
+   "target": "impl2026_10_27_f11_timelock_protocol",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_f11_reduce_approved",
+   "target": "impl2026_10_27_g_timelock_tool",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "exec2026_10_27_f11_reduce_approved",
+   "target": "exec2026_10_27_block_a_governance_and_flow_1_9",
+   "relation": "follows_up",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_immutable_operator_binaries",
+   "target": "impl2026_10_24_m14_devnet_ops_tool",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L77",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_27_immutable_operator_binaries",
+   "target": "impl2026_10_27_g_timelock_tool",
+   "relation": "follows_up",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L77",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [
+  {
+   "id": "m14_block_a_devnet_and_f11_2026_10_27",
+   "label": "M14 Block A on devnet 2026-10-27: governance executed, read-back 44/44, flow 9/39, A5 Client prefund deviation, F11 protocol + g-timelock tool (F11-R1 closed, accepted) and the approved-not-executed reduce #3",
+   "nodes": [
+    "impl2026_10_27_f11_timelock_protocol",
+    "impl2026_10_27_g_timelock_tool",
+    "review2026_10_27_f11_r1_execute_liveness",
+    "impl2026_10_27_rg8_reduced_g_refuses_governance",
+    "impl2026_10_27_a5_client_prefund_unspent",
+    "exec2026_10_27_block_a_governance_and_flow_1_9",
+    "exec2026_10_27_f11_reduce_approved",
+    "impl2026_10_27_immutable_operator_binaries"
+   ],
+   "source_file": "docs/coordination/m14-f11-tool-delta-20261027.md",
+   "source_location": "L1",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0
+  }
+ ],
+ "attribute_updates": {
+  "plan2026_10_13_m14_devnet_acceptance": {
+   "resolution": "Block A executing on Solana devnet (2026-10-27): initialize and ORAO register executed after the 48 h lock, A6 read-back 44/44, flow 9/39 accepted by Gideon; F11 reduce #3 approved (earliest 2026-10-29T18:01:21Z), not executed; ICP B/C, real PP, mainnet and the PR #125 merge held"
+  }
+ },
+ "repairs": {},
+ "metadata": {
+  "community": 2059,
+  "label": "Native Solana 2026-10-27: Block A devnet execution (governance, A6, flow 1-9, A5 deviation) and the F11 time-lock rehearsal protocol/tool",
+  "written_by": "coordinator (Silas, Claude Opus 5.5)"
+ },
+ "scope": {
+  "head": "f75c14303d9c5a82909531617884ad619bc3ff07",
+  "branch": "codex/native-solana-production-core",
+  "covered_files_sha256_at_head": {
+   "docs/coordination/m14-f11-timelock-protocol-20261027.md": "c221bfcc3ffd0d7cb0d2e3124508ce0be0a5e9f796811f6a34a391c53045f7e4",
+   "docs/coordination/m14-f11-tool-delta-20261027.md": "667b90959853585cdb644d7c0d480b97eb94b58d4044a9f14e914302dc4757b2",
+   "docs/coordination/m14-a4-a7-gideon-acceptance-20261027.md": "78d776eb8bbb5e57dcad2f9b0274c8b6829bb8588f08e55b3a89f4c0b8210f19",
+   "docs/solana/evidence/2026-10-27-devnet-a4-execute-flow-1-9.json": "63ea12b2007488f3ff227efc147a90d99a3d53e7715e1a16af919227d2a32879",
+   "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json": "667e18c5598ab4ccab0f1c868d4983a9e55d65dcccce77d49fdaec35e6f2a181"
+  },
+  "linked_code_files_sha256_at_head": {
+   "solana/tests/financial-runtime/src/devnet_ops/timelock.rs": "11c4f2c53640371364cd0fa2e1435fe7b8eed9aeeb6fe193361cb2b55ad3e434",
+   "solana/tests/financial-runtime/tests/g_timelock.rs": "f345495bfdeb37b6e5353f77b6ddf3e7ecf77b68332daa33fdce4049fb382c52",
+   "solana/programs/musical_chairs/src/controls.rs": "75cff13db2e2bef90fdf5ffde1a32623201624f01a5b882d4276b96757aec7bf"
+  },
+  "working_files_differing_from_head_at_extraction_time": [],
+  "note": "Hand-written semantic fragment (no external extraction provider). Code nodes come from the structural `graphify update .` at this head. Statuses distinguish local verification, Gideon acceptance and devnet execution; nothing here is evidence beyond the cited receipts."
+ }
+}

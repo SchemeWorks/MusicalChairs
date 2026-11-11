@@ -1,0 +1,45 @@
+{
+ "card": "IMPL-41",
+ "recorded_at_utc": "2026-10-14T11:22:36.529094+00:00",
+ "trigger": "Codex M6 committed-source review (e78d652 PASS at source/unit boundary) + narrow follow-up to M5 handoff caveat 2: five staged-config fields are consumed by fixed helpers, so ConfigTerms::validate admitted values that would be ignored or unusable after activation",
+ "pins_added": {
+  "plan_rates_bps_per_day[0]": "1_100 (economics hard-codes 11%/day; simple_owed rejects any other pinned rate after activation; spec L99–113)",
+  "a_entitlement_bps": "12_400 (fees::series_a_entitlement 124%; spec L97)",
+  "b_entitlement_bps": "11_600 (fees::series_b_entitlement / prospective width 116%; spec L97)",
+  "seed_bps": "5_000 (fold_slices takes toll/2; spec L141–155)",
+  "open_cutoff": "10 (remains_open uses BACKER_REMAINING_CUTOFF; spec L141–155)"
+ },
+ "tests_changed": {
+  "removed_misleading_acceptance": [
+   "later.seed_bps = 0 variation",
+   "full_seed.seed_bps = 10_000 accepted"
+  ],
+  "added_rejections": [
+   "simple rate 1_099 / 1_101",
+   "a entitlement 12_399 / 12_401",
+   "b entitlement 11_599 / 11_601",
+   "seed 4_999 / 10_000",
+   "open cutoff 9 / 11"
+  ],
+  "harness_variants": [
+   "noncanonical_simple_rate",
+   "noncanonical_a_entitlement",
+   "noncanonical_b_entitlement",
+   "noncanonical_seed_half",
+   "noncanonical_open_cutoff"
+  ]
+ },
+ "red_then_green": {
+  "unit": {
+   "red": "OLD validator (five-pin block removed in the isolated worktree, new cases kept): config_terms_reject_each_bound_once FAILED — \"simple rate one bps low: validator accepted the terms\"",
+   "green": "PATCHED validator: all unit tests green (41 bound cases)"
+  },
+  "authenticated_stage_config": {
+   "red": "current main ELF 4c4f3bff…: variant noncanonical_simple_rate \"unexpectedly succeeded\" (G-signed stage accepted a 1,000 bps rate)",
+   "green": "PATCHED worktree ELF 5389cec207f3b64ae146976bd05bc3f196a5ff77b08c1f7097363ef9aa95b81b (source set 9dc89c869f61152c6a0614bef068ff56e2177fbb2cddce20f49a843dbef0aac0): stage_config_requires_g_and_future_round passes incl. the five variants → InvalidState with fee-only rollback"
+  }
+ },
+ "schema_and_scope": "fields and schema unchanged; no configurable-economics redesign, no quota/storage/plan amendment; front_end_load_bps, senior/a/b bps, durations, jackpot/toll tiers, min_game/min_a, deadline, headroom and provider tuple remain configurable because the handlers read them",
+ "isolation_note": "verified in the throwaway worktree (program pre-M6 there, hence 124 unit tests) because IMPL-29 is editing the harness and IMPL-32 the program in its own worktree; the main-tree artifact 4c4f3bff… predates this fix and will be rebuilt with it at the M6 close-out (IMPL-31); provenance and the combined M5–M6 graph fragment follow there",
+ "build_log_sha256": "7816fe140d9c66dac6717b7b61f75750efb1de32a4eb1c79de8e16ca77ff8936"
+}

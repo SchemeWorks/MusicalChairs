@@ -1,0 +1,107 @@
+{
+ "recorded_at_utc": "2026-10-14T18:16:53.985096+00:00",
+ "card": "IMPL-40c",
+ "milestone": "M10 security review, repairs, review-gap rows and threat model — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "ae0e937e6802e52c538220612e689898f89e785b",
+ "head_at_graph_update": "ae0e937",
+ "branch": "codex/native-solana-production-core",
+ "note_on_commit": "graphify update ran on the FINAL M10 working tree (program repairs, review_fixes.rs, review_gaps.rs, workflow) immediately before the two M10 commits; the covered files are hashed from that working tree and are byte-identical to the committed blobs of the fix/docs commits that follow (the M10 handoff pins the commit hashes)",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m9-graph-refresh.json (scope pins corrected to commit blobs in this tranche per the Codex M9 adjudication)",
+  "docs/solana/evidence/2026-10-14-m8-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m7-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m6-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "b1786a4b74b89818af6bf5b533b586935885d23d4671b770a0c0cf4d3bbc5bdf",
+   "result": "16,710 / 25,267 / 45 → 17,036 / 25,689 / 45 (AST re-extraction; lost prior 0 after repair)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m10-fragment-spec.json 1655 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "38bebb0b5a0dcf61ce00f2fcc75a21748a2ad1e0899b2b2ef9f5a3da2f6287dd",
+   "builder_sha256": "b34713b58bfc0e4be35f614f759ffeb3675e7ae4d718c1f93477e26283ccd9cc",
+   "result": "APPLIED 17042 / 25745 / 46"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 16710,
+  "edges": 25267,
+  "hyperedges": 45
+ },
+ "after_graphify_update": {
+  "nodes": 17036,
+  "edges": 25689,
+  "hyperedges": 45
+ },
+ "after_merge": {
+  "nodes": 17042,
+  "edges": 25745,
+  "hyperedges": 46
+ },
+ "repairs_against_pre_update_backup": "collapsed same-endpoint raw edges and stripped coordinator attributes restored from the backup before the merge (counts in the merge log), as in M6–M9",
+ "fragment": {
+  "label": "Native Solana 2026-10-14 M10 security review, repairs, review-gap rows and threat model (IMPL-40a..c)",
+  "nodes": [
+   "impl2026_10_14_m10_security_review",
+   "impl2026_10_14_m10_economy_audit",
+   "impl2026_10_14_m10_triage_and_adjudication",
+   "impl2026_10_14_m10_program_repairs",
+   "impl2026_10_14_m10_review_gap_suite",
+   "impl2026_10_14_m10_threat_model"
+  ],
+  "edges": 39,
+  "hyperedges": [
+   "m10_security_review_2026_10_14"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_m10_security_checklist",
+   "plan2026_10_13_m10_security_review"
+  ],
+  "file": "docs/solana/evidence/2026-10-14-m10-graph-fragment.json",
+  "file_sha256": "d8578a803ba000ad542cdbb9ed8c310b1477722d9e551fb6822c3e5ba7822de7"
+ },
+ "invariants": {
+  "every_prior_node_id_preserved": true,
+  "prior_hyperedges_preserved": true,
+  "edge_direction_preserved": true
+ },
+ "scope": {
+  "covered_files_sha256_working_tree_at_update": {
+   "docs/solana/threat-model.md": "4120d7306a1b2280f79781fe989936e858e0ff6f087dedaea16d54d0ba13ac00",
+   "docs/coordination/native-solana-m10-review-triage-20261014.md": "487cc069ce4b195fc3ea74faeac742a1e563383b7d97a81593921cbf55f5dda7",
+   "docs/solana/evidence/2026-10-14-m10-security-review.md": "5757baba0cf25f5ae6b366742cb72fc06185ce3f650072d51e9ea524c0f97909",
+   "docs/solana/evidence/2026-10-14-m10-economy-audit.md": "13d12ec2b12f8a0eb6a131ce1d82cc1fec6b543f688aa44fd16b7c8884612c55",
+   "docs/solana/evidence/2026-10-14-m10-fixes.json": "80f355710e5df0b80662b516e0ce3788a7645ac2dd06212465bd668fb5df17dc",
+   "docs/solana/evidence/2026-10-14-m10-review-gaps.json": "8a98d03f401d5c38f1bff01783d23df6cb2f418fe62c1c920971602ca7ddd79b",
+   "solana/programs/musical_chairs/src/controls.rs": "75cff13db2e2bef90fdf5ffde1a32623201624f01a5b882d4276b96757aec7bf",
+   "solana/programs/musical_chairs/src/positions.rs": "212558059240ee5f3ba86da1b8f2cba3bee451eb45da2e72334a15d574013a42",
+   "solana/programs/musical_chairs/src/lib.rs": "6076c8fb287d4f85bbda50647229c681d15d98840b75957f95adbce18a019f9b",
+   "solana/programs/musical_chairs/src/close.rs": "6c24ba680508577729b28b100a8a990b3826216ebfcb0fb54d48618b93e650c5",
+   "solana/programs/musical_chairs/src/provider.rs": "449f48a7f9141d362fdc2051ad158e99c0d764e19cae7df1bf9088f28c93b794",
+   "solana/programs/musical_chairs/src/error.rs": "c1a95310ed5f2353104094a78d1d561ccea32e613272d5d1210b019e3897631a",
+   "solana/tests/financial-runtime/src/review_gaps.rs": "f820c2444b40631ffab8726fd8121634e12b9a40a32fb96f5dfa1a29cae92f59",
+   "solana/tests/financial-runtime/tests/review_fixes.rs": "448c0f10795c40d591827d503db4e8c18b6fd0aa5035bf5634b78d347084c28f",
+   ".github/workflows/native-solana-model.yml": "426bb8ea00bd796ff173b139b8ba39e614d72512ba5aa89e3f56bcf46b78fd2a",
+   "docs/solana/evidence/latest-build.json": "5edc73748d12ed85c2bd0c31011777b456427a573eb8b77be9c835829e7f8a30"
+  },
+  "freshness": "AST structural freshness at the M10 fix commit for solana/** and .github; semantic coverage of the review reports, triage/adjudication and threat model by the coordinator fragment nodes"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m10_program_repairs\"",
+   "result": "Node: M10 program repairs on ELF 8f97e83d… (source set 994a9ff4…, lock unchanged, 0 stack-offset warnings): Carried Interest table restate-o"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m10_threat_model\"",
+   "result": "Node: Threat model: assets, actors and trust, per-instruction authority and hand-validated accounts (36 instructions), 16-item checklist → e"
+  }
+ ]
+}

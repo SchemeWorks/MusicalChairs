@@ -1,0 +1,23 @@
+test a_simulation_error_refuses_the_send ... [devnet_ops] squads multisig_create_v2 G (2-of-3, time lock 172800 s) -> 5UNTgDkjNxCEh1uEmdnHZnra8Z9WvfkvefkSqpnrWpKzBgqjD9jpqrC3NzyoQ5SDiGUmsMjhy7rh7WczdC8MV5Ms
+test an_oversize_transaction_is_refused_before_any_signature_exists ... ok
+test command_line_parsing_rejects_typos_duplicates_and_missing_values ... ok
+test deploy_in_litesvm_writes_deploys_verifies_and_moves_the_authority_to_the_g_vault ... ignored, probe: runs the loader-v3 deploy inside LiteSVM, whose support for DeployWithMaxDataLen is not assumed; promote if it passes
+test execute_on_devnet_goes_through_the_approval_hash_and_the_devnet_genesis_only ... [devnet_ops] system transfer 5000000 lamports to the G vault -> L39Jf8nfxsTxzER8WwU1Lx9S8p13RPXgEE2VS4RmF1YW8c8aHZUc28VB3oBTWchtd1zjp2H3Lv8ga51yP2D1mz7
+test execute_token_demands_the_packet_hash_on_devnet_and_nothing_on_a_loopback_validator ... ok
+test genesis_hash_gate_pins_devnet_and_refuses_public_clusters_on_loopback ... ok
+test initialize_and_orao_register_through_the_tool_end_to_end ... [devnet_ops] squads multisig_create_v2 G (2-of-3, time lock 172800 s) -> 26DEnMNSu7icQd8Fy1F4FVcCkR2nXr1Z8f9T3efya5dyDpiveXeWLT1vMFFfwaAB1Ab6UV3n2Ex3fAkMeBvaQbeM
+FINDING vault_transaction_create packet: 1140 bytes (measured 1,140 in the preflight)
+FINDING vault_transaction_execute(initialize) packet: 878 bytes (measured 878)
+test local_cluster_refuses_a_non_loopback_url_and_unknown_clusters_are_refused ... ok
+test local_validator_deploy_authority_squads_and_proposal_lifecycle ... ignored, needs a local solana-test-validator: MC_LOCAL_RPC=http://127.0.0.1:8899 (see docs/solana/devnet-ops.md)
+test pins_match_the_recorded_build_the_frontend_and_the_packet ... ok
+test plan_lists_every_step_with_accounts_signers_fee_payer_rent_and_packet_sizes ... ok
+test propose_refuses_when_the_program_authority_is_not_the_g_vault_and_resumes_a_half_made_proposal ... [devnet_ops] squads multisig_create_v2 G (2-of-3, time lock 172800 s) -> 26DEnMNSu7icQd8Fy1F4FVcCkR2nXr1Z8f9T3efya5dyDpiveXeWLT1vMFFfwaAB1Ab6UV3n2Ex3fAkMeBvaQbeM
+test rpc_url_parsing_accepts_exactly_the_loopback_hosts ... ok
+test squads_create_is_a_dry_run_until_execute_then_idempotent_and_reads_back ... [devnet_ops] squads multisig_create_v2 G (2-of-3, time lock 172800 s) -> 26DEnMNSu7icQd8Fy1F4FVcCkR2nXr1Z8f9T3efya5dyDpiveXeWLT1vMFFfwaAB1Ab6UV3n2Ex3fAkMeBvaQbeM
+test the_loader_write_chunk_fits_the_packet_and_is_close_to_the_maximum ... FINDING loader write chunk: 1009 bytes per transaction
+test the_solana_cli_default_wallet_is_refused_by_path_without_being_read ... ok
+test validator_fixtures_writes_the_account_files_and_the_exact_validator_arguments ... ok
+test verify_bytes_reads_the_world_programdata_and_catches_a_flipped_byte ... ok
+test verify_programdata_checks_header_elf_equality_and_zero_padding ... ok
+test result: ok. 18 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 6.45s

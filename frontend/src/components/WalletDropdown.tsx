@@ -7,6 +7,73 @@ import { useGetCallerUserProfile, useSaveUserProfile, useGetPonziPoints, useGetC
 import { formatICP } from '../lib/formatICP';
 import { oisySigner } from '../lib/oisySigner';
 import { Copy, Check, Loader2, X, Pencil, CreditCard, Briefcase, Send } from 'lucide-react';
+import { LOCAL_CLUSTER_MODE } from '../solana/native/localModeFlag';
+import { clusterFromEndpoint, type ClusterName } from '../solana/native/panelsCluster';
+import { SOLANA_RPC_ENDPOINT } from '../solana/rpc';
+
+// Cluster indicator colors: localnet purple, devnet gold, mainnet green, anything else muted.
+const CLUSTER_TONE: Record<ClusterName, string> = {
+  localnet: 'mc-text-purple',
+  devnet: 'mc-text-gold',
+  testnet: 'mc-text-gold',
+  'mainnet-beta': 'mc-text-green',
+  custom: 'mc-text-muted',
+};
+
+// Dev-only "Local cluster wallet" connect option (local-cluster mode, compiled out of
+// production builds). Lives here, not in the connect modal, so it shows even before a
+// wallet is installed or any ICP identity exists: it never calls the SIWS canister.
+function LocalClusterConnectChip({ connect, busy }: { connect: (opts?: { secret?: string }) => Promise<void>; busy: boolean }) {
+  const [importOpen, setImportOpen] = useState(false);
+  const [secret, setSecret] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const run = async (secretText?: string) => {
+    setError(null);
+    try {
+      await connect(secretText ? { secret: secretText } : undefined);
+      setSecret('');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <div className="fixed bottom-4 left-4 z-50 w-80 max-w-[calc(100vw-2rem)] mc-card p-3 space-y-2 text-xs" data-testid="local-cluster-connect">
+      <div className="flex items-center justify-between">
+        <span className="font-bold mc-text-gold">Local cluster wallet (dev)</span>
+        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-white/10 bg-white/5 mc-text-purple">localnet</span>
+      </div>
+      <p className="mc-text-muted">
+        A burner wallet for your local validator. No sign-in and no canister calls. The key lives in this tab's session storage.
+      </p>
+      <button onClick={() => run()} disabled={busy} className="mc-btn-primary w-full py-1.5 rounded-lg font-bold disabled:opacity-50">
+        {busy ? 'Connecting…' : 'Connect new burner wallet'}
+      </button>
+      <button type="button" onClick={() => setImportOpen((v) => !v)} className="underline mc-text-muted hover:mc-text-primary">
+        {importOpen ? 'Hide import' : 'Import a wallet secret'}
+      </button>
+      {importOpen && (
+        <div className="space-y-2">
+          <textarea
+            value={secret}
+            onChange={(e) => setSecret(e.target.value)}
+            placeholder="[12,34,…] JSON byte array, or base58"
+            rows={3}
+            spellCheck={false}
+            className="mc-input w-full text-xs font-mono p-2"
+          />
+          <button
+            onClick={() => run(secret)}
+            disabled={busy || !secret.trim()}
+            className="mc-btn-secondary w-full py-1.5 rounded-lg font-bold disabled:opacity-50"
+          >
+            Import and connect
+          </button>
+        </div>
+      )}
+      {error && <div className="mc-status-red p-2 text-xs">{error}</div>}
+    </div>
+  );
+}
 
 interface WalletDropdownProps {
   isOpen: boolean;
@@ -15,7 +82,8 @@ interface WalletDropdownProps {
 }
 
 export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDropdownProps) {
-  const { principal, walletType } = useWallet();
+  const { principal, walletType, solanaPubkey, connectLocalCluster, isConnecting } = useWallet();
+  const cluster = clusterFromEndpoint(SOLANA_RPC_ENDPOINT, { localMode: LOCAL_CLUSTER_MODE });
 
   const [copied, setCopied] = useState(false);
   const [pubkeyCopied, setPubkeyCopied] = useState(false);
@@ -215,10 +283,10 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
   const walletName = walletType === 'internet-identity' ? 'Internet Identity' : walletType === 'plug' ? 'Plug' : walletType === 'oisy' ? 'OISY' : walletType === 'siws' ? 'Solana' : 'Wallet';
 
   // SIWS users see their Solana pubkey alongside the IC principal. The pubkey
-  // is stashed in localStorage by siwsSigner.ts on connect; we read it on each
-  // render rather than threading another field through WalletContextType.
+  // is stashed in localStorage by siwsSigner.ts on connect; the session value is
+  // preferred (a local-cluster session never writes that key).
   const siwsPubkey = walletType === 'siws'
-    ? (typeof window !== 'undefined' ? localStorage.getItem('musical-chairs-siws-pubkey') : null)
+    ? (solanaPubkey ?? (typeof window !== 'undefined' ? localStorage.getItem('musical-chairs-siws-pubkey') : null))
     : null;
 
   // Click outside to close
@@ -252,6 +320,11 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
     setNewName('');
   };
 
+  // Local-cluster mode, nobody connected: offer the dev wallet (never rendered in production).
+  if (LOCAL_CLUSTER_MODE && connectLocalCluster && walletType === 'none') {
+    return <LocalClusterConnectChip connect={connectLocalCluster} busy={isConnecting} />;
+  }
+
   if (!isOpen) return null;
 
   const walletContent = (
@@ -263,6 +336,15 @@ export default function WalletDropdown({ isOpen, onClose, buttonRef }: WalletDro
             <span className="flex items-center">{walletIcon}</span>
             <span className="text-xs mc-text-muted">{walletName}</span>
             <span className="w-1.5 h-1.5 bg-green-400 rounded-full" />
+            {walletType === 'siws' && (
+              <span
+                className={`text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded border border-white/10 bg-white/5 ${CLUSTER_TONE[cluster.cluster]}`}
+                title={cluster.host ? `Solana RPC host: ${cluster.host}` : 'Solana RPC'}
+                data-testid="cluster-indicator"
+              >
+                {cluster.label}
+              </span>
+            )}
           </div>
           <button onClick={onClose} className="p-2 rounded hover:bg-white/5"><X className="h-4 w-4 mc-text-muted" /></button>
         </div>

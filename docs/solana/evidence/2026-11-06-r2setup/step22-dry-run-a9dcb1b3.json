@@ -1,0 +1,65 @@
+{
+  "actor": "P1",
+  "actor_pubkey": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+  "all_ok": true,
+  "cluster": {
+    "commitment": "Confirmed",
+    "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "rpc": "https://api.devnet.solana.com",
+    "slot": 519133444,
+    "target": "devnet"
+  },
+  "cluster_unix": 1793928415,
+  "command": "flow next",
+  "conservation": {
+    "game_vault": {
+      "lamports": 711834184,
+      "ok": true,
+      "pot_seed_management_pending_toll_funded_claims_excess": "711138224",
+      "rent": 695960,
+      "spendable": 711138224
+    },
+    "ok": true,
+    "ops_cash": {
+      "free_locked_unallocated": "474874040",
+      "lamports": 475524280,
+      "ok": true,
+      "rent": 650240,
+      "spendable": 474874040
+    },
+    "partitions": {
+      "ok": true,
+      "ops_locked_remaining_total": 0,
+      "sum_of_close_records": 0
+    }
+  },
+  "earliest_unix": 1793924097,
+  "earliest_utc": "2026-11-06T00:14:57Z",
+  "expect": "PositionOpened; maturity +15 d",
+  "flows": "F2",
+  "index": 22,
+  "mode": "dry-run",
+  "plan": "M14-SIM Seq-B",
+  "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+  "preview": {
+    "info": null,
+    "next_transaction": {
+      "depends_on_previous": false,
+      "executed": false,
+      "fee_payer": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+      "fits_1232": true,
+      "instructions": 2,
+      "label": "p1_open_compound15: open_position",
+      "packet_bytes": 578,
+      "required_signers": [
+        "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY"
+      ],
+      "signature": null,
+      "simulation": null,
+      "slot": null,
+      "step": "p1_open_compound15"
+    },
+    "note": "a dry run builds only the first transaction; later ones depend on the chain after it"
+  },
+  "step": "p1_open_compound15"
+}

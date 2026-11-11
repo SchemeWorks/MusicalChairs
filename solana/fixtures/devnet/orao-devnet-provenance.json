@@ -1,0 +1,106 @@
+{
+  "schema": 1,
+  "purpose": "M14-PRE-ORAO: the exact ORAO VRF-with-callback program bytes that run on Solana devnet, for local LiteSVM compatibility checks. Read-only fetch; nothing was sent to any cluster.",
+  "fetched_at_utc": "2026-10-24T04:30:58Z",
+  "rpc_url": "https://api.devnet.solana.com",
+  "rpc_methods": [
+    "getAccountInfo(encoding=base64, commitment=finalized)",
+    "getEpochInfo(finalized)",
+    "getVersion"
+  ],
+  "rpc_api_version": "4.4.0-beta.1",
+  "solana_core": "4.4.0-beta.1",
+  "epoch_info_at_fetch": {
+    "absoluteSlot": 514488065,
+    "blockHeight": 501691091,
+    "epoch": 1190,
+    "slotIndex": 408065,
+    "slotsInEpoch": 432000,
+    "transactionCount": 19737845571
+  },
+  "program_id": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+  "program_account": {
+    "address": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+    "context_slot": 514486875,
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": true,
+    "space": 36,
+    "data_sha256": "aa8708e127764c16afbc82cebde46a0a1a8337217a83eff19ea700a475898dbc",
+    "rpc_response_sha256": "b9dbc39237e89052b800a23b46f79bdc3f1db973258af35aabdad5807de2d831"
+  },
+  "programdata": {
+    "address": "7mzfTTbQ4h7S9uNFdzbVUCs7srF6hiLa52y4eotkp1MD",
+    "context_slot": 514486473,
+    "api_version": "4.4.0-beta.1",
+    "rpc_response_sha256": "469cfec3dc28a232b9de723f9c53675b67bbc8357c9a1d620d99cf70935de177",
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": false,
+    "lamports": 4291793520,
+    "account_data_len": 616509,
+    "account_data_sha256": "3e87956ba3c0ccd59edab3cb38bcf81686d9a41eea904cc6c28018ef93c92270",
+    "header_len": 45,
+    "header_variant": 3,
+    "header_deployment_slot": 403064376,
+    "header_upgrade_authority": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+    "header_sha256": "8664dc9e1f6e03d5877132333316fa3fa440edb99454900299d8f39db04464b8",
+    "payload_len": 616464,
+    "payload_sha256": "b7f30b89cda7d3f067fbb36f2e817a5e50c8f510f0f8f65f5b87d5a65526ccea"
+  },
+  "elf": {
+    "path": "orao-devnet.so",
+    "len": 612272,
+    "sha256": "0fbe2e1d5c16d14d8d2dde1ed43d48c34d9475b786e759d30bcdc591a116be1d",
+    "trailing_zero_padding_len": 4192,
+    "trailing_padding_all_zero": true,
+    "length_rule": "ELF64-LE end = max(e_shoff + e_shnum*e_shentsize, max(p_offset+p_filesz over program headers), max(sh_offset+sh_size over non-NOBITS sections)); the three agree up to the section header table, which is the last thing in the file",
+    "elf_header": {
+      "e_phoff": 64,
+      "e_phnum": 4,
+      "e_shoff": 611696,
+      "e_shnum": 9,
+      "e_shentsize": 64,
+      "e_machine": 247,
+      "e_flags": 0
+    },
+    "section_header_table_end": 612272,
+    "max_segment_end": 611624,
+    "max_section_end": 611696
+  },
+  "packet_cross_check": {
+    "packet": "docs/coordination/native-solana-m14-approval-packet-20261023.md entries R5, L10",
+    "packet_payload_sha256": "b7f30b89cda7d3f067fbb36f2e817a5e50c8f510f0f8f65f5b87d5a65526ccea",
+    "matches_programdata_payload_sha256": true,
+    "explanation": "The packet hashed the whole 616,464-byte post-header payload (ELF plus 4192 bytes of zero allocation padding); orao-devnet.so is the 612272-byte ELF only, so its own sha256 differs from the packet value while the payload hash is identical.  sha256(header || orao-devnet.so || zeros(padding)) reproduces account_data_sha256."
+  },
+  "mainnet_fixture_for_contrast": {
+    "path": "solana/probes/runtime/fixtures/orao-callback-mainnet-finalized.so",
+    "elf_sha256": "6d180b1e91be7d5c541f75e2413146beb047d9beeb76ac8eb1d7c883200c6b8b",
+    "elf_len": 616464
+  },
+  "accounts_file": "orao-devnet-accounts.json",
+  "real_vs_synthetic": {
+    "real": [
+      "the program bytes (orao-devnet.so)",
+      "the NetworkState and treasury account snapshots in orao-devnet-accounts.json (read as fixtures only: decoded and compared, never installed as the active network state)"
+    ],
+    "synthetic": [
+      "the active NetworkState is created locally by the devnet binary's own initialize/configure under the harness payer, request_fee 300,000 and callback_deadline 9,000 slots copied from the real snapshot but with ONE synthetic fulfil authority ([0x55; 32] keypair) and a synthetic treasury",
+      "the four real fulfil authorities (2VYNr8yM..., A9iZdgYa..., 9ZTHWWZD..., HSCqQaDH...) cannot sign locally, so no real devnet oracle behaviour is exercised",
+      "the Squads program is the test-only stand-in unless a squads_devnet_compat test loads the real Squads binary",
+      "LiteSVM default rent schedule, not devnet rent"
+    ]
+  },
+  "reproduce": "curl -s https://api.devnet.solana.com -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"7mzfTTbQ4h7S9uNFdzbVUCs7srF6hiLa52y4eotkp1MD\",{\"encoding\":\"base64\",\"commitment\":\"finalized\"}]}'; base64-decode result.value.data[0]; drop the 45-byte header; keep elf_len bytes where elf_len is computed by the length_rule.",
+  "limits": "A read-only snapshot of bytes: not a deployment, a liveness receipt, or evidence that the devnet oracle fulfils our requests.",
+  "recheck_unchanged": {
+    "note": "Same read-only getAccountInfo repeated about 6,600 slots after the first fetch (about 45 minutes): the account data hashes are identical, i.e. neither the ProgramData nor the NetworkState changed during the work.",
+    "programdata": {
+      "context_slot": 514493111,
+      "account_data_sha256": "3e87956ba3c0ccd59edab3cb38bcf81686d9a41eea904cc6c28018ef93c92270"
+    },
+    "network_state": {
+      "context_slot": 514493135,
+      "data_sha256": "c55bebfd1fb4b1245e58d56836d2669f5996d2b3e11e3e418bcb15b97f2d2d5a"
+    }
+  }
+}

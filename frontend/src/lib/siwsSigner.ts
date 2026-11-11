@@ -114,7 +114,7 @@ function asDerEncodedPublicKey(
   return buf as DerEncodedPublicKey;
 }
 
-function buildDelegationChain(
+export function buildDelegationChain(
   signedDelegation: SiwsSignedDelegation,
   canisterPublicKey: SiwsPublicKey,
 ): DelegationChain {

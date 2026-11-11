@@ -1,0 +1,108 @@
+{
+ "recorded_at_utc": "2026-10-14T20:15:44.790669+00:00",
+ "card": "IMPL-46d",
+ "milestone": "M11 frontend native adapter, panels and local-cluster verification — graph receipt",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504 (historical coverage preserved)",
+ "built_at_commit_now": "1f9326379ff2ba7041fa15405c25e1f2e805843b",
+ "head_at_graph_update": "1f93263",
+ "branch": "codex/native-solana-production-core",
+ "note_on_commit": "graphify update ran on the committed M11 tree at 1f93263 (all M11 code committed; only the kanban/receipt docs of this close-out were still uncommitted); the covered files are hashed from that tree and equal the committed blobs",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-14-m10-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m9-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m8-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m7-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m6-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m4-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m3-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m2-graph-refresh.json",
+  "docs/solana/evidence/2026-10-14-m0-graph-refresh.json"
+ ],
+ "commands": [
+  {
+   "cmd": "graphify update .",
+   "log_sha256": "dc9a3d90faf38f9ac54e062d7f7e9043d976bf0180d8af271877c6b2faacdaa7",
+   "result": "17,042 / 25,745 / 46 → 18,348 / 28,398 / 46 (AST re-extraction incl. the new frontend/src/solana/native TypeScript; lost prior 0 after repair)"
+  },
+  {
+   "cmd": "python graph_repair_merge.py <pre-update backup> m11-fragment-spec.json 1710 validate|apply",
+   "script_sha256": "ff0758c04134edd1d558ee36d0a35295eaa8f0ff0cc85664f09e7844aca979a4",
+   "spec_sha256": "156aa5979b44568ab0e23c011c6a9afeace8530a0845e77c4890ff7f0fea0b87",
+   "builder_sha256": "1ccea65dbcf0c2b1318df7e2f40de2766e8e1a0c636f7648fa28f524be9b413b",
+   "result": "APPLIED 18354 / 28446 / 47"
+  }
+ ],
+ "before_graphify_update": {
+  "nodes": 17042,
+  "edges": 25745,
+  "hyperedges": 46
+ },
+ "after_graphify_update": {
+  "nodes": 18348,
+  "edges": 28398,
+  "hyperedges": 46
+ },
+ "after_merge": {
+  "nodes": 18354,
+  "edges": 28446,
+  "hyperedges": 47
+ },
+ "repairs_against_pre_update_backup": "collapsed same-endpoint raw edges and stripped coordinator attributes restored from the backup before the merge (counts in the merge log), as in M6–M10",
+ "fragment": {
+  "label": "Native Solana 2026-10-14 M11 frontend native adapter, panels and local-cluster verification (IMPL-46a..d)",
+  "nodes": [
+   "impl2026_10_14_m11_ix_encodings_fixture",
+   "impl2026_10_14_m11_native_adapter",
+   "impl2026_10_14_m11_panels",
+   "impl2026_10_14_m11_local_cluster",
+   "impl2026_10_14_m11_live_and_browser_proof",
+   "impl2026_10_14_m11_receipt"
+  ],
+  "edges": 31,
+  "hyperedges": [
+   "m11_frontend_2026_10_14"
+  ],
+  "attribute_updates": [
+   "plan2026_10_13_m11_frontend_adapter"
+  ],
+  "file": "docs/solana/evidence/2026-10-14-m11-graph-fragment.json",
+  "file_sha256": "9f76c24e466365ea4e0c44e34f8d20e3d85cd785f6c2cb028a001597c30453db"
+ },
+ "invariants": {
+  "every_prior_node_id_preserved": true,
+  "prior_hyperedges_preserved": true,
+  "edge_direction_preserved": true
+ },
+ "scope": {
+  "covered_files_sha256_at_update": {
+   "solana/fixtures/ix-encodings.json": "9deda1904840c48d43bf84343763bc74d1c62e39b5968ba45b5cfb7154ca02cf",
+   "solana/tests/financial-runtime/tests/ix_encodings.rs": "9b51c644b89c430b5886ae772ddfae2c8df7958176ecbf7093a543ffa9ae0d20",
+   "solana/tests/financial-runtime/src/bin/local_cluster.rs": "1f0c50bca2604facdd7ba731ba424ec20c68bc8aa8957a8c7482cd4ae46438ba",
+   "docs/solana/local-cluster.md": "22df39944ec356c945ac4dd97fc141894ad2a364afb4186aabeef277c2e16d1d",
+   "frontend/src/solana/native/client.ts": "5cd434f9ba3019f8df4d6a8f9f1cd11fcdf832e2b3c5925250b32c03d34b70d3",
+   "frontend/src/solana/native/codecs.ts": "514268d2b89de68d5e9f5025553cfd7e3dad073c90f0216e500f49f8b872a9bf",
+   "frontend/src/solana/native/transactions.ts": "be9b165847f9e28b5cb67ec79e47569aef9f5aa3e960c0fc68c6cfff09713cff",
+   "frontend/src/solana/native/cluster.ts": "c5fcfa284c5ad52edd4ed4fb0ded232ff115ccbd23239d8653b519690f8ec6fe",
+   "frontend/src/solana/native/queries.ts": "0233110d5fab1bd97b3f4a2eceaaf467d3f764dcba17b3e2541052ca89f8f012",
+   "frontend/src/solana/native/panelsPrereqs.ts": "a60ff24f086526014730f828790e9933f3f00ebbd6933c04c80a55047f38b72f",
+   "frontend/src/solana/native/localModeWallet.ts": "edf9a5ecfcce9c24595f15aad8cf0f3ce61785a8cde39457d26e546754e3a92b",
+   "frontend/src/solana/native/localCluster.test.ts": "7bcac6a76e23f16a511c06c426842b6e9f8dab33bdeac77d399e9c90c7e4e6c6",
+   "frontend/src/solana/native/localClusterClosing.test.ts": "e39ceecabbceed5334a656f93bb1a9115e174985a7fa0aeee52427fb5384fe38",
+   "frontend/src/components/GameTracking.tsx": "5809e77f953c06648be4a5c93324664a46b49941bffd15441afecc520b40231e",
+   "frontend/src/components/SolInvestPanel.tsx": "c415d7836ab6975ca504faf9f9a8952dec272d5a1a6effb71a326ed95fde6627",
+   "frontend/src/hooks/useNativeSolana.ts": "bc699ad882d75ffe23c11eb4eb88b53ad16c78b16c0ff3b3307735cfce6a8fa1",
+   "docs/solana/evidence/2026-10-14-m11-frontend.json": "a04314d17dd1eff07417b553a4ad7123e5669423eb42b669f0036996246f48c6"
+  },
+  "freshness": "AST structural freshness at 1f93263 for solana/** and frontend/**; semantic coverage of the M11 receipt/handoff and the local-cluster recipe by the coordinator fragment nodes"
+ },
+ "query_checks": [
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m11_native_adapter\"",
+   "result": "Node: Frontend native adapter (frontend/src/solana/native): hand-written Borsh codecs from the IDL (no new dependency), PDA derivations, rea"
+  },
+  {
+   "cmd": "graphify explain \"impl2026_10_14_m11_live_and_browser_proof\"",
+   "result": "Node: Live proof on the local cluster: flows test {'files': 1, 'tests': 2} (open → dust payout → Series A → ticket via advancePhase → claim)"
+  }
+ ]
+}

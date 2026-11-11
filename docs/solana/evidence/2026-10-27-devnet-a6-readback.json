@@ -1,0 +1,318 @@
+{
+  "all_ok": true,
+  "checks": [
+    {
+      "actual": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "expected": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "name": "G.multisig_owner_is_squads",
+      "ok": true
+    },
+    {
+      "actual": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+      "expected": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+      "name": "G.create_key",
+      "ok": true
+    },
+    {
+      "actual": "11111111111111111111111111111111",
+      "expected": "11111111111111111111111111111111",
+      "name": "G.config_authority_is_zero",
+      "ok": true
+    },
+    {
+      "actual": "2",
+      "expected": "2",
+      "name": "G.threshold",
+      "ok": true
+    },
+    {
+      "actual": "172800",
+      "expected": "172800",
+      "name": "G.time_lock_seconds",
+      "ok": true
+    },
+    {
+      "actual": "none",
+      "expected": "none",
+      "name": "G.rent_collector_none",
+      "ok": true
+    },
+    {
+      "actual": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]",
+      "expected": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]",
+      "name": "G.members_and_permissions",
+      "ok": true
+    },
+    {
+      "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "name": "G.vault_index_0",
+      "ok": true
+    },
+    {
+      "actual": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "expected": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+      "name": "P.multisig_owner_is_squads",
+      "ok": true
+    },
+    {
+      "actual": "FdiAHJg4EVTfGNYhbLRMNFKA4Qf56Jhv1NJSPX1WaKGi",
+      "expected": "FdiAHJg4EVTfGNYhbLRMNFKA4Qf56Jhv1NJSPX1WaKGi",
+      "name": "P.create_key",
+      "ok": true
+    },
+    {
+      "actual": "11111111111111111111111111111111",
+      "expected": "11111111111111111111111111111111",
+      "name": "P.config_authority_is_zero",
+      "ok": true
+    },
+    {
+      "actual": "2",
+      "expected": "2",
+      "name": "P.threshold",
+      "ok": true
+    },
+    {
+      "actual": "0",
+      "expected": "0",
+      "name": "P.time_lock_seconds",
+      "ok": true
+    },
+    {
+      "actual": "none",
+      "expected": "none",
+      "name": "P.rent_collector_none",
+      "ok": true
+    },
+    {
+      "actual": "[(4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC, 7), (5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k, 7), (GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR, 7)]",
+      "expected": "[(4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC, 7), (5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k, 7), (GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR, 7)]",
+      "name": "P.members_and_permissions",
+      "ok": true
+    },
+    {
+      "actual": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "expected": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "name": "P.vault_index_0",
+      "ok": true
+    },
+    {
+      "actual": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "expected": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "name": "program.owner_is_loader_v3",
+      "ok": true
+    },
+    {
+      "actual": "true",
+      "expected": "true",
+      "name": "program.executable",
+      "ok": true
+    },
+    {
+      "actual": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+      "expected": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+      "name": "program.points_at_derived_programdata",
+      "ok": true
+    },
+    {
+      "actual": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "expected": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "name": "programdata.owner_is_loader_v3",
+      "ok": true
+    },
+    {
+      "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "name": "programdata.upgrade_authority_is_g_vault",
+      "ok": true
+    },
+    {
+      "actual": "None",
+      "expected": "equal",
+      "name": "programdata.elf_bytes_equal_pinned_elf",
+      "ok": true
+    },
+    {
+      "actual": "0",
+      "expected": "all zero",
+      "name": "programdata.padding_all_zero",
+      "ok": true
+    },
+    {
+      "actual": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+      "expected": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+      "name": "pool.owner_is_program",
+      "ok": true
+    },
+    {
+      "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "name": "pool.governance_is_g_vault",
+      "ok": true
+    },
+    {
+      "actual": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "expected": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "name": "pool.guardian_vault_is_p_vault",
+      "ok": true
+    },
+    {
+      "actual": "musical-chairs-devnet-domain-v1!",
+      "expected": "musical-chairs-devnet-domain-v1!",
+      "name": "pool.cluster_domain",
+      "ok": true
+    },
+    {
+      "actual": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+      "expected": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+      "name": "pool.sponsor",
+      "ok": true
+    },
+    {
+      "actual": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+      "expected": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+      "name": "pool.management_recipient",
+      "ok": true
+    },
+    {
+      "actual": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "expected": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "name": "admission.guardian_vault_is_p_vault",
+      "ok": true
+    },
+    {
+      "actual": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "expected": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf",
+      "name": "admission.guardian_vault_equals_pool.guardian_vault",
+      "ok": true
+    },
+    {
+      "actual": "1",
+      "expected": "1",
+      "name": "config1.version",
+      "ok": true
+    },
+    {
+      "actual": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "expected": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "name": "config1.provider_program",
+      "ok": true
+    },
+    {
+      "actual": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+      "expected": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+      "name": "config1.provider_network_state",
+      "ok": true
+    },
+    {
+      "actual": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+      "expected": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+      "name": "config1.provider_treasury",
+      "ok": true
+    },
+    {
+      "actual": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+      "expected": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+      "name": "config1.provider_client",
+      "ok": true
+    },
+    {
+      "actual": "300000",
+      "expected": "300000",
+      "name": "config1.provider_request_fee_lamports",
+      "ok": true
+    },
+    {
+      "actual": "2500",
+      "expected": "2500",
+      "name": "config1.provider_fee_headroom_bps",
+      "ok": true
+    },
+    {
+      "actual": "true",
+      "expected": "true",
+      "name": "config1.public_series_a_enabled",
+      "ok": true
+    },
+    {
+      "actual": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "expected": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "name": "orao_client.account_owner_is_orao_program",
+      "ok": true
+    },
+    {
+      "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+      "name": "orao_client.owner_is_g_vault",
+      "ok": true
+    },
+    {
+      "actual": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22",
+      "expected": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22",
+      "name": "orao_client.state_is_rng_authority",
+      "ok": true
+    },
+    {
+      "actual": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+      "expected": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+      "name": "orao_client.program_is_ours",
+      "ok": true
+    },
+    {
+      "actual": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "expected": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "name": "orao_network_state.owner_is_orao_program",
+      "ok": true
+    }
+  ],
+  "cluster": {
+    "commitment": "Finalized",
+    "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "rpc": "https://api.devnet.solana.com",
+    "slot": 515739151,
+    "target": "devnet"
+  },
+  "command": "readback",
+  "g": {
+    "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+    "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+    "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "mode": "read-only",
+  "orao": {
+    "client": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+    "num_requests": 0,
+    "owner": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+    "program": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+    "state": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22"
+  },
+  "p": {
+    "create_key": "FdiAHJg4EVTfGNYhbLRMNFKA4Qf56Jhv1NJSPX1WaKGi",
+    "multisig": "HKgM5ctbkZ5k4P5LXfTr4A4ZXYm4uPo9SbJbFGvxZaRg",
+    "vault_0": "3dnqoFjK5EfGSWrDQCeRbuZAQzAM6HaaCqSziDxZaoHf"
+  },
+  "pool": {
+    "active_config_version": 1,
+    "excess": 0,
+    "funded_claims": "0",
+    "management": 0,
+    "management_recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+    "next_close_id": 1,
+    "participant_count": 0,
+    "pending_toll": 0,
+    "pool": "Au9fiQqP7nNVZBTv2ZUPadFoxLnU75Q3VSczKbwwJsyf",
+    "pot": 0,
+    "round_id": 1,
+    "seed": 0,
+    "sponsor": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj"
+  },
+  "program": {
+    "account_data_len": 1399253,
+    "payload_sha256_after_header": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+    "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+    "programdata": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+    "programdata_slot": 514981407
+  },
+  "receipt": "packet A6 / A8 read-back"
+}

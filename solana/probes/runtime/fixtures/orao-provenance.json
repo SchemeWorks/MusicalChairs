@@ -1,0 +1,106 @@
+{
+  "program_binary": {
+    "program_id": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+    "cluster": "mainnet-beta",
+    "endpoint": "https://api.mainnet-beta.solana.com",
+    "commitment": "finalized",
+    "program_account_snapshot": "fixtures/oracle-program-account.json",
+    "program_account_context_slot": 456615884,
+    "program_owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "program_executable": true,
+    "program_space": 36,
+    "program_account_variant": 2,
+    "programdata_address": "7mzfTTbQ4h7S9uNFdzbVUCs7srF6hiLa52y4eotkp1MD",
+    "programdata_snapshot": "fixtures/oracle-programdata-account.json",
+    "programdata_context_slot": 456615846,
+    "programdata_owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "programdata_executable": false,
+    "programdata_space": 616509,
+    "programdata_variant": 3,
+    "deployment_slot": 353884391,
+    "upgrade_authority_option": 1,
+    "upgrade_authority": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+    "programdata_elf_offset": 45,
+    "elf_path": "fixtures/orao-callback-mainnet-finalized.so",
+    "elf_size_bytes": 616464,
+    "elf_sha256": "6d180b1e91be7d5c541f75e2413146beb047d9beeb76ac8eb1d7c883200c6b8b",
+    "relationship_check": "PASS: canonical program account is executable and owned by UpgradeableLoader; its variant-2 data points to the queried variant-3 ProgramData account, also owned by UpgradeableLoader; ProgramData payload at offset 45 starts with ELF magic and identifies as eBPF SBF.",
+    "context_slot_correction": "Corrected the research metadata slot 456615818 to 456615846 by decoding the preserved raw response; payload and raw response SHA pins match."
+  },
+  "sdk_and_public_api": {
+    "rust_crate": "orao-solana-vrf-cb 0.4.0",
+    "rust_anchor": "0.32.1",
+    "rust_vendor_archive_sha256": "a036bfe6b101f9583797e4923d8c8fe838604a735ed843b4959b7238f649d9a7",
+    "js_package": "@orao-network/solana-vrf-cb 0.4.0",
+    "public_repo_commit": "5ef94f9c7d83952573b0276fa91e14495e2531a3",
+    "public_idl_metadata_version": "0.3.1",
+    "version_warning": "Current public package sources say 0.4.0 while public JS IDL metadata still reports 0.3.1; preserve both pins and do not infer binary version from IDL metadata.",
+    "real_instruction_accounts": {
+      "register": [
+        "payer signer",
+        "program",
+        "program_data",
+        "state",
+        "client PDA",
+        "network_state PDA",
+        "system_program"
+      ],
+      "request_cpi": [
+        "payer signer",
+        "state signer PDA",
+        "client PDA",
+        "network_state PDA",
+        "treasury",
+        "request PDA",
+        "system_program"
+      ],
+      "fulfill": [
+        "payer signer",
+        "program",
+        "state",
+        "client PDA",
+        "request PDA",
+        "network_state PDA",
+        "instructions sysvar"
+      ],
+      "callback_prefix": [
+        "client PDA signer",
+        "state writable",
+        "network_state readonly",
+        "fulfilled request readonly"
+      ]
+    },
+    "fulfill_builder_protocol": [
+      "Fetch client account and pending request by client plus 32-byte seed.",
+      "Construct message = client public-key bytes concatenated with seed bytes (64 bytes).",
+      "Create a Solana Ed25519Program instruction using fulfillAuthority public key, message, and 64-byte Ed25519 signature.",
+      "Prepend that Ed25519 instruction to the ORAO fulfill instruction; pass SYSVAR_INSTRUCTIONS_PUBKEY as instruction_acc.",
+      "The ORAO program reads the sysvar instruction and checks authority/config plus signature-to-seed; fulfill params are empty.",
+      "A normal callback is optional; noCallback leaves no callback CPI, while request-level callback can override client-level callback."
+    ],
+    "published_errors": [
+      "Malformed fulfill message",
+      "Signature does not match the seed",
+      "Fulfilled",
+      "Malformed Fulfill instruction",
+      "Unexpected client program",
+      "Unexpected client program data",
+      "Unexpected client state",
+      "Unable to validate account ownership",
+      "Wrong treasury given",
+      "Callback accounts hash mismatch",
+      "Lookup index out of bounds",
+      "Missing lookup tables"
+    ]
+  },
+  "provenance": {
+    "program_account_json_sha256": "3d458e1015783f142e4d3a7c34c8eea4e57cdf4b57ee13ff59d109da49dda695",
+    "programdata_account_json_sha256": "1ccdbc2e213020f7dc4943bf53e7f087231b308cde69a7c793116f69e8e1da23",
+    "programdata_account_bin_sha256": "e1a92858f7dc59bb0556e585f4729ddd1e306ce97c54611f8f65e406c12895b0",
+    "network_state_bin_sha256": "178a99c3982b2f8324e8547d3349f5fd3542ef9c4ea06d6a06c2432cf6c01aa9",
+    "idl_sha256": "f306365fa1b09e63d842235eb0ec000f2d0ba7a18c51730611db6c20a0abe5e1",
+    "js_index_sha256": "3df42e26bc5b9ea1cfd48c90b1105c7eccb290dfdc34302868c9a861d688e4f0",
+    "synthetic_fixture_sha256": "8925c41941c6c817c435a205e76205af91f606ba63803600d389394c78c07d88"
+  },
+  "limits": "Finalized read-only bytecode snapshot for isolated local simulation; not a deployment or provider-service liveness receipt."
+}

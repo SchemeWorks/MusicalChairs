@@ -1,0 +1,15 @@
+{
+ "what": "W's Compound30 position account after step 21, read at finalized commitment",
+ "address": "4jSRZUw8jb2AvnsQpAuTEsmS69gfVXVCvv94jLHpVhT7",
+ "context_slot": 519127545,
+ "owner": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+ "lamports": 1457960,
+ "data_len": 159,
+ "data_base64": "qryP5HpA99D9t90Rhs1Bpos7KnotSvZMh3/JWn53N/X3XEb/1IBdTysBAAAAAAAAAAIAAAAAAAAAAQAAAAIARsMjAAAAAOom7WoAAAAA6rMUawAAAADqJu1qAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+ "decoded_by_offset": {
+  "opened_at@70": 1793926890,
+  "maturity_at@78": 1796518890,
+  "last_accrued_at@86": 1793926890
+ },
+ "check": "maturity_at - opened_at = 2,592,000 s = ConfigVersion plan_durations_s[Compound30]; opened_at equals the transaction block time 1793926890"
+}

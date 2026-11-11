@@ -1,0 +1,15 @@
+=== 1 devnet_ops_local ===
+exit 0
+test result: ok. 24 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 16.04s
+=== 2 m14_flow_tool ===
+exit 0
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 6.48s
+=== 3 full plan via runner (devnet ORAO) ===
+exit 0
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 8.55s
+=== 4 m14_flow_plan ===
+exit 0
+test result: ok. 2 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+=== 5 local validator (real node) ===
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 25 filtered out; finished in 120.13s
+write-ahead records 34, resolved 34

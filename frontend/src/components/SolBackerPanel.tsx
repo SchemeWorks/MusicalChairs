@@ -7,13 +7,21 @@ import {
   usePokeMyDeposit,
   useGetMintConfig,
   useIsSelfServeBackingEnabled,
+  useSolBalance,
 } from '../hooks/useQueries';
 import { usePonziMathSolActor } from '../hooks/usePonziMathSolActor';
 import { useWallet } from '../hooks/useWallet';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatSOL, formatSolFloat, parseSOL, LAMPORTS_PER_SOL } from '../solana/lamports';
 import { sendSolDeposit } from '../solana/sendSolDeposit';
-import { UPSTREAM_BACKER_BONUS } from '../lib/gameConstants';
+import { UPSTREAM_BACKER_BONUS, pct } from '../lib/gameConstants';
+import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
+import { backerSplitText } from '../solana/native/economics';
+import { LOCAL_CLUSTER_MODE } from '../solana/native/localModeFlag';
+import { describeUnavailable, railOf } from '../solana/native/panelsRail';
+import { describeNativeError, seriesAEntitlement } from '../solana/native/panelsQuote';
+import { useNativeActiveConfig, useNativeAvailability, usePanelNativeTask } from '../solana/native/panelsHooks';
+import { describePrepStage, fundSeriesAPrereqs, runPrepared } from '../solana/native/panelsPrereqs';
 
 // Series A backing minimum — matches ponzi_math_sol MIN_BACKER_LAMPORTS (0.05 SOL).
 const MIN_BACKER_SOL = 0.05;
@@ -32,7 +40,11 @@ function friendlyWalletError(e: unknown): string {
   return msg || 'Could not complete the transfer from your wallet.';
 }
 
-export default function SolBackerPanel() {
+// ---------------------------------------------------------------------------
+// Legacy rail: ponzi_math_sol backer deposit intents (Chain Fusion). Unchanged;
+// used only while the native program is not available on the connected cluster.
+// ---------------------------------------------------------------------------
+function LegacySolBackerPanel() {
   const { actor } = usePonziMathSolActor();
   const { solanaPubkey } = useWallet();
   const prepareMut = usePrepareBackerDeposit();
@@ -349,4 +361,237 @@ export default function SolBackerPanel() {
       </div>
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Native rail: fund_series_a on the Musical Chairs program (IMPL-46c)
+// ---------------------------------------------------------------------------
+
+/** Display-only reserve for network fees and one-time account rent (Backer and User accounts) the wallet pays. */
+const NATIVE_FEE_AND_RENT_RESERVE_LAMPORTS = 10_000_000n;
+
+function NativeBackerPanel() {
+  const { solanaPubkey } = useWallet();
+  const { pool } = useNativeAvailability();
+  const config = useNativeActiveConfig(pool).data ?? null;
+  const { data: mintConfig } = useGetMintConfig();
+  const { data: solBalance } = useSolBalance();
+  const [solInput, setSolInput] = useState('');
+  const [stage, setStage] = useState<string | null>(null);
+  // A new open Backer row is appended to the registry page at index registry_len / 8; when that page is
+  // missing (registry growth) it is provisioned first, in its own transaction (panelsPrereqs.ts).
+  const fundMut = usePanelNativeTask(
+    async (client, vars: { gross: bigint }, readers) => {
+      setStage(null);
+      return runPrepared(
+        client,
+        readers,
+        (fresh) => fundSeriesAPrereqs(readers, fresh, client.sessionPubkey as string),
+        () => client.fundSeriesA(vars),
+        { onStage: (s) => setStage(describePrepStage(s, 'your Series A funding')) },
+      );
+    },
+    (outcome) => [...outcome.prep.map((p) => p.tx), outcome.result],
+  );
+
+  const ppPerSol = mintConfig ? Number(mintConfig.backerPpPerSol) : 0;
+  const minLamports = config?.minA ?? MIN_LAMPORTS;
+  const minSol = Number(minLamports) / Number(LAMPORTS_PER_SOL);
+  const entitlementBps = config?.aEntitlementBps ?? 12_400;
+  const bonusRate = entitlementBps / 10_000 - 1;
+
+  const lamports = useMemo(() => {
+    try { return solInput.trim() ? parseSOL(solInput) : 0n; } catch { return 0n; }
+  }, [solInput]);
+  const solFloat = Number(lamports) / Number(LAMPORTS_PER_SOL);
+  const belowMin = lamports > 0n && lamports < minLamports;
+  const entitlement = seriesAEntitlement(lamports, config);
+  const entitlementFloat = Number(entitlement) / Number(LAMPORTS_PER_SOL);
+  const projectedPP = solFloat > 0 ? Math.round(solFloat * ppPerSol) : 0;
+
+  const closing = !!pool && pool.currentCloseId !== null;
+  const runInProgress = !!pool && pool.activeTicket !== 0n;
+  const balanceLamports = solBalance === undefined ? null : BigInt(Math.round(solBalance * Number(LAMPORTS_PER_SOL)));
+  const insufficient = balanceLamports !== null && lamports > 0n && lamports + NATIVE_FEE_AND_RENT_RESERVE_LAMPORTS > balanceLamports;
+  const canFund = !!solanaPubkey && !!pool && lamports >= minLamports && !insufficient && !closing && !runInProgress && !fundMut.isPending;
+
+  if (!pool) {
+    return (
+      <div className="mc-card p-6 text-center">
+        <p className="text-sm mc-text-dim">Connecting to the native program…</p>
+      </div>
+    );
+  }
+
+  // Series A is gated by the active config (public_series_a_enabled), default off.
+  if (config && !config.publicSeriesAEnabled) {
+    return (
+      <div className="mc-card p-6 text-center max-w-md mx-auto space-y-2">
+        <Gem className="h-8 w-8 mc-text-cyan mx-auto opacity-60" />
+        <div className="font-display text-lg mc-text-primary">Series A isn't open to the public yet.</div>
+        <p className="text-sm mc-text-dim">Founder's allocation only for now. Self-serve Series A backing opens soon.</p>
+      </div>
+    );
+  }
+
+  const handleStartOver = () => { fundMut.reset(); setSolInput(''); setStage(null); };
+
+  // Sent: show the ladder. fund_series_a is deliberately repeatable, so a second funding is only
+  // offered once the first has landed; an unknown outcome is resolved (Check status) before that.
+  // Preparatory page transactions (if any were needed) are listed above it with their own status.
+  if (fundMut.data) {
+    const { prep, result: tx } = fundMut.data;
+    return (
+      <div className="mc-card p-6 text-center max-w-md mx-auto space-y-3">
+        {prep.map((p) => (
+          <NativeTxStatusCard key={p.tx.signature} tx={p.tx} label={p.label} compact onTryAgain={handleStartOver} />
+        ))}
+        {tx ? (
+          <NativeTxStatusCard
+            tx={tx}
+            label="Your Series A funding"
+            onTryAgain={handleStartOver}
+            actions={(view) =>
+              view.status === 'confirmed' || view.status === 'finalized' ? (
+                <div className="pt-2">
+                  <div className="text-sm mc-text-dim mb-2">
+                    <Gem className="h-4 w-4 inline mr-1 mc-text-cyan" />
+                    You're a Series A backer. Your entitlement is {pct(entitlementBps / 10_000)} of the amount funded.
+                  </div>
+                  <button onClick={handleStartOver} className="mc-btn-secondary px-5 py-2 rounded-full text-sm">Back another round</button>
+                </div>
+              ) : null
+            }
+          />
+        ) : (
+          <div className="mc-status-blue p-3 text-sm space-y-2">
+            <p>Your funding has not been sent yet: the preparation above has not confirmed. Check its status, then fund again.</p>
+            <button onClick={handleStartOver} className="mc-btn-secondary px-4 py-1.5 rounded-full text-xs">Back to the funding form</button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-3">
+        <p className="text-sm mc-text-dim">
+          Back the next generation of yield innovation. Earn your entitlement — you've earned it.
+        </p>
+
+        <div className="flex justify-between items-center">
+          <span className="mc-label">Amount</span>
+          <span className="text-xs mc-text-dim">SOL from your {LOCAL_CLUSTER_MODE ? 'local cluster' : 'connected'} wallet</span>
+        </div>
+
+        <div className="flex gap-2">
+          <button onClick={() => setSolInput(String(minSol))} className="mc-btn-secondary px-3 py-1 text-xs rounded-lg whitespace-nowrap">MIN</button>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={solInput}
+            onChange={(e) => setSolInput(e.target.value)}
+            placeholder={`Min: ${minSol} SOL`}
+            className="mc-input flex-1 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+          />
+        </div>
+
+        {belowMin && (<div className="text-xs mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Minimum Series A backing is {minSol} SOL</div>)}
+        {insufficient && (<div className="text-xs mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Your wallet needs about {formatSOL(NATIVE_FEE_AND_RENT_RESERVE_LAMPORTS)} SOL more than the amount for network fees and one-time account rent.</div>)}
+        {closing && (<div className="text-xs mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />The round is closing. Series A funding reopens once it finalizes.</div>)}
+        {!closing && runInProgress && (<div className="text-xs mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />An allocation run is in progress. Series A funding resumes after it commits; push it along with "resume processing" in the Profit Center.</div>)}
+        {!solanaPubkey && (<div className="text-xs mc-text-danger"><AlertTriangle className="h-3 w-3 inline mr-1" />Reconnect your Solana wallet to deposit.</div>)}
+
+        <button
+          onClick={() => canFund && fundMut.mutate({ gross: lamports })}
+          disabled={!canFund}
+          className="mc-btn-primary w-full py-2 text-sm font-bold inline-flex items-center justify-center gap-2"
+        >
+          {fundMut.isPending ? (stage ?? 'Confirm in your wallet…') : <><Gem className="h-4 w-4" /> {LOCAL_CLUSTER_MODE ? 'Back with local wallet' : 'Back with your wallet'}</>}
+        </button>
+
+        {fundMut.isError && (<p className="text-xs mc-text-danger text-center">{describeNativeError(fundMut.error)}</p>)}
+
+        <div className="space-y-1">
+          <p className="text-xs mc-text-green font-bold">Series A backers get a guaranteed* {pct(bonusRate)} return on their capital + {ppPerSol.toLocaleString()} PP per SOL.</p>
+          <p className="text-xs mc-text-muted italic">*(Returns not guaranteed)</p>
+          <p className="text-xs mc-text-muted">
+            Backers share half of every Carried Interest and Jackpot Fee toll: {backerSplitText()}.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-3 lg:h-full">
+        {solFloat > 0 && (
+          <div>
+            <div className="text-center mb-3">
+              <span className="text-xs font-bold mc-text-primary">Expected Series A Return</span>
+            </div>
+            <div className="mc-card p-4 space-y-3">
+              <div className="flex justify-between items-center">
+                <div>
+                  <div className="mc-label">Entitlement</div>
+                  <div className="text-xl font-bold mc-text-green">{formatSOL(entitlement)} SOL</div>
+                  <div className="text-xs mc-text-green opacity-70">{pct(entitlementBps / 10_000)} of your funding ({pct(bonusRate)} bonus)</div>
+                </div>
+                <div className="text-right">
+                  <div className="mc-label">Ponzi Points</div>
+                  <div className="text-xl font-bold mc-text-purple mc-glow-purple">{projectedPP.toLocaleString()}</div>
+                  <div className="text-xs mc-text-purple opacity-70">{ppPerSol.toLocaleString()} / SOL · credited once finalized</div>
+                </div>
+              </div>
+              <div className="border-t border-white/10 pt-3 space-y-1.5">
+                <div className="flex justify-between text-sm">
+                  <span className="mc-text-muted">Net deposit (no Front-End Load)</span>
+                  <span className="mc-text-primary font-medium">{formatSOL(lamports)} SOL</span>
+                </div>
+                <div className="flex items-center justify-between pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <TrendingUp className="h-3.5 w-3.5 mc-text-cyan" />
+                    <span className="text-xs mc-text-dim">Bonus earned</span>
+                  </div>
+                  <span className="text-sm font-bold mc-text-cyan">+{formatSolFloat(entitlementFloat - solFloat)} SOL</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        <div className="mc-status-red p-3 text-center text-sm font-bold rounded-lg lg:mt-auto">
+          <AlertTriangle className="h-4 w-4 inline mr-1" /> THIS IS A GAMBLING GAME
+          <div className="font-normal text-xs opacity-80 mt-0.5">Only play with money you can afford to lose</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Entry point: native first (DR-22), legacy only when the program is not on this cluster
+// ---------------------------------------------------------------------------
+
+export default function SolBackerPanel() {
+  const availability = useNativeAvailability();
+  switch (railOf(availability)) {
+    case 'native':
+      return <NativeBackerPanel />;
+    case 'loading':
+      return <NativeRailVerifying what="Series A funding" />;
+    default:
+      // Native not verifiable here: the legacy rail only, clearly labeled, no native UI (see SolInvestPanel).
+      if (LOCAL_CLUSTER_MODE) {
+        return (
+          <div className="mc-card p-6 text-center max-w-md mx-auto space-y-2" data-testid="native-unavailable">
+            <div className="font-display text-lg mc-text-primary">The native program isn't available here.</div>
+            <p className="text-sm mc-text-dim">{describeUnavailable(availability)}</p>
+          </div>
+        );
+      }
+      return (
+        <div className="space-y-4">
+          <LegacyRailBanner what="Series A funding" />
+          <LegacySolBackerPanel />
+        </div>
+      );
+  }
 }

@@ -1,0 +1,167 @@
+{
+ "recorded_at_utc": "2026-10-14T18:16:52.814528+00:00",
+ "card": "IMPL-40b",
+ "milestone": "M10 harness rows for the review test gaps (security T1–T7, economy T5/T6/T8/T10)",
+ "branch": "codex/native-solana-production-core",
+ "head_at_receipt": "ae0e937",
+ "elf_sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+ "suite": {
+  "module": "solana/tests/financial-runtime/src/review_gaps.rs",
+  "cli_suite": "review",
+  "label_prefix": "financial.review.",
+  "rows": 11,
+  "observations": 237
+ },
+ "first_execution": {
+  "lib_tests": [
+   [
+    "caller_funded_snapshot_page_is_not_closable",
+    "ok"
+   ],
+   [
+    "claim_backer_substitutions_are_refused",
+    "ok"
+   ],
+   [
+    "dust_loss_candidate_entitlement_cutoff",
+    "ok"
+   ],
+   [
+    "exit_paths_work_while_paused",
+    "ok"
+   ],
+   [
+    "fuzz_keeps_per_backer_funded_equal_to_funded_claims",
+    "ok"
+   ],
+   [
+    "inline_eight_capped_rows_matches_the_chunked_ticket",
+    "ok"
+   ],
+   [
+    "open_and_fund_series_a_need_their_provisioned_pages",
+    "ok"
+   ],
+   [
+    "payout_with_registry_beyond_the_snapshot_pages_is_refused_at_runtime",
+    "ok"
+   ],
+   [
+    "position_keeps_its_pinned_config_across_a_later_activation",
+    "ok"
+   ],
+   [
+    "review_suite_aggregates_every_row_with_unique_labels",
+    "ok"
+   ],
+   [
+    "wrong_ops_cash_and_wrong_config_pda_are_refused",
+    "ok"
+   ],
+   [
+    "wrong_owner_refund_is_refused_while_an_owner_remainder_is_locked",
+    "ok"
+   ]
+  ],
+  "result": "ok. 12 passed; 0 failed; 0 ignored; 0 measured; 175 filtered out; finished in 9.97s"
+ },
+ "rows": {
+  "wrong_owner_refund_is_refused_while_an_owner_remainder_is_locked": {
+   "observations": 30,
+   "rejections": {
+    "6005": 3
+   },
+   "successes": 27,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "claim_backer_substitutions_are_refused": {
+   "observations": 15,
+   "rejections": {
+    "6005": 7,
+    "6001": 1,
+    "6008": 6
+   },
+   "successes": 1,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "open_and_fund_series_a_need_their_provisioned_pages": {
+   "observations": 6,
+   "rejections": {
+    "6035": 2,
+    "6005": 2
+   },
+   "successes": 2,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "payout_with_registry_beyond_the_snapshot_pages_is_refused_at_runtime": {
+   "observations": 3,
+   "rejections": {
+    "6035": 2
+   },
+   "successes": 1,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "position_keeps_its_pinned_config_across_a_later_activation": {
+   "observations": 10,
+   "rejections": {
+    "6037": 1,
+    "2006": 1
+   },
+   "successes": 8,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "exit_paths_work_while_paused": {
+   "observations": 8,
+   "rejections": {
+    "6009": 2
+   },
+   "successes": 6,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "wrong_ops_cash_and_wrong_config_pda_are_refused": {
+   "observations": 11,
+   "rejections": {
+    "6005": 8
+   },
+   "successes": 3,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "fuzz_keeps_per_backer_funded_equal_to_funded_claims": {
+   "observations": 119,
+   "rejections": {
+    "6014": 6,
+    "6022": 5,
+    "6010": 10
+   },
+   "successes": 98,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "inline_eight_capped_rows_matches_the_chunked_ticket": {
+   "observations": 8,
+   "rejections": {},
+   "successes": 8,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "dust_loss_candidate_entitlement_cutoff": {
+   "observations": 24,
+   "rejections": {},
+   "successes": 24,
+   "fee_only_rollback_on_every_rejection": true
+  },
+  "caller_funded_snapshot_page_is_not_closable": {
+   "observations": 3,
+   "rejections": {
+    "6033": 2
+   },
+   "successes": 1,
+   "fee_only_rollback_on_every_rejection": true
+  }
+ },
+ "staffing": "Sonnet worker in the scratch worktree wt-impl40b (compile + clippy only); coordinator applied the patch, built and executed",
+ "notes": [
+  "every rejection asserts the exact ErrorCode and fee-only rollback; every success asserts conservation (World) and the specific deltas",
+  "row 8 is an independent 120-step randomized walk (seed MCFUZZ40) asserting Σ Backer.funded + finalized-pending == pool.funded_claims after every step",
+  "row 10 drives a real close and draw with a single dust candidate (loss 9 → entitlement 10 not appended; loss 10 → 11 appended)",
+  "worker corrected two code numbers in the brief: StaleConfig is 6037 and NotClosable 6033 (6036 is LockNotPermitted); rows use the enum"
+ ]
+}

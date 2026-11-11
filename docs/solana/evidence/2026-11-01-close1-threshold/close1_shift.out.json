@@ -1,0 +1,302 @@
+{
+ "self_checks": "F3 paid/toll, ticket 1 credit/seed and the pot reproduce the receipts",
+ "threshold": {
+  "a1_open_delay_s": 132,
+  "e_star_s": 808390,
+  "owed_minus_pot_one_second_before": -1042,
+  "owed_minus_pot_at": 231,
+  "step13": {
+   "unix": 1793923857,
+   "utc": "2026-11-06T00:10:57Z",
+   "pacific": "2026-11-05 16:10:57 PST"
+  },
+  "old_step13": {
+   "unix": 1793931815,
+   "utc": "2026-11-06T02:23:35Z",
+   "pacific": "2026-11-05 18:23:35 PST"
+  },
+  "margin_removed_s": 7958
+ },
+ "close1_unchanged": {
+  "paid": 572414815,
+  "toll": 42931111,
+  "net": 529483704,
+  "ticket2_a1_credit": 21465555,
+  "ticket2_seed": 21465556,
+  "seed_carried_round2": 48872669,
+  "a1_left_after_round1": 13127336
+ },
+ "schedule": [
+  {
+   "step": 13,
+   "id": "a1_closing_withdraw",
+   "old_offset": 989520,
+   "new_offset": 981562,
+   "shift_s": -7958,
+   "unix": 1793923857,
+   "utc": "2026-11-06T00:10:57Z",
+   "pacific": "2026-11-05 16:10:57 PST"
+  },
+  {
+   "step": 14,
+   "id": "advance_ticket_close1",
+   "old_offset": 989550,
+   "new_offset": 981592,
+   "shift_s": -7958,
+   "unix": 1793923887,
+   "utc": "2026-11-06T00:11:27Z",
+   "pacific": "2026-11-05 16:11:27 PST"
+  },
+  {
+   "step": 15,
+   "id": "candidate_pages_1",
+   "old_offset": 989580,
+   "new_offset": 981622,
+   "shift_s": -7958,
+   "unix": 1793923917,
+   "utc": "2026-11-06T00:11:57Z",
+   "pacific": "2026-11-05 16:11:57 PST"
+  },
+  {
+   "step": 16,
+   "id": "build_candidates_1",
+   "old_offset": 989610,
+   "new_offset": 981652,
+   "shift_s": -7958,
+   "unix": 1793923947,
+   "utc": "2026-11-06T00:12:27Z",
+   "pacific": "2026-11-05 16:12:27 PST"
+  },
+  {
+   "step": 17,
+   "id": "request_draw_1",
+   "old_offset": 989640,
+   "new_offset": 981682,
+   "shift_s": -7958,
+   "unix": 1793923977,
+   "utc": "2026-11-06T00:12:57Z",
+   "pacific": "2026-11-05 16:12:57 PST"
+  },
+  {
+   "step": 18,
+   "id": "fulfil_1",
+   "old_offset": 989655,
+   "new_offset": 981697,
+   "shift_s": -7958,
+   "unix": 1793923992,
+   "utc": "2026-11-06T00:13:12Z",
+   "pacific": "2026-11-05 16:13:12 PST"
+  },
+  {
+   "step": 19,
+   "id": "capture_draw_1",
+   "old_offset": 989670,
+   "new_offset": 981712,
+   "shift_s": -7958,
+   "unix": 1793924007,
+   "utc": "2026-11-06T00:13:27Z",
+   "pacific": "2026-11-05 16:13:27 PST"
+  },
+  {
+   "step": 20,
+   "id": "apply_promotion_1",
+   "old_offset": 989685,
+   "new_offset": 981727,
+   "shift_s": -7958,
+   "unix": 1793924022,
+   "utc": "2026-11-06T00:13:42Z",
+   "pacific": "2026-11-05 16:13:42 PST"
+  },
+  {
+   "step": 21,
+   "id": "w_finalize_reopen",
+   "old_offset": 989700,
+   "new_offset": 981742,
+   "shift_s": -7958,
+   "unix": 1793924037,
+   "utc": "2026-11-06T00:13:57Z",
+   "pacific": "2026-11-05 16:13:57 PST"
+  },
+  {
+   "step": 22,
+   "id": "p1_open_compound15",
+   "old_offset": 989760,
+   "new_offset": 981802,
+   "shift_s": -7958,
+   "unix": 1793924097,
+   "utc": "2026-11-06T00:14:57Z",
+   "pacific": "2026-11-05 16:14:57 PST"
+  },
+  {
+   "step": 23,
+   "id": "p2_open_simple",
+   "old_offset": 989820,
+   "new_offset": 981862,
+   "shift_s": -7958,
+   "unix": 1793924157,
+   "utc": "2026-11-06T00:15:57Z",
+   "pacific": "2026-11-05 16:15:57 PST"
+  },
+  {
+   "step": 24,
+   "id": "p3_open_simple",
+   "old_offset": 989880,
+   "new_offset": 981922,
+   "shift_s": -7958,
+   "unix": 1793924217,
+   "utc": "2026-11-06T00:16:57Z",
+   "pacific": "2026-11-05 16:16:57 PST"
+  },
+  {
+   "step": 25,
+   "id": "a2_fund_series_a",
+   "old_offset": 989940,
+   "new_offset": 981982,
+   "shift_s": -7958,
+   "unix": 1793924277,
+   "utc": "2026-11-06T00:17:57Z",
+   "pacific": "2026-11-05 16:17:57 PST"
+  },
+  {
+   "step": 26,
+   "id": "winner_fund_series_a",
+   "old_offset": 990000,
+   "new_offset": 982042,
+   "shift_s": -7958,
+   "unix": 1793924337,
+   "utc": "2026-11-06T00:18:57Z",
+   "pacific": "2026-11-05 16:18:57 PST"
+  },
+  {
+   "step": 27,
+   "id": "provision_close_record_2",
+   "old_offset": 990060,
+   "new_offset": 982102,
+   "shift_s": -7958,
+   "unix": 1793924397,
+   "utc": "2026-11-06T00:19:57Z",
+   "pacific": "2026-11-05 16:19:57 PST"
+  },
+  {
+   "step": 28,
+   "id": "p1_settle_compound15",
+   "old_offset": 2285820,
+   "new_offset": 2277862,
+   "shift_s": -7958,
+   "unix": 1795220157,
+   "utc": "2026-11-21T00:15:57Z",
+   "pacific": "2026-11-20 16:15:57 PST"
+  },
+  {
+   "step": 29,
+   "id": "advance_ticket_c15",
+   "old_offset": 2285850,
+   "new_offset": 2277892,
+   "shift_s": -7958,
+   "unix": 1795220187,
+   "utc": "2026-11-21T00:16:27Z",
+   "pacific": "2026-11-20 16:16:27 PST"
+  },
+  {
+   "step": 30,
+   "id": "winner_claim_a_and_b",
+   "old_offset": 2285910,
+   "new_offset": 2277952,
+   "shift_s": -7958,
+   "unix": 1795220247,
+   "utc": "2026-11-21T00:17:27Z",
+   "pacific": "2026-11-20 16:17:27 PST"
+  },
+  {
+   "step": 31,
+   "id": "a1_claim_after_cap",
+   "old_offset": 2285970,
+   "new_offset": 2278012,
+   "shift_s": -7958,
+   "unix": 1795220307,
+   "utc": "2026-11-21T00:18:27Z",
+   "pacific": "2026-11-20 16:18:27 PST"
+  },
+  {
+   "step": 32,
+   "id": "w_settle_compound30",
+   "old_offset": 3581760,
+   "new_offset": 3573802,
+   "shift_s": -7958,
+   "unix": 1796516097,
+   "utc": "2026-12-06T00:14:57Z",
+   "pacific": "2026-12-05 16:14:57 PST"
+  },
+  {
+   "step": 33,
+   "id": "advance_ticket_close2",
+   "old_offset": 3581790,
+   "new_offset": 3573832,
+   "shift_s": -7958,
+   "unix": 1796516127,
+   "utc": "2026-12-06T00:15:27Z",
+   "pacific": "2026-12-05 16:15:27 PST"
+  },
+  {
+   "step": 34,
+   "id": "candidate_pages_2",
+   "old_offset": 3581820,
+   "new_offset": 3573862,
+   "shift_s": -7958,
+   "unix": 1796516157,
+   "utc": "2026-12-06T00:15:57Z",
+   "pacific": "2026-12-05 16:15:57 PST"
+  },
+  {
+   "step": 35,
+   "id": "build_candidates_2",
+   "old_offset": 3581850,
+   "new_offset": 3573892,
+   "shift_s": -7958,
+   "unix": 1796516187,
+   "utc": "2026-12-06T00:16:27Z",
+   "pacific": "2026-12-05 16:16:27 PST"
+  },
+  {
+   "step": 36,
+   "id": "request_draw_2",
+   "old_offset": 3581880,
+   "new_offset": 3573922,
+   "shift_s": -7958,
+   "unix": 1796516217,
+   "utc": "2026-12-06T00:16:57Z",
+   "pacific": "2026-12-05 16:16:57 PST"
+  },
+  {
+   "step": 37,
+   "id": "expire_at_deadline",
+   "old_offset": 3582360,
+   "new_offset": 3573952,
+   "shift_s": -8408,
+   "unix": 1796516247,
+   "utc": "2026-12-06T00:17:27Z",
+   "pacific": "2026-12-05 16:17:27 PST"
+  },
+  {
+   "step": 38,
+   "id": "expire_promotion_2",
+   "old_offset": 3582361,
+   "new_offset": 3574403,
+   "shift_s": -7958,
+   "unix": 1796516698,
+   "utc": "2026-12-06T00:24:58Z",
+   "pacific": "2026-12-05 16:24:58 PST"
+  },
+  {
+   "step": 39,
+   "id": "finalize_2",
+   "old_offset": 3582371,
+   "new_offset": 3574413,
+   "shift_s": -7958,
+   "unix": 1796516708,
+   "utc": "2026-12-06T00:25:08Z",
+   "pacific": "2026-12-05 16:25:08 PST"
+  }
+ ],
+ "duration_days": 41.371
+}

@@ -1,0 +1,17 @@
+{
+ "nodes": [],
+ "edges": [],
+ "hyperedges": [],
+ "attribute_updates": {},
+ "repairs": {
+  "restored_raw_edges": [],
+  "attributes_restored": {},
+  "nodes_with_attributes_restored": [],
+  "same_symbol_as_edges": []
+ },
+ "metadata": {
+  "community": 1710,
+  "label": "Native Solana 2026-10-14 M11 frontend native adapter, panels and local-cluster verification (IMPL-46a..d)",
+  "written_by": "coordinator (Claude Fable 5.1)"
+ }
+}

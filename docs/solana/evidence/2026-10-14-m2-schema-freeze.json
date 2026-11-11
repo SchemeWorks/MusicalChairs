@@ -1,0 +1,409 @@
+{
+ "card": "IMPL-15 (M2 close-out)",
+ "recorded_at_utc": "2026-10-14T08:29:47.673475+00:00",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "IMPL-10 schema": "5a7bd0f",
+  "IMPL-12 idl tool": "40ee1b1",
+  "IMPL-11 events/errors/event-cpi": "27647c7",
+  "IMPL-14 idl v1 + check": "3c2d156",
+  "IMPL-13 harness": "df0a4cd",
+  "harness fixture padding": "da6282e"
+ },
+ "program_unit_tests": {
+  "command": "cargo +1.92.0 test --locked --lib (program crate, host target)",
+  "result": "55 passed; 0 failed",
+  "note": "the program crate's own unit tests did not compile before IMPL-10 (two test-module errors fixed); 50 after IMPL-10, 55 after IMPL-11"
+ },
+ "account_space_table": {
+  "note": "T::SPACE = 8-byte discriminator + InitSpace; pinned by state.rs::frozen_account_space_table_is_pinned; rent is charged on SPACE + 128 bytes of metadata at the dated quote; first real inputs for DR-27",
+  "spaces": {
+   "Pool": 374,
+   "Admission": 50,
+   "GameVault": 9,
+   "Ops": 193,
+   "RngAuthority": 41,
+   "ConfigVersion": 277,
+   "User": 84,
+   "UserRound": 89,
+   "Position": 159,
+   "Backer": 147,
+   "RegistryPage": 321,
+   "SnapshotPage": 529,
+   "Ticket": 241,
+   "ParticipantPage": 330,
+   "CandidatePage": 331,
+   "CloseRecord": 657
+  }
+ },
+ "error_codes": [
+  [
+   6000,
+   "Overflow"
+  ],
+  [
+   6001,
+   "InvalidState"
+  ],
+  [
+   6002,
+   "BackwardsTime"
+  ],
+  [
+   6003,
+   "QuotaExceeded"
+  ],
+  [
+   6004,
+   "NotAuthorized"
+  ],
+  [
+   6005,
+   "WrongAccount"
+  ],
+  [
+   6006,
+   "WrongOwner"
+  ],
+  [
+   6007,
+   "InsufficientOperations"
+  ],
+  [
+   6008,
+   "ProtectedDestination"
+  ],
+  [
+   6009,
+   "AdmissionPaused"
+  ],
+  [
+   6010,
+   "AllocationPending"
+  ],
+  [
+   6011,
+   "Closing"
+  ],
+  [
+   6012,
+   "MinimumDeposit"
+  ],
+  [
+   6013,
+   "MinimumReceive"
+  ],
+  [
+   6014,
+   "NotMature"
+  ],
+  [
+   6015,
+   "AlreadyClaimed"
+  ],
+  [
+   6016,
+   "StaleRound"
+  ],
+  [
+   6017,
+   "Replay"
+  ],
+  [
+   6018,
+   "InvalidPhase"
+  ],
+  [
+   6019,
+   "CursorMismatch"
+  ],
+  [
+   6020,
+   "CapExceeded"
+  ],
+  [
+   6021,
+   "NotImplemented"
+  ],
+  [
+   6022,
+   "NothingToClaim"
+  ],
+  [
+   6023,
+   "InsufficientManagement"
+  ],
+  [
+   6024,
+   "ReserveUnavailable"
+  ],
+  [
+   6025,
+   "PositionRoundClosed"
+  ],
+  [
+   6026,
+   "DuplicateWritableAccount"
+  ],
+  [
+   6027,
+   "LateCapture"
+  ],
+  [
+   6028,
+   "Collision"
+  ],
+  [
+   6029,
+   "WrongProviderTuple"
+  ],
+  [
+   6030,
+   "ConfigNotActivatable"
+  ]
+ ],
+ "error_code_freeze": "NotImplemented 6021 unchanged; 6022..6030 appended in IMPL-11",
+ "events": {
+  "count": 19,
+  "schema_version": 1,
+  "discriminators": {
+   "AdmissionPauseSet": "aedcf8ecc820dac4",
+   "BackerClaimed": "f020a678e5dbd777",
+   "CandidatesSealed": "b0138da710befa3b",
+   "ConfigActivated": "eb742ac171fb8989",
+   "ConfigStaged": "51a9ab631bc6d312",
+   "DrawCaptured": "296a83e019ed5493",
+   "DrawRequested": "3bacdb2a1c5e5d4b",
+   "ManagementWithdrawn": "1f6bce1befaf5645",
+   "OperationsFunded": "cc703980d21f561f",
+   "OperationsWithdrawn": "199d63447cb9442c",
+   "PayoutPaid": "40cfc1b00e66369f",
+   "PositionClosed": "9da3e3e40d618a79",
+   "PositionOpened": "edaff3e693756579",
+   "PromotionApplied": "200abf9bf0df8cbb",
+   "PromotionSkipped": "43a52b0011b62073",
+   "RoundClosed": "2df31c168446afe2",
+   "RoundFinalized": "2bbb11c124f13052",
+   "SeriesAFunded": "ded16088231ea1fe",
+   "TicketCommitted": "21c045b338cccb7e"
+  },
+  "fixture": {
+   "path": "solana/fixtures/event-encodings.json",
+   "sha256": "de6575130d2d8650e463b8c7ccc0ee34aca903707ac7fc90a26893611ae5b55d",
+   "cases": 19,
+   "event_cpi_ix_data_for": [
+    "PositionOpened",
+    "PromotionApplied",
+    "SeriesAFunded"
+   ]
+  },
+  "event_ix_tag_le": "e445a52e51cb9a1d"
+ },
+ "event_cpi": {
+  "feature": "anchor-lang event-cpi",
+  "accounts_structs": [
+   "Pause",
+   "FundOperations",
+   "WithdrawOperations",
+   "WithdrawManagement",
+   "OpenPosition",
+   "FundSeriesA",
+   "ClaimPosition",
+   "Commit",
+   "ClaimBacker"
+  ],
+  "handlers_emitting_today": [
+   "set_pause→AdmissionPauseSet",
+   "fund_operations→OperationsFunded",
+   "withdraw_operations→OperationsWithdrawn",
+   "withdraw_management→ManagementWithdrawn"
+  ],
+  "litesvm_observation": {
+   "label": "financial.controls.pause.guardian",
+   "self_invoke_logs": [
+    "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+    "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 2135 of 1392892 compute units",
+    "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 9630 of 1399850 compute units"
+   ],
+   "compute_units_total": 9780,
+   "accounts_in_message": 6
+  }
+ },
+ "idl": {
+  "path": "solana/programs/musical_chairs/idl/musical_chairs.json",
+  "sha256": "6ddce330dc9bfcac936e008a656e6bfa28299a19eaf56d14553fc2a9c9c23cb2",
+  "generated_from": "27647c7 (program sources unchanged through df0a4cd/da6282e)",
+  "instructions": 17,
+  "accounts": 11,
+  "events": 19,
+  "errors": 31,
+  "types": 34,
+  "instructions_with_event_authority": [
+   "claim_backer",
+   "claim_position",
+   "commit",
+   "fund_operations",
+   "fund_series_a",
+   "open_position",
+   "set_pause",
+   "withdraw_management",
+   "withdraw_operations"
+  ],
+  "regenerate_and_diff": "check-idl.sh clean (byte-identical second generation)",
+  "coverage_caveat": "Anchor emits only types reachable from instructions, accounts and events: ConfigVersion, CloseRecord, RngAuthority, ParticipantPage, CandidatePage, ReserveSchedule, SpentLedger and Promotion are NOT in IDL v1 (RentComponents is, via the pages); they enter when M3+ instructions reference them; their layout is pinned by the SPACE table test until then",
+  "tooling": "solana/tools/idl-build (anchor-lang-idl 0.1.2 IdlBuilder, nested cargo test --features idl-build --locked on pinned 1.92.0 with RUSTC_BOOTSTRAP=1; stale program lock fails, verified); no Anchor CLI, no new toolchain"
+ },
+ "sbf_build": {
+  "head": "df0a4cdf18eecad1073a667e3664d21f0371a232",
+  "artifact_sha256": "340350ddb1c9a6cc01646c7b5a7021bc8deccdc3baf0e99c153fbbc53fda73a4",
+  "artifact_bytes": 667784,
+  "source_set_sha256": "4f12e2abbc778bfc38d2d0b14f189102b588781f69486bf6b928039591b81525",
+  "source_set_before_build_equal": true,
+  "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+  "log_sha256": "21d8d87dbba48331926036575ca27a1c28c8a9b10ba8bcb045414481fc12f0d6",
+  "previous_m0_artifact": "d7538b07… (616,064 B)",
+  "note": "source set grew by the event-cpi/idl-build manifest changes, 7 lock packages, events.rs, error.rs and the schema; the harness padding fix (da6282e) is outside the source set"
+ },
+ "red_rerun": {
+  "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 --nocapture",
+  "result_line": "FAILED. 2 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s",
+  "failed": [
+   "tests::allocation_golden_t10000",
+   "tests::claim_moves_real_sol",
+   "tests::open_moves_real_sol"
+  ],
+  "passed": [
+   "tests::allocation_six_phase_flow_has_unique_row_observations",
+   "tests::fee_only_rollback_is_observed_for_the_current_open_gate"
+  ],
+  "cli_observations": 24,
+  "cli_copy": "docs/solana/evidence/2026-10-14-m2-red-cli.json",
+  "cli_copy_sha256": "38cfb0c34a21752e680e8878149a36601f774d9cd4b190ecc005b05706073544",
+  "log_sha256": "8bfe1a1c5eaa21f5c7f8666461391ff3ae49666adaa041187ee77f623351310a",
+  "comparison_vs_m0": [
+   {
+    "label": "financial.open_moves_real_sol",
+    "success": false,
+    "error": "InstructionError(1, Custom(6021))",
+    "cu_m0": 27333,
+    "cu_m2": 29702,
+    "packet_m0": 562,
+    "packet_m2": 596,
+    "accounts_m0": 11,
+    "accounts_m2": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "financial.claim_moves_real_sol",
+    "success": false,
+    "error": "InstructionError(1, Custom(6021))",
+    "cu_m0": 22466,
+    "cu_m2": 24985,
+    "packet_m0": 686,
+    "packet_m2": 720,
+    "accounts_m0": 15,
+    "accounts_m2": 16,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "financial.allocation.golden-t10000.discover-row",
+    "success": false,
+    "error": "InstructionError(1, Custom(6021))",
+    "cu_m0": 14097,
+    "cu_m2": 14512,
+    "packet_m0": 390,
+    "packet_m2": 390,
+    "accounts_m0": 8,
+    "accounts_m2": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "financial.controls.pause.guardian",
+    "success": true,
+    "error": null,
+    "cu_m0": 3296,
+    "cu_m2": 9780,
+    "packet_m0": 348,
+    "packet_m2": 382,
+    "accounts_m0": 5,
+    "accounts_m2": 6,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "financial.controls.pause.wrong-guardian",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "cu_m0": 4932,
+    "cu_m2": 7236,
+    "packet_m0": 348,
+    "packet_m2": 382,
+    "accounts_m0": 5,
+    "accounts_m2": 6,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "financial.controls.operations.fund-20000",
+    "success": true,
+    "error": null,
+    "cu_m0": 9567,
+    "cu_m2": 16531,
+    "packet_m0": 421,
+    "packet_m2": 455,
+    "accounts_m0": 7,
+    "accounts_m2": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "financial.controls.operations.withdraw-5000",
+    "success": true,
+    "error": null,
+    "cu_m0": 11793,
+    "cu_m2": 18926,
+    "packet_m0": 421,
+    "packet_m2": 455,
+    "accounts_m0": 7,
+    "accounts_m2": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "financial.controls.management.empty-balance",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "cu_m0": 11796,
+    "cu_m2": 14241,
+    "packet_m0": 454,
+    "packet_m2": 488,
+    "accounts_m0": 8,
+    "accounts_m2": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   }
+  ],
+  "first_attempt_note": "the first run after the schema change panicked in the harness fixture writer (serialized 366 B vs SPACE 374 B for Pool because Option<u64> None encodes shorter); fixed in da6282e by zero-padding fixtures to SPACE, which is how Anchor-created accounts look on chain"
+ },
+ "harness": {
+  "check": "cargo +1.92.0 check --locked --all-targets clean (no warnings)",
+  "changes": "ConfigVersion#1 + RngAuthority fixtures, cluster_domain, next_close_id/current_close_id, guardian_vault, pinned split bps on the seeded ticket, event-cpi metas in 9 builders, fixture padding"
+ },
+ "proof_level": "host unit tests + compiled SBF stub with complete provenance + RED preserved in LiteSVM + event-CPI self-invoke observed on an implemented control instruction; no production financial instruction is GREEN; no deployment or live action",
+ "solana_notes": [
+  "IDL ≈ Candid: generated from the program, consumed by M11 clients; freezing it lets M11 proceed in parallel, with the caveat that unreferenced account types are not yet in it",
+  "event-cpi: the program invokes itself with the event bytes as instruction data signed by the __event_authority PDA, so events survive log truncation and are read from inner instructions (EVM logs can be truncated; ICP has no logs); it costs two extra accounts and roughly 2,100 CU per emit in LiteSVM",
+  "InitSpace reserves the maximum size for Option/enum fields; Borsh writes a shorter prefix and the rest of the account stays zero; rent is paid on the reserved size"
+ ]
+}

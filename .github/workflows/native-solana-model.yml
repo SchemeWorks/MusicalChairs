@@ -1,0 +1,175 @@
+name: Native Solana model
+
+on:
+  push:
+    paths:
+      - "solana/**"
+      - "docs/solana/**"
+      - ".github/workflows/native-solana-model.yml"
+  pull_request:
+    paths:
+      - "solana/**"
+      - "docs/solana/**"
+      - ".github/workflows/native-solana-model.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  economics:
+    name: Economic workspace
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path solana/Cargo.toml --all -- --check
+      - run: cargo test --manifest-path solana/Cargo.toml --workspace --locked
+      - run: cargo clippy --manifest-path solana/Cargo.toml --workspace --all-targets --locked -- -D warnings
+
+  keeper-worker:
+    name: Fee-only keeper worker (M13, no services started)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      # no --all: cargo-fmt's --all also walks PATH dependencies (the program crate), which this job does not own
+      - run: cargo fmt --manifest-path Cargo.toml -- --check
+        working-directory: solana/keepers/worker
+      - run: cargo test --manifest-path Cargo.toml --locked
+        working-directory: solana/keepers/worker
+      - run: cargo clippy --manifest-path Cargo.toml --all-targets --locked -- -D warnings
+        working-directory: solana/keepers/worker
+
+  provider-probe:
+    name: Standalone provider/resource probe
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --manifest-path Cargo.toml --all -- --check
+        working-directory: solana/probes/provider-resources
+      - run: cargo test --manifest-path Cargo.toml --locked
+        working-directory: solana/probes/provider-resources
+      - run: cargo clippy --manifest-path Cargo.toml --all-targets --locked -- -D warnings
+        working-directory: solana/probes/provider-resources
+
+  production-sbf:
+    name: Production SBF build, provenance and LiteSVM suites
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      PINS: docs/solana/evidence/latest-build.json
+      TOOLS: ${{ github.workspace }}/.mc-tools
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.92.0
+        with:
+          components: clippy
+      # The pinned toolchain lives in a job-local directory; nothing is installed globally.
+      - name: Read the pinned archive hashes
+        id: pins
+        run: |
+          set -euo pipefail
+          PT_SHA="$(jq -r '.toolchain.archives["platform-tools-linux-x86_64-v1.48.tar.bz2"].sha256 // empty' "$PINS")"
+          PT_URL="$(jq -r '.toolchain.archives["platform-tools-linux-x86_64-v1.48.tar.bz2"].source' "$PINS")"
+          AG_SHA="$(jq -r '.toolchain.archives["agave-v3.1.0-beta.0-linux-x86_64 (cargo-build-sbf + sbf-sdk)"].sha256 // empty' "$PINS")"
+          AG_URL="$(jq -r '.toolchain.archives["agave-v3.1.0-beta.0-linux-x86_64 (cargo-build-sbf + sbf-sdk)"].source' "$PINS")"
+          if [[ -z "$PT_SHA" || -z "$AG_SHA" ]]; then
+            echo "::error title=Toolchain unpinned::$PINS has no verified SHA-256 for the Linux platform-tools v1.48 and/or agave v3.1.0-beta.0 archives. A maintainer must download, verify and pin them; this job fails visibly rather than build with unverified tools or fall back to host-only compilation." >&2
+            exit 1
+          fi
+          echo "pt_sha=$PT_SHA" >> "$GITHUB_OUTPUT"; echo "pt_url=$PT_URL" >> "$GITHUB_OUTPUT"
+          echo "ag_sha=$AG_SHA" >> "$GITHUB_OUTPUT"; echo "ag_url=$AG_URL" >> "$GITHUB_OUTPUT"
+      - name: Restore the pinned toolchain archives
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TOOLS }}/downloads
+          key: mc-sbf-tools-${{ steps.pins.outputs.pt_sha }}-${{ steps.pins.outputs.ag_sha }}
+      - name: Download and verify the pinned toolchain archives
+        run: |
+          set -euo pipefail
+          mkdir -p "$TOOLS/downloads"
+          cd "$TOOLS/downloads"
+          [[ -f platform-tools.tar.bz2 ]] || curl -sSfL --retry 3 -o platform-tools.tar.bz2 "${{ steps.pins.outputs.pt_url }}"
+          [[ -f agave.tar.bz2 ]] || curl -sSfL --retry 3 -o agave.tar.bz2 "${{ steps.pins.outputs.ag_url }}"
+          echo "${{ steps.pins.outputs.pt_sha }}  platform-tools.tar.bz2" | sha256sum -c -
+          echo "${{ steps.pins.outputs.ag_sha }}  agave.tar.bz2" | sha256sum -c -
+      - name: Unpack the toolchain into the job-local directory
+        run: |
+          set -euo pipefail
+          mkdir -p "$TOOLS/platform-tools" "$TOOLS/agave"
+          tar -xjf "$TOOLS/downloads/platform-tools.tar.bz2" -C "$TOOLS/platform-tools"
+          tar -xjf "$TOOLS/downloads/agave.tar.bz2" -C "$TOOLS/agave" --strip-components=1
+          test -x "$TOOLS/platform-tools/rust/bin/rustc"
+          test -x "$TOOLS/agave/bin/cargo-build-sbf"
+          test -x "$TOOLS/agave/bin/platform-tools-sdk/sbf/scripts/strip.sh"
+          # cargo-build-sbf --skip-tools-install expects the platform tools under
+          # <sbf-sdk>/dependencies/platform-tools (the local executor symlinks them the same way).
+          mkdir -p "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies"
+          ln -sfn "$TOOLS/platform-tools" "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools"
+          test -x "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools/rust/bin/rustc"
+          test -f "$TOOLS/agave/bin/platform-tools-sdk/sbf/dependencies/platform-tools/version.md"
+          "$TOOLS/agave/bin/cargo-build-sbf" --version
+          "$TOOLS/platform-tools/rust/bin/rustc" --version
+      - name: Build the program and the vault stand-in with the pinned tools (provenance guard on)
+        env:
+          MC_SBF_BUILDER: ${{ env.TOOLS }}/agave/bin/cargo-build-sbf
+          MC_SBF_SDK: ${{ env.TOOLS }}/agave/bin/platform-tools-sdk/sbf
+          MC_PLATFORM_TOOLS: ${{ env.TOOLS }}/platform-tools
+          MC_SBF_TARGET_DIR: ${{ env.TOOLS }}/program-target
+          MC_SBF_OUTPUT_DIR: ${{ env.TOOLS }}/sbf-output
+          # build-standin-sbf.sh defaults its target dir to the macOS executor's /private/tmp path; keep it job-local here.
+          MC_STANDIN_TARGET_DIR: ${{ env.TOOLS }}/standin-target
+        run: |
+          set -euo pipefail
+          bash solana/tests/financial-runtime/scripts/build-sbf.sh | tee "$TOOLS/build-sbf.log"
+          bash solana/tests/financial-runtime/scripts/build-standin-sbf.sh | tee "$TOOLS/build-standin.log"
+      - name: Assert the source set and lock against the committed pins; record the artifact hash
+        run: |
+          set -euo pipefail
+          SRC="$(grep -E '^source_set_sha256=' "$TOOLS/build-sbf.log" | tail -1 | cut -d= -f2)"
+          LOCK="$(grep -E '^lock_sha256=' "$TOOLS/build-sbf.log" | tail -1 | cut -d= -f2)"
+          ART="$(grep -E '^artifact_sha256=' "$TOOLS/build-sbf.log" | tail -1 | cut -d= -f2)"
+          PIN_SRC="$(jq -r .source_set_sha256 "$PINS")"; PIN_LOCK="$(jq -r .lock_sha256 "$PINS")"; PIN_ART="$(jq -r .artifact.sha256 "$PINS")"
+          echo "source_set=$SRC (pinned $PIN_SRC)"; echo "lock=$LOCK (pinned $PIN_LOCK)"; echo "artifact=$ART (pinned $PIN_ART, built on another host/path)"
+          [[ "$SRC" == "$PIN_SRC" ]] || { echo "::error title=Source set drift::the 19-file source set differs from $PINS; rebuild locally and re-pin" >&2; exit 1; }
+          [[ "$LOCK" == "$PIN_LOCK" ]] || { echo "::error title=Lock drift::Cargo.lock differs from $PINS" >&2; exit 1; }
+          if [[ "$ART" == "$PIN_ART" ]]; then echo "artifact byte-identical to the pinned build"; else echo "::notice title=Artifact differs from the local build::expected for a different build path/host (see latest-build.json reproducibility); source set and lock match"; fi
+          # A `Stack offset` line is the SBF linker reporting a frame over the 4 KiB stack: a latent
+          # runtime failure (M10 review SEC-8). The build log must be free of it.
+          STACK="$(grep -c 'Stack offset' "$TOOLS/build-sbf.log" || true)"
+          echo "stack_offset_warnings=$STACK"
+          [[ "$STACK" == "0" ]] || { echo "::error title=SBF stack overflow warning::the program build reported $STACK 'Stack offset' line(s)" >&2; grep 'Stack offset' "$TOOLS/build-sbf.log" >&2; exit 1; }
+      - name: Committed IDL matches a fresh generation
+        # solana/scripts/check-idl.sh regenerates the Anchor IDL with the pinned idl-build tool
+        # (host Rust 1.92.0, RUSTC_BOOTSTRAP inside the tool) and diffs it against the committed
+        # programs/musical_chairs/idl/musical_chairs.json (M10 review SEC-8).
+        env:
+          MC_IDL_TOOL_TARGET_DIR: ${{ env.TOOLS }}/idl-tool-target
+        # gen-idl.sh refuses to run without CARGO_HOME (it is the pinned registry cache); the
+        # workflow never declared one, so name the runner's standard cargo home explicitly
+        # (Codex M10 review). Locked generation + byte diff against the committed IDL.
+        run: CARGO_HOME="${CARGO_HOME:-$HOME/.cargo}" bash solana/scripts/check-idl.sh
+      - name: Run the LiteSVM harness on the fresh artifact
+        env:
+          MC_FINANCIAL_SBF: ${{ env.TOOLS }}/sbf-output/musical_chairs_program.so
+          MC_STANDIN_SBF: ${{ github.workspace }}/solana/tests/financial-runtime/standin/squads-vault-standin/artifacts/squads_vault_standin.so
+        # Run from inside the crate: cargo reads the committed `.cargo/config.toml` from the working
+        # directory, not from --manifest-path. Those files carry the `--check-cfg` for
+        # `target_os = "solana"` / `feature = "anchor-debug"` that the Anchor macros expand to; the local
+        # executor runs from the crate directories too, so this keeps the lint environment identical.
+        working-directory: solana/tests/financial-runtime
+        run: cargo test --locked -- --test-threads=1
+      - name: Clippy (deny warnings)
+        run: |
+          set -euo pipefail
+          (cd solana/programs/musical_chairs && cargo clippy --locked --all-targets -- -D warnings)
+          (cd solana/tests/financial-runtime && cargo clippy --locked --all-targets -- -D warnings)
