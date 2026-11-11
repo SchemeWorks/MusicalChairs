@@ -1,6 +1,24 @@
-# LEG-1-SHIP local deploy candidate: evidence for Gideon's adjudication (2026-11-11)
+# LEG-1-SHIP local deploy candidate: evidence and Gideon's adjudication (2026-11-11)
 
 This is local candidate preparation for the legacy Shenanigans PP-ledger memo fix (LEG-1). It is not deployment approval. Nothing was deployed, installed, minted, recovered, funded or activated.
+
+## Adjudication (Gideon, 2026-11-11): ACCEPTED for local deploy-candidate readiness only
+
+- **Accepted.** The exact original, unmodified candidate pinned below: `candidate/shenanigans-53136a74.wasm`, sha256 `53136a74eee136a2da6e21c7b787a7810b5989d3525384eb077e83621e575ffb`, in the sealed folder whose `SHA256SUMS` hashes to `4639fd2b…`.
+- **His independent bounded review verified** the complete manifest and candidate bytes, the compiled-source baseline and the reviewed memo-only delta, every section across the candidate builds, the live interface and compiler metadata, and formal stable compatibility in both directions with the recorded compiler.
+- **Raw cross-path byte reproducibility remains NOT ACHIEVED.** Only the compiler-generated names in the embedded stable signature differ; every other section is raw-identical. Normalized equivalence is reported separately and does not substitute for raw reproducibility.
+- **What it closes.** The LEG-1-REV provenance gap (the deploy candidate must be rebuilt and pinned first; F-4), for this preserved file only.
+- **What it does not do.** It does not approve arbitrary rebuilds or claim proven live source lineage. It authorizes no deployment, minting, recovery, new funding, production activation or other execution.
+- **Status.** Local preparation is ACCEPTED. Live delivery is BLOCKED on Rob's separate upgrade decision. All other existing holds and deposit maturity requirements remain.
+
+### Deployment recommendation for Rob (not authorization)
+
+- **Order.** Gideon judges the exact preserved memo-only candidate suitable for a separately approved, snapshot-protected upgrade before the native Shenanigans upgrade (M14-B3). The later native candidate must then be reassessed against the changed baseline. This reverses the approval packet's original MI-4 suggestion (B3 on the current live baseline, LEG-1 rebased afterwards). The decision stays Rob's.
+- **Disclosure.** Once live, ordinary signup-gift retries and in-flight backer retries can start paying at the current configuration, referral chain and activity state (LEG-1-REV F-1). Recovery of missed rewards (LEG-2) remains separate and must preserve original-event duplicate prevention by reusing the original event ids.
+
+### Wording correction
+
+Earlier wording here, and the sealed folder's `README.txt` ("a rebuild yields a different raw hash"), implied that any fresh rebuild must differ. That is corrected: only the tested different-path builds differed, the same-path baseline control matched, and the cause (build-path dependence) remains a hypothesis. The sealed folder and its manifest are preserved unchanged.
 
 ## Scope and authority
 
@@ -11,7 +29,7 @@ This is local candidate preparation for the legacy Shenanigans PP-ledger memo fi
   - Return the section-difference evidence and the formal stable-compatibility results for his adjudication, without waiving the raw-hash difference.
   - No further builds or full audit.
 - **Unchanged.** The memo-only scope; the LEG-1-REV findings (F-1 payout sequencing; F-3 and F-4 informational; F-2 and F-5 fixed at 44be00b); LEG-2 recovery stays separate and unowned.
-- **Still required, and not given.** Gideon's candidate acceptance, then Rob's separate mainnet-upgrade approval. The snapshot-protected upgrade (stop, snapshot, upgrade, start, state diff, restore on mismatch) is a separate step after both.
+- **Still required.** Gideon's candidate acceptance (given 2026-11-11, above), then Rob's separate mainnet-upgrade approval (not given). The snapshot-protected upgrade (stop, snapshot, upgrade, start, state diff, restore on mismatch) is a separate step after both.
 
 ## Pinned candidate
 
@@ -25,7 +43,7 @@ This is local candidate preparation for the legacy Shenanigans PP-ledger memo fi
 | Companion files | `candidate/shenanigans.did` sha256 `bdad2ea6…0ac6`; `candidate/shenanigans.most` sha256 `28e482b8…9603` (equal to the wasm's embedded stable-types section) |
 | Folder manifest | `SHA256SUMS` (60 files) sha256 `4639fd2bc3dc449b447b6d9f0fa0e6e1f54849682f61844be05b910e34d4229e` |
 
-An upgrade must install this exact file. Its on-chain module hash would then be `0x53136a74…` (no gzip). A fresh rebuild gives a different raw hash; see the next section.
+An upgrade must install this exact file. Its on-chain module hash would then be `0x53136a74…` (no gzip). A rebuild is not a substitute for this file: the tested builds at different paths gave different raw hashes, as the next section shows.
 
 ## Raw byte-for-byte rebuild reproducibility: NOT ACHIEVED
 
@@ -55,7 +73,7 @@ Five builds were made with the same command and toolchain, in four fresh detache
   - `candid:service` (16,920 B), `candid:args` and `motoko:compiler` are identical.
   - `motoko:stable-types` is not raw-equal: 12,459 B live vs 12,465 B candidate, because of the suffixes.
 - **Observation, not tested further.** The two base builds at the same path were raw-identical, while builds at different paths differed. This suggests the suffix numbering depends on the build location, but no test isolates that. Per Gideon, no further builds were run, so it remains a hypothesis.
-- **Consequence.** A third party cannot reproduce `53136a74…` by rebuilding at a different path. The pin is the preserved file itself.
+- **Consequence.** In the tested builds, rebuilding at a different path did not reproduce `53136a74…`. Whether a rebuild at the original path would is untested; the same-path baseline control matched, and the cause remains a hypothesis. The pin is the preserved file itself, and Gideon's acceptance covers only that file.
 
 ## Normalized equivalence (a separate result, not raw reproducibility)
 
@@ -112,9 +130,9 @@ No update calls were made, nothing was written, and no state changed.
 - `memo-static.test.sh`: **PASS**, with 7 ledger calls, all through `LedgerMemo.ledgerMemo`. `--self-test`: **PASS**.
 - **Build warnings.** Only the two pre-existing M0155 warnings (main.mo 3438 and 3920), the same as the base build.
 
-## Open items for adjudication
+## Open items
 
-1. **Raw reproducibility not achieved.** Gideon decides whether the preserved file plus the section evidence, the normalized equivalence and formal stable compatibility are enough to accept this candidate, or whether something else is required.
+1. **Raw reproducibility not achieved: adjudicated.** Gideon accepted the preserved file on 2026-11-11 for local readiness only (see Adjudication). Raw cross-path reproducibility stays NOT ACHIEVED.
 2. **F-1 payout sequencing (from LEG-1-REV).** Deploying the fix alone pays each lost signup gift on that player's next qualifying game, and commits in-flight backer retries. Any LEG-2 recovery must reuse the original event ids.
 3. **Upgrade mechanics, for the later approved step only.** Install the pinned file as an in-place upgrade with `--wasm-memory-persistence keep` (the canister carries the enhanced-orthogonal-persistence marker), with the snapshot recipe. Order relative to M14-B3 stays Rob's decision.
 

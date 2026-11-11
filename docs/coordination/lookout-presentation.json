@@ -1,6 +1,6 @@
 {
-  "summary": "Block A on the Solana test network: setup, the governance rehearsal and flow steps 1–27 are done and accepted by Gideon, including the first live draw and round 2's setup. Rob pre-approved step 28, a payout due no earlier than 01:27:11 UTC on November 21. Internet Computer rows, real rewards, mainnet and the merge stay held.",
-  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network. The first round ended, a live random draw picked a winner within seconds, and round two was set up, all accepted by Gideon. Rob has already approved the next step, a payout due late on November 20 Pacific time, which Silas runs once safety checks pass.",
+  "summary": "Block A on the Solana test network: steps 1–27 are done and accepted by Gideon; Rob pre-approved step 28, a payout due no earlier than 01:27:11 UTC on November 21. Separately, Gideon accepted the preserved legacy memo-fix update; its live upgrade awaits Rob's decision. Internet Computer rows, real rewards, mainnet and the merge stay held.",
+  "plainSummary": "The new version of Musical Chairs is running on Solana’s test network, where the first round and a live draw are done and Rob has approved the next payout, due late on November 20 Pacific time. Separately, a fix for a bug that blocked some reward payments has passed Gideon's review and now needs Rob's decision to go live.",
   "glossary": [
     {
       "term": "M14",
@@ -326,6 +326,11 @@
       "term": "test-plan revision",
       "definition": "A dated change to the schedule the team chose for its test-network checks. It never changes the program or its rules, and Gideon reviews it before it is used.",
       "cardId": "M14-A7-ACCEL"
+    },
+    {
+      "term": "memo fix",
+      "definition": "The repair that keeps the notes attached to reward payments within the reward ledger's length limit, so payments with long notes stop failing. It changes nothing else.",
+      "cardId": "LEG-1-SHIP"
     }
   ]
 }

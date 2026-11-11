@@ -507,7 +507,7 @@
       "state": "Backlog",
       "owner": "Silas (Claude coordinator)",
       "scope": "Upgrade the live Shenanigans canister to the version ready for Solana, with Solana rewards still switched off.",
-      "evidenceText": "State detail: held; not started; the approval packet rates this the highest-risk item. It needs Rob's separate approval, the bridge install and a finished Block A. It also needs Rob's identity choices and his decision on ordering against the legacy memo fix. The upgrade would follow the snapshot-protected routine: stop, snapshot, upgrade, start, compare state with the saved baseline, and restore the snapshot on any difference.",
+      "evidenceText": "State detail: held; not started; the approval packet rates this the highest-risk item. It needs Rob's separate approval, the bridge install and a finished Block A. It also needs Rob's identity choices and his decision on ordering against the legacy memo fix; Gideon now recommends upgrading with that fix first and rechecking this update against the changed live version. The upgrade would follow the snapshot-protected routine: stop, snapshot, upgrade, start, compare state with the saved baseline, and restore the snapshot on any difference.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -614,10 +614,10 @@
     },
     {
       "id": "LEG-1-SHIP",
-      "state": "Review",
+      "state": "Blocked",
       "owner": "Silas (Claude coordinator)",
       "scope": "Ship the legacy memo fix to the live Shenanigans canister.",
-      "evidenceText": "State detail: in review; a local update is prepared and waits for Gideon's decision. On 2026-11-11 Silas rebuilt the fixed Shenanigans service locally with the same compiler the live one uses and compared it, read-only, with the live service: the saved-data layout and the public interface match, and the only code change is the memo fix. One exact build is preserved for any later upgrade. A rebuild does not reproduce that file byte for byte: one embedded description section gets different internal type names each time, while everything else matches. Gideon decides whether that is acceptable. Nothing was deployed; the live upgrade still needs Rob's separate approval. Once shipped, each player's previously failed gift is paid on their next game; recovering missed backer rewards stays separate (LEG-2).",
+      "evidenceText": "State detail: blocked on Rob's separate decision about the live upgrade; local preparation accepted. On 2026-11-11 Silas prepared and preserved one exact local build of the memo fix, and Gideon accepted that exact file after his own review: apart from the fix, its code, saved-data layout and public interface match the live Shenanigans service. In the tests, builds made in other folders did not match the file byte for byte (one embedded description section used different internal type names), so only the preserved file is accepted, not a fresh rebuild. Gideon recommends that Rob separately approve a backup-protected upgrade with that file before the larger Shenanigans upgrade for Solana, which would then be rechecked. Once live, failed gifts and pending backer retries can start paying at today's settings. Recovering older missed rewards stays separate (LEG-2) and must not pay anyone twice. Nothing is deployed.",
       "evidenceLinks": []
     }
   ]
