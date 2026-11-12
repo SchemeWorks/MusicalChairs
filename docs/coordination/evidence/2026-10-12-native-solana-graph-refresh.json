@@ -1,0 +1,92 @@
+{
+  "local_date": "2026-10-12",
+  "scope": {
+    "date": "2026-10-12",
+    "documentation_pass_baseline": "56879774b67ed895b986a45afd23dd64b6aa56a3",
+    "source_sha256": {
+      "CLAUDE.md": "bcc9fb8ab7c3030f3cd226b99e3afb73b494a3beed28b827df67caa52f90244f",
+      "docs/coordination/native-solana-knowledge-graph.md": "57b38e7a2ead3a126652636a88ae99764b1b7fb7cb5b1d04a117f5ae0caa1d11",
+      "docs/coordination/native-solana-defaults.md": "d1b0eccb73804f89419fcece2582292cfb44860e1ddd6804d836ac5be880e12b",
+      "docs/coordination/native-solana-discovery.md": "9fc73f43174325bc686a491912ae769947b2e2c05bbcb21f8c683e9c6c563574",
+      "docs/coordination/native-solana-economics.md": "1522c15f227d6856e251de5c1aaaf0eab45903bba125e92cb929b0cb35fe1bba",
+      "docs/coordination/native-solana-availability.md": "f3986b9b88dfc23efeb279f83056a764fa6686cc9f877db565bd253a3a2ddf24",
+      "docs/coordination/native-solana-icp-budget.md": "5f6aac2f33b19aed39f4a02e62fd37a025fd2af171db9f36900a2b69b4581fd7",
+      "docs/coordination/solana-skill-assessment.md": "3365d60f0471dda9248eb37d9a369c712ac060f8b82b457a2b066086ee4a5a37",
+      "docs/superpowers/plans/2026-10-12-native-solana.md": "949097a72511062619d73a5ea20efde385888b8f7b9beef81934281ebdf4a3c6",
+      "docs/superpowers/specs/2026-10-12-native-solana-design.md": "f7a356a670e4bba2b12437d522c707df1a0335f4b629e2dcc0f0e8f73ab7804d"
+    },
+    "semantic_fragment": "docs/coordination/evidence/2026-10-12-native-solana-graph-fragment.json",
+    "scope": "10 planning/instruction documents; remaining source coverage historical",
+    "referenced_legacy_sources_reextracted": false,
+    "token_usage_available": false
+  },
+  "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504",
+  "before": {
+    "nodes": 6304,
+    "edges": 8344,
+    "hyperedges": 6
+  },
+  "semantic_fragment": {
+    "path": "docs/coordination/evidence/2026-10-12-native-solana-graph-fragment.json",
+    "sha256": "f12dd99afd69c48a1e914f971f83c858027457299189ae7ad6d24a59e2eed672",
+    "nodes": 162,
+    "edges": 270,
+    "hyperedges": 6
+  },
+  "after": {
+    "nodes": 6466,
+    "edges": 8614,
+    "hyperedges": 12,
+    "communities": 642,
+    "traversal_undirected_adjacencies": 8612
+  },
+  "checks": {
+    "document_source_pins": true,
+    "node_ids_and_line_anchors": true,
+    "edge_endpoints": true,
+    "unrelated_nodes_and_raw_edges_preserved": true,
+    "old_hyperedges_preserved": true,
+    "semantic_cache_files": 10,
+    "scoped_manifest_only": true,
+    "report_uses_canonical_edges_only": true,
+    "no_automatic_semantic_similarity_added": true,
+    "unrelated_manifest_entries_preserved": true
+  },
+  "limits": [
+    "No whole-repository source refresh",
+    "No native code/build/runtime/deployment/funding proof",
+    "Semantic relationships checked as document navigation, not exhaustive call graph",
+    "Actual native worker token usage unavailable"
+  ],
+  "backup_local": "/private/tmp/mc-native-graph-backup-20261012",
+  "query_limit": "Free-text fuzzy matching can prefer older generic nodes; exact node-ID explain checks are authoritative navigation checks.",
+  "visualizations": {
+    "root": "graphify-out/graph.html",
+    "root_mode": "aggregated communities",
+    "native": "graphify-out/native-solana.html",
+    "native_nodes": 166,
+    "native_projection_edges": 272,
+    "validation": "Generated HTML with expected nodes; no rendered-browser proof"
+  },
+  "independent_review": {
+    "worker": "/root/default_controls",
+    "requested_model": "gpt-5.6-luna",
+    "verdict": "accepted; non-blocking missing document-root status corrected",
+    "scope": "Source pins, anchors, IDs/endpoints, old node/edge/hyperedge identity preservation, scoped manifest and status distinctions",
+    "metadata_correction_roots": 6,
+    "node_payload_limit": "Community IDs/norm_label recomputed; preservation is logical/topological, not byte-for-byte payload equality"
+  },
+  "navigation_checks": {
+    "free_text": [
+      "Native Solana Backer allocation phases",
+      "Native Solana round closing and expiry",
+      "Native Solana ICP PP outbox"
+    ],
+    "exact_ids": [
+      "coordination_native_solana_defaults_prebuild_policy_status",
+      "plans_2026_10_12_native_solana_roadmap_dependencies",
+      "coordination_native_solana_defaults_governance"
+    ],
+    "result": "Current source nodes resolve; broad text matches may prefer older generic nodes, so use exact IDs when ambiguous."
+  }
+}
