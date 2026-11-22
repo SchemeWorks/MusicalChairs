@@ -4,8 +4,8 @@
       "id": "native-solana-devnet-acceptance",
       "title": "Native Solana test-network acceptance (Block A)",
       "status": "blocked",
-      "blockedReason": "Steps 1 to 27 are done, with every check passing. On 2026-11-06 round one closed short of money as planned, the real oracle answered the first live draw in two seconds, and P5 was promoted to backer; Gideon accepted it. Step 21 reopened the game and steps 22 to 27 set up round two with 0.42 test SOL, each under Rob's own approval, and Gideon accepted them. No Internet Computer activation or real rewards are part of this work.",
-      "nextAction": "Rob approved only the 15-day deposit's settlement in advance, and Gideon verified that approval. At the first existing check-in after the deposit matures, no earlier than 01:27:11 UTC on 2026-11-21, Silas confirms the maturity and every live safety check, runs that one step once, then stops for review. Nothing is sent before then.",
+      "blockedReason": "Last accepted test-network evidence remains steps 1–27. The approved payout's recorded maturity time has passed, but operator activity and step 28 transaction status are unknown. A session-control review denial blocked inspection and activation; Rob has now ended the Claude partnership. The monitor is paused. Operator and publisher succession remain unresolved.",
+      "nextAction": "Continue preparation through the existing Codex supervision and preserved handoff. Reconcile current outcomes and the existing journal only under permitted operational succession; do not access Claude, retry an unknown outcome or substitute an executor or publisher around a denial. Step 28 approval remains valid and every fresh live guard still applies. Live board reconciliation remains blocked.",
       "cardIds": [
         "M14-PRE-ORAO",
         "M14-PRE-SQUADS",
