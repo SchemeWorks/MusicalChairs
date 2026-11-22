@@ -262,10 +262,10 @@
     },
     {
       "id": "M14-A7",
-      "state": "In progress",
-      "owner": "Silas (Claude coordinator)",
+      "state": "Blocked",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Run the 39-step acceptance flow plan on the Solana test network, with money-accounting checks after every step.",
-      "evidenceText": "State detail: in progress; 27/39 steps done. Gideon accepted the first nine from the raw receipts. Steps 1 to 9 ran on 2026-10-27: operations funding, the first shared pages, the first backer funding and three first-round deposits. At Rob's direct request the test schedule was revised (card M14-A7-ACCEL), and steps 10 to 12, the first player withdrawal, the fee split and the first backer claim, ran on 2026-10-31, and Gideon accepted their evidence. Every step was simulated first, sent once and passed all its checks, and the conservation checks and wallet balance equations held after each. The remaining steps are queued as child cards, M14-A7-CLOSE1 to M14-A7-EXPIRE. At Rob's request the margin before step 13 was removed (card M14-A7-CLOSE1), and Gideon accepted the change on 2026-11-02. Steps 13 to 20, the round 1 close, the first live draw and the promotion, ran in one sitting on 2026-11-06 with every check passing, and Gideon accepted their evidence the same day. Step 21 then reopened the game for round 2 under Rob's own go-ahead, and Gideon accepted it. With Rob's explicit approval, steps 22 to 27 then set up round 2, and Gideon accepted them. Next: the 15-day deposit's settlement, no earlier than 2026-11-21; Rob approved that one step in advance.",
+      "evidenceText": "State detail: blocked; 27 of 39 steps independently accepted. Step 28 was approved in advance and its recorded maturity time has passed, but current operator activity and transaction outcome are unknown. A session-control documentation refresh was rejected before operator inspection or activation. Rob ended the Claude partnership; the existing monitor is paused and Codex retains supervision. Existing accepted receipts end at step 27 and do not prove nonexecution. Next: establish permitted operational succession and reconcile the existing journal and current outcomes before any guarded action. No unknown-outcome retry, replacement operational executor around a denial, later step or production action is authorized. Earlier accepted trial outcomes remain preserved.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125",
@@ -406,9 +406,9 @@
     {
       "id": "M14-A7-C15",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "First compounding payout: the 15-day deposit settles with money to spare (flow step 28).",
-      "evidenceText": "State detail: blocked until the deposit matures, with the step approved in advance; part of M14-A7. The 15-day deposit can settle no earlier than 15 days after it opens. The deposit opened at 01:27:11 UTC on 2026-11-06, so it can settle no earlier than 01:27:11 UTC on 2026-11-21, about 71 minutes after the plan's time. Rob approved this one step in advance, and Gideon verified that approval at its source. At the first existing check-in after that time, Silas confirms the deposit's actual maturity on the network and reruns every live safety check, then simulates the step, sends it once and stops for review. Any failed check or unexpected result stops the run for a report, with no retry. Nothing has been sent, and every later step still needs its own approval. The pot should cover the payout in full, with the 9% Jackpot Fee going to backers and the next round.",
+      "evidenceText": "State detail: blocked on operational succession and outcome reconciliation; the one step remains approved. The recorded deposit maturity time has passed, but actual network maturity and every standing guard require fresh checks at permitted execution. A session-control documentation refresh was rejected before operator inspection or activation. The current transaction outcome is unknown; missing receipts do not establish failure or nonexecution. Rob ended the Claude partnership and the monitor is paused. Next: preserve the existing journal and reconcile outcomes under permitted operational succession. Only after that, and with all fresh guards passing, the approved step may be simulated, sent once and stopped for finalized receipt and spend review. No retry of an unknown outcome; step 29 onward and production actions remain held.",
       "evidenceLinks": [
         {
           "title": "Draft PR #125 (plan and packet on the branch)",
@@ -419,7 +419,7 @@
     {
       "id": "M14-A7-CAP",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "A backer reaches its repayment cap; combined backer claims (flow steps 29 to 31).",
       "evidenceText": "State detail: blocked until the 15-day payout; part of M14-A7. The keeper settles that payout's fee, and the first backer reaches its 124% cap and leaves the backer list. The draw winner then claims both its shares in one instruction, and the capped backer can still claim what it was already credited.",
       "evidenceLinks": [
@@ -432,7 +432,7 @@
     {
       "id": "M14-A7-CLOSE2",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Close round 2 with the 30-day payout and request a second draw (flow steps 32 to 36).",
       "evidenceText": "State detail: blocked until the deposit matures; part of M14-A7. The 30-day deposit settles no earlier than 30 days after it opened in M14-A7-REOPEN. The plan's earliest time, counted from the actual activation, is 2026-12-06 at 00:14:57 UTC, later if round 2 opened late. By design the pot cannot pay in full, so this payout ends round 2. The keeper then settles the fee, prepares and seals the candidates and requests a second draw. The plan deliberately never captures this draw, even if the oracle answers, to test the deadline path.",
       "evidenceLinks": [
@@ -445,7 +445,7 @@
     {
       "id": "M14-A7-EXPIRE",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Let the second draw expire and finalize round 2 (flow steps 37 to 39).",
       "evidenceText": "State detail: blocked until round 2 closes; part of M14-A7; one open test-tool risk; its fix was accepted on 2026-11-02. Inside the 600-second deadline the tool simulates an early expiry and must see it refused, sending nothing. One second after the deadline the keeper records that round 2 ends without a winner because its draw was never captured, then finalizes the round and round 3 opens. This completes the 39-step plan. Open risk, found on 2026-11-01: the old schedule left only seconds to record that refusal. The accepted fix simulates it 30 seconds after the round 2 draw request, inside the deadline; how much of the window is left depends on how quickly the steps before it finish. Only the recorded refusal counts: a missed window is reported and stops the plan, never counted as passed. The risk stays open until the window is met on the test network.",
       "evidenceLinks": [
@@ -458,7 +458,7 @@
     {
       "id": "M14-A-ACCEPT",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator); Gideon (Codex supervisor) accepts",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Block A wrap-up: final evidence and Gideon's acceptance.",
       "evidenceText": "State detail: blocked until the flow plan (M14-A7) is complete; the waiting-period rehearsal (M14-F11) finished on 2026-10-30. Then the deployed program bytes are checked again against the accepted build and the full readback runs again. The flow, draw-timing and money-accounting evidence is collected, and test-token spending is reconciled against the approved budget. Gideon then decides whether to accept Block A. That acceptance would not approve any Internet Computer step, real rewards, mainnet or the merge.",
       "evidenceLinks": [
@@ -471,7 +471,7 @@
     {
       "id": "M14-F12-OPT",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Optional: rehearse a guardian pause and unpause on the test network.",
       "evidenceText": "State detail: optional and deferred; not scheduled and not needed for Block A acceptance. The approval packet lists it as an optional extra: the guardian account pauses the game, shows that players can still withdraw, then unpauses. The accepted flow plan has no step for it and the operator tool has no command for it, so running it would first need a reviewed command, as the waiting-period rehearsal did, and a decision to use it.",
       "evidenceLinks": [
@@ -492,7 +492,7 @@
     {
       "id": "M14-B1B2",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Install the Solana event bridge and the keeper on the Internet Computer, with test settings and both inactive.",
       "evidenceText": "State detail: held; not started. Each install is its own separate approval from Rob, and neither has been requested. Rob also chooses which identity pays for and controls the new canisters and which account may pass events in. The bridge would start with no one allowed to pass events in, and the keeper would be installed but switched off. Done means each installed program matches a build from the committed source, the settings read back as intended, and costs stay inside fixed ceilings.",
       "evidenceLinks": [
@@ -505,7 +505,7 @@
     {
       "id": "M14-B3",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Upgrade the live Shenanigans canister to the version ready for Solana, with Solana rewards still switched off.",
       "evidenceText": "State detail: held; not started; the approval packet rates this the highest-risk item. It needs Rob's separate approval, the bridge install and a finished Block A. It also needs Rob's identity choices and his decision on ordering against the legacy memo fix; Gideon now recommends upgrading with that fix first and rechecking this update against the changed live version. The upgrade would follow the snapshot-protected routine: stop, snapshot, upgrade, start, compare state with the saved baseline, and restore the snapshot on any difference.",
       "evidenceLinks": [
@@ -518,7 +518,7 @@
     {
       "id": "M14-B4",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "A test version of the website on a new canister, pointed at the Solana test network.",
       "evidenceText": "State detail: held; not started. It needs Rob's separate approval, the bridge install and his identity choices. It would be built for the test network and placed on a brand-new website canister, never the live site. Done means the served files match the build, the version marker matches, and screenshots show the Solana panels working against the test network.",
       "evidenceLinks": [
@@ -531,7 +531,7 @@
     {
       "id": "M14-C2",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "One supervised keeper window during round 2's close.",
       "evidenceText": "State detail: held; not started. It needs Rob's separate approval, the keeper install, and the flow reaching round 2's close (M14-A7-CLOSE2, 2026-12-06 at the earliest). The keeper's watchdog would be switched on exactly once, after round 2's closing payout and while the main keeper is not running, to finish that close itself: it records that the draw expired and finalizes the round. It is switched off at the first of: the round finalized, three of its own signed transactions recorded, 45 minutes passed, or any error or unexpected condition. Its software limit of six transactions an hour is only a backstop. How it fits with the flow's own last steps must be settled with Gideon before it is ever switched on; the flow does not depend on it.",
       "evidenceLinks": [
@@ -544,7 +544,7 @@
     {
       "id": "M14-C1C3",
       "state": "Backlog",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Switch on the Solana reward path and prove it with real PP for one deposit and one promotion.",
       "evidenceText": "State detail: held; not started. It needs two separate approvals from Rob: first connecting the bridge to Shenanigans with one reward policy, then the proof run. Both need the bridge install and the Shenanigans upgrade first. The proof would mint real PP on the live reward ledger from test-network play, which cannot be undone. It is capped at 5,000 PP and passes only if each reward is issued once and never duplicated.",
       "evidenceLinks": [
@@ -565,9 +565,9 @@
     {
       "id": "LOOKOUT-PROJ",
       "state": "Done",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; routine board sync)",
       "scope": "Sanitized derived mirror of the native board, kept in sync with the private Lookout board.",
-      "evidenceText": "Published and syncing. Setup completed the cutover to this mirror and verified the first publication with an unchanged readback. Rob approved future sanitized board updates without being asked each time. Each update is a dry run, then a publish only if something changed, then a readback that must show no change. The repository board stays the sole authority. This board-sync approval grants nothing else: it is not Block A approval. Since 2026-10-27, at Rob's request, the board is updated whenever a task moves: its status, progress, blockers or next step. Each priority also lists its cards explicitly, completed ones included, so a card can show its priority number; three cards shared between priorities stay unlinked. On 2026-10-28, at Rob's request, the remaining roadmap was queued as cards: the rest of the test-network flow, the Block A wrap-up, an optional pause rehearsal, and the held Internet Computer and legacy delivery items. On 2026-10-29 Gideon relayed that Rob renewed that approval for routine sanitized updates, including both status summaries, definitions, priorities, completion times and repository links. Saving the renewal into the coordinator's standing instructions was declined by an automatic safety check; that is recorded and was not worked around, and the earlier standing approval still covers routine updates. None of this grants anything beyond the board.",
+      "evidenceText": "State detail: existing mirror setup complete; Gideon owns ongoing routine sanitized sync through the same manifest and scoped identity. Claude work has ended. The earlier publisher lock-file failure was a local permission error, not an automatic-review denial. Rob approved future sanitized board updates without repeated questions. At every material change, update all current cards, ordered priorities, both summaries and relevant definitions; validate and push, dry-run, publish only changes, then verify all components and the repository association at the exact source revision with a no-op readback and append the receipt. Any new review denial stops that exact action without an alternate route, identity or executor. Board authority grants no transaction, funding, merge or deployment authority. The repository board stays canonical.",
       "evidenceLinks": []
     },
     {
@@ -615,7 +615,7 @@
     {
       "id": "LEG-1-SHIP",
       "state": "Blocked",
-      "owner": "Silas (Claude coordinator)",
+      "owner": "Gideon (Codex supervisor; operational execution remains held)",
       "scope": "Ship the legacy memo fix to the live Shenanigans canister.",
       "evidenceText": "State detail: blocked on Rob's separate decision about the live upgrade; local preparation accepted. On 2026-11-11 Silas prepared and preserved one exact local build of the memo fix, and Gideon accepted that exact file after his own review. The reviewed source change is the memo fix only, every test build of it has identical program code, and its public interface and saved-data layout match the live Shenanigans service. Which source the live service was built from is inferred, not proven, so its code was not shown to be identical. In the tests, builds made in other folders did not match the file byte for byte (one embedded description section used different internal type names), so only the preserved file is accepted, not a fresh rebuild. Gideon recommends that Rob separately approve a backup-protected upgrade with that file before the larger Shenanigans upgrade for Solana, which would then be rechecked. Once live, failed gifts and pending backer retries can start paying at today's settings. Recovering older missed rewards stays separate (LEG-2) and must not pay anyone twice. Nothing is deployed.",
       "evidenceLinks": []

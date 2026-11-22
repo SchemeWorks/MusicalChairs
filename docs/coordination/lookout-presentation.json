@@ -1,6 +1,6 @@
 {
-  "summary": "Solana test-network evidence remains at 27/39 accepted steps. Step 28 approval is retained, but its current transaction status is unknown; session-control review was denied before inspection or activation. Rob ended the Claude partnership and its monitor is paused. Codex handoff is preserved in source; operator succession and live publication remain blocked, with all financial and release holds retained.",
-  "plainSummary": "The records show 27 accepted test steps, and the next payout remains approved, but its current outcome is unknown. Rob has ended the Claude partnership, and its monitor is paused while the existing knowledge is handed to Codex. The source status is corrected; live board updates and further execution remain blocked pending permitted handoffs.",
+  "summary": "The Solana test-network trial has 27 accepted steps. Step 28 is approved, but its outcome is unknown; a session-control denial preceded operator inspection, and Claude work has ended. Codex retains supervision and routine board sync. Operational succession and existing-journal reconciliation remain required; later execution and all production changes stay held. The exact local legacy candidate remains accepted.",
+  "plainSummary": "The test-network trial has 27 accepted steps, and the reviewed reward fix is preserved locally. The next approved payout has an unknown outcome, and Claude work has ended. Codex will first reconcile the existing records; further execution and production changes remain held, with no new approval needed for routine board updates.",
   "glossary": [
     {
       "term": "M14",
@@ -173,11 +173,6 @@
       "cardId": "LOOKOUT-PROJ"
     },
     {
-      "term": "cutover",
-      "definition": "The publisher was switched to read the durable project-owned projection file instead of the initial temporary copy.",
-      "cardId": "LOOKOUT-PROJ"
-    },
-    {
       "term": "PR",
       "definition": "Pull request: a proposed set of code changes for review. An open draft is not a merge or a deployment.",
       "cardId": "PR-125"
@@ -278,11 +273,6 @@
       "cardId": "M14-A6"
     },
     {
-      "term": "12/39",
-      "definition": "Twelve of the thirty-nine steps of the acceptance flow plan have run on the Solana test network.",
-      "cardId": "M14-A7"
-    },
-    {
       "term": "Carried Interest",
       "definition": "The game's fee on a Simple position's withdrawal: 12% in the first week after the deposit, 7.5% in the second week and 3% after that."
     },
@@ -311,10 +301,6 @@
       "definition": "The round's losing players who are eligible for its draw."
     },
     {
-      "term": "Jackpot Fee",
-      "definition": "The game's fee on a compounding deposit's payout; the 15-day plan's fee is 9%."
-    },
-    {
       "term": "canister",
       "definition": "A program running on the Internet Computer, such as a service or a website."
     },
@@ -331,6 +317,14 @@
       "term": "memo fix",
       "definition": "The repair that keeps the notes attached to reward payments within the reward ledger's length limit, so payments with long notes stop failing. It changes nothing else.",
       "cardId": "LEG-1-SHIP"
+    },
+    {
+      "term": "Codex",
+      "definition": "The development assistant now retaining project supervision after Claude work ended."
+    },
+    {
+      "term": "operational succession",
+      "definition": "An explicitly permitted transfer of operational responsibility that preserves existing approvals, journals, unknown outcomes and denials."
     }
   ]
 }
