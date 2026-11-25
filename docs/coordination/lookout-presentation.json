@@ -1,6 +1,6 @@
 {
-  "summary": "The Solana test-network trial has 27 accepted steps. Step 28 is approved, but its outcome is unknown; a session-control denial preceded operator inspection, and Claude work has ended. Codex retains supervision and routine board sync. Operational succession and existing-journal reconciliation remain required; later execution and all production changes stay held. The exact local legacy candidate remains accepted.",
-  "plainSummary": "The test-network trial has 27 accepted steps, and the reviewed reward fix is preserved locally. The next approved payout has an unknown outcome, and Claude work has ended. Codex will first reconcile the existing records; further execution and production changes remain held, with no new approval needed for routine board updates.",
+  "summary": "The Solana test-network trial remains at 27 accepted steps. November 24 finalized read-only evidence found the approved deposit mature and unclaimed, with no successful settlement found. The original journal is recovered and fully resolved; accepted artifacts match and the production checkout is restored. Codex signing/execution succession still needs direct scoped authority. Later execution and production changes remain held.",
+  "plainSummary": "The test-network trial still has 27 accepted steps. A fresh read-only check found the next approved deposit mature and unpaid, and all records in the recovered transaction journal are resolved. The production checkout is restored; Codex still needs permission to take over transaction execution, while production changes remain held.",
   "glossary": [
     {
       "term": "M14",
