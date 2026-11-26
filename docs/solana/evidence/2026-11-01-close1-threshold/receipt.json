@@ -1,0 +1,100 @@
+{
+ "schema": 1,
+ "card": "M14-A7-CLOSE1",
+ "authority": "Rob's direct instruction in Gideon's Codex chat, 2026-11-01, relayed in Gideon's bounded handoff: remove the extra two-hour margin, shift the dependent steps with it, keep the game rules unchanged, verify the later checks still work",
+ "commit": "29c8f97",
+ "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+ "proof_level": "LOCAL model + LiteSVM on the production SBF ELF 0c88d4e7... with the devnet ORAO binary, plus ONE read-only finalized devnet status with the candidate (resume check). NOT devnet proof of steps 13-39: nothing was sent, signed or simulated on devnet.",
+ "commands": {
+  "pure": "cargo +1.92.0 test --locked --test m14_flow_plan -- --nocapture",
+  "tool_plain": "cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1",
+  "tool_whole_flow": "MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture",
+  "plan_rehearsal": "MC_ORAO_PROFILE=devnet MC_M14_FLOW_REPORT=<file> cargo +1.92.0 test --locked --test m14_flow_plan -- --ignored --nocapture",
+  "clippy": "cargo +1.92.0 clippy --locked --all-targets -- -D warnings (the crate's CI lint)",
+  "arithmetic": "python3 -I close1_shift.py (integer-only, asserts the receipts first)",
+  "env": "cwd solana/tests/financial-runtime; CARGO_HOME=~/.cache/mc-solana-tools/cargo-home CARGO_TARGET_DIR=~/.cache/mc-solana-tools/harness-target (cached target reused); free space checked before the build (114-117 GiB); nothing deleted"
+ },
+ "results": {
+  "m14_flow_plan_pure": [
+   "test plan_solvency_arithmetic_holds_against_the_host_oracles ... ok",
+   "test plan_is_ordered_within_the_packet_buckets_and_covers_every_flow ... ok",
+   "test close1_has_no_margin_and_every_later_offset_moves_with_it ... ok",
+   "test f3_window_keeps_every_later_check ... ok",
+   "smallest viable F3 elapsed 325118 s (3.763 d); the window opens at 342000 s and closes (exclusive) at 604200 s (unchanged)",
+   "model at the nominal plan: close1 gross_owed 589368287 paid 589200000 toll 44190000 net 545010000, owed - pot 168287 (on-time open, 132 s past its threshold); insolvent_from_elapsed 808390; seed 48495000; C15 and C30 unchanged",
+   "test result: ok. 4 passed; 0 failed; 1 ignored"
+  ],
+  "m14_flow_tool_plain": [
+   "16 passed (15 previous + a_fresh_status_reports_no_missed_refusal_evidence); 0 failed; 4 ignored"
+  ],
+  "m14_flow_tool_whole_flow": [
+   "M14 current devnet run: PASS - close 1 at A1's open + 808390 (the replay's own clock), owed - pot 231 lamports; all 39 steps passed their checks",
+   "M14 late open: PASS - A1 opened 3700 s late; F3 refused at the plan's instant (elapsed 341900), accepted at 342000; close 1 refused at the plan's instant and at threshold - 1, sent at the threshold (3568 s after the plan's instant); the settlements waited for the actual maturities; all 39 steps passed their checks",
+   "M14 flow runner: PASS - 39 steps through `flow next`, 60 transactions sent, 61 simulations, both identities after every step",
+   "a_missed_refusal_window_is_reported_and_never_counted_done ... ok",
+   "test result: ok. 4 passed; 0 failed"
+  ],
+  "m14_flow_plan_rehearsal": [
+   "a1_closing_withdraw: pot 589200000 owed 589368287 -> INSOLVENT (pot-capped) (margin -168287 lamports); paid 589200000 toll 44190000 net 545010000",
+   "w_finalize_reopen: model seed carried 48495000 vs chain 48495000 (match)",
+   "p1_settle_compound15: model pot 1031695000 vs chain pot 1031695000 (match); paid 894713151 toll 80524183 net 814188968",
+   "w_settle_compound30: model pot 136981849 vs chain pot 136981849 (match); paid 136981849 toll 17807640 net 119174209",
+   "expire_at_deadline: 2 refused sends (at its own instant inside the deadline, then the boundary second), fee only",
+   "total duration 3574413 s = 41.371 days",
+   "test result: ok. 1 passed"
+  ],
+  "clippy": "clean (exit 0)"
+ },
+ "devnet_shaped_replay_expectations": {
+  "steps_1_12_actual_timings": "A1 open genesis + O1 + 132, P4 T0 + 401, P5 T0 + 420, F3 at A1 elapsed 358,784 (paid 456,785,185, toll 54,814,222, net 401,970,963), claim 27,407,109",
+  "after_step_12": "pot 572,414,815, seed 27,407,113, A1 remaining 34,592,891 (devnet's recorded facts)",
+  "step13": "one second early refused (too early, nothing simulated or sent); owed - pot -1,042 then +231; paid 572,414,815, toll 42,931,111, net 529,483,704; deadline = close + 600",
+  "later": "seed carried 48,872,669 = model; C15 = model; A1 capped at ticket 3 (F6); combined claim both parts; C30 pot = model; step 37 refused_as_expected inside the deadline (zero sends); step 38 at deadline + 1; round 3"
+ },
+ "timing_boundaries_utc": {
+  "genesis": {"unix": 1792942295, "utc": "2026-10-25T15:31:35Z"},
+  "a1_opened_at": {"unix": 1793115467, "utc": "2026-10-27T15:37:47Z"},
+  "step13_new": {"unix": 1793923857, "utc": "2026-11-06T00:10:57Z", "pacific": "2026-11-05 16:10:57 PST"},
+  "step13_old": {"unix": 1793931815, "utc": "2026-11-06T02:23:35Z"},
+  "step21_new": {"unix": 1793924037, "utc": "2026-11-06T00:13:57Z"},
+  "step28_new_if_step22_on_time": {"unix": 1795220157, "utc": "2026-11-21T00:15:57Z"},
+  "step32_new_if_step21_on_time": {"unix": 1796516097, "utc": "2026-12-06T00:14:57Z"},
+  "step37_new_plan_earliest": {"unix": 1796516247, "utc": "2026-12-06T00:17:27Z", "window_closes": "close 2 start + 600 (inclusive)"},
+  "step39_new_if_on_time": {"unix": 1796516708, "utc": "2026-12-06T00:25:08Z"}
+ },
+ "operator": {
+  "candidate_sha256": "a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c",
+  "bytes": 23020064,
+  "source": "solana/ tree at 29c8f97 (clean)",
+  "build": "ONE immutable candidate from two invocations of cargo +1.92.0 build --locked --bin devnet_ops (dev profile, same CARGO_HOME/CARGO_TARGET_DIR) on the clean 29c8f97 tree: the first reported the binary already current (cargo had built it from the same sources during the test runs) and gave a9dcb1b3...; the second, after touching src/bin/devnet_ops.rs, src/devnet_ops/flow.rs and src/m14_plan.rs (mtime only, no content change), recompiled and reproduced a9dcb1b3... (23,020,064 B). Only that binary was copied to the immutable directory",
+  "immutable_copy": "~/.cache/mc-solana-artifacts/devnet_ops/a9dcb1b3.../ (SHA256SUMS OK, PROVENANCE.txt; binary mode 555)",
+  "preserved_runners": {
+   "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5": "22,600,400 B, SHA256SUMS OK after the build (steps 1-9)",
+   "13b25fb35e33c3ad2f4ecc87e7762edb7f8a914a28f4a233d59e31222e9cb2df": "22,997,376 B, SHA256SUMS OK after the build (steps 10-12; the currently approved runner)"
+  }
+ },
+ "resume_check": {
+  "runner": "a9dcb1b3... from its immutable copy (hash rechecked)",
+  "command": "devnet_ops flow status --wallet-dir ~/.mc-devnet-keys/wallets --rpc https://api.devnet.solana.com --cluster devnet --commitment finalized --receipts ~/.mc-devnet-ops/flow-receipts.jsonl",
+  "read_only": true,
+  "result": "exit 0; plan M14-SIM Seq-B, plan_revision new; completed 12/39 with receipt_recorded true for steps 1-12; foreign_receipts 0; no failed-check receipts; missed_refusal_evidence []; all_ok true; conservation true (vault accounted 640,621,928 = pot 572,414,815 + seed 27,407,113 + management 40,800,000, as after step 12); next a1_closing_withdraw, earliest 1,793,923,857 = 2026-11-06T00:10:57Z, ready false (362,475 s); cluster slot 517,599,971",
+  "files_before_after": {
+   "~/.mc-devnet-ops/pending.jsonl": "e37f76e37f7145d3c54787b6b46901f96a9861c1b22aee5c1380e13ab89732ee (unchanged)",
+   "~/.mc-devnet-ops/flow-receipts.jsonl": "2d56a1bb24ca03023aee0e3b33e9baf193e3b70b032c2a31e6c5aa623721e6bd (unchanged, 12 lines)"
+  },
+  "not_run": "no step 13 dry run (it would only refuse 'too early'; a second RPC read was not needed); no send, signature, simulation, polling, funding or governance"
+ },
+ "unchanged": [
+  "program/IDL/ELF (0c88d4e7...)",
+  "frozen packet ae8a6a0e... (byte-identical)",
+  "steps 1-12 (ids, offsets, acts, amounts), their receipts (sha256 2d56a1bb..., 12 lines) and genesis",
+  "write-ahead file e37f76e3... and devnet SOL ledger ec6acf8c... (no new row: nothing sent)",
+  "every amount, wallet funding, cap and budget; economics, rates and durations",
+  "PLAN_NAME; the accepted earlier amendment sections"
+ ],
+ "graph_maintenance": "not performed in this bounded pass; stale AST coverage for m14_plan.rs, devnet_ops/flow.rs and the two M14 tests since the 2026-10-27 refresh (f75c143), as for 5b32a02",
+ "notes": [
+  "The rehearsal (m14_flow_plan) now sends step 37 twice in LiteSVM (inside the deadline, then the boundary second), both refused fee-only: +5,000 lamports of keeper fee in LiteSVM only. On devnet the runner simulates step 37 and sends nothing.",
+  "The devnet-shaped replay plays devnet's genesis as the LiteSVM START_TIME, so its printed unix values are offset by START_TIME - 1,792,942,295; the relative facts (A1 +132 s, F3 at 358,784 s, close at A1 open + 808,390 s) are the devnet run's."
+ ]
+}

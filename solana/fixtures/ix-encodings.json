@@ -1,0 +1,362 @@
+{
+  "instructions": [
+    {
+      "data_hex": "afaf6d1f0d989beda1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a1a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a26d75736963616c2d6368616972732d666978747572652d646f6d61696e212121e093040000000000c409b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b1b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b2b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b3b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b4b401",
+      "data_len": 243,
+      "discriminator_hex": "afaf6d1f0d989bed",
+      "name": "initialize",
+      "sample": {
+        "args": "InitializeArgs { sponsor: Bswb3UyeD1pUTaGiE6WvqwFpJZsQSEY1xhJePCDTHdvp, management_recipient: BwrtBnSeoK7hbfXDfPqr8p2aYj5c7JDqX6yJSaG42yFX, cluster_domain: [109, 117, 115, 105, 99, 97, 108, 45, 99, 104, 97, 105, 114, 115, 45, 102, 105, 120, 116, 117, 114, 101, 45, 100, 111, 109, 97, 105, 110, 33, 33, 33], provider_request_fee_lamports: 300000, provider_fee_headroom_bps: 2500, provider_program: CxeKLJRofna6h2GqCsjdVwc2D7EdDFX8uDy9KGw3Ey68, provider_network_state: D2ZcUbtpG5sKq7XLeB4YnpNnTGSptKCxTddoNeydzJQq, provider_treasury: D6UucuMprPAYyCmr5UPU5h9YhRf2ZNtn23JTS32EjdjY, provider_client: DAQCmCpqSgTn7J2MWmiPNZvJwasEESabaSy7VR4qUy4F, public_series_a_enabled: true }"
+      }
+    },
+    {
+      "data_hex": "3f209a0238674f2d01",
+      "data_len": 9,
+      "discriminator_hex": "3f209a0238674f2d",
+      "name": "set_pause",
+      "sample": {
+        "paused": true
+      }
+    },
+    {
+      "data_hex": "a5521c05fbec09db40420f0000000000",
+      "data_len": 16,
+      "discriminator_hex": "a5521c05fbec09db",
+      "name": "fund_operations",
+      "sample": {
+        "amount": 1000000
+      }
+    },
+    {
+      "data_hex": "960401b0c23b138c80841e0000000000",
+      "data_len": 16,
+      "discriminator_hex": "960401b0c23b138c",
+      "name": "withdraw_operations",
+      "sample": {
+        "amount": 2000000
+      }
+    },
+    {
+      "data_hex": "67bf8451c71d5b31c0c62d0000000000",
+      "data_len": 16,
+      "discriminator_hex": "67bf8451c71d5b31",
+      "name": "withdraw_management",
+      "sample": {
+        "amount": 3000000
+      }
+    },
+    {
+      "data_hex": "58c10a65db2c1c440200000001000000000000004c040000000080af1b0080c61300008d270023ccdd275b4c153e8c9a461b928c3faab004ee022c0107000e00840314059001809698000000000080f0fa020000000003100e00008813ac0d9411d0077030502d0a00000000000000580200000000000000000000d007f702930000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008",
+      "data_len": 259,
+      "discriminator_hex": "58c10a65db2c1c44",
+      "name": "stage_config_version",
+      "sample": {
+        "terms": "ConfigTerms { effective_round_id: 1, plan_rates_bps_per_day: [1100, 0, 0], plan_durations_s: [1814400, 1296000, 2592000], compound_factors_q18: [4473565759257037859, 12267678469131246220], simple_toll_bps: [1200, 750, 300], simple_toll_day_bounds: [7, 14], jackpot_bps: [900, 1300], front_end_load_bps: 400, min_game: 10000000, min_a: 50000000, quota_count: 3, quota_window_s: 3600, seed_bps: 5000, senior_bps: 3500, a_bps: 4500, b_bps: 2000, a_entitlement_bps: 12400, b_entitlement_bps: 11600, open_cutoff: 10, deadline_seconds: 600, provider_request_fee_lamports: 0, provider_fee_headroom_bps: 2000, pending_request_bytes: 759, fulfilled_request_bytes: 147, provider_program: 11111111111111111111111111111111, provider_network_state: 11111111111111111111111111111111, provider_treasury: 11111111111111111111111111111111, provider_client: 11111111111111111111111111111111, public_series_a_enabled: false, page_capacity: 8 }",
+        "version": 2
+      }
+    },
+    {
+      "data_hex": "b5e5723bad540e3b0200000001000000",
+      "data_len": 16,
+      "discriminator_hex": "b5e5723bad540e3b",
+      "name": "activate_config_version",
+      "sample": {
+        "expected_current": 1,
+        "version": 2
+      }
+    },
+    {
+      "data_hex": "6dafa61f0d584c2301c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1",
+      "data_len": 41,
+      "discriminator_hex": "6dafa61f0d584c23",
+      "name": "rotate_recipient",
+      "sample": {
+        "kind": 1,
+        "new_recipient": "E3M3d7sy8ZKivUGxBexL9wxE7ebqzGWFqkdeFMedCJFS"
+      }
+    },
+    {
+      "data_hex": "4716df16e6766572",
+      "data_len": 8,
+      "discriminator_hex": "4716df16e6766572",
+      "name": "rotate_guardian",
+      "sample": {}
+    },
+    {
+      "data_hex": "c4c969d2afbdf035020300000000000000020000000000000000",
+      "data_len": 26,
+      "discriminator_hex": "c4c969d2afbdf035",
+      "name": "provision_page",
+      "sample": {
+        "funding": "Free",
+        "index": 2,
+        "kind": "Participant { round: 3 }"
+      }
+    },
+    {
+      "data_hex": "c4c969d2afbdf03503070000000000000001000000000000000001",
+      "data_len": 27,
+      "discriminator_hex": "c4c969d2afbdf035",
+      "name": "provision_page_candidate_caller",
+      "sample": {
+        "funding": "Caller",
+        "index": 0,
+        "kind": "Candidate { close_id: 7, set_tag: 1 }"
+      }
+    },
+    {
+      "data_hex": "36e575a321079714070000000000000002",
+      "data_len": 17,
+      "discriminator_hex": "36e575a321079714",
+      "name": "provision_close_record",
+      "sample": {
+        "close_id": 7,
+        "funding": "LockedClose"
+      }
+    },
+    {
+      "data_hex": "1c5d6ad4fb9c8b9c00",
+      "data_len": 9,
+      "discriminator_hex": "1c5d6ad4fb9c8b9c",
+      "name": "close_shared_account",
+      "sample": {
+        "kind": "Registry"
+      }
+    },
+    {
+      "data_hex": "0c8b19121d153f2e",
+      "data_len": 8,
+      "discriminator_hex": "0c8b19121d153f2e",
+      "name": "reconcile_ops_cash",
+      "sample": {}
+    },
+    {
+      "data_hex": "87802f4d0f98f0310000ca9a3b000000000100000000000000010000000000000001000000",
+      "data_len": 37,
+      "discriminator_hex": "87802f4d0f98f031",
+      "name": "open_position",
+      "sample": {
+        "client_nonce": 1,
+        "expected_config": 1,
+        "expected_round_id": 1,
+        "gross": 1000000000,
+        "plan": "Simple"
+      }
+    },
+    {
+      "data_hex": "87802f4d0f98f0310180969800000000000200000000000000010000000000000001000000",
+      "data_len": 37,
+      "discriminator_hex": "87802f4d0f98f031",
+      "name": "open_position_compound15",
+      "sample": {
+        "client_nonce": 2,
+        "expected_config": 1,
+        "expected_round_id": 1,
+        "gross": 10000000,
+        "plan": "Compound15"
+      }
+    },
+    {
+      "data_hex": "87802f4d0f98f0310280969800000000000300000000000000020000000000000002000000",
+      "data_len": 37,
+      "discriminator_hex": "87802f4d0f98f031",
+      "name": "open_position_compound30",
+      "sample": {
+        "client_nonce": 3,
+        "expected_config": 2,
+        "expected_round_id": 2,
+        "gross": 10000000,
+        "plan": "Compound30"
+      }
+    },
+    {
+      "data_hex": "627fc96ea49f914b80f0fa02000000000100000000000000",
+      "data_len": 24,
+      "discriminator_hex": "627fc96ea49f914b",
+      "name": "fund_series_a",
+      "sample": {
+        "expected_round_id": 1,
+        "gross": 50000000
+      }
+    },
+    {
+      "data_hex": "b05e125d82525c97000dc505000000000000000000000000",
+      "data_len": 24,
+      "discriminator_hex": "b05e125d82525c97",
+      "name": "withdraw_simple",
+      "sample": {
+        "max_work_contribution": 0,
+        "minimum_receive": 96800000
+      }
+    },
+    {
+      "data_hex": "02f823fe8a6bb8ae0000000000000000404b4c0000000000",
+      "data_len": 24,
+      "discriminator_hex": "02f823fe8a6bb8ae",
+      "name": "settle_compounding",
+      "sample": {
+        "max_work_contribution": 5000000,
+        "minimum_receive": 0
+      }
+    },
+    {
+      "data_hex": "c7c250f5ded84276",
+      "data_len": 8,
+      "discriminator_hex": "c7c250f5ded84276",
+      "name": "close_simple_position",
+      "sample": {}
+    },
+    {
+      "data_hex": "639a3ff11aa2f22a0100000000000000000000000000000008",
+      "data_len": 25,
+      "discriminator_hex": "639a3ff11aa2f22a",
+      "name": "discover_rows",
+      "sample": {
+        "expected_cursor": 0,
+        "expected_ticket_id": 1,
+        "rows": 8
+      }
+    },
+    {
+      "data_hex": "7d9e3054dc6e3f260100000000000000",
+      "data_len": 16,
+      "discriminator_hex": "7d9e3054dc6e3f26",
+      "name": "apply_senior",
+      "sample": {
+        "expected_ticket_id": 1
+      }
+    },
+    {
+      "data_hex": "962587340bff5fdf0100000000000000",
+      "data_len": 16,
+      "discriminator_hex": "962587340bff5fdf",
+      "name": "seal_weights",
+      "sample": {
+        "expected_ticket_id": 1
+      }
+    },
+    {
+      "data_hex": "e37559b7248e78850100000000000000080000000000000008",
+      "data_len": 25,
+      "discriminator_hex": "e37559b7248e7885",
+      "name": "allocate_rows",
+      "sample": {
+        "expected_cursor": 8,
+        "expected_ticket_id": 1,
+        "rows": 8
+      }
+    },
+    {
+      "data_hex": "db6dc679559483d70100000000000000000000000000000001",
+      "data_len": 25,
+      "discriminator_hex": "db6dc679559483d7",
+      "name": "prune_rows",
+      "sample": {
+        "expected_cursor": 0,
+        "expected_ticket_id": 1,
+        "rows": 1
+      }
+    },
+    {
+      "data_hex": "0f61373826f958dc0100000000000000",
+      "data_len": 16,
+      "discriminator_hex": "0f61373826f958dc",
+      "name": "commit_ticket",
+      "sample": {
+        "expected_ticket_id": 1
+      }
+    },
+    {
+      "data_hex": "ac94537674b9be85",
+      "data_len": 8,
+      "discriminator_hex": "ac94537674b9be85",
+      "name": "claim_backer",
+      "sample": {}
+    },
+    {
+      "data_hex": "5c895e51996e48e008",
+      "data_len": 9,
+      "discriminator_hex": "5c895e51996e48e0",
+      "name": "build_candidates",
+      "sample": {
+        "rows": 8
+      }
+    },
+    {
+      "data_hex": "3c2638b3f21f5012",
+      "data_len": 8,
+      "discriminator_hex": "3c2638b3f21f5012",
+      "name": "request_round_draw",
+      "sample": {}
+    },
+    {
+      "data_hex": "67b7aa2e25a7d96d",
+      "data_len": 8,
+      "discriminator_hex": "67b7aa2e25a7d96d",
+      "name": "capture_round_draw",
+      "sample": {}
+    },
+    {
+      "data_hex": "36fe380d39ed4226",
+      "data_len": 8,
+      "discriminator_hex": "36fe380d39ed4226",
+      "name": "apply_promotion",
+      "sample": {}
+    },
+    {
+      "data_hex": "44ea54517e20f698",
+      "data_len": 8,
+      "discriminator_hex": "44ea54517e20f698",
+      "name": "expire_promotion",
+      "sample": {}
+    },
+    {
+      "data_hex": "efa0fe0bfe903594",
+      "data_len": 8,
+      "discriminator_hex": "efa0fe0bfe903594",
+      "name": "finalize_round",
+      "sample": {}
+    },
+    {
+      "data_hex": "a30e14805ad2a4f9a086010000000000",
+      "data_len": 16,
+      "discriminator_hex": "a30e14805ad2a4f9",
+      "name": "increase_provider_budget",
+      "sample": {
+        "extra": 100000
+      }
+    },
+    {
+      "data_hex": "adc2090c33a9ac45",
+      "data_len": 8,
+      "discriminator_hex": "adc2090c33a9ac45",
+      "name": "observe_request_fulfilled",
+      "sample": {}
+    },
+    {
+      "data_hex": "0ff7898f67d06631c0fe400000000000",
+      "data_len": 16,
+      "discriminator_hex": "0ff7898f67d06631",
+      "name": "withdraw_provider_return",
+      "sample": {
+        "amount": 4259520
+      }
+    },
+    {
+      "data_hex": "2918fd109b98b0de",
+      "data_len": 8,
+      "discriminator_hex": "2918fd109b98b0de",
+      "name": "reconcile_ops_cash_with_client",
+      "sample": {}
+    },
+    {
+      "data_hex": "7bd7eaf6517b72f4",
+      "data_len": 8,
+      "discriminator_hex": "7bd7eaf6517b72f4",
+      "name": "deliver_owner_refund",
+      "sample": {}
+    }
+  ],
+  "note": "Anchor instruction data = sha256(\"global:<name>\")[..8] ++ Borsh(args); account orders come from the IDL",
+  "program": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o"
+}

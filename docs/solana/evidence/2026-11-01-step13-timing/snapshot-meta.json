@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "card": "M14-A7-CLOSE1",
+  "what": "one read-only finalized flow status for the step 13 timing assessment (2026-11-01)",
+  "runner": {
+    "sha256": "13b25fb35e33c3ad2f4ecc87e7762edb7f8a914a28f4a233d59e31222e9cb2df",
+    "source": "immutable copy ~/.cache/mc-solana-artifacts/devnet_ops/13b25fb3.../devnet_ops"
+  },
+  "command": "devnet_ops flow status --wallet-dir ~/.mc-devnet-keys/wallets --rpc https://api.devnet.solana.com --cluster devnet --commitment finalized",
+  "exit_code": 0,
+  "stderr": "",
+  "reads": "public wallets.json, getProgramAccounts, Rent sysvar, cluster clock, slot; no keypair loaded; no receipts path given (chain-state verdicts only)",
+  "local_utc_clock_before_after": [
+    1793548524,
+    1793548525
+  ],
+  "files_sha256_before": {
+    "~/.mc-devnet-ops/pending.jsonl": "e37f76e37f7145d3c54787b6b46901f96a9861c1b22aee5c1380e13ab89732ee",
+    "~/.mc-devnet-ops/flow-receipts.jsonl": "2d56a1bb24ca03023aee0e3b33e9baf193e3b70b032c2a31e6c5aa623721e6bd"
+  },
+  "files_sha256_after": {
+    "~/.mc-devnet-ops/pending.jsonl": "e37f76e37f7145d3c54787b6b46901f96a9861c1b22aee5c1380e13ab89732ee",
+    "~/.mc-devnet-ops/flow-receipts.jsonl": "2d56a1bb24ca03023aee0e3b33e9baf193e3b70b032c2a31e6c5aa623721e6bd"
+  },
+  "files_unchanged": true
+}

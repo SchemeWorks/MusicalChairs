@@ -1,0 +1,64 @@
+{
+ "recorded_at_utc": "2026-10-25T13:14:55+00:00",
+ "what": "A8 deployed-byte evidence (packet section 8 / plan C5); first pass inside the deploy BEFORE the authority moved, then two independent read-only passes after",
+ "pass_1_in_deploy_before_authority": {
+  "account_data_len": 1399253,
+  "elf_len": 1399208,
+  "elf_matches": true,
+  "elf_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+  "first_mismatch_offset": null,
+  "header_len": 45,
+  "ok": true,
+  "onchain_elf_slice_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+  "payload_sha256_after_header": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+  "programdata_slot": 514981407,
+  "upgrade_authority": "6wMkX8FsrqRQPsLngBNQbDgA4VCFU4LmCpUtPhykPq7k",
+  "zero_padding_all_zero": true,
+  "zero_padding_len": 0
+ },
+ "pass_2_tool_verify_bytes": {
+  "command": "devnet_ops verify-bytes --expect-authority g-vault (read-only)",
+  "all_ok": true,
+  "false_checks": 0
+ },
+ "pass_3_independent_raw_decode": {
+  "method": "raw getAccountInfo (finalized, base64) + own loader-v3 decoding in Python, compared byte-for-byte with the ELF file",
+  "program": {
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+   "executable": true,
+   "data_len": 36,
+   "state_tag": 2,
+   "programdata": "9DDAjGQwc6cGaiyg5aubCHa11cdG383cBsR2hkToczSG",
+   "context_slot": 514981704
+  },
+  "programdata": {
+   "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+   "data_len": 1399253,
+   "header_len": 45,
+   "state_tag": 3,
+   "deployment_slot": 514981407,
+   "upgrade_authority": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB (= G vault)",
+   "context_slot": 514981705
+  },
+  "elf": {
+   "elf_len": 1399208,
+   "onchain_slice_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+   "byte_equal_to_elf_file": true,
+   "padding_len": 0,
+   "padding_all_zero": true
+  },
+  "buffer_account": "closed (getAccountInfo null)"
+ },
+ "readback_program_section": {
+  "all_ok": true,
+  "false_checks": 0
+ },
+ "pins": {
+  "source_set_sha256": "e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d",
+  "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+  "artifact_sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+  "idl_sha256": "d6370a7319314d0386493661ce11c54168f8e65617b47ce285e8ac763db6e024",
+  "idl_account": "none published"
+ },
+ "separate_facts": "buffer upload (1,387 writes), deployed bytes, authority transfer, finality (finalized reads) and the reconciled balance are recorded separately; initialize/activation has NOT happened (A4 needs the 48 h time lock)"
+}

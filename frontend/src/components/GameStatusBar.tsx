@@ -1,8 +1,9 @@
 import { useICPBalance, useGetUserGames, useGetPonziPoints, useGetGameStats, useGetUserSolGames, useSolBalance, useGetSolGameStats } from '../hooks/useQueries';
+import { useNativeAvailability, useNativePortfolio } from '../solana/native/panelsHooks';
 import { useLivePortfolio } from '../hooks/useLiveEarnings';
 import { useWallet } from '../hooks/useWallet';
 import { formatICP } from '../lib/formatICP';
-import { formatSolFloat } from '../solana/lamports';
+import { formatSolFloat, formatSOL } from '../solana/lamports';
 import { SolGameRecord } from '../backend';
 import { TrendingUp, TrendingDown } from 'lucide-react';
 
@@ -25,6 +26,11 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
   const { data: solGameStats } = useGetSolGameStats();
   const portfolio = useLivePortfolio(games);
   const solPortfolio = useLivePortfolio(solGames);
+  // Native rail figures (the Musical Chairs program) sit NEXT TO the legacy canister ones and are
+  // never summed with them: separate AUM (= pot) stats, separate position counts.
+  const nativeAvailability = useNativeAvailability();
+  const nativePortfolio = useNativePortfolio();
+  const nativePool = isSiws && nativeAvailability.state === 'native' ? nativeAvailability.pool : null;
 
   // SIWS sessions are SOL-denominated; everyone else is ICP. Every per-user and
   // protocol figure follows the active wallet so the bar never contradicts the
@@ -33,9 +39,13 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
   const balance = isSiws ? (solBalance ?? 0) : (icpBalance ?? 0);
   const potBalance = isSiws ? (solGameStats?.potBalance ?? 0) : (gameStats?.potBalance || 0);
   const activeGames = isSiws ? solGames.length : (games?.length || 0);
-  const netPL = isSiws
-    ? solPortfolio.totalEarnings - solPortfolio.totalDeposits
-    : portfolio.totalEarnings - portfolio.totalDeposits;
+  const nativeNetPL = (Number(nativePortfolio.totalEarned) - Number(nativePortfolio.totalDeposits)) / 1_000_000_000;
+  // P/L follows the default rail, matching the Profit Center's running tally.
+  const netPL = nativePool
+    ? nativeNetPL
+    : isSiws
+      ? solPortfolio.totalEarnings - solPortfolio.totalDeposits
+      : portfolio.totalEarnings - portfolio.totalDeposits;
   const isUp = netPL >= 0;
   const unit = isSiws ? 'SOL' : 'ICP';
   // Format a non-negative amount in the active denomination.
@@ -71,7 +81,22 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
       {/* Positions — hidden on mobile to reduce density */}
       <div className="mc-status-bar-stat mc-status-bar-mobile-hide">
         <span className="mc-status-bar-label">Positions</span>
-        <span className="mc-status-bar-value mc-text-cyan">{activeGames}</span>
+        <span className="mc-status-bar-value mc-text-cyan">
+          {nativePool ? (
+            <>
+              {nativePortfolio.active.length}
+              <span className="mc-text-muted text-[10px]"> native</span>
+              {activeGames > 0 && (
+                <>
+                  {' · '}{activeGames}
+                  <span className="mc-text-muted text-[10px]"> legacy</span>
+                </>
+              )}
+            </>
+          ) : (
+            activeGames
+          )}
+        </span>
       </div>
 
       {/* PP */}
@@ -87,9 +112,19 @@ export default function GameStatusBar({ onNavigate }: GameStatusBarProps) {
         </button>
       </div>
 
-      {/* AUM — compact format on mobile (1 decimal), full precision on desktop */}
-      <div className="mc-status-bar-stat">
-        <span className="mc-status-bar-label">AUM</span>
+      {/* AUM — compact format on mobile (1 decimal), full precision on desktop.
+          With the native rail on, AUM is the native pool's pot and the legacy canister's AUM is its own stat. */}
+      {nativePool && (
+        <div className="mc-status-bar-stat">
+          <span className="mc-status-bar-label">AUM</span>
+          <span className="mc-status-bar-value mc-text-gold" data-testid="native-aum">
+            <span className="sm:hidden">{nativePool.pot >= 10_000_000_000n ? (Number(nativePool.pot) / 1e9).toFixed(1) : formatSOL(nativePool.pot)}</span>
+            <span className="hidden sm:inline">{formatSOL(nativePool.pot)} SOL</span>
+          </span>
+        </div>
+      )}
+      <div className={`mc-status-bar-stat ${nativePool ? 'mc-status-bar-mobile-hide' : ''}`}>
+        <span className="mc-status-bar-label">{nativePool ? 'Legacy AUM' : 'AUM'}</span>
         <span className="mc-status-bar-value mc-text-gold">
           <span className="sm:hidden">{potBalance >= 10 ? potBalance.toFixed(1) : fmtAmt(potBalance)}</span>
           <span className="hidden sm:inline">{fmtAmt(potBalance)} {unit}</span>

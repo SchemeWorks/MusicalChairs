@@ -1,0 +1,76 @@
+{
+  "actor": "A1",
+  "actor_pubkey": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+  "all_ok": true,
+  "cluster": {
+    "commitment": "Confirmed",
+    "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+    "rpc": "https://api.devnet.solana.com",
+    "slot": 519117507,
+    "target": "devnet"
+  },
+  "cluster_unix": 1793924620,
+  "command": "flow next",
+  "conservation": {
+    "game_vault": {
+      "lamports": 641317888,
+      "ok": true,
+      "pot_seed_management_pending_toll_funded_claims_excess": "640621928",
+      "rent": 695960,
+      "spendable": 640621928
+    },
+    "ok": true,
+    "ops_cash": {
+      "free_locked_unallocated": "488067080",
+      "lamports": 488717320,
+      "ok": true,
+      "rent": 650240,
+      "spendable": 488067080
+    },
+    "partitions": {
+      "ok": true,
+      "ops_locked_remaining_total": 0,
+      "sum_of_close_records": 0
+    }
+  },
+  "earliest_unix": 1793923857,
+  "earliest_utc": "2026-11-06T00:10:57Z",
+  "expect": "strict insolvency at the threshold: owed just above the pot (0.5892 in the model); PayoutPaid closing, gross_paid = pot (partial), toll 7.5 %; RoundClosed, deadline = now + 600",
+  "flows": "F4,F8",
+  "index": 13,
+  "mode": "dry-run",
+  "plan": "M14-SIM Seq-B",
+  "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+  "preview": {
+    "info": {
+      "close_reserve": 10941400,
+      "expectation": {
+        "gross_owed": "573389004",
+        "insolvent": true,
+        "margin": "-974189",
+        "net": 529483704,
+        "paid_gross": 572414815,
+        "toll": 42931111
+      },
+      "pot_before": 572414815
+    },
+    "next_transaction": {
+      "depends_on_previous": false,
+      "executed": false,
+      "fee_payer": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+      "fits_1232": true,
+      "instructions": 2,
+      "label": "a1_closing_withdraw: payout",
+      "packet_bytes": 632,
+      "required_signers": [
+        "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US"
+      ],
+      "signature": null,
+      "simulation": null,
+      "slot": null,
+      "step": "a1_closing_withdraw"
+    },
+    "note": "a dry run builds only the first transaction; later ones depend on the chain after it"
+  },
+  "step": "a1_closing_withdraw"
+}

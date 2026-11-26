@@ -1,0 +1,155 @@
+{
+  "message_signers_besides_the_vault": [
+    "FVdnakemjhcemfWUgNR2AERbk5Pog7zJ1UF2LjbocBUj"
+  ],
+  "outcome": "SUCCESS: Squads forwarded the sponsor signer; initialize ran",
+  "question": "does a Squads v4 vault transaction forward a non-vault keypair signer that signs the outer vault_transaction_execute transaction?",
+  "run": {
+    "first_failure": null,
+    "succeeded": true,
+    "transaction_index": 1,
+    "transactions": [
+      {
+        "compute_units": 36733,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.vault_transaction_create",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: VaultTransactionCreate",
+          "Program 11111111111111111111111111111111 invoke [2]",
+          "Program 11111111111111111111111111111111 success",
+          "Program log: transaction index: 1",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 36583 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 6,
+        "packet_bytes": 1140,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 3
+      },
+      {
+        "compute_units": 13383,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.proposal_create",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalCreate",
+          "Program 11111111111111111111111111111111 invoke [2]",
+          "Program 11111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 13233 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 6,
+        "packet_bytes": 327,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 8772,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.proposal_approve.1",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalApprove",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 8622 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 5,
+        "packet_bytes": 285,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 9594,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.proposal_approve.2",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: ProposalApprove",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 9444 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 5,
+        "packet_bytes": 285,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 2
+      },
+      {
+        "compute_units": 25297,
+        "error": "InstructionError(1, Custom(6021))",
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.vault_transaction_execute.before_time_lock",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: VaultTransactionExecute",
+          "Program log: AnchorError thrown in programs/squads_multisig_program/src/instructions/vault_transaction_execute.rs:70. Error Code: TimeLockNotReleased. Error Number: 6021. Error Message: Proposal time lock has not been released.",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 25147 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf failed: custom program error: 0x1785"
+        ],
+        "message_account_count": 21,
+        "packet_bytes": 878,
+        "rollback_except_fee": true,
+        "success": false,
+        "writable_account_count": 11
+      },
+      {
+        "compute_units": 142874,
+        "error": null,
+        "fits_legacy_packet": true,
+        "label": "squads.initialize.sponsor_outer_signer.vault_transaction_execute",
+        "logs": [
+          "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+          "Program ComputeBudget111111111111111111111111111111 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+          "Program log: Instruction: VaultTransactionExecute",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+          "Program log: Instruction: Initialize",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 11111111111111111111111111111111 invoke [3]",
+          "Program 11111111111111111111111111111111 success",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 consumed 94442 of 1353297 compute units",
+          "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 success",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf consumed 142724 of 1399850 compute units",
+          "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf success"
+        ],
+        "message_account_count": 21,
+        "packet_bytes": 878,
+        "rollback_except_fee": false,
+        "success": true,
+        "writable_account_count": 11
+      }
+    ],
+    "vault": "37Eb1JQ6svsCfvVZFUKfYCDWrY8NVcYgrtjwRVw36TfK"
+  }
+}

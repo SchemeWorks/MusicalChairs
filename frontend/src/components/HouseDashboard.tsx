@@ -8,7 +8,15 @@ import AddBackerMoney from './AddBackerMoney';
 import ClaimRepaymentToast from './ClaimRepaymentToast';
 import { triggerConfetti } from './ConfettiCanvas';
 import { formatICP } from '../lib/formatICP';
-import { formatSolFloat } from '../solana/lamports';
+import { formatSolFloat, formatSOL } from '../solana/lamports';
+import { BACKER_SENIOR_SHARE, BACKER_PROPORTIONAL_A_SHARE, BACKER_EQUAL_B_SHARE, pct } from '../lib/gameConstants';
+import { useNativeBackers } from '../hooks/useNativeSolana';
+import { useNativeAvailability, usePanelNativeAction } from '../solana/native/panelsHooks';
+import { describeNativeError, quoteBacker } from '../solana/native/panelsQuote';
+import type { NativePool, NativeTxResult } from '../solana/native/types';
+import { LegacyRailBanner, NativeRailVerifying, NativeTxStatusCard } from './SolInvestPanel';
+import { railOf } from '../solana/native/panelsRail';
+import NativeHistoryFeed from './NativeHistoryFeed';
 import { Progress } from '@/components/ui/progress';
 import { Info, DollarSign, TrendingUp, Shield, Zap, Landmark, BarChart3, Flame, Coins, Banknote, Gem, Dice5, ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 
@@ -75,9 +83,9 @@ function BackerInfoCard() {
       content: (
         <div className="text-xs mc-text-dim space-y-1">
           <p>Of the 50% of fees earmarked for backer repayment:</p>
-          <p><strong className="mc-text-primary">35%</strong> goes to the earliest Series A Backer</p>
-          <p><strong className="mc-text-primary">25%</strong> split evenly among other Series A Backers</p>
-          <p><strong className="mc-text-primary">40%</strong> split evenly among all backers</p>
+          <p><strong className="mc-text-primary">{pct(BACKER_SENIOR_SHARE)}</strong> goes to the oldest open Series A Backer (senior)</p>
+          <p><strong className="mc-text-primary">{pct(BACKER_PROPORTIONAL_A_SHARE)}</strong> is shared pro rata across Series A Backers, by remaining entitlement</p>
+          <p><strong className="mc-text-primary">{pct(BACKER_EQUAL_B_SHARE)}</strong> is shared equally across Series B Backers</p>
         </div>
       ),
     },
@@ -134,7 +142,7 @@ function BackerInfoCard() {
               Emergency Equity Conversion <Zap className="h-4 w-4" />
             </h4>
             <div className="text-xs mc-text-dim space-y-1 leading-relaxed">
-              <p><strong className="mc-text-primary">When AUM empties:</strong> A random unprofitable depositor is promoted to Series B Investor.</p>
+              <p><strong className="mc-text-primary">When AUM empties:</strong> A randomized selection converts one unprofitable depositor into a Series B Backer.</p>
               <p><strong className="mc-text-primary">Entitlement:</strong> Whatever they were underwater, plus the Series B return.</p>
               <p><strong className="mc-text-primary">Multiple backers</strong> can coexist, sharing fee payments via the distribution system.</p>
               <p className="mc-text-muted italic mt-2">When the fund runs dry, management restructures. Standard operating procedure.</p>
@@ -171,6 +179,9 @@ function describeEvent(entry: GeneralLedgerEntry): { label: string; isInflow: bo
 function HouseLedgerRecords() {
   const { walletType } = useWallet();
   const isSol = walletType === 'siws';
+  const ledgerAvailability = useNativeAvailability();
+  const nativeOn = ledgerAvailability.state === 'native';
+  const ledgerRail = isSol ? railOf(ledgerAvailability) : 'inactive';
   const fmt = (n: number) => (isSol ? formatSolFloat(n) : formatICP(n));
   const unit = isSol ? 'SOL' : 'ICP';
 
@@ -207,6 +218,17 @@ function HouseLedgerRecords() {
 
   return (
     <div className="space-y-6">
+      {isSol && nativeOn && (
+        <p className="text-xs mc-text-muted text-center">
+          This ledger lists legacy (Chain Fusion) activity only. Verified native program activity is in its own feed above.
+        </p>
+      )}
+      {ledgerRail === 'legacy' && <LegacyRailBanner what="the ledger" />}
+      {ledgerRail === 'loading' && (
+        <p className="text-xs mc-text-muted text-center" data-testid="ledger-verifying">
+          Legacy (Chain Fusion) ledger. Verifying the native program on this cluster…
+        </p>
+      )}
       {/* Stats row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
@@ -269,6 +291,112 @@ function HouseLedgerRecords() {
 }
 
 /* ================================================================
+   Native Backer positions (Musical Chairs program) — IMPL-46c
+   The session wallet's Series A / Series B rows and the combined claim.
+   The legacy canister backers are listed separately below and never summed in.
+   ================================================================ */
+function NativeBackerSection({ pool }: { pool: NativePool }) {
+  const { data: backers } = useNativeBackers();
+  const claimMut = usePanelNativeAction((client, _vars: { requestId: number }) => client.claimBacker({}));
+  const [lastTx, setLastTx] = useState<NativeTxResult | null>(null);
+
+  const rows = [
+    { key: 'A', label: 'Series A', isA: true, backer: backers?.seriesA ?? null },
+    { key: 'B', label: 'Series B', isA: false, backer: backers?.seriesB ?? null },
+  ]
+    .filter((r) => r.backer !== null)
+    .map((r) => ({ ...r, quote: quoteBacker(r.backer!, pool.finalizedTicket) }));
+  const totalClaimable = rows.reduce((sum, r) => sum + r.quote.claimable, 0n);
+
+  const handleClaim = async () => {
+    try {
+      setLastTx(await claimMut.mutateAsync({ requestId: Date.now() }));
+    } catch {
+      // claimMut.error is rendered below
+    }
+  };
+
+  return (
+    <div className="space-y-3" data-testid="native-backers">
+      <div className="flex items-center justify-center gap-2">
+        <h3 className="font-display text-base mc-text-primary text-center">Your Backer positions</h3>
+        <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 mc-text-cyan uppercase tracking-wider">native</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-center py-6">
+          <Landmark className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
+          <p className="font-display text-sm mc-text-primary mb-1">No native Backer position yet</p>
+          <p className="text-sm mc-text-dim">Fund the project above to become a Series A Backer. {Number(pool.registryLen)} open Backer{pool.registryLen === 1n ? '' : 's'} so far.</p>
+        </div>
+      ) : (
+        <>
+          {rows.map(({ key, label, isA, backer, quote }) => (
+            <div key={key} className={`mc-card p-5 ${isA ? 'mc-accent-green' : 'mc-accent-gold'}`} data-testid={`native-backer-${key}`}>
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
+                <div className="flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-xl ${isA ? 'bg-[var(--mc-neon-green)]/20' : 'bg-[var(--mc-gold)]/20'}`}>
+                    {isA ? <Gem className="h-5 w-5 mc-text-green" /> : <Dice5 className="h-5 w-5 mc-text-gold" />}
+                  </div>
+                  <div>
+                    <div className="font-bold mc-text-primary">My Equity</div>
+                    <span className={`text-xs px-2 py-0.5 rounded-full font-bold ${isA ? 'bg-[var(--mc-neon-green)]/20 mc-text-green' : 'bg-[var(--mc-gold)]/20 mc-text-gold'}`}>
+                      {isA ? 'Series A' : 'Series B (converted Backer)'}
+                    </span>
+                    <div className="text-xs mc-text-muted mt-1">{backer!.active ? 'Open: sharing in tolls' : 'Capped: entitlement fully credited'}</div>
+                  </div>
+                </div>
+                <div className="md:text-center">
+                  <div className="mc-label">Entitlement</div>
+                  <div className={`text-xl font-bold ${isA ? 'mc-text-green' : 'mc-text-gold'}`}>{formatSOL(quote.entitlement)} SOL</div>
+                  <div className="text-xs mc-text-muted">{label}</div>
+                </div>
+                <div>
+                  <div className="mc-label mb-1">Repayment</div>
+                  <div className="text-sm font-bold mc-text-primary mb-1">{formatSOL(quote.credited)} / {formatSOL(quote.entitlement)} SOL</div>
+                  <Progress value={Math.max(0, Math.min(100, quote.creditedPct))} className="mb-1 h-2" />
+                  <div className="flex justify-between text-xs mc-text-muted">
+                    <span>{quote.creditedPct.toFixed(1)}% credited</span>
+                    <span className="mc-text-danger">Remaining: {formatSOL(quote.remaining)} SOL</span>
+                  </div>
+                  <div className="text-xs mc-text-dim mt-1">
+                    Claimable now: <span className="mc-text-green font-bold">{formatSOL(quote.claimable)} SOL</span>
+                    {quote.inProgress > 0n && <> · {formatSOL(quote.inProgress)} SOL waits on a running allocation run</>}
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+          <div className="flex items-center justify-between gap-3 mc-card p-4">
+            <span className="text-xs mc-text-dim">
+              <span className="mc-text-green font-bold">{formatSOL(totalClaimable)} SOL</span> ready to claim{rows.length > 1 ? ' (Series A and B combined)' : ''}
+            </span>
+            <button
+              onClick={handleClaim}
+              disabled={claimMut.isPending || totalClaimable === 0n}
+              title={totalClaimable === 0n ? 'Nothing is claimable yet. Credit from a running allocation run becomes claimable once it finalizes.' : undefined}
+              className="mc-btn-primary px-4 py-2 text-xs font-bold rounded-lg disabled:opacity-50"
+            >
+              {claimMut.isPending ? 'Confirm in your wallet…' : 'Claim Repayment'}
+            </button>
+          </div>
+        </>
+      )}
+      {claimMut.isError && <div className="mc-status-red p-2 text-xs text-center">{describeNativeError(claimMut.error)}</div>}
+      {lastTx && (
+        <NativeTxStatusCard
+          tx={lastTx}
+          label="Your claim"
+          onTryAgain={() => setLastTx(null)}
+          actions={(view) => (view.terminal ? (
+            <button type="button" onClick={() => setLastTx(null)} className="mc-btn-secondary px-3 py-1 rounded-full text-xs mt-1">Dismiss</button>
+          ) : null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ================================================================
    Backer Positions
    ================================================================ */
 function BackerPositions() {
@@ -276,6 +404,14 @@ function BackerPositions() {
   const isSol = walletType === 'siws';
   const fmt = (n: number) => (isSol ? formatSolFloat(n) : formatICP(n));
   const unit = isSol ? 'SOL' : 'ICP';
+  // Native is the default SOL rail (DR-22); the legacy canister backers get their own labeled section.
+  const nativeAvailability = useNativeAvailability();
+  const nativePool = nativeAvailability.state === 'native' ? nativeAvailability.pool : null;
+  const showNative = isSol && nativePool !== null;
+  // `loading`: the native program is being verified, so no backer list and no claim button yet (a legacy
+  // action must not appear as if native had failed). `legacy` (unavailable): the legacy rail only, labeled.
+  const verifyingNative = isSol && railOf(nativeAvailability) === 'loading';
+  const legacyOnly = isSol && railOf(nativeAvailability) === 'legacy';
 
   const icpBackers = useGetBackerPositions();
   const solBackers = useGetSolBackerPositions();
@@ -345,6 +481,7 @@ function BackerPositions() {
 
   return (
     <div className="space-y-6">
+      {legacyOnly && <LegacyRailBanner what="Series A funding, backers and claims" />}
       {/* Fund the Project — deposit card with warning inline + stats side by side */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_auto] gap-4">
         <div className="mc-card-elevated p-6">
@@ -353,22 +490,47 @@ function BackerPositions() {
         </div>
 
         {/* Stats stacked to the right — two cards matching Fund the Project height */}
-        <div className="flex flex-col gap-3 lg:w-56">
-          <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
-            <div className="mc-label mb-1">Outstanding Backer Debt</div>
-            <div className="text-xl font-bold mc-text-danger">{fmt(outstandingDebt)} {unit}</div>
+        {showNative && nativePool ? (
+          <div className="flex flex-col gap-3 lg:w-56">
+            <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
+              <div className="mc-label mb-1">Backer Claims Funded</div>
+              <div className="text-xl font-bold mc-text-danger">{formatSOL(nativePool.fundedClaims)} SOL</div>
+            </div>
+            <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
+              <div className="mc-label mb-1">AUM</div>
+              <div className="text-xl font-bold mc-text-cyan">{formatSOL(nativePool.pot)} SOL</div>
+              <div className="text-xs mc-text-muted mt-1">{nativePool.registryLen.toString()} open Backer{nativePool.registryLen === 1n ? '' : 's'}</div>
+            </div>
           </div>
-          <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
-            <div className="mc-label mb-1">Total Funds Raised</div>
-            <div className="text-xl font-bold mc-text-cyan">{fmt(totalHouseMoney)} {unit}</div>
+        ) : verifyingNative ? (
+          <div className="lg:w-56">
+            <NativeRailVerifying what="Backer figures" />
           </div>
-        </div>
+        ) : (
+          <div className="flex flex-col gap-3 lg:w-56">
+            <div className="mc-card mc-accent-danger p-5 text-center flex-1 flex flex-col justify-center">
+              <div className="mc-label mb-1">Outstanding Backer Debt</div>
+              <div className="text-xl font-bold mc-text-danger">{fmt(outstandingDebt)} {unit}</div>
+            </div>
+            <div className="mc-card mc-accent-cyan p-5 text-center flex-1 flex flex-col justify-center">
+              <div className="mc-label mb-1">Total Funds Raised</div>
+              <div className="text-xl font-bold mc-text-cyan">{fmt(totalHouseMoney)} {unit}</div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Backer list */}
-      {backers.length > 0 ? (
-        <div className="space-y-3">
-          <h3 className="font-display text-base mc-text-primary text-center">Current Backers</h3>
+      {showNative && nativePool && <NativeBackerSection pool={nativePool} />}
+
+      {/* Backer list. With the native rail on, this is the labeled legacy (Chain Fusion) section. */}
+      {verifyingNative ? null : backers.length > 0 ? (
+        <div className={`space-y-3 ${showNative ? 'pt-4 border-t border-white/10' : ''}`} data-testid="legacy-backers" data-rail={showNative || legacyOnly ? 'legacy' : undefined}>
+          <h3 className="font-display text-base mc-text-primary text-center">{showNative || legacyOnly ? 'Legacy (Chain Fusion) backers' : 'Current Backers'}</h3>
+          {showNative && (
+            <p className="text-xs mc-text-muted text-center">
+              Backers of the ponzi_math_sol canister. Claims work exactly as before. Outstanding debt {fmt(outstandingDebt)} {unit} · raised {fmt(totalHouseMoney)} {unit}.
+            </p>
+          )}
           {backers.map(backer => {
             const repaid = repaidByKey.get(backerKeyId(backer.owner.toString(), backer.backerType)) || 0;
             const repayPct = backer.entitlement > 0
@@ -449,7 +611,7 @@ function BackerPositions() {
             );
           })}
         </div>
-      ) : (
+      ) : showNative ? null : (
         <div className="text-center py-8">
           <Landmark className="h-10 w-10 mc-text-gold mb-3 mx-auto" />
           <p className="font-display text-sm mc-text-primary mb-1">No backers yet</p>
@@ -472,6 +634,26 @@ function BackerPositions() {
 }
 
 /* ================================================================
+   Ledger tab
+   ================================================================ */
+/**
+ * Solana sessions: the verified native feed (ICP bridge, informational) and the legacy (Chain Fusion) ledger,
+ * side by side but never merged, each under its own label. Every other session keeps the single ledger.
+ */
+export function HouseLedgerTab({ isSol }: { isSol: boolean }) {
+  if (!isSol) return <HouseLedgerRecords />;
+  return (
+    <div className="space-y-8">
+      <NativeHistoryFeed />
+      <section className="space-y-4" data-testid="legacy-activity" data-rail="legacy">
+        <h3 className="font-display text-base mc-text-primary">Legacy (Chain Fusion) activity</h3>
+        <HouseLedgerRecords />
+      </section>
+    </div>
+  );
+}
+
+/* ================================================================
    Main Export
    ================================================================ */
 export default function HouseDashboard() {
@@ -482,17 +664,21 @@ export default function HouseDashboard() {
   const solBackers = useGetSolBackerPositions();
   const icpLedger = useGetGeneralLedger();
   const solLedger = useGetSolGeneralLedger();
+  const nativeAvailability = useNativeAvailability();
   const backerPositions = (isSol ? solBackers : icpBackers).data;
   const ledgerRecords = (isSol ? solLedger : icpLedger).data;
 
-  const backerCount = Array.isArray(backerPositions) ? backerPositions.length : 0;
+  // The tab count follows the default rail (native open Backers when on); the two rails are never summed.
+  const backerCount = isSol && nativeAvailability.state === 'native' && nativeAvailability.pool
+    ? Number(nativeAvailability.pool.registryLen)
+    : Array.isArray(backerPositions) ? backerPositions.length : 0;
   const ledgerCount = Array.isArray(ledgerRecords) ? ledgerRecords.length : 0;
 
   return (
     <div className="space-y-6">
       <TabControl activeTab={activeTab} onTabChange={setActiveTab} backerCount={backerCount} ledgerCount={ledgerCount} />
       <div className="mc-enter">
-        {activeTab === 'backers' ? <BackerPositions /> : <HouseLedgerRecords />}
+        {activeTab === 'backers' ? <BackerPositions /> : <HouseLedgerTab isSol={isSol} />}
       </div>
     </div>
   );

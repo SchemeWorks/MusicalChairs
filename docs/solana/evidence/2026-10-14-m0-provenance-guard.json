@@ -1,0 +1,27 @@
+{
+ "card": "IMPL-09 (guard exercise)",
+ "recorded_at_utc": "2026-10-14T07:59:39.305375+00:00",
+ "head": "da11e35",
+ "purpose": "Exercise build-sbf.sh's mid-build provenance rejection, which the real builds could only show on the equal path.",
+ "method": "MC_SBF_BUILDER pointed at a fake builder (sha256 below) that reports the pinned version string, copies the pinned ELF into MC_SBF_OUTPUT_DIR (a scratch dir, not the artifacts dir) and appends a comment to solana/crates/economics/src/backers.rs before exiting; the wrapper then recomputes the digest.",
+ "fake_builder_sha256": "0d7587dd33481a8df73e89b4e528bd21cbed54a9713d16842e93367dd8564bbd",
+ "mutated_input": "solana/crates/economics/src/backers.rs (restored from a saved copy, verified sha256 107f9a27e729283892eb\u2026 = pre-test)",
+ "observed": {
+  "wrapper_exit": 3,
+  "stdout_bytes": 0,
+  "stderr": "source set changed during build (before=613eb0c5d7bbda62eaf22ad4d0ff5ff299f15f86e2794f9551a6903a3c8e786f after=e466fbdb9ccfb1b5eca04cb91bcf41ffee84e017cf8f22c59342e6c4299d68f1); provenance rejected",
+  "digest_before": "613eb0c5d7bbda62eaf22ad4d0ff5ff299f15f86e2794f9551a6903a3c8e786f",
+  "digest_after_mutation": "e466fbdb9ccfb1b5eca04cb91bcf41ffee84e017cf8f22c59342e6c4299d68f1",
+  "artifact_in_out_dir": "musical_chairs_program.so.rejected (616,064 B); no musical_chairs_program.so left",
+  "digest_after_restore": "613eb0c5d7bbda62eaf22ad4d0ff5ff299f15f86e2794f9551a6903a3c8e786f",
+  "pinned_artifact_untouched": "d7538b07aa834a28\u2026",
+  "git_status_after": "clean except the untracked Codex supervision note"
+ },
+ "assertions": [
+  "no receipt line is printed on a digest mismatch",
+  "the fresh artifact is moved aside, not left in place under the canonical name",
+  "a change to the economics path dependency alone is detected (the economics crate is in the set)",
+  "exit code 3 distinguishes provenance rejection from preflight (2) and build/artifact failures (1)"
+ ],
+ "proof_level": "local negative test of the wrapper guard with a fake builder; not a build of new bytes; the real toolchain path is covered by 2026-10-14-m0-stub-build.json"
+}

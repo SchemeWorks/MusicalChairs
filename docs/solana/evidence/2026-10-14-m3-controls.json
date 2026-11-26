@@ -1,0 +1,1480 @@
+{
+ "card": "IMPL-19 (M3 close-out)",
+ "recorded_at_utc": "2026-10-14T09:20:04.424834+00:00",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "IMPL-16 controls": "6abc25d",
+  "IMPL-17 stand-in": "6589475",
+  "IDL regen": "5d2038e",
+  "IMPL-18 harness suite + fixtures": "420f092",
+  "kanban cards": "0f6fafe"
+ },
+ "squads_layout_pin": {
+  "repo": "Squads-Protocol/v4",
+  "file": "programs/squads_multisig_program/src/state/multisig.rs",
+  "commit": "887627b3ac3f59548fdb6dfd1dfe23a21bb72b60",
+  "commit_date": "2024-01-04T17:58:50Z",
+  "fetched_at_utc": "2026-10-14",
+  "layout": "disc(8) | create_key | config_authority (plain Pubkey) | threshold u16 | time_lock u32 | transaction_index u64 | stale_transaction_index u64 | rent_collector Option<Pubkey> | bump u8 | members Vec<{key, mask u8}>",
+  "seeds": "multisig PDA [\"multisig\",\"multisig\",create_key]; vault [\"multisig\",multisig,\"vault\",[index]]",
+  "discriminator": "sha256(\"account:Multisig\")[..8] = e07479ba44a14fec (draft had ...c8)",
+  "program_id": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"
+ },
+ "program_unit_tests": {
+  "command": "cargo +1.92.0 test --locked --lib (program crate)",
+  "result": "64 passed; 0 failed"
+ },
+ "local_signer_mechanism": {
+  "decision": "TEST-ONLY Squads vault stand-in program loaded at the Squads program id in LiteSVM; forwards one inner instruction via invoke_signed with the vault seeds so G/P vault PDAs can sign locally. Never ships; real Squads execution and deployed readback remain M14.",
+  "crate": "solana/tests/financial-runtime/standin/squads-vault-standin",
+  "artifact_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
+  "artifact_bytes": 29024,
+  "source_sha256": "f6045dc2f0901e8f41cf2c62d2ba073dfee88483fcb2f4f0f3fb6c8b1457fb5a",
+  "lock_sha256": "a086f599f32b643a052dc587d3059c18a0897dc7f651d18b4aca54e8c00dc656",
+  "build_note": "rust-version 1.84 + MSRV-fallback resolver + blake3 1.5.5 pin, because platform-tools cargo 1.84 cannot parse edition-2024 manifests (blake3 1.8, RustCrypto 0.11 line); edition-2024 scan of the lock is empty",
+  "build_log_sha256": "bfcbd05bc6443642fdeb2519dcb98e63abb0bd8f8daff2b8972d8fa4774099ee"
+ },
+ "fixtures": {
+  "solana/tests/financial-runtime/fixtures/squads/multisig_g.bin": {
+   "bytes": 199,
+   "sha256": "57e3c751dc9b3380d9b47d5bf4508e074ca22785939cfa8808af1c8ed70a6960"
+  },
+  "solana/tests/financial-runtime/fixtures/squads/multisig_p.bin": {
+   "bytes": 199,
+   "sha256": "3a20c6d2b6cfb2771fcefcc854bc475dd27368f2fd747319f5d9950afbe4afc3"
+  },
+  "solana/tests/financial-runtime/fixtures/loader/program.bin": {
+   "bytes": 36,
+   "sha256": "d5c51489d02b2eccfa8f6166d767f772400e7f2f23297de866065e7860f6e030"
+  },
+  "solana/tests/financial-runtime/fixtures/loader/programdata.bin": {
+   "bytes": 45,
+   "sha256": "c3432f47b2770180e3e78989e4fe0d2c3d909a90d9f8d1f155729e69050a3479"
+  }
+ },
+ "fixture_addresses": {
+  "g_multisig": "5ASstTEwct76TEqMsKw4c9tZcKckyJK7j5doXeY1UPDn",
+  "g_vault": "nVdpWArd89aMWgicLSvLQZGo7kXf8soRZrJfzuZycz9",
+  "p_multisig": "HfbGhr2YTRhaU8BNLHoPb17P3AGRfGVzV2xnYQQ89QR5",
+  "p_vault": "ATE3hTDdzc8KjFJfRzs7QCyaaez7ydM9HzrVaxgtSxS",
+  "program_data": "9fbEej8qbMTZbWBgN19AME3WA6kRSWE3JmHM1hfX8Lup",
+  "note": "LOCAL fixtures only; no on-chain Squads account exists"
+ },
+ "sbf_build": {
+  "head": "6589475caf319c1ef77fe1a26c3e696e791e73ed",
+  "artifact_sha256": "2be7359e79ee786cf8b9596bd3fb186383715141482e85b80392b451ed5b46b0",
+  "artifact_bytes": 769024,
+  "source_set_sha256": "555590325ca5c9a23ab22af47d8afc3eccb00ad7c0e685e8d3a6da57f04650fa",
+  "source_set_before_build_equal": true,
+  "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+  "log_sha256": "f3ce5cf1bc1e9ef6d47c7684f08f6b516d1fc5d58f8314c67c9d7f4e01ab62c1",
+  "previous_m2_artifact": "340350dd… (667,784 B)",
+  "superseded_by_impl20": {
+   "artifact_sha256": "990ebc02b744ab1a1ce2809b8a61c6e606826c698184b9700a112ef823a94619",
+   "source_set_sha256": "50ec232cd68ee066e6e36eecb8d5d4d631acf5cb214d4f8647fa8ac138fb83f0"
+  }
+ },
+ "idl": {
+  "sha256": "de83a400c1e2e3a0c7c074f82a240d12861fb04fd535138724f26a05b8472436",
+  "instructions": 21,
+  "accounts": 13,
+  "events": 19,
+  "errors": 32,
+  "types": 37,
+  "new_instructions": [
+   "stage_config_version",
+   "activate_config_version",
+   "rotate_recipient",
+   "rotate_guardian"
+  ],
+  "accounts_entering": [
+   "ConfigVersion",
+   "RngAuthority"
+  ],
+  "check": "check-idl.sh clean",
+  "still_absent": [
+   "CloseRecord",
+   "ParticipantPage",
+   "CandidatePage",
+   "ReserveSchedule",
+   "SpentLedger",
+   "Promotion"
+  ]
+ },
+ "harness_run": {
+  "command": "cargo +1.92.0 test --locked -p musical-chairs-financial-runtime -- --test-threads=1 with MC_FINANCIAL_SBF + MC_STANDIN_SBF",
+  "result_line": "FAILED. 31 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.78s",
+  "passed": [
+   "controls_m3_tests::activate_config_only_when_active_no_ticket_and_round_reached",
+   "controls_m3_tests::fund_operations_any_signer_increases_free_balance_only",
+   "controls_m3_tests::initialize_accepts_allocation_padded_multisig",
+   "controls_m3_tests::initialize_rejects_first_caller_without_g_vault",
+   "controls_m3_tests::initialize_rejects_one_of_three_profile",
+   "controls_m3_tests::initialize_rejects_programdata_authority_mismatch",
+   "controls_m3_tests::initialize_sets_pot_seed_zero_round_one_next_close_one",
+   "controls_m3_tests::initialize_stores_cluster_domain_immutably",
+   "controls_m3_tests::initialize_succeeds_with_g_vault_signer_and_matching_programdata",
+   "controls_m3_tests::m3_suite_aggregates_every_row_with_unique_labels",
+   "controls_m3_tests::rotate_guardian_recovers_lost_p_quorum",
+   "controls_m3_tests::rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted",
+   "controls_m3_tests::rotate_recipient_requires_g",
+   "controls_m3_tests::set_admission_pause_rejects_non_guardian",
+   "controls_m3_tests::set_admission_pause_touches_only_admission_account",
+   "controls_m3_tests::stage_config_requires_g_and_future_round",
+   "controls_m3_tests::withdraw_management_pays_recipient_only_and_caps_at_accrued",
+   "controls_m3_tests::withdraw_unreserved_operations_respects_locked_and_rent",
+   "fixture_tests::allocation_padding_matches_multisig_size",
+   "fixture_tests::committed_loader_fixtures_equal_the_generator_output",
+   "fixture_tests::committed_squads_fixtures_decode_to_the_pinned_profiles",
+   "fixture_tests::committed_squads_fixtures_equal_the_generator_output",
+   "fixture_tests::custom_code_parses_instruction_error_strings",
+   "fixture_tests::error_codes_asserted_by_the_m3_suite_are_frozen",
+   "fixture_tests::fixture_readmes_document_the_derived_addresses",
+   "fixture_tests::immutable_programdata_header_is_zero_padded_to_the_metadata_size",
+   "fixture_tests::multisig_discriminator_is_sha256_account_multisig",
+   "fixture_tests::new_uninitialized_installs_the_committed_fixtures",
+   "fixture_tests::squads_addresses_follow_the_documented_seeds",
+   "tests::allocation_six_phase_flow_has_unique_row_observations",
+   "tests::fee_only_rollback_is_observed_for_the_current_open_gate"
+  ],
+  "failed_intended_red": [
+   "tests::allocation_golden_t10000",
+   "tests::claim_moves_real_sol",
+   "tests::open_moves_real_sol"
+  ],
+  "log_sha256": "e51975e646ed488f2e73a4a8f1bbb49d6fc2e5c41fd3007806636789d8043843",
+  "cli": {
+   "command": "musical-chairs-financial-runtime all",
+   "exit": 0,
+   "observations": 132,
+   "copy": "docs/solana/evidence/2026-10-14-m3-cli.json",
+   "copy_sha256": "eba40b214187ad504ef03d602ea10792fc29f7b0df36fc01b2b93284bdb4195d"
+  }
+ },
+ "m3_rows": {
+  "count": 108,
+  "successes": 37,
+  "rejections": 71,
+  "error_tally": {
+   "None": 37,
+   "InstructionError(1, Custom(6004))": 19,
+   "InstructionError(1, Custom(3010))": 2,
+   "InstructionError(1, Custom(6031))": 20,
+   "InstructionError(1, Custom(6005))": 9,
+   "InstructionError(1, Custom(6023))": 2,
+   "InstructionError(1, Custom(6007))": 4,
+   "InstructionError(1, Custom(6001))": 4,
+   "InstructionError(1, Custom(6030))": 6,
+   "InstructionError(1, Custom(6006))": 1,
+   "InstructionError(1, Custom(6008))": 2,
+   "InstructionError(1, Custom(0))": 2
+  },
+  "code_names": {
+   "6031": "WrongGovernanceProfile",
+   "6004": "NotAuthorized",
+   "6005": "WrongAccount",
+   "6030": "ConfigNotActivatable",
+   "6007": "InsufficientOperations",
+   "6001": "InvalidState",
+   "6023": "InsufficientManagement",
+   "6008": "ProtectedDestination",
+   "6006": "WrongOwner (re-stage via create_shared)",
+   "3010": "Anchor AccountNotSigner (vault listed but unsigned)",
+   "0": "system AccountAlreadyInUse (re-initialize)"
+  },
+  "rows": [
+   {
+    "label": "initialize_succeeds_with_g_vault_signer_and_matching_programdata",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_rejects_first_caller_without_g_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 62892,
+    "packet_bytes": 1110,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_first_caller_without_g_vault.vault_unsigned",
+    "success": false,
+    "error": "InstructionError(1, Custom(3010))",
+    "compute_units": 7006,
+    "packet_bytes": 1046,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_first_caller_without_g_vault.p_vault_in_g_slot",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 78880,
+    "packet_bytes": 1019,
+    "message_account_count": 18,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_programdata_authority_mismatch",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 96579,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_programdata_authority_mismatch.upgrade_authority_none",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 97107,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_programdata_authority_mismatch.authority_is_guardian_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 96579,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_programdata_authority_mismatch.control_authority_restored",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74272,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.threshold_zero",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74272,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.threshold_three",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74272,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.time_lock_zero",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74318,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.time_lock_one_second_short",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74356,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.time_lock_one_second_long",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74356,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.two_members",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74272,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.four_members",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 74272,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.config_authority_set",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 73412,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.member_cannot_vote",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 76085,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.duplicate_member",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 76219,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.nobody_can_execute",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 76439,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.truncated_body",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 72434,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.wrong_owner_system_program",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 73166,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.wrong_owner_main_program",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 73166,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.bad_discriminator",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 72706,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.bad_bump",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 76840,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.bytes_of_another_create_key",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 74978,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.empty_account",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 72703,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.guardian_threshold_one",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 81380,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.guardian_time_lock_set",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 81392,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.guardian_bad_discriminator",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 79814,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.guardian_vault_mismatch",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 94643,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_rejects_one_of_three_profile.control_canonical_profiles",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_sets_pot_seed_zero_round_one_next_close_one",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_accepts_allocation_padded_multisig",
+    "success": true,
+    "error": null,
+    "compute_units": 106802,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "set_admission_pause_touches_only_admission_account",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "set_admission_pause_touches_only_admission_account.unpause",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "set_admission_pause_rejects_non_guardian",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 7236,
+    "packet_bytes": 382,
+    "message_account_count": 6,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "set_admission_pause_rejects_non_guardian.g_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 12494,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "set_admission_pause_rejects_non_guardian.rogue_p_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 12494,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "set_admission_pause_rejects_non_guardian.vault_unsigned",
+    "success": false,
+    "error": "InstructionError(1, Custom(3010))",
+    "compute_units": 3245,
+    "packet_bytes": 318,
+    "message_account_count": 6,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.non_g_keypair",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 14651,
+    "packet_bytes": 446,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.rogue_g_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 23939,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.p_vault_as_g",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 15229,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.new_guardian_has_time_lock",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 21808,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.new_guardian_not_squads",
+    "success": false,
+    "error": "InstructionError(1, Custom(6005))",
+    "compute_units": 21116,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.new_guardian_one_of_three",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 22222,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted",
+    "success": true,
+    "error": null,
+    "compute_units": 26971,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 64
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.old_p_rejected",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 12494,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_guardian_requires_g_and_valid_p_profile_then_old_p_rejected_new_p_accepted.new_p_accepted",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "rotate_guardian_recovers_lost_p_quorum.pause_before_loss",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "rotate_guardian_recovers_lost_p_quorum",
+    "success": true,
+    "error": null,
+    "compute_units": 26971,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 64
+   },
+   {
+    "label": "rotate_guardian_recovers_lost_p_quorum.new_p_lifts_pause",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "rotate_guardian_recovers_lost_p_quorum.old_p_cannot_act",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 12494,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_management_pays_recipient_only_and_caps_at_accrued.over_accrued",
+    "success": false,
+    "error": "InstructionError(1, Custom(6023))",
+    "compute_units": 14294,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_management_pays_recipient_only_and_caps_at_accrued.not_the_recipient",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 12270,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_management_pays_recipient_only_and_caps_at_accrued",
+    "success": true,
+    "error": null,
+    "compute_units": 22811,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "withdraw_management_pays_recipient_only_and_caps_at_accrued.after_drain",
+    "success": false,
+    "error": "InstructionError(1, Custom(6023))",
+    "compute_units": 14294,
+    "packet_bytes": 488,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "fund_operations_any_signer_increases_free_balance_only",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "fund_operations_any_signer_increases_free_balance_only.second_funder",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.fund_20000",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.not_the_sponsor",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 11837,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 11365,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.one_over_free",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 11365,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.all_free",
+    "success": true,
+    "error": null,
+    "compute_units": 18938,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.after_drain",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 11365,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.unbacked_lock.fund",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "withdraw_unreserved_operations_respects_locked_and_rent.unbacked_lock",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 11268,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.unfunded_ops",
+    "success": false,
+    "error": "InstructionError(1, Custom(6007))",
+    "compute_units": 34044,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 3
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 26248,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.non_g_keypair",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 18269,
+    "packet_bytes": 798,
+    "message_account_count": 11,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.rogue_g_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 29616,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.p_vault_as_g",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 20906,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.version_gap",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 26228,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.invalid_terms",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 26277,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.accepted",
+    "success": true,
+    "error": null,
+    "compute_units": 47226,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 280
+   },
+   {
+    "label": "stage_config_requires_g_and_future_round.restage_existing",
+    "success": false,
+    "error": "InstructionError(1, Custom(6006))",
+    "compute_units": 33950,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.fund_ops",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 3
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.stage_v2_for_round_2",
+    "success": true,
+    "error": null,
+    "compute_units": 47226,
+    "packet_bytes": 771,
+    "message_account_count": 12,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 280
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.round_not_reached",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 14198,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.wrong_expected_current",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 14182,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.active_ticket",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 14203,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.closing",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 14210,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached",
+    "success": true,
+    "error": null,
+    "compute_units": 20827,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 97
+   },
+   {
+    "label": "activate_config_only_when_active_no_ticket_and_round_reached.replay",
+    "success": false,
+    "error": "InstructionError(1, Custom(6030))",
+    "compute_units": 14199,
+    "packet_bytes": 391,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 14518,
+    "packet_bytes": 446,
+    "message_account_count": 7,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.rogue_g_vault",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 23245,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.p_vault_as_g",
+    "success": false,
+    "error": "InstructionError(1, Custom(6031))",
+    "compute_units": 14535,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.unknown_kind",
+    "success": false,
+    "error": "InstructionError(1, Custom(6001))",
+    "compute_units": 19845,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.default_recipient",
+    "success": false,
+    "error": "InstructionError(1, Custom(6008))",
+    "compute_units": 19890,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.protected_pool_pda",
+    "success": false,
+    "error": "InstructionError(1, Custom(6008))",
+    "compute_units": 36840,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "rotate_recipient_requires_g.g_rotates_management",
+    "success": true,
+    "error": null,
+    "compute_units": 38342,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 32
+   },
+   {
+    "label": "rotate_recipient_requires_g.g_rotates_sponsor",
+    "success": true,
+    "error": null,
+    "compute_units": 38352,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 64
+   },
+   {
+    "label": "rotate_recipient_requires_g.old_sponsor_rejected",
+    "success": false,
+    "error": "InstructionError(1, Custom(6004))",
+    "compute_units": 11837,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_genesis",
+    "success": true,
+    "error": null,
+    "compute_units": 106780,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1185
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_reinitialize",
+    "success": false,
+    "error": "InstructionError(1, Custom(0))",
+    "compute_units": 27112,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_fund",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_pause",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_rotate_recipient",
+    "success": true,
+    "error": null,
+    "compute_units": 38342,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 32
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_rotate_guardian",
+    "success": true,
+    "error": null,
+    "compute_units": 26971,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 64
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.devnet_unpause_new_guardian",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_reinitialize",
+    "success": false,
+    "error": "InstructionError(1, Custom(0))",
+    "compute_units": 27112,
+    "packet_bytes": 1051,
+    "message_account_count": 19,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": true,
+    "changed_data_bytes": 0
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_fund",
+    "success": true,
+    "error": null,
+    "compute_units": 16543,
+    "packet_bytes": 455,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 2
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_pause",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_rotate_recipient",
+    "success": true,
+    "error": null,
+    "compute_units": 38342,
+    "packet_bytes": 419,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 32
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_rotate_guardian",
+    "success": true,
+    "error": null,
+    "compute_units": 26971,
+    "packet_bytes": 419,
+    "message_account_count": 9,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 64
+   },
+   {
+    "label": "initialize_stores_cluster_domain_immutably.mainnet_unpause_new_guardian",
+    "success": true,
+    "error": null,
+    "compute_units": 15262,
+    "packet_bytes": 387,
+    "message_account_count": 8,
+    "fits_legacy_packet": true,
+    "rollback_except_fee": false,
+    "changed_data_bytes": 1
+   }
+  ]
+ },
+ "initialize_via_vault": {
+  "compute_units": 106780,
+  "packet_bytes": 1051,
+  "message_account_count": 19,
+  "fits_legacy_packet": true,
+  "note": "packet/account counts are stand-in-inflated (outer wrapper adds multisig, vault and target program); the inner initialize has 17 accounts",
+  "logs_head": [
+   "Program ComputeBudget111111111111111111111111111111 invoke [1]",
+   "Program ComputeBudget111111111111111111111111111111 success",
+   "Program SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf invoke [1]",
+   "Program 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 invoke [2]",
+   "Program log: Instruction: Initialize"
+  ]
+ },
+ "m0_m2_regression": {
+  "red_trio": {
+   "financial.open_moves_real_sol": [
+    "InstructionError(1, Custom(6021))",
+    true,
+    0
+   ],
+   "financial.claim_moves_real_sol": [
+    "InstructionError(1, Custom(6021))",
+    true,
+    0
+   ],
+   "financial.allocation.golden-t10000.discover-row": [
+    "InstructionError(1, Custom(6021))",
+    true,
+    0
+   ]
+  },
+  "controls_m0_suite": [
+   [
+    "financial.controls.pause.guardian",
+    true,
+    null
+   ],
+   [
+    "financial.controls.pause.wrong-guardian",
+    false,
+    "InstructionError(1, Custom(6004))"
+   ],
+   [
+    "financial.controls.operations.fund-20000",
+    true,
+    null
+   ],
+   [
+    "financial.controls.operations.withdraw-5000",
+    true,
+    null
+   ],
+   [
+    "financial.controls.management.empty-balance",
+    false,
+    "InstructionError(1, Custom(6023))"
+   ]
+  ],
+  "expected_drift": "financial.controls.management.empty-balance now returns 6023 InsufficientManagement (was 6007 InsufficientOperations in the M0/M2 receipts) per plan M3; the M0 harness test asserting fee-only rollback still passes"
+ },
+ "deviations_and_notes": [
+  "validate_profile drops the draft >= on G time_lock (exact 172,800) and keeps the draft requirement that some member can Initiate and some can Execute",
+  "rotate_recipient kind 1 writes Pool.sponsor AND Ops.sponsor (withdraw_operations checks Ops.sponsor)",
+  "stage requires version == active + 1 and there is no cancel; a staged-but-unwanted version blocks n+2 until activated (matches spec \"fails: version exists\"; flagged for Codex)",
+  "stage with effective_round_id <= round_id returns ConfigNotActivatable; version gap returns InvalidState; re-stage returns WrongOwner from create_shared",
+  "withdraw_operations rent+locked branch is unreachable because sync_ops fails closed first (InvalidState on an unbacked lock); covered by a variant row",
+  "real Squads accounts are allocated at Multisig::size (231 B for 3 members, 32 trailing zero bytes when rent_collector is None); the padded-row test covers that shape, the committed fixtures are the exact unpadded encoding",
+  "existing instruction names set_pause / withdraw_operations / withdraw_management are kept (spec uses longer names)"
+ ],
+ "proof_level": "host unit tests + compiled SBF with complete provenance + LiteSVM execution of every control row with vault-PDA signatures from a test-only stand-in; no production game instruction is GREEN; no deployment, live Squads, live keys or funds. Codex M3 review: authentication proof PASS; Ops counters wired and verified by IMPL-20 on ELF 990ebc02…; stand-in accepted for application guards only.",
+ "solana_notes": [
+  "A PDA has no private key; it signs only when its owning program calls invoke_signed. Squads vaults are PDAs of the Squads program, so locally a stand-in at that program id is the only way to produce the signature; the main program cannot tell the difference, which is exactly the boundary M14 verifies on devnet with the real Squads program.",
+  "ProgramData is the upgradeable loader's record of upgrade_authority: initialize reads it like a canister controller list, except the data lives in the loader's account, not ours; LiteSVM add_program installs a non-upgradeable loader shape, so the fixture rewrites both loader accounts.",
+  "Wrapping through the stand-in adds three accounts and about 60 bytes to the packet; the inner instruction's real footprint is what M9 measures."
+ ],
+ "codex_review_2026_10_14": {
+  "verdict_source_check": "signer/profile/PDA/loader binding, guardian rotation, config stage/activate and locked-cash guards PASS (bounded source review, no duplicate execution)",
+  "findings": [
+   "fund_operations (controls.rs) accepts amount == 0 and omits checked Ops.total_contributed += amount",
+   "withdraw_operations omits Ops.total_withdrawn",
+   "harness fund_operations_any_signer_increases_free_balance_only asserts only free_balance changes (fixture delta must include the counters)"
+  ],
+  "disposition": "known pending wiring item (deferred in the M2 handoff), not a new design gate; assigned to IMPL-20 (reject zero before the CPI, atomic u128 counters, corrected fixture delta, zero-funding/counter/rollback regressions)",
+  "labels": {
+   "m3_authentication_proof": "PASS (source-checked by Codex; executed locally)",
+   "ops_metadata_counters": "DONE (IMPL-20): positive-amount guard before the CPI, total_contributed/total_withdrawn maintained atomically, regressions pass on the rebuilt ELF 990ebc02…",
+   "squads_standin": "accepted for application guards only; NOT real quorum/timelock proof (M14)"
+  }
+ },
+ "impl20_ops_counters_correction": {
+  "commit": "see git log (IMPL-20)",
+  "program_change": "fund_operations: require!(amount > 0, InvalidState) BEFORE the system CPI; checked u128 Ops.total_contributed += amount with the free_balance update; withdraw_operations: checked u128 Ops.total_withdrawn += amount",
+  "harness_change": "expected fixture deltas include both counters; byte-identical counter checks on every rejection; new rows .zero_amount (fund → 6001 fee-only rollback; withdraw 0 → success with no lamport delta, counters unchanged)",
+  "rebuilt_artifact_sha256": "990ebc02b744ab1a1ce2809b8a61c6e606826c698184b9700a112ef823a94619",
+  "artifact_bytes": 769608,
+  "source_set_sha256": "50ec232cd68ee066e6e36eecb8d5d4d631acf5cb214d4f8647fa8ac138fb83f0",
+  "lock_sha256": "98d9119c163e1b3e9c49b8575a237eaabf27548ddd10adbfe7b9f66fbcdb4ad5",
+  "harness_result": "FAILED. 31 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.56s",
+  "cli_observations": 134,
+  "cli_copy_sha256": "3b46f2f4f1292202b4d12f0bfc31705e62534d7dcd96f704bed1c85d0b29e1ec",
+  "log_sha256": "246746bf80f881fbbb1b8c95c48997062c8c800e71c9d29924b9ad2d15b77d32",
+  "zero_amount_withdraw_outcome": "success, no delta (program does not reject a zero withdraw; spec §7.1 requires only amount <= free_balance)"
+ }
+}

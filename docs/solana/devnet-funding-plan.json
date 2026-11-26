@@ -1,0 +1,160 @@
+{
+ "schema": 1,
+ "purpose": "M14 Block A guarded wallet funding (packet 4b/4c): top up each recipient ONCE from the deployer's post-deploy remainder; internal transfers, NOT new faucet intake",
+ "network": "devnet",
+ "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+ "payer": {
+  "role": "deployer D",
+  "pubkey": "6wMkX8FsrqRQPsLngBNQbDgA4VCFU4LmCpUtPhykPq7k"
+ },
+ "inventory": "docs/solana/evidence/2026-10-24-devnet-a1.json",
+ "per_transfer_cap_lamports": 2000000000,
+ "fee_per_transfer_lamports": 5000,
+ "buckets": {
+  "squads": {
+   "cap_lamports": 500000000,
+   "already_spent_lamports": 3667440,
+   "history": [
+    {
+     "what": "A2 multisig_create_v2 G + P: rent 2 x 1,823,720 + fees 20,000",
+     "signatures": [
+      "njGaXGK7W443jUxaAMEb2HpzbYfxxc9pX9nsYBKtsFjLBVjcEZc9hDpv461Eh82pzHxrQp4ziAVxJ93JdSgappA",
+      "46aYpeXfLrYegP2Mnb9o4sb5YqKNbdyGm45UkBtsHPGA3kUo57ZJ8BrkD64T8xQTwQe8CZQLYQCJc6Q7M9mnfexY"
+     ],
+     "receipt": "docs/solana/evidence/2026-10-25-devnet-a2-squads.json"
+    }
+   ],
+   "planned_total_with_fees_lamports": 493697440
+  },
+  "sponsor": {
+   "cap_lamports": 1000000000,
+   "already_spent_lamports": 0,
+   "history": [],
+   "planned_total_with_fees_lamports": 990010000
+  },
+  "keeper": {
+   "cap_lamports": 100000000,
+   "already_spent_lamports": 0,
+   "history": [],
+   "planned_total_with_fees_lamports": 50005000
+  },
+  "test_wallets": {
+   "cap_lamports": 7000000000,
+   "already_spent_lamports": 0,
+   "history": [],
+   "planned_total_with_fees_lamports": 2300040000
+  }
+ },
+ "targets": [
+  {
+   "role": "G voter 1",
+   "pubkey": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "bucket": "squads",
+   "target_lamports": 190000000
+  },
+  {
+   "role": "G voter 2",
+   "pubkey": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+   "bucket": "squads",
+   "target_lamports": 50000000
+  },
+  {
+   "role": "G voter 3",
+   "pubkey": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+   "bucket": "squads",
+   "target_lamports": 50000000
+  },
+  {
+   "role": "P voter 1",
+   "pubkey": "GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR",
+   "bucket": "squads",
+   "target_lamports": 100000000
+  },
+  {
+   "role": "P voter 2",
+   "pubkey": "5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k",
+   "bucket": "squads",
+   "target_lamports": 50000000
+  },
+  {
+   "role": "P voter 3",
+   "pubkey": "4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC",
+   "bucket": "squads",
+   "target_lamports": 50000000
+  },
+  {
+   "role": "plan wallet S",
+   "pubkey": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+   "bucket": "sponsor",
+   "target_lamports": 980000000
+  },
+  {
+   "role": "management recipient",
+   "pubkey": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+   "bucket": "sponsor",
+   "target_lamports": 10000000
+  },
+  {
+   "role": "plan wallet K",
+   "pubkey": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+   "bucket": "keeper",
+   "target_lamports": 50000000
+  },
+  {
+   "role": "plan wallet A1",
+   "pubkey": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+   "bucket": "test_wallets",
+   "target_lamports": 1100000000
+  },
+  {
+   "role": "plan wallet A2",
+   "pubkey": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+   "bucket": "test_wallets",
+   "target_lamports": 60000000
+  },
+  {
+   "role": "plan wallet P1",
+   "pubkey": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+   "bucket": "test_wallets",
+   "target_lamports": 210000000
+  },
+  {
+   "role": "plan wallet P2",
+   "pubkey": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+   "bucket": "test_wallets",
+   "target_lamports": 110000000
+  },
+  {
+   "role": "plan wallet P3",
+   "pubkey": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+   "bucket": "test_wallets",
+   "target_lamports": 30000000
+  },
+  {
+   "role": "plan wallet P4",
+   "pubkey": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+   "bucket": "test_wallets",
+   "target_lamports": 80000000
+  },
+  {
+   "role": "plan wallet P5",
+   "pubkey": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+   "bucket": "test_wallets",
+   "target_lamports": 80000000
+  },
+  {
+   "role": "plan wallet W",
+   "pubkey": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+   "bucket": "test_wallets",
+   "target_lamports": 630000000
+  }
+ ],
+ "not_in_this_plan": [
+  "G vault: 15,000,000 via the existing guarded fund-vault (ORAO Client rent 1,275,080; G vault bucket 0.02)",
+  "B2 watchdog / any ICP funding (held)"
+ ],
+ "totals": {
+  "targets_lamports": 3830000000,
+  "fees_lamports": 85000
+ }
+}

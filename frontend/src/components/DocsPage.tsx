@@ -10,7 +10,7 @@ import {
   EXIT_TOLL_EARLY_DAYS, EXIT_TOLL_MID_DAYS,
   JACKPOT_FEE_RATE_15D, JACKPOT_FEE_RATE_30D,
   FEE_POT_SHARE, FEE_BACKER_SHARE,
-  BACKER_OLDEST_UPSTREAM_SHARE, BACKER_OTHER_UPSTREAM_SHARE, BACKER_ALL_SHARE,
+  BACKER_SENIOR_SHARE, BACKER_PROPORTIONAL_A_SHARE, BACKER_EQUAL_B_SHARE,
   UPSTREAM_BACKER_BONUS, DOWNSTREAM_BACKER_BONUS,
   PP_PER_ICP_SIMPLE, PP_PER_ICP_COMPOUND_15, PP_PER_ICP_COMPOUND_30, PP_PER_ICP_SEED_ROUND,
   REFERRAL_L1_RATE, REFERRAL_L2_RATE, REFERRAL_L3_RATE,
@@ -227,9 +227,9 @@ function buildDocSections(mintConfig: MintConfig | null | undefined, shenaniganC
         <DocTable
           headers={['Share', 'Recipient']}
           rows={[
-            [<span className="mc-text-gold font-bold">{pct(BACKER_OLDEST_UPSTREAM_SHARE)}</span>, 'Oldest Series A backer'],
-            [<span className="mc-text-purple font-bold">{pct(BACKER_OTHER_UPSTREAM_SHARE)}</span>, 'Split among other Series A backers'],
-            [<span className="mc-text-cyan font-bold">{pct(BACKER_ALL_SHARE)}</span>, 'Split among all backers'],
+            [<span className="mc-text-gold font-bold">{pct(BACKER_SENIOR_SHARE)}</span>, 'Oldest open Series A backer (senior)'],
+            [<span className="mc-text-purple font-bold">{pct(BACKER_PROPORTIONAL_A_SHARE)}</span>, 'Series A backers, pro rata by remaining entitlement'],
+            [<span className="mc-text-cyan font-bold">{pct(BACKER_EQUAL_B_SHARE)}</span>, 'Series B backers, split equally'],
           ]}
         />
 

@@ -1,0 +1,132 @@
+{
+ "recorded_at_utc": "2026-10-25T15:05:58+00:00",
+ "step": "A4 governance proposals via the real G (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval; Gideon's FUND-TOOL closeout authorizing fund-wallets -> fund-vault -> A4 (docs/coordination/m14-fund-tool-gideon-review-20261025.md)",
+ "fund_vault": {
+  "lamports": 15000000,
+  "signature": "PetWnUiK98DhdJUdqypvVaZG9PFH6zHtPcKyPYivvVBfMa9nCPWpmW3KmiMHTR5fnxZxj2sQcihUwnMmgc9UFaz",
+  "slot": 515008971,
+  "vault_balance_finalized": 15000000,
+  "vault_needs_lamports": 1925320,
+  "bucket": "G vault 15,000,000 + fee 5,000 within 20,000,000"
+ },
+ "multisig_G": {
+  "address": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+  "vault": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+  "threshold": 2,
+  "members": 3,
+  "time_lock_seconds": 172800
+ },
+ "initialize": {
+  "transaction_index": 1,
+  "proposal": "9wMcEude9nc6uQTVRzuJPrCMQf2qbeqbRKeJLSWduA9A",
+  "message_sha256": "5b620be11b52b1fb6167534b9b6f2e81662c8eafaea4b81b523b7cfdc0377882",
+  "message_bytes": 814,
+  "parameters": {
+   "cluster_domain_hex": "6d75736963616c2d6368616972732d6465766e65742d646f6d61696e2d763121",
+   "cluster_domain_utf8": "musical-chairs-devnet-domain-v1!",
+   "management_recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+   "provider_client": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+   "provider_fee_headroom_bps": 2500,
+   "provider_network_state": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+   "provider_program": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+   "provider_request_fee_lamports": 300000,
+   "provider_treasury": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+   "public_series_a_enabled": true,
+   "sponsor": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj"
+  },
+  "proposer_fee_payer": "G voter 1 (vault_transaction_create 1,140 B; proposer = fee payer)",
+  "propose_signatures": [
+   [
+    "A4.vault_transaction_create",
+    "45dCK529A21mehdBCbNXGqG6fzutkwnx1tiv3JNm9yB3SXAnerCuVTK9LgorFWoV8UUbx6djdWgK8Wj4LSKSmz3U",
+    515009226
+   ],
+   [
+    "A4.proposal_create",
+    "2N5eQwSv6v5A1G98sXT9tXCpDhFf1UCM9yyv3U8HdA8ehEbhgDvZMHUEtN2AHJPLywUmTKQXZ5wS2wn7B7irV31n",
+    515009235
+   ]
+  ],
+  "approvals": [
+   {
+    "member": "G voter 1",
+    "signature": "49hBbTJP5jsg9msMpxsGFAWweD6Qjw5a7k8XLmXUZmg7XT6Wn5jsP9nyxqY52H5QwJSNUabu6u6h8uaBnq631xGc",
+    "slot": 515009501
+   },
+   {
+    "member": "G voter 2",
+    "signature": "5LrMvfefSfoz65Gzd7YzDB5RHoV1KTvM4Y6LFPNd83yNXNWgjX78TrRMmpuSsBhgctMwzAmkawPHrMmdgCDAEhPT",
+    "slot": 515009515
+   }
+  ],
+  "status": "Approved",
+  "approved_at_unix": 1792940704,
+  "approved_at_utc": "2026-10-25T15:05:04+00:00",
+  "earliest_execution_unix": 1793113504,
+  "earliest_execution_utc": "2026-10-27T15:05:04+00:00"
+ },
+ "register": {
+  "transaction_index": 2,
+  "proposal": "AnFL5UqYsLbzpF9LLaD5ydsvaiD2Se5MxyZ9Dv1UWZXQ",
+  "vault_transaction": "KUvVgndQhUoUoxNeNzajYTM4vfgd4igaZmFwp9BLFce",
+  "message_sha256": "8105b2b48941f158ecb679487410a98678fc4575d58d66812887c453de250b78",
+  "parameters": {
+   "client": "9k91kwTA4DFF4S3wVTvCirdLAimVKGsm9vDJVad1tdo3",
+   "orao_program": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+   "payer_is_g_vault": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+   "rng_authority": "5dKzB8Vw6FYZCLYdHFp7m6maxnJmvWQ1rEBrhMEpUV22"
+  },
+  "propose_signatures": [
+   [
+    "A4.vault_transaction_create",
+    "5zVN8WVmig3LtPztZ5QAijLGS83kbzt2oYbZX84okcT1bVdh8fTQv7T1SLJWFbD2pudU7VNZjR6eXBJEFJc8TFVX",
+    515009362
+   ],
+   [
+    "A4.proposal_create",
+    "5xFNUZvdqHjKQGMrb7KZorXHpDQfyGXrfnvBrZUYEAtPUNvthK7Q33YwP2J5PSo3vs48SiX7rpqUMQwz7bjKtCak",
+    515009370
+   ]
+  ],
+  "approvals": [
+   {
+    "member": "G voter 1",
+    "signature": "4A8afq4CC8g2hnoUpXK8R7cembQRFg7Bpa95ozisVjGkWcbYTL74mdJTRioYgmHUzrXVhuDyZYoqfmLuDph9U1xV",
+    "slot": 515009529
+   },
+   {
+    "member": "G voter 2",
+    "signature": "PPHDJAXxGmicQ6ZZ6WLofde19JzM6D54DRNWo9TSu7KfVgoSQAspLLggK8hkvJ1htQa73dnQ8PQ8xGaweii7mZw",
+    "slot": 515009588
+   }
+  ],
+  "status": "Approved",
+  "approved_at_unix": 1792940722,
+  "approved_at_utc": "2026-10-25T15:05:22+00:00",
+  "earliest_execution_unix": 1793113522,
+  "earliest_execution_utc": "2026-10-27T15:05:22+00:00"
+ },
+ "write_ahead": "every propose/approve transaction recorded before send and RESOLVED confirmed; 0 held/unknown; each approval re-checked the stored vault message against the rebuilt instruction",
+ "interlocks_observed": [
+  "propose --execute first REFUSED without --expect-tx-index (nothing sent); re-run with the dry run's index 1, then 2"
+ ],
+ "voter_balances_after_finalized": {
+  "G voter 1": {
+   "context": {
+    "apiVersion": "4.4.0-beta.1",
+    "slot": 515009733
+   },
+   "value": 177005840
+  },
+  "G voter 2": {
+   "context": {
+    "apiVersion": "4.4.0-beta.1",
+    "slot": 515009735
+   },
+   "value": 49990000
+  }
+ },
+ "next": "no execution before each deadline, judged on the CLUSTER clock (no shortened or warped clock): execute initialize at or after earliest_execution of #1 (sponsor S co-signs the outer transaction), then execute register at or after #2's (it needs the RngAuthority account that initialize creates); then A5 funding/pages and A6 read-backs; the flow plan's genesis is the initialize activation stamp minus 172,800 s",
+ "held": "all ICP B/C rows, real PP minting, unknown-outcome retry, mainnet, PR #125 merge"
+}

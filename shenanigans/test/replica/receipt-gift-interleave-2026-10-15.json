@@ -1,0 +1,5076 @@
+{
+ "receipt": "IMPL-49h: actor-level signup-gift interleave / failure / takeover / durability regression (Codex R1), local dfx replica",
+ "date": "2026-10-15",
+ "started": "2026-10-15T08:14:45Z",
+ "network": "local dfx replica 127.0.0.1:4943 only; nothing public",
+ "head_note": "run against the working tree at the committed 883e044 shenanigans sources (git HEAD d43a462 at run time)",
+ "design": {
+  "legacy_game_source": "legacy_games_stub (this directory): returns exactly one qualifying game (1.0 ICP-denominated, simple21Day) naming the SIWS-bound principal m7ydg-... so the real legacy observer runs its real signup-gift block for the same principal the native path binds (Bow1CG... -> m7ydg-...)",
+  "hold": "PART B: a latch ledger stub at a different canister id and a build of the same sources whose only change is the PP ledger id constant (hashes in the INFRA-variant-identical check). Stopping the REAL pp_ledger does NOT hold the await open (observed: fail-fast reject), so the real ledger is used for the failure/ordering/durability scenarios of PART A and the stub only for the held-await window",
+  "gift_counting": "PART A counts mints on the REAL pp_ledger (blocks, supply, balances in the receipt). PART B counts the latch stub's mint records, which are not the real ledger's",
+  "reinstalls": "shenanigans (j56tm-...) and shenanigans_latch were reinstalled once per scenario; pp_ledger and siws_provider were only called, and pp_ledger was stopped/started briefly (restored by a trap)",
+  "operator": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+  "bridge_state_note": "the reinstall of shenanigans wiped the bridge worker's COOL-1 leftovers on j56tm (two Reserved obligations); native_sol_bridge itself was not touched"
+ },
+ "canisters": {
+  "ids": {
+   "me": "7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe",
+   "legacy_games_stub": "umunu-kh777-77774-qaaca-cai",
+   "latch_ledger": "ulvla-h7777-77774-qaacq-cai",
+   "stub": "umunu-kh777-77774-qaaca-cai",
+   "shenanigans_latch": "ufxgi-4p777-77774-qaadq-cai"
+  },
+  "module_hash_and_status_at_end": {
+   "pp_ledger": [
+    "Running",
+    "0x24e6b0b09ba44b1123453877994bb59ce75555c2e33f19f58163a3e0c6e62bd1"
+   ],
+   "siws_provider": [
+    "Running",
+    "0x9715ad271d09492b17b55b6087f9999a1438191ccd698372b909c90cecfb5f8e"
+   ],
+   "shenanigans": [
+    "Running",
+    "0xe7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091"
+   ]
+  }
+ },
+ "steps": [
+  {
+   "t": "2026-10-15T08:04:04Z",
+   "step": "preflight: pp_ledger minting account",
+   "canister": "pp_ledger",
+   "canister_id": "5xv2o-iiaaa-aaaac-qeclq-cai",
+   "method": "icrc1_minting_account",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": [
+    {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": []
+    }
+   ],
+   "error": null,
+   "seconds": 1.23,
+   "n": 1
+  },
+  {
+   "t": "2026-10-15T08:04:05Z",
+   "step": "preflight: siws get_principal(bound pubkey)",
+   "canister": "siws_provider",
+   "canister_id": "tcm26-yqaaa-aaaac-qg2lq-cai",
+   "method": "get_principal",
+   "caller": "operator (default dfx identity)",
+   "arg": "(\"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\")",
+   "ok": true,
+   "reply": {
+    "Ok": [
+     183,
+     185,
+     105,
+     219,
+     1,
+     165,
+     159,
+     153,
+     203,
+     179,
+     36,
+     53,
+     147,
+     230,
+     89,
+     175,
+     0,
+     2,
+     38,
+     249,
+     194,
+     236,
+     205,
+     78,
+     69,
+     154,
+     151,
+     241,
+     2
+    ]
+   },
+   "error": null,
+   "seconds": 0.88,
+   "n": 2
+  },
+  {
+   "t": "2026-10-15T08:04:18Z",
+   "step": "build stubs",
+   "dfx": "build",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/test/replica/legacy_games_stub",
+   "ok": true,
+   "output": "Building canister 'latch_ledger'.\nBuilding canister 'legacy_games_stub'.\nFinished building canisters.",
+   "seconds": 11.9,
+   "n": 3
+  },
+  {
+   "t": "2026-10-15T08:04:20Z",
+   "step": "install legacy_games_stub",
+   "dfx": "canister install legacy_games_stub --mode reinstall --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/test/replica/legacy_games_stub",
+   "ok": true,
+   "output": "Reinstalled code for canister legacy_games_stub, with canister ID umunu-kh777-77774-qaaca-cai",
+   "seconds": 2.0,
+   "n": 4
+  },
+  {
+   "t": "2026-10-15T08:04:22Z",
+   "step": "install latch_ledger",
+   "dfx": "canister install latch_ledger --mode reinstall --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/test/replica/legacy_games_stub",
+   "ok": true,
+   "output": "Reinstalled code for canister latch_ledger, with canister ID ulvla-h7777-77774-qaacq-cai",
+   "seconds": 2.01,
+   "n": 5
+  },
+  {
+   "t": "2026-10-15T08:04:57Z",
+   "step": "build real shenanigans",
+   "dfx": "build shenanigans",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Building canister 'shenanigans'.\nWARN: /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/main.mo:3441.46-3441.59: warning [M0155], operator may trap for inferred type\n  Nat\n/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/main.mo:3923.34-3923.54: warning [M0155], operator may trap for inferred type\n  Nat\n\nFinished building canisters.",
+   "seconds": 35.18,
+   "n": 6
+  },
+  {
+   "t": "2026-10-15T08:05:29Z",
+   "step": "build shenanigans_latch",
+   "dfx": "build shenanigans_latch",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Building canister 'shenanigans_latch'.\nWARN: /private/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build/shenanigans/main.mo:3441.46-3441.59: warning [M0155], operator may trap for inferred type\n  Nat\n/private/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build/shenanigans/main.mo:3923.34-3923.54: warning [M0155], operator may trap for inferred type\n  Nat\n\nFinished building canisters.",
+   "seconds": 31.49,
+   "n": 7
+  },
+  {
+   "t": "2026-10-15T08:05:31Z",
+   "step": "A1: reinstall shenanigans (clean state)",
+   "dfx": "canister install shenanigans --mode reinstall --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.29,
+   "n": 8
+  },
+  {
+   "t": "2026-10-15T08:05:33Z",
+   "step": "A1: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.03,
+   "n": 9
+  },
+  {
+   "t": "2026-10-15T08:05:36Z",
+   "step": "A1: initialize(legacy games stub)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.01,
+   "n": 10
+  },
+  {
+   "t": "2026-10-15T08:05:38Z",
+   "step": "A1: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.18,
+   "n": 11
+  },
+  {
+   "t": "2026-10-15T08:05:41Z",
+   "step": "A1: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.41,
+   "n": 12
+  },
+  {
+   "t": "2026-10-15T08:05:43Z",
+   "step": "A1: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.07,
+   "n": 13
+  },
+  {
+   "t": "2026-10-15T08:05:45Z",
+   "step": "A1: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.01,
+   "n": 14
+  },
+  {
+   "t": "2026-10-15T08:05:47Z",
+   "step": "A1: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.0,
+   "n": 15
+  },
+  {
+   "t": "2026-10-15T08:05:48Z",
+   "step": "A1: isBootstrapped",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 1.03,
+   "n": 16
+  },
+  {
+   "t": "2026-10-15T08:05:55Z",
+   "step": "observeNativeEvent gA1",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gA1|0|0|1"
+   },
+   "error": null,
+   "seconds": 2.22,
+   "n": 17
+  },
+  {
+   "t": "2026-10-15T08:05:57Z",
+   "step": "A1: stop pp_ledger",
+   "dfx": "canister stop 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Stopping code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 1.98,
+   "n": 18
+  },
+  {
+   "t": "2026-10-15T08:06:02Z",
+   "step": "A1: INGRESS analogue: icrc1_fee on the stopped pp_ledger (what a caller outside sees)",
+   "canister": "pp_ledger",
+   "canister_id": "5xv2o-iiaaa-aaaac-qeclq-cai",
+   "method": "icrc1_fee",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": false,
+   "reply": null,
+   "error": "Error: Failed query call.\nCaused by: The replica returned a rejection error: reject code CanisterError, reject message Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped and therefore does not have a CallContextManager, error code Some(\"IC0508\")",
+   "seconds": 0.92,
+   "n": 19
+  },
+  {
+   "t": "2026-10-15T08:06:07Z",
+   "step": "A1: runObserverOnce with pp_ledger STOPPED",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.18,
+   "n": 20
+  },
+  {
+   "t": "2026-10-15T08:06:08Z",
+   "step": "A1: getSignupGiftReservation after the failed tick",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_565_644_079_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.19,
+   "n": 21
+  },
+  {
+   "t": "2026-10-15T08:06:09Z",
+   "step": "A1: canister logs (filtered)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Signup-gift mint failed",
+   "lines": [
+    "[44. 2026-10-15T08:06:05.644079001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped"
+   ],
+   "n": 22
+  },
+  {
+   "t": "2026-10-15T08:06:10Z",
+   "step": "A1: canister logs (filtered)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Mint attempt",
+   "lines": [
+    "[45. 2026-10-15T08:06:06.337161001Z]: Mint attempt 1/10 failed for game-0: ppLedger call failed: Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped"
+   ],
+   "n": 23
+  },
+  {
+   "t": "2026-10-15T08:06:12Z",
+   "step": "A1: start pp_ledger",
+   "dfx": "canister start 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Starting code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 1.7,
+   "n": 24
+  },
+  {
+   "t": "2026-10-15T08:06:22Z",
+   "step": "A1: runObserverOnce with pp_ledger RUNNING (legacy retry: re-claims its own Failed gift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.45,
+   "n": 25
+  },
+  {
+   "t": "2026-10-15T08:06:23Z",
+   "step": "A1: getSignupGiftReservation after the retry tick",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_580_876_709_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.22,
+   "n": 26
+  },
+  {
+   "t": "2026-10-15T08:06:24Z",
+   "step": "A1: canister logs (filtered)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Signup-gift mint failed",
+   "lines": [
+    "[46. 2026-10-15T08:06:20.876709001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 70 bytes is above the allowed limit of 32 bytes'."
+   ],
+   "n": 27
+  },
+  {
+   "t": "2026-10-15T08:06:28Z",
+   "step": "bindAndReserve gA1",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.0,
+   "n": 28
+  },
+  {
+   "t": "2026-10-15T08:06:30Z",
+   "step": "A1: reservation after the native bind",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_587_699_082_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.91,
+   "n": 29
+  },
+  {
+   "t": "2026-10-15T08:06:33Z",
+   "step": "A1: executeNativeRewardLeg gA1 leg 0 (signupGift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "67"
+    }
+   },
+   "error": null,
+   "seconds": 1.85,
+   "n": 30
+  },
+  {
+   "t": "2026-10-15T08:06:35Z",
+   "step": "A1: executeNativeRewardLeg gA1 leg 1 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "68"
+    }
+   },
+   "error": null,
+   "seconds": 1.99,
+   "n": 31
+  },
+  {
+   "t": "2026-10-15T08:06:37Z",
+   "step": "A1: executeNativeRewardLeg gA1 leg 2 (player)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 2 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "69"
+    }
+   },
+   "error": null,
+   "seconds": 2.01,
+   "n": 32
+  },
+  {
+   "t": "2026-10-15T08:06:39Z",
+   "step": "A1: executeNativeRewardLeg gA1 leg 3 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 3 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "70"
+    }
+   },
+   "error": null,
+   "seconds": 2.0,
+   "n": 33
+  },
+  {
+   "t": "2026-10-15T08:06:40Z",
+   "step": "A1: reservation after the native legs",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_592_405_659_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.97,
+   "n": 34
+  },
+  {
+   "t": "2026-10-15T08:06:47Z",
+   "step": "A1 (Committed{native}): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Module hash e7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091 is already installed.\nUpgraded code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.11,
+   "n": 35
+  },
+  {
+   "t": "2026-10-15T08:06:48Z",
+   "step": "A1 (Committed{native}): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.9,
+   "n": 36
+  },
+  {
+   "t": "2026-10-15T08:06:49Z",
+   "step": "A1: reservation after upgrade",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_592_405_659_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.92,
+   "n": 37
+  },
+  {
+   "t": "2026-10-15T08:06:53Z",
+   "step": "A2: reinstall shenanigans (clean state)",
+   "dfx": "canister install shenanigans --mode reinstall --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.35,
+   "n": 38
+  },
+  {
+   "t": "2026-10-15T08:06:55Z",
+   "step": "A2: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.96,
+   "n": 39
+  },
+  {
+   "t": "2026-10-15T08:06:57Z",
+   "step": "A2: initialize(legacy games stub)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.0,
+   "n": 40
+  },
+  {
+   "t": "2026-10-15T08:06:59Z",
+   "step": "A2: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.0,
+   "n": 41
+  },
+  {
+   "t": "2026-10-15T08:07:02Z",
+   "step": "A2: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.36,
+   "n": 42
+  },
+  {
+   "t": "2026-10-15T08:07:04Z",
+   "step": "A2: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.07,
+   "n": 43
+  },
+  {
+   "t": "2026-10-15T08:07:06Z",
+   "step": "A2: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.95,
+   "n": 44
+  },
+  {
+   "t": "2026-10-15T08:07:08Z",
+   "step": "A2: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.01,
+   "n": 45
+  },
+  {
+   "t": "2026-10-15T08:07:09Z",
+   "step": "A2: isBootstrapped",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.91,
+   "n": 46
+  },
+  {
+   "t": "2026-10-15T08:07:15Z",
+   "step": "observeNativeEvent gA2",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gA2|0|0|1"
+   },
+   "error": null,
+   "seconds": 1.82,
+   "n": 47
+  },
+  {
+   "t": "2026-10-15T08:07:17Z",
+   "step": "A2: stop pp_ledger",
+   "dfx": "canister stop 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Stopping code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 2.07,
+   "n": 48
+  },
+  {
+   "t": "2026-10-15T08:07:26Z",
+   "step": "A2: runObserverOnce with pp_ledger STOPPED",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 5.5,
+   "n": 49
+  },
+  {
+   "t": "2026-10-15T08:07:27Z",
+   "step": "A2: reservation after the failed tick",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_644_491_497_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.99,
+   "n": 50
+  },
+  {
+   "t": "2026-10-15T08:07:29Z",
+   "step": "A2: start pp_ledger",
+   "dfx": "canister start 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Starting code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 1.68,
+   "n": 51
+  },
+  {
+   "t": "2026-10-15T08:07:36Z",
+   "step": "A2 (Failed at rest): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Module hash e7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091 is already installed.\nUpgraded code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.28,
+   "n": 52
+  },
+  {
+   "t": "2026-10-15T08:07:38Z",
+   "step": "A2 (Failed at rest): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.08,
+   "n": 53
+  },
+  {
+   "t": "2026-10-15T08:07:39Z",
+   "step": "A2: reservation after upgrade 1",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_644_491_497_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.21,
+   "n": 54
+  },
+  {
+   "t": "2026-10-15T08:07:42Z",
+   "step": "bindAndReserve gA2",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 1.8,
+   "n": 55
+  },
+  {
+   "t": "2026-10-15T08:07:44Z",
+   "step": "A2: reservation after the native bind",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_661_839_793_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.95,
+   "n": 56
+  },
+  {
+   "t": "2026-10-15T08:07:48Z",
+   "step": "A2 (Reserved{native} with Pending legs): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Module hash e7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091 is already installed.\nUpgraded code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.24,
+   "n": 57
+  },
+  {
+   "t": "2026-10-15T08:07:50Z",
+   "step": "A2 (Reserved{native} with Pending legs): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 58
+  },
+  {
+   "t": "2026-10-15T08:07:57Z",
+   "step": "A2: runObserverOnce (legacy must skip the gift: native holds Reserved)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.33,
+   "n": 59
+  },
+  {
+   "t": "2026-10-15T08:07:58Z",
+   "step": "A2: reservation after the skipping tick",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_661_839_793_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.86,
+   "n": 60
+  },
+  {
+   "t": "2026-10-15T08:08:03Z",
+   "step": "A2: executeNativeRewardLeg gA2 leg 0 (signupGift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "73"
+    }
+   },
+   "error": null,
+   "seconds": 1.59,
+   "n": 61
+  },
+  {
+   "t": "2026-10-15T08:08:05Z",
+   "step": "A2: executeNativeRewardLeg gA2 leg 1 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "74"
+    }
+   },
+   "error": null,
+   "seconds": 2.08,
+   "n": 62
+  },
+  {
+   "t": "2026-10-15T08:08:07Z",
+   "step": "A2: executeNativeRewardLeg gA2 leg 2 (player)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 2 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "75"
+    }
+   },
+   "error": null,
+   "seconds": 2.01,
+   "n": 63
+  },
+  {
+   "t": "2026-10-15T08:08:09Z",
+   "step": "A2: executeNativeRewardLeg gA2 leg 3 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA2\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 3 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "76"
+    }
+   },
+   "error": null,
+   "seconds": 2.04,
+   "n": 64
+  },
+  {
+   "t": "2026-10-15T08:08:10Z",
+   "step": "A2: reservation after the native legs",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_682_301_420_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.89,
+   "n": 65
+  },
+  {
+   "t": "2026-10-15T08:08:13Z",
+   "step": "A2 (Committed{native}): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Module hash e7a7a2672980069f96d82a3fc7a31a850bd28f63977704acc452cba9845fa091 is already installed.\nUpgraded code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.45,
+   "n": 66
+  },
+  {
+   "t": "2026-10-15T08:08:15Z",
+   "step": "A2 (Committed{native}): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.99,
+   "n": 67
+  },
+  {
+   "t": "2026-10-15T08:08:19Z",
+   "step": "A2: runObserverOnce after the commit (legacy must stay out)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.26,
+   "n": 68
+  },
+  {
+   "t": "2026-10-15T08:08:26Z",
+   "step": "A3: reinstall shenanigans (clean state)",
+   "dfx": "canister install shenanigans --mode reinstall --yes",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans, with canister ID j56tm-oaaaa-aaaac-qf34q-cai",
+   "seconds": 2.36,
+   "n": 69
+  },
+  {
+   "t": "2026-10-15T08:08:28Z",
+   "step": "A3: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.29,
+   "n": 70
+  },
+  {
+   "t": "2026-10-15T08:08:30Z",
+   "step": "A3: initialize(legacy games stub)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.64,
+   "n": 71
+  },
+  {
+   "t": "2026-10-15T08:08:32Z",
+   "step": "A3: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.0,
+   "n": 72
+  },
+  {
+   "t": "2026-10-15T08:08:35Z",
+   "step": "A3: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 3.39,
+   "n": 73
+  },
+  {
+   "t": "2026-10-15T08:08:38Z",
+   "step": "A3: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 74
+  },
+  {
+   "t": "2026-10-15T08:08:39Z",
+   "step": "A3: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.96,
+   "n": 75
+  },
+  {
+   "t": "2026-10-15T08:08:42Z",
+   "step": "A3: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.09,
+   "n": 76
+  },
+  {
+   "t": "2026-10-15T08:08:42Z",
+   "step": "A3: isBootstrapped",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.93,
+   "n": 77
+  },
+  {
+   "t": "2026-10-15T08:08:48Z",
+   "step": "observeNativeEvent gA3",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gA3|0|0|1"
+   },
+   "error": null,
+   "seconds": 2.17,
+   "n": 78
+  },
+  {
+   "t": "2026-10-15T08:08:50Z",
+   "step": "bindAndReserve gA3",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.17,
+   "n": 79
+  },
+  {
+   "t": "2026-10-15T08:08:53Z",
+   "step": "A3: reservation after the native bind",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_730_034_429_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.16,
+   "n": 80
+  },
+  {
+   "t": "2026-10-15T08:08:54Z",
+   "step": "A3: stop pp_ledger",
+   "dfx": "canister stop 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Stopping code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 1.87,
+   "n": 81
+  },
+  {
+   "t": "2026-10-15T08:09:03Z",
+   "step": "A3: runObserverOnce with pp_ledger STOPPED (legacy must not even try the gift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.8,
+   "n": 82
+  },
+  {
+   "t": "2026-10-15T08:09:04Z",
+   "step": "A3: reservation after that tick",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_730_034_429_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.95,
+   "n": 83
+  },
+  {
+   "t": "2026-10-15T08:09:05Z",
+   "step": "A3: canister logs (filtered)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Signup-gift mint failed",
+   "lines": [],
+   "n": 84
+  },
+  {
+   "t": "2026-10-15T08:09:08Z",
+   "step": "A3: executeNativeRewardLeg gift leg with pp_ledger STOPPED",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "SubmittedUnknown": null
+   },
+   "error": null,
+   "seconds": 2.78,
+   "n": 85
+  },
+  {
+   "t": "2026-10-15T08:09:12Z",
+   "step": "A3: runObserverOnce again (native gift leg is SubmittedUnknown)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.08,
+   "n": 86
+  },
+  {
+   "t": "2026-10-15T08:09:15Z",
+   "step": "A3: start pp_ledger",
+   "dfx": "canister start 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "cwd": "/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+   "ok": true,
+   "output": "Starting code for canister 5xv2o-iiaaa-aaaac-qeclq-cai, with canister_id 5xv2o-iiaaa-aaaac-qeclq-cai",
+   "seconds": 1.75,
+   "n": 87
+  },
+  {
+   "t": "2026-10-15T08:09:21Z",
+   "step": "A3: retryNativeRewardLeg gift leg (identical frozen fields)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "retryNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "77"
+    }
+   },
+   "error": null,
+   "seconds": 2.14,
+   "n": 88
+  },
+  {
+   "t": "2026-10-15T08:09:23Z",
+   "step": "A3: executeNativeRewardLeg gA3 leg 0 (signupGift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "77"
+    }
+   },
+   "error": null,
+   "seconds": 1.75,
+   "n": 89
+  },
+  {
+   "t": "2026-10-15T08:09:26Z",
+   "step": "A3: executeNativeRewardLeg gA3 leg 1 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "78"
+    }
+   },
+   "error": null,
+   "seconds": 2.73,
+   "n": 90
+  },
+  {
+   "t": "2026-10-15T08:09:28Z",
+   "step": "A3: executeNativeRewardLeg gA3 leg 2 (player)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 2 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "79"
+    }
+   },
+   "error": null,
+   "seconds": 2.06,
+   "n": 91
+  },
+  {
+   "t": "2026-10-15T08:09:30Z",
+   "step": "A3: executeNativeRewardLeg gA3 leg 3 (residual)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gA3\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 3 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "80"
+    }
+   },
+   "error": null,
+   "seconds": 1.98,
+   "n": 92
+  },
+  {
+   "t": "2026-10-15T08:09:34Z",
+   "step": "A3: runObserverOnce (game mint now succeeds; legacy stays out of the gift)",
+   "canister": "shenanigans",
+   "canister_id": "j56tm-oaaaa-aaaac-qf34q-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 4.24,
+   "n": 93
+  },
+  {
+   "t": "2026-10-15T08:09:42Z",
+   "step": "H1: reinstall shenanigans_latch (clean state)",
+   "dfx": "canister install shenanigans_latch --mode reinstall --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 3.17,
+   "n": 94
+  },
+  {
+   "t": "2026-10-15T08:09:45Z",
+   "step": "H1: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.49,
+   "n": 95
+  },
+  {
+   "t": "2026-10-15T08:09:47Z",
+   "step": "H1: initialize(legacy games stub)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.24,
+   "n": 96
+  },
+  {
+   "t": "2026-10-15T08:09:50Z",
+   "step": "H1: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.51,
+   "n": 97
+  },
+  {
+   "t": "2026-10-15T08:09:52Z",
+   "step": "H1: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 98
+  },
+  {
+   "t": "2026-10-15T08:09:54Z",
+   "step": "H1: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.03,
+   "n": 99
+  },
+  {
+   "t": "2026-10-15T08:09:56Z",
+   "step": "H1: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.99,
+   "n": 100
+  },
+  {
+   "t": "2026-10-15T08:09:58Z",
+   "step": "H1: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.0,
+   "n": 101
+  },
+  {
+   "t": "2026-10-15T08:09:59Z",
+   "step": "H1: isBootstrapped",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.9,
+   "n": 102
+  },
+  {
+   "t": "2026-10-15T08:10:02Z",
+   "step": "H1: latch.resetAll",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "resetAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.92,
+   "n": 103
+  },
+  {
+   "t": "2026-10-15T08:10:04Z",
+   "step": "H1: latch.setHold(commitThenHold, \"signup-\")",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setHold",
+   "caller": "operator (default dfx identity)",
+   "arg": "(variant { commitThenHold }, \"signup-\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.02,
+   "n": 104
+  },
+  {
+   "t": "2026-10-15T08:10:08Z",
+   "step": "observeNativeEvent gH1",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH1|0|0|1"
+   },
+   "error": null,
+   "seconds": 2.6,
+   "n": 105
+  },
+  {
+   "t": "2026-10-15T08:10:16Z",
+   "step": "H1: bindAndReserve INSIDE the window (real SIWS lookup, applyBind after it)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.45,
+   "n": 106
+  },
+  {
+   "t": "2026-10-15T08:10:18Z",
+   "step": "H1: reservation after the native bind (tick still pending)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_809_693_699_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.91,
+   "n": 107
+  },
+  {
+   "t": "2026-10-15T08:10:21Z",
+   "step": "H1 (inside the window): executeNativeRewardLeg gH1 leg 0 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "1"
+    }
+   },
+   "error": null,
+   "seconds": 1.89,
+   "n": 108
+  },
+  {
+   "t": "2026-10-15T08:10:23Z",
+   "step": "H1 (inside the window): executeNativeRewardLeg gH1 leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH1\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "2"
+    }
+   },
+   "error": null,
+   "seconds": 2.03,
+   "n": 109
+  },
+  {
+   "t": "2026-10-15T08:10:08Z",
+   "step": "H1: runObserverOnce (will stay pending while the gift mint is held)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 16.29,
+   "note": "returned when the held await resolved",
+   "n": 110
+  },
+  {
+   "t": "2026-10-15T08:10:25Z",
+   "step": "H1: latch.release (resume the legacy await)",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "release",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.28,
+   "n": 111
+  },
+  {
+   "t": "2026-10-15T08:10:27Z",
+   "step": "H1: reservation after the resume",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_824_600_529_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.38,
+   "n": 112
+  },
+  {
+   "t": "2026-10-15T08:10:30Z",
+   "step": "H3: reinstall shenanigans_latch (clean state)",
+   "dfx": "canister install shenanigans_latch --mode reinstall --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 2.24,
+   "n": 113
+  },
+  {
+   "t": "2026-10-15T08:10:32Z",
+   "step": "H3: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.98,
+   "n": 114
+  },
+  {
+   "t": "2026-10-15T08:10:34Z",
+   "step": "H3: initialize(legacy games stub)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.02,
+   "n": 115
+  },
+  {
+   "t": "2026-10-15T08:10:36Z",
+   "step": "H3: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.0,
+   "n": 116
+  },
+  {
+   "t": "2026-10-15T08:10:38Z",
+   "step": "H3: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 117
+  },
+  {
+   "t": "2026-10-15T08:10:41Z",
+   "step": "H3: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.74,
+   "n": 118
+  },
+  {
+   "t": "2026-10-15T08:10:43Z",
+   "step": "H3: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.35,
+   "n": 119
+  },
+  {
+   "t": "2026-10-15T08:10:45Z",
+   "step": "H3: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 1.71,
+   "n": 120
+  },
+  {
+   "t": "2026-10-15T08:10:46Z",
+   "step": "H3: isBootstrapped",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.95,
+   "n": 121
+  },
+  {
+   "t": "2026-10-15T08:10:50Z",
+   "step": "H3: latch.resetAll",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "resetAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.67,
+   "n": 122
+  },
+  {
+   "t": "2026-10-15T08:10:52Z",
+   "step": "H3: latch.setHold(holdThenReject, \"signup-\")",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setHold",
+   "caller": "operator (default dfx identity)",
+   "arg": "(variant { holdThenReject }, \"signup-\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.01,
+   "n": 123
+  },
+  {
+   "t": "2026-10-15T08:10:55Z",
+   "step": "observeNativeEvent gH3a",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3a\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH3a|0|0|1"
+   },
+   "error": null,
+   "seconds": 1.63,
+   "n": 124
+  },
+  {
+   "t": "2026-10-15T08:10:57Z",
+   "step": "observeNativeEvent gH3b",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH3b|0|0|1"
+   },
+   "error": null,
+   "seconds": 2.03,
+   "n": 125
+  },
+  {
+   "t": "2026-10-15T08:11:04Z",
+   "step": "H3: bindAndReserve gH3a INSIDE the window",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3a\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.75,
+   "n": 126
+  },
+  {
+   "t": "2026-10-15T08:11:08Z",
+   "step": "H3: latch.release (the held call is REJECTED with a synthetic reject)",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "release",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.97,
+   "n": 127
+  },
+  {
+   "t": "2026-10-15T08:10:57Z",
+   "step": "H3: runObserverOnce (will stay pending while the gift mint is held)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 11.28,
+   "note": "returned when the held await resolved",
+   "n": 128
+  },
+  {
+   "t": "2026-10-15T08:11:09Z",
+   "step": "H3: reservation after the rejected mint",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_868_427_237_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.91,
+   "n": 129
+  },
+  {
+   "t": "2026-10-15T08:11:10Z",
+   "step": "H3: canister logs (filtered)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Signup-gift mint failed",
+   "lines": [
+    "[5. 2026-10-15T08:11:08.427237001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: latch ledger: synthetic reject (nothing was minted)"
+   ],
+   "n": 130
+  },
+  {
+   "t": "2026-10-15T08:11:14Z",
+   "step": "H3: bindAndReserve gH3b AFTER the failure",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.85,
+   "n": 131
+  },
+  {
+   "t": "2026-10-15T08:11:16Z",
+   "step": "H3: reservation after the second native bind",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_873_970_290_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.93,
+   "n": 132
+  },
+  {
+   "t": "2026-10-15T08:11:19Z",
+   "step": "H3: executeNativeRewardLeg gH3b leg 0 (signupGift)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "2"
+    }
+   },
+   "error": null,
+   "seconds": 1.95,
+   "n": 133
+  },
+  {
+   "t": "2026-10-15T08:11:21Z",
+   "step": "H3: executeNativeRewardLeg gH3b leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "3"
+    }
+   },
+   "error": null,
+   "seconds": 2.08,
+   "n": 134
+  },
+  {
+   "t": "2026-10-15T08:11:23Z",
+   "step": "H3: executeNativeRewardLeg gH3b leg 2 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 2 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "4"
+    }
+   },
+   "error": null,
+   "seconds": 2.06,
+   "n": 135
+  },
+  {
+   "t": "2026-10-15T08:11:25Z",
+   "step": "H3: executeNativeRewardLeg gH3b leg 3 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3b\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 3 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "5"
+    }
+   },
+   "error": null,
+   "seconds": 2.04,
+   "n": 136
+  },
+  {
+   "t": "2026-10-15T08:11:28Z",
+   "step": "H3: executeNativeRewardLeg gH3a leg 0 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3a\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "6"
+    }
+   },
+   "error": null,
+   "seconds": 1.81,
+   "n": 137
+  },
+  {
+   "t": "2026-10-15T08:11:30Z",
+   "step": "H3: executeNativeRewardLeg gH3a leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH3a\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "7"
+    }
+   },
+   "error": null,
+   "seconds": 1.96,
+   "n": 138
+  },
+  {
+   "t": "2026-10-15T08:11:31Z",
+   "step": "H3: reservation after the native legs",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_878_773_616_001",
+     "owner": {
+      "native": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.09,
+   "n": 139
+  },
+  {
+   "t": "2026-10-15T08:11:34Z",
+   "step": "H5: reinstall shenanigans_latch (clean state)",
+   "dfx": "canister install shenanigans_latch --mode reinstall --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 1.83,
+   "n": 140
+  },
+  {
+   "t": "2026-10-15T08:11:36Z",
+   "step": "H5: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.98,
+   "n": 141
+  },
+  {
+   "t": "2026-10-15T08:11:38Z",
+   "step": "H5: initialize(legacy games stub)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.01,
+   "n": 142
+  },
+  {
+   "t": "2026-10-15T08:11:40Z",
+   "step": "H5: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.01,
+   "n": 143
+  },
+  {
+   "t": "2026-10-15T08:11:42Z",
+   "step": "H5: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 144
+  },
+  {
+   "t": "2026-10-15T08:11:44Z",
+   "step": "H5: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 145
+  },
+  {
+   "t": "2026-10-15T08:11:46Z",
+   "step": "H5: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.03,
+   "n": 146
+  },
+  {
+   "t": "2026-10-15T08:11:48Z",
+   "step": "H5: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.05,
+   "n": 147
+  },
+  {
+   "t": "2026-10-15T08:11:49Z",
+   "step": "H5: isBootstrapped",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.95,
+   "n": 148
+  },
+  {
+   "t": "2026-10-15T08:11:54Z",
+   "step": "H5: latch.resetAll",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "resetAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.69,
+   "n": 149
+  },
+  {
+   "t": "2026-10-15T08:11:56Z",
+   "step": "H5: latch.setFailAll(true) (every icrc1_transfer rejects immediately, like a stopped ledger)",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setFailAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "(true)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 150
+  },
+  {
+   "t": "2026-10-15T08:11:58Z",
+   "step": "observeNativeEvent gH5",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH5\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH5|0|0|1"
+   },
+   "error": null,
+   "seconds": 2.04,
+   "n": 151
+  },
+  {
+   "t": "2026-10-15T08:12:00Z",
+   "step": "H5: runObserverOnce with the stub failing every call",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.26,
+   "n": 152
+  },
+  {
+   "t": "2026-10-15T08:12:01Z",
+   "step": "H5: reservation after the failed tick",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_919_765_200_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.94,
+   "n": 153
+  },
+  {
+   "t": "2026-10-15T08:12:02Z",
+   "step": "H5: canister logs (filtered)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "dfx": "canister logs",
+   "ok": true,
+   "needle": "Signup-gift mint failed",
+   "lines": [
+    "[6. 2026-10-15T08:11:59.765200001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: latch ledger: simulated stopped ledger (every call rejected)"
+   ],
+   "n": 154
+  },
+  {
+   "t": "2026-10-15T08:12:04Z",
+   "step": "H5: latch.setFailAll(false)",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setFailAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "(false)",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.19,
+   "n": 155
+  },
+  {
+   "t": "2026-10-15T08:12:07Z",
+   "step": "H5: runObserverOnce (the game was re-presented because its mint failed too; legacy re-claims its Failed gift)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.28,
+   "n": 156
+  },
+  {
+   "t": "2026-10-15T08:12:07Z",
+   "step": "H5: reservation after the retry tick",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_926_039_766_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.9,
+   "n": 157
+  },
+  {
+   "t": "2026-10-15T08:12:11Z",
+   "step": "bindAndReserve gH5",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH5\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.97,
+   "n": 158
+  },
+  {
+   "t": "2026-10-15T08:12:15Z",
+   "step": "H5: executeNativeRewardLeg gH5 leg 0 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH5\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "4"
+    }
+   },
+   "error": null,
+   "seconds": 2.15,
+   "n": 159
+  },
+  {
+   "t": "2026-10-15T08:12:17Z",
+   "step": "H5: executeNativeRewardLeg gH5 leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH5\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "5"
+    }
+   },
+   "error": null,
+   "seconds": 2.05,
+   "n": 160
+  },
+  {
+   "t": "2026-10-15T08:12:22Z",
+   "step": "H4-holdThenReject: reinstall shenanigans_latch (clean state)",
+   "dfx": "canister install shenanigans_latch --mode reinstall --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 2.41,
+   "n": 161
+  },
+  {
+   "t": "2026-10-15T08:12:24Z",
+   "step": "H4-holdThenReject: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.98,
+   "n": 162
+  },
+  {
+   "t": "2026-10-15T08:12:26Z",
+   "step": "H4-holdThenReject: initialize(legacy games stub)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.11,
+   "n": 163
+  },
+  {
+   "t": "2026-10-15T08:12:28Z",
+   "step": "H4-holdThenReject: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.0,
+   "n": 164
+  },
+  {
+   "t": "2026-10-15T08:12:30Z",
+   "step": "H4-holdThenReject: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 165
+  },
+  {
+   "t": "2026-10-15T08:12:32Z",
+   "step": "H4-holdThenReject: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.03,
+   "n": 166
+  },
+  {
+   "t": "2026-10-15T08:12:34Z",
+   "step": "H4-holdThenReject: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.05,
+   "n": 167
+  },
+  {
+   "t": "2026-10-15T08:12:36Z",
+   "step": "H4-holdThenReject: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.03,
+   "n": 168
+  },
+  {
+   "t": "2026-10-15T08:12:37Z",
+   "step": "H4-holdThenReject: isBootstrapped",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.9,
+   "n": 169
+  },
+  {
+   "t": "2026-10-15T08:12:41Z",
+   "step": "H4-holdThenReject: latch.resetAll",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "resetAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.94,
+   "n": 170
+  },
+  {
+   "t": "2026-10-15T08:12:43Z",
+   "step": "H4-holdThenReject: latch.setHold(holdThenReject, \"signup-\")",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setHold",
+   "caller": "operator (default dfx identity)",
+   "arg": "(variant { holdThenReject }, \"signup-\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 171
+  },
+  {
+   "t": "2026-10-15T08:12:46Z",
+   "step": "observeNativeEvent gH4-holdThenReject",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH4-holdThenReject|0|0|1"
+   },
+   "error": null,
+   "seconds": 1.77,
+   "n": 172
+  },
+  {
+   "t": "2026-10-15T08:12:54Z",
+   "step": "H4-holdThenReject (open call context!): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans_latch --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Module hash 73e74288003350e4dc4a74b2b1d67778b1f01039bfe6b0121c51d2e64282a94a is already installed.\nUpgraded code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 2.7,
+   "n": 173
+  },
+  {
+   "t": "2026-10-15T08:12:56Z",
+   "step": "H4-holdThenReject (open call context!): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.77,
+   "n": 174
+  },
+  {
+   "t": "2026-10-15T08:12:57Z",
+   "step": "H4-holdThenReject: reservation after the upgrade",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_967_306_070_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.95,
+   "n": 175
+  },
+  {
+   "t": "2026-10-15T08:12:46Z",
+   "step": "H4-holdThenReject: runObserverOnce (will stay pending while the gift mint is held)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 20.96,
+   "note": "returned when the held await resolved",
+   "n": 176
+  },
+  {
+   "t": "2026-10-15T08:13:07Z",
+   "step": "H4-holdThenReject: latch.release",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "release",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 177
+  },
+  {
+   "t": "2026-10-15T08:13:08Z",
+   "step": "H4-holdThenReject: reservation after the release",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_051_986_323_154_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Failed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 0.92,
+   "n": 178
+  },
+  {
+   "t": "2026-10-15T08:13:12Z",
+   "step": "bindAndReserve gH4-holdThenReject",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 2.94,
+   "n": 179
+  },
+  {
+   "t": "2026-10-15T08:13:18Z",
+   "step": "H4-holdThenReject: executeNativeRewardLeg gH4-holdThenReject leg 0 (signupGift)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "2"
+    }
+   },
+   "error": null,
+   "seconds": 2.08,
+   "n": 180
+  },
+  {
+   "t": "2026-10-15T08:13:20Z",
+   "step": "H4-holdThenReject: executeNativeRewardLeg gH4-holdThenReject leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "3"
+    }
+   },
+   "error": null,
+   "seconds": 2.04,
+   "n": 181
+  },
+  {
+   "t": "2026-10-15T08:13:22Z",
+   "step": "H4-holdThenReject: executeNativeRewardLeg gH4-holdThenReject leg 2 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 2 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "4"
+    }
+   },
+   "error": null,
+   "seconds": 2.03,
+   "n": 182
+  },
+  {
+   "t": "2026-10-15T08:13:24Z",
+   "step": "H4-holdThenReject: executeNativeRewardLeg gH4-holdThenReject leg 3 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-holdThenReject\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 3 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "5"
+    }
+   },
+   "error": null,
+   "seconds": 2.07,
+   "n": 183
+  },
+  {
+   "t": "2026-10-15T08:13:27Z",
+   "step": "H4-commitThenHold: reinstall shenanigans_latch (clean state)",
+   "dfx": "canister install shenanigans_latch --mode reinstall --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Reinstalled code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 2.0,
+   "n": 184
+  },
+  {
+   "t": "2026-10-15T08:13:29Z",
+   "step": "H4-commitThenHold: stub.setGames([])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec {})",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.03,
+   "n": 185
+  },
+  {
+   "t": "2026-10-15T08:13:31Z",
+   "step": "H4-commitThenHold: initialize(legacy games stub)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "initialize",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"umunu-kh777-77774-qaaca-cai\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.27,
+   "n": 186
+  },
+  {
+   "t": "2026-10-15T08:13:33Z",
+   "step": "H4-commitThenHold: stopObserver (only manual runObserverOnce ticks)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.82,
+   "n": 187
+  },
+  {
+   "t": "2026-10-15T08:13:35Z",
+   "step": "H4-commitThenHold: seedMigrationV2 (bootstrap; nothing to grandfather)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "seedMigrationV2",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 1.97,
+   "n": 188
+  },
+  {
+   "t": "2026-10-15T08:13:37Z",
+   "step": "H4-commitThenHold: stub.setGames([one game for the bound principal])",
+   "canister": "legacy_games_stub",
+   "canister_id": "umunu-kh777-77774-qaaca-cai",
+   "method": "setGames",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { record { id = 0 : nat; player = principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\"; plan = variant { simple21Day }; amount = 1.0 : float64; startTime = 1 : int; isCompounding = false; isActive = true; lastUpdateTime = 1 : int; accumulatedEarnings = 0.0 : float64; totalWithdrawn = 0.0 : float64 } })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.05,
+   "n": 189
+  },
+  {
+   "t": "2026-10-15T08:13:39Z",
+   "step": "H4-commitThenHold: setNativeBridgeAllowlist([operator])",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "setNativeBridgeAllowlist",
+   "caller": "operator (default dfx identity)",
+   "arg": "(vec { principal \"7ma2w-gqief-6zbuk-7hxgr-aehmx-imu3j-bwstx-2fvfw-jazen-6ljbd-hqe\" })",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.04,
+   "n": 190
+  },
+  {
+   "t": "2026-10-15T08:13:41Z",
+   "step": "H4-commitThenHold: appendNativePolicyFromMintConfig(24h)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "appendNativePolicyFromMintConfig",
+   "caller": "operator (default dfx identity)",
+   "arg": "(86_400_000_000_000 : nat)",
+   "ok": true,
+   "reply": "1",
+   "error": null,
+   "seconds": 2.07,
+   "n": 191
+  },
+  {
+   "t": "2026-10-15T08:13:42Z",
+   "step": "H4-commitThenHold: isBootstrapped",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "isBootstrapped",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": true,
+   "error": null,
+   "seconds": 0.94,
+   "n": 192
+  },
+  {
+   "t": "2026-10-15T08:13:46Z",
+   "step": "H4-commitThenHold: latch.resetAll",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "resetAll",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.2,
+   "n": 193
+  },
+  {
+   "t": "2026-10-15T08:13:48Z",
+   "step": "H4-commitThenHold: latch.setHold(commitThenHold, \"signup-\")",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "setHold",
+   "caller": "operator (default dfx identity)",
+   "arg": "(variant { commitThenHold }, \"signup-\")",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.05,
+   "n": 194
+  },
+  {
+   "t": "2026-10-15T08:13:51Z",
+   "step": "observeNativeEvent gH4-commitThenHold",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "observeNativeEvent",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { event_id = record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-commitThenHold\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }; source_round_id = 1 : nat64; source_close_id = null; kind = variant { PositionOpened }; beneficiary_pubkey = \"Bow1CGKGDB9mNxeWdw85E2aCthQ1oZX4oFEe7fYT17ew\"; basis_lamports = 1_000_000_000 : nat64; plan = opt variant { Simple } })",
+   "ok": true,
+   "reply": {
+    "Observed": "ev1|6c6f63616c6e6574|MCprogLocal1111111111111111111111111111111|gH4-commitThenHold|0|0|1"
+   },
+   "error": null,
+   "seconds": 1.8,
+   "n": 195
+  },
+  {
+   "t": "2026-10-15T08:13:58Z",
+   "step": "H4-commitThenHold (open call context!): install --mode upgrade --wasm-memory-persistence keep",
+   "dfx": "canister install shenanigans_latch --mode upgrade --wasm-memory-persistence keep --yes",
+   "cwd": "/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build",
+   "ok": true,
+   "output": "Module hash 73e74288003350e4dc4a74b2b1d67778b1f01039bfe6b0121c51d2e64282a94a is already installed.\nUpgraded code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai",
+   "seconds": 2.12,
+   "n": 196
+  },
+  {
+   "t": "2026-10-15T08:14:00Z",
+   "step": "H4-commitThenHold (open call context!): stopObserver (postupgrade re-armed it)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "stopObserver",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.06,
+   "n": 197
+  },
+  {
+   "t": "2026-10-15T08:14:01Z",
+   "step": "H4-commitThenHold: reservation after the upgrade",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_052_032_819_242_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Reserved": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.09,
+   "n": 198
+  },
+  {
+   "t": "2026-10-15T08:14:12Z",
+   "step": "H4-commitThenHold: latch.release",
+   "canister": "latch_ledger",
+   "canister_id": "ulvla-h7777-77774-qaacq-cai",
+   "method": "release",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 2.36,
+   "n": 199
+  },
+  {
+   "t": "2026-10-15T08:13:51Z",
+   "step": "H4-commitThenHold: runObserverOnce (will stay pending while the gift mint is held)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "runObserverOnce",
+   "caller": "operator (default dfx identity)",
+   "arg": "()",
+   "ok": true,
+   "reply": null,
+   "error": null,
+   "seconds": 20.62,
+   "note": "returned when the held await resolved",
+   "n": 200
+  },
+  {
+   "t": "2026-10-15T08:14:13Z",
+   "step": "H4-commitThenHold: reservation after the release",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "getSignupGiftReservation",
+   "caller": "operator (default dfx identity)",
+   "arg": "(principal \"m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe\")",
+   "ok": true,
+   "reply": [
+    {
+     "at": "1_792_052_051_747_373_001",
+     "owner": {
+      "legacy": null
+     },
+     "state": {
+      "Committed": null
+     }
+    }
+   ],
+   "error": null,
+   "seconds": 1.29,
+   "n": 201
+  },
+  {
+   "t": "2026-10-15T08:14:17Z",
+   "step": "bindAndReserve gH4-commitThenHold",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "bindAndReserve",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-commitThenHold\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat })",
+   "ok": true,
+   "reply": {
+    "Reserved": null
+   },
+   "error": null,
+   "seconds": 3.25,
+   "n": 202
+  },
+  {
+   "t": "2026-10-15T08:14:22Z",
+   "step": "H4-commitThenHold: executeNativeRewardLeg gH4-commitThenHold leg 0 (player)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-commitThenHold\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 0 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "4"
+    }
+   },
+   "error": null,
+   "seconds": 2.15,
+   "n": 203
+  },
+  {
+   "t": "2026-10-15T08:14:25Z",
+   "step": "H4-commitThenHold: executeNativeRewardLeg gH4-commitThenHold leg 1 (residual)",
+   "canister": "shenanigans_latch",
+   "canister_id": "ufxgi-4p777-77774-qaadq-cai",
+   "method": "executeNativeRewardLeg",
+   "caller": "operator (default dfx identity)",
+   "arg": "(record { cluster_domain = blob \"localnet\"; program_id = \"MCprogLocal1111111111111111111111111111111\"; signature = \"gH4-commitThenHold\"; instruction_index = 0 : nat; inner_instruction_index = 0 : nat; event_schema_version = 1 : nat }, 1 : nat)",
+   "ok": true,
+   "reply": {
+    "Committed": {
+     "block": "5"
+    }
+   },
+   "error": null,
+   "seconds": 2.7,
+   "n": 204
+  }
+ ],
+ "checks": [
+  {
+   "id": "ENV-minter",
+   "check": "pp_ledger's minting account is the shenanigans canister (no subaccount)",
+   "pass": true,
+   "detail": [
+    {
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "subaccount": []
+    }
+   ]
+  },
+  {
+   "id": "ENV-siws",
+   "check": "siws_provider resolves the bound owner (Bow1CG... -> m7ydg-...)",
+   "pass": true,
+   "detail": {
+    "Ok": [
+     183,
+     185,
+     105,
+     219,
+     1,
+     165,
+     159,
+     153,
+     203,
+     179,
+     36,
+     53,
+     147,
+     230,
+     89,
+     175,
+     0,
+     2,
+     38,
+     249,
+     194,
+     236,
+     205,
+     78,
+     69,
+     154,
+     151,
+     241,
+     2
+    ]
+   }
+  },
+  {
+   "id": "ENV-principal",
+   "check": "the bound principal text decodes (chip subaccount helper)",
+   "pass": true,
+   "detail": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000"
+  },
+  {
+   "id": "INFRA-stubs-build",
+   "check": "stub canisters build",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "INFRA-real-build",
+   "check": "dfx build shenanigans (committed sources)",
+   "pass": true,
+   "detail": "Building canister 'shenanigans'.\nWARN: /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenanigans/main.mo:3441.46-3441.59: warning [M0155], operator may trap for inferred type\n  Nat\n/Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs/shenaniga...(416 chars)"
+  },
+  {
+   "id": "INFRA-variant-identical",
+   "check": "latch variant: main.mo, NativeRewards.mo, Subaccount.mo, Reginald.mo, icrc21.mo byte-identical to the committed sources; PpLedger.mo differs by exactly one line (the ledger id)",
+   "pass": true,
+   "detail": {
+    "changed_line_original": [
+     "    public let PP_LEDGER_CANISTER_ID : Text = \"5xv2o-iiaaa-aaaac-qeclq-cai\";"
+    ],
+    "sha256_PpLedger_original": "347dd7b53ce2bdb962611cfc31e3c1ecd451e86ff6d71d209ab7bb85e1515823",
+    "sha256_PpLedger_patched": "e8b9c551325c9dd978603d55faaffd4367f449efe9dace1a50fd2c13c35c3ef3",
+    "sha256_main_mo": "9df6b46f9db41840c5508e66059790e5fc65269734dc3442529a1eae8179029f",
+    "sha256_NativeRewards_mo": "24456cb8a7b55645ae30c4a64e22dbacfb358b2473c86f44f08558e50055133c"
+   }
+  },
+  {
+   "id": "INFRA-variant-build",
+   "check": "latch variant builds",
+   "pass": true,
+   "detail": "Building canister 'shenanigans_latch'.\nWARN: /private/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build/shenanigans/main.mo:3441.46-3441.59: warning [M0155], operator may trap for inferred type\n  Nat\n/private/var/folders/qw/fpsrt5kx0l10zqsvg3kz8g1w0000gn/T/mc-gift-latch-build/shena...(420 chars)"
+  },
+  {
+   "id": "A1-setup",
+   "check": "A1: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "A1-ledger-stopped",
+   "check": "pp_ledger is Stopped",
+   "pass": true,
+   "detail": "Stopped"
+  },
+  {
+   "id": "A1-failed",
+   "check": "after the failed mint (ledger stopped) the shared reservation is Failed{owner = legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Failed",
+    1792051565644079001
+   ]
+  },
+  {
+   "id": "A1-log",
+   "check": "the legacy path logged the gift-mint failure with the caught error text",
+   "pass": true,
+   "detail": [
+    "[44. 2026-10-15T08:06:05.644079001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped"
+   ]
+  },
+  {
+   "id": "A1-ledger-running",
+   "check": "pp_ledger is Running again",
+   "pass": true,
+   "detail": "Running"
+  },
+  {
+   "id": "A1-no-mint",
+   "check": "the failed attempt minted nothing on the real ledger",
+   "pass": true,
+   "detail": [
+    65,
+    65
+   ]
+  },
+  {
+   "id": "A1-reclaimed",
+   "check": "the retry tick re-claimed the gift (Failed -> Reserved -> finalized again): the reservation timestamp advanced",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Failed",
+     1792051565644079001
+    ],
+    [
+     "legacy",
+     "Failed",
+     1792051580876709001
+    ]
+   ]
+  },
+  {
+   "id": "A1-memo-trap",
+   "check": "observed: the second legacy attempt failed on the real ledger's memo limit (so the legacy gift cannot commit on THIS local ledger); reservation is Failed{legacy} again",
+   "pass": true,
+   "detail": [
+    [
+     "[46. 2026-10-15T08:06:20.876709001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 70 bytes is above the allowed limit of 32 bytes'."
+    ],
+    [
+     "legacy",
+     "Failed",
+     1792051580876709001
+    ]
+   ]
+  },
+  {
+   "id": "A1-no-gift-yet",
+   "check": "no gift mint on the real ledger so far; the game mint (6-byte memo) did commit",
+   "pass": true,
+   "detail": [
+    [
+     65,
+     90000000000,
+     "game-0"
+    ],
+    [
+     66,
+     10000000000,
+     "cascade-residual-game-0"
+    ]
+   ]
+  },
+  {
+   "id": "A1-takeover",
+   "check": "native bind takes the Failed(legacy) gift: Reserved WITH a signupGift leg; reservation Reserved{native}",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    },
+    [
+     "native",
+     "Reserved",
+     1792051587699082001
+    ],
+    [
+     [
+      "signupGift",
+      45000000000
+     ],
+     [
+      "residual",
+      5000000000
+     ],
+     [
+      "player",
+      540000000000
+     ],
+     [
+      "residual",
+      60000000000
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "A1-legs",
+   "check": "all four native legs commit on the real ledger",
+   "pass": true,
+   "detail": [
+    "Committed",
+    "Committed",
+    "Committed",
+    "Committed"
+   ]
+  },
+  {
+   "id": "A1-committed-native",
+   "check": "reservation is Committed{native}",
+   "pass": true,
+   "detail": [
+    "native",
+    "Committed",
+    1792051592405659001
+   ]
+  },
+  {
+   "id": "A1-one-gift",
+   "check": "exactly ONE gift mint (net 4.5e10 to the bound principal's chip) on the real ledger, and it is the native leg's (32-byte memo, no 'signup-' mint)",
+   "pass": true,
+   "detail": [
+    [
+     67,
+     45000000000,
+     "0774894130f0f58f"
+    ]
+   ]
+  },
+  {
+   "id": "A1-supply",
+   "check": "supply rose by the legacy game mints (9e10 + 1e10) plus the four native legs (4.5e10 + 5e9 + 5.4e11 + 6e10)",
+   "pass": true,
+   "detail": 750000000000
+  },
+  {
+   "id": "A1-upgrade",
+   "check": "install --mode upgrade --wasm-memory-persistence keep succeeded and Committed{native} is byte-identical after it",
+   "pass": true,
+   "detail": [
+    "[\"native\", \"Committed\", 1792051592405659001]",
+    "[\"native\", \"Committed\", 1792051592405659001]"
+   ]
+  },
+  {
+   "id": "A2-setup",
+   "check": "A2: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "A2-ledger-stopped",
+   "check": "pp_ledger is Stopped",
+   "pass": true,
+   "detail": "Stopped"
+  },
+  {
+   "id": "A2-failed",
+   "check": "reservation is Failed{legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Failed",
+    1792051644491497001
+   ]
+  },
+  {
+   "id": "A2-ledger-running",
+   "check": "pp_ledger is Running again",
+   "pass": true,
+   "detail": "Running"
+  },
+  {
+   "id": "A2-up1",
+   "check": "Failed{legacy} is byte-identical after an upgrade",
+   "pass": true,
+   "detail": [
+    "[\"legacy\", \"Failed\", 1792051644491497001]",
+    "[\"legacy\", \"Failed\", 1792051644491497001]"
+   ]
+  },
+  {
+   "id": "A2-takeover",
+   "check": "native bind takes the Failed(legacy) gift: Reserved WITH a signupGift leg, reservation Reserved{native}",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    },
+    [
+     "native",
+     "Reserved",
+     1792051661839793001
+    ],
+    [
+     [
+      "signupGift",
+      45000000000
+     ],
+     [
+      "residual",
+      5000000000
+     ],
+     [
+      "player",
+      540000000000
+     ],
+     [
+      "residual",
+      60000000000
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "A2-up2",
+   "check": "Reserved{native} and the obligation (Pending legs) are byte-identical after an upgrade",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "A2-skip",
+   "check": "legacy skipped the gift: reservation still Reserved{native} with the SAME timestamp",
+   "pass": true,
+   "detail": [
+    [
+     "native",
+     "Reserved",
+     1792051661839793001
+    ],
+    1792051661839793001
+   ]
+  },
+  {
+   "id": "A2-no-legacy-gift",
+   "check": "the tick minted the game PP but NO legacy 'signup-' mint and no gift",
+   "pass": true,
+   "detail": [
+    [
+     71,
+     90000000000,
+     "game-0"
+    ],
+    [
+     72,
+     10000000000,
+     "cascade-residual-game-0"
+    ]
+   ]
+  },
+  {
+   "id": "A2-legs",
+   "check": "all four native legs commit",
+   "pass": true,
+   "detail": [
+    "Committed",
+    "Committed",
+    "Committed",
+    "Committed"
+   ]
+  },
+  {
+   "id": "A2-committed",
+   "check": "reservation is Committed{native}",
+   "pass": true,
+   "detail": [
+    "native",
+    "Committed",
+    1792051682301420001
+   ]
+  },
+  {
+   "id": "A2-up3",
+   "check": "Committed{native} is byte-identical after an upgrade",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "A2-one-gift",
+   "check": "exactly ONE gift on the real ledger, and it is the native gift leg (no 'signup-' memo)",
+   "pass": true,
+   "detail": [
+    [
+     73,
+     45000000000,
+     "c080a9030e81b503"
+    ]
+   ]
+  },
+  {
+   "id": "A2-supply",
+   "check": "supply rose by the legacy game mints (9e10 + 1e10) plus the four native legs (4.5e10 + 5e9 + 5.4e11 + 6e10 = 6.5e11)",
+   "pass": true,
+   "detail": 750000000000
+  },
+  {
+   "id": "A3-setup",
+   "check": "A3: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "A3-reserved",
+   "check": "native bind first: Reserved{native} with a signupGift leg",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    },
+    [
+     "native",
+     "Reserved",
+     1792051730034429001
+    ],
+    [
+     0
+    ]
+   ]
+  },
+  {
+   "id": "A3-ledger-stopped",
+   "check": "pp_ledger is Stopped",
+   "pass": true,
+   "detail": "Stopped"
+  },
+  {
+   "id": "A3-blocked",
+   "check": "legacy did not touch the reservation: Reserved{native}, same timestamp",
+   "pass": true,
+   "detail": [
+    [
+     "native",
+     "Reserved",
+     1792051730034429001
+    ],
+    [
+     "native",
+     "Reserved",
+     1792051730034429001
+    ]
+   ]
+  },
+  {
+   "id": "A3-no-attempt-log",
+   "check": "no 'Signup-gift mint failed' log line: the legacy path never attempted a gift mint",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "A3-submitted-unknown",
+   "check": "native gift leg with the ledger stopped -> SubmittedUnknown (a trapped/rejected call leaves it unknown)",
+   "pass": true,
+   "detail": "SubmittedUnknown"
+  },
+  {
+   "id": "A3-blocked-2",
+   "check": "still Reserved{native} through SubmittedUnknown",
+   "pass": true,
+   "detail": [
+    "native",
+    "Reserved",
+    1792051730034429001
+   ]
+  },
+  {
+   "id": "A3-ledger-running",
+   "check": "pp_ledger is Running again",
+   "pass": true,
+   "detail": "Running"
+  },
+  {
+   "id": "A3-retry",
+   "check": "retry commits the gift leg",
+   "pass": true,
+   "detail": "Committed"
+  },
+  {
+   "id": "A3-one-gift",
+   "check": "exactly ONE gift on the real ledger (native); no legacy 'signup-' mint",
+   "pass": true,
+   "detail": [
+    [
+     77,
+     45000000000
+    ]
+   ]
+  },
+  {
+   "id": "A3-committed",
+   "check": "reservation Committed{native}",
+   "pass": true,
+   "detail": [
+    "native",
+    "Committed",
+    1792051760391135001
+   ]
+  },
+  {
+   "id": "H1-setup",
+   "check": "H1: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "H1-armed",
+   "check": "latch armed in mode commitThenHold, nothing held yet",
+   "pass": true,
+   "detail": {
+    "mode": "commitThenHold",
+    "gate": true,
+    "heldNow": 0,
+    "heldEver": 0,
+    "mints": 0,
+    "rejected": 0
+   }
+  },
+  {
+   "id": "H1-reserved-before-await",
+   "check": "legacy reservation {owner legacy, Reserved} is visible while the gift-mint await is still unresolved (tick call pending, latch holding 1 call)",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Reserved",
+     1792051809693699001
+    ],
+    {
+     "mode": "commitThenHold",
+     "gate": true,
+     "heldNow": 1,
+     "heldEver": 1,
+     "mints": 1,
+     "rejected": 0
+    }
+   ]
+  },
+  {
+   "id": "H1-ledger-committed",
+   "check": "commitThenHold: the stub ledger has ALREADY committed the legacy gift mint (reply in flight): 1 gift mint recorded",
+   "pass": true,
+   "detail": [
+    [
+     0,
+     45000000000,
+     "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe"
+    ]
+   ]
+  },
+  {
+   "id": "H1-bind-in-window",
+   "check": "the native bind returned Reserved while the legacy tick call was STILL pending",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    },
+    true
+   ]
+  },
+  {
+   "id": "H1-no-native-gift",
+   "check": "the native obligation has NO signupGift leg (player chain only)",
+   "pass": true,
+   "detail": [
+    [
+     "player",
+     540000000000
+    ],
+    [
+     "residual",
+     60000000000
+    ]
+   ]
+  },
+  {
+   "id": "H1-reservation-untouched",
+   "check": "the legacy reservation was not disturbed by the bind: still Reserved{legacy}, same timestamp",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Reserved",
+     1792051809693699001
+    ],
+    [
+     "legacy",
+     "Reserved",
+     1792051809693699001
+    ]
+   ]
+  },
+  {
+   "id": "H1-legs-in-window",
+   "check": "the native legs executed while the legacy await was still pending",
+   "pass": true,
+   "detail": true
+  },
+  {
+   "id": "H1-tick-resumed",
+   "check": "the legacy tick resumed and returned after the release",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "H1-committed-legacy",
+   "check": "the resumed legacy path finalized: Committed{owner legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Committed",
+    1792051824600529001
+   ]
+  },
+  {
+   "id": "H1-window-timestamps",
+   "check": "IC timestamps prove the bind was strictly inside the window: legacy reserve < native bind < legacy commit",
+   "pass": true,
+   "detail": {
+    "legacy_reserved_at": 1792051809693699001,
+    "native_bind_reserved_at": 1792051815741152001,
+    "legacy_committed_at": 1792051824600529001
+   }
+  },
+  {
+   "id": "H1-one-gift",
+   "check": "exactly ONE gift mint recorded by the ledger stub after everything resumed (the legacy one); the native legs minted no gift",
+   "pass": true,
+   "detail": [
+    [
+     0,
+     45000000000,
+     "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe"
+    ]
+   ]
+  },
+  {
+   "id": "H3-setup",
+   "check": "H3: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "H3-armed",
+   "check": "latch armed in mode holdThenReject, nothing held yet",
+   "pass": true,
+   "detail": {
+    "mode": "holdThenReject",
+    "gate": true,
+    "heldNow": 0,
+    "heldEver": 0,
+    "mints": 0,
+    "rejected": 0
+   }
+  },
+  {
+   "id": "H3-reserved-before-await",
+   "check": "legacy reservation Reserved{legacy} visible while the gift-mint await is unresolved",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Reserved",
+     1792051858817203001
+    ],
+    {
+     "mode": "holdThenReject",
+     "gate": true,
+     "heldNow": 1,
+     "heldEver": 1,
+     "mints": 0,
+     "rejected": 0
+    }
+   ]
+  },
+  {
+   "id": "H3-inside-no-gift",
+   "check": "bind inside the window: Reserved without a gift leg",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    }
+   ]
+  },
+  {
+   "id": "H3-nothing-minted",
+   "check": "holdThenReject: the stub ledger recorded no gift while held",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "H3-failed",
+   "check": "the rejected await was caught: reservation Failed{owner legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Failed",
+    1792051868427237001
+   ]
+  },
+  {
+   "id": "H3-game-advanced",
+   "check": "the same tick went on to mint the GAME PP (memo 'game-0' does not match the latch), so the game cursor advanced",
+   "pass": true,
+   "detail": [
+    [
+     0,
+     90000000000
+    ]
+   ]
+  },
+  {
+   "id": "H3-takeover",
+   "check": "the later native event takes the Failed(legacy) gift: Reserved WITH a signupGift leg; reservation Reserved{native}",
+   "pass": true,
+   "detail": [
+    [
+     "native",
+     "Reserved",
+     1792051873970290001
+    ],
+    [
+     [
+      "signupGift",
+      45000000000
+     ],
+     [
+      "residual",
+      5000000000
+     ],
+     [
+      "player",
+      540000000000
+     ],
+     [
+      "residual",
+      60000000000
+     ]
+    ]
+   ]
+  },
+  {
+   "id": "H3-committed",
+   "check": "Committed{native}",
+   "pass": true,
+   "detail": [
+    "native",
+    "Committed",
+    1792051878773616001
+   ]
+  },
+  {
+   "id": "H3-one-gift",
+   "check": "exactly ONE gift recorded (native); no legacy 'signup-' mint ever committed",
+   "pass": true,
+   "detail": [
+    [
+     2,
+     45000000000,
+     null
+    ]
+   ]
+  },
+  {
+   "id": "H5-setup",
+   "check": "H5: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "H5-failed",
+   "check": "reservation is Failed{legacy} after the rejected gift mint",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Failed",
+    1792051919765200001
+   ]
+  },
+  {
+   "id": "H5-retry-wins",
+   "check": "the legacy retry committed the gift: Committed{owner = legacy}",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Failed",
+     1792051919765200001
+    ],
+    [
+     "legacy",
+     "Committed",
+     1792051926039766001
+    ]
+   ]
+  },
+  {
+   "id": "H5-one-gift",
+   "check": "exactly ONE gift recorded and it is the legacy 'signup-' mint",
+   "pass": true,
+   "detail": [
+    [
+     0,
+     45000000000,
+     "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe"
+    ]
+   ]
+  },
+  {
+   "id": "H5-native-no-gift",
+   "check": "a native bind afterwards reserves WITHOUT a gift leg",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    }
+   ]
+  },
+  {
+   "id": "H5-still-one",
+   "check": "still exactly one gift after the native legs",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "H4-holdThenReject-setup",
+   "check": "H4-holdThenReject: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "H4-holdThenReject-armed",
+   "check": "latch armed in mode holdThenReject, nothing held yet",
+   "pass": true,
+   "detail": {
+    "mode": "holdThenReject",
+    "gate": true,
+    "heldNow": 0,
+    "heldEver": 0,
+    "mints": 0,
+    "rejected": 0
+   }
+  },
+  {
+   "id": "H4-holdThenReject-reserved-before-await",
+   "check": "Reserved{legacy} visible with the mint held",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Reserved",
+     1792051967306070001
+    ],
+    {
+     "mode": "holdThenReject",
+     "gate": true,
+     "heldNow": 1,
+     "heldEver": 1,
+     "mints": 0,
+     "rejected": 0
+    }
+   ]
+  },
+  {
+   "id": "H4-holdThenReject-upgrade-ok",
+   "check": "the upgrade with an open call context was accepted",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "H4-holdThenReject-durable",
+   "check": "the legacy reservation (Reserved{legacy}) is byte-identical after the upgrade, before the await resolves",
+   "pass": true,
+   "detail": [
+    "[\"legacy\", \"Reserved\", 1792051967306070001]",
+    "[\"legacy\", \"Reserved\", 1792051967306070001]"
+   ]
+  },
+  {
+   "id": "H4-holdThenReject-continuation-ran",
+   "check": "the held await's continuation ran in the UPGRADED instance when the reply arrived: reservation is Failed{legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Failed",
+    1792051986323154001
+   ]
+  },
+  {
+   "id": "H4-holdThenReject-takeover",
+   "check": "after the rejected+resumed mint a native bind takes the Failed(legacy) gift",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    },
+    [
+     "native",
+     "Reserved",
+     1792051991198941001
+    ]
+   ]
+  },
+  {
+   "id": "H4-holdThenReject-one-gift",
+   "check": "holdThenReject + upgrade mid-await: exactly ONE gift recorded by the ledger stub",
+   "pass": true,
+   "detail": [
+    [
+     2,
+     45000000000,
+     null
+    ]
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-setup",
+   "check": "H4-commitThenHold: clean state, bootstrapped, no reservation yet, observer stopped",
+   "pass": true,
+   "detail": [
+    true,
+    null
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-armed",
+   "check": "latch armed in mode commitThenHold, nothing held yet",
+   "pass": true,
+   "detail": {
+    "mode": "commitThenHold",
+    "gate": true,
+    "heldNow": 0,
+    "heldEver": 0,
+    "mints": 0,
+    "rejected": 0
+   }
+  },
+  {
+   "id": "H4-commitThenHold-reserved-before-await",
+   "check": "Reserved{legacy} visible with the mint held",
+   "pass": true,
+   "detail": [
+    [
+     "legacy",
+     "Reserved",
+     1792052032819242001
+    ],
+    {
+     "mode": "commitThenHold",
+     "gate": true,
+     "heldNow": 1,
+     "heldEver": 1,
+     "mints": 1,
+     "rejected": 0
+    }
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-upgrade-ok",
+   "check": "the upgrade with an open call context was accepted",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "id": "H4-commitThenHold-durable",
+   "check": "the legacy reservation (Reserved{legacy}) is byte-identical after the upgrade, before the await resolves",
+   "pass": true,
+   "detail": [
+    "[\"legacy\", \"Reserved\", 1792052032819242001]",
+    "[\"legacy\", \"Reserved\", 1792052032819242001]"
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-continuation-ran",
+   "check": "the held await's continuation ran in the UPGRADED instance when the reply arrived: reservation is Committed{legacy}",
+   "pass": true,
+   "detail": [
+    "legacy",
+    "Committed",
+    1792052051747373001
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-native-no-gift",
+   "check": "after the resumed legacy commit a native bind gets no gift leg",
+   "pass": true,
+   "detail": [
+    {
+     "Reserved": null
+    }
+   ]
+  },
+  {
+   "id": "H4-commitThenHold-one-gift",
+   "check": "commitThenHold + upgrade mid-await: exactly ONE gift recorded by the ledger stub",
+   "pass": true,
+   "detail": [
+    [
+     0,
+     45000000000,
+     "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe"
+    ]
+   ]
+  }
+ ],
+ "observations": [
+  {
+   "id": "A1-ingress-stopped",
+   "observed": "a call from outside to the STOPPED pp_ledger: ok=False, error=Error: Failed query call.\nCaused by: The replica returned a rejection error: reject code CanisterError, reject message Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped and therefore does not have a CallContextManager, error code Some(\"IC0508\")",
+   "data": {
+    "ok": false,
+    "error": "Error: Failed query call.\nCaused by: The replica returned a rejection error: reject code CanisterError, reject message Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped and therefore does not have a CallContextManager, error code Some(\"IC0508\")"
+   }
+  },
+  {
+   "id": "A1-tick-duration",
+   "observed": "the observer tick call returned in 5.18s (ok=True); a pending await would have kept it open",
+   "data": {
+    "ok": true,
+    "seconds": 5.18
+   }
+  },
+  {
+   "id": "A1-failure-classification-stopped",
+   "observed": "legacy gift mint, pp_ledger STOPPED: the plain unbounded await completed with a caught reject whose text is in log_lines (the canister logs the message text only, not a reject code); mintInternal maps any caught Error to #Err(\"ppLedger call failed: <text>\")",
+   "data": {
+    "log_lines": [
+     "[44. 2026-10-15T08:06:05.644079001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped"
+    ]
+   }
+  },
+  {
+   "id": "A1-game-mint-retry",
+   "observed": "the game mint failed the same way and is re-presented next tick",
+   "data": {
+    "log_lines": [
+     "[45. 2026-10-15T08:06:06.337161001Z]: Mint attempt 1/10 failed for game-0: ppLedger call failed: Canister 5xv2o-iiaaa-aaaac-qeclq-cai is stopped"
+    ]
+   }
+  },
+  {
+   "id": "A1-failure-classification-memo",
+   "observed": "legacy gift mint, pp_ledger RUNNING: the REAL local pp_ledger rejected the legacy gift memo ('signup-' + principal text = 70 bytes); the ledger TRAPPED and the caller saw a caught reject",
+   "data": {
+    "log_lines": [
+     "[46. 2026-10-15T08:06:20.876709001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: IC0503: Error from Canister 5xv2o-iiaaa-aaaac-qeclq-cai: Canister called `ic0.trap` with message: 'the memo field size of 70 bytes is above the allowed limit of 32 bytes'."
+    ],
+    "memo_bytes": 70
+   }
+  },
+  {
+   "id": "A1-winner",
+   "observed": "NATIVE won the gift on the real ledger (the legacy attempts failed twice: stopped ledger, then the memo limit)",
+   "data": {
+    "gift_blocks": [
+     67
+    ]
+   }
+  },
+  {
+   "id": "A2-winner",
+   "observed": "native won the gift (legacy mint had failed first)",
+   "data": {
+    "gift_blocks": [
+     73
+    ]
+   }
+  },
+  {
+   "id": "A3-native-await-classification",
+   "observed": "native executeNativeRewardLeg with the ledger stopped: the caught reject leaves the leg #SubmittedUnknown (CallFailed), not Retryable and not Quarantined",
+   "data": {
+    "status": "SubmittedUnknown"
+   }
+  },
+  {
+   "id": "A3-winner",
+   "observed": "native won the gift (it reserved before the legacy observer looked)",
+   "data": {
+    "gift_blocks": [
+     77
+    ]
+   }
+  },
+  {
+   "id": "H1-winner",
+   "observed": "LEGACY won the gift; the native bind that landed inside its window correctly took none",
+   "data": {
+    "timestamps": {
+     "legacy_reserved_at": 1792051809693699001,
+     "native_bind_at": 1792051815741152001,
+     "legacy_committed_at": 1792051824600529001
+    }
+   }
+  },
+  {
+   "id": "H3-failure-classification",
+   "observed": "legacy gift mint whose await was REJECTED (synthetic reject from the latch stub, not a real ledger error): caught -> #Err(\"ppLedger call failed: <reject text>\") -> Failed",
+   "data": {
+    "log_lines": [
+     "[5. 2026-10-15T08:11:08.427237001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: latch ledger: synthetic reject (nothing was minted)"
+    ]
+   }
+  },
+  {
+   "id": "H3-cursor",
+   "observed": "because the game mint succeeded, the game is NOT re-presented: the Failed(legacy) gift gets no automatic legacy retry until that player's NEXT legacy game; a native bind can take it meanwhile",
+   "data": {
+    "reservation": [
+     "legacy",
+     "Failed",
+     1792051868427237001
+    ],
+    "game_mints": [
+     [
+      0,
+      90000000000
+     ]
+    ]
+   }
+  },
+  {
+   "id": "H3-winner",
+   "observed": "NATIVE won the gift after the legacy mint was rejected; the first native event (inside the window) correctly has none and cannot get one later",
+   "data": {}
+  },
+  {
+   "id": "H5-failure-classification",
+   "observed": "legacy gift mint rejected immediately by the stub: caught -> #Err(\"ppLedger call failed: <reject text>\") -> Failed (synthetic reject)",
+   "data": {
+    "log_lines": [
+     "[6. 2026-10-15T08:11:59.765200001Z]: Signup-gift mint failed for signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe: ppLedger call failed: latch ledger: simulated stopped ledger (every call rejected)"
+    ]
+   }
+  },
+  {
+   "id": "H5-winner",
+   "observed": "LEGACY won (retry on the next tick, as designed)",
+   "data": {}
+  },
+  {
+   "id": "H4-holdThenReject-upgrade-with-open-call",
+   "observed": "install --mode upgrade --wasm-memory-persistence keep with an OPEN call context (same module): ok=True",
+   "data": {
+    "ok": true,
+    "dfx_output": "Module hash 73e74288003350e4dc4a74b2b1d67778b1f01039bfe6b0121c51d2e64282a94a is already installed.\nUpgraded code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai"
+   }
+  },
+  {
+   "id": "H4-holdThenReject-ingress-after-upgrade",
+   "observed": "8 s after the upgrade the runObserverOnce ingress call was STILL PENDING (the call context survived the upgrade)",
+   "data": {
+    "still_pending": true,
+    "reply_ok": null,
+    "error": null
+   }
+  },
+  {
+   "id": "H4-holdThenReject-ingress-after-release",
+   "observed": "after the release the runObserverOnce call finished=True ok=True",
+   "data": {
+    "finished": true,
+    "reply_ok": true,
+    "error": null
+   }
+  },
+  {
+   "id": "H4-holdThenReject-continuation-survived-upgrade",
+   "observed": "observed: a Motoko await that was open across `install --mode upgrade --wasm-memory-persistence keep` (to the identical wasm) resumed and ran its continuation (finalize) afterwards; NOT tested: upgrading to a different module version with an await in flight",
+   "data": {
+    "reservation": [
+     "legacy",
+     "Failed",
+     1792051986323154001
+    ],
+    "latch": {
+     "mode": "holdThenReject",
+     "gate": false,
+     "heldNow": 0,
+     "heldEver": 1,
+     "mints": 2,
+     "rejected": 1
+    }
+   }
+  },
+  {
+   "id": "H4-holdThenReject-winner",
+   "observed": "NATIVE won the gift",
+   "data": {
+    "gift_blocks": [
+     2
+    ]
+   }
+  },
+  {
+   "id": "H4-commitThenHold-upgrade-with-open-call",
+   "observed": "install --mode upgrade --wasm-memory-persistence keep with an OPEN call context (same module): ok=True",
+   "data": {
+    "ok": true,
+    "dfx_output": "Module hash 73e74288003350e4dc4a74b2b1d67778b1f01039bfe6b0121c51d2e64282a94a is already installed.\nUpgraded code for canister shenanigans_latch, with canister ID ufxgi-4p777-77774-qaadq-cai"
+   }
+  },
+  {
+   "id": "H4-commitThenHold-ingress-after-upgrade",
+   "observed": "8 s after the upgrade the runObserverOnce ingress call was STILL PENDING (the call context survived the upgrade)",
+   "data": {
+    "still_pending": true,
+    "reply_ok": null,
+    "error": null
+   }
+  },
+  {
+   "id": "H4-commitThenHold-ingress-after-release",
+   "observed": "after the release the runObserverOnce call finished=True ok=True",
+   "data": {
+    "finished": true,
+    "reply_ok": true,
+    "error": null
+   }
+  },
+  {
+   "id": "H4-commitThenHold-continuation-survived-upgrade",
+   "observed": "observed: a Motoko await that was open across `install --mode upgrade --wasm-memory-persistence keep` (to the identical wasm) resumed and ran its continuation (finalize) afterwards; NOT tested: upgrading to a different module version with an await in flight",
+   "data": {
+    "reservation": [
+     "legacy",
+     "Committed",
+     1792052051747373001
+    ],
+    "latch": {
+     "mode": "commitThenHold",
+     "gate": false,
+     "heldNow": 0,
+     "heldEver": 1,
+     "mints": 4,
+     "rejected": 0
+    }
+   }
+  },
+  {
+   "id": "H4-commitThenHold-winner",
+   "observed": "LEGACY won the gift",
+   "data": {
+    "gift_blocks": [
+     0
+    ]
+   }
+  }
+ ],
+ "ledger_blocks": {
+  "A1": {
+   "source": "pp_ledger (real)",
+   "mints": [
+    {
+     "block": 65,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051580876709001
+    },
+    {
+     "block": 66,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051580876709001
+    },
+    {
+     "block": 67,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "0774894130f0f58f4449a46122d819ea8c344c443a5433f7b7876a5b6957d79e",
+     "memo_text": null,
+     "created_at_time": 1792051587699082001
+    },
+    {
+     "block": 68,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "4812d03c57f2ba4045c5fe9da9b9ba2c02c56de4c884e374d4a393c592cd3a3c",
+     "memo_text": null,
+     "created_at_time": 1792051587699082001
+    },
+    {
+     "block": 69,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "28a82408d810272152278fe12516ffcd65fde15d5933e5f195e55fd158835b8d",
+     "memo_text": null,
+     "created_at_time": 1792051587699082001
+    },
+    {
+     "block": 70,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "beeb28b6ee9f4c8c9b92f9772d4f971f9df622d4137cd0106e292e8d573ac785",
+     "memo_text": null,
+     "created_at_time": 1792051587699082001
+    }
+   ]
+  },
+  "A2": {
+   "source": "pp_ledger (real)",
+   "mints": [
+    {
+     "block": 71,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051676063326001
+    },
+    {
+     "block": 72,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051676063326001
+    },
+    {
+     "block": 73,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "c080a9030e81b50365592409385e691741ad65ea4f1d59d6b24c208f218ed6d8",
+     "memo_text": null,
+     "created_at_time": 1792051661839793001
+    },
+    {
+     "block": 74,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "8777e84b181ffb4667a545a2decb9777829ef831b72635e52520e91743e1efa2",
+     "memo_text": null,
+     "created_at_time": 1792051661839793001
+    },
+    {
+     "block": 75,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "79b711c717787854fd27ccc8c475dfdffc79bf834bc0bc6976e2afe36d1329c7",
+     "memo_text": null,
+     "created_at_time": 1792051661839793001
+    },
+    {
+     "block": 76,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "8e778a869b23f3dab0cd99e9f22ee835cdef2542edd10ea8a94c76155742c53c",
+     "memo_text": null,
+     "created_at_time": 1792051661839793001
+    }
+   ]
+  },
+  "A3": {
+   "source": "pp_ledger (real)",
+   "mints": [
+    {
+     "block": 77,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "918255b03dbe1d4ec054f542409013d55378e83078e066fabbe52578cacdf5ac",
+     "memo_text": null,
+     "created_at_time": 1792051730034429001
+    },
+    {
+     "block": 78,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "6bdd4eed9e9a9131d4880a0aa10a9a2b4532f9a3ee61c816e2745b2a91b48da9",
+     "memo_text": null,
+     "created_at_time": 1792051730034429001
+    },
+    {
+     "block": 79,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "294e1293f44205abb1931e12be100709b6fbcadd9bd4710cb51bbdff87176f7f",
+     "memo_text": null,
+     "created_at_time": 1792051730034429001
+    },
+    {
+     "block": 80,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "3b294c92a370d7f18068045c8ca2b07f5401cbc4dcde119a457ff1c675f9dc6e",
+     "memo_text": null,
+     "created_at_time": 1792051730034429001
+    },
+    {
+     "block": 81,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051773399279001
+    },
+    {
+     "block": 82,
+     "kind": "mint",
+     "owner": "j56tm-oaaaa-aaaac-qf34q-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051773399279001
+    }
+   ]
+  },
+  "H1": {
+   "source": "latch_ledger_stub",
+   "mints": [
+    {
+     "block": 0,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792051809693699001
+    },
+    {
+     "block": 1,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "e55a9e556fc70c0f2d6aea7ae7241e2cf387180864d951a55da27a74e6ca620c",
+     "memo_text": null,
+     "created_at_time": 1792051815741152001
+    },
+    {
+     "block": 2,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "aac1c65c9c108e67f1c583243189777de657e7e16c2f94bf59e31075cb84ebda",
+     "memo_text": null,
+     "created_at_time": 1792051815741152001
+    },
+    {
+     "block": 3,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "636173636164652d726573696475616c2d7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "cascade-residual-signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792051824600529001
+    },
+    {
+     "block": 4,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051824600529001
+    },
+    {
+     "block": 5,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051824600529001
+    }
+   ]
+  },
+  "H3": {
+   "source": "latch_ledger_stub",
+   "mints": [
+    {
+     "block": 0,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051868427237001
+    },
+    {
+     "block": 1,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051868427237001
+    },
+    {
+     "block": 2,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "4f24ad51433b320f1d3f53c7773bde3ec3c76185e602813be09ec6b674158ee4",
+     "memo_text": null,
+     "created_at_time": 1792051873970290001
+    },
+    {
+     "block": 3,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "d101171f1932a29fa2ec6e07cee32de9ab1f5ed51171893fa51bbf5762371f01",
+     "memo_text": null,
+     "created_at_time": 1792051873970290001
+    },
+    {
+     "block": 4,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "e922bc35e00d5e25d7db6c683962273dd277732f989a5b612a3821855c25a54f",
+     "memo_text": null,
+     "created_at_time": 1792051873970290001
+    },
+    {
+     "block": 5,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "af8d15bed1275d8c83403f59f1ace7e12a9dc2cc820c4e3f702743d13f15198c",
+     "memo_text": null,
+     "created_at_time": 1792051873970290001
+    },
+    {
+     "block": 6,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "431eb2c989f5dd6690560bdceea5c8d3ad9106344bc392f4cb75610ddc6c5e29",
+     "memo_text": null,
+     "created_at_time": 1792051863607582001
+    },
+    {
+     "block": 7,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "626a3cc99ff7a5855d809cea0d1cc6a3305b387a6d79ec4d5abc9ea8ea563500",
+     "memo_text": null,
+     "created_at_time": 1792051863607582001
+    }
+   ]
+  },
+  "H5": {
+   "source": "latch_ledger_stub",
+   "mints": [
+    {
+     "block": 0,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792051926039766001
+    },
+    {
+     "block": 1,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "636173636164652d726573696475616c2d7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "cascade-residual-signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792051926039766001
+    },
+    {
+     "block": 2,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051926039766001
+    },
+    {
+     "block": 3,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051926039766001
+    },
+    {
+     "block": 4,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "57092be649c371bb00d152243350b5d6138d25af9f5ec092fac5a78244d136ec",
+     "memo_text": null,
+     "created_at_time": 1792051931003807001
+    },
+    {
+     "block": 5,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "67d22b6457efad003d6ff82b967b5c77827c8278b61b370fb52bf4c045d1677a",
+     "memo_text": null,
+     "created_at_time": 1792051931003807001
+    }
+   ]
+  },
+  "H4-holdThenReject": {
+   "source": "latch_ledger_stub",
+   "mints": [
+    {
+     "block": 0,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792051986323154001
+    },
+    {
+     "block": 1,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792051986323154001
+    },
+    {
+     "block": 2,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "eec98dac56e7b2ba39a50df576df1e3abf7c70083a3c9f45a171a04e48776567",
+     "memo_text": null,
+     "created_at_time": 1792051991198941001
+    },
+    {
+     "block": 3,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "df817a1515ae370f39b759d1400ee2bdedb9e068fde52d178bba00f7b941828f",
+     "memo_text": null,
+     "created_at_time": 1792051991198941001
+    },
+    {
+     "block": 4,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "bbe7b0e44cd2e496625e7857f5e975fa713990da13c3e53a6209c330b8b78380",
+     "memo_text": null,
+     "created_at_time": 1792051991198941001
+    },
+    {
+     "block": 5,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "05e12f3a3bd46301db0b06c4b93171991c9ccf09fc6d7addd3026c9d17b8e652",
+     "memo_text": null,
+     "created_at_time": 1792051991198941001
+    }
+   ]
+  },
+  "H4-commitThenHold": {
+   "source": "latch_ledger_stub",
+   "mints": [
+    {
+     "block": 0,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 45000000000,
+     "memo_hex": "7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792052032819242001
+    },
+    {
+     "block": 1,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 5000000000,
+     "memo_hex": "636173636164652d726573696475616c2d7369676e75702d6d377964672d64667878662d753577616e2d6674366d342d786d7a65672d776a366d772d6e706161622d636e366f632d35746775342d726d3273372d797165",
+     "memo_text": "cascade-residual-signup-m7ydg-dfxxf-u5wan-ft6m4-xmzeg-wj6mw-npaab-cn6oc-5tgu4-rm2s7-yqe",
+     "created_at_time": 1792052051747373001
+    },
+    {
+     "block": 2,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 90000000000,
+     "memo_hex": "67616d652d30",
+     "memo_text": "game-0",
+     "created_at_time": 1792052051747373001
+    },
+    {
+     "block": 3,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 10000000000,
+     "memo_hex": "636173636164652d726573696475616c2d67616d652d30",
+     "memo_text": "cascade-residual-game-0",
+     "created_at_time": 1792052051747373001
+    },
+    {
+     "block": 4,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "b7b969db01a59f99cbb3243593e659af000226f9c2eccd4e459a97f102000000",
+     "amount": 540000000000,
+     "memo_hex": "1d8a0c55ed851e32fa5cda2c06e81a3cf42b970a024789fa3576977ad1f46f75",
+     "memo_text": null,
+     "created_at_time": 1792052056743071001
+    },
+    {
+     "block": 5,
+     "kind": "mint",
+     "owner": "ufxgi-4p777-77774-qaadq-cai",
+     "sub_hex": "08217d90d15f3dcd1010ecba194da43694efa2d4b6483246f96908cf02000000",
+     "amount": 60000000000,
+     "memo_hex": "fbee9e0ec4c52a4551b613f13860bced47099e105764f347cf4e4082ab184c4a",
+     "memo_text": null,
+     "created_at_time": 1792052056743071001
+    }
+   ]
+  }
+ },
+ "summary": {
+  "checks": 91,
+  "passed": 91,
+  "failed": []
+ },
+ "scenario_map_to_native-rewards.md_G1-G6": {
+  "G1 held await + native bind inside the window": "H1 (latch stub; deterministic hold; IC timestamps)",
+  "G2 legacy mint fails, native takes the Failed gift": "A1 and A2 (REAL pp_ledger, committed wasm) and H3 (stub, rejected held await)",
+  "G3 legacy retry wins after a failed mint": "H5 (stub). On the real local ledger the retry re-claims correctly (A1-reclaimed) but cannot commit: 32-byte memo limit",
+  "G4 native Reserved blocks legacy": "A2-skip, A3-blocked (REAL ledger)",
+  "G5 native gift leg SubmittedUnknown still blocks legacy": "A3-blocked-2 (REAL ledger, stopped)",
+  "G6 durability across upgrade": "A1/A2 at rest in Failed/Reserved/Committed (REAL stack) and H4 with an in-flight await (stub)"
+ },
+ "proven": [
+  "REAL stack (committed shenanigans wasm, real pp_ledger, real siws_provider): failed legacy gift mint with the ledger stopped -> Failed{legacy}; the retry tick re-claims its own Failed gift (timestamp advances) and fails again on the real ledger's memo limit; the native bind then takes the Failed gift and exactly ONE gift lands on the real ledger (blocks/supply recorded)",
+  "REAL stack: Failed{legacy} -> native takeover -> legacy tick skips (reservation and timestamp untouched) -> native legs commit -> Committed{native}; each of Failed, Reserved{native} with Pending legs and Committed survives `install --mode upgrade --wasm-memory-persistence keep` byte-identical",
+  "REAL stack: native Reserved first -> the legacy path never attempts the gift (no failure log line), also while the native gift leg is SubmittedUnknown (ledger stopped); retry commits it; exactly one gift",
+  "LATCH variant: the legacy reservation was observed Reserved{legacy} while its gift-mint await was unresolved (tick call pending, latch holding the reply after the stub had committed the mint); a native bindAndReserve (real SIWS lookup) and its leg executions completed inside that window and took no gift; after the release exactly one gift was recorded; IC timestamps order legacy-reserve < native-bind < legacy-commit",
+  "LATCH variant: rejected held await -> Failed{legacy}, the same tick still mints the game PP (cursor advances), a later native bind takes the Failed gift, one gift; fail-all then recovery -> legacy retry wins, one gift, native gets none; upgrade with the await in flight (same module) keeps the reservation byte-identical, the open await resumes after the upgrade and finalizes, one gift in both reject and commit modes"
+ ],
+ "not_proven": [
+  "PART B's gift count is the latch stub's, not the real pp_ledger's; the real ledger answers within about one round and cannot be held open from outside",
+  "the held-await scenarios run a build whose only difference is the ledger id constant (the hashes are recorded); they are not the byte-identical committed wasm",
+  "no SYS_UNKNOWN / best-effort-call behaviour was observed or is claimed: the awaits are plain unbounded Motoko awaits and every failure seen is a caught reject",
+  "a caught reject AFTER an already-committed real-ledger mint was not observed (no such case was produced)",
+  "an upgrade to a DIFFERENT module version with an await in flight was not tested (H4 upgrades to the identical wasm; the open await resumed and ran its continuation, which is only evidence for that case)",
+  "the legacy gift mint can never commit on THIS local pp_ledger (32-byte memo limit vs the 70-byte 'signup-<principal>' memo); mainnet pp_ledger's limit was not read, so no claim is made about it. Legacy-commit paths are therefore demonstrated only against the latch stub, which does not enforce a memo limit",
+  "the 3,190-interleaving enumeration is a pure model and is not evidence for this wiring",
+  "real timer re-arm, multi-subnet message ordering and cycle behaviour are out of scope"
+ ],
+ "finished": "2026-10-15T08:14:45Z",
+ "ledger_status_at_end": "Running"
+}

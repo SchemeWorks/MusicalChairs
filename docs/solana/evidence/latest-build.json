@@ -1,0 +1,79 @@
+{
+ "recorded_at_utc": "2026-10-24T17:55:04.930936+00:00",
+ "commit": "the M14-5A-REPIN commit (program id 7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o; only declare_id! and the sampling test constant changed in the 19-file source set)",
+ "artifact": {
+  "path": "solana/programs/musical_chairs/artifacts/musical_chairs_program.so (gitignored; rebuilt by scripts/build-sbf.sh)",
+  "sha256": "0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef",
+  "bytes": 1399208,
+  "built_on": "macOS arm64, platform-tools v1.48 osx-aarch64, cargo-build-sbf 3.1.0-beta.0, build path /Users/robertripley/.codex/worktrees/native-solana-model-probes/musicalchairs",
+  "reproducibility": "byte-identical only for a clean rebuild from the SAME path on the SAME platform tools (M0 receipt); builds from another path or host differ in code bytes with identical source set (M7 receipts) — CI records its own artifact hash and asserts the source set and lock",
+  "durable_copy": "~/.cache/mc-solana-artifacts/0c88d4e7a51eb84c10cb1dd683181dc96bca48c64962dfff896f0d852a6311ef/ (SHA256SUMS + PROVENANCE.txt)",
+  "size_note": "1,399,208 bytes vs 1,397,160 for the old id: .text grew by 0x610 bytes. The control rebuild of the OLD source set with the same restored toolchain and path reproduced 8f97e83d byte-for-byte, so the growth comes only from the program-id change (the old placeholder id was 32 identical bytes). No local or cargo-home path is embedded (the same 5 /Users/runner/work platform-tools std strings as before)."
+ },
+ "source_set_sha256": "e50e83df7c7385ddd4f81630818b364f7ea755a256ae03f02603acd35b85378d",
+ "source_set_helper": "solana/tests/financial-runtime/scripts/source-set-digest.sh (25 files; '19' in earlier records was wrong — corrected 2026-10-24 per Gideon's review)",
+ "lock_sha256": "77f859f9a7ad4e2bfdd836b66b9353bf79b49041e69760d3adc9b93245a2601f",
+ "lock_path": "solana/programs/musical_chairs/Cargo.lock",
+ "standin_artifact_sha256": "eb78e77fc107c45d38d7e45bb365d632a8418909a3b0c79dbca26f7c20f109c8",
+ "toolchain": {
+  "cargo_build_sbf": "3.1.0-beta.0 (wrapper asserts the --version string)",
+  "platform_tools": "v1.48 (rustc 1.84.x; wrapper asserts)",
+  "host_rust": "1.92.0 (rust-toolchain.toml)",
+  "archives": {
+   "platform-tools-osx-aarch64-v1.48.tar.bz2": {
+    "sha256": "799e4cfcee38e227155c83fb2294f96f94a843d42e01c0359fb7128e2216d2dd",
+    "verified": "locally (M0 toolchain receipt)"
+   },
+   "platform-tools-linux-x86_64-v1.48.tar.bz2": {
+    "sha256": "a9d3157f937d5f6faf4321a35a8035e0f827114a663b0150db492e893ec27597",
+    "bytes": 516334851,
+    "source": "https://github.com/anza-xyz/platform-tools/releases/download/v1.48/platform-tools-linux-x86_64.tar.bz2",
+    "verified": "downloaded from the official anza-xyz release on 2026-10-14 by the coordinator and hashed locally (shasum -a 256); extracts at the archive root (./rust/bin/rustc)"
+   },
+   "agave-v3.1.0-beta.0-linux-x86_64 (cargo-build-sbf + sbf-sdk)": {
+    "sha256": "4f1d4db51ee1e0b0c5afc1a0efff83bf0328c16ed33b9e00dec3ae9564fc12bb",
+    "bytes": 215382214,
+    "source": "https://github.com/anza-xyz/agave/releases/download/v3.1.0-beta.0/solana-release-x86_64-unknown-linux-gnu.tar.bz2",
+    "verified": "downloaded from the official anza-xyz release on 2026-10-14 by the coordinator and hashed locally; top-level dir solana-release/; cargo-build-sbf at bin/cargo-build-sbf; the SBF SDK at bin/platform-tools-sdk/sbf (not bin/sdk/sbf)"
+   },
+   "agave-v3.1.0-beta.0-macos-aarch64 (solana-test-validator + solana CLI, local M11 verification only)": {
+    "sha256": "de9be527da14757854c47defffffeb0d17d1b7b6c0a4175f46f531aca262bad9",
+    "bytes": 77248568,
+    "source": "https://github.com/anza-xyz/agave/releases/download/v3.1.0-beta.0/solana-release-aarch64-apple-darwin.tar.bz2",
+    "verified": "downloaded from the official anza-xyz release on 2026-10-14 by the coordinator and hashed locally; `solana-test-validator 3.1.0 (src:bd8c57e7; feat:3652419286)`; the plan's Agave 2.3.13 validator pin is superseded by the M0-pinned 3.1.0-beta.0 toolchain the ELF was built with (same runtime feature set as the build tools)"
+   }
+  }
+ },
+ "note": "This file is what .github/workflows/native-solana-model.yml production-sbf asserts against. Update it at every ELF promotion. Linux archive hashes pinned 2026-10-14 from the official release URLs; CI records Linux's own artifact hash (bytes are not expected to equal the macOS build) and asserts the source set and lock.",
+ "previous": {
+  "artifact_sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+  "note": "IMPL-39b/40a ELF under the synthetic placeholder program id 7tj9biW3KRJ7EEWmVUGigHiouCTXhV2dzcyvwma7Cyu7 (32 bytes of 0x66; a synthetic placeholder with no known private key, on curve); accepted M0–M13 and through M14 local preparation; superseded by the M14 5a fresh-program-id ELF. A 2026-10-24 control rebuild of this exact source set with the restored pinned toolchain at the same path reproduced it byte-for-byte."
+ },
+ "lineage": [
+  {
+   "superseded": {
+    "artifact_sha256": "d77b23bffddccdc74d7003ec5e5d4948d6b99a9d0b0d90dcb47bc0702eba0958",
+    "source_set_sha256": "4d4258073424de99b64afd7d315ede7a57ce231927cae2120c10f3667d3abfd0",
+    "bytes": 1395536
+   },
+   "by_card": "IMPL-40a",
+   "reason": "M10 security review repairs (SEC-1/ECO-2 toll-table pin, ECO-1/SEC-3 dust-toll seed route, ECO-3 floating excess, SEC-4 genesis client check, SEC-5 require_governance); lock unchanged; Stack offset warnings: 0"
+  },
+  {
+   "superseded": {
+    "artifact_sha256": "4b134d05c7385911ccac934ec29b605597215a33ae937f5e18ae86612d83f83c",
+    "source_set_sha256": "1d7359b71cf0f67e200a143fb2e71df4b89a6b068b1661338735954da99ac9bf",
+    "note": "clippy-cleanup ELF (56df0b9); superseded by the IMPL-39b inline-step ELF"
+   }
+  }
+ ],
+ "built_at": "M14-5A-REPIN rebuild 2026-10-24 (macOS executor, same pinned tools restored to ~/.cache/mc-solana-tools: platform-tools v1.48 archive sha256 verified; cargo-build-sbf 3.1.0-beta.0; CARGO_HOME ~/.cargo); provenance guard passed; 0 Stack offset warnings",
+ "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+ "idl_sha256": "d6370a7319314d0386493661ce11c54168f8e65617b47ce285e8ac763db6e024",
+ "control_build": {
+  "source_set_sha256": "994a9ff48fa2603318d4b28198f9f43d61418fa9566cf128662c32b68ac0d08f",
+  "artifact_sha256": "8f97e83db9dbc3112b1c18b5a35dfd5cfe6ae86bcb1a0cc93da78f7bb18dc826",
+  "result": "byte-identical to the accepted ELF (cmp) — the restored toolchain is equivalent to the one every accepted receipt used"
+ }
+}

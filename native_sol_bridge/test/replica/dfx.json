@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "canisters": {
+    "sol_rpc_stub": {
+      "type": "motoko",
+      "main": "sol_rpc_stub/main.mo"
+    }
+  }
+}

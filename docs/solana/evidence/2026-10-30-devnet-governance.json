@@ -1,0 +1,992 @@
+{
+ "recorded_at_utc": "2026-10-30T05:33:00+00:00",
+ "step": "F11 R4-S4 (Block A, Solana devnet only): execute reduce #3 [SetTimeLock{0}], document the reduced state, propose/approve/execute restore #4 [SetTimeLock{172800}] in the same sitting, full read-back",
+ "authority": {
+  "block_a": "Rob's Block A approval (F11 in packet 6.5 line 490, D12 line 561); Gideon's acceptance of the F11 tool and immutable binary 9e4a5a4d (docs/coordination/m14-f11-tool-delta-20261027.md, 1765c2f)",
+  "fresh_direct_approval_20261030": "Rob approved this exact rehearsal directly in Gideon's Codex chat, answering Gideon's explicit request covering execute reduce #3, the simulation-only refusal probe and the immediate restore #4 to 172,800 s in the same sitting. Rob's words as relayed by Gideon: 'And for the Devnet waiting period rehearsal how do I approve it? I approve that. I approve the executive-approved proposal number 3. Let me know if you need me to do something else but full speed ahead'. Delivery to Silas: Gideon delivered the fresh approval relay to Silas's chat as a visible message through computer use (his YouMessage13); Rob approved directly in Codex and supplied the Silas app screenshot. Silas did not read the Codex chat; the provenance is Gideon's verification of the human turn.",
+  "resolves": "the 2026-10-29 automatic-review hold on the F11 execution directive, for this exact devnet envelope only",
+  "does_not_approve": "mainnet, ICP B/C rows, real PP, any held-unknown retry, the PR #125 merge, or the rejected CLAUDE.md publishing-renewal edit",
+  "provenance_correction": "2026-10-30, at Gideon's request: an earlier version of this field said Rob pasted Gideon's relay himself; that statement was unsupported and is replaced above."
+ },
+ "operator_binary": {
+  "sha256": "9e4a5a4dbfa48b59275ed613f30203fb4b3aa1f91bb35856d86f6e8bec555802",
+  "bytes": 22995632,
+  "source_commit": "1765c2f",
+  "copy": "immutable artifact copy (SHA256SUMS verified before use)"
+ },
+ "packet_pin": {
+  "commit": "aeab47059477f977294cdcf084998933460a896f",
+  "sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "working_file_equal": true
+ },
+ "earlier_steps": {
+  "receipt": "docs/solana/evidence/2026-10-27-devnet-f11-reduce-proposal.json",
+  "R0": "read-only preflight passed 2026-10-27",
+  "R1_R2": "reduce #3 proposed once and approved by G voters 1 and 2; approved_at 1793124081 (2026-10-27T18:01:21Z)"
+ },
+ "preflight_20261030": {
+  "genesis": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG (devnet)",
+  "pending_file": "1,433/1,433 resolved, 0 open or held (sha256 0a5138f4... before R4)",
+  "cluster_clock": 1793338083,
+  "cluster_clock_utc": "2026-10-30T05:28:03Z",
+  "phase": "reduce_approved",
+  "transaction_index": 3,
+  "stale_transaction_index": 0,
+  "reduce_3_stored_actions": [
+   {
+    "new_time_lock": 0,
+    "variant": "SetTimeLock"
+   }
+  ],
+  "reduce_3_proposal": {
+   "approved": [
+    "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+    "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6"
+   ],
+   "cancelled": [],
+   "rejected": [],
+   "status": "Approved",
+   "status_timestamp": 1793124081
+  },
+  "approved_at": 1793124081,
+  "releases_at": 1793296881,
+  "releases_at_utc": "2026-10-29T18:01:21Z",
+  "seconds_past_release": 41202,
+  "g_profile": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 0,
+   "threshold": 2,
+   "time_lock_seconds": 172800,
+   "transaction_index": 3,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "profile_matches_normal_172800": true,
+  "program_checks": [
+   [
+    "programdata.upgrade_authority_is_g_vault",
+    true
+   ],
+   [
+    "pool.initialized_and_program_owned",
+    true
+   ],
+   [
+    "pool.config_version_1_active",
+    true
+   ],
+   [
+    "orao_client.exists_and_orao_owned",
+    true
+   ],
+   [
+    "orao_client.owner_is_g_vault",
+    true
+   ],
+   [
+    "orao_client.state_is_rng_authority",
+    true
+   ]
+  ],
+  "other_g_transactions": [
+   [
+    1,
+    "vault",
+    "Executed"
+   ],
+   [
+    2,
+    "vault",
+    "Executed"
+   ],
+   [
+    3,
+    "config",
+    "Approved"
+   ]
+  ],
+  "readback_full": {
+   "commitment": "Finalized",
+   "slot": 516669993,
+   "checks": 44,
+   "failed": [],
+   "all_ok": true
+  },
+  "baseline_probe": {
+   "simulated_only": true,
+   "sent": false,
+   "g_time_lock_seconds": 172800,
+   "simulation_error": null,
+   "error_code": null,
+   "error_name": null,
+   "wrong_governance_profile": false,
+   "expected": "no program error (the no-op succeeds)",
+   "units_consumed": 37295,
+   "packet_bytes": 446,
+   "checks": [
+    [
+     "probe.wrong_governance_profile_iff_time_lock_is_not_172800",
+     true
+    ],
+    [
+     "probe.no_error_other_than_the_expected_one",
+     true
+    ]
+   ],
+   "all_ok": true
+  },
+  "voter_balances_finalized": {
+   "G voter 1": 173399520,
+   "G voter 2": 49985000,
+   "note": "identical to the 2026-10-27 receipt: nothing spent between"
+  },
+  "not_in_main_flow_window": "run 2026-10-30T05:28Z-05:31Z; the step 10 window is 2026-11-03T13:11:35Z-15:37:47Z"
+ },
+ "R4_execute_reduce": {
+  "dry_run": {
+   "all_ok": true,
+   "enforced_guard": [
+    {
+     "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+     "expected": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB",
+     "name": "programdata.upgrade_authority_is_g_vault",
+     "ok": true
+    },
+    {
+     "actual": "2 other transaction(s) checked, all terminal",
+     "expected": "config #3 == transaction_index 3; every other index in (stale, transaction_index] terminal",
+     "name": "g.executing_config_is_the_latest_and_every_other_transaction_above_stale_is_terminal",
+     "ok": true
+    }
+   ],
+   "other_g_transactions_checked": [
+    {
+     "index": 1,
+     "kind": "vault",
+     "proposal_status": "Executed",
+     "status_timestamp": 1793115095
+    },
+    {
+     "index": 2,
+     "kind": "vault",
+     "proposal_status": "Executed",
+     "status_timestamp": 1793115144
+    }
+   ],
+   "stored_actions": [
+    {
+     "new_time_lock": 0,
+     "variant": "SetTimeLock"
+    }
+   ],
+   "packet_bytes": 319
+  },
+  "transaction_index": 3,
+  "config_transaction": "GzAimxVBXNrsZiN6pYQ2hP5uM7geaf8p8uaUPcw5bHGc",
+  "proposal": "J41D8YX7f7CjipuGYWfvFmbhdBqxv3PxcY21sBVkxtUE",
+  "executor": "G voter 1 (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6)",
+  "steps": [
+   {
+    "step": "F11.reduce.config_transaction_execute",
+    "signature": "4ZN5ZskrGTysupCzuBSzXgVGusobjXmFLQBWWUFPknVyWnioC8X1yejaWASU8Ldc2vcgLpDTh4W8ydgsNfrVM64m",
+    "slot": 516670180,
+    "packet_bytes": 319,
+    "units_consumed": 15217,
+    "simulation_error": null
+   }
+  ],
+  "checks": [
+   {
+    "name": "proposal.is_executed",
+    "ok": true,
+    "actual": "Executed"
+   },
+   {
+    "name": "multisig.time_lock_is_the_target",
+    "ok": true,
+    "actual": "0"
+   },
+   {
+    "name": "multisig.threshold_unchanged",
+    "ok": true,
+    "actual": "2"
+   },
+   {
+    "name": "multisig.members_and_permissions_unchanged",
+    "ok": true,
+    "actual": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]"
+   },
+   {
+    "name": "multisig.config_authority_unchanged",
+    "ok": true,
+    "actual": "11111111111111111111111111111111"
+   },
+   {
+    "name": "multisig.rent_collector_unchanged",
+    "ok": true,
+    "actual": "None"
+   },
+   {
+    "name": "multisig.create_key_unchanged",
+    "ok": true,
+    "actual": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St"
+   },
+   {
+    "name": "multisig.bump_unchanged",
+    "ok": true,
+    "actual": "255"
+   },
+   {
+    "name": "multisig.vault_0_unchanged",
+    "ok": true,
+    "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+   },
+   {
+    "name": "multisig.transaction_index_unchanged",
+    "ok": true,
+    "actual": "3"
+   },
+   {
+    "name": "multisig.stale_transaction_index_covers_the_executed_index",
+    "ok": true,
+    "actual": "3"
+   },
+   {
+    "name": "multisig.stale_transaction_index_equals_transaction_index",
+    "ok": true,
+    "actual": "3"
+   },
+   {
+    "name": "G.multisig_owner_is_squads",
+    "ok": true,
+    "actual": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"
+   },
+   {
+    "name": "G.create_key",
+    "ok": true,
+    "actual": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St"
+   },
+   {
+    "name": "G.config_authority_is_zero",
+    "ok": true,
+    "actual": "11111111111111111111111111111111"
+   },
+   {
+    "name": "G.threshold",
+    "ok": true,
+    "actual": "2"
+   },
+   {
+    "name": "G.time_lock_seconds",
+    "ok": true,
+    "actual": "0"
+   },
+   {
+    "name": "G.rent_collector_none",
+    "ok": true,
+    "actual": "none"
+   },
+   {
+    "name": "G.members_and_permissions",
+    "ok": true,
+    "actual": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]"
+   },
+   {
+    "name": "G.vault_index_0",
+    "ok": true,
+    "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+   }
+  ],
+  "all_ok": true,
+  "g_profile_before": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 0,
+   "threshold": 2,
+   "time_lock_seconds": 172800,
+   "transaction_index": 3,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "g_profile_after": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 3,
+   "threshold": 2,
+   "time_lock_seconds": 0,
+   "transaction_index": 3,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  }
+ },
+ "R5_reduced_state": {
+  "status": {
+   "phase": "reduced",
+   "phase_detail": "reduced: the last config change (#3) set 0 s",
+   "profile_matches_reduced_0": true,
+   "failing_at_172800": [
+    {
+     "actual": "0",
+     "expected": "172800",
+     "name": "G.time_lock_seconds",
+     "ok": false
+    }
+   ],
+   "transaction_index": 3,
+   "stale_transaction_index": 3,
+   "cluster_clock": 1793338158
+  },
+  "readback_squads": {
+   "commitment": "Finalized",
+   "slot": 516670241,
+   "checks": 16,
+   "failed": [
+    {
+     "name": "G.time_lock_seconds",
+     "actual": "0",
+     "expected": "172800"
+    }
+   ],
+   "all_ok": false,
+   "expected": "exactly one failed check, G.time_lock_seconds (0 vs 172,800); exit 4 = a check did not hold, as expected"
+  },
+  "consequence_probe": {
+   "simulated_only": true,
+   "sent": false,
+   "g_time_lock_seconds": 0,
+   "simulation_error": "Error processing Instruction 1: custom program error: 0x178f",
+   "error_code": 6031,
+   "error_name": "WrongGovernanceProfile",
+   "wrong_governance_profile": true,
+   "expected": "WrongGovernanceProfile",
+   "units_consumed": 9207,
+   "packet_bytes": 446,
+   "checks": [
+    [
+     "probe.wrong_governance_profile_iff_time_lock_is_not_172800",
+     true
+    ],
+    [
+     "probe.no_error_other_than_the_expected_one",
+     true
+    ]
+   ],
+   "all_ok": true
+  }
+ },
+ "S0_restore_preconditions": {
+  "g_profile_exact_except_time_lock_0": true,
+  "reduce_3_executed": true,
+  "no_live_g_transaction_above_stale_3": "transaction_index == stale_transaction_index == 3",
+  "pending_open": 0
+ },
+ "S1_propose_restore": {
+  "dry_run": {
+   "all_ok": true,
+   "transaction_index": 4,
+   "intended_actions": [
+    {
+     "new_time_lock": 172800,
+     "variant": "SetTimeLock"
+    }
+   ],
+   "preconditions": [
+    [
+     "g.profile_exact_at_from_lock",
+     true
+    ],
+    [
+     "pending.no_open_or_held_records",
+     true
+    ],
+    [
+     "g.no_live_transaction_above_stale_index",
+     true
+    ],
+    [
+     "proposer.balance_covers_rent_fees_and_its_own_floor",
+     true
+    ]
+   ]
+  },
+  "transaction_index": 4,
+  "config_transaction": "BDW9MtJGT69NwBw4UzVGVDKZvmfyUCHNzAovwscosH4e",
+  "proposal": "4PZqUPCbwHWuPZhj8X2VjtoZFgp385AMEb3ae8smDtCW",
+  "stored_actions": [
+   {
+    "new_time_lock": 172800,
+    "variant": "SetTimeLock"
+   }
+  ],
+  "creator": "G voter 1 = proposer = rent payer = fee payer",
+  "steps": [
+   {
+    "step": "F11.restore.config_transaction_create",
+    "signature": "228UVoCBkVXE9Y3R7xGLXyxPBuBKTrpaDJCmttKJ8Xy7GHLgZiU6BMrWK1AnckDhc5JX7dNieEZZVeNmTCk16uwU",
+    "slot": 516670343,
+    "packet_bytes": 328,
+    "units_consumed": 16938,
+    "simulation_error": null
+   },
+   {
+    "step": "F11.restore.proposal_create",
+    "signature": "47ZVTEf8hUScvm5SrZjvunrVRhF8soFCC3c4h2fVHQTwajwKT3TjfC5jNk2prmcRXH56ftsfMeZ8WSb1XjeSGge",
+    "slot": 516670348,
+    "packet_bytes": 327,
+    "units_consumed": 14831,
+    "simulation_error": null
+   }
+  ],
+  "checks": [
+   {
+    "name": "config_transaction.stores_exactly_the_intended_actions",
+    "ok": true,
+    "actual": "[{\"new_time_lock\":172800,\"variant\":\"SetTimeLock\"}]"
+   },
+   {
+    "name": "config_transaction.multisig_index_and_creator",
+    "ok": true,
+    "actual": "multisig 5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu, index 4, creator 8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6"
+   },
+   {
+    "name": "proposal.is_active",
+    "ok": true,
+    "actual": "Active"
+   },
+   {
+    "name": "multisig.transaction_index_covers_the_proposal",
+    "ok": true,
+    "actual": "4"
+   }
+  ],
+  "all_ok": true
+ },
+ "S2_approvals": [
+  {
+   "voter": "G voter 1",
+   "member": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "steps": [
+    {
+     "step": "F11.restore.proposal_approve",
+     "signature": "5f8KanJtvPjZhmaPGk3wWvCeW4nf4jkCAWWp57BdrtEd5NbRbkkfwhijGiVqUGppB5jd6u94G1u8Mhr6vHfZW6eh",
+     "slot": 516670439,
+     "packet_bytes": 285,
+     "units_consumed": 8774,
+     "simulation_error": null
+    }
+   ],
+   "checks": [
+    {
+     "name": "the member's approval is recorded",
+     "ok": true,
+     "actual": "true"
+    },
+    {
+     "name": "approvals += 1",
+     "ok": true,
+     "actual": "1"
+    },
+    {
+     "name": "proposal.is_approved_exactly_when_the_threshold_is_reached",
+     "ok": true,
+     "actual": "Active"
+    },
+    {
+     "name": "multisig.time_lock_unchanged_by_a_vote",
+     "ok": true,
+     "actual": "0"
+    }
+   ],
+   "all_ok": true
+  },
+  {
+   "voter": "G voter 2",
+   "member": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+   "steps": [
+    {
+     "step": "F11.restore.proposal_approve",
+     "signature": "21Ynd1Kf9XQibgzmmrAV1unTzhmuyoXSKxE4aazCEUukkrTfbhmHUFq6BUL6N5BMgroxNxhFbVSxPd9HgfLTEenT",
+     "slot": 516670457,
+     "packet_bytes": 285,
+     "units_consumed": 9583,
+     "simulation_error": null
+    }
+   ],
+   "checks": [
+    {
+     "name": "the member's approval is recorded",
+     "ok": true,
+     "actual": "true"
+    },
+    {
+     "name": "approvals += 1",
+     "ok": true,
+     "actual": "2"
+    },
+    {
+     "name": "proposal.is_approved_exactly_when_the_threshold_is_reached",
+     "ok": true,
+     "actual": "Approved"
+    },
+    {
+     "name": "multisig.time_lock_unchanged_by_a_vote",
+     "ok": true,
+     "actual": "0"
+    }
+   ],
+   "all_ok": true
+  }
+ ],
+ "S3_execute_restore": {
+  "dry_run": {
+   "all_ok": true,
+   "enforced_guard": [
+    {
+     "actual": "0 other transaction(s) checked, all terminal",
+     "expected": "config #4 == transaction_index 4; every other index in (stale, transaction_index] terminal",
+     "name": "g.executing_config_is_the_latest_and_every_other_transaction_above_stale_is_terminal",
+     "ok": true
+    }
+   ],
+   "other_g_transactions_checked": [],
+   "approved_at": 1793338212,
+   "releases_at": 1793338212,
+   "time_lock_before": 0
+  },
+  "steps": [
+   {
+    "step": "F11.restore.config_transaction_execute",
+    "signature": "5idwpRGYChdDpwokVK68BpjMZZTqaq7MEzPJo1y6bvhzhjZV6UutMNu2Vv5YdjyMqba1chY84R8kAaGsP1uCXKjS",
+    "slot": 516670590,
+    "packet_bytes": 319,
+    "units_consumed": 15217,
+    "simulation_error": null
+   }
+  ],
+  "checks": [
+   {
+    "name": "proposal.is_executed",
+    "ok": true,
+    "actual": "Executed"
+   },
+   {
+    "name": "multisig.time_lock_is_the_target",
+    "ok": true,
+    "actual": "172800"
+   },
+   {
+    "name": "multisig.threshold_unchanged",
+    "ok": true,
+    "actual": "2"
+   },
+   {
+    "name": "multisig.members_and_permissions_unchanged",
+    "ok": true,
+    "actual": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]"
+   },
+   {
+    "name": "multisig.config_authority_unchanged",
+    "ok": true,
+    "actual": "11111111111111111111111111111111"
+   },
+   {
+    "name": "multisig.rent_collector_unchanged",
+    "ok": true,
+    "actual": "None"
+   },
+   {
+    "name": "multisig.create_key_unchanged",
+    "ok": true,
+    "actual": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St"
+   },
+   {
+    "name": "multisig.bump_unchanged",
+    "ok": true,
+    "actual": "255"
+   },
+   {
+    "name": "multisig.vault_0_unchanged",
+    "ok": true,
+    "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+   },
+   {
+    "name": "multisig.transaction_index_unchanged",
+    "ok": true,
+    "actual": "4"
+   },
+   {
+    "name": "multisig.stale_transaction_index_covers_the_executed_index",
+    "ok": true,
+    "actual": "4"
+   },
+   {
+    "name": "multisig.stale_transaction_index_equals_transaction_index",
+    "ok": true,
+    "actual": "4"
+   },
+   {
+    "name": "G.multisig_owner_is_squads",
+    "ok": true,
+    "actual": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf"
+   },
+   {
+    "name": "G.create_key",
+    "ok": true,
+    "actual": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St"
+   },
+   {
+    "name": "G.config_authority_is_zero",
+    "ok": true,
+    "actual": "11111111111111111111111111111111"
+   },
+   {
+    "name": "G.threshold",
+    "ok": true,
+    "actual": "2"
+   },
+   {
+    "name": "G.time_lock_seconds",
+    "ok": true,
+    "actual": "172800"
+   },
+   {
+    "name": "G.rent_collector_none",
+    "ok": true,
+    "actual": "none"
+   },
+   {
+    "name": "G.members_and_permissions",
+    "ok": true,
+    "actual": "[(ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US, 7), (844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a, 7), (8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6, 7)]"
+   },
+   {
+    "name": "G.vault_index_0",
+    "ok": true,
+    "actual": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+   }
+  ],
+  "all_ok": true,
+  "g_profile_before": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 3,
+   "threshold": 2,
+   "time_lock_seconds": 0,
+   "transaction_index": 4,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "g_profile_after": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 4,
+   "threshold": 2,
+   "time_lock_seconds": 172800,
+   "transaction_index": 4,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  }
+ },
+ "S4_final": {
+  "readback_full": {
+   "commitment": "Finalized",
+   "slot": 516670785,
+   "checks": 44,
+   "failed": [],
+   "all_ok": true
+  },
+  "probe": {
+   "simulated_only": true,
+   "sent": false,
+   "g_time_lock_seconds": 172800,
+   "simulation_error": null,
+   "error_code": null,
+   "error_name": null,
+   "wrong_governance_profile": false,
+   "expected": "no program error (the no-op succeeds)",
+   "units_consumed": 37295,
+   "packet_bytes": 446,
+   "checks": [
+    [
+     "probe.wrong_governance_profile_iff_time_lock_is_not_172800",
+     true
+    ],
+    [
+     "probe.no_error_other_than_the_expected_one",
+     true
+    ]
+   ],
+   "all_ok": true
+  },
+  "status": {
+   "phase": "restored",
+   "phase_detail": "restored: the last config change (#4) set 172800 s",
+   "profile_matches_normal_172800": true,
+   "transaction_index": 4,
+   "stale_transaction_index": 4,
+   "program_checks_ok": true,
+   "cluster_clock": 1793338293
+  }
+ },
+ "profiles": {
+  "normal_before": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 0,
+   "threshold": 2,
+   "time_lock_seconds": 172800,
+   "transaction_index": 3,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "reduced": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 3,
+   "threshold": 2,
+   "time_lock_seconds": 0,
+   "transaction_index": 3,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  },
+  "restored": {
+   "bump": 255,
+   "config_authority": "11111111111111111111111111111111",
+   "create_key": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "members": [
+    {
+     "key": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+     "permissions": 7
+    },
+    {
+     "key": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+     "permissions": 7
+    },
+    {
+     "key": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+     "permissions": 7
+    }
+   ],
+   "multisig": "5JxzvXvQpYpwQMTQb1Pxch9ypQrBmDbgWf8KqPECzuEu",
+   "rent_collector": null,
+   "stale_transaction_index": 4,
+   "threshold": 2,
+   "time_lock_seconds": 172800,
+   "transaction_index": 4,
+   "vault_0": "EjBoCzPngyaPUA6q33XaXRVnbUdEEbShZ2yudeAD5dgB"
+  }
+ },
+ "probes": {
+  "baseline_20261027": "clean (no program error), see the 2026-10-27 receipt",
+  "baseline_20261030": "clean (no program error)",
+  "reduced": "WrongGovernanceProfile",
+  "restored": "clean (no program error)",
+  "all_simulated_only_never_sent": true
+ },
+ "finality": [
+  {
+   "label": "R4 execute reduce #3",
+   "signature": "4ZN5ZskrGTysupCzuBSzXgVGusobjXmFLQBWWUFPknVyWnioC8X1yejaWASU8Ldc2vcgLpDTh4W8ydgsNfrVM64m",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670180,
+   "block_time": 1793338145,
+   "block_time_utc": "2026-10-30T05:29:05Z"
+  },
+  {
+   "label": "S1 config_transaction_create #4",
+   "signature": "228UVoCBkVXE9Y3R7xGLXyxPBuBKTrpaDJCmttKJ8Xy7GHLgZiU6BMrWK1AnckDhc5JX7dNieEZZVeNmTCk16uwU",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670343,
+   "block_time": 1793338184,
+   "block_time_utc": "2026-10-30T05:29:44Z"
+  },
+  {
+   "label": "S1 proposal_create #4",
+   "signature": "47ZVTEf8hUScvm5SrZjvunrVRhF8soFCC3c4h2fVHQTwajwKT3TjfC5jNk2prmcRXH56ftsfMeZ8WSb1XjeSGge",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670348,
+   "block_time": 1793338186,
+   "block_time_utc": "2026-10-30T05:29:46Z"
+  },
+  {
+   "label": "S2 approve G voter 1",
+   "signature": "5f8KanJtvPjZhmaPGk3wWvCeW4nf4jkCAWWp57BdrtEd5NbRbkkfwhijGiVqUGppB5jd6u94G1u8Mhr6vHfZW6eh",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670439,
+   "block_time": 1793338207,
+   "block_time_utc": "2026-10-30T05:30:07Z"
+  },
+  {
+   "label": "S2 approve G voter 2",
+   "signature": "21Ynd1Kf9XQibgzmmrAV1unTzhmuyoXSKxE4aazCEUukkrTfbhmHUFq6BUL6N5BMgroxNxhFbVSxPd9HgfLTEenT",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670457,
+   "block_time": 1793338212,
+   "block_time_utc": "2026-10-30T05:30:12Z"
+  },
+  {
+   "label": "S3 execute restore #4",
+   "signature": "5idwpRGYChdDpwokVK68BpjMZZTqaq7MEzPJo1y6bvhzhjZV6UutMNu2Vv5YdjyMqba1chY84R8kAaGsP1uCXKjS",
+   "confirmationStatus": "finalized",
+   "err": null,
+   "slot": 516670590,
+   "block_time": 1793338244,
+   "block_time_utc": "2026-10-30T05:30:44Z"
+  }
+ ],
+ "timing": {
+  "reduce_earliest_utc": "2026-10-29T18:01:21Z",
+  "reduce_executed_block_time_utc": "2026-10-30T05:29:05Z",
+  "restore_executed_block_time_utc": "2026-10-30T05:30:44Z",
+  "reduced_window_seconds": 99,
+  "reduced_window_slots": 410,
+  "why_after_the_deadline": "the 2026-10-29 automatic review held the execution directive until Rob's direct approval on 2026-10-30"
+ },
+ "pending_after": "1,439/1,439 resolved, 0 open or held (6 new sends, all resolved confirmed, then finalized)",
+ "balances_after_finalized": {
+  "G voter 1": 169798200,
+  "G voter 2": 49980000,
+  "config tx #3": 1107440,
+  "proposal #3": 2468880,
+  "config tx #4": 1107440,
+  "proposal #4": 2468880
+ },
+ "spend_lamports": {
+  "G voter 1": "3,601,320 = config transaction #4 rent 1,107,440 + proposal #4 rent 2,468,880 + 5 fees (execute reduce, create, proposal, approve, execute restore)",
+  "G voter 2": "5,000 (approve fee)",
+  "this_sitting_total": 3606320,
+  "F11_total_with_20261027": 7202640,
+  "F11_breakdown": "rent kept in 4 Squads accounts 7,152,640 (no rent collector) + 10 fees 50,000; within the protocol's at most about 0.01 SOL"
+ },
+ "not_claimed": [
+  "no other G action was taken while G was reduced",
+  "the probe never sent anything (no key can sign for the vault PDA)",
+  "the main flow is unchanged at 9 of 39 steps"
+ ],
+ "next": "main flow step 10 in its 2026-11-03T13:11:35Z-15:37:47Z window with d3c66966 (existing monitor)",
+ "held": "all ICP B/C rows, real PP minting, any held-unknown retry, mainnet, PR #125 merge, default wallet, secret export, reserve release",
+ "gideon_acceptance": {
+  "date": "2026-10-30",
+  "verdict": "ACCEPTED (bounded receipt review from the committed coordinator evidence)",
+  "checked": "all six unique finalized signatures with err null; the original distinct 2026-10-27 voters; the enforced latest-index and no-other-live guards; exact actions and profile-only changes; the deadline; the reduced unsigned WrongGovernanceProfile probe with sent=false; the 99-second same-sitting restoration; the full 44/44 readback, clean probe and restored phase; payer and ledger arithmetic; the packet pin and publication hashes",
+  "not_done_by_reviewer": "no live RPC and no duplicate suites; no financial rerun"
+ }
+}

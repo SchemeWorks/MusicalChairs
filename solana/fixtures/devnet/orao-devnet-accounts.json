@@ -1,0 +1,45 @@
+{
+  "schema": 1,
+  "cluster": "devnet",
+  "accounts": {
+    "program": {
+      "address": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "context_slot": 514486875,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "b9dbc39237e89052b800a23b46f79bdc3f1db973258af35aabdad5807de2d831",
+      "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+      "lamports": 1001141440,
+      "executable": true,
+      "rent_epoch": "18446744073709551615",
+      "space": 36,
+      "data_sha256": "aa8708e127764c16afbc82cebde46a0a1a8337217a83eff19ea700a475898dbc",
+      "data_base64": "AgAAAGSs4ICTJdYox2iaIkvd3XiHqdoC/5ivW3XZ46T13D18"
+    },
+    "network_state": {
+      "address": "3e483QYyYQqu8eesT6ZjfuBiWF9PN5JXKeB8TRmn3hUr",
+      "context_slot": 514486881,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "e80e245bdd361e65a6bfa60663b5f4595ff605481efea9c8496283492905a466",
+      "owner": "VRFCBePmGTpZ234BhbzNNzmyg39Rgdd6VgdfhHwKypU",
+      "lamports": 2596080,
+      "executable": false,
+      "rent_epoch": "18446744073709551615",
+      "space": 245,
+      "data_sha256": "c55bebfd1fb4b1245e58d56836d2669f5996d2b3e11e3e418bcb15b97f2d2d5a",
+      "data_base64": "1O2UOGH1M6n/fy3NKqQlokq/DY/hK2Cqj0doNw0P2Zxziu/m8hUPA7h/Lc0qpCWiSr8Nj+ErYKqPR2g3DQ/ZnHOK7+byFQ8DuOCTBAAAAAAAKCMAAAAAAAAEAAAAFittY5eLE+81Y3vJ2VLwkwKWixB7mIUmoSztz4wAMpmH9NLmGHmMwL+s/rBkJHF5wewSN2T2x4aFmiyeBv+Usn8tzSqkJaJKvw2P4Stgqo9HaDcND9mcc4rv5vIVDwO49C/keKgTKPLvOS0ofKB9fwCQ/+jX8FH9i9bmryGCHdGXrAAAAAAAAP0BAAAAAAAAAAAAAAAAAAA="
+    },
+    "treasury": {
+      "address": "9ZTHWWZDpB36UFe1vszf2KEpt83vwi27jDqtHQ7NSXyR",
+      "context_slot": 514486887,
+      "api_version": "4.4.0-beta.1",
+      "rpc_response_sha256": "88132f3cdb08bf857fb6e8276ee414872b2eee0b2c522f1866cc90983f4618da",
+      "owner": "11111111111111111111111111111111",
+      "lamports": 102750899038,
+      "executable": false,
+      "rent_epoch": "18446744073709551615",
+      "space": 0,
+      "data_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "data_base64": ""
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+ "what": "P1's Compound15 position account after step 22, read at finalized commitment",
+ "address": "7Phc4PWYF6B9d3nAr9nA18bS5Hq53mRJpx3nHHrDLHGK",
+ "context_slot": 519134311,
+ "owner": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+ "lamports": 1457960,
+ "data_len": 159,
+ "data_base64": "qryP5HpA99D9kSU/wgXg4tZ6XWpdQxgkY/8js7LEIOGHSEDcpcTUZ9MBAAAAAAAAAAIAAAAAAAAAAQAAAAEAwusLAAAAAO8s7WoAAAAAb/MAawAAAADvLO1qAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+ "decoded_by_offset": {
+  "principal@62": 200000000,
+  "opened_at@70": 1793928431,
+  "maturity_at@78": 1795224431,
+  "last_accrued_at@86": 1793928431
+ },
+ "check": "maturity_at - opened_at = 1,296,000 s = ConfigVersion plan_durations_s[Compound15]; opened_at is the program's Clock reading, 1 s before the RPC block time 1793928432 of the same transaction; the account field governs maturity"
+}

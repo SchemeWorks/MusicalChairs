@@ -1,0 +1,53 @@
+# Exact FAIL lines each negative control must end with (recorded from the pinned moc rig by `negative.py record`;
+# `negative.py run` compares both compilers against it). Reviewed in README.md.
+
+## WrongPolicyEarlySign
+FAIL: 60 s -> Alert
+FAIL: 61 s -> Alert
+FAIL: 299 s -> Alert (never Sign before the threshold)
+FAIL: 300 s with an unresolved unknown entry must be Blocked
+FAIL: an unknown entry does not hide the Alert below the threshold
+FAIL: not configured must be Blocked
+FAIL: not configured is Blocked even with fresh progress
+FAIL: signAfterNs = 0 is an invalid threshold, never an immediate Sign
+FAIL: signAfterNs below alertAfterNs is invalid -> Blocked
+FAIL: signed 10 s ago -> Alert, not another Sign
+
+## WrongPolicySignsAtAlert
+FAIL: 60 s -> Alert
+FAIL: 61 s -> Alert
+FAIL: 299 s -> Alert (never Sign before the threshold)
+FAIL: an unknown entry does not hide the Alert below the threshold
+
+## WrongPolicyIgnoresUnknown
+FAIL: 300 s with an unresolved unknown entry must be Blocked
+
+## WrongPolicyIgnoresUnconfigured
+FAIL: not configured must be Blocked
+FAIL: not configured is Blocked even with fresh progress
+
+## WrongPolicyNeverRearm
+FAIL: armed + configured -> postupgrade re-arms
+FAIL: postupgrade re-arms because the flag was set
+FAIL: disarm cancels the timer and clears the flag
+
+## WrongPolicyRearmWhenDisarmed
+FAIL: disarmed stays disarmed after an upgrade
+FAIL: after a disarm an upgrade does not resurrect the timer
+
+## WrongPlannerFeeInAuthoritySlot
+FAIL: seal_weights: account flags match the IDL positions
+FAIL: seal_weights: no instruction account is a signer and none is the fee address
+FAIL: seal_weights: no instruction references the fee address (it pays the network fee only)
+FAIL: finalize_round: account flags match the IDL positions
+FAIL: finalize_round: no instruction account is a signer and none is the fee address
+FAIL: finalize_round: no instruction references the fee address (it pays the network fee only)
+
+## WrongPlannerExtraSigner
+FAIL: commit_ticket: no instruction account is a signer and none is the fee address
+FAIL: commit_ticket: the fee address is message account 0 and the only signer
+FAIL: expire_promotion: no instruction account is a signer and none is the fee address
+FAIL: expire_promotion: the fee address is message account 0 and the only signer
+
+## WrongAuthorityTablePayerIsAuthority
+FAIL: no payer / fee_payer account is marked authority

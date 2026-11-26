@@ -1,0 +1,101 @@
+{
+ "recorded_at_utc": "2026-10-15T04:52:44.478745+00:00",
+ "cards": [
+  "IMPL-47a",
+  "IMPL-47b",
+  "IMPL-47c",
+  "IMPL-47d"
+ ],
+ "milestone": "M12 ICP bridge canister and PP exactly-once (local replica only)",
+ "branch": "codex/native-solana-production-core",
+ "commits": {
+  "fixtures_candid_rig": "662a28e",
+  "siws_login_test": "faed379 → cd0630d (full delegation flow + session export)",
+  "bridge": "a33e688",
+  "shenanigans": "6a0feeb",
+  "bridge_cooldown_fix": "ca00bbc",
+  "replica_integration": "c2b6454"
+ },
+ "standalone_tests": {
+  "bridge": {
+   "decode": 48,
+   "verify": 94,
+   "outbox": 92,
+   "result": "ALL PASS (moc 1.5.1 rig; coordinator-run)"
+  },
+  "shenanigans": {
+   "observe_bind": 83,
+   "execute": 75,
+   "reconcile": 55,
+   "legacy_untouched": "ALL PASS",
+   "result": "ALL PASS (coordinator-run)"
+  },
+  "red": "bridge: 27 single-line mutations each caught (implementation preceded tests); shenanigans: M0009 before the module existed, 21 mutations each caught"
+ },
+ "replica_integration": {
+  "receipt": "native_sol_bridge/test/replica/receipt-2026-10-14.json",
+  "receipt_sha256": "eafb6247185d8e5c0888e55f85487d6d2d59860774c62dd6eeef27cf0d053a3c",
+  "driver": "native_sol_bridge/test/replica/run.sh + drive.py (idempotent; --network local only; refuses to deploy unless pp_ledger icrc1_minting_account == j56tm-oaaaa-aaaac-qf34q-cai)",
+  "network": "local dfx replica 127.0.0.1:4943 (pocket-ic); nothing public",
+  "dfx": "dfx 0.29.2",
+  "canisters": {
+   "pp_ledger": {
+    "id": "5xv2o-iiaaa-aaaac-qeclq-cai",
+    "module_hash_at_start": "0x24e6b0b09ba44b1123453877994bb59ce75555c2e33f19f58163a3e0c6e62bd1"
+   },
+   "siws_provider": {
+    "id": "tcm26-yqaaa-aaaac-qg2lq-cai",
+    "module_hash_at_start": "0x9715ad271d09492b17b55b6087f9999a1438191ccd698372b909c90cecfb5f8e"
+   },
+   "shenanigans": {
+    "id": "j56tm-oaaaa-aaaac-qf34q-cai",
+    "module_hash_at_start": "0xf1baa9dc7a36164f82c71705564399c9323d85af2f4a25f841d99c43f94d6460"
+   },
+   "native_sol_bridge": {
+    "id": "u6s2n-gx777-77774-qaaba-cai",
+    "module_hash_at_start": "0xec6e06c14cd1efe36320fde54986c2675458238deddd0464e43191453ce4dda1"
+   },
+   "sol_rpc_stub": {
+    "id": "tghme-zyaaa-aaaar-qarca-cai",
+    "module_hash_at_start": "0xbdb87413ea437e7d81f171e671d92b362f9cc0f3e0606d3a6349bb6805286342"
+   }
+  },
+  "sol_rpc_stub": "native_sol_bridge/test/replica/sol_rpc_stub (deployed at the pinned mainnet id tghme-zyaaa-aaaar-qarca-cai; serves the 29 typed fixtures from fixtures.test.mo; modes Agree / DisagreeB / DisagreeBNone / UnsupportedVersion / Inconsistent; rejects anything but finalized + maxSupportedTransactionVersion 0 + base64; logs attached cycles)",
+  "result": "final full run 916 s, exit 0, 115 checks / 0 failed (one earlier dry run had one wrong expectation, MEMO-1, corrected; the 115/115 figure is a complete rerun)",
+  "paths_exercised": {
+   "E1_closing_012_PositionOpened_bound_owner": "submitEventDescriptor → verifyAndForward (Forwarded, cursor 1; stub saw one call per provider, finalized/0/base64, 25e9 cycles) → releasePending Reserved via the real siws_provider (m7ydg-…) → 4 legs under pinned policy v1 (gift 45e9, gift-cascade residual 5e9, player 54e9, cascade residual 6e9) executed → Committed at ledger blocks 19–22, each an exact mint (kind/to/amount/memo/created_at_time); balance deltas +99e9 player / +11e9 house; supply +legs; reconcile on Committed legs is a no-op",
+   "E2_closing_009_PromotionApplied": "Reserved, 2 legs (player 9_801e9 + residual 1_089e9 at the Backer rate pinned at v1), no second gift; rollback test: snapshot → mint blocks 23/24 → snapshot load → 4 negative reconciles trap and change nothing → reconcile(0, 23) Committed{23}; execute leg 1 → Committed{24} via ledger Duplicate, no second mint",
+   "E3_flows_007_unbound_burner": "releasePending Unbound; bridge getUnbound lists it; Shenanigans keeps it Observed (no legs); cursor does not wait; second attempt after cooldown still Unbound",
+   "E4_flows_009_modes": "DisagreeB → Disagreement; DisagreeBNone → NotFound; UnsupportedVersion → UnsupportedTransactionVersion (gap); Inconsistent → Inconsistent; each leaves the event Unverified with the cursor stuck at 2; forged descriptor (basis+1) → Invalid(BasisMismatch); the corrected descriptor accepted as a new entry; a later forward moved the cursor to 5",
+   "idempotency": "second verifyAndForward returns the stored status with no stub call; second execute/retry of every Committed leg returns the same block with no ledger movement; second observeNativeEvent → AlreadyObserved; changed payload on the same id → Rejected{permanent}; forward of an event Shenanigans already held → Forwarded{already_observed=true}; with Shenanigans stopped: verification succeeded, forward failed, entry Verified{retries=1}, cursor unmoved, retry reused the stored verification (no RPC call)",
+   "upgrades": "state identical and module hash unchanged at 4 points: bridge after round 1; Shenanigans between bind and execute; Shenanigans while a leg was SubmittedUnknown (pp_ledger stopped; retry after upgrade + ledger restart re-presented the identical memo/created_at_time and committed at block 19, attempts 2); Shenanigans after all Committed",
+   "phase2_concurrency": "two simultaneous first events for one principal → exactly one gift leg; two binders → one Reserved + one AlreadyReserved; two executors → one block / one mint; 660 s policy: legs executed past the window → Quarantined{recoverable=true}, no transfer; reconcile recovered rolled-back legs from the real ledger; a quarantined leg cannot be committed with another leg's block",
+   "ledger_error_probes": "over-long memo (33 / 64 bytes) TRAPS (IC0503 \"the memo field size of 33 bytes is above the allowed limit of 32 bytes\") rather than returning Err; 32-byte memo accepted; created_at_time 25 h old → Err(TooOld); 2 h ahead → Err(CreatedInFuture)"
+  },
+  "findings": {
+   "1_bind_cooldown_after_forward": "FIXED in ca00bbc (applyForward clears next_attempt_at on Forwarded; regression in outbox.test.mo)",
+   "2_memo_heuristic_unreachable": "worker B's \"memo\" GenericError → permanent classification never fires on this ledger (it traps → CallFailed → SubmittedUnknown until the window passes); not reachable today because memos are always the 32-byte hash; recorded for Codex",
+   "3_no_bridge_driven_execution": "native_sol_bridge never calls executeNativeRewardLeg (spec §9 says bridge or keeper); the admin identity executed every leg in this run; executeNativeRewardLeg is bridge-allowlist-or-admin, retryNativeRewardLeg (any non-anonymous caller) only re-presents submitted legs; OPEN design item for Codex: have releasePending execute the reserved legs (or allowlist the keeper)"
+  },
+  "not_proven": [
+   "the real SOL RPC canister wasm (the stub refunds all attached cycles; 25e9 cycles per call is a placeholder)",
+   "the archive reconcile path (local ledger has no archives)",
+   "reconcile against a real transfer/burn block",
+   "worker B's wrong-deployment guard (second shenanigans at a non-pinned id)",
+   "bridge-driven leg execution (finding 3)",
+   "whether the phase-2 concurrent calls interleaved inside the canister",
+   "a bridge crash between Shenanigans' reply and applyForward (only simulated)",
+   "anything on mainnet or any public network"
+  ]
+ },
+ "open_decisions_for_codex": [
+  "Shenanigans #2: residual legacy→native double-gift window (legacy observer writes its marker after its own mint await; closing it needs a one-line legacy edit — legacy mint paths were to stay untouched)",
+  "Shenanigans #3: PromotionApplied uses the Backer rate (120,000 PP/SOL) as the B-loss basis — assumption",
+  "Shenanigans #5: lastQualifyingDeposit not written for native deposits, so native-only uplines are inactive in cascades",
+  "Shenanigans #7: a pending leg executed after the window is quarantined recoverable with nothing minted (spec refinement: allow a re-stamp for provably never-submitted legs?)",
+  "Shenanigans #8 / 47d finding 2: memo-error heuristic unreachable on this ledger",
+  "Bridge: maxSupportedTransactionVersion = 0 (highest decodable; v1 reply = gap); plan + kind compared beyond the spec list; durable Invalid records the cursor may pass; Config.event_authority configured (verified offline as the PDA)",
+  "47d finding 3: who executes legs in production (bridge after Reserved vs keeper allowlist)"
+ ],
+ "local_replica_side_effects": "pp_ledger stopped for seconds three times (restarted by the run trap); shenanigans/bridge/stub reinstalled each run; local ledger length 30; nothing public"
+}

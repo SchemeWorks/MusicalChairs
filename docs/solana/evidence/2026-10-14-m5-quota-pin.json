@@ -1,0 +1,23 @@
+{
+ "card": "IMPL-35",
+ "recorded_at_utc": "2026-10-14T10:56:15.981181+00:00",
+ "trigger": "Codex independent M5 review at 3c488ad: ConfigTerms::validate accepted quota_count 1..=3 and any positive quota_window_s while User::record_success (called by positions.rs quota_after) enforces QUOTA_CALLS 3 / QUOTA_WINDOW_SECS 3,600, so a staged non-canonical quota would be silently ignored; spec §3.1 fixes three successes per 3,600 s.",
+ "correction": "ConfigTerms::validate now requires quota_count == QUOTA_CALLS and quota_window_s == QUOTA_WINDOW_SECS (InvalidState 6001); no dynamic quota redesign, no storage change",
+ "files": [
+  "solana/programs/musical_chairs/src/controls.rs",
+  "solana/tests/financial-runtime/src/controls.rs"
+ ],
+ "red_then_green": {
+  "unit": {
+   "red": "config_terms_reject_each_bound_once with the OLD validator (reverted in an isolated worktree, new cases kept): FAILED — \"quota count one: validator accepted the terms\"",
+   "green": "PATCHED validator: config_terms_* 3 passed (31 bound cases incl. quota count 1/2 and window 3,599/3,601)",
+   "launch_variation_test": "no longer sets quota_count = 1 (that variation is now invalid by contract)"
+  },
+  "authenticated_stage_config": {
+   "red": "OLD ELF 28c9d90b…: variant noncanonical_quota_count \"unexpectedly succeeded\" (G-signed stage accepted quota_count 1)",
+   "green": "PATCHED ELF 132eab6c88a519637c735744b811a936f0383c761ecaca5bb9fbfceb1df18441 (source set 6f5c345a85d226439344e21787272dd8569ad15621eddf59d3d73c613d0e6733, built from the isolated worktree at HEAD 9dcbb87 + this patch): stage_config_requires_g_and_future_round passes incl. noncanonical_quota_count and noncanonical_quota_window → InvalidState with fee-only rollback"
+  }
+ },
+ "isolation_note": "verified in a throwaway git worktree because IMPL-28 was editing the program crate in the main tree; the main tree artifact stays 28c9d90b… until the next coordinator rebuild (IMPL-27/IMPL-31), which will carry this change; provenance and the scoped graph fragment follow at that handoff",
+ "build_log_sha256": "f282e7333b289758ee30718fc696aee1d02bd9f139ffe6d4a976d1eebedf2e91"
+}

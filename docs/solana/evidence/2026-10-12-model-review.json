@@ -1,0 +1,103 @@
+{
+  "date": "2026-10-12",
+  "pass_baseline": "38cbf153a5ff46487fdbe80314f93acfa7328e63",
+  "scope": "host Rust economic models and local SDK/provider/schema/unsigned packing probes only",
+  "source_sha256": {
+    "solana/crates/economics/src/admission.rs": "688c32a81149207b1b15d38f964bb5ab133595133f6d648a099e4ca49fcceb18",
+    "solana/crates/economics/src/backers.rs": "fc651f508ecf4f792c15418c501bb57243dbcc23c5c2fb31418b87f037d61c4b",
+    "solana/crates/economics/src/earnings.rs": "27d238170819774b04ded1997cd70d2d219f6c0ecee15543d5e3922cffc717dc",
+    "solana/crates/economics/src/fees.rs": "0c31f7ce819f7b91306c4f37a087a68a7dce8334055ac805f7e611d93ef45722",
+    "solana/crates/economics/src/lib.rs": "c9302bcd7bf268f39f54e8b95b535a96c1ee9d7be7f813243d79a222a1bc1281",
+    "solana/crates/economics/src/rounds.rs": "2c2055b5ebb4a8e59255adc2cf82788a81810c49efbb4c1ed7e1711ff11e8472",
+    "solana/crates/economics/tests/admission.rs": "968ff02b1413c1306a88eac33b4d665b8098c782fe739f7879a9f16ab5bf0779",
+    "solana/crates/economics/tests/allocation.rs": "a8069f0c58d55206213e8a7685863c9afca6a08556c2321d5484dfc17f4349f8",
+    "solana/crates/economics/tests/backer_transitions.rs": "c3e883e0807da31e58faaa87a8c1a66468a0e5516063e87583fead84e9c92855",
+    "solana/crates/economics/tests/conservation.rs": "b8fd81c1d3673834ad99daa14a1ca1534376554246afbcdf6c7e7fc11c85d1cf",
+    "solana/crates/economics/tests/end_to_end.rs": "2dda70a7affb5ef9aaa6a5f432cd9c7d59cb5383e6a935365caf31ff1cb113ec",
+    "solana/crates/economics/tests/rounds.rs": "8e213f62f388fe33678004e2381c4c47a67a193658dc6dfd6908d5697d76d9e2",
+    "solana/crates/economics/tests/vectors.rs": "f828ad9a75997b9890662804e8c7f2383a69eb842a1e85a32128562ab16695b6",
+    "solana/probes/provider-resources/src/lib.rs": "f7b1d5ecbc1c18d338429d55300c44abe0eda5c1df590a5a5aec40f1dea3314f",
+    "solana/probes/provider-resources/src/main.rs": "ae56f60190039d28ae5d641f8ff4256c5a76f10de0b2242aafb6b15072e72dd5",
+    "solana/probes/provider-resources/src/tests.rs": "f13333c284b1e5544198ff4ca8e6bb3b6797bf0fb07780d31cc36f029784d253"
+  },
+  "deterministic": {
+    "economic_tests": 72,
+    "economic_suite_counts": {
+      "unit": 5,
+      "admission": 5,
+      "allocation": 8,
+      "backer_transitions": 10,
+      "conservation": 7,
+      "end_to_end": 3,
+      "rounds": 23,
+      "vectors": 11
+    },
+    "provider_tests": 5,
+    "format_both_workspaces": true,
+    "clippy_both_workspaces_all_targets_warnings_denied": true,
+    "cargo_locks_used": true,
+    "probe_cli_matches_checked_json": true,
+    "vendor_unchanged_manifest_sha256": "8855e1e63707fde1e5dc9ea4dc0adaeb54994314f9b5d03c586943f2c703346c"
+  },
+  "whole_pass_review_rounds": [
+    {
+      "round": 1,
+      "reviewers": [
+        "final_review_one",
+        "final_review_two"
+      ],
+      "model": "gpt-5.6-luna",
+      "verdict": "FAIL",
+      "confirmed_fixed": [
+        "Series A minimum/shared game-A admission not connected",
+        "oversized continuation cursor overflow",
+        "closing payout barrier missing"
+      ]
+    },
+    {
+      "round": 2,
+      "reviewers": [
+        "final_review_three",
+        "final_review_four"
+      ],
+      "model": "gpt-5.6-luna",
+      "verdict": "FAIL",
+      "confirmed_fixed": [
+        "automatic B promotion omitted persistent eligibility history"
+      ]
+    },
+    {
+      "round": 3,
+      "reviewers": [
+        "final_review_five",
+        "final_review_six"
+      ],
+      "model": "gpt-5.6-luna",
+      "verdict": "PASS",
+      "blocking_issues": []
+    }
+  ],
+  "prior_focused_fixes": [
+    "caller-supplied earnings/maturity replaced with pinned derived plans",
+    "repeat Simple claims/remainder preservation",
+    "fixture physical backing and lifetime caps",
+    "solvent position exit wrongly closed round",
+    "non-atomic allocation overflow",
+    "candidate-counting composer expiry",
+    "duplicate capture after promotion",
+    "composer shared execution timestamp/rollback"
+  ],
+  "non_blocking_limits": [
+    "Separate Round/Backer models outside explicitly joined cash paths; automatic B grant/account authentication joins remain native implementation work",
+    "Round raw host capture is separate from SDK account validator",
+    "Direct chunk cursor+offset hardening deferred; reachable vector lengths bound offset, MAX continuation helpers fixed",
+    "Saved price snapshot constants have archival provenance but are not live quotes or machine-linked price discovery",
+    "No SBF/runtime CU, actual account authentication, CPI/provider liveness, custody or deployment proof"
+  ],
+  "proposed_persona_lessons": [
+    "Host economic tests and SDK fixtures do not establish SVM account authentication or deployed financial flows",
+    "Position settlement and round insolvency are distinct transitions",
+    "Eligibility-affecting automatic grants must atomically update durable history"
+  ],
+  "persona_catalog_edited": false
+}

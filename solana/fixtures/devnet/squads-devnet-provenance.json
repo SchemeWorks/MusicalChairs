@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "purpose": "M14-PRE-SQUADS: the exact Squads v4 program bytes that run on Solana devnet, for local LiteSVM compatibility checks. Read-only fetch; nothing was sent to any cluster.",
+  "fetched_at_utc": "2026-10-24T04:30:58Z",
+  "rpc_url": "https://api.devnet.solana.com",
+  "rpc_methods": [
+    "getAccountInfo(encoding=base64, commitment=finalized)",
+    "getEpochInfo(finalized)",
+    "getVersion"
+  ],
+  "rpc_api_version": "4.4.0-beta.1",
+  "solana_core": "4.4.0-beta.1",
+  "epoch_info_at_fetch": {
+    "absoluteSlot": 514488065,
+    "blockHeight": 501691091,
+    "epoch": 1190,
+    "slotIndex": 408065,
+    "slotsInEpoch": 432000,
+    "transactionCount": 19737845571
+  },
+  "program_id": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+  "program_account": {
+    "address": "SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf",
+    "context_slot": 514486931,
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": true,
+    "space": 36,
+    "data_sha256": "7843a80c3208dd0357e30f7a504e94d8b0f17fbc237142ee7e4363858af0b54a",
+    "rpc_response_sha256": "24283f16a2c2025b08f5efd0b1f813a14f1b0a9fd1e21b8686da4a14ae098a3d"
+  },
+  "programdata": {
+    "address": "Fy3YMJCvwbAXUgUM5b91ucUVA3jYzwWLHL3MwBqKsh8n",
+    "context_slot": 514486937,
+    "api_version": "4.4.0-beta.1",
+    "rpc_response_sha256": "82dab2fb0c43a4a8c13e6af11ad2716d76ad67d96dbe39b4f0f1c6a4682e1f1b",
+    "owner": "BPFLoaderUpgradeab1e11111111111111111111111",
+    "executable": false,
+    "lamports": 12353812080,
+    "account_data_len": 1774845,
+    "account_data_sha256": "5c866bde37d21edfcc92b630aa593a438f0d824be9d176e5904684996a4c0d37",
+    "header_len": 45,
+    "header_variant": 3,
+    "header_deployment_slot": 446638068,
+    "header_upgrade_authority": "HM5y4mz3Bt9JY9mr1hkyhnvqxSH4H2u2451j7Hc2dtvK",
+    "header_sha256": "a5481f3d205a443970eee9040b8af9493da410272dd67996d98b8dee604598d9",
+    "payload_len": 1774800,
+    "payload_sha256": "97fb2a5c08e5df5e862d8354ac5b97d3587117f98c4457754ca12e30bef0664d"
+  },
+  "elf": {
+    "path": "squads-devnet.so",
+    "len": 980160,
+    "sha256": "1b4e69fdf6f1ba1aecf6f86f713f507ace3f700e6e00e52c54448ee1847dd181",
+    "trailing_zero_padding_len": 794640,
+    "trailing_padding_all_zero": true,
+    "length_rule": "ELF64-LE end = max(e_shoff + e_shnum*e_shentsize, max(p_offset+p_filesz over program headers), max(sh_offset+sh_size over non-NOBITS sections)); the three agree up to the section header table, which is the last thing in the file",
+    "elf_header": {
+      "e_phoff": 64,
+      "e_phnum": 4,
+      "e_shoff": 979584,
+      "e_shnum": 9,
+      "e_shentsize": 64,
+      "e_machine": 247,
+      "e_flags": 0
+    },
+    "section_header_table_end": 980160,
+    "max_segment_end": 979512,
+    "max_section_end": 979584
+  },
+  "packet_cross_check": {
+    "packet": "docs/coordination/native-solana-m14-approval-packet-20261023.md entries R3, R5",
+    "packet_payload_sha256": "97fb2a5c08e5df5e862d8354ac5b97d3587117f98c4457754ca12e30bef0664d",
+    "packet_trimmed_sha256": "57a8d2d7ef5409df250415135f29f83da876e5adf5a2e5b5752e323cfb4f2f74",
+    "matches_programdata_payload_sha256": true,
+    "note": "The packet's 'trimmed' hash was taken after stripping every trailing zero byte (794,655), which also removes 15 zero bytes that belong to the ELF itself; the section-table rule keeps those, so squads-devnet.so hashes differently from the packet's trimmed value while the full payload hash is identical.",
+    "packet_trimmed_matches_elf_sha256": false
+  },
+  "idl": {
+    "path": "squads-devnet-idl.json",
+    "source": "devnet on-chain Anchor IDL account 6i4UjrDtkc7dqEmCyNDRfoxnAhDKSrY92u96Z74nRFdX (PDA seed 'anchor:idl' from the program's base PDA), read-only getAccountInfo at slot 514487136; layout 8-byte discriminator | 32-byte authority | u32 data_len | zlib stream",
+    "account_rpc_response_sha256": "651a77046d80d4838e0e0cda8a80a247810c4a83e0c6bcec1b90d2c8bac4b30a",
+    "account_data_sha256": "5d831f7014e84eeec01ee69e0df606f9907af6d23ea69b7da54a5aac9ef60080",
+    "idl_len": 50566,
+    "idl_sha256": "04168070401256812adb4df65b0a3259f7ae6438c6ebb796e865b9acd3db809f",
+    "idl_version": "2.1.0",
+    "note": "Anchor instruction discriminators are sha256('global:<snake_case name>')[..8]; this old-format IDL carries none, so the harness derives them and the compile/run results are the check."
+  },
+  "accounts_file": "squads-devnet-accounts.json",
+  "reproduce": "curl -s https://api.devnet.solana.com -H 'content-type: application/json' -d '{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"getAccountInfo\",\"params\":[\"Fy3YMJCvwbAXUgUM5b91ucUVA3jYzwWLHL3MwBqKsh8n\",{\"encoding\":\"base64\",\"commitment\":\"finalized\"}]}'; base64-decode result.value.data[0]; drop the 45-byte header; keep elf_len bytes where elf_len is computed by the length_rule.",
+  "limits": "A read-only snapshot of bytes: not a deployment, a liveness receipt, or an audit of Squads.",
+  "recheck_unchanged": {
+    "note": "Same read-only getAccountInfo repeated about 6,200 slots after the first fetch: the ProgramData account data hash is identical.",
+    "programdata": {
+      "context_slot": 514493123,
+      "account_data_sha256": "5c866bde37d21edfcc92b630aa593a438f0d824be9d176e5904684996a4c0d37"
+    }
+  }
+}

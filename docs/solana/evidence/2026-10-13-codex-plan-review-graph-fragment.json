@@ -1,0 +1,206 @@
+{
+  "metadata": {
+    "scope": "One new review document; native coordinator semantic extraction; original planning and source files unchanged",
+    "reviewed_commit": "db48ce33a40e10d0a1153d738926eb051bb3b033",
+    "source_sha256": {
+      "docs/coordination/native-solana-codex-plan-review-20261013.md": "d9b59efdeed52842426bc4e4d3213bdda91d888da5266b94481bb8f20bd6b15a"
+    },
+    "models_requested": [
+      "gpt-5.6-luna"
+    ],
+    "actual_reviewer_model": "cheap",
+    "token_usage": null,
+    "financial_proof": false
+  },
+  "nodes": [
+    {
+      "id": "codex20261013_plan_review_document",
+      "label": "Codex review of Claude native-Solana plan: request revisions",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L1",
+      "status": "review_requests_revision",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r1",
+      "label": "R1 \u2014 Persistent nonce identity must survive Position rent reclamation (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L19",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r2",
+      "label": "R2 \u2014 Closing reserve must be calculated from captured work, not a pilot-sized flat allowance (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L29",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r3",
+      "label": "R3 \u2014 Reusable-page cleanup needs a live capacity invariant (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L39",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r4",
+      "label": "R4 \u2014 Guardian authorization and rotation must share the same stored key (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L49",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r5",
+      "label": "R5 \u2014 Separate ORAO Client management ownership from request authority (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L59",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    },
+    {
+      "id": "codex20261013_plan_review_r6",
+      "label": "R6 \u2014 Freeze PP policy once and give ledger-leg execution one authoritative owner (P1)",
+      "file_type": "document",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L69",
+      "status": "confirmed_review_finding",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "community": 796
+    }
+  ],
+  "edges": [
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r1",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L19",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r2",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L29",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r3",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L39",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r4",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L49",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r5",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L59",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "codex20261013_plan_review_r6",
+      "relation": "contains",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L69",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "plan2026_10_13_plan_document",
+      "relation": "reviews",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L3",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "plan2026_10_13_spec_document",
+      "relation": "reviews",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L3",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "weight": 1.0
+    },
+    {
+      "source": "codex20261013_plan_review_document",
+      "target": "plan2026_10_13_register_document",
+      "relation": "reviews",
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L3",
+      "confidence": "INFERRED",
+      "confidence_score": 0.85,
+      "weight": 1.0
+    }
+  ],
+  "hyperedges": [
+    {
+      "id": "codex20261013_plan_review_required_contract_revisions",
+      "label": "Six confirmed contract revisions before implementation authorization",
+      "nodes": [
+        "codex20261013_plan_review_document",
+        "codex20261013_plan_review_r1",
+        "codex20261013_plan_review_r2",
+        "codex20261013_plan_review_r3",
+        "codex20261013_plan_review_r4",
+        "codex20261013_plan_review_r5",
+        "codex20261013_plan_review_r6"
+      ],
+      "relation": "review_requires_revision",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "docs/coordination/native-solana-codex-plan-review-20261013.md",
+      "source_location": "L3"
+    }
+  ]
+}

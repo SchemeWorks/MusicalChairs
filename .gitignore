@@ -50,3 +50,7 @@ coverage/
 
 # graphify knowledge graph artifacts (regenerated locally)
 graphify-out/
+
+# Python bytecode caches (test generators and replica drivers)
+__pycache__/
+*.pyc

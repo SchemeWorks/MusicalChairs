@@ -1,0 +1,1873 @@
+{
+ "nodes": [
+  {
+   "id": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "label": "build_candidates(rows) / request_round_draw / capture_round_draw / apply_promotion / expire_promotion / finalize_round implemented: chained (owner, loss) candidate digest, ORAO request bound by the protocol seed, timely capture at deadline equality, IgnoredLate after, ordinal mapping over 64 counters, terminal settlement, full seed carried once",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "status": "local_runtime_executed",
+   "rationale": "Commit 8fdade5 (IMPL-32, applied from an isolated worktree); the SBF-only sha256 branch did not compile under cargo-build-sbf and was replaced by one solana_sha256_hasher path. Executed by the IMPL-33 LiteSVM suite with the captured ORAO executable.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_provider_budget_and_returns",
+   "label": "increase_provider_budget(extra) / observe_request_fulfilled / withdraw_provider_return(amount) (G-signed, ORAO withdraw CPI + forward to OpsCash, per-close eligible-return accounting) / reconcile_ops_cash_with_client",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "status": "local_runtime_executed",
+   "rationale": "DR-32/DR-33/F1: eligibility = funded − retained request lamports; owner-funded request rent refunded first; deficit informational.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "label": "provider.rs: ORAO VRF v2 CPI wrapper (orao-solana-vrf-cb 0.4.0, cpi feature), Client/NetworkState/Treasury tuple validation, request binding PDA, fulfilled read-back",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "status": "local_runtime_executed",
+   "rationale": "Pinned tuple from ConfigVersion; WrongProviderTuple 6029; request_exists fails closed on an ORAO-owned or data-carrying PDA.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "label": "sampling.rs: protocol seed SHA256(domain || cluster_domain || program_id || round || close || set_tag || count || sealed_digest), ordinal mapping with 64 counters, candidate digest chain over (owner, loss); fixture solana/fixtures/sampling.json",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L67",
+   "status": "local_runtime_executed",
+   "rationale": "Two cluster-domain vectors pinned (litesvm fixture, devnet) and re-derived host-side by the suite (solana/fixtures/seed-vectors.json).",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_hasher_single_path",
+   "label": "sha256 helper is one code path for host and SBF (solana_sha256_hasher::hashv = sol_sha256 syscall on SBF, sha2 on host)",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L30",
+   "status": "local_runtime_executed",
+   "rationale": "The worker's #[cfg(target_os = \"solana\")] anchor_lang::solana_program::hash branch failed under cargo-build-sbf (anchor-lang 0.32.1 has no hash facade) while host tests passed; lesson recorded.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_deadline_pin",
+   "label": "ConfigTerms::validate pins deadline_seconds == 600 (PROMOTION_DEADLINE_SECS); 599/601 rejected at staging",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/controls.rs",
+   "source_location": "L22",
+   "status": "local_runtime_executed",
+   "rationale": "Commit 366df88 (IMPL-42, Codex M7 review item 1): RED on the old validator and old ELF 27de0cfc…, GREEN on 4f77706c… / fc2c7940…; receipt 2026-10-14-m7-deadline-pin.json.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_owner_refund_deferral",
+   "label": "Undeliverable owner refunds are deferred, never forfeited: credit_is_deliverable := c + a ≥ rent minimum; settle_books / book_return keep the owner share in locked_owner_remaining; permissionless deliver_owner_refund() pays it to the immutable destination exactly once (6050 NothingDeferred, 6051 RefundNotDeliverable; event OwnerRefundDelivered)",
+   "file_type": "concept",
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "status": "local_runtime_executed",
+   "rationale": "Commit 366df88 (IMPL-43, Codex M7 review item 2). LiteSVM RED \"owed 0, paid 0\" on 27de0cfc…; LiteSVM 0.7.1 does not check rent state for data-less accounts, so the predicate is validated against the Agave rule text (tests/transfer_constraints.rs). Pending Codex acceptance of the §8.5 reading.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_contract_supplement",
+   "label": "M7 contract supplement: canonical (owner, loss) candidate digest, the 600 s deadline pin, and the deferred-owner-refund reading of §8.5 proposed for Codex review",
+   "file_type": "concept",
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "status": "completed_receipt",
+   "rationale": "IMPL-44; docs only; nothing reopens D1–D9.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_close_suite",
+   "label": "LiteSVM close-lifecycle suite with the captured ORAO executable: 42 rows / 784 observations (candidates, request, fulfillment via Ed25519 + Fulfill, capture, promotion, expiry, finalization, provider returns, two-close sequence)",
+   "file_type": "concept",
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "status": "local_runtime_executed",
+   "rationale": "IMPL-33 (Sonnet, compile-checked) + coordinator execution: 43/47 first run; one fixture gap (fixture Backers lacked the User a real fund_series_a creates) fixed; 47/47.",
+   "community": 1458
+  },
+  {
+   "id": "impl2026_10_14_m7_receipt",
+   "label": "M7 receipt: ELF fc2c7940… (source set e7e2ffcb…); every suite and the CLI green; limits: one synthetic fulfill authority, no cluster latency, LiteSVM rent-state gap for data-less accounts",
+   "file_type": "concept",
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "status": "completed_receipt",
+   "rationale": "IMPL-34.",
+   "community": 1458
+  }
+ ],
+ "edges": [
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L67",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_hasher_single_path",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L30",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_deadline_pin",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/controls.rs",
+   "source_location": "L22",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "plan2026_10_13_m7_close_draw_finalize",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_build_candidates",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_request_round_draw",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_capture_round_draw",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_apply_promotion",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_expire_promotion",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_ix_finalize_round",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_rule_promotion_deadline",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_rule_finalize_seed_carry_once",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_dr_18_expire_finalize_split",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_dr_17_orao_callback",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_dr_14_refund_timing",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_candidates_counting",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_candidates_sealed_draw_not_requested",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_draw_requested",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_draw_captured",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_promotion_applied",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_promotion_skipped_deadline",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_promotion_skipped_entropy_exhausted",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_state_promotion_skipped_no_candidates",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_gap_no_candidate_promotion_expiry_finalize_code",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_acc_deferral_candidate_sealing",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "plan2026_10_13_account_candidatepage",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "impl2026_10_14_m5_payout_pipeline",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "impl2026_10_14_m6_typed_phase_instructions",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "target": "impl2026_10_14_m4_locked_close_funding",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L962",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13c_ix_increase_provider_budget",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13d_ix_withdraw_provider_return",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13c_ix_record_provider_return",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13b_dr_32_provider_attribution",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13d_resolution_f1_authenticated_provider_returns",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13b_fix_provider_cash_attribution",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13c_field_ops_provider_fields",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13b_field_ops_provider_prepaid",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_provider_budget_and_returns",
+   "target": "plan2026_10_13b_resolution_r5_orao_roles",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1407",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_orao_cpi_provider_wrapper",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_account_orao_client",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_account_orao_networkstate",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_account_orao_requestaccount",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_account_orao_treasury",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_snap_orao_vrf",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_orao_not_production_dependency",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_acc_deferral_orao_integration",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_orao_cpi_wrapper",
+   "target": "plan2026_10_13_ladder_provider_schema_probe",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/provider.rs",
+   "source_location": "L172",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "target": "plan2026_10_13_formula_protocol_seed",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L67",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "target": "plan2026_10_13_r14_candidate_row_width",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L67",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_hasher_single_path",
+   "target": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/sampling.rs",
+   "source_location": "L30",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_deadline_pin",
+   "target": "plan2026_10_13_rule_promotion_deadline",
+   "relation": "verifies",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/controls.rs",
+   "source_location": "L22",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_deadline_pin",
+   "target": "impl2026_10_14_m5_config_pins",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/controls.rs",
+   "source_location": "L22",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_deadline_pin",
+   "target": "docs_solana_evidence_2026_10_14_m7_deadline_pin_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/controls.rs",
+   "source_location": "L22",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "plan2026_10_13_dr_14_refund_timing",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "docs_solana_evidence_2026_10_14_m7_owner_refund_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "impl2026_10_14_m7_contract_supplement",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_owner_refund_deferral",
+   "target": "impl2026_10_14_m7_provider_budget_and_returns",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/programs/musical_chairs/src/close.rs",
+   "source_location": "L1495",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "plan2026_10_13_dr_14_refund_timing",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "docs_coordination_native_solana_m7_contract_supplement_20261014_md",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "impl2026_10_14_m7_owner_refund_deferral",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "impl2026_10_14_m7_deadline_pin",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_contract_supplement",
+   "target": "impl2026_10_14_m7_sampling_seed_and_digest",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/native-solana-m7-contract-supplement-20261014.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_request_round_draw_creates_request_with_protocol_seed_and_marker_atomically",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_request_after_deadline_is_rejected_before_fees",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_collision_with_preexisting_request_fails_closed_no_alternate_seed",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_late_authentic_fulfillment_after_skip_cannot_mint_or_revive",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_timely_capture_cannot_be_expired_and_applies_after_deadline",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_build_candidates_visits_every_participant_once_and_seals_digests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_build_candidates_rejects_skipped_or_reordered_rows",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_expire_promotion_requires_clock_past_deadline_and_no_capture",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_second_close_cannot_reuse_first_close_request_binding",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_sealed_with_zero_losers_skips_no_candidates_without_request",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_test_expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13b_m7_orao_roles_attribution_tests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13c_m7_provider_conservation_tests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13d_m7_provider_return_tests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13d_m7_two_close_sequence_test",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13e_m7_retained_lamport_tests",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13e_m7_split_field_assertions",
+   "relation": "implements",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_fixture_orao_executable",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_receipt_provider_resource_probes",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "plan2026_10_13_gap_orao_devnet_latency_quorum_retention",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "solana_tests_financial_runtime_src_close_rs",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "impl2026_10_14_m6_allocation_suite",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "impl2026_10_14_m3_vault_standin",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "impl2026_10_14_m7_close_lifecycle_handlers",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "impl2026_10_14_m7_provider_budget_and_returns",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_close_suite",
+   "target": "impl2026_10_14_m7_owner_refund_deferral",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "solana/tests/financial-runtime/src/close.rs",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "docs_solana_evidence_2026_10_14_m7_close_lifecycle_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "docs_solana_evidence_2026_10_14_m7_deadline_pin_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "docs_solana_evidence_2026_10_14_m7_owner_refund_json",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "impl2026_10_14_m6_receipt",
+   "relation": "revises",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_m7_receipt",
+   "target": "impl2026_10_14_m7_close_suite",
+   "relation": "depends_on",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_impl_kanban_pass",
+   "target": "impl2026_10_14_m7_close_suite",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/kanban.md",
+   "source_location": "L1",
+   "weight": 1.0
+  },
+  {
+   "source": "impl2026_10_14_impl_kanban_pass",
+   "target": "impl2026_10_14_m7_receipt",
+   "relation": "references",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0,
+   "source_file": "docs/coordination/kanban.md",
+   "source_location": "L1",
+   "weight": 1.0
+  }
+ ],
+ "hyperedges": [
+  {
+   "id": "m7_close_lifecycle_2026_10_14",
+   "label": "M7 close lifecycle GREEN in LiteSVM with the captured ORAO executable (2026-10-14), incl. Codex M7 corrections",
+   "nodes": [
+    "impl2026_10_14_m7_close_lifecycle_handlers",
+    "impl2026_10_14_m7_provider_budget_and_returns",
+    "impl2026_10_14_m7_orao_cpi_wrapper",
+    "impl2026_10_14_m7_sampling_seed_and_digest",
+    "impl2026_10_14_m7_hasher_single_path",
+    "impl2026_10_14_m7_deadline_pin",
+    "impl2026_10_14_m7_owner_refund_deferral",
+    "impl2026_10_14_m7_contract_supplement",
+    "impl2026_10_14_m7_close_suite",
+    "impl2026_10_14_m7_receipt",
+    "plan2026_10_13_m7_close_draw_finalize"
+   ],
+   "source_file": "docs/solana/evidence/2026-10-14-m7-close-lifecycle.json",
+   "source_location": "L1",
+   "confidence": "EXTRACTED",
+   "confidence_score": 1.0
+  }
+ ],
+ "attribute_updates": {
+  "plan2026_10_13_m7_close_draw_finalize": {
+   "status": "completed_receipt",
+   "resolution": "M7 GREEN locally 2026-10-14 (8fdade5, 366df88, close-suite commit); Codex static review items 1–2 corrected; deferred-refund reading pending Codex acceptance"
+  },
+  "plan2026_10_13_gap_no_candidate_promotion_expiry_finalize_code": {
+   "status": "resolved_in_local_implementation",
+   "resolution": "close.rs implements candidates, request, capture, promotion, expiry and finalization; executed in LiteSVM with the captured ORAO executable"
+  },
+  "plan2026_10_13_acc_deferral_candidate_sealing": {
+   "status": "resolved_in_local_implementation"
+  },
+  "plan2026_10_13_acc_deferral_orao_integration": {
+   "status": "resolved_in_local_implementation",
+   "resolution": "real ORAO executable driven in LiteSVM with one synthetic fulfill authority; cluster latency/quorum remains a devnet item"
+  },
+  "plan2026_10_13_dr_14_refund_timing": {
+   "status": "local_runtime_executed",
+   "resolution": "settlement at terminal promotion implemented; undeliverable owner remainders deferred to the owner (IMPL-43), reading pending Codex"
+  },
+  "plan2026_10_13_ix_build_candidates": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_ix_request_round_draw": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_ix_capture_round_draw": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_ix_apply_promotion": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_ix_expire_promotion": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_ix_finalize_round": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13c_ix_increase_provider_budget": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13d_ix_withdraw_provider_return": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_rule_promotion_deadline": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_rule_finalize_seed_carry_once": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_dr_18_expire_finalize_split": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_dr_17_orao_callback": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_formula_protocol_seed": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_orao_cpi_provider_wrapper": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13c_dr_33_provider_budget_and_reconcile": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_dr_32_provider_attribution": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13d_resolution_f1_authenticated_provider_returns": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_fix_provider_cash_attribution": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_resolution_r5_orao_roles": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13b_m7_orao_roles_attribution_tests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13c_m7_provider_conservation_tests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13d_m7_provider_return_tests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13d_m7_two_close_sequence_test": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13e_m7_retained_lamport_tests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13e_m7_split_field_assertions": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_candidates_counting": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_candidates_sealed_draw_not_requested": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_draw_requested": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_draw_captured": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_promotion_applied": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_promotion_skipped_deadline": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_promotion_skipped_entropy_exhausted": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_state_promotion_skipped_no_candidates": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_apply_promotion_first_valid_counter_selects_candidate_and_grants_b_116": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_finalize_requires_cash_committed_and_terminal_promotion_then_carries_full_seed_once": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_request_round_draw_creates_request_with_protocol_seed_and_marker_atomically": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_capture_at_deadline_equality_is_timely_and_capture_one_second_later_is_ignored_late_noop": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_request_after_deadline_is_rejected_before_fees": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_collision_with_preexisting_request_fails_closed_no_alternate_seed": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_late_authentic_fulfillment_after_skip_cannot_mint_or_revive": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_direct_open_against_closing_round_fails_and_composed_expire_finalize_open_succeeds_with_expected_round": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_timely_capture_cannot_be_expired_and_applies_after_deadline": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_build_candidates_visits_every_participant_once_and_seals_digests": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_build_candidates_rejects_skipped_or_reordered_rows": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_expire_promotion_requires_clock_past_deadline_and_no_capture": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_second_close_cannot_reuse_first_close_request_binding": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_sealed_with_zero_losers_skips_no_candidates_without_request": {
+   "status": "local_runtime_executed"
+  },
+  "plan2026_10_13_test_expire_during_candidate_build_abandons_candidate_pages_but_preserves_cash": {
+   "status": "local_runtime_executed"
+  }
+ },
+ "repairs": {
+  "restored_raw_edges": [
+   {
+    "relation": "calls",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/crates/economics/src/rounds.rs",
+    "source_location": "L457",
+    "weight": 1.0,
+    "context": "call",
+    "confidence_score": 1.0,
+    "source": "src_rounds_round_claim_position_inner",
+    "target": "src_rounds_round"
+   },
+   {
+    "relation": "calls",
+    "context": "call",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/probes/runtime/harness/src/runtime.rs",
+    "source_location": "L110",
+    "weight": 1.0,
+    "confidence_score": 1.0,
+    "source": "runtime_solana_probes_runtime_harness_src_runtime_rs_src_runtime_runtimeprobe_build",
+    "target": "runtime_solana_probes_runtime_harness_src_runtime_rs_src_runtime_runtimeprobe_new"
+   },
+   {
+    "relation": "contains",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/programs/musical_chairs/src/controls.rs",
+    "source_location": "L584",
+    "weight": 1.0,
+    "confidence_score": 1.0,
+    "source": "production_solana_programs_musical_chairs_src_controls_rs",
+    "target": "production_solana_programs_musical_chairs_src_controls_rs_src_controls_initialize"
+   },
+   {
+    "relation": "contains",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+    "source_location": "L360",
+    "weight": 1.0,
+    "confidence_score": 1.0,
+    "source": "production_solana_programs_musical_chairs_src_allocation_rs",
+    "target": "production_solana_programs_musical_chairs_src_allocation_rs_src_allocation_senior"
+   },
+   {
+    "relation": "contains",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/programs/musical_chairs/src/allocation.rs",
+    "source_location": "L376",
+    "weight": 1.0,
+    "confidence_score": 1.0,
+    "source": "production_solana_programs_musical_chairs_src_allocation_rs",
+    "target": "production_solana_programs_musical_chairs_src_allocation_rs_src_allocation_commit"
+   },
+   {
+    "relation": "calls",
+    "context": "call",
+    "confidence": "EXTRACTED",
+    "source_file": "solana/tests/financial-runtime/src/runtime.rs",
+    "source_location": "L608",
+    "weight": 1.0,
+    "confidence_score": 1.0,
+    "source": "production_solana_tests_financial_runtime_src_runtime_rs_src_runtime_read_financial_elf",
+    "target": "production_solana_tests_financial_runtime_src_runtime_rs_src_runtime_financialruntime_new"
+   },
+   {
+    "relation": "rationale_for",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L276",
+    "weight": 1.0,
+    "source": "plan2026_10_13_invariant_atomic_failure",
+    "target": "plan2026_10_13_sec7_instructions"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L252",
+    "weight": 1.0,
+    "source": "plan2026_10_13_account_opscash",
+    "target": "plan2026_10_13_dr_06_ops_cash_pda"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L316",
+    "weight": 1.0,
+    "source": "plan2026_10_13_ix_request_round_draw",
+    "target": "plan2026_10_13_account_rngauthority"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L155",
+    "weight": 1.0,
+    "source": "plan2026_10_13_rule_width_contract",
+    "target": "plan2026_10_13_dr_05_width_contract"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L291",
+    "weight": 1.0,
+    "source": "plan2026_10_13_ix_close_shared_account",
+    "target": "plan2026_10_13_dr_13_rent_attribution"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L299",
+    "weight": 1.0,
+    "source": "plan2026_10_13_ix_withdraw_simple",
+    "target": "plan2026_10_13_dr_12_reserve_check_order"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+    "source_location": "L318",
+    "weight": 1.0,
+    "source": "plan2026_10_13_ix_apply_promotion",
+    "target": "plan2026_10_13_dr_14_refund_timing"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/coordination/native-solana-decision-register-20261013.md",
+    "source_location": "L93",
+    "weight": 1.0,
+    "source": "plan2026_10_13_dr_12_reserve_check_order",
+    "target": "plan2026_10_13_dr_08_snapshot_pages"
+   },
+   {
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/coordination/native-solana-state-inventory-20261013.md",
+    "source_location": "L3",
+    "weight": 1.0,
+    "source": "plan2026_10_13_inventory_document",
+    "target": "plan2026_10_13_plan_document"
+   },
+   {
+    "relation": "depends_on",
+    "confidence": "EXTRACTED",
+    "confidence_score": 1.0,
+    "source_file": "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+    "source_location": "L79",
+    "weight": 1.0,
+    "source": "plan2026_10_13_m0_workspace_toolchain",
+    "target": "plan2026_10_13_gap_platform_tools_pin"
+   }
+  ],
+  "attributes_restored": {
+   "status": 321,
+   "label": 2,
+   "file_type": 2,
+   "rationale": 2,
+   "historical_source_sha256": 2,
+   "source_location": 1,
+   "norm_label": 1,
+   "source_url": 1,
+   "captured_at": 1,
+   "author": 1,
+   "contributor": 1
+  },
+  "nodes_with_attributes_restored": [
+   "coordination_native_solana_model_probes_delivered_scope",
+   "plans_2026_10_12_native_solana_global_constraints",
+   "solana_crates_economics_src_admission_rs",
+   "solana_crates_economics_src_backers_rs",
+   "solana_crates_economics_src_earnings_rs",
+   "solana_crates_economics_src_fees_rs",
+   "solana_crates_economics_src_lib_rs",
+   "solana_crates_economics_src_rounds_rs",
+   "solana_crates_economics_tests_admission_rs",
+   "solana_crates_economics_tests_allocation_rs",
+   "solana_crates_economics_tests_backer_transitions_rs",
+   "solana_crates_economics_tests_conservation_rs",
+   "solana_crates_economics_tests_end_to_end_rs",
+   "solana_crates_economics_tests_rounds_rs",
+   "solana_crates_economics_tests_vectors_rs",
+   "solana_probes_provider_resources_src_lib_rs",
+   "solana_probes_provider_resources_src_main_rs",
+   "solana_probes_provider_resources_src_tests_rs",
+   "src_admission_admission",
+   "src_admission_admission_default",
+   "src_admission_admission_fund_series_a",
+   "src_admission_admission_new",
+   "src_admission_admission_open_position",
+   "src_admission_admission_record_claim_or_round_progress",
+   "src_admission_admission_record_success",
+   "src_admission_admission_successful_calls",
+   "src_admission_error",
+   "src_backers_backer",
+   "src_backers_backer_is_open",
+   "src_backers_backer_remaining",
+   "src_backers_backer_remaining_entitlement",
+   "src_backers_backerkey",
+   "src_backers_backerkey_new",
+   "src_backers_book",
+   "src_backers_book_accept_game_deposit",
+   "src_backers_book_active_row",
+   "src_backers_book_active_slot",
+   "src_backers_book_add_backer",
+   "src_backers_book_add_backer_with_lifetime",
+   "src_backers_book_allocate",
+   "src_backers_book_allocate_all_current",
+   "src_backers_book_allocate_all_current_inner",
+   "src_backers_book_allocate_chunk",
+   "src_backers_book_allocate_chunk_inner",
+   "src_backers_book_apply_senior",
+   "src_backers_book_apply_senior_inner",
+   "src_backers_book_atomic",
+   "src_backers_book_atomic_seal_weights",
+   "src_backers_book_backer",
+   "src_backers_book_claim",
+   "src_backers_book_commit",
+   "src_backers_book_commit_inner",
+   "src_backers_book_conservation",
+   "src_backers_book_credit",
+   "src_backers_book_deactivate_row",
+   "src_backers_book_default",
+   "src_backers_book_discover_all",
+   "src_backers_book_discover_all_inner",
+   "src_backers_book_discover_chunk",
+   "src_backers_book_discover_chunk_checked",
+   "src_backers_book_discover_chunk_inner",
+   "src_backers_book_floor_percent",
+   "src_backers_book_fund_series_a_unchecked",
+   "src_backers_book_global_funded_claims",
+   "src_backers_book_has_ever",
+   "src_backers_book_history_mut",
+   "src_backers_book_is_active",
+   "src_backers_book_materialize_if_finalized",
+   "src_backers_book_new",
+   "src_backers_book_phase",
+   "src_backers_book_prune_all",
+   "src_backers_book_prune_all_inner",
+   "src_backers_book_prune_chunk",
+   "src_backers_book_prune_chunk_inner",
+   "src_backers_book_prune_key",
+   "src_backers_book_record_game_payout",
+   "src_backers_book_reserve_toll",
+   "src_backers_book_row_index",
+   "src_backers_book_seal_weights",
+   "src_backers_book_seal_weights_inner",
+   "src_backers_book_seed",
+   "src_backers_book_seed_funded_fixture",
+   "src_backers_book_set_closing",
+   "src_backers_book_set_history",
+   "src_backers_book_start_ticket",
+   "src_backers_book_start_ticket_inner",
+   "src_backers_book_ticket",
+   "src_backers_book_with_balances",
+   "src_backers_book_with_pot",
+   "src_backers_book_with_protected_rent",
+   "src_backers_error",
+   "src_backers_error_fmt",
+   "src_backers_phase",
+   "src_backers_series",
+   "src_backers_snapshot",
+   "src_backers_ticket",
+   "src_earnings_matherror",
+   "src_earnings_payout",
+   "src_earnings_payout_from_gross",
+   "src_earnings_plan",
+   "src_earnings_plan_compound",
+   "src_earnings_plan_compound_15",
+   "src_earnings_plan_compound_30",
+   "src_earnings_plan_owed_at",
+   "src_earnings_plan_simple",
+   "src_earnings_plankind",
+   "src_earnings_simpleaccrual",
+   "src_earnings_simpleaccrual_accrue",
+   "src_earnings_simpleaccrual_new",
+   "src_fees_can_open_backer_with_remaining",
+   "src_fees_carried_interest_bps",
+   "src_fees_checked_bps",
+   "src_fees_checked_entitlement",
+   "src_fees_compound_jackpot_fee_bps",
+   "src_fees_entry_fee",
+   "src_fees_entryfee",
+   "src_fees_feepayout",
+   "src_fees_front_end_load",
+   "src_fees_funded_dust_is_claimable",
+   "src_fees_jackpot_fee_bps",
+   "src_fees_matherror",
+   "src_fees_payout",
+   "src_fees_payout_fee",
+   "src_fees_prospective_series_b_entitlement",
+   "src_fees_series_a_entitlement",
+   "src_fees_series_b_entitlement",
+   "src_fees_simple_toll_bps",
+   "src_lib_account_allocation_bytes",
+   "src_lib_account_bytes",
+   "src_lib_backer_pda",
+   "src_lib_fulfilled_request_account",
+   "src_lib_fulfillmenterror",
+   "src_lib_measure_packet",
+   "src_lib_network_configuration",
+   "src_lib_packet_alt_matrix",
+   "src_lib_packet_matrix",
+   "src_lib_packetmeasurement",
+   "src_lib_probe_snapshot",
+   "src_lib_probesnapshot",
+   "src_lib_provider_binding",
+   "src_lib_providerbinding",
+   "src_lib_registered_client",
+   "src_lib_registration_state_seeds",
+   "src_lib_request_account",
+   "src_lib_request_account_metas",
+   "src_lib_request_params",
+   "src_lib_resource_instruction",
+   "src_lib_resource_quote",
+   "src_lib_resourcequote",
+   "src_lib_sdk_request_account_metas",
+   "src_lib_snapshot_page_pda",
+   "src_lib_system_program_pubkey",
+   "src_lib_typecheck_request_cpi",
+   "src_lib_unsigned_legacy_transaction",
+   "src_lib_unsigned_transaction",
+   "src_lib_validate_fulfilled_request",
+   "src_rounds_allocation_overflow_does_not_leave_seed_mutated",
+   "src_rounds_candidates",
+   "src_rounds_candidates_selected",
+   "src_rounds_candidates_selected_digest",
+   "src_rounds_candidates_selected_tag",
+   "src_rounds_captureddraw",
+   "src_rounds_captureresult",
+   "src_rounds_claimerror",
+   "src_rounds_closeerror",
+   "src_rounds_closestate",
+   "src_rounds_digest_candidates",
+   "src_rounds_digest_participants",
+   "src_rounds_exhausted_rejection_sampler_has_no_winner",
+   "src_rounds_finalizeresult",
+   "src_rounds_map_earnings_error",
+   "src_rounds_map_output",
+   "src_rounds_map_samples",
+   "src_rounds_openpositionargs",
+   "src_rounds_participant",
+   "src_rounds_payout",
+   "src_rounds_phase",
+   "src_rounds_position",
+   "src_rounds_promotionstatus",
+   "src_rounds_providertuple",
+   "src_rounds_providertuple_new",
+   "src_rounds_rejection_sampler_accepts_the_first_in_range_ordinal",
+   "src_rounds_request_address",
+   "src_rounds_requestbinding",
+   "src_rounds_round",
+   "src_rounds_round_apply_promotion",
+   "src_rounds_round_b_entitlement",
+   "src_rounds_round_capture_draw",
+   "src_rounds_round_capture_draw_inner",
+   "src_rounds_round_captured_at",
+   "src_rounds_round_captured_output",
+   "src_rounds_round_claim_position",
+   "src_rounds_round_claim_position_inner",
+   "src_rounds_round_close_position",
+   "src_rounds_round_close_started_at",
+   "src_rounds_round_commit_allocation",
+   "src_rounds_round_expire_finalize_open",
+   "src_rounds_round_expire_promotion",
+   "src_rounds_round_finalize_round",
+   "src_rounds_round_fund_series_a",
+   "src_rounds_round_funded_lamports",
+   "src_rounds_round_management_lamports",
+   "src_rounds_round_map_output_for_test",
+   "src_rounds_round_new",
+   "src_rounds_round_open_position",
+   "src_rounds_round_participant_chunk",
+   "src_rounds_round_participant_count",
+   "src_rounds_round_participant_digest",
+   "src_rounds_round_participant_rows",
+   "src_rounds_round_pending_toll_lamports",
+   "src_rounds_round_phase",
+   "src_rounds_round_pot_lamports",
+   "src_rounds_round_promotion_deadline",
+   "src_rounds_round_protocol_seed",
+   "src_rounds_round_record_backer_exists_fixture",
+   "src_rounds_round_request_binding",
+   "src_rounds_round_request_draw",
+   "src_rounds_round_request_draw_inner",
+   "src_rounds_round_round_id",
+   "src_rounds_round_seal_candidates",
+   "src_rounds_round_seed_lamports",
+   "src_rounds_round_set_admission_paused",
+   "src_rounds_round_start_close",
+   "src_rounds_round_timer_close",
+   "src_rounds_rounderror",
+   "src_rounds_series",
+   "src_rounds_series_a_book_overflow_and_ticket_barrier_roll_back_both_models",
+   "src_rounds_skipreason",
+   "src_rounds_userround",
+   "src_rounds_zero_owed_matured_simple_close_terminates_only_the_position",
+   "src_tests_fulfilled_result_rejects_wrong_owner_mismatch_and_malformed_bytes",
+   "src_tests_legacy_packet_is_unsigned",
+   "src_tests_mock_info",
+   "src_tests_packet_probe_reports_limits_and_alt_variant_without_signing",
+   "src_tests_request_cpi_account_metas_are_the_pinned_oracle_order",
+   "src_tests_sdk_binding_uses_registered_state_client_and_request_pdas",
+   "src_tests_sdk_serialization_and_size_constants_match_measured_accounts",
+   "tests_admission_backward_time_and_failed_calls_leave_quota_unchanged",
+   "tests_admission_claims_and_round_progress_do_not_consume_quota",
+   "tests_admission_exactly_three_successes_are_allowed_and_fourth_is_rejected_atomically",
+   "tests_admission_game_and_series_a_minima_are_checked_before_consuming_quota",
+   "tests_admission_timestamp_exactly_one_hour_old_expires",
+   "tests_allocation_absent_a_folds_proportional_slice_into_equal_b_without_senior_credit",
+   "tests_allocation_absent_b_folds_before_senior_and_senior_cap_dust_goes_to_seed",
+   "tests_allocation_accepted_vector_applies_senior_then_sealed_a_and_equal_b",
+   "tests_allocation_chunk_sizes_have_the_same_oracle",
+   "tests_allocation_cursor_rejects_skip_reorder_and_substitution_atomically",
+   "tests_allocation_eleven_lamport_senior_keeps_positive_post_senior_weight",
+   "tests_allocation_no_open_backers_routes_the_whole_toll_to_seed",
+   "tests_allocation_seeded_book",
+   "tests_allocation_zero_and_sub_lamport_slice_tolls_skip_ticket_creation",
+   "tests_backer_transitions_barrier_allows_deposits_and_claims_but_rejects_backer_mutation_and_payout",
+   "tests_backer_transitions_capped_rows_leave_registry_but_history_and_reopen_order_remain",
+   "tests_backer_transitions_claim_during_ticket_spends_old_funded_balance_only",
+   "tests_backer_transitions_closing_rejects_deposit_without_affecting_ticket",
+   "tests_backer_transitions_closing_rejects_later_game_payout_atomically",
+   "tests_backer_transitions_consecutive_tickets_materialize_old_credit_before_new_credit",
+   "tests_backer_transitions_descending_prune_rejects_replay_and_old_key_without_partial_mutation",
+   "tests_backer_transitions_lifetime_restore_on_existing_row_is_rejected_without_membership_change",
+   "tests_backer_transitions_oversized_allocation_continuation_after_partial_progress_is_bounded",
+   "tests_backer_transitions_partial_prune_then_default_prune_all_handles_max_chunk_atomically",
+   "tests_conservation_commit_preserves_physical_custody_and_claims_are_not_recredited",
+   "tests_conservation_fixture_funding_consumes_lifetime_cap_and_rejects_over_cap_atomically",
+   "tests_conservation_fixture_funding_is_physically_backed_and_overflow_rolls_back",
+   "tests_conservation_fixture_funding_reconciles_cutoff_and_rejects_active_ticket_mutation",
+   "tests_conservation_overflow_and_insufficient_custody_fail_without_mutation",
+   "tests_conservation_pending_credit_is_materialized_lazily_once",
+   "tests_conservation_randomized_broad_inputs_conserve_against_an_independent_row_sum",
+   "tests_end_to_end_assert_book_partition",
+   "tests_end_to_end_assert_joined_cash",
+   "tests_end_to_end_derived_plan_admission_and_repeated_claims_keep_fee_terms_atomic",
+   "tests_end_to_end_expected_simple_payout",
+   "tests_end_to_end_joined_model_rejects_invalid_provider_without_mutation",
+   "tests_end_to_end_joined_round_backer_and_fee_cash_conservation",
+   "tests_end_to_end_round",
+   "tests_end_to_end_settle_claim",
+   "tests_end_to_end_simple_owed",
+   "tests_rounds_admission_requires_minimum_and_owner_quota",
+   "tests_rounds_candidates_freeze_backer_history_at_close",
+   "tests_rounds_canonical_participants_are_stable_and_digest_complete",
+   "tests_rounds_capture_uses_full_64_byte_output_and_rejects_wrong_binding",
+   "tests_rounds_close_with_compound",
+   "tests_rounds_composed_expiry_finalizes_from_candidate_counting_after_cash_commit",
+   "tests_rounds_composed_expiry_rolls_back_when_cash_is_uncommitted",
+   "tests_rounds_compound_claim_requires_computed_maturity",
+   "tests_rounds_deadline_capture_is_authenticated_noop_even_for_backdated_execution_input",
+   "tests_rounds_expiry_is_available_before_candidate_work_and_backdated_terminal_capture_is_noop",
+   "tests_rounds_expiry_is_available_during_candidate_counting_after_cash_commit",
+   "tests_rounds_explicit_simple_close_requires_maturity",
+   "tests_rounds_finalization_carries_seed_from_committed_allocation_once",
+   "tests_rounds_healthy_rounds_cannot_be_timer_closed",
+   "tests_rounds_identical_authenticated_capture_remains_idempotent_after_promotion",
+   "tests_rounds_open",
+   "tests_rounds_prepare_draw",
+   "tests_rounds_promoted_b_history_excludes_prior_winner_from_next_round_preferred_candidates",
+   "tests_rounds_repeated_simple_claims_derive_accrual_and_keep_position_open",
+   "tests_rounds_request_collision_and_retry_are_bound_to_one_marker",
+   "tests_rounds_request_creation_after_deadline_is_rejected",
+   "tests_rounds_round",
+   "tests_rounds_series_a_funding_rejects_a_closing_round_without_touching_the_book",
+   "tests_rounds_series_a_funding_rejects_minimum_pause_and_book_closing_without_mutation",
+   "tests_rounds_series_a_funding_shares_game_quota_and_preserves_game_pl",
+   "tests_rounds_solvent_compound_claim_stays_active_and_cannot_use_simple_close",
+   "tests_rounds_synced_book",
+   "tests_rounds_toll_is_pending_escrow_and_blocks_later_payouts_until_commit",
+   "tests_vectors_accepted_simple_vectors_match_independent_fixture",
+   "tests_vectors_boundaries_and_checked_widths_are_explicit",
+   "tests_vectors_case",
+   "tests_vectors_compound_maturity_vectors_use_floor_q18_factors_and_jackpot_fees",
+   "tests_vectors_entry_fee_and_jackpot_fee_vectors_match_the_accepted_rates",
+   "tests_vectors_equality_with_pot_is_solvent_while_zero_pot_positive_claim_is_allowed_at_zero_minimum",
+   "tests_vectors_extreme_principal_uses_checked_wide_intermediates",
+   "tests_vectors_fixture",
+   "tests_vectors_insolvent_payout_charges_toll_on_actual_gross_and_conserves_pot",
+   "tests_vectors_insolventcase",
+   "tests_vectors_malformed_public_compound_schedule_is_rejected_without_mutation",
+   "tests_vectors_malformed_public_simple_state_is_rejected_without_mutation",
+   "tests_vectors_simple_case",
+   "tests_vectors_simple_maturity_accumulates_exactly_once_across_repeated_claims",
+   "tests_vectors_simple_remainder_carries_across_claims_and_backwards_time_leaves_state_unchanged",
+   "tests_vectors_vectors"
+  ],
+  "same_symbol_as_edges": []
+ },
+ "metadata": {
+  "community": 1458,
+  "label": "Native Solana 2026-10-14 M7 close lifecycle, Codex corrections and supplement (IMPL-32..34, 42..44)",
+  "written_by": "coordinator (Claude Fable 5.1)"
+ }
+}

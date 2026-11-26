@@ -1,0 +1,73 @@
+{
+ "recorded_at_utc": "2026-10-24T19:30:27+00:00",
+ "step": "A1 (Block A, Solana devnet only)",
+ "authority": "Rob's Block A approval (docs/coordination/m14-block-a-approval-20261024.md) + Gideon's final 5a acceptance (docs/coordination/m14-5a-gideon-review-20261024.md)",
+ "genesis_check": {
+  "rpc": "https://api.devnet.solana.com",
+  "getGenesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "pin": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "match": true,
+  "getVersion": "solana-core 4.4.0-beta.1, feature-set 3993424257",
+  "order": "checked BEFORE any key was generated or used"
+ },
+ "keys": {
+  "generator": "solana-keygen 3.1.0 (pinned Agave 3.1.0-beta.0)",
+  "custody": "D1: 0700 directory outside every git worktree, files 0600, never committed/printed/pasted; never ~/.config/solana/id.json",
+  "public_keys": {
+   "program_id (5a)": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+   "deployer D": "6wMkX8FsrqRQPsLngBNQbDgA4VCFU4LmCpUtPhykPq7k",
+   "buffer": "ikaXpGYBjAB4bE9zWGtBLNM9hVu52HaaQYYLgkFpHV2",
+   "squads create key G": "4916SeyHLPz31LwwiRZjGMdFbe6pUqqoP8kvg5FXg2St",
+   "squads create key P": "FdiAHJg4EVTfGNYhbLRMNFKA4Qf56Jhv1NJSPX1WaKGi",
+   "G voter 1": "8BrZcPMvYWpghk3dnexKeTCUtvaKtDtuYrL64bmEf4Y6",
+   "G voter 2": "844Z8Bvt5YrgQpKg7HeRmhRowR4GaptDjvsREMZ6vQ3a",
+   "G voter 3": "ojLAGWC1RjGf4smVoutTNM5yiTJHNrEBZh2QB15D2US",
+   "P voter 1": "GstA5Mysct7opyr6shCJHEzNz3caNXLbzRVyWGZbPbmR",
+   "P voter 2": "5RjT3tXWDesaaVaAbz4prTnxV1Q9wZwWuS2ttL6xTs4k",
+   "P voter 3": "4LMhwYwqbuTJoix4uBEx2ESDYgDeAf8vXCtYEMjTAVQC",
+   "management recipient": "FrJmn1ssfRX32jJBLyZAuREU5Yb3xS1HbvThcWMZHLVL",
+   "plan wallet S": "HfkWHGmnxcV2NBPDkNr4kGr5ZyRiqnCBqn8jfuxGRKVj",
+   "plan wallet K": "DV7kG6tXxR5pzqxv5CT45HfgNAkHAmXmhd5KZU7aaXaW",
+   "plan wallet A1": "9FARN98z5adLZfygHQEXqhFa2QMGT5xAh62ucfqU88US",
+   "plan wallet A2": "FfKyboqQ5somwycNrkZkmVQ6AH2zEfy8WQkWeXkGsQmX",
+   "plan wallet P1": "Amb4Sv5tuimA4WkJocLewq6DedumcM5bkom4cTjPp9fY",
+   "plan wallet P2": "r5wmP1DaozDQ1nqwv4xydSMkaangG98Ac3oDEmjTvC3",
+   "plan wallet P3": "c38zcyDXMFMY1aahpYbL5Tm2kQb5bEpBJjTFzq1HcDg",
+   "plan wallet P4": "HyBaUm2nNYCSqcyoJXCH6ZasJ9sE3Aq1MNjwobvPwtZF",
+   "plan wallet P5": "Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ",
+   "plan wallet W": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J"
+  },
+  "members_files": "g-members.txt / p-members.txt (three pubkeys each, one per line)"
+ },
+ "funding": {
+  "ledger": "docs/solana/evidence/devnet-sol-ledger.jsonl: append-only and write-ahead. The requester re-checks genesis, refuses past the 25 SOL PROCESS budget, and keeps every non-429 outcome reserved. This is the coordinator's process ledger; devnet_ops itself enforces only its per-command ceilings.",
+  "plan": "direct public-faucet airdrops per recipient (no signed transfers outside the tool): D 15, S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30 (A1 1.1, A2 0.06, P1 0.21, P2 0.11, P3 0.03, P4 0.08, P5 0.08, W 0.63) = 18.91 SOL",
+  "result": "STOPPED (packet MI-5). requestAirdrop 5 SOL to D returned JSON-RPC -32603 'Internal error' with no signature. 2 SOL returned an explicit HTTP 429: 'reached your airdrop limit today or the airdrop faucet has run dry; visit faucet.solana.com'.",
+  "next": "MI-5, the human step: Gideon notifies Rob once. Rob uses the official web faucet faucet.solana.com himself; its page says AI agents must not use the web interface, so there is no agent GitHub or CAPTCHA automation and no other faucet source. The funds go to the deployer, up to 15 SOL, and are recorded in the ledger by balance observation. Never mainnet funds.",
+  "reconciliation": {
+   "when": "2026-10-24T19:53:20Z (about 24 min after the requests); read-only and genesis-pinned at finalized commitment",
+   "observed_balance": "D getBalance = 0 lamports (context slot 514,719,983); getAccountInfo = null (account does not exist, slot 514,719,985); getSignaturesForAddress = [] (no transaction has ever touched D)",
+   "received_faucet_sol": "0 (observed)",
+   "possible_outstanding_request": "the 5 SOL request returned no signature, so it cannot be looked up by signature. A faucet transaction built then would have expired within minutes; that is an INFERENCE, since the faucet's internals are unobserved",
+   "written_budget_reserve": "5 SOL reserved in the process ledger for the -32603 request: a generic internal error does not prove the faucet had no effect, and absence is not treated as proof (Gideon, 2026-10-24); released only with Gideon's agreement. The 429 request is a confirmed rate-limit refusal with no reserve",
+   "process_ledger_committed": "5.0 of 25 SOL; the 18.91 SOL funding plan still fits (23.91 with the reserve)",
+   "correction": "the first version of this receipt said 'budget used 0' and the ledger labelled the -32603 request 'rejected'; both are superseded by this reconciliation"
+  },
+  "human_faucet_receipt_2026_10_25": {
+   "reported": "Rob, relayed by Gideon: \"i got us 5 sol which was the max\" (the official web faucet, the human MI-5 step)",
+   "verified": "read-only, genesis-pinned, finalized at 2026-10-25T02:46:16Z. Deployer balance 5,000,000,000 lamports (slot 514,823,809). Exactly one finalized transaction: 5zxiWk1Dxg1nHi2zseGY4V9737vjVp6focFMDfzjzAqckN7uRp2Mg76B5hv1VmGMu9DTvx3ztEMuGgbyP3un2Nzp (slot 514,823,085, 02:43:24Z), a successful system transfer of 5,000,000,000 lamports from dev2JBjyB5CshoGsiJCwzdmJYiEUwAXMdqDR7txoFBJ",
+   "attribution": "received equals reported (5.0 SOL). Consistent with Rob's web-faucet request by amount and timing. That the source account is the official faucet's wallet is not independently verified",
+   "reserve": "the earlier 5 SOL reserve for the 2026-10-24 RPC -32603 request is UNCHANGED: it is a separate request, 7+ hours earlier, and is neither conflated with this receipt nor released",
+   "process_ledger": "received 5.0 + reserved 5.0 = committed 10.0 of 25 SOL; remaining 15.0 SOL (process ledger only; devnet_ops enforces only its per-command ceilings)",
+   "remaining_gap": "deployer target 15.0 SOL leaves a gap of 10.0 SOL; the bare minimum (deploy peak 14.2185 + Squads rent about 0.0036 + fees + fund-vault 0.02) is about 14.26, a gap of about 9.26. Other recipients still need 3.91 SOL (S 1.0, K 0.1, voters 0.5, management 0.01, test wallets 2.30). Total to finish funding: about 13.91 SOL, within the 15.0 remaining",
+   "faucet_limit_guidance_evidenced": "only Rob's report that 5 SOL was the web faucet's maximum, and the RPC route's HTTP 429 text 'reached your airdrop limit today' (a daily limit on that route). The web faucet's exact limit and reset period are not evidenced in these records"
+  },
+  "human_faucet_receipt_2026_10_25_second": {
+   "reported": "Rob (relayed by Gideon): \"okay i did one more and got another 5\"",
+   "verified": "read-only, genesis-pinned, finalized at 07:53:36Z: deployer balance 10,000,000,000 (slot 514,901,077); new transaction 43FX19i3zCkknYK9CVVpGrFhSsBjrmHRKgYpg54EPWEAkxoV2xtfGGZ413nGpZszcEV8ok5Hae3Ymr6UTPV7kfod (slot 514,899,694, 07:48:06Z), a system transfer of 5,000,000,000 from dev2JBjyB5CshoGsiJCwzdmJYiEUwAXMdqDR7txoFBJ",
+   "process_ledger": "received 10.0 + reserved 5.0 (the earlier -32603 request, unchanged) = 15.0 of 25 committed; 10.0 remaining",
+   "gate_reevaluated": "A1's gate is genesis match + balances within caps (not a 15 SOL minimum); A2 ran next (see 2026-10-25-devnet-a2-squads.json); A3 needs about 4.24 SOL more on the deployer"
+  }
+ },
+ "nothing_else": "no transaction was signed or sent by the coordinator; no deploy, no Squads, no program interaction"
+}

@@ -1,0 +1,21 @@
+    Finished `test` profile [unoptimized] target(s) in 0.26s
+     Running tests/m14_flow_tool.rs (/Users/robertripley/.cache/mc-solana-tools/harness-target/debug/deps/m14_flow_tool-de93e301f555ea93)
+
+running 4 tests
+ok
+M14 current devnet run: PASS - close 1 at 1800981562 (A1's open 1800173172 + 808390), owed - pot 231 lamports; all 39 steps passed their checks
+ok
+M14 late open: PASS - A1 opened 3700 s late; F3 refused at the plan's instant (elapsed 341900), accepted at 342000; close 1 refused at the plan's instant and at threshold - 1, sent at the threshold (3568 s after the plan's instant); the settlements waited for the actual maturities; all 39 steps passed their checks
+ok
+model seed carried 48495000 vs chain 48495000 (match)
+M14 flow runner: PASS - 39 steps through `flow next`, 60 transactions sent, 61 simulations, both identities after every step
+oracle latency (LiteSVM, plan spacing): {"deadline_margin_seconds":465,"fulfil_block_time":1800981697,"fulfil_signature":"4snuuYKn6bHAVcmAwGWNn6eo6QyPSxDmJGjAmEU6GkurJRXQJjpHfADoU3sezVYXdyHFr1NcZdLiuCUR4sz6Bedp","fulfil_slot":38,"latency_seconds":15,"latency_slots":2,"request_account":"6JnSpEYHiNbqrt51SSXWbrietGgefXxjTGvUJoFegDxf","request_block_time":1800981682,"request_signature":"HA8sHKvQm9X37eCapFS5mLfXax9swBaz5GRfW9Bw8wXGaH6oeorS5k5p9wWp2GU5BDm9Q6QThMoLQDqnAaLxk9A","request_slot":36,"source":"getSignaturesForAddress(request account)","tool_waited_seconds":null}
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 18.51s
+
+test a_missed_refusal_window_is_reported_and_never_counted_done
+test the_current_devnet_run_closes_at_its_threshold_and_every_later_check_holds
+test the_f3_window_guard_and_a_late_open_still_reach_every_later_check
+test the_whole_m14_flow_plan_runs_through_flow_next_on_the_devnet_binaries
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 18.51s

@@ -1,0 +1,260 @@
+{
+ "schema": 1,
+ "card": "M14-A7-REOPEN",
+ "what": "devnet flow step 21 (w_finalize_reopen, F9b): ONE composed transaction by the plain wallet W (finalize_round 1 + round 2 participant page + W's 0.6 SOL Compound30 open), dry-run then executed ONCE; then STOP for review",
+ "authority": "Rob's explicit authorization of step 21 and of this relay ('authorized'), read by Gideon in the trusted human turn and relayed 2026-11-06; step 21 only, no steps 22 onward",
+ "runner": {
+  "sha256": "a9dcb1b3e46d488be35d83a232bbc3aa4cadc49cd0463fff8d32cd98529bc02c",
+  "bytes": 23020064,
+  "immutable_copy_verified": true
+ },
+ "presend_guards": {
+  "checked_at_utc": "2026-11-06T01:00:58Z-01:01:13Z",
+  "git": "HEAD = origin = 405a9b7; flow plan docs/solana/m14-flow-plan.md sha256 31b10b112d035a8d326a28e4a8877efded19aa48137e621060dbe322fa89e440; solana/ unchanged since 29c8f97",
+  "packet_sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "readback_finalized": "44/44 all_ok (full, ORAO-client checks included)",
+  "status": "20/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next w_finalize_reopen ready (plan earliest 2026-11-06T00:13:57Z)",
+  "receipts_before": "20 lines, sha256 b4b20e11ba7e65ce8d0270c9726c8cb8d6590b298b3879fd74e9b1c04fb02474; operator copy identical",
+  "pending": "1,460/1,460 write-ahead resolved, 0 held",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "genesis_unix": 1792942295,
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o",
+  "budget": "W finalized 630,000,000 (its funded target) against 600,000,000 deposit + 3,637,280 account rent + 5,000 fee",
+  "disk": "56 GiB free; operator journal 4.3 MB"
+ },
+ "step": {
+  "index": 21,
+  "id": "w_finalize_reopen",
+  "actor": "W",
+  "actor_pubkey": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+  "flows": "F9b",
+  "result": "done",
+  "all_ok": true,
+  "receipt_file": "~/.mc-devnet-ops/flow-21.json (dry run flow-21-dry.json)",
+  "plan_revision": "2026-11-01 close 1 at the strict-insolvency threshold",
+  "offset_s": 981742,
+  "plan_earliest_unix": 1793924037,
+  "cluster_unix_before": 1793926887,
+  "cluster_unix_after": 1793926891,
+  "checks": [
+   {
+    "actual": "2",
+    "expected": "2",
+    "name": "round advanced",
+    "ok": true
+   },
+   {
+    "actual": "624872669",
+    "expected": "624872669",
+    "name": "the seed carries into the pot once",
+    "ok": true
+   },
+   {
+    "actual": "0",
+    "expected": "0",
+    "name": "seed reset",
+    "ok": true
+   },
+   {
+    "actual": "None",
+    "expected": "none",
+    "name": "no close in flight",
+    "ok": true
+   },
+   {
+    "actual": "1/1",
+    "expected": "1/1",
+    "name": "one participant on one page",
+    "ok": true
+   },
+   {
+    "actual": "true",
+    "expected": "true",
+    "name": "close finalized",
+    "ok": true
+   },
+   {
+    "actual": "474874040",
+    "expected": "474874040",
+    "name": "Ops pays the new round's page",
+    "ok": true
+   },
+   {
+    "actual": "true",
+    "expected": "true",
+    "name": "the position opened",
+    "ok": true
+   },
+   {
+    "actual": "-603642280",
+    "expected": "-603642280",
+    "name": "composed finalize/reopen: actor lamport equation",
+    "ok": true
+   },
+   {
+    "actual": "true",
+    "expected": "true",
+    "name": "both conservation identities and the partition identity",
+    "ok": true
+   }
+  ],
+  "transactions": [
+   {
+    "depends_on_previous": false,
+    "executed": true,
+    "fee_payer": "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J",
+    "fits_1232": true,
+    "instructions": 4,
+    "label": "w_finalize_reopen: finalize_round + provision_page + open_position (one transaction)",
+    "packet_bytes": 725,
+    "required_signers": [
+     "DNj87xutQWnN72coRFt6pZeyCYEJic6LDpCTHrQgfy2J"
+    ],
+    "signature": "5Bwsn4EGudwTpfsBnpY5joYFe5rDb3FQb7no2hBFGvFL6q229gnta1sWcL9KEbw81m5fZbtzaSMQCd7z6PSr49Wu",
+    "simulation": {
+     "error": null,
+     "units_consumed": 106717
+    },
+    "slot": 519127036,
+    "step": "w_finalize_reopen"
+   }
+  ],
+  "readbacks": {
+   "actor_lamports": 26357720,
+   "close": {
+    "candidate_cursor": 3,
+    "captured_at": 1793924834,
+    "cash_committed": true,
+    "close_id": 1,
+    "close_started_at": 1793924649,
+    "draw_state": 2,
+    "fallback_count": 3,
+    "finalized": true,
+    "locked_owner_remaining": 0,
+    "locked_sponsor_remaining": 0,
+    "participant_count": 3,
+    "preferred_count": 2,
+    "promotion": "Applied { winner: Ch6YGpbaCg1C5BmrQiF83oaxr6ktA4gm84pf4yFYAAXZ, entitlement: 11600000 }",
+    "promotion_deadline": 1793925249,
+    "provisioned_fallback_pages": 1,
+    "provisioned_preferred_pages": 1,
+    "request_account": "9RtenVFn664nVEFzPxQ87H1LzCUvRG7Z2Ya6DD21vgyP",
+    "required_reserve": 10941400,
+    "reserve_settled": true,
+    "round_id": 1,
+    "sealed": true
+   },
+   "ops": {
+    "free_balance": 474874040,
+    "locked_remaining_total": 0,
+    "request_rent_outstanding": 4505960,
+    "total_contributed": "500000000",
+    "total_rent_funded": "20320000",
+    "unallocated_excess": 0
+   },
+   "pool": {
+    "active_ticket": 0,
+    "current_close_id": null,
+    "excess": 0,
+    "finalized_ticket": 2,
+    "funded_claims": "21465555",
+    "management": 64800000,
+    "next_close_id": 2,
+    "next_ticket": 3,
+    "participant_count": 1,
+    "participant_pages": 1,
+    "pending_toll": 0,
+    "pot": 624872669,
+    "registry_len": 2,
+    "registry_pages": 1,
+    "round_id": 2,
+    "seed": 0,
+    "snapshot_pages": 1
+   },
+   "ticket": {
+    "close_id": 1,
+    "id": 2,
+    "phase": 6,
+    "toll": 42931111
+   }
+  },
+  "conservation": {
+   "game_vault": {
+    "lamports": 711834184,
+    "ok": true,
+    "pot_seed_management_pending_toll_funded_claims_excess": "711138224",
+    "rent": 695960,
+    "spendable": 711138224
+   },
+   "ok": true,
+   "ops_cash": {
+    "free_locked_unallocated": "474874040",
+    "lamports": 475524280,
+    "ok": true,
+    "rent": 650240,
+    "spendable": 474874040
+   },
+   "partitions": {
+    "ok": true,
+    "ops_locked_remaining_total": 0,
+    "sum_of_close_records": 0
+   }
+  }
+ },
+ "transaction": {
+  "signature": "5Bwsn4EGudwTpfsBnpY5joYFe5rDb3FQb7no2hBFGvFL6q229gnta1sWcL9KEbw81m5fZbtzaSMQCd7z6PSr49Wu",
+  "slot": 519127036,
+  "block_time": 1793926890,
+  "fee": 5000,
+  "err": null,
+  "finalized": true,
+  "instructions": [
+   "FinalizeRound",
+   "ProvisionPage",
+   "OpenPosition"
+  ],
+  "balance_deltas": {
+   "W": -603642280,
+   "game_vault": 600000000,
+   "Ops": -2326640,
+   "new W-funded accounts (position + 2)": [
+    1457960,
+    1102360,
+    1076960
+   ],
+   "new Ops-funded round 2 participant page": 2326640
+  }
+ },
+ "seed_and_pot": {
+  "seed_carried": 48872669,
+  "model_seed": 48495000,
+  "front_end_load": 24000000,
+  "w_net_deposit": 576000000,
+  "pot_after": 624872669,
+  "identity": "48,872,669 + 576,000,000 = 624,872,669; management 40,800,000 -> 64,800,000 (+24,000,000 = 4 % of 0.6 SOL)"
+ },
+ "timing": {
+  "plan_open_unix": 1793924037,
+  "plan_open_utc": "2026-11-06T00:13:57Z",
+  "actual_open_unix": 1793926890,
+  "actual_open_utc": "2026-11-06T01:01:30Z",
+  "late_by_s": 2853,
+  "maturity_unix": 1796518890,
+  "maturity_utc": "2026-12-06T01:01:30Z",
+  "duration_s": 2592000,
+  "step32_plan_earliest_unix": 1796516097,
+  "step32_plan_earliest_utc": "2026-12-06T00:14:57Z",
+  "note": "the program enforces the actual maturity; the runner waits for it, so step 32 can run no earlier than 2026-12-06T01:01:30Z (2793 s after its plan earliest); step 37's window runs to the ACTUAL close 2 time + 600, i.e. the deadline itself (inclusive), as before"
+ },
+ "post_state": {
+  "status": "21/39, all_ok True, foreign 0, failed-check receipts 0, missed refusal evidence 0, winner P5, conservation True, next p1_open_compound15 (NOT run: outside this authorization)",
+  "pending": "1,461/1,461 write-ahead resolved, 0 held",
+  "receipts": "21 lines (first 20 byte-identical)",
+  "balances_finalized_after": {
+   "W": 26357720,
+   "K": 49890000,
+   "S": 468773280
+  }
+ },
+ "spend_reconciliation": "W 630,000,000 -> 26,357,720 = -(600,000,000 deposit into the game vault + 3,637,280 rent for three new program accounts + 5,000 fee); Ops -2,326,640 for the round 2 participant page (free balance 477,200,680 -> 474,874,040); game vault spendable 111,138,224 -> 711,138,224 (+600,000,000); all internal except the 5,000 fee; no faucet intake"
+}

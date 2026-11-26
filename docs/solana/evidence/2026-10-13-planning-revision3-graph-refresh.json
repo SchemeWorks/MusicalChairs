@@ -1,0 +1,140 @@
+{
+ "recorded_at_utc": "2026-10-14T06:37:11.426824+00:00",
+ "original_whole_graph_baseline": "18b7811e2334bdbe8a207b221f4e860302891504",
+ "previous_scoped_receipts": [
+  "docs/solana/evidence/2026-10-13-planning-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-codex-plan-review-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision-graph-refresh.json",
+  "docs/solana/evidence/2026-10-13-planning-revision2-graph-refresh.json"
+ ],
+ "pass_baseline": "c99a636b9f040c9bf0d18d3698328d9bbd33b7b2",
+ "reviewed_planning_commit": "5c23b1d2ce48a4873b6b6f28c76fba338a4b7a5b",
+ "planning_branch": "codex/native-solana-plan-20261013",
+ "scope": {
+  "source_sha256": {
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md": "1fc3626542b6db5be04abb5c0bf2f8f773c120b464cf54939c2626bf443ae018",
+   "docs/coordination/native-solana-decision-register-20261013.md": "e354a2b8578a1b446e5ee5ad79c464b61fedb55ca6141b79e92175be721f42ef",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md": "068e9fd75c6d2518d030fd793cd8ea6234a926d796e3952d56883d915838d520",
+   "docs/coordination/native-solana-state-inventory-20261013.md": "3543a0224bb5d40cc358d329385a2d5eb29da82f53a89ba12ba6cf7faf36c3b6",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md": "fa8d473721d78c7536c0fbfcb6ecd5b9ca8cfe14d7ae9ae473a01ebb8e7d7af1",
+   "docs/coordination/native-solana-codex-plan-final-corrections-20261013.md": "5f5b777430357faf68ab599b3242e2be1dc2f6e0680cded602d0b0500fb97c06"
+  },
+  "fresh_semantic_files": [
+   "docs/superpowers/specs/2026-10-13-native-solana-reconciled-spec.md",
+   "docs/coordination/native-solana-decision-register-20261013.md",
+   "docs/superpowers/plans/2026-10-13-native-solana-implementation.md",
+   "docs/coordination/native-solana-state-inventory-20261013.md",
+   "docs/coordination/native-solana-codex-review-packet-20261013.md",
+   "docs/coordination/native-solana-codex-plan-final-corrections-20261013.md"
+  ],
+  "fresh_ast_files": [],
+  "content_unchanged_review_artifacts": [
+   "docs/coordination/native-solana-codex-plan-final-corrections-20261013.md",
+   "docs/coordination/native-solana-codex-plan-review-round2-20261013.md",
+   "docs/coordination/native-solana-codex-plan-review-20261013.md"
+  ],
+  "full_repository_freshness": false,
+  "motoko_coverage": "historical, not reextracted"
+ },
+ "before": {
+  "nodes": 8018,
+  "edges": 11294,
+  "hyperedges": 33
+ },
+ "added": {
+  "nodes": 26,
+  "edges": 66,
+  "hyperedges": 2
+ },
+ "after": {
+  "nodes": 8044,
+  "edges": 11360,
+  "hyperedges": 35
+ },
+ "fragment": {
+  "path": "docs/solana/evidence/2026-10-13-planning-revision3-graph-fragment.json",
+  "sha256": "f0cefe6ec7897922bc8c65ab7dc00add638c4e116e6a3d37b8e032b6321a5f7b",
+  "nodes": 26,
+  "edges": 66,
+  "hyperedges": 2
+ },
+ "community": 799,
+ "attribute_updates": {
+  "count": 6,
+  "ids": [
+   "plan2026_10_13c_ix_record_provider_return",
+   "plan2026_10_13c_conservation_transitions_table",
+   "plan2026_10_13b_dr_32_provider_attribution",
+   "plan2026_10_13c_dr_33_provider_budget_and_reconcile",
+   "plan2026_10_13c_dr_34_two_phase_pp",
+   "plan2026_10_13_dr_14_refund_timing"
+  ]
+ },
+ "checks": {
+  "all_prior_8018_node_ids_retained": true,
+  "all_prior_11294_raw_edge_identities_retained": true,
+  "all_prior_33_hyperedges_retained": true,
+  "no_dangling_edges": true,
+  "no_duplicate_node_ids": true,
+  "prior_codex_review_nodes_status_unchanged": true,
+  "corrections_doc_pin_unchanged": true,
+  "round1_round2_review_pins_unchanged": true,
+  "superseded_nodes_marked_historical": true,
+  "manifest_only_scoped_hashes_updated": true,
+  "semantic_cache_files": 5
+ },
+ "anchors_out_of_range": [],
+ "query_checks": {
+  "exact_ids": {
+   "f1": {
+    "id": "plan2026_10_13d_resolution_f1_authenticated_provider_returns",
+    "present": true,
+    "explain_sha256": "210128b62d277263a13b87d3806f68e8dc61cb6e917bc93a490c22b8915f571f",
+    "explain_bytes": 2004
+   },
+   "f2": {
+    "id": "plan2026_10_13d_resolution_f2_close_counter_capture",
+    "present": true,
+    "explain_sha256": "b5b9b9867233c370ced0e69b8df37224cdbe007ba28ddd5074e6417e133c90d1",
+    "explain_bytes": 926
+   },
+   "f3": {
+    "id": "plan2026_10_13d_resolution_f3_rpc_verifier_and_schemas",
+    "present": true,
+    "explain_sha256": "7c57ea6e5abde7d12f5a5ba675df46ea4ea1f3d65c8f0e967b05d4676a1bd7a9",
+    "explain_bytes": 1131
+   },
+   "f4": {
+    "id": "plan2026_10_13d_resolution_f4_pp_recovery_receipts",
+    "present": true,
+    "explain_sha256": "ed5214170a80a66fb931cec80f43467198bc10e3b83403222f0f0d3aac45d9cc",
+    "explain_bytes": 1087
+   },
+   "f5": {
+    "id": "plan2026_10_13d_resolution_f5_names_and_decisions",
+    "present": true,
+    "explain_sha256": "548e35c366222e10c482e323e9ad665fb371780c733a92d39a60296dd6e0471f",
+    "explain_bytes": 681
+   },
+   "corrections": {
+    "id": "codex20261013_plan_final_corrections_document",
+    "present": true,
+    "explain_sha256": "f1d236caee6241e35b61f447a1fae7e25ab796f4f2885fa3f504854315ab1e03",
+    "explain_bytes": 1000
+   },
+   "withdraw": {
+    "id": "plan2026_10_13d_ix_withdraw_provider_return",
+    "present": true,
+    "explain_sha256": "0e9760bac0eb2d14d3f474430609466828e7a0a2681341be8931137a6e5ebfa7",
+    "explain_bytes": 921
+   }
+  },
+  "note": "exact_ids proves presence and explain output; no financial or runtime proof"
+ },
+ "limits": [
+  "Navigation evidence only; no financial, authority, build or runtime proof.",
+  "All handlers remain unimplemented; resolutions are specification/plan text.",
+  "Community 799 is a fresh bucket; report/clustering not regenerated.",
+  "All three Codex review artifacts are content- and pin-unchanged; only new nodes/edges and resolution attributes were added."
+ ]
+}

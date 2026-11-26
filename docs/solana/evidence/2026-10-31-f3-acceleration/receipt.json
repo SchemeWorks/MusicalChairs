@@ -1,0 +1,124 @@
+{
+ "schema": 1,
+ "card": "M14-A7-ACCEL",
+ "commit": "5b32a02",
+ "plan_revision": "2026-10-31 F3 at 4.0 d",
+ "proof_level": "LOCAL model + LiteSVM rehearsal on the production SBF ELF 0c88d4e7... with the devnet ORAO binary; NOT devnet proof. Devnet evidence so far is read-only (status + a dry run that builds without signing or simulating).",
+ "commands": {
+  "pure": "cargo +1.92.0 test --locked --test m14_flow_plan -- --nocapture",
+  "tool_plain": "cargo +1.92.0 test --locked --test m14_flow_tool -- --test-threads=1 --nocapture",
+  "tool_whole_flow": "MC_ORAO_PROFILE=devnet cargo +1.92.0 test --locked --test m14_flow_tool -- --ignored --test-threads=1 --nocapture",
+  "plan_rehearsal": "MC_ORAO_PROFILE=devnet MC_M14_FLOW_REPORT=<file> cargo +1.92.0 test --locked --test m14_flow_plan -- --ignored --nocapture",
+  "env": "CARGO_HOME=~/.cache/mc-solana-tools/cargo-home CARGO_TARGET_DIR=~/.cache/mc-solana-tools/harness-target (reused cached target; free space checked before each build, 2.6-2.8 GiB; nothing deleted)"
+ },
+ "results": {
+  "m14_flow_plan_pure": [
+   "test m14_flow_plan_executes_on_the_devnet_binaries ... ignored, needs MC_ORAO_PROFILE=devnet (see the file docs)",
+   "test plan_is_ordered_within_the_packet_buckets_and_covers_every_flow ... ok",
+   "test plan_solvency_arithmetic_holds_against_the_host_oracles ... ok",
+   "smallest viable F3 elapsed 325118 s (3.763 d); the window opens at 342000 s (3.958 d) and closes (exclusive) at 604200 s (6.993 d)",
+   "F3 elapsed  a1_remaining_after_r1   seed_carried   r2_pot_at_c15   r2_pot_at_c30",
+   "    325118               14091727       47908278      1031108278       136395127",
+   "    342000               13608126       48391875      1031591875       136878724",
+   "    345600               13505000       48495000      1031695000       136981849",
+   "    604199                6097219       55902786      1039102786       144389635",
+   "test f3_window_keeps_every_later_check ... ok",
+   "test result: ok. 3 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.01s"
+  ],
+  "m14_flow_tool_plain": [
+   "test result: ok. 15 passed; 0 failed; 2 ignored; 0 measured; 0 filtered out; finished in 6.36s"
+  ],
+  "m14_flow_tool_whole_flow": [
+   "M14 F3 window: PASS - A1 opened 3700 s late; F3 refused at the plan's instant (elapsed 341900), accepted at 342000; all 39 steps passed their checks",
+   "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 8.45s"
+  ],
+  "m14_flow_plan_rehearsal": [
+   "a1_withdraw_simple: pot 1029200000 owed 440000000 -> solvent (margin 589200000 lamports); paid 440000000 toll 52800000 net 387200000",
+   "a1_closing_withdraw: pot 589200000 owed 599500000 -> INSOLVENT (pot-capped) (margin -10300000 lamports); paid 589200000 toll 44190000 net 545010000",
+   "w_finalize_reopen: model seed carried 48495000 vs chain 48495000 (match)",
+   "p1_settle_compound15: pot 1031695000 owed 894713151 -> solvent (margin 136981849 lamports); paid 894713151 toll 80524183 net 814188968",
+   "p1_settle_compound15: model pot 1031695000 vs chain pot 1031695000 (match)",
+   "advance_ticket_c15: A1 had 13505000 lamports of entitlement left, the ticket credited 39675358 -> capped",
+   "w_settle_compound30: pot 136981849 owed 7360607081 -> INSOLVENT (pot-capped) (margin -7223625232 lamports); paid 136981849 toll 17807640 net 119174209",
+   "w_settle_compound30: model pot 136981849 vs chain pot 136981849 (match)",
+   "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.76s"
+  ]
+ },
+ "timing_boundaries_utc": {
+  "genesis": {
+   "unix": 1792942295,
+   "utc": "2026-10-25T15:31:35Z"
+  },
+  "a1_opened_at": {
+   "unix": 1793115467,
+   "utc": "2026-10-27T15:37:47Z"
+  },
+  "step10_plan_earliest": {
+   "unix": 1793460935,
+   "utc": "2026-10-31T15:35:35Z"
+  },
+  "f3_window_opens": {
+   "unix": 1793457467,
+   "utc": "2026-10-31T14:37:47Z"
+  },
+  "f3_window_closes_exclusive": {
+   "unix": 1793719667,
+   "utc": "2026-11-03T15:27:47Z"
+  },
+  "twelve_percent_tier_ends": {
+   "unix": 1793720267,
+   "utc": "2026-11-03T15:37:47Z"
+  },
+  "step11_plan_earliest": {
+   "unix": 1793460965,
+   "utc": "2026-10-31T15:36:05Z"
+  },
+  "step12_plan_earliest": {
+   "unix": 1793461025,
+   "utc": "2026-10-31T15:37:05Z"
+  },
+  "close1_insolvency_threshold_on_chain": {
+   "unix": 1793923857,
+   "utc": "2026-11-06T00:10:57Z"
+  },
+  "step13_plan_earliest": {
+   "unix": 1793931815,
+   "utc": "2026-11-06T02:23:35Z"
+  },
+  "c15_plan_earliest_if_step22_on_time": {
+   "unix": 1795228115,
+   "utc": "2026-11-21T02:28:35Z"
+  },
+  "c30_plan_earliest_if_step21_on_time": {
+   "unix": 1796524055,
+   "utc": "2026-12-06T02:27:35Z"
+  }
+ },
+ "operator": {
+  "candidate_sha256": "13b25fb35e33c3ad2f4ecc87e7762edb7f8a914a28f4a233d59e31222e9cb2df",
+  "bytes": 22997376,
+  "source": "solana/ tree at 5b32a02",
+  "immutable_copy": "~/.cache/mc-solana-artifacts/devnet_ops/13b25fb3.../ (SHA256SUMS, PROVENANCE.txt; mode 555)",
+  "accepted_runner_preserved": "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5 (22,600,400 bytes; SHA256SUMS OK after the build)",
+  "build": "cargo +1.92.0 build --locked --bin devnet_ops (dev profile), same CARGO_HOME/CARGO_TARGET_DIR"
+ },
+ "resume_check": {
+  "runner": "13b25fb3...",
+  "read_only": true,
+  "status": "all_ok true, completed 9/39, plan M14-SIM Seq-B, plan_revision present, foreign receipts 0, next a1_withdraw_simple ready, f3_window inside true",
+  "step10_dry_run": "mode dry-run, all_ok true, conservation true, no signature, no simulation; preview at cluster 1793473745 (elapsed 358,278 s): paid 456,142,245, toll 54,737,069, net 401,405,176, pot before 1,029,200,000",
+  "pending_file_and_receipts_unchanged": true
+ },
+ "unchanged": [
+  "program/IDL/ELF (0c88d4e7...)",
+  "frozen packet ae8a6a0e... (byte-identical)",
+  "steps 1-9, their receipts (sha256 6385fc3d...) and genesis",
+  "every amount, wallet funding, cap and budget",
+  "every offset except steps 10-12",
+  "PLAN_NAME"
+ ],
+ "notes": [
+  "The rehearsal line 'the ticket credited 39675358' is ticket 3's TOTAL credit across rows (committed.credited: A1 13,505,000 + A2 9,058,970 + Winner A 9,058,970 + Winner B 8,052,418), not A1's own credit; A1's cap credit is 13,505,000 and its capped claim 35,600,000.",
+  "The arithmetic skew cases use close ages 132 s and 3,600 s SHORTER than nominal (A1 opened late), not later closes."
+ ]
+}

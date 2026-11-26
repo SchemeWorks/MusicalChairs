@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "canisters": {
+    "legacy_games_stub": {
+      "type": "motoko",
+      "main": "main.mo"
+    },
+    "latch_ledger": {
+      "type": "motoko",
+      "main": "latch_ledger.mo"
+    }
+  }
+}

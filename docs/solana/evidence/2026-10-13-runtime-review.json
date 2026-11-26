@@ -1,0 +1,71 @@
+{
+  "scope": "User-authorized local runtime primitives/provider probes; no production readiness/deployment claim",
+  "baseline": "830d57377e71aa4f15ad0c7fa86ff2d6b3ff4e0c",
+  "models_requested": [
+    "gpt-5.6-luna"
+  ],
+  "runtime_cases": {
+    "total": 88,
+    "success": 45,
+    "expected_failure": 43,
+    "unique_labels": 88
+  },
+  "verification": {
+    "actual_sbf_build": true,
+    "offline_snapshot_source_lock_artifact_provenance": true,
+    "locked_workspace_runtime_tests": true,
+    "locked_all_target_clippy_warnings_denied": true,
+    "formatting": true,
+    "deterministic_two_run_json_equality": true,
+    "runtime_ci_executed": false,
+    "live_transactions_or_deployment": false
+  },
+  "independent_reviews": [
+    {
+      "agent": "/root/runtime_contract",
+      "role": "source and bounded test-contract review",
+      "verdict": "PASS"
+    },
+    {
+      "agent": "/root/final_review_six",
+      "role": "source/artifact/evidence/measurement review",
+      "verdict": "PASS"
+    },
+    {
+      "agent": "/root/model_review",
+      "role": "graph preservation/source/confidence review",
+      "verdict": "PASS"
+    }
+  ],
+  "corrections": [
+    "Lazy error construction prevents default SBF heap exhaustion",
+    "Single-discriminator serialization, canonical bounds and exact fixed row size",
+    "Exact client ELF loader metadata and separate synthetic authority/treasury roles",
+    "Strict expected error classes, fee-only rollback, signer-result checking and compute-exhaustion diagnosis",
+    "Request substitution/deadline/malformed-idempotence and full late-provider state preservation",
+    "Public ProgramData snapshot slot transcription corrected from saved raw response",
+    "Capture measurement tied to exact saved case label",
+    "Portable graph IDs/paths, scoped baseline and explicit inferred macro-dispatch links"
+  ],
+  "source_sha256": {
+    "solana/probes/runtime/program/src/lib.rs": "bf174290cf560af1ca22f3a1d8bcec33c715512580baa61c274bd6cf083df96d",
+    "solana/probes/runtime/program/Cargo.lock": "8f2817a813a3790dd2c590bec14dbd43f36e31274ab82aabd1437d4191e31672",
+    "solana/probes/runtime/Cargo.lock": "f21f4268bbfab0e6e140e79ab9fc02198afc4260fb8efc95568a83fbc16baa95",
+    "solana/probes/runtime/harness/src/provider.rs": "968e6982f5387b4b2493e40c876db9c0af551e2c28c8bcf49eecccbe43e2b7ff",
+    "solana/probes/runtime/harness/src/runtime.rs": "6bef9662bb1477d0edf7b189aecc63b5448867a020ca1e00df33cc40ccf0278d",
+    "solana/probes/runtime/harness/src/permissions.rs": "8ffdf170fe9f54c3339428c3ae9606afb44571f5639f37ffd8c520586b0c0b31",
+    "solana/probes/runtime/harness/src/compute.rs": "86c67543dda7bb2d051b1dfe2a84d55dae65ddad0595f1841cead3774cadc9d6",
+    "solana/probes/runtime/fixtures/build-provenance.json": "193bdbe6f16298253c5132bf1bc8868f1d7365035056a6d0d71b1c5f2fe9e15d",
+    "solana/probes/runtime/fixtures/orao-provenance.json": "5827abb7a18fdeb806a4d60a3fbc95dbc5ddbaaa900b3e15098958351b97e2d3",
+    "docs/solana/evidence/2026-10-13-runtime-probes.json": "80ac81fcc22eaf8b1f323ef54c27f52733c38797400a1703925ff5a64e4bb07c",
+    "docs/solana/evidence/2026-10-13-runtime-graph-fragment.json": "c5f97fbed8d81a466f128cb66f1e2867a93a34def962ffdc983237a69d2a0d43",
+    "docs/solana/evidence/2026-10-13-runtime-graph-refresh.json": "d75828bfe6e4f4edb5ce56861b6e93f28f52938da3dea188525fd4281f6eb201"
+  },
+  "limits": [
+    "Local all-enabled LiteSVM feature/Rent profile; network parity and runtime-loaded-account count unproved",
+    "Representative arithmetic/row kernel; full allocation/custody/promotion/rollover and final cost envelope absent",
+    "Synthetic one-authority provider config; real quorum/service and callback variants unproved",
+    "No wallet UX, keeper service, broadcast/finality, deployment or live funds proof"
+  ],
+  "persona_lesson_proposal": "Bind every runtime measurement to its exact case label and source/lock/artifact/fixture hashes; distinguish synthetic provider authority from production quorum. Proposal only; no persona/catalog installed."
+}

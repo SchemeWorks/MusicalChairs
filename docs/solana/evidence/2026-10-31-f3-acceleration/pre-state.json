@@ -1,0 +1,98 @@
+{
+ "schema": 1,
+ "what": "read-only pre-state for the 2026-10-31 F3 acceleration (M14-A7-ACCEL); no transaction built, simulated or sent",
+ "runner": {
+  "sha256": "d3c6696632d4a6319d99a4d02a441eec2b60854d1bc00c51c4ea18b2cd19cfd5",
+  "bytes": 22600400,
+  "command": "devnet_ops flow status (read-only) with the standard devnet flags and the packet pin"
+ },
+ "packet": {
+  "sha256": "ae8a6a0e5e5dbbd3545dff85ed7c32c24c34bf67235165d7f8b2048c7816392f",
+  "commit": "aeab47059477f977294cdcf084998933460a896f",
+  "working_file_equal": true
+ },
+ "cluster": {
+  "commitment": "Confirmed",
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "rpc": "https://api.devnet.solana.com",
+  "slot": 517230799,
+  "target": "devnet"
+ },
+ "cluster_unix": 1793472777,
+ "genesis": {
+  "genesis_unix": 1792942295,
+  "genesis_utc": "2026-10-25T15:31:35Z",
+  "initialize_unix": 1793115095,
+  "source": "ConfigVersion#1.activated_at minus the 172,800 s governance delay"
+ },
+ "stamp": {
+  "configversion1_activated_at": 1793115095,
+  "genesis_hash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "program_id": "7aSvuR19bh9WBHoPC5ceLNvP6txxFkowTJ2FSi9fnf3o"
+ },
+ "completed": 9,
+ "total": 39,
+ "next": {
+  "actor": "A1",
+  "earliest_unix": 1793711495,
+  "earliest_utc": "2026-11-03T13:11:35Z",
+  "expect": "PayoutPaid, solvent: owed 0.759 of pot 1.0292, toll 12 % = 0.09108, net 0.66792; the toll rides ticket 1",
+  "id": "a1_withdraw_simple",
+  "index": 10,
+  "ready": false,
+  "seconds_until_earliest": 238718
+ },
+ "conservation": {
+  "game_vault": {
+   "lamports": 1070695960,
+   "ok": true,
+   "pot_seed_management_pending_toll_funded_claims_excess": "1070000000",
+   "rent": 695960,
+   "spendable": 1070000000
+  },
+  "ok": true,
+  "ops_cash": {
+   "free_locked_unallocated": "488067080",
+   "lamports": 488717320,
+   "ok": true,
+   "rent": 650240,
+   "spendable": 488067080
+  },
+  "partitions": {
+   "ok": true,
+   "ops_locked_remaining_total": 0,
+   "sum_of_close_records": 0
+  }
+ },
+ "receipts": {
+  "file_sha256": "6385fc3d993534806dbc29b2595d0a622fec2ff2db11a48dcdabeaa25a91fd87",
+  "count": 9,
+  "steps": [
+   "fund_operations",
+   "provision_registry_0",
+   "provision_snapshot_0",
+   "provision_participants_r1_0",
+   "provision_close_record_1",
+   "a1_fund_series_a",
+   "a1_open_simple",
+   "p4_open_simple",
+   "p5_open_simple"
+  ],
+  "results": [
+   "done"
+  ]
+ },
+ "write_ahead": {
+  "write_ahead": 1439,
+  "resolved": 1439,
+  "open": 0
+ },
+ "a1_position_from_step7_receipt": {
+  "opened_at": 1793115467,
+  "principal": 1000000000,
+  "maturity_at": 1794929867,
+  "plan_O1_unix": 1793115335,
+  "late_open_seconds": 132
+ },
+ "elapsed_since_a1_open_at_read": 357310
+}
